@@ -1,17 +1,21 @@
-# Security Policy
+# C Code Security Policy
 
 ## Supported Versions
 
-We actively patch only the most recent minor release of Roo Code. Older versions receive fixes at our discretion.
+C Code is Cmizz's personal fork of Roo Code. Security fixes are handled on a best-effort basis for the current fork state.
 
 ## Reporting a Vulnerability
 
-Email security@roocode.com with:
+Please report vulnerabilities through the C Code fork on GitHub:
+
+- https://github.com/PIP-POP/C-Code/issues
+
+Include:
 
 - A short summary of the issue
 - Steps to reproduce or a proof of concept
 - Any logs, stack traces, or screenshots that might help us understand the problem
 
-We acknowledge reports within 48 hours and aim to release a fix or mitigation within 30 days. While we work on a resolution, please keep the details private.
+I will review reports as quickly as possible. While a resolution is being prepared, please avoid publicly sharing exploit details.
 
-Thank you for helping us keep Roo Code users safe.
+Thank you for helping keep C Code and Roo Code-derived users safe.
