@@ -1,81 +1,91 @@
 # C Code
 
-> Cmizz's personal fork of Roo Code — an AI-powered dev team, right in your editor.
+> Cmizz's personal fork of Roo Code — an AI-powered coding assistant for VS Code, shaped for my own workflow.
 
-C Code is my personal VS Code extension fork of [Roo Code](https://github.com/RooCodeInc/Roo-Code). The goal is to keep the parts of Roo Code I rely on, make the wording and identity feel more personal to my workflow, and keep the original project clearly credited.
+C Code is my personal fork of the original [Roo Code](https://github.com/RooCodeInc/Roo-Code) extension. It keeps the core idea I liked from Roo Code — an agentic AI dev workflow inside VS Code — while giving the project its own name, wording, GitHub home, and direction.
 
-<details>
-  <summary>🌐 Available languages</summary>
-
-- [English](README.md)
-- [Català](locales/ca/README.md)
-- [Deutsch](locales/de/README.md)
-- [Español](locales/es/README.md)
-- [Français](locales/fr/README.md)
-- [हिंदी](locales/hi/README.md)
-- [Bahasa Indonesia](locales/id/README.md)
-- [Italiano](locales/it/README.md)
-- [日本語](locales/ja/README.md)
-- [한국어](locales/ko/README.md)
-- [Nederlands](locales/nl/README.md)
-- [Polski](locales/pl/README.md)
-- [Português (BR)](locales/pt-BR/README.md)
-- [Русский](locales/ru/README.md)
-- [Türkçe](locales/tr/README.md)
-- [Tiếng Việt](locales/vi/README.md)
-- [简体中文](locales/zh-CN/README.md)
-- [繁體中文](locales/zh-TW/README.md)
-- ...
-      </details>
+This fork exists so I can keep using, learning from, and adapting the Roo Code experience after the original project was sunset, while still keeping clear respect and attribution for the team and community that built it.
 
 ---
 
-## What Can C Code Do For YOU?
+## Why this fork exists
 
-- Generate Code from natural language descriptions and specs
-- Adapt with Modes: Code, Architect, Ask, Debug, and Custom Modes
-- Refactor & Debug existing code
-- Write & Update documentation
-- Answer Questions about your codebase
-- Automate repetitive tasks
-- Utilize MCP Servers
+Roo Code was shut down on May 15th. Roo Code, Inc. stated that the extension should continue to work indefinitely, but that it would no longer receive bug fixes, new features, or model updates from the original team.
+
+C Code is my way of keeping that work alive for my own setup. It is not intended to erase where the project came from. Roo Code deserves full credit for the foundation this fork is built on.
+
+---
+
+## What C Code does
+
+C Code brings an AI coding assistant into VS Code that can help with:
+
+- Writing and editing code from natural language instructions
+- Refactoring existing files
+- Debugging and explaining problems
+- Reading project context
+- Updating documentation
+- Automating repetitive development tasks
+- Working through multi-step coding workflows
+- Using different modes for different kinds of work
+
+---
 
 ## Modes
 
-C Code keeps Roo Code's mode-based workflow and adapts to how you work:
+C Code keeps the mode-based workflow from Roo Code and adapts it for day-to-day development:
 
-- Code Mode: everyday coding, edits, and file ops
-- Architect Mode: plan systems, specs, and migrations
-- Ask Mode: fast answers, explanations, and docs
-- Debug Mode: trace issues, add logs, isolate root causes
-- Custom Modes: build specialized modes for your team or workflow
-
-Learn more from the original Roo Code documentation: [Using Modes](https://roocodeinc.github.io/Roo-Code/basic-usage/using-modes) • [Custom Modes](https://roocodeinc.github.io/Roo-Code/advanced-usage/custom-modes)
-
-## Resources
-
-- **[C Code Fork](https://github.com/PIP-POP/C-Code):** Cmizz's personal fork and development home.
-- **[Original Roo Code Repository](https://github.com/RooCodeInc/Roo-Code):** Original upstream project and source history.
-- **[Original Roo Code Documentation](https://roocodeinc.github.io/Roo-Code/):** The original guide to installing, configuring, and mastering Roo Code.
-
-## Attribution
-
-C Code is based on Roo Code and remains licensed under Apache 2.0. Huge respect and thanks go to Roo Code, Inc., the Roo Code maintainers, contributors, and the wider community for building the original extension this fork starts from.
-
-This fork is not affiliated with, endorsed by, or maintained by Roo Code, Inc. It keeps attribution to the original project while allowing me to adapt branding, wording, settings, and future changes for my own use.
+- **Code Mode** — make edits, write code, and work directly with files
+- **Architect Mode** — plan features, designs, migrations, and larger changes
+- **Ask Mode** — explain code, answer questions, and inspect the project
+- **Debug Mode** — investigate errors, trace issues, and find root causes
+- **Custom Modes** — create specialized workflows for different tasks
 
 ---
 
-## Original Roo Code shutdown context
+## Project status
 
-The original Roo Code extension was shut down on May 15th. Roo Code, Inc. stated that the extension should continue to work indefinitely, but that it would no longer receive bug fixes, new features, or model updates from the original team.
+This is a personal fork maintained by Cmizz.
 
-- If you're looking for alternatives, check out [ZooCode](https://github.com/Zoo-Code-Org/Zoo-Code/) (a fork started by the Roo Code community) and [Cline](https://cline.bot/) (from where Roo Code originated).
-- If you were a paying user and have billing questions, please write [billing@roocode.com](mailto:billing@roocode.com).
+The goal is to keep the extension useful, personal, and understandable while preserving the original Roo Code foundation. Changes in this fork may include:
 
-**Please note** that Roo Code, Inc does **not** make any representations or warranties regarding any code, models, or other tools provided or made available in connection with Roo Code, any associated third-party tools, or any resulting outputs. You assume **all risks** associated with the use of any such tools or outputs; such tools are provided on an **"AS IS"** and **"AS AVAILABLE"** basis. Such risks may include, without limitation, intellectual property infringement, cyber vulnerabilities or attacks, bias, inaccuracies, errors, defects, viruses, downtime, property loss or damage, and/or personal injury. You are solely responsible for your use of any such tools or outputs (including, without limitation, the legality, appropriateness, and results thereof).
+- Personal branding and wording
+- Fork-specific documentation
+- Updated repository links
+- Adjusted provider headers and extension metadata
+- Future fixes or experiments that fit my own workflow
 
-The same practical caution applies to C Code: review AI-generated changes, keep control of command execution, and understand what context you send to model providers.
+This fork is experimental and provided as-is.
+
+---
+
+## GitHub repository
+
+Main fork repository:
+
+- [Cmizz24/C-Code](https://github.com/Cmizz24/C-Code)
+
+Original upstream project:
+
+- [RooCodeInc/Roo-Code](https://github.com/RooCodeInc/Roo-Code)
+
+---
+
+## Attribution
+
+C Code is based on Roo Code and remains licensed under Apache 2.0.
+
+Huge respect and thanks go to Roo Code, Inc., the Roo Code maintainers, contributors, and the wider community for building the original extension. This fork starts from their work and keeps that history visible.
+
+This project is not affiliated with, endorsed by, or maintained by Roo Code, Inc. It is an independent personal fork.
+
+---
+
+## Safety note
+
+AI coding tools can make mistakes. Always review generated code, understand commands before running them, and be careful with secrets, private files, and provider API keys.
+
+C Code is provided on an **as-is** basis. You are responsible for how you use it and for reviewing any code or commands it suggests.
 
 ---
 
