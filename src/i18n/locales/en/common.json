@@ -189,7 +189,7 @@
 		"enter_valid_path": "Please enter a valid path"
 	},
 	"input": {
-		"task_prompt": "What should Roo do?",
+		"task_prompt": "What should C Code do?",
 		"task_placeholder": "Type your task here"
 	},
 	"customModes": {
@@ -224,6 +224,6 @@
 	},
 	"docsLink": {
 		"label": "Docs",
-		"url": "https://github.com/RooCodeInc/Roo-Code"
+		"url": "https://github.com/Cmizz24/C-Code"
 	}
 }

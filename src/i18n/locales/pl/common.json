@@ -1,6 +1,6 @@
 {
 	"extension": {
-		"name": "Roo Code",
+		"name": "C Code",
 		"description": "Cały zespół programistów AI w Twoim edytorze."
 	},
 	"number_format": {
@@ -189,7 +189,7 @@
 		"enter_valid_path": "Wprowadź prawidłową ścieżkę"
 	},
 	"input": {
-		"task_prompt": "Co ma zrobić Roo?",
+		"task_prompt": "Co ma zrobić C Code?",
 		"task_placeholder": "Wpisz swoje zadanie tutaj"
 	},
 	"settings": {
@@ -227,6 +227,6 @@
 	},
 	"docsLink": {
 		"label": "Docs",
-		"url": "https://github.com/RooCodeInc/Roo-Code"
+		"url": "https://github.com/Cmizz24/C-Code"
 	}
 }

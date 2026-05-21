@@ -74,7 +74,7 @@ export class OpenRouterEmbedder implements IEmbedder {
 				baseURL: this.baseUrl,
 				apiKey: apiKey,
 				defaultHeaders: {
-					"HTTP-Referer": "https://github.com/PIP-POP/C-Code",
+					"HTTP-Referer": "https://github.com/Cmizz24/C-Code",
 					"X-Title": "C Code",
 				},
 			})

@@ -1,6 +1,6 @@
 {
 	"extension": {
-		"name": "Roo Code",
+		"name": "C Code",
 		"description": "Toàn bộ đội ngũ phát triển AI trong trình soạn thảo của bạn."
 	},
 	"number_format": {
@@ -189,7 +189,7 @@
 		"enter_valid_path": "Vui lòng nhập đường dẫn hợp lệ"
 	},
 	"input": {
-		"task_prompt": "Bạn muốn Roo làm gì?",
+		"task_prompt": "Bạn muốn C Code làm gì?",
 		"task_placeholder": "Nhập nhiệm vụ của bạn ở đây"
 	},
 	"settings": {
@@ -234,6 +234,6 @@
 	},
 	"docsLink": {
 		"label": "Docs",
-		"url": "https://github.com/RooCodeInc/Roo-Code"
+		"url": "https://github.com/Cmizz24/C-Code"
 	}
 }

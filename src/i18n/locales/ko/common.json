@@ -1,6 +1,6 @@
 {
 	"extension": {
-		"name": "Roo Code",
+		"name": "C Code",
 		"description": "에디터 내에서 동작하는 AI 개발팀 전체입니다."
 	},
 	"number_format": {
@@ -189,7 +189,7 @@
 		"enter_valid_path": "유효한 경로를 입력하세요"
 	},
 	"input": {
-		"task_prompt": "Roo에게 무엇을 시킬까요?",
+		"task_prompt": "C Code에게 무엇을 시킬까요?",
 		"task_placeholder": "여기에 작업을 입력하세요"
 	},
 	"settings": {
@@ -227,6 +227,6 @@
 	},
 	"docsLink": {
 		"label": "Docs",
-		"url": "https://github.com/RooCodeInc/Roo-Code"
+		"url": "https://github.com/Cmizz24/C-Code"
 	}
 }

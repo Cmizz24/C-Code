@@ -1,6 +1,6 @@
 {
 	"extension": {
-		"name": "Roo Code",
+		"name": "C Code",
 		"description": "您編輯器中的完整 AI 開發團隊。"
 	},
 	"number_format": {
@@ -189,7 +189,7 @@
 		"enter_valid_path": "請輸入有效的路徑"
 	},
 	"input": {
-		"task_prompt": "讓 Roo 做什麼？",
+		"task_prompt": "讓 C Code 做什麼？",
 		"task_placeholder": "在這裡輸入工作"
 	},
 	"settings": {
@@ -227,6 +227,6 @@
 	},
 	"docsLink": {
 		"label": "Docs",
-		"url": "https://github.com/RooCodeInc/Roo-Code"
+		"url": "https://github.com/Cmizz24/C-Code"
 	}
 }

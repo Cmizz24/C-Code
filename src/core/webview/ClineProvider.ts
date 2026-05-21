@@ -149,7 +149,7 @@ export class ClineProvider
 
 	public isViewLaunched = false
 	public settingsImportedAt?: number
-	public readonly latestAnnouncementId = "may-2026-final-roo-code-release" // Final Roo Code release announcement.
+	public readonly latestAnnouncementId = "may-2026-c-code-fork-update" // C Code fork update announcement.
 	public readonly providerSettingsManager: ProviderSettingsManager
 	public readonly customModesManager: CustomModesManager
 

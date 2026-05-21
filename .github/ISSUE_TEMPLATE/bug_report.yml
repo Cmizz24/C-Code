@@ -3,11 +3,11 @@ description: Report a broken behavior in plain language with a minimal reproduct
 labels: ["bug"]
 title: "[BUG] "
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Thank you for your report! Please search existing issues first:
-        https://github.com/RooCodeInc/Roo-Code/issues
+	- type: markdown
+	  attributes:
+	    value: |
+	      Thank you for your report! Please search existing issues first:
+	      https://github.com/Cmizz24/C-Code/issues
 
   - type: textarea
     id: problem
@@ -62,13 +62,13 @@ body:
       description: Different browsers, devices, providers, or settings you tried.
       placeholder: e.g., "Tried Chrome/Firefox, disabling dark theme, switching providers."
 
-  - type: input
-    id: version
-    attributes:
-      label: App Version
-      description: What version of Roo Code are you using? (e.g., v3.3.1)
-    validations:
-      required: true
+	- type: input
+	  id: version
+	  attributes:
+	    label: App Version
+	    description: What version of C Code are you using? (e.g., v3.3.1)
+	  validations:
+	    required: true
 
   - type: dropdown
     id: provider
@@ -104,12 +104,12 @@ body:
       label: Model Used (optional)
       description: Exact model name (e.g., Claude 3.7 Sonnet). Use N/A if irrelevant.
 
-  - type: textarea
-    id: roo-code-tasks
-    attributes:
-      label: Roo Code Task Links (optional)
-      description: If you have any publicly shared Roo Code task links that demonstrate the issue, paste them here.
-      placeholder: Paste your Roo Code share links here, one per line
+	- type: textarea
+	  id: roo-code-tasks
+	  attributes:
+	    label: C Code Task Links (optional)
+	    description: If you have any publicly shared C Code task links that demonstrate the issue, paste them here.
+	    placeholder: Paste your C Code share links here, one per line
 
   - type: textarea
     id: logs

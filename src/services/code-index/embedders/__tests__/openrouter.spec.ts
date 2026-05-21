@@ -80,7 +80,7 @@ describe("OpenRouterEmbedder", () => {
 				baseURL: "https://openrouter.ai/api/v1",
 				apiKey: mockApiKey,
 				defaultHeaders: {
-					"HTTP-Referer": "https://github.com/PIP-POP/C-Code",
+					"HTTP-Referer": "https://github.com/Cmizz24/C-Code",
 					"X-Title": "C Code",
 				},
 			})

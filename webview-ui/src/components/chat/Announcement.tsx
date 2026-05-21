@@ -43,10 +43,7 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 						<Trans
 							i18nKey="chat:announcement.finalRelease.intro"
 							components={{
-								announcementLink: (
-									<ExternalLink href="https://x.com/mattrubens/status/2046636598859559114" />
-								),
-								roomoteLink: <ExternalLink href="https://roomote.dev/" />,
+								repoLink: <ExternalLink href="https://github.com/Cmizz24/C-Code" />,
 							}}
 						/>
 					</p>
@@ -55,8 +52,7 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 						<Trans
 							i18nKey="chat:announcement.finalRelease.alternatives"
 							components={{
-								zooCodeLink: <ExternalLink href="https://github.com/Zoo-Code-Org/Zoo-Code/" />,
-								clineLink: <ExternalLink href="https://cline.bot/" />,
+								repoLink: <ExternalLink href="https://github.com/Cmizz24/C-Code" />,
 							}}
 						/>
 					</p>

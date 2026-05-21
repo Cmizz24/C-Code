@@ -111,7 +111,7 @@ describe("OpenAiHandler", () => {
 				baseURL: expect.any(String),
 				apiKey: expect.any(String),
 				defaultHeaders: {
-					"HTTP-Referer": "https://github.com/PIP-POP/C-Code",
+					"HTTP-Referer": "https://github.com/Cmizz24/C-Code",
 					"X-Title": "C Code",
 					"User-Agent": `CCode/${Package.version}`,
 				},

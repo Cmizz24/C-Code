@@ -1,6 +1,6 @@
 {
 	"extension": {
-		"name": "Roo Code",
+		"name": "C Code",
 		"description": "エディター内のAIデベロッパーチーム全体。"
 	},
 	"number_format": {
@@ -189,7 +189,7 @@
 		"enter_valid_path": "有効なパスを入力してください"
 	},
 	"input": {
-		"task_prompt": "Rooにどんなことをさせますか？",
+		"task_prompt": "C Code にどんなことをさせますか？",
 		"task_placeholder": "タスクをここに入力してください"
 	},
 	"settings": {
@@ -227,6 +227,6 @@
 	},
 	"docsLink": {
 		"label": "Docs",
-		"url": "https://github.com/RooCodeInc/Roo-Code"
+		"url": "https://github.com/Cmizz24/C-Code"
 	}
 }

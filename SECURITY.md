@@ -8,7 +8,7 @@ C Code is Cmizz's personal fork of Roo Code. Security fixes are handled on a bes
 
 Please report vulnerabilities through the C Code fork on GitHub:
 
-- https://github.com/PIP-POP/C-Code/issues
+- https://github.com/Cmizz24/C-Code/issues
 
 Include:
 

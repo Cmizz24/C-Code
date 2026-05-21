@@ -29,13 +29,9 @@ vi.mock("react-i18next", () => ({
 		if (i18nKey === "chat:announcement.finalRelease.intro") {
 			return (
 				<span>
-					This is the last C Code release.{" "}
-					{components?.announcementLink &&
-						React.cloneElement(components.announcementLink, {}, "As we announced a few weeks ago")}
-					, we{"'"}ve decided to shift our focus to{" "}
-					{components?.roomoteLink && React.cloneElement(components.roomoteLink, {}, "Cmote")}, our cloud
-					agent platform, which we believe to be the future of software development. Thank you so much for
-					your support throughout the past year or so.
+					C Code is continuing as Cmizz{"'"}s personal fork of Roo Code. Follow Cmizz{"'"}s repository for the
+					latest fork updates, fixes, and development notes:{" "}
+					{components?.repoLink && React.cloneElement(components.repoLink, {}, "Cmizz24/C-Code")}.
 				</span>
 			)
 		}
@@ -43,10 +39,8 @@ vi.mock("react-i18next", () => ({
 		if (i18nKey === "chat:announcement.finalRelease.alternatives") {
 			return (
 				<span>
-					If you want to use an extension, we recommend checking out{" "}
-					{components?.zooCodeLink && React.cloneElement(components.zooCodeLink, {}, "ZooCode")} and{" "}
-					{components?.clineLink && React.cloneElement(components.clineLink, {}, "Cline")} (where C Code
-					originally started).
+					For the current work, bug reports, and new changes, use the{" "}
+					{components?.repoLink && React.cloneElement(components.repoLink, {}, "C Code GitHub repository")}.
 				</span>
 			)
 		}
@@ -59,9 +53,9 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string, options?: { version?: string }) => {
 			const translations: Record<string, string> = {
-				"chat:announcement.finalRelease.title": "The last C Code release",
+				"chat:announcement.finalRelease.title": "C Code 3.53.0 update",
 				"chat:announcement.finalRelease.continuity":
-					"This extension should continue to work indefinitely, but it won't receive bug fixes, new features, or model updates.",
+					"This extension will keep receiving C Code personalization updates while preserving respectful attribution to the original Roo Code project.",
 				"chat:announcement.finalRelease.signoff": "Happy coding!",
 			}
 
@@ -75,14 +69,14 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 }))
 
 describe("Announcement", () => {
-	it("renders the final release announcement", () => {
+	it("renders the C Code fork update announcement", () => {
 		render(<Announcement hideAnnouncement={vi.fn()} />)
 
-		expect(screen.getByText("The last C Code release")).toBeInTheDocument()
-		expect(screen.getByText(/This is the last C Code release/)).toBeInTheDocument()
+		expect(screen.getByText("C Code 3.53.0 update")).toBeInTheDocument()
+		expect(screen.getByText(/C Code is continuing as Cmizz's personal fork of Roo Code/)).toBeInTheDocument()
 		expect(
 			screen.getByText(
-				"This extension should continue to work indefinitely, but it won't receive bug fixes, new features, or model updates.",
+				"This extension will keep receiving C Code personalization updates while preserving respectful attribution to the original Roo Code project.",
 			),
 		).toBeInTheDocument()
 		expect(screen.getByText("Happy coding!")).toBeInTheDocument()
@@ -91,22 +85,23 @@ describe("Announcement", () => {
 	it("renders the external links", () => {
 		render(<Announcement hideAnnouncement={vi.fn()} />)
 
-		expect(screen.getByRole("link", { name: "As we announced a few weeks ago" })).toHaveAttribute(
+		expect(screen.getByRole("link", { name: "Cmizz24/C-Code" })).toHaveAttribute(
 			"href",
-			"https://x.com/mattrubens/status/2046636598859559114",
+			"https://github.com/Cmizz24/C-Code",
 		)
-		expect(screen.getByRole("link", { name: "ZooCode" })).toHaveAttribute(
+		expect(screen.getByRole("link", { name: "C Code GitHub repository" })).toHaveAttribute(
 			"href",
-			"https://github.com/Zoo-Code-Org/Zoo-Code/",
+			"https://github.com/Cmizz24/C-Code",
 		)
-		expect(screen.getByRole("link", { name: "Cline" })).toHaveAttribute("href", "https://cline.bot/")
 	})
 
-	it("does not render corporate handoff links", () => {
+	it("does not render corporate handoff or alternative fork links", () => {
 		render(<Announcement hideAnnouncement={vi.fn()} />)
 
 		expect(screen.queryByRole("listitem")).not.toBeInTheDocument()
 		expect(screen.queryByText("chat:announcement.handoff.description")).not.toBeInTheDocument()
 		expect(screen.queryByRole("link", { name: "X" })).not.toBeInTheDocument()
+		expect(screen.queryByRole("link", { name: "ZooCode" })).not.toBeInTheDocument()
+		expect(screen.queryByRole("link", { name: "Cline" })).not.toBeInTheDocument()
 	})
 })

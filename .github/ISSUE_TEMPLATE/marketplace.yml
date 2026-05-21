@@ -2,10 +2,10 @@ name: Marketplace Feedback
 description: Report issues or suggest improvements for marketplace items (custom modes and MCP servers)
 labels: ["marketplace"]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        **Thanks for your feedback!** Please check existing issues first: https://github.com/RooCodeInc/Roo-Code/issues
+	- type: markdown
+	  attributes:
+	    value: |
+	      **Thanks for your feedback!** Please check existing issues first: https://github.com/Cmizz24/C-Code/issues
 
   - type: dropdown
     id: feedback-type

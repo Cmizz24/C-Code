@@ -317,16 +317,16 @@ jobs:
             echo "" >> "$NOTES_FILE"
           fi
 
-          echo "## Installation" >> "$NOTES_FILE"
-          echo "" >> "$NOTES_FILE"
-          echo '```bash' >> "$NOTES_FILE"
-          echo "curl -fsSL https://raw.githubusercontent.com/RooCodeInc/Roo-Code/main/apps/cli/install.sh | sh" >> "$NOTES_FILE"
-          echo '```' >> "$NOTES_FILE"
-          echo "" >> "$NOTES_FILE"
-          echo "Or install a specific version:" >> "$NOTES_FILE"
-          echo '```bash' >> "$NOTES_FILE"
-          echo "ROO_VERSION=$VERSION curl -fsSL https://raw.githubusercontent.com/RooCodeInc/Roo-Code/main/apps/cli/install.sh | sh" >> "$NOTES_FILE"
-          echo '```' >> "$NOTES_FILE"
+		  echo "## Installation" >> "$NOTES_FILE"
+		  echo "" >> "$NOTES_FILE"
+		  echo '```bash' >> "$NOTES_FILE"
+		  echo "curl -fsSL https://raw.githubusercontent.com/Cmizz24/C-Code/main/apps/cli/install.sh | sh" >> "$NOTES_FILE"
+		  echo '```' >> "$NOTES_FILE"
+		  echo "" >> "$NOTES_FILE"
+		  echo "Or install a specific version:" >> "$NOTES_FILE"
+		  echo '```bash' >> "$NOTES_FILE"
+		  echo "ROO_VERSION=$VERSION curl -fsSL https://raw.githubusercontent.com/Cmizz24/C-Code/main/apps/cli/install.sh | sh" >> "$NOTES_FILE"
+		  echo '```' >> "$NOTES_FILE"
           echo "" >> "$NOTES_FILE"
           echo "## Requirements" >> "$NOTES_FILE"
           echo "" >> "$NOTES_FILE"
@@ -356,8 +356,8 @@ jobs:
           echo "$CHECKSUMS" >> "$NOTES_FILE"
           echo '```' >> "$NOTES_FILE"
 
-          gh release create "$TAG" \
-            --title "Roo Code CLI v$VERSION" \
+		  gh release create "$TAG" \
+		    --title "C Code CLI v$VERSION" \
             --notes-file "$NOTES_FILE" \
             --prerelease \
             release/*

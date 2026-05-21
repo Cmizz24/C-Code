@@ -30,7 +30,7 @@ No system is 100% secure. Keep dependencies, VS Code, and this fork updated when
 
 ### **Contact Us**
 
-For privacy-related questions about this fork, use the C Code GitHub repository: https://github.com/PIP-POP/C-Code
+For privacy-related questions about this fork, use the C Code GitHub repository: https://github.com/Cmizz24/C-Code
 
 ---
 

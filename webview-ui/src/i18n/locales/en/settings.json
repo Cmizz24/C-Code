@@ -608,7 +608,7 @@
 			"maxTokensLabel": "Max Output Tokens",
 			"maxTokensDescription": "Maximum number of output tokens for Claude Code responses. Default is 8000."
 		},
-		"retiredRooProviderMessage": "As part of our decision to sunset the C Code extension, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+		"retiredRooProviderMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
 	},
 	"checkpoints": {
 		"timeout": {

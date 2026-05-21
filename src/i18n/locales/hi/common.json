@@ -1,6 +1,6 @@
 {
 	"extension": {
-		"name": "Roo Code",
+		"name": "C Code",
 		"description": "आपके एडिटर में AI डेवलपर्स की पूरी टीम।"
 	},
 	"number_format": {
@@ -189,7 +189,7 @@
 		"enter_valid_path": "कृपया एक वैध पाथ दर्ज करें"
 	},
 	"input": {
-		"task_prompt": "Roo को क्या करना है?",
+		"task_prompt": "C Code को क्या करना है?",
 		"task_placeholder": "अपना कार्य यहाँ लिखें"
 	},
 	"settings": {
@@ -227,6 +227,6 @@
 	},
 	"docsLink": {
 		"label": "Docs",
-		"url": "https://github.com/RooCodeInc/Roo-Code"
+		"url": "https://github.com/Cmizz24/C-Code"
 	}
 }
