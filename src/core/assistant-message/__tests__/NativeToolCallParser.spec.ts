@@ -6,6 +6,20 @@ describe("NativeToolCallParser", () => {
 		NativeToolCallParser.clearRawChunkState()
 	})
 
+	function applyRawEvents(parser: NativeToolCallParser, events: ReturnType<NativeToolCallParser["processRawChunk"]>) {
+		const finalized = []
+		for (const event of events) {
+			if (event.type === "tool_call_start") {
+				parser.startStreamingToolCall(event.id, event.name)
+			} else if (event.type === "tool_call_delta") {
+				parser.processStreamingChunk(event.id, event.delta)
+			} else if (event.type === "tool_call_end") {
+				finalized.push(parser.finalizeStreamingToolCall(event.id))
+			}
+		}
+		return finalized
+	}
+
 	describe("parseToolCall", () => {
 		describe("new_task tool", () => {
 			it("returns null for malformed interleaved JSON instead of producing nativeArgs", () => {
@@ -25,6 +39,31 @@ describe("NativeToolCallParser", () => {
 		})
 
 		describe("read_file tool", () => {
+			it("returns a controlled parse error for same-name adjacent JSON arguments", () => {
+				const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+				const result = NativeToolCallParser.parseToolCall({
+					id: "toolu_same_name_concat",
+					name: "read_file" as const,
+					arguments: '{"path":"first.ts"}{"path":"second.ts"}',
+				})
+
+				expect(result).toBeNull()
+				expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("multiple adjacent JSON values"))
+
+				const laterResult = NativeToolCallParser.parseToolCall({
+					id: "toolu_after_same_name_concat",
+					name: "read_file" as const,
+					arguments: JSON.stringify({ path: "later.ts" }),
+				})
+				expect(laterResult?.type).toBe("tool_use")
+				if (laterResult?.type === "tool_use") {
+					expect(laterResult.nativeArgs).toMatchObject({ path: "later.ts" })
+				}
+
+				errorSpy.mockRestore()
+			})
+
 			it("should parse minimal single-file read_file args", () => {
 				const toolCall = {
 					id: "toolu_123",
@@ -307,6 +346,132 @@ describe("NativeToolCallParser", () => {
 					}
 				})
 			})
+		})
+
+		describe("list_files tool", () => {
+			it("returns a controlled parse error for different-call adjacent JSON arguments", () => {
+				const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+				const result = NativeToolCallParser.parseToolCall({
+					id: "toolu_different_name_concat",
+					name: "list_files" as const,
+					arguments: '{"path":".","recursive":false}{"path":"src/README.md"}',
+				})
+
+				expect(result).toBeNull()
+				expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("multiple adjacent JSON values"))
+
+				const laterResult = NativeToolCallParser.parseToolCall({
+					id: "toolu_after_different_name_concat",
+					name: "list_files" as const,
+					arguments: JSON.stringify({ path: "src", recursive: true }),
+				})
+				expect(laterResult?.type).toBe("tool_use")
+				if (laterResult?.type === "tool_use") {
+					expect(laterResult.nativeArgs).toEqual({ path: "src", recursive: true })
+				}
+
+				errorSpy.mockRestore()
+			})
+		})
+	})
+
+	describe("processRawChunk", () => {
+		it("keeps provider-id tool calls separate even when the stream reuses an index", () => {
+			const parser = new NativeToolCallParser()
+
+			const firstEvents = parser.processRawChunk({
+				index: 0,
+				id: "call_read_first",
+				name: "read_file",
+				arguments: '{"path":"first.ts"}',
+			})
+			const secondEvents = parser.processRawChunk({
+				index: 0,
+				id: "call_read_second",
+				name: "read_file",
+				arguments: '{"path":"second.ts"}',
+			})
+
+			expect(firstEvents).toEqual([
+				{ type: "tool_call_start", id: "call_read_first", name: "read_file" },
+				{ type: "tool_call_delta", id: "call_read_first", delta: '{"path":"first.ts"}' },
+			])
+			expect(secondEvents).toEqual([
+				{ type: "tool_call_start", id: "call_read_second", name: "read_file" },
+				{ type: "tool_call_delta", id: "call_read_second", delta: '{"path":"second.ts"}' },
+			])
+			expect(parser.processFinishReason("tool_calls")).toEqual([
+				{ type: "tool_call_end", id: "call_read_first" },
+				{ type: "tool_call_end", id: "call_read_second" },
+			])
+		})
+
+		it("keeps same-name calls separate when index is omitted or reused", () => {
+			const parser = new NativeToolCallParser()
+
+			applyRawEvents(
+				parser,
+				parser.processRawChunk({ index: 0, name: "read_file", arguments: '{"path":"first.ts"}' }),
+			)
+			applyRawEvents(
+				parser,
+				parser.processRawChunk({ index: 0, name: "read_file", arguments: '{"path":"second.ts"}' }),
+			)
+
+			const finalized = applyRawEvents(parser, parser.finalizeRawChunks())
+
+			expect(finalized).toHaveLength(2)
+			expect(finalized[0]?.type).toBe("tool_use")
+			expect(finalized[1]?.type).toBe("tool_use")
+			if (finalized[0]?.type === "tool_use") {
+				expect(finalized[0].id).toBe("tool_call_0")
+				expect(finalized[0].nativeArgs).toMatchObject({ path: "first.ts" })
+			}
+			if (finalized[1]?.type === "tool_use") {
+				expect(finalized[1].id).toBe("tool_call_1")
+				expect(finalized[1].nativeArgs).toMatchObject({ path: "second.ts" })
+			}
+		})
+
+		it("starts a new same-name call when a fresh function name appears after complete arguments", () => {
+			const parser = new NativeToolCallParser()
+
+			applyRawEvents(parser, parser.processRawChunk({ index: 0, name: "read_file" }))
+			applyRawEvents(parser, parser.processRawChunk({ index: 0, arguments: '{"path":"first.ts"}' }))
+			applyRawEvents(parser, parser.processRawChunk({ index: 0, name: "read_file" }))
+			applyRawEvents(parser, parser.processRawChunk({ index: 0, arguments: '{"path":"second.ts"}' }))
+
+			const finalized = applyRawEvents(parser, parser.finalizeRawChunks())
+
+			expect(finalized).toHaveLength(2)
+			if (finalized[0]?.type === "tool_use") {
+				expect(finalized[0].nativeArgs).toMatchObject({ path: "first.ts" })
+			}
+			if (finalized[1]?.type === "tool_use") {
+				expect(finalized[1].nativeArgs).toMatchObject({ path: "second.ts" })
+			}
+		})
+
+		it("keeps different tool names separate when index is omitted", () => {
+			const parser = new NativeToolCallParser()
+
+			applyRawEvents(parser, parser.processRawChunk({ name: "list_files", arguments: '{"path":"src"}' }))
+			applyRawEvents(parser, parser.processRawChunk({ name: "read_file", arguments: '{"path":"README.md"}' }))
+
+			const finalized = applyRawEvents(parser, parser.finalizeRawChunks())
+
+			expect(finalized).toHaveLength(2)
+			if (finalized[0]?.type === "tool_use") {
+				expect(finalized[0].id).toBe("tool_call_0")
+				expect(finalized[0].name).toBe("list_files")
+				expect(finalized[0].nativeArgs).toEqual({ path: "src", recursive: undefined })
+			}
+			if (finalized[1]?.type === "tool_use") {
+				expect(finalized[1].id).toBe("tool_call_1")
+				expect(finalized[1].name).toBe("read_file")
+				expect(finalized[1].nativeArgs).toMatchObject({ path: "README.md" })
+			}
 		})
 	})
 

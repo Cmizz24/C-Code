@@ -94,12 +94,13 @@ export class OrchestratorEventLoop {
 
 	private buildAgentMessage(agent: AgentPlan, plan?: ExecutionPlan): string {
 		return [
-			`You are parallel agent ${agent.id} running in ${agent.mode} mode.`,
+			`You are agent ${agent.id}, running a normal single ${agent.mode} specialist task.`,
 			plan?.sharedContext ? `Shared context:\n${plan.sharedContext}` : undefined,
 			`Task:\n${agent.task}`,
-			`Owned paths:\n${agent.owns.map((ownership) => `- ${ownership.path} (${ownership.mode})`).join("\n") || "- none"}`,
+			`Your single ownership scope (the only files or directories you may edit):\n${agent.owns.map((ownership) => `- ${ownership.path} (${ownership.mode})`).join("\n") || "- none"}`,
 			`Must not touch:\n${agent.mustNotTouch.map((filePath) => `- ${filePath}`).join("\n") || "- none"}`,
-			"Only edit files allowed by your ownership. Use attempt_completion when finished.",
+			"Use normal sequential tool calls: call one tool, wait for its result, then decide the next step. Never combine multiple tool argument JSON objects into one tool call.",
+			"Only edit files allowed by your ownership scope. Use attempt_completion when finished.",
 		]
 			.filter(Boolean)
 			.join("\n\n")
@@ -107,10 +108,14 @@ export class OrchestratorEventLoop {
 
 	private buildSystemPromptSuffix(agent: AgentPlan, plan?: ExecutionPlan): string {
 		return [
-			"Parallel agent coordination rules:",
+			"Single-agent task guidance:",
 			`- Agent id: ${agent.id}`,
 			`- Execution plan: ${plan?.planId ?? "unknown"}`,
-			"- Write access is coordinated automatically; denied writes mean another agent owns or is editing that path.",
+			"- Treat this as one normal specialist task with one ownership scope, not as a complex orchestration task.",
+			"- Use normal sequential tool calls: call one tool, wait for its result, then decide the next step.",
+			"- If another prompt mentions batching or parallelizing tools, this child task overrides it: use one tool call at a time unless the platform emits separate native tool calls.",
+			"- Never concatenate multiple tool argument JSON objects into one tool call; each native tool call must have exactly one JSON argument object.",
+			"- Write access is coordinated automatically; denied writes mean the path is outside your ownership scope or currently unavailable.",
 			"- Do not edit mustNotTouch paths or paths owned exclusively by another agent.",
 		].join("\n")
 	}

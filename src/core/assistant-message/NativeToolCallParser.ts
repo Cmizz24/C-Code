@@ -52,6 +52,7 @@ export type ToolCallStreamEvent = ApiStreamToolCallStartChunk | ApiStreamToolCal
  */
 export class NativeToolCallParser {
 	private static readonly sharedParser = new NativeToolCallParser()
+	private rawChunkSequence = 0
 
 	// Streaming state management for argument accumulation (keyed by tool call id)
 	// Note: name is string to accommodate dynamic MCP tools (mcp--serverName--toolName)
@@ -64,16 +65,26 @@ export class NativeToolCallParser {
 		}
 	>()
 
-	// Raw chunk tracking state (keyed by index from API stream)
+	// Raw chunk tracking state (keyed by robust per-call identity).
+	// Prefer provider-supplied id. When id is missing, create a per-stream sequence
+	// and use index only as a hint for finding the active call.
 	private rawChunkTracker = new Map<
-		number,
+		string,
 		{
+			key: string
 			id: string
+			providerId?: string
 			name: string
+			index?: number
 			hasStarted: boolean
 			deltaBuffer: string[]
+			argumentsAccumulator: string
+			hasReceivedJsonLikeArguments: boolean
 		}
 	>()
+	private rawChunkTrackerByProviderId = new Map<string, string>()
+	private rawChunkTrackerKeysByIndex = new Map<number, string[]>()
+	private rawChunkTrackerKeysWithoutIndex: string[] = []
 
 	private static coerceOptionalBoolean(value: unknown): boolean | undefined {
 		if (typeof value === "boolean") {
@@ -99,33 +110,25 @@ export class NativeToolCallParser {
 	 * Returns an array of events to be processed by the consumer.
 	 */
 	public processRawChunk(chunk: {
-		index: number
+		index?: number
 		id?: string
 		name?: string
 		arguments?: string
 	}): ToolCallStreamEvent[] {
 		const events: ToolCallStreamEvent[] = []
 		const { index, id, name, arguments: args } = chunk
+		const normalizedIndex = typeof index === "number" && Number.isFinite(index) ? index : undefined
 
-		let tracked = this.rawChunkTracker.get(index)
-
-		// Initialize new tool call tracking when we receive an id
-		if (id && !tracked) {
-			tracked = {
-				id,
-				name: name || "",
-				hasStarted: false,
-				deltaBuffer: [],
-			}
-			this.rawChunkTracker.set(index, tracked)
-		}
+		let tracked = this.resolveRawChunkTracker({ index: normalizedIndex, id, name, arguments: args })
 
 		if (!tracked) {
 			return events
 		}
 
-		// Update name if present in chunk and not yet set
-		if (name) {
+		// Update name if present in chunk and not yet set. If a no-id stream reuses an
+		// index for a different name, resolveRawChunkTracker creates a new tracker
+		// before this point so different tools cannot share an argument buffer.
+		if (name && !tracked.name) {
 			tracked.name = name
 		}
 
@@ -151,6 +154,11 @@ export class NativeToolCallParser {
 
 		// Emit delta event for argument chunks
 		if (args) {
+			tracked.argumentsAccumulator += args
+			if (/^\s*[{[]/.test(args)) {
+				tracked.hasReceivedJsonLikeArguments = true
+			}
+
 			if (tracked.hasStarted) {
 				events.push({
 					type: "tool_call_delta",
@@ -165,8 +173,116 @@ export class NativeToolCallParser {
 		return events
 	}
 
+	private resolveRawChunkTracker(chunk: {
+		index?: number
+		id?: string
+		name?: string
+		arguments?: string
+	}): (typeof this.rawChunkTracker extends Map<string, infer T> ? T : never) | undefined {
+		if (chunk.id) {
+			const existingKey = this.rawChunkTrackerByProviderId.get(chunk.id)
+			if (existingKey) {
+				return this.rawChunkTracker.get(existingKey)
+			}
+
+			const activeTracker = this.getActiveRawChunkTracker(chunk.index)
+			if (
+				activeTracker &&
+				!activeTracker.providerId &&
+				!this.shouldStartNewRawToolCall(activeTracker, chunk.name, chunk.arguments)
+			) {
+				activeTracker.providerId = chunk.id
+				this.rawChunkTrackerByProviderId.set(chunk.id, activeTracker.key)
+				if (!activeTracker.hasStarted) {
+					activeTracker.id = chunk.id
+				}
+				return activeTracker
+			}
+
+			return this.createRawChunkTracker(chunk.index, chunk.id, chunk.name)
+		}
+
+		const activeTracker = this.getActiveRawChunkTracker(chunk.index)
+		if (!activeTracker || this.shouldStartNewRawToolCall(activeTracker, chunk.name, chunk.arguments)) {
+			return this.createRawChunkTracker(chunk.index, undefined, chunk.name)
+		}
+
+		return activeTracker
+	}
+
+	private createRawChunkTracker(index: number | undefined, providerId: string | undefined, name: string | undefined) {
+		const sequence = this.rawChunkSequence++
+		const key = providerId ? `id:${providerId}` : `seq:${sequence}`
+		const tracker = {
+			key,
+			id: providerId ?? `tool_call_${sequence}`,
+			providerId,
+			name: name || "",
+			index,
+			hasStarted: false,
+			deltaBuffer: [],
+			argumentsAccumulator: "",
+			hasReceivedJsonLikeArguments: false,
+		}
+
+		this.rawChunkTracker.set(key, tracker)
+		if (providerId) {
+			this.rawChunkTrackerByProviderId.set(providerId, key)
+		}
+
+		if (index !== undefined) {
+			const keys = this.rawChunkTrackerKeysByIndex.get(index) ?? []
+			keys.push(key)
+			this.rawChunkTrackerKeysByIndex.set(index, keys)
+		} else {
+			this.rawChunkTrackerKeysWithoutIndex.push(key)
+		}
+
+		return tracker
+	}
+
+	private getActiveRawChunkTracker(index: number | undefined) {
+		const keys =
+			index !== undefined ? this.rawChunkTrackerKeysByIndex.get(index) : this.rawChunkTrackerKeysWithoutIndex
+		const activeKey = keys?.[keys.length - 1]
+		return activeKey ? this.rawChunkTracker.get(activeKey) : undefined
+	}
+
+	private shouldStartNewRawToolCall(
+		activeTracker: NonNullable<ReturnType<NativeToolCallParser["getActiveRawChunkTracker"]>>,
+		name: string | undefined,
+		args: string | undefined,
+	): boolean {
+		if (!name) {
+			return false
+		}
+
+		if (activeTracker.name && activeTracker.name !== name) {
+			return true
+		}
+
+		if (
+			activeTracker.hasReceivedJsonLikeArguments &&
+			this.isCompleteJsonValue(activeTracker.argumentsAccumulator)
+		) {
+			return true
+		}
+
+		const argsStartsWithJson = typeof args === "string" && /^\s*[{[]/.test(args)
+		return activeTracker.hasReceivedJsonLikeArguments && argsStartsWithJson
+	}
+
+	private isCompleteJsonValue(value: string): boolean {
+		try {
+			JSON.parse(value)
+			return true
+		} catch {
+			return false
+		}
+	}
+
 	public static processRawChunk(chunk: {
-		index: number
+		index?: number
 		id?: string
 		name?: string
 		arguments?: string
@@ -213,7 +329,7 @@ export class NativeToolCallParser {
 					})
 				}
 			}
-			this.rawChunkTracker.clear()
+			this.clearRawChunkState()
 		}
 
 		return events
@@ -229,6 +345,10 @@ export class NativeToolCallParser {
 	 */
 	public clearRawChunkState(): void {
 		this.rawChunkTracker.clear()
+		this.rawChunkTrackerByProviderId.clear()
+		this.rawChunkTrackerKeysByIndex.clear()
+		this.rawChunkTrackerKeysWithoutIndex = []
+		this.rawChunkSequence = 0
 	}
 
 	public static clearRawChunkState(): void {
@@ -752,7 +872,7 @@ export class NativeToolCallParser {
 
 		try {
 			// Parse the arguments JSON string
-			const args = toolCall.arguments === "" ? {} : JSON.parse(toolCall.arguments)
+			const args = NativeToolCallParser.parseToolArguments(toolCall.arguments)
 
 			// Build stringified params for display/logging.
 			// Tool execution MUST use nativeArgs (typed) and does not support legacy fallbacks.
@@ -1071,6 +1191,7 @@ export class NativeToolCallParser {
 
 			const result: ToolUse<TName> = {
 				type: "tool_use" as const,
+				id: toolCall.id,
 				name: resolvedName,
 				params,
 				partial: false, // Native tool calls are always complete when yielded
@@ -1096,6 +1217,78 @@ export class NativeToolCallParser {
 			console.error(`Tool call: ${JSON.stringify(toolCall, null, 2)}`)
 			return null
 		}
+	}
+
+	private static parseToolArguments(argumentsString: string): Record<string, any> {
+		if (argumentsString === "") {
+			return {}
+		}
+
+		try {
+			return JSON.parse(argumentsString)
+		} catch (error) {
+			if (NativeToolCallParser.hasAdjacentTopLevelJsonValues(argumentsString)) {
+				throw new Error(
+					`Tool call arguments contain multiple adjacent JSON values; expected exactly one JSON object. ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			}
+
+			throw error
+		}
+	}
+
+	private static hasAdjacentTopLevelJsonValues(value: string): boolean {
+		let depth = 0
+		let inString = false
+		let escaped = false
+		let started = false
+
+		for (let i = 0; i < value.length; i++) {
+			const char = value[i]
+
+			if (!started) {
+				if (/\s/.test(char)) {
+					continue
+				}
+				if (char !== "{" && char !== "[") {
+					return false
+				}
+				started = true
+			}
+
+			if (inString) {
+				if (escaped) {
+					escaped = false
+				} else if (char === "\\") {
+					escaped = true
+				} else if (char === '"') {
+					inString = false
+				}
+				continue
+			}
+
+			if (char === '"') {
+				inString = true
+				continue
+			}
+
+			if (char === "{" || char === "[") {
+				depth++
+				continue
+			}
+
+			if (char === "}" || char === "]") {
+				depth--
+				if (depth === 0) {
+					const rest = value.slice(i + 1).trimStart()
+					return rest.startsWith("{") || rest.startsWith("[")
+				}
+			}
+		}
+
+		return false
 	}
 
 	/**

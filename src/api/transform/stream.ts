@@ -101,7 +101,7 @@ export interface ApiStreamToolCallEndChunk {
  */
 export interface ApiStreamToolCallPartialChunk {
 	type: "tool_call_partial"
-	index: number
+	index?: number
 	id?: string
 	name?: string
 	arguments?: string
