@@ -330,6 +330,68 @@ describe("NativeToolCallParser", () => {
 		})
 	})
 
+	describe("instance isolation", () => {
+		it("does not share raw chunk tracking between parser instances with the same tool index", () => {
+			const parserA = new NativeToolCallParser()
+			const parserB = new NativeToolCallParser()
+
+			const eventsA = parserA.processRawChunk({
+				index: 0,
+				id: "call_agent_a",
+				name: "read_file",
+				arguments: '{"path":"agent-a.ts"}',
+			})
+			const eventsB = parserB.processRawChunk({
+				index: 0,
+				id: "call_agent_b",
+				name: "list_files",
+				arguments: '{"path":"agent-b","recursive":true}',
+			})
+
+			expect(eventsA).toEqual([
+				{ type: "tool_call_start", id: "call_agent_a", name: "read_file" },
+				{ type: "tool_call_delta", id: "call_agent_a", delta: '{"path":"agent-a.ts"}' },
+			])
+			expect(eventsB).toEqual([
+				{ type: "tool_call_start", id: "call_agent_b", name: "list_files" },
+				{ type: "tool_call_delta", id: "call_agent_b", delta: '{"path":"agent-b","recursive":true}' },
+			])
+			expect(parserA.processFinishReason("tool_calls")).toEqual([{ type: "tool_call_end", id: "call_agent_a" }])
+			expect(parserB.processFinishReason("tool_calls")).toEqual([{ type: "tool_call_end", id: "call_agent_b" }])
+		})
+
+		it("does not concatenate streaming arguments from different parser instances", () => {
+			const parserA = new NativeToolCallParser()
+			const parserB = new NativeToolCallParser()
+
+			parserA.startStreamingToolCall("call_agent_a", "read_file")
+			parserB.startStreamingToolCall("call_agent_b", "list_files")
+
+			parserA.processStreamingChunk("call_agent_a", '{"path":"agent-a.ts"}')
+			parserB.processStreamingChunk("call_agent_b", '{"path":"agent-b","recursive":true}')
+
+			const resultA = parserA.finalizeStreamingToolCall("call_agent_a")
+			const resultB = parserB.finalizeStreamingToolCall("call_agent_b")
+
+			expect(resultA?.type).toBe("tool_use")
+			expect(resultB?.type).toBe("tool_use")
+			if (resultA?.type === "tool_use") {
+				expect(resultA.name).toBe("read_file")
+				expect(resultA.nativeArgs).toEqual({
+					path: "agent-a.ts",
+					mode: undefined,
+					offset: undefined,
+					limit: undefined,
+					indentation: undefined,
+				})
+			}
+			if (resultB?.type === "tool_use") {
+				expect(resultB.name).toBe("list_files")
+				expect(resultB.nativeArgs).toEqual({ path: "agent-b", recursive: true })
+			}
+		})
+	})
+
 	describe("finalizeStreamingToolCall", () => {
 		describe("read_file tool", () => {
 			it("should parse read_file args on finalize", () => {

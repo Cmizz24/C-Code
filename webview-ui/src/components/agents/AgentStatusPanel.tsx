@@ -110,7 +110,10 @@ export const AgentStatusPanel = () => {
 	)
 
 	return (
-		<section className="border-t border-vscode-panel-border bg-vscode-sideBar-background px-[15px] py-3">
+		<section
+			data-testid="agent-status-chat-card"
+			aria-label="Parallel agents status"
+			className="rounded-lg border border-vscode-panel-border bg-vscode-editor-background p-3 shadow-sm">
 			<div className="mb-3 flex items-center justify-between gap-3">
 				<div>
 					<h2 className="text-sm font-semibold text-vscode-foreground">Parallel agents</h2>
@@ -174,7 +177,7 @@ export const AgentStatusPanel = () => {
 					return (
 						<article
 							key={agent.id}
-							className="rounded-md border border-vscode-panel-border bg-vscode-editor-background p-3 shadow-sm">
+							className="rounded-md border border-vscode-panel-border bg-vscode-sideBar-background p-3 shadow-sm">
 							<div className="mb-2 flex items-start justify-between gap-3">
 								<div className="min-w-0">
 									<div className="mb-1 text-sm font-medium text-vscode-foreground">{agentLabel}</div>

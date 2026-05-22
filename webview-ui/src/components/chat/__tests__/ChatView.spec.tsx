@@ -51,6 +51,12 @@ vi.mock("../ChatRow", () => ({
 	},
 }))
 
+vi.mock("@src/components/agents/AgentStatusPanel", () => ({
+	AgentStatusPanel: function MockAgentStatusPanel() {
+		return <section data-testid="agent-status-chat-card">Parallel agents status</section>
+	},
+}))
+
 vi.mock("../AutoApproveMenu", () => ({
 	default: () => null,
 }))
@@ -1180,5 +1186,59 @@ describe("ChatView - Context Condensing Indicator Tests", () => {
 			},
 			{ timeout: 2000 },
 		)
+	})
+})
+
+describe("ChatView - Parallel Agent Status Tests", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("renders parallel status as a scrollable chat item instead of a persistent panel", async () => {
+		const { getByTestId, queryByTestId } = renderChatView()
+
+		mockPostMessage({
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Initial task",
+				},
+				{
+					type: "say",
+					say: "text",
+					ts: Date.now() - 1000,
+					text: "Working on parallel plan",
+				},
+			],
+			activeExecutionPlan: {
+				planId: "plan-chat-flow",
+				sharedContext: "shared",
+				fileOwnershipMap: {},
+				createdAt: 12345,
+				agents: [
+					{
+						id: "agent-1",
+						mode: "code",
+						task: "Build UI",
+						owns: [{ path: "src/ui.tsx", mode: "exclusive" }],
+						mustNotTouch: [],
+						dependsOn: [],
+						worktreePath: "",
+						status: "running",
+						signals: [],
+					},
+				],
+			},
+		})
+
+		await waitFor(() => {
+			expect(getByTestId("agent-status-chat-card")).toBeInTheDocument()
+		})
+
+		const list = getByTestId("virtuoso-item-list")
+		expect(list).toContainElement(getByTestId("agent-status-chat-card"))
+		expect(queryByTestId("chat-textarea")).toBeInTheDocument()
 	})
 })
