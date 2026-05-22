@@ -227,12 +227,32 @@ vi.mock("../../../shared/modes", () => ({
 			groups: ["read", "edit"],
 		},
 		{
-			slug: "ask",
-			name: "Ask Mode",
+			slug: "explain",
+			name: "Explain Mode",
 			roleDefinition: "You are a helpful assistant",
 			groups: ["read"],
 		},
 	],
+	getAllModes: vi.fn((customModes?: Array<{ slug: string }>) =>
+		customModes?.length
+			? [
+					{
+						slug: "code",
+						name: "Code Mode",
+						roleDefinition: "You are a code assistant",
+						groups: ["read", "edit"],
+					},
+					...customModes,
+				]
+			: [
+					{
+						slug: "code",
+						name: "Code Mode",
+						roleDefinition: "You are a code assistant",
+						groups: ["read", "edit"],
+					},
+				],
+	),
 	getModeBySlug: vi.fn().mockReturnValue({
 		slug: "code",
 		name: "Code Mode",
@@ -253,6 +273,7 @@ vi.mock("../../../shared/modes", () => ({
 		}
 	}),
 	defaultModeSlug: "code",
+	normalizeModeSlug: vi.fn((slug: string) => (slug === "ask" ? "explain" : slug)),
 }))
 
 vi.mock("../../prompts/system", () => ({

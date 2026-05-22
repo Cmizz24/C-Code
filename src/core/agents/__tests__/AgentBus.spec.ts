@@ -13,6 +13,7 @@ function createPlan(): ExecutionPlan {
 		agents: [
 			{
 				id: "agent-a",
+				mode: "component",
 				task: "Edit A",
 				owns: [{ path: "src/a.ts", mode: "exclusive" }],
 				mustNotTouch: ["src/forbidden.ts"],
@@ -23,6 +24,7 @@ function createPlan(): ExecutionPlan {
 			},
 			{
 				id: "agent-b",
+				mode: "api",
 				task: "Edit B",
 				owns: [{ path: "src/b.ts", mode: "exclusive" }],
 				mustNotTouch: [],
@@ -33,6 +35,7 @@ function createPlan(): ExecutionPlan {
 			},
 			{
 				id: "agent-c",
+				mode: "review",
 				task: "Read C",
 				owns: [{ path: "src/c.ts", mode: "read-only" }],
 				mustNotTouch: [],

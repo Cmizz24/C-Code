@@ -14,7 +14,7 @@ import {
 	isRetiredProvider,
 } from "@roo-code/types"
 
-import { Mode, modes } from "../../shared/modes"
+import { Mode, modes, normalizeModeSlug } from "../../shared/modes"
 import { buildApiHandler } from "../../api"
 
 // Type-safe model migrations mapping
@@ -472,6 +472,7 @@ export class ProviderSettingsManager {
 	 */
 	public async setModeConfig(mode: Mode, configId: string) {
 		try {
+			mode = normalizeModeSlug(mode)
 			return await this.lock(async () => {
 				const providerProfiles = await this.load()
 				// Ensure the per-mode config map exists
@@ -492,6 +493,7 @@ export class ProviderSettingsManager {
 	 */
 	public async getModeConfigId(mode: Mode) {
 		try {
+			mode = normalizeModeSlug(mode)
 			return await this.lock(async () => {
 				const { modeApiConfigs } = await this.load()
 				return modeApiConfigs?.[mode]

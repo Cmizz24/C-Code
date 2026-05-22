@@ -44,7 +44,7 @@ Please analyze this codebase and create an AGENTS.md file containing:
        - AGENTS.md (in project root directory)
        - .roo/rules-code/AGENTS.md (relative to project root)
        - .roo/rules-debug/AGENTS.md (relative to project root)
-       - .roo/rules-ask/AGENTS.md (relative to project root)
+       - .roo/rules-explain/AGENTS.md (relative to project root)
        - .roo/rules-architect/AGENTS.md (relative to project root)
        
        IMPORTANT: All paths are relative to the project/workspace root, NOT system root!
@@ -109,7 +109,7 @@ Please analyze this codebase and create an AGENTS.md file containing:
      - AGENTS.md (in project/workspace root)
      - .roo/rules-code/AGENTS.md (relative to project root)
      - .roo/rules-debug/AGENTS.md (relative to project root)
-     - .roo/rules-ask/AGENTS.md (relative to project root)
+     - .roo/rules-explain/AGENTS.md (relative to project root)
      - .roo/rules-architect/AGENTS.md (relative to project root)
      
      IMPORTANT: The .roo folder should be created in the PROJECT ROOT, not system root!
@@ -172,7 +172,7 @@ Please analyze this codebase and create an AGENTS.md file containing:
     CRITICAL: For each of these paths (RELATIVE TO PROJECT ROOT), check if the file exists FIRST:
     - .roo/rules-code/AGENTS.md (create .roo in project root, not system root!)
     - .roo/rules-debug/AGENTS.md (relative to project root)
-    - .roo/rules-ask/AGENTS.md (relative to project root)
+    - .roo/rules-explain/AGENTS.md (relative to project root)
     - .roo/rules-architect/AGENTS.md (relative to project root)
     
     IMPORTANT: The .roo directory must be created in the current project/workspace root directory,
@@ -195,8 +195,8 @@ Please analyze this codebase and create an AGENTS.md file containing:
     │   │   └── AGENTS.md           # Code mode specific instructions
     │   ├── rules-debug/
     │   │   └── AGENTS.md           # Debug mode specific instructions
-    │   ├── rules-ask/
-    │   │   └── AGENTS.md           # Ask mode specific instructions
+    │   ├── rules-explain/
+    │   │   └── AGENTS.md           # Explain mode specific instructions
     │   └── rules-architect/
     │       └── AGENTS.md           # Architect mode specific instructions
     ├── src/
@@ -234,7 +234,7 @@ Please analyze this codebase and create an AGENTS.md file containing:
     - Extension logs only visible in "Extension Host" output channel, not Debug Console
     \`\`\`
     
-    .roo/rules-ask/AGENTS.md - ONLY non-obvious documentation context:
+    .roo/rules-explain/AGENTS.md - ONLY non-obvious documentation context:
     - Hidden or misnamed documentation
     - Counterintuitive code organization
     - Misleading folder names or structures

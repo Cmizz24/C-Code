@@ -2,7 +2,7 @@ import delay from "delay"
 
 import { Task } from "../task/Task"
 import { formatResponse } from "../prompts/responses"
-import { defaultModeSlug, getModeBySlug } from "../../shared/modes"
+import { defaultModeSlug, getModeBySlug, normalizeModeSlug } from "../../shared/modes"
 import { BaseTool, ToolCallbacks } from "./BaseTool"
 import type { ToolUse } from "../../shared/tools"
 
@@ -15,7 +15,8 @@ export class SwitchModeTool extends BaseTool<"switch_mode"> {
 	readonly name = "switch_mode" as const
 
 	async execute(params: SwitchModeParams, task: Task, callbacks: ToolCallbacks): Promise<void> {
-		const { mode_slug, reason } = params
+		const { reason } = params
+		const mode_slug = normalizeModeSlug(params.mode_slug)
 		const { askApproval, handleError, pushToolResult } = callbacks
 
 		try {
@@ -39,7 +40,7 @@ export class SwitchModeTool extends BaseTool<"switch_mode"> {
 			}
 
 			// Check if already in requested mode
-			const currentMode = (await task.providerRef.deref()?.getState())?.mode ?? defaultModeSlug
+			const currentMode = normalizeModeSlug((await task.providerRef.deref()?.getState())?.mode ?? defaultModeSlug)
 
 			if (currentMode === mode_slug) {
 				task.recordToolError("switch_mode")

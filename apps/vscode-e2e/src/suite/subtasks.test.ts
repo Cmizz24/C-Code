@@ -22,7 +22,7 @@ suite.skip("Roo Code Subtasks", () => {
 		// Start a parent task that will create a subtask.
 		const parentTaskId = await api.startNewTask({
 			configuration: {
-				mode: "ask",
+				mode: "explain",
 				alwaysAllowModeSwitch: true,
 				alwaysAllowSubtasks: true,
 				autoApprovalEnabled: true,

@@ -789,8 +789,12 @@ export async function presentAssistantMessage(cline: Task) {
 					})
 					break
 				case "plan_parallel_tasks": {
+					if (block.partial) {
+						break
+					}
+
 					const result = handlePlanParallelTasks(
-						(block as ToolUse<"plan_parallel_tasks">).nativeArgs!,
+						(block as ToolUse<"plan_parallel_tasks">).nativeArgs,
 						cline.cwd,
 					)
 					if (result.ok) {

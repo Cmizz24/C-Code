@@ -28,7 +28,7 @@ const baseTestDirs = [
 
 type RuleFiles = {
 	".clinerules-code": string
-	".clinerules-ask": string
+	".clinerules-explain": string
 	".clinerules-architect": string
 	".clinerules-test": string
 	".clinerules-review": string
@@ -56,7 +56,7 @@ const mockFs = {
 		// Handle rule files
 		const ruleFiles: RuleFiles = {
 			".clinerules-code": "# Code Mode Rules\n1. Code specific rule",
-			".clinerules-ask": "# Ask Mode Rules\n1. Ask specific rule",
+			".clinerules-explain": "# Explain Mode Rules\n1. Ask specific rule",
 			".clinerules-architect": "# Architect Mode Rules\n1. Architect specific rule",
 			".clinerules-test":
 				"# Test Engineer Rules\n1. Always write tests first\n2. Get approval before modifying non-test code",

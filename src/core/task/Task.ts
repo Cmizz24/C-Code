@@ -66,7 +66,7 @@ import { combineCommandSequences } from "../../shared/combineCommandSequences"
 import { t } from "../../i18n"
 import { getApiMetrics, hasTokenUsageChanged, hasToolUsageChanged } from "../../shared/getApiMetrics"
 import { ClineAskResponse } from "../../shared/WebviewMessage"
-import { defaultModeSlug, getModeBySlug } from "../../shared/modes"
+import { defaultModeSlug, getModeBySlug, normalizeModeSlug } from "../../shared/modes"
 import { DiffStrategy, type ToolUse, type ToolParamName, toolParamNames } from "../../shared/tools"
 import { getModelMaxOutputTokens } from "../../shared/api"
 
@@ -441,6 +441,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		agentBus,
 		systemPromptSuffix,
 		initialStatus,
+		mode,
 	}: TaskOptions) {
 		super()
 
@@ -554,10 +555,15 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		)
 
 		if (historyItem) {
-			this._taskMode = historyItem.mode || defaultModeSlug
+			this._taskMode = normalizeModeSlug(historyItem.mode || defaultModeSlug)
 			this._taskApiConfigName = historyItem.apiConfigName
 			this.taskModeReady = Promise.resolve()
 			this.taskApiConfigReady = Promise.resolve()
+		} else if (mode) {
+			this._taskMode = normalizeModeSlug(mode)
+			this._taskApiConfigName = undefined
+			this.taskModeReady = Promise.resolve()
+			this.taskApiConfigReady = this.initializeTaskApiConfigName(provider)
 		} else {
 			this._taskMode = undefined
 			this._taskApiConfigName = undefined
@@ -603,7 +609,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private async initializeTaskMode(provider: ClineProvider): Promise<void> {
 		try {
 			const state = await provider.getState()
-			this._taskMode = state?.mode || defaultModeSlug
+			this._taskMode = normalizeModeSlug(state?.mode || defaultModeSlug)
 		} catch (error) {
 			// If there's an error getting state, use the default mode
 			this._taskMode = defaultModeSlug

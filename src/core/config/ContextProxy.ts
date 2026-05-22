@@ -21,6 +21,7 @@ import {
 
 import { logger } from "../../utils/logging"
 import { supportPrompt } from "../../shared/support-prompt"
+import { normalizeModeSlug } from "../../shared/modes"
 
 type GlobalStateKey = keyof GlobalState
 type SecretStateKey = keyof SecretState
@@ -99,7 +100,50 @@ export class ContextProxy {
 		// Migration: Clear old default condensing prompt so users get the improved v2 default
 		await this.migrateOldDefaultCondensingPrompt()
 
+		// Migration: Move legacy Ask mode settings to Explain mode
+		await this.migrateLegacyAskMode()
+
 		this._isInitialized = true
+	}
+
+	private async migrateLegacyAskMode() {
+		try {
+			if (this.stateCache.mode) {
+				const normalizedMode = normalizeModeSlug(this.stateCache.mode)
+
+				if (normalizedMode !== this.stateCache.mode) {
+					logger.info(`[ContextProxy] Migrating legacy mode "${this.stateCache.mode}" to "${normalizedMode}"`)
+					this.stateCache.mode = normalizedMode
+					await this.originalContext.globalState.update("mode", normalizedMode)
+				}
+			}
+
+			await this.migrateLegacyAskModeRecord("modeApiConfigs")
+			await this.migrateLegacyAskModeRecord("customModePrompts")
+		} catch (error) {
+			logger.error(
+				`Error during legacy Ask mode migration: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
+	}
+
+	private async migrateLegacyAskModeRecord(key: "modeApiConfigs" | "customModePrompts") {
+		const value = this.stateCache[key]
+
+		if (!value || typeof value !== "object" || !("ask" in value)) {
+			return
+		}
+
+		const migratedValue = { ...value }
+		const normalizedSlug = normalizeModeSlug("ask")
+
+		if (!(normalizedSlug in migratedValue)) {
+			migratedValue[normalizedSlug] = migratedValue.ask
+		}
+
+		delete migratedValue.ask
+		;(this.stateCache as Record<string, unknown>)[key] = migratedValue
+		await this.originalContext.globalState.update(key, migratedValue as GlobalState[typeof key])
 	}
 
 	/**

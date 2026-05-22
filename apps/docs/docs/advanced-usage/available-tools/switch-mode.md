@@ -1,5 +1,5 @@
 ---
-description: Understand how switch_mode enables seamless transitions between Code, Architect, Ask, and Debug modes for specialized task handling in Roo Code.
+description: Understand how switch_mode enables seamless transitions between Code, Architect, Explain, and Debug modes for specialized task handling in Roo Code.
 keywords:
     - switch_mode
     - Roo Code tools
@@ -8,14 +8,14 @@ keywords:
     - Code mode
     - Architect mode
     - Debug mode
-    - Ask mode
+    - Explain mode
     - task transitions
     - VS Code AI
 ---
 
 # switch_mode
 
-The `switch_mode` tool enables Roo to change between different operational modes, each with specialized capabilities for specific types of tasks. This allows seamless transitions between modes like Code, Architect, Ask, or Debug when the current task requires different expertise.
+The `switch_mode` tool enables Roo to change between different operational modes, each with specialized capabilities for specific types of tasks. This allows seamless transitions between modes like Code, Architect, Explain, or Debug when the current task requires different expertise.
 
 ---
 
@@ -23,7 +23,7 @@ The `switch_mode` tool enables Roo to change between different operational modes
 
 The tool accepts these parameters:
 
-- `mode_slug` (required): The slug of the mode to switch to (e.g., "code", "ask", "architect")
+- `mode_slug` (required): The slug of the mode to switch to (e.g., "code", "explain", "architect")
 - `reason` (optional): The reason for switching modes, providing context for the user
 
 ---
@@ -112,8 +112,8 @@ The `switch_mode` tool belongs to the "modes" tool group but is also included in
 
 Each mode in the system has a specific structure:
 
-- `slug`: Unique identifier for the mode (e.g., "code", "ask")
-- `name`: Display name for the mode (e.g., "Code", "Ask")
+- `slug`: Unique identifier for the mode (e.g., "code", "explain")
+- `name`: Display name for the mode (e.g., "Code", "Explain")
 - `roleDefinition`: The specialized role and capabilities of the mode
 - `customInstructions`: Optional mode-specific instructions that guide behavior
 - `groups`: Tool groups available to the mode with optional restrictions
@@ -126,7 +126,7 @@ The core modes provide these specialized capabilities:
 
 - **Code Mode**: Focused on coding tasks with full access to code editing tools
 - **Architect Mode**: Specialized for system design and architecture planning, limited to editing markdown files only
-- **Ask Mode**: Optimized for answering questions and providing information
+- **Explain Mode**: Optimized for answering questions and providing information
 - **Debug Mode**: Equipped for systematic problem diagnosis and resolution
 
 ---
@@ -154,7 +154,7 @@ Different modes may have specific file type restrictions:
 
 ## Examples When Used
 
-- When discussing a new feature, Roo switches from Ask mode to Architect mode to help design the system structure.
+- When discussing a new feature, Roo switches from Explain mode to Architect mode to help design the system structure.
 - After completing architecture planning in Architect mode, Roo switches to Code mode to implement the designed features.
 - When encountering bugs during development, Roo switches from Code mode to Debug mode for systematic troubleshooting.
 
@@ -189,11 +189,11 @@ Switching to Debug mode for troubleshooting:
 </switch_mode>
 ```
 
-Switching to Ask mode for information:
+Switching to Explain mode for information:
 
 ```
 <switch_mode>
-<mode_slug>ask</mode_slug>
+<mode_slug>explain</mode_slug>
 <reason>Need to answer questions about the implemented feature</reason>
 </switch_mode>
 ```

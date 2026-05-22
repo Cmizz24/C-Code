@@ -3,7 +3,7 @@ import * as vscode from "vscode"
 import { TodoItem } from "@roo-code/types"
 
 import { Task } from "../task/Task"
-import { getModeBySlug } from "../../shared/modes"
+import { getModeBySlug, normalizeModeSlug } from "../../shared/modes"
 import { formatResponse } from "../prompts/responses"
 import { t } from "../../i18n"
 import { parseMarkdownChecklist } from "./UpdateTodoListTool"
@@ -21,7 +21,8 @@ export class NewTaskTool extends BaseTool<"new_task"> {
 	readonly name = "new_task" as const
 
 	async execute(params: NewTaskParams, task: Task, callbacks: ToolCallbacks): Promise<void> {
-		const { mode, message, todos } = params
+		const { message, todos } = params
+		const mode = normalizeModeSlug(params.mode)
 		const { askApproval, handleError, pushToolResult } = callbacks
 
 		try {

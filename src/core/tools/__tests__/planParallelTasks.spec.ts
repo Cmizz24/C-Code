@@ -10,6 +10,42 @@ describe("handlePlanParallelTasks", () => {
 		AgentBus.reset()
 	})
 
+	it("returns validation errors instead of throwing when the payload is missing", () => {
+		expect(() => handlePlanParallelTasks(undefined, "/repo")).not.toThrow()
+
+		const result = handlePlanParallelTasks(undefined, "/repo")
+
+		expect(result.ok).toBe(false)
+		if (!result.ok) {
+			expect(result.errors).toContain("A plan payload object is required.")
+		}
+	})
+
+	it("returns validation errors instead of throwing when agents is malformed", () => {
+		expect(() =>
+			handlePlanParallelTasks(
+				{
+					goal: "Split implementation work",
+					agents: "agent-a",
+				},
+				"/repo",
+			),
+		).not.toThrow()
+
+		const result = handlePlanParallelTasks(
+			{
+				goal: "Split implementation work",
+				agents: "agent-a",
+			},
+			"/repo",
+		)
+
+		expect(result.ok).toBe(false)
+		if (!result.ok) {
+			expect(result.errors).toContain("At least one agent must be provided.")
+		}
+	})
+
 	it("rejects conflicting exclusive file ownership", () => {
 		const result = handlePlanParallelTasks(
 			{
@@ -17,11 +53,13 @@ describe("handlePlanParallelTasks", () => {
 				agents: [
 					{
 						id: "agent-a",
+						mode: "component",
 						task: "Edit shared file first",
 						owns: [{ path: "src/shared.ts", mode: "exclusive" }],
 					},
 					{
 						id: "agent-b",
+						mode: "api",
 						task: "Edit shared file second",
 						owns: [{ path: "./src/shared.ts", mode: "exclusive" }],
 					},
@@ -43,11 +81,13 @@ describe("handlePlanParallelTasks", () => {
 				agents: [
 					{
 						id: "agent-a",
+						mode: "review",
 						task: "Review shared file first",
 						owns: [{ path: "src/shared.ts", mode: "shared" }],
 					},
 					{
 						id: "agent-b",
+						mode: "review",
 						task: "Review shared file second",
 						owns: [{ path: "src/shared.ts", mode: "shared" }],
 					},
@@ -57,6 +97,9 @@ describe("handlePlanParallelTasks", () => {
 		)
 
 		expect(result.ok).toBe(true)
+		if (result.ok) {
+			expect(result.plan.agents[0].mode).toBe("review")
+		}
 	})
 
 	it("rejects dependency cycles", () => {
@@ -66,11 +109,13 @@ describe("handlePlanParallelTasks", () => {
 				agents: [
 					{
 						id: "agent-a",
+						mode: "test",
 						task: "Wait for B",
 						dependsOn: [{ agentId: "agent-b", waitFor: "complete" }],
 					},
 					{
 						id: "agent-b",
+						mode: "test",
 						task: "Wait for A",
 						dependsOn: [{ agentId: "agent-a", waitFor: "complete" }],
 					},

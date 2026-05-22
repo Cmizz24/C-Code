@@ -4,7 +4,14 @@ import { Check, X } from "lucide-react"
 
 import { type ModeConfig, type CustomModePrompts } from "@roo-code/types"
 
-import { type Mode, getAllModes, defaultModeSlug } from "@roo/modes"
+import {
+	type Mode,
+	getAllModes,
+	defaultModeSlug,
+	defaultModeGroups,
+	getModeGroupForSlug,
+	normalizeModeSlug,
+} from "@roo/modes"
 
 import { vscode } from "@/utils/vscode"
 import { cn } from "@/lib/utils"
@@ -68,16 +75,20 @@ export const ModeSelector = ({
 		}))
 	}, [customModes, customModePrompts])
 
+	const normalizedValue = React.useMemo(() => normalizeModeSlug(value), [value])
+
 	// Find the selected mode, falling back to default if current mode doesn't exist (e.g., after workspace switch)
 	const selectedMode = React.useMemo(() => {
-		return modes.find((mode) => mode.slug === value) ?? modes.find((mode) => mode.slug === defaultModeSlug)
-	}, [modes, value])
+		return (
+			modes.find((mode) => mode.slug === normalizedValue) ?? modes.find((mode) => mode.slug === defaultModeSlug)
+		)
+	}, [modes, normalizedValue])
 
 	// Notify parent when current mode is invalid so it can update its state
 	React.useEffect(() => {
-		const isValidMode = modes.some((mode) => mode.slug === value)
+		const isValidMode = modes.some((mode) => mode.slug === normalizedValue)
 
-		if (isValidMode) {
+		if (isValidMode && value === normalizedValue) {
 			lastNotifiedInvalidModeRef.current = null
 			return
 		}
@@ -86,13 +97,14 @@ export const ModeSelector = ({
 			return
 		}
 
-		const fallbackMode = modes.find((mode) => mode.slug === defaultModeSlug)
+		const fallbackMode =
+			modes.find((mode) => mode.slug === normalizedValue) ?? modes.find((mode) => mode.slug === defaultModeSlug)
 		if (fallbackMode) {
 			lastNotifiedInvalidModeRef.current = value
 			onChange(fallbackMode.slug as Mode)
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- onChange omitted to prevent loops when parent doesn't memoize
-	}, [modes, value])
+	}, [modes, value, normalizedValue])
 
 	// Memoize searchable items for fuzzy search with separate name and
 	// description search.
@@ -142,6 +154,24 @@ export const ModeSelector = ({
 
 		return combinedResults
 	}, [modes, searchValue, nameFzfInstance, descriptionFzfInstance])
+
+	const groupedFilteredModes = React.useMemo(() => {
+		const groupedModes = new Map<string, { group: string; label: string; modes: ModeConfig[] }>()
+
+		for (const [group, config] of Object.entries(defaultModeGroups)) {
+			groupedModes.set(group, { group, label: config.label, modes: [] })
+		}
+
+		for (const mode of filteredModes) {
+			const group = getModeGroupForSlug(mode.slug) ?? "custom"
+			const label = group === "custom" ? "Custom" : defaultModeGroups[group].label
+			const groupConfig = groupedModes.get(group) ?? { group, label, modes: [] }
+			groupConfig.modes.push(mode)
+			groupedModes.set(group, groupConfig)
+		}
+
+		return [...groupedModes.values()].filter((group) => group.modes.length > 0)
+	}, [filteredModes])
 
 	const onClearSearch = React.useCallback(() => {
 		setSearchValue("")
@@ -273,33 +303,40 @@ export const ModeSelector = ({
 							</div>
 						) : (
 							<div className="py-1">
-								{filteredModes.map((mode) => {
-									const isSelected = mode.slug === value
-									return (
-										<div
-											key={mode.slug}
-											ref={isSelected ? selectedItemRef : null}
-											onClick={() => handleSelect(mode.slug)}
-											className={cn(
-												"px-3 py-1.5 text-sm cursor-pointer flex items-center",
-												"hover:bg-vscode-list-hoverBackground",
-												isSelected
-													? "bg-vscode-list-activeSelectionBackground text-vscode-list-activeSelectionForeground"
-													: "",
-											)}
-											data-testid="mode-selector-item">
-											<div className="flex-1 min-w-0">
-												<div className="font-bold truncate">{mode.name}</div>
-												{mode.description && (
-													<div className="text-xs text-vscode-descriptionForeground truncate">
-														{mode.description}
-													</div>
-												)}
-											</div>
-											{isSelected && <Check className="ml-auto size-4 p-0.5" />}
+								{groupedFilteredModes.map((group) => (
+									<div key={group.group} data-testid="mode-selector-group">
+										<div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-vscode-descriptionForeground/80">
+											{group.label}
 										</div>
-									)
-								})}
+										{group.modes.map((mode) => {
+											const isSelected = mode.slug === normalizedValue
+											return (
+												<div
+													key={mode.slug}
+													ref={isSelected ? selectedItemRef : null}
+													onClick={() => handleSelect(mode.slug)}
+													className={cn(
+														"px-3 py-1.5 text-sm cursor-pointer flex items-center",
+														"hover:bg-vscode-list-hoverBackground",
+														isSelected
+															? "bg-vscode-list-activeSelectionBackground text-vscode-list-activeSelectionForeground"
+															: "",
+													)}
+													data-testid="mode-selector-item">
+													<div className="flex-1 min-w-0">
+														<div className="font-bold truncate">{mode.name}</div>
+														{mode.description && (
+															<div className="text-xs text-vscode-descriptionForeground truncate">
+																{mode.description}
+															</div>
+														)}
+													</div>
+													{isSelected && <Check className="ml-auto size-4 p-0.5" />}
+												</div>
+											)
+										})}
+									</div>
+								))}
 							</div>
 						)}
 					</div>

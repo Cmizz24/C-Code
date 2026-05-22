@@ -50,7 +50,7 @@ import { Package } from "../../shared/package"
 import { findLast } from "../../shared/array"
 import { supportPrompt } from "../../shared/support-prompt"
 import { GlobalFileNames } from "../../shared/globalFileNames"
-import { Mode, defaultModeSlug, getModeBySlug } from "../../shared/modes"
+import { Mode, defaultModeSlug, getAllModes, getModeBySlug, normalizeModeSlug } from "../../shared/modes"
 import { experimentDefault } from "../../shared/experiments"
 import { formatLanguage } from "../../shared/language"
 import { WebviewMessage } from "../../shared/WebviewMessage"
@@ -909,6 +909,15 @@ export class ClineProvider
 
 		// If the history item has a saved mode, restore it and its associated API configuration.
 		if (historyItem.mode) {
+			const originalMode = historyItem.mode
+			historyItem.mode = normalizeModeSlug(historyItem.mode)
+
+			if (historyItem.mode !== originalMode) {
+				this.log(
+					`Mode '${originalMode}' from history is deprecated. Falling back to mode '${historyItem.mode}'.`,
+				)
+			}
+
 			// Validate that the mode still exists
 			const customModes = await this.customModesManager.getCustomModes()
 			const modeExists = getModeBySlug(historyItem.mode, customModes) !== undefined
@@ -1320,6 +1329,7 @@ export class ClineProvider
 	 * @param newMode The mode to switch to
 	 */
 	public async handleModeSwitch(newMode: Mode) {
+		newMode = normalizeModeSlug(newMode)
 		const task = this.getCurrentTask()
 
 		if (task) {
@@ -3008,7 +3018,7 @@ export class ClineProvider
 	public async getModes(): Promise<{ slug: string; name: string }[]> {
 		try {
 			const customModes = await this.customModesManager.getCustomModes()
-			return [...DEFAULT_MODES, ...customModes].map(({ slug, name }) => ({ slug, name }))
+			return getAllModes(customModes).map(({ slug, name }) => ({ slug, name }))
 		} catch (error) {
 			return DEFAULT_MODES.map(({ slug, name }) => ({ slug, name }))
 		}
@@ -3016,11 +3026,11 @@ export class ClineProvider
 
 	public async getMode(): Promise<string> {
 		const { mode } = await this.getState()
-		return mode
+		return normalizeModeSlug(mode)
 	}
 
 	public async setMode(mode: string): Promise<void> {
-		await this.setValues({ mode })
+		await this.setValues({ mode: normalizeModeSlug(mode) })
 	}
 
 	// Provider Profiles
@@ -3057,7 +3067,8 @@ export class ClineProvider
 		initialTodos: TodoItem[]
 		mode: string
 	}): Promise<Task> {
-		const { parentTaskId, message, initialTodos, mode } = params
+		const { parentTaskId, message, initialTodos } = params
+		const mode = normalizeModeSlug(params.mode)
 
 		// Metadata-driven delegation is always enabled
 

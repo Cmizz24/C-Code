@@ -15,7 +15,7 @@ suite("Roo Code Modes", function () {
 
 		const switchModesTaskId = await globalThis.api.startNewTask({
 			configuration: { mode: "code", alwaysAllowModeSwitch: true, autoApprovalEnabled: true },
-			text: "Use the `switch_mode` tool to switch to ask mode.",
+			text: "Use the `switch_mode` tool to switch to explain mode.",
 		})
 
 		await waitUntilCompleted({ api: globalThis.api, taskId: switchModesTaskId })

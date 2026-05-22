@@ -31,6 +31,10 @@ export default {
 						type: "object",
 						properties: {
 							id: { type: "string", description: "Stable unique agent id." },
+							mode: {
+								type: "string",
+								description: "Mode slug for the specialist agent assigned to this task.",
+							},
 							task: { type: "string", description: "Precise task instructions for this agent." },
 							owns: {
 								type: "array",
@@ -75,7 +79,7 @@ export default {
 								items: { type: "string" },
 							},
 						},
-						required: ["id", "task", "owns", "mustNotTouch", "dependsOn", "signals"],
+						required: ["id", "mode", "task", "owns", "mustNotTouch", "dependsOn", "signals"],
 						additionalProperties: false,
 					},
 				},

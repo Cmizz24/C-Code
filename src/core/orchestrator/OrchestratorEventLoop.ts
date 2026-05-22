@@ -69,6 +69,7 @@ export class OrchestratorEventLoop {
 			undefined,
 			this.provider.getCurrentTask(),
 			{
+				mode: agent.mode,
 				agentId: agent.id,
 				workspacePath: agent.worktreePath,
 				systemPromptSuffix: this.buildSystemPromptSuffix(agent, plan),
@@ -88,7 +89,7 @@ export class OrchestratorEventLoop {
 
 	private buildAgentMessage(agent: AgentPlan, plan?: ExecutionPlan): string {
 		return [
-			`You are parallel agent ${agent.id}.`,
+			`You are parallel agent ${agent.id} running in ${agent.mode} mode.`,
 			plan?.sharedContext ? `Shared context:\n${plan.sharedContext}` : undefined,
 			`Task:\n${agent.task}`,
 			`Owned paths:\n${agent.owns.map((ownership) => `- ${ownership.path} (${ownership.mode})`).join("\n") || "- none"}`,

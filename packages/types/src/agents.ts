@@ -14,6 +14,7 @@ export type AgentStatus = "pending" | "running" | "blocked" | "complete" | "fail
 
 export interface AgentPlan {
 	id: string
+	mode: string
 	task: string
 	owns: FileOwnership[]
 	mustNotTouch: string[]

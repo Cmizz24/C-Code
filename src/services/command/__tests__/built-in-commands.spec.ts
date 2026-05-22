@@ -96,7 +96,7 @@ describe("Built-in Commands", () => {
 			expect(content).toContain(".roo/rules-")
 			expect(content).toContain("rules-code")
 			expect(content).toContain("rules-debug")
-			expect(content).toContain("rules-ask")
+			expect(content).toContain("rules-explain")
 			expect(content).toContain("rules-architect")
 		})
 	})

@@ -37,7 +37,7 @@ C Code keeps the mode-based workflow from Roo Code and adapts it for day-to-day 
 
 - **Code Mode** — make edits, write code, and work directly with files
 - **Architect Mode** — plan features, designs, migrations, and larger changes
-- **Ask Mode** — explain code, answer questions, and inspect the project
+- **Explain Mode** — explain code, answer questions, and inspect the project
 - **Debug Mode** — investigate errors, trace issues, and find root causes
 - **Custom Modes** — create specialized workflows for different tasks
 

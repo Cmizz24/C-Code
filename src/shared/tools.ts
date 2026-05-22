@@ -126,6 +126,7 @@ export type NativeToolArgs = {
 		expectedFiles: string[]
 		agents: Array<{
 			id: string
+			mode: string
 			task: string
 			owns: FileOwnership[]
 			mustNotTouch: string[]
