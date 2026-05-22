@@ -78,14 +78,32 @@ describe("OrchestratorEventLoop", () => {
 		AgentBus.reset()
 	})
 
-	it("starts worktrees and tasks only after the approved plan is passed to the event loop", async () => {
+	it("starts approved parallel agents programmatically without invoking the new_task tool path", async () => {
 		const provider = createProvider()
 		const plan = createPlan()
+
+		expect(provider.createTask).not.toHaveBeenCalled()
 
 		new OrchestratorEventLoop(provider, AgentBus.getInstance()).start(plan)
 
 		await vi.waitFor(() => expect(provider.createAgentWorktree).toHaveBeenCalledWith("ui", "plan-test"))
 		expect(provider.createTask).toHaveBeenCalledTimes(1)
+		const [message, images, parentTask, options] = vi.mocked(provider.createTask).mock.calls[0]
+
+		expect(message).toContain("You are parallel agent ui running in ui-ux mode.")
+		expect(message).toContain("Shared context:\nBuild the dashboard")
+		expect(message).toContain("Task:\nBuild the dashboard UI")
+		expect(message).not.toContain("new_task")
+		expect(images).toBeUndefined()
+		expect(parentTask).toBeUndefined()
+		expect(options).toMatchObject({
+			mode: "ui-ux",
+			agentId: "ui",
+			workspacePath: "C:/repo/.roo/plan-test/ui",
+		})
+		expect(options?.systemPromptSuffix).toContain("Parallel agent coordination rules:")
+		expect(options?.systemPromptSuffix).toContain("- Agent id: ui")
+		expect(options?.systemPromptSuffix).toContain("- Execution plan: plan-test")
 	})
 
 	it("marks the agent failed instead of leaving a rejected worktree promise", async () => {

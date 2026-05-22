@@ -7,6 +7,23 @@ describe("NativeToolCallParser", () => {
 	})
 
 	describe("parseToolCall", () => {
+		describe("new_task tool", () => {
+			it("returns null for malformed interleaved JSON instead of producing nativeArgs", () => {
+				const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+				const result = NativeToolCallParser.parseToolCall({
+					id: "toolu_malformed_new_task",
+					name: "new_task" as const,
+					arguments: '{"mode":"code","message":"Build UI"}{"mode":"debug","message":"last a the"',
+				})
+
+				expect(result).toBeNull()
+				expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("Failed to parse tool call arguments"))
+				expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('"name": "new_task"'))
+				errorSpy.mockRestore()
+			})
+		})
+
 		describe("read_file tool", () => {
 			it("should parse minimal single-file read_file args", () => {
 				const toolCall = {

@@ -62,22 +62,19 @@ export class OrchestratorEventLoop {
 
 		try {
 			const plan = this.bus.getExecutionPlan()
+			const agentMessage = this.buildAgentMessage(agent, plan)
+			const systemPromptSuffix = this.buildSystemPromptSuffix(agent, plan)
 			if (plan && this.provider.createAgentWorktree) {
 				agent.worktreePath = await this.provider.createAgentWorktree(agent.id, plan.planId)
 			}
 
 			this.bus.markRunning(agent.id)
-			const task = await this.provider.createTask(
-				this.buildAgentMessage(agent, plan),
-				undefined,
-				this.provider.getCurrentTask(),
-				{
-					mode: agent.mode,
-					agentId: agent.id,
-					workspacePath: agent.worktreePath,
-					systemPromptSuffix: this.buildSystemPromptSuffix(agent, plan),
-				},
-			)
+			const task = await this.provider.createTask(agentMessage, undefined, this.provider.getCurrentTask(), {
+				mode: agent.mode,
+				agentId: agent.id,
+				workspacePath: agent.worktreePath,
+				systemPromptSuffix,
+			})
 			this.spawnedAgents.set(agent.id, task)
 
 			task.on(RooCodeEventName.TaskCompleted, () => this.bus.markComplete(agent.id))

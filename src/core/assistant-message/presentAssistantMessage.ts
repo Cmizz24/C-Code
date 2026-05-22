@@ -88,6 +88,10 @@ export async function presentAssistantMessage(cline: Task) {
 		throw new Error(`[Task#presentAssistantMessage] task ${cline.taskId}.${cline.instanceId} aborted`)
 	}
 
+	if (cline.parallelPlanPaused) {
+		return
+	}
+
 	if (cline.presentAssistantMessageLocked) {
 		cline.presentAssistantMessageHasPendingUpdates = true
 		return
@@ -339,6 +343,11 @@ export async function presentAssistantMessage(cline: Task) {
 				cline.userMessageContent.push({ type: "text", text: errorMessage })
 				cline.didAlreadyUseTool = true
 				break
+			}
+
+			const isCompleteParallelPlanTool = block.name === "plan_parallel_tasks" && !block.partial
+			if (isCompleteParallelPlanTool) {
+				cline.didAlreadyUseTool = true
 			}
 
 			// Fetch state early so it's available for toolDescription and validation
@@ -813,36 +822,52 @@ export async function presentAssistantMessage(cline: Task) {
 						break
 					}
 
-					const result = handlePlanParallelTasks(
-						(block as ToolUse<"plan_parallel_tasks">).nativeArgs,
-						cline.cwd,
-					)
-					if (result.ok) {
-						const provider = cline.providerRef.deref()
-						const approvalResult = await provider?.requestPlanApproval(result.plan)
+					cline.parallelPlanPaused = true
+					try {
+						const result = handlePlanParallelTasks(
+							(block as ToolUse<"plan_parallel_tasks">).nativeArgs,
+							cline.cwd,
+						)
+						if (result.ok) {
+							const provider = cline.providerRef.deref()
+							const approvalResult = await provider?.requestPlanApproval(result.plan)
 
-						if (!approvalResult) {
-							pushToolResult(
-								formatResponse.toolError("Unable to show the parallel execution plan preview."),
-							)
-						} else if (!approvalResult.approved) {
-							pushToolResult(
-								`Parallel execution plan ${result.plan.planId} was canceled before Roo created worktrees or started agent tasks.`,
-							)
-						} else if (approvalResult.startResult.ok === false) {
-							pushToolResult(formatResponse.toolError(approvalResult.startResult.error))
+							if (!approvalResult) {
+								pushToolResult(
+									formatResponse.toolError("Unable to show the parallel execution plan preview."),
+								)
+							} else if (!approvalResult.approved) {
+								pushToolResult(
+									`Parallel execution plan ${result.plan.planId} was canceled before Roo created worktrees or started agent tasks.`,
+								)
+							} else if (approvalResult.startResult.ok === false) {
+								pushToolResult(formatResponse.toolError(approvalResult.startResult.error))
+							} else {
+								pushToolResult(
+									`Approved execution plan ${approvalResult.plan.planId} with ${approvalResult.plan.agents.length} agents. Roo is creating worktrees and starting agent tasks programmatically. Do not call new_task for these parallel agents.\n${
+										result.warnings.length > 0
+											? `Warnings:\n- ${result.warnings.join("\n- ")}`
+											: "No warnings."
+									}`,
+								)
+							}
 						} else {
 							pushToolResult(
-								`Approved execution plan ${approvalResult.plan.planId} with ${approvalResult.plan.agents.length} agents. Roo will now create worktrees and start agent tasks.\n${
-									result.warnings.length > 0
-										? `Warnings:\n- ${result.warnings.join("\n- ")}`
-										: "No warnings."
-								}`,
+								formatResponse.toolError(
+									`Invalid parallel task plan:\n- ${result.errors.join("\n- ")}`,
+								),
 							)
 						}
-					} else {
-						pushToolResult(
-							formatResponse.toolError(`Invalid parallel task plan:\n- ${result.errors.join("\n- ")}`),
+					} catch (error) {
+						await handleError(
+							"planning parallel tasks",
+							error instanceof Error ? error : new Error(String(error)),
+						)
+					} finally {
+						cline.parallelPlanPaused = false
+						cline.assistantMessageContent.length = Math.min(
+							cline.assistantMessageContent.length,
+							cline.currentStreamingContentIndex + 1,
 						)
 					}
 					break
