@@ -798,14 +798,20 @@ export async function presentAssistantMessage(cline: Task) {
 						cline.cwd,
 					)
 					if (result.ok) {
-						cline.providerRef.deref()?.startOrchestratorEventLoop(result.plan)
-						pushToolResult(
-							`Created execution plan ${result.plan.planId} with ${result.plan.agents.length} agents.\n${
-								result.warnings.length > 0
-									? `Warnings:\n- ${result.warnings.join("\n- ")}`
-									: "No warnings."
-							}`,
-						)
+						const provider = cline.providerRef.deref()
+						const startResult = await provider?.startOrchestratorEventLoop(result.plan)
+
+						if (startResult?.ok === false) {
+							pushToolResult(formatResponse.toolError(startResult.error))
+						} else {
+							pushToolResult(
+								`Prepared execution plan ${result.plan.planId} with ${result.plan.agents.length} agents. Review and approve it before Roo creates worktrees or starts agent tasks.\n${
+									result.warnings.length > 0
+										? `Warnings:\n- ${result.warnings.join("\n- ")}`
+										: "No warnings."
+								}`,
+							)
+						}
 					} else {
 						pushToolResult(
 							formatResponse.toolError(`Invalid parallel task plan:\n- ${result.errors.join("\n- ")}`),

@@ -97,7 +97,7 @@ import { getUri } from "./getUri"
 import { REQUESTY_BASE_URL } from "../../shared/utils/requesty"
 import { validateAndFixToolResultIds } from "../task/validateToolResultIds"
 import { AgentBus } from "../agents/AgentBus"
-import { WorktreeManager } from "../agents/WorktreeManager"
+import { getWorktreeManagerErrorMessage, WorktreeManager } from "../agents/WorktreeManager"
 import { OrchestratorEventLoop } from "../orchestrator/OrchestratorEventLoop"
 
 const execAsync = promisify(exec)
@@ -2705,13 +2705,24 @@ export class ClineProvider
 		return task
 	}
 
-	public startOrchestratorEventLoop(plan: ExecutionPlan): void {
+	public async startOrchestratorEventLoop(plan: ExecutionPlan): Promise<{ ok: true } | { ok: false; error: string }> {
 		this.activeExecutionPlan = undefined
 		this.worktreePathsByAgentId.clear()
 		this.orchestratorEventLoop?.stop()
+
+		try {
+			await this.ensureWorktreeManager().validateGitRepository()
+		} catch (error) {
+			const message = getWorktreeManagerErrorMessage(error)
+			this.log(`[parallel-agents] ${message}`)
+			vscode.window.showErrorMessage(message)
+			return { ok: false, error: message }
+		}
+
 		this.orchestratorEventLoop = new OrchestratorEventLoop(this)
 		this.attachAgentBusForwarders(AgentBus.getInstance())
 		this.orchestratorEventLoop.start(plan)
+		return { ok: true }
 	}
 
 	public requestPlanApproval(plan: ExecutionPlan): Promise<ExecutionPlan | undefined> {
@@ -2740,14 +2751,25 @@ export class ClineProvider
 	}
 
 	public async createAgentWorktree(agentId: string, planId: string): Promise<string> {
+		try {
+			const worktreePath = await this.ensureWorktreeManager().createWorktree(agentId, planId)
+			this.worktreePathsByAgentId.set(agentId, worktreePath)
+			return worktreePath
+		} catch (error) {
+			const message = getWorktreeManagerErrorMessage(error)
+			this.log(`[parallel-agents] Failed to create worktree for ${agentId}: ${message}`)
+			vscode.window.showErrorMessage(message)
+			throw new Error(message)
+		}
+	}
+
+	private ensureWorktreeManager(): WorktreeManager {
 		if (!this.worktreeManager) {
 			this.currentWorkspacePath = this.currentWorkspacePath ?? getWorkspacePath()
 			this.worktreeManager = new WorktreeManager(this.currentWorkspacePath)
 		}
 
-		const worktreePath = await this.worktreeManager.createWorktree(agentId, planId)
-		this.worktreePathsByAgentId.set(agentId, worktreePath)
-		return worktreePath
+		return this.worktreeManager
 	}
 
 	public handleAgentWaitOnConflict(agentId?: string, filePath?: string): void {
@@ -2871,6 +2893,7 @@ export class ClineProvider
 
 		return {
 			agentId,
+			mode: agent?.mode,
 			task: agent?.task ?? agentId,
 			diff,
 			worktreePath,

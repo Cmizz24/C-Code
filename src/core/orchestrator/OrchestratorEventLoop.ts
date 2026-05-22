@@ -25,7 +25,10 @@ export class OrchestratorEventLoop {
 		}
 
 		this.running = true
-		void this.startAfterApproval(plan)
+		void this.startAfterApproval(plan).catch((error) => {
+			this.stop()
+			Promise.resolve(this.provider.postStateToWebview()).catch(() => {})
+		})
 	}
 
 	public stop(): void {
@@ -59,26 +62,33 @@ export class OrchestratorEventLoop {
 			return
 		}
 
-		this.bus.markRunning(agent.id)
-		const plan = this.bus.getExecutionPlan()
-		if (plan && this.provider.createAgentWorktree) {
-			agent.worktreePath = await this.provider.createAgentWorktree(agent.id, plan.planId)
-		}
-		const task = await this.provider.createTask(
-			this.buildAgentMessage(agent, plan),
-			undefined,
-			this.provider.getCurrentTask(),
-			{
-				mode: agent.mode,
-				agentId: agent.id,
-				workspacePath: agent.worktreePath,
-				systemPromptSuffix: this.buildSystemPromptSuffix(agent, plan),
-			},
-		)
-		this.spawnedAgents.set(agent.id, task)
+		try {
+			const plan = this.bus.getExecutionPlan()
+			if (plan && this.provider.createAgentWorktree) {
+				agent.worktreePath = await this.provider.createAgentWorktree(agent.id, plan.planId)
+			}
 
-		task.on(RooCodeEventName.TaskCompleted, () => this.bus.markComplete(agent.id))
-		task.on(RooCodeEventName.TaskAborted, () => this.bus.markFailed(agent.id, "Agent task aborted."))
+			this.bus.markRunning(agent.id)
+			const task = await this.provider.createTask(
+				this.buildAgentMessage(agent, plan),
+				undefined,
+				this.provider.getCurrentTask(),
+				{
+					mode: agent.mode,
+					agentId: agent.id,
+					workspacePath: agent.worktreePath,
+					systemPromptSuffix: this.buildSystemPromptSuffix(agent, plan),
+				},
+			)
+			this.spawnedAgents.set(agent.id, task)
+
+			task.on(RooCodeEventName.TaskCompleted, () => this.bus.markComplete(agent.id))
+			task.on(RooCodeEventName.TaskAborted, () => this.bus.markFailed(agent.id, "Agent task aborted."))
+		} catch (error) {
+			const message = error instanceof Error && error.message ? error.message : String(error)
+			this.bus.markFailed(agent.id, message)
+			Promise.resolve(this.provider.postStateToWebview()).catch(() => {})
+		}
 	}
 
 	private readonly synthesizeCompletion = (plan: ExecutionPlan): void => {

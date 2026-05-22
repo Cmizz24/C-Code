@@ -4,6 +4,25 @@ import { promisify } from "util"
 
 const execAsync = promisify(exec)
 
+export class WorktreeManagerError extends Error {
+	constructor(message: string) {
+		super(message)
+		this.name = "WorktreeManagerError"
+	}
+}
+
+export function getWorktreeManagerErrorMessage(error: unknown): string {
+	if (error instanceof WorktreeManagerError) {
+		return error.message
+	}
+
+	if (error instanceof Error && error.message) {
+		return error.message
+	}
+
+	return String(error)
+}
+
 function shellQuote(value: string): string {
 	return `"${value.replace(/"/g, '\\"')}"`
 }
@@ -18,6 +37,7 @@ function sanitizeBranchComponent(value: string): string {
 
 export class WorktreeManager {
 	private readonly createdWorktrees = new Set<string>()
+	private gitRoot: string | undefined
 
 	constructor(private readonly repoRoot: string) {}
 
@@ -25,14 +45,19 @@ export class WorktreeManager {
 		return Array.from(this.createdWorktrees)
 	}
 
+	public async validateGitRepository(): Promise<string> {
+		return this.resolveGitRoot()
+	}
+
 	public async createWorktree(agentId: string, planId: string): Promise<string> {
+		const gitRoot = await this.resolveGitRoot()
 		const safePlanId = sanitizeBranchComponent(planId) || "plan"
 		const safeAgentId = sanitizeBranchComponent(agentId) || "agent"
 		const branchName = `roo/parallel/${safePlanId}/${safeAgentId}`
 		const worktreePath = path.join(this.repoRoot, ".roo", "parallel-worktrees", safePlanId, safeAgentId)
 
 		await execAsync(`git worktree add -B ${shellQuote(branchName)} ${shellQuote(worktreePath)} HEAD`, {
-			cwd: this.repoRoot,
+			cwd: gitRoot,
 		})
 
 		this.createdWorktrees.add(worktreePath)
@@ -50,5 +75,34 @@ export class WorktreeManager {
 	public async cleanup(): Promise<void> {
 		const worktrees = this.getCreatedWorktrees()
 		await Promise.allSettled(worktrees.map((worktreePath) => this.removeWorktree(worktreePath)))
+	}
+
+	private async resolveGitRoot(): Promise<string> {
+		if (this.gitRoot) {
+			return this.gitRoot
+		}
+
+		try {
+			const result = await execAsync("git rev-parse --show-toplevel", { cwd: this.repoRoot })
+			const stdout = typeof result === "string" ? result : result.stdout
+			const gitRoot = stdout.trim()
+
+			if (!gitRoot) {
+				throw new WorktreeManagerError(
+					`Parallel worktrees require a Git repository. The active workspace (${this.repoRoot}) did not report a Git repository root. Open a Git-backed workspace or initialize Git before approving a parallel plan.`,
+				)
+			}
+
+			this.gitRoot = gitRoot
+			return gitRoot
+		} catch (error) {
+			if (error instanceof WorktreeManagerError) {
+				throw error
+			}
+
+			throw new WorktreeManagerError(
+				`Parallel worktrees require a Git repository. The active workspace (${this.repoRoot}) is not inside a Git repository. Open a Git-backed workspace or initialize Git before approving a parallel plan.`,
+			)
+		}
 	}
 }

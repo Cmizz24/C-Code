@@ -11,7 +11,10 @@ import {
 	DialogTitle,
 	Textarea,
 } from "@/components/ui"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
+
+import { getAgentModeLabel } from "./agentDisplay"
 
 interface PlanPreviewModalProps {
 	plan: ExecutionPlan
@@ -31,6 +34,7 @@ const clonePlan = (plan: ExecutionPlan): ExecutionPlan => ({
 })
 
 export const PlanPreviewModal = ({ plan, onClose }: PlanPreviewModalProps) => {
+	const { customModes } = useExtensionState()
 	const [editedPlan, setEditedPlan] = useState<ExecutionPlan>(() => clonePlan(plan))
 
 	useEffect(() => {
@@ -54,6 +58,10 @@ export const PlanPreviewModal = ({ plan, onClose }: PlanPreviewModalProps) => {
 		onClose()
 	}
 
+	const labelByAgentId = new Map(
+		editedPlan.agents.map((agent) => [agent.id, getAgentModeLabel(agent.mode, customModes)]),
+	)
+
 	return (
 		<Dialog open onOpenChange={(open) => !open && cancelPlan()}>
 			<DialogContent className="max-h-[90vh] max-w-[min(900px,95vw)] overflow-y-auto">
@@ -73,16 +81,18 @@ export const PlanPreviewModal = ({ plan, onClose }: PlanPreviewModalProps) => {
 					</section>
 
 					<div className="space-y-3">
-						{editedPlan.agents.map((agent, index) => (
+						{editedPlan.agents.map((agent) => (
 							<section
 								key={agent.id}
 								className="rounded-md border border-vscode-panel-border bg-vscode-sideBar-background p-3">
 								<div className="mb-3 flex items-center justify-between gap-2">
 									<div>
 										<h3 className="text-sm font-semibold text-vscode-foreground">
-											Agent {index + 1}
+											{getAgentModeLabel(agent.mode, customModes)}
 										</h3>
-										<div className="font-mono text-[11px] text-vscode-descriptionForeground">
+										<div
+											className="font-mono text-[11px] text-vscode-descriptionForeground"
+											title="Agent ID">
 											{agent.id}
 										</div>
 									</div>
@@ -156,7 +166,8 @@ export const PlanPreviewModal = ({ plan, onClose }: PlanPreviewModalProps) => {
 												<span
 													key={`${agent.id}:${dependency.agentId}:${dependency.waitFor}:${dependency.signal ?? ""}`}
 													className="rounded-full border border-vscode-panel-border bg-vscode-editor-background px-2 py-1 text-xs text-vscode-descriptionForeground">
-													{dependency.agentId} · {dependency.waitFor}
+													{labelByAgentId.get(dependency.agentId) ?? dependency.agentId} ·{" "}
+													{dependency.waitFor}
 													{dependency.signal ? ` · ${dependency.signal}` : ""}
 												</span>
 											))

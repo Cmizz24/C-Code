@@ -109,6 +109,7 @@ export interface WriteIntentConflict {
 
 export interface MergeReviewEntry {
 	agentId: string
+	mode?: string
 	task: string
 	diff: string
 	worktreePath: string

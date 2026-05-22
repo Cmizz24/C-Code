@@ -11,8 +11,11 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { vscode } from "@/utils/vscode"
+
+import { getAgentModeLabel } from "./agentDisplay"
 
 interface MergeReviewPanelProps {
 	entries: MergeReviewEntry[]
@@ -22,6 +25,7 @@ interface MergeReviewPanelProps {
 }
 
 export const MergeReviewPanel = ({ entries, failedAgentId, gitOutput, onClose }: MergeReviewPanelProps) => {
+	const { customModes } = useExtensionState()
 	const [approvedAgentIds, setApprovedAgentIds] = useState<Set<string>>(() => new Set())
 
 	const approvedIds = useMemo(() => [...approvedAgentIds], [approvedAgentIds])
@@ -64,6 +68,7 @@ export const MergeReviewPanel = ({ entries, failedAgentId, gitOutput, onClose }:
 					{entries.map((entry) => {
 						const approved = approvedAgentIds.has(entry.agentId)
 						const failed = failedAgentId === entry.agentId
+						const agentLabel = getAgentModeLabel(entry.mode, customModes)
 
 						return (
 							<section
@@ -74,9 +79,12 @@ export const MergeReviewPanel = ({ entries, failedAgentId, gitOutput, onClose }:
 								)}>
 								<div className="mb-3 flex flex-wrap items-start justify-between gap-3">
 									<div>
-										<h3 className="text-sm font-semibold text-vscode-foreground">{entry.task}</h3>
+										<h3 className="text-sm font-semibold text-vscode-foreground">{agentLabel}</h3>
+										<div className="mt-1 text-xs text-vscode-descriptionForeground">
+											{entry.task}
+										</div>
 										<div className="mt-1 grid gap-1 font-mono text-[11px] text-vscode-descriptionForeground">
-											<span>{entry.agentId}</span>
+											<span title="Agent ID">{entry.agentId}</span>
 											<span>{entry.branch}</span>
 											<span>{entry.worktreePath}</span>
 										</div>

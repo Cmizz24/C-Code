@@ -6,6 +6,8 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { vscode } from "@/utils/vscode"
 
+import { getAgentModeLabel } from "./agentDisplay"
+
 type ConflictBanner = WriteIntentConflict & {
 	key: string
 }
@@ -26,7 +28,7 @@ const findLastTouchedFile = (agent: AgentPlan): string | undefined => {
 }
 
 export const AgentStatusPanel = () => {
-	const { activeExecutionPlan } = useExtensionState()
+	const { activeExecutionPlan, customModes } = useExtensionState()
 	const [statusUpdates, setStatusUpdates] = useState<Record<string, AgentStatusUpdate>>({})
 	const [conflicts, setConflicts] = useState<ConflictBanner[]>([])
 
@@ -103,7 +105,9 @@ export const AgentStatusPanel = () => {
 		return null
 	}
 
-	const taskByAgentId = new Map(activeExecutionPlan.agents.map((agent) => [agent.id, agent.task]))
+	const labelByAgentId = new Map(
+		activeExecutionPlan.agents.map((agent) => [agent.id, getAgentModeLabel(agent.mode, customModes)]),
+	)
 
 	return (
 		<section className="border-t border-vscode-panel-border bg-vscode-sideBar-background px-[15px] py-3">
@@ -163,8 +167,9 @@ export const AgentStatusPanel = () => {
 			<div className="grid gap-2">
 				{agents.map((agent) => {
 					const waitingOn = agent.dependsOn
-						.map((dependency) => taskByAgentId.get(dependency.agentId) ?? dependency.agentId)
+						.map((dependency) => labelByAgentId.get(dependency.agentId) ?? dependency.agentId)
 						.join(", ")
+					const agentLabel = getAgentModeLabel(agent.mode, customModes)
 
 					return (
 						<article
@@ -172,8 +177,11 @@ export const AgentStatusPanel = () => {
 							className="rounded-md border border-vscode-panel-border bg-vscode-editor-background p-3 shadow-sm">
 							<div className="mb-2 flex items-start justify-between gap-3">
 								<div className="min-w-0">
-									<div className="mb-1 text-sm font-medium text-vscode-foreground">{agent.task}</div>
-									<div className="font-mono text-[11px] text-vscode-descriptionForeground">
+									<div className="mb-1 text-sm font-medium text-vscode-foreground">{agentLabel}</div>
+									<div className="text-xs text-vscode-descriptionForeground">{agent.task}</div>
+									<div
+										className="mt-1 font-mono text-[11px] text-vscode-descriptionForeground"
+										title="Agent ID">
 										{agent.id}
 									</div>
 								</div>
