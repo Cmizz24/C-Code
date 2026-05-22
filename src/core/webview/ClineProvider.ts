@@ -121,6 +121,12 @@ interface PendingEditOperation {
 	createdAt: number
 }
 
+type PlanStartResult = { ok: true } | { ok: false; error: string }
+
+export type PlanApprovalResult =
+	| { approved: false }
+	| { approved: true; plan: ExecutionPlan; startResult: PlanStartResult }
+
 export class ClineProvider
 	extends EventEmitter<TaskProviderEvents>
 	implements vscode.WebviewViewProvider, TaskProviderLike
@@ -146,7 +152,7 @@ export class ClineProvider
 	public activeExecutionPlan?: ExecutionPlan
 	private worktreeManager?: WorktreeManager
 	private orchestratorEventLoop?: OrchestratorEventLoop
-	private pendingPlanApproval?: (plan: ExecutionPlan | undefined) => void
+	private pendingPlanApproval?: (result: PlanApprovalResult) => void
 	private readonly worktreePathsByAgentId = new Map<string, string>()
 	private readonly deniedWriteReasons = new Map<string, string | undefined>()
 	private readonly forwardAgentEvent = (event: AgentEvent): void => {
@@ -612,7 +618,7 @@ export class ClineProvider
 		}
 		this.orchestratorEventLoop?.stop()
 		this.orchestratorEventLoop = undefined
-		this.pendingPlanApproval?.(undefined)
+		this.pendingPlanApproval?.({ approved: false })
 		this.pendingPlanApproval = undefined
 		AgentBus.reset()
 		await this.worktreeManager?.cleanup()
@@ -2705,7 +2711,7 @@ export class ClineProvider
 		return task
 	}
 
-	public async startOrchestratorEventLoop(plan: ExecutionPlan): Promise<{ ok: true } | { ok: false; error: string }> {
+	private async startApprovedExecutionPlan(plan: ExecutionPlan): Promise<PlanStartResult> {
 		this.activeExecutionPlan = undefined
 		this.worktreePathsByAgentId.clear()
 		this.orchestratorEventLoop?.stop()
@@ -2719,14 +2725,15 @@ export class ClineProvider
 			return { ok: false, error: message }
 		}
 
+		this.activeExecutionPlan = plan
 		this.orchestratorEventLoop = new OrchestratorEventLoop(this)
 		this.attachAgentBusForwarders(AgentBus.getInstance())
 		this.orchestratorEventLoop.start(plan)
 		return { ok: true }
 	}
 
-	public requestPlanApproval(plan: ExecutionPlan): Promise<ExecutionPlan | undefined> {
-		this.pendingPlanApproval?.(undefined)
+	public requestPlanApproval(plan: ExecutionPlan): Promise<PlanApprovalResult> {
+		this.pendingPlanApproval?.({ approved: false })
 		this.postMessageToWebview({ type: "showPlanPreview", executionPlan: plan }).catch(() => {})
 
 		return new Promise((resolve) => {
@@ -2734,11 +2741,11 @@ export class ClineProvider
 		})
 	}
 
-	public approveExecutionPlan(plan: ExecutionPlan): void {
-		this.activeExecutionPlan = plan
+	public async approveExecutionPlan(plan: ExecutionPlan): Promise<void> {
 		const resolve = this.pendingPlanApproval
 		this.pendingPlanApproval = undefined
-		resolve?.(plan)
+		const startResult = await this.startApprovedExecutionPlan(plan)
+		resolve?.({ approved: true, plan, startResult })
 		this.postStateToWebviewWithoutClineMessages().catch(() => {})
 	}
 
@@ -2746,7 +2753,7 @@ export class ClineProvider
 		this.activeExecutionPlan = undefined
 		const resolve = this.pendingPlanApproval
 		this.pendingPlanApproval = undefined
-		resolve?.(undefined)
+		resolve?.({ approved: false })
 		this.postStateToWebviewWithoutClineMessages().catch(() => {})
 	}
 

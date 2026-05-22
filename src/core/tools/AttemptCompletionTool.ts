@@ -32,6 +32,15 @@ interface DelegationProvider {
 	}): Promise<void>
 }
 
+function isAbortedTaskSayError(task: Task, error: unknown): boolean {
+	return (
+		task.abort === true &&
+		error instanceof Error &&
+		error.message.includes("aborted") &&
+		error.message.includes(`${task.taskId}.${task.instanceId}`)
+	)
+}
+
 export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 	readonly name = "attempt_completion" as const
 
@@ -43,7 +52,19 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 		if (task.didToolFailInCurrentTurn) {
 			const errorMsg = t("common:errors.attempt_completion_tool_failed")
 
-			await task.say("error", errorMsg)
+			try {
+				await task.say("error", errorMsg)
+			} catch (error) {
+				if (!isAbortedTaskSayError(task, error)) {
+					throw error
+				}
+
+				console.warn(
+					`[AttemptCompletionTool] Skipping failed-tool error say for aborted task ${task.taskId}.${task.instanceId}: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			}
 			pushToolResult(formatResponse.toolError(errorMsg))
 			return
 		}
@@ -141,6 +162,15 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 			const feedbackText = `<user_message>\n${text}\n</user_message>`
 			pushToolResult(formatResponse.toolResult(feedbackText, images))
 		} catch (error) {
+			if (isAbortedTaskSayError(task, error)) {
+				console.warn(
+					`[AttemptCompletionTool] Skipping handleError after aborted task ${task.taskId}.${task.instanceId}: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+				return
+			}
+
 			await handleError("inspecting site", error as Error)
 		}
 	}

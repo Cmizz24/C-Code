@@ -29,6 +29,9 @@ describe("WorktreeManager", () => {
 			if (command === "git rev-parse --show-toplevel") {
 				return { stdout: "C:/repo\n" }
 			}
+			if (command === "git rev-parse --verify HEAD") {
+				return { stdout: "abc123\n" }
+			}
 
 			return { stdout: "" }
 		})
@@ -43,9 +46,38 @@ describe("WorktreeManager", () => {
 		)
 		expect(execMock).toHaveBeenNthCalledWith(
 			2,
+			"git rev-parse --verify HEAD",
+			expect.objectContaining({ cwd: "C:/repo" }),
+			expect.any(Function),
+		)
+		expect(execMock).toHaveBeenNthCalledWith(
+			3,
 			expect.stringContaining("git worktree add -B"),
 			expect.objectContaining({ cwd: "C:/repo" }),
 			expect.any(Function),
+		)
+	})
+
+	it("returns a clear error and does not call git worktree add when HEAD is missing", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+			if (command === "git rev-parse --verify HEAD") {
+				return { error: new Error("fatal: Needed a single revision") }
+			}
+
+			return { stdout: "" }
+		})
+
+		await expect(manager.createWorktree("ui", "plan-test")).rejects.toThrow(
+			"Parallel agents require a Git repository with at least one commit.",
+		)
+		expect(execMock).not.toHaveBeenCalledWith(
+			expect.stringContaining("git worktree add"),
+			expect.anything(),
+			expect.anything(),
 		)
 	})
 

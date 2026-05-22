@@ -40,6 +40,32 @@ import { handlePlanParallelTasks } from "../tools/planParallelTasks"
 import { formatResponse } from "../prompts/responses"
 import { sanitizeToolUseId } from "../../utils/tool-id"
 
+function isTaskAbortError(cline: Task, error: unknown): boolean {
+	return (
+		cline.abort === true &&
+		error instanceof Error &&
+		error.message.includes("aborted") &&
+		error.message.includes(`${cline.taskId}.${cline.instanceId}`)
+	)
+}
+
+async function sayToolError(cline: Task, action: string, error: Error): Promise<void> {
+	try {
+		await cline.say("error", `Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`)
+	} catch (sayError) {
+		if (isTaskAbortError(cline, sayError)) {
+			console.warn(
+				`[presentAssistantMessage] Skipping error say for aborted task ${cline.taskId}.${cline.instanceId}: ${
+					sayError instanceof Error ? sayError.message : String(sayError)
+				}`,
+			)
+			return
+		}
+
+		throw sayError
+	}
+}
+
 /**
  * Processes and presents assistant message content to the user interface.
  *
@@ -225,10 +251,7 @@ export async function presentAssistantMessage(cline: Task) {
 					return
 				}
 				const errorString = `Error ${action}: ${JSON.stringify(serializeError(error))}`
-				await cline.say(
-					"error",
-					`Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`,
-				)
+				await sayToolError(cline, action, error)
 				pushToolResult(formatResponse.toolError(errorString))
 			}
 
@@ -545,10 +568,7 @@ export async function presentAssistantMessage(cline: Task) {
 				}
 				const errorString = `Error ${action}: ${JSON.stringify(serializeError(error))}`
 
-				await cline.say(
-					"error",
-					`Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`,
-				)
+				await sayToolError(cline, action, error)
 
 				pushToolResult(formatResponse.toolError(errorString))
 			}
@@ -799,13 +819,21 @@ export async function presentAssistantMessage(cline: Task) {
 					)
 					if (result.ok) {
 						const provider = cline.providerRef.deref()
-						const startResult = await provider?.startOrchestratorEventLoop(result.plan)
+						const approvalResult = await provider?.requestPlanApproval(result.plan)
 
-						if (startResult?.ok === false) {
-							pushToolResult(formatResponse.toolError(startResult.error))
+						if (!approvalResult) {
+							pushToolResult(
+								formatResponse.toolError("Unable to show the parallel execution plan preview."),
+							)
+						} else if (!approvalResult.approved) {
+							pushToolResult(
+								`Parallel execution plan ${result.plan.planId} was canceled before Roo created worktrees or started agent tasks.`,
+							)
+						} else if (approvalResult.startResult.ok === false) {
+							pushToolResult(formatResponse.toolError(approvalResult.startResult.error))
 						} else {
 							pushToolResult(
-								`Prepared execution plan ${result.plan.planId} with ${result.plan.agents.length} agents. Review and approve it before Roo creates worktrees or starts agent tasks.\n${
+								`Approved execution plan ${approvalResult.plan.planId} with ${approvalResult.plan.agents.length} agents. Roo will now create worktrees and start agent tasks.\n${
 									result.warnings.length > 0
 										? `Warnings:\n- ${result.warnings.join("\n- ")}`
 										: "No warnings."

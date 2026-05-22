@@ -1,16 +1,7 @@
 import { useEffect, useState } from "react"
 import type { AgentPlan, ExecutionPlan } from "@roo-code/types"
 
-import {
-	Button,
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-	Textarea,
-} from "@/components/ui"
+import { Button, Textarea } from "@/components/ui"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 
@@ -36,6 +27,7 @@ const clonePlan = (plan: ExecutionPlan): ExecutionPlan => ({
 export const PlanPreviewModal = ({ plan, onClose }: PlanPreviewModalProps) => {
 	const { customModes } = useExtensionState()
 	const [editedPlan, setEditedPlan] = useState<ExecutionPlan>(() => clonePlan(plan))
+	const [isCollapsed, setIsCollapsed] = useState(false)
 
 	useEffect(() => {
 		setEditedPlan(clonePlan(plan))
@@ -63,16 +55,23 @@ export const PlanPreviewModal = ({ plan, onClose }: PlanPreviewModalProps) => {
 	)
 
 	return (
-		<Dialog open onOpenChange={(open) => !open && cancelPlan()}>
-			<DialogContent className="max-h-[90vh] max-w-[min(900px,95vw)] overflow-y-auto">
-				<DialogHeader>
-					<DialogTitle>Review parallel execution plan</DialogTitle>
-					<DialogDescription>
+		<aside
+			data-testid="plan-preview-panel"
+			className="fixed bottom-4 right-4 z-30 flex max-h-[min(76vh,720px)] w-[min(860px,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-vscode-panel-border bg-vscode-editor-background shadow-lg">
+			<header className="flex items-start justify-between gap-3 border-b border-vscode-panel-border p-4">
+				<div>
+					<h2 className="text-base font-semibold text-vscode-foreground">Review parallel execution plan</h2>
+					<p className="mt-1 text-xs text-vscode-descriptionForeground">
 						Approve this plan before Roo creates agent worktrees and starts parallel tasks.
-					</DialogDescription>
-				</DialogHeader>
+					</p>
+				</div>
+				<Button variant="secondary" size="sm" onClick={() => setIsCollapsed((collapsed) => !collapsed)}>
+					{isCollapsed ? "Expand" : "Collapse"}
+				</Button>
+			</header>
 
-				<div className="space-y-4">
+			{!isCollapsed && (
+				<div className="space-y-4 overflow-y-auto p-4">
 					<section className="rounded-md border border-vscode-panel-border bg-vscode-editor-background p-3">
 						<div className="mb-2 text-xs font-semibold uppercase tracking-wide text-vscode-descriptionForeground">
 							Shared context
@@ -178,16 +177,21 @@ export const PlanPreviewModal = ({ plan, onClose }: PlanPreviewModalProps) => {
 						))}
 					</div>
 				</div>
+			)}
 
-				<DialogFooter>
+			<footer className="flex flex-wrap items-center justify-between gap-3 border-t border-vscode-panel-border bg-vscode-sideBar-background p-4">
+				<p className="text-xs text-vscode-descriptionForeground">
+					Chat remains visible while this plan waits for your approval.
+				</p>
+				<div className="flex gap-2">
 					<Button variant="secondary" onClick={cancelPlan}>
 						Cancel
 					</Button>
 					<Button variant="primary" onClick={approvePlan}>
 						Approve plan
 					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
+				</div>
+			</footer>
+		</aside>
 	)
 }

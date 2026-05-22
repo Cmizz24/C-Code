@@ -444,6 +444,36 @@ describe("attemptCompletionTool", () => {
 				)
 			})
 
+			it("swallows aborted task say failures when a previous tool failed", async () => {
+				const block: AttemptCompletionToolUse = {
+					type: "tool_use",
+					name: "attempt_completion",
+					params: { result: "Task completed successfully" },
+					nativeArgs: { result: "Task completed successfully" },
+					partial: false,
+				}
+
+				mockTask.todoList = undefined
+				mockTask.didToolFailInCurrentTurn = true
+				mockTask.abort = true
+				Object.defineProperty(mockTask, "instanceId", { value: "instance_1", configurable: true })
+				mockTask.say = vi.fn().mockRejectedValue(new Error("[RooCode#say] task task_1.instance_1 aborted"))
+
+				const callbacks: AttemptCompletionCallbacks = {
+					askApproval: mockAskApproval,
+					handleError: mockHandleError,
+					pushToolResult: mockPushToolResult,
+					askFinishSubTaskApproval: mockAskFinishSubTaskApproval,
+					toolDescription: mockToolDescription,
+				}
+
+				await expect(attemptCompletionTool.handle(mockTask as Task, block, callbacks)).resolves.toBeUndefined()
+				expect(mockHandleError).not.toHaveBeenCalled()
+				expect(mockPushToolResult).toHaveBeenCalledWith(
+					expect.stringContaining("errors.attempt_completion_tool_failed"),
+				)
+			})
+
 			it("should allow completion when no tools failed", async () => {
 				const block: AttemptCompletionToolUse = {
 					type: "tool_use",

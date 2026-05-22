@@ -637,7 +637,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 
 		case "approvePlan":
 			if (message.executionPlan) {
-				provider.approveExecutionPlan(message.executionPlan)
+				await provider.approveExecutionPlan(message.executionPlan)
 			}
 			break
 

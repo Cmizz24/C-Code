@@ -5,7 +5,6 @@ import { OrchestratorEventLoop } from "../OrchestratorEventLoop"
 
 type TestProvider = TaskProviderLike & {
 	createAgentWorktree: ReturnType<typeof vi.fn>
-	requestPlanApproval: ReturnType<typeof vi.fn>
 }
 
 function createPlan(): ExecutionPlan {
@@ -66,7 +65,6 @@ function createProvider(overrides: Partial<TestProvider> = {}): TestProvider {
 		off: vi.fn().mockReturnThis(),
 		postStateToWebview: vi.fn(async () => undefined),
 		createAgentWorktree: vi.fn(async (_agentId: string, planId: string) => `C:/repo/.roo/${planId}/ui`),
-		requestPlanApproval: vi.fn(async (plan: ExecutionPlan) => plan),
 		...overrides,
 	} as unknown as TestProvider
 }
@@ -80,39 +78,14 @@ describe("OrchestratorEventLoop", () => {
 		AgentBus.reset()
 	})
 
-	it("does not create worktrees or tasks before the plan is approved", async () => {
-		let approvePlan: (plan: ExecutionPlan | undefined) => void = () => {}
-		const approval = new Promise<ExecutionPlan | undefined>((resolve) => {
-			approvePlan = resolve
-		})
-		const provider = createProvider({
-			requestPlanApproval: vi.fn(() => approval),
-		})
+	it("starts worktrees and tasks only after the approved plan is passed to the event loop", async () => {
+		const provider = createProvider()
 		const plan = createPlan()
 
 		new OrchestratorEventLoop(provider, AgentBus.getInstance()).start(plan)
-		await Promise.resolve()
-
-		expect(provider.requestPlanApproval).toHaveBeenCalledWith(plan)
-		expect(provider.createAgentWorktree).not.toHaveBeenCalled()
-		expect(provider.createTask).not.toHaveBeenCalled()
-
-		approvePlan(plan)
 
 		await vi.waitFor(() => expect(provider.createAgentWorktree).toHaveBeenCalledWith("ui", "plan-test"))
 		expect(provider.createTask).toHaveBeenCalledTimes(1)
-	})
-
-	it("does not create worktrees or tasks when approval is canceled", async () => {
-		const provider = createProvider({
-			requestPlanApproval: vi.fn(async () => undefined),
-		})
-
-		new OrchestratorEventLoop(provider, AgentBus.getInstance()).start(createPlan())
-		await Promise.resolve()
-
-		expect(provider.createAgentWorktree).not.toHaveBeenCalled()
-		expect(provider.createTask).not.toHaveBeenCalled()
 	})
 
 	it("marks the agent failed instead of leaving a rejected worktree promise", async () => {

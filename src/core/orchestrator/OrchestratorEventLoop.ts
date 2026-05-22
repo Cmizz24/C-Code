@@ -6,7 +6,6 @@ type SpawnedTask = Awaited<ReturnType<TaskProviderLike["createTask"]>>
 
 type AgentTaskProvider = TaskProviderLike & {
 	createAgentWorktree?: (agentId: string, planId: string) => Promise<string>
-	requestPlanApproval?: (plan: ExecutionPlan) => Promise<ExecutionPlan | undefined>
 	showMergeReview?: (plan: ExecutionPlan) => Promise<void>
 }
 
@@ -25,7 +24,7 @@ export class OrchestratorEventLoop {
 		}
 
 		this.running = true
-		void this.startAfterApproval(plan).catch((error) => {
+		void this.startAgents(plan).catch((error) => {
 			this.stop()
 			Promise.resolve(this.provider.postStateToWebview()).catch(() => {})
 		})
@@ -41,18 +40,17 @@ export class OrchestratorEventLoop {
 		this.bus.off("allComplete", this.synthesizeCompletion)
 	}
 
-	private async startAfterApproval(plan: ExecutionPlan): Promise<void> {
-		const approvedPlan = this.provider.requestPlanApproval ? await this.provider.requestPlanApproval(plan) : plan
-		if (!approvedPlan || !this.running) {
+	private async startAgents(plan: ExecutionPlan): Promise<void> {
+		if (!this.running) {
 			this.stop()
 			return
 		}
 
-		this.bus.setExecutionPlan(approvedPlan)
+		this.bus.setExecutionPlan(plan)
 		this.bus.on("agentUnblocked", this.spawnAgent)
 		this.bus.on("allComplete", this.synthesizeCompletion)
 
-		for (const agent of approvedPlan.agents.filter((candidate) => candidate.status === "pending")) {
+		for (const agent of plan.agents.filter((candidate) => candidate.status === "pending")) {
 			void this.spawnAgent(agent)
 		}
 	}

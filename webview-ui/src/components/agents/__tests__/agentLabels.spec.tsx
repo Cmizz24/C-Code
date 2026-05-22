@@ -1,6 +1,6 @@
 import type { ExecutionPlan, MergeReviewEntry } from "@roo-code/types"
 
-import { render, screen } from "@/utils/test-utils"
+import { fireEvent, render, screen } from "@/utils/test-utils"
 import { ExtensionStateContext } from "@/context/ExtensionStateContext"
 
 import { PlanPreviewModal } from "../PlanPreviewModal"
@@ -43,6 +43,21 @@ describe("parallel agent labels", () => {
 		expect(screen.getByText("UI/UX")).toBeInTheDocument()
 		expect(screen.queryByText("Agent 1")).not.toBeInTheDocument()
 		expect(screen.getByText("ui-agent")).toBeInTheDocument()
+	})
+
+	it("renders plan preview as a collapsible non-dialog panel", () => {
+		renderWithExtensionState(<PlanPreviewModal plan={createPlan()} onClose={vi.fn()} />)
+
+		expect(screen.getByTestId("plan-preview-panel")).toBeInTheDocument()
+		expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+		expect(screen.getAllByText("Shared context").length).toBeGreaterThan(0)
+
+		fireEvent.click(screen.getByRole("button", { name: "Collapse" }))
+
+		expect(screen.queryAllByText("Shared context")).toHaveLength(0)
+		expect(screen.getByRole("button", { name: "Expand" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Approve plan" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument()
 	})
 
 	it("shows assigned mode labels in merge review entries", () => {

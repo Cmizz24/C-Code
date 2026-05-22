@@ -38,6 +38,7 @@ function sanitizeBranchComponent(value: string): string {
 export class WorktreeManager {
 	private readonly createdWorktrees = new Set<string>()
 	private gitRoot: string | undefined
+	private hasValidatedHead = false
 
 	constructor(private readonly repoRoot: string) {}
 
@@ -46,11 +47,13 @@ export class WorktreeManager {
 	}
 
 	public async validateGitRepository(): Promise<string> {
-		return this.resolveGitRoot()
+		const gitRoot = await this.resolveGitRoot()
+		await this.validateHead(gitRoot)
+		return gitRoot
 	}
 
 	public async createWorktree(agentId: string, planId: string): Promise<string> {
-		const gitRoot = await this.resolveGitRoot()
+		const gitRoot = await this.validateGitRepository()
 		const safePlanId = sanitizeBranchComponent(planId) || "plan"
 		const safeAgentId = sanitizeBranchComponent(agentId) || "agent"
 		const branchName = `roo/parallel/${safePlanId}/${safeAgentId}`
@@ -102,6 +105,21 @@ export class WorktreeManager {
 
 			throw new WorktreeManagerError(
 				`Parallel worktrees require a Git repository. The active workspace (${this.repoRoot}) is not inside a Git repository. Open a Git-backed workspace or initialize Git before approving a parallel plan.`,
+			)
+		}
+	}
+
+	private async validateHead(gitRoot: string): Promise<void> {
+		if (this.hasValidatedHead) {
+			return
+		}
+
+		try {
+			await execAsync("git rev-parse --verify HEAD", { cwd: gitRoot })
+			this.hasValidatedHead = true
+		} catch {
+			throw new WorktreeManagerError(
+				"Parallel agents require a Git repository with at least one commit. Commit your current project first, then approve the plan again.",
 			)
 		}
 	}
