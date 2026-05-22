@@ -115,8 +115,8 @@ vi.mock("../../../shared/modes", () => {
 			groups: ["read", "edit"],
 		},
 		{
-			slug: "ask",
-			name: "Ask Mode",
+			slug: "explain",
+			name: "Explain Mode",
 			roleDefinition: "You are an assistant",
 			groups: ["read"],
 		},
@@ -158,6 +158,7 @@ vi.mock("../../../shared/modes", () => {
 			groups: ["read", "edit"],
 		}),
 		defaultModeSlug: "code",
+		normalizeModeSlug: vi.fn((slug: string) => (slug === "ask" ? "explain" : slug)),
 	}
 })
 

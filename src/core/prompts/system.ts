@@ -2,7 +2,16 @@ import * as vscode from "vscode"
 
 import { type ModeConfig, type PromptComponent, type CustomModePrompts, type TodoItem } from "@roo-code/types"
 
-import { Mode, modes, defaultModeSlug, getModeBySlug, getGroupName, getModeSelection } from "../../shared/modes"
+import {
+	Mode,
+	modes,
+	defaultModeSlug,
+	getModeBySlug,
+	getGroupName,
+	getModeSelection,
+	normalizeModeSlug,
+	specialistModeSlugList,
+} from "../../shared/modes"
 import { DiffStrategy } from "../../shared/tools"
 import { formatLanguage } from "../../shared/language"
 import { isEmpty } from "../../utils/object"
@@ -60,6 +69,8 @@ async function generatePrompt(
 		throw new Error("Extension context is required for generating system prompt")
 	}
 
+	mode = normalizeModeSlug(mode)
+
 	// Get the full mode config to ensure we have the role definition (used for groups, etc.)
 	const modeConfig = getModeBySlug(mode, customModeConfigs) || modes.find((m) => m.slug === mode) || modes[0]
 	const { roleDefinition, baseInstructions } = getModeSelection(mode, promptComponent, customModeConfigs)
@@ -81,6 +92,17 @@ async function generatePrompt(
 
 	// Tools catalog is not included in the system prompt.
 	const toolsCatalog = ""
+	const parallelOrchestratorInstructions = (() => {
+		if (mode === "architect") {
+			return `\n\nEXECUTIONPLAN ARCHITECTURE\nAlways call the \`plan_parallel_tasks\` tool before producing an implementation plan. If the request is ambiguous or underspecified, delegate to or request the \`spec\` specialist first. Produce ExecutionPlan-compatible plans with goal, shared context, agent ids, specialist mode slugs, owned files, must-not-touch paths, dependencies, and expected files. Assign specialist modes from this slug list whenever applicable: ${specialistModeSlugList}. Use \`code\` only for general fallback implementation. You may read any file but must not write implementation code.`
+		}
+
+		if (mode === "orchestrator") {
+			return `\n\nPARALLEL AGENT PLANNING\nWhen work can be parallelized across independent file ownership boundaries, call the \`plan_parallel_tasks\` tool before using \`new_task\`. Define each agent's specialist mode slug, owned files, must-not-touch paths, dependencies, and shared context so AgentBus write coordination can prevent conflicts. Assign the best specialist mode from this slug list: ${specialistModeSlugList}. Use \`code\` only for general fallback implementation. If the plan reports conflicts or dependency cycles, revise the plan before delegating. For simple single-agent work, fall back to sequential Boomerang behavior and delegate once. Never write implementation code directly.`
+		}
+
+		return ""
+	})()
 
 	const basePrompt = `${roleDefinition}
 
@@ -99,6 +121,7 @@ ${getRulesSection(cwd, settings)}
 ${getSystemInfoSection(cwd)}
 
 ${getObjectiveSection()}
+${parallelOrchestratorInstructions}
 
 ${await addCustomInstructions(baseInstructions, globalCustomInstructions || "", cwd, mode, {
 	language: language ?? formatLanguage(vscode.env.language),
@@ -132,6 +155,7 @@ export const SYSTEM_PROMPT = async (
 	}
 
 	// Check if it's a custom mode
+	mode = normalizeModeSlug(mode)
 	const promptComponent = getPromptComponent(customModePrompts, mode)
 
 	// Get full mode config from custom modes or fall back to built-in modes

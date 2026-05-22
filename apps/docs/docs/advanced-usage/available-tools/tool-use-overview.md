@@ -223,7 +223,7 @@ The system uses a multi-step process to determine tool availability:
 Tools are made available based on the current mode:
 
 - **Code Mode**: Full access to file system tools, code editing capabilities, command execution
-- **Ask Mode**: Limited to reading tools, information gathering capabilities, no file system modifications
+- **Explain Mode**: Limited to reading tools, information gathering capabilities, no file system modifications
 - **Architect Mode**: Design-focused tools, documentation capabilities, limited execution rights
 - **Custom Modes**: Can be configured with specific tool access for specialized workflows
 

@@ -24,6 +24,7 @@ import {
 	type TokenUsage,
 	type ToolUsage,
 	type ToolName,
+	type WritePermission,
 	type ContextCondense,
 	type ContextTruncation,
 	type ClineMessage,
@@ -65,7 +66,7 @@ import { combineCommandSequences } from "../../shared/combineCommandSequences"
 import { t } from "../../i18n"
 import { getApiMetrics, hasTokenUsageChanged, hasToolUsageChanged } from "../../shared/getApiMetrics"
 import { ClineAskResponse } from "../../shared/WebviewMessage"
-import { defaultModeSlug, getModeBySlug } from "../../shared/modes"
+import { defaultModeSlug, getModeBySlug, normalizeModeSlug } from "../../shared/modes"
 import { DiffStrategy, type ToolUse, type ToolParamName, toolParamNames } from "../../shared/tools"
 import { getModelMaxOutputTokens } from "../../shared/api"
 
@@ -128,6 +129,7 @@ import { AutoApprovalHandler, checkAutoApproval } from "../auto-approval"
 import { MessageManager } from "../message-manager"
 import { validateAndFixToolResultIds } from "./validateToolResultIds"
 import { mergeConsecutiveApiMessages } from "./mergeConsecutiveApiMessages"
+import { AgentBus } from "../agents/AgentBus"
 
 const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
 const DEFAULT_USAGE_COLLECTION_TIMEOUT_MS = 5000 // 5 seconds
@@ -151,6 +153,9 @@ export interface TaskOptions extends CreateTaskOptions {
 	onCreated?: (task: Task) => void
 	initialTodos?: TodoItem[]
 	workspacePath?: string
+	agentId?: string
+	agentBus?: AgentBus
+	systemPromptSuffix?: string
 	/** Initial status for the task's history item (e.g., "active" for child tasks) */
 	initialStatus?: "active" | "delegated" | "completed"
 }
@@ -171,6 +176,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	readonly parentTask: Task | undefined = undefined
 	readonly taskNumber: number
 	readonly workspacePath: string
+	readonly agentId?: string
+	readonly agentBus?: AgentBus
+	private readonly systemPromptSuffix?: string
 
 	/**
 	 * The mode associated with this task. Persisted across sessions
@@ -339,6 +347,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	assistantMessageContent: AssistantMessageContent[] = []
 	presentAssistantMessageLocked = false
 	presentAssistantMessageHasPendingUpdates = false
+	parallelPlanPaused = false
 	userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolResultBlockParam)[] = []
 	userMessageContentReady = false
 
@@ -387,6 +396,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private providerProfileChangeListener?: (config: { name: string; provider?: string }) => void
 
 	// Native tool call streaming state (track which index each tool is at)
+	private readonly nativeToolCallParser = new NativeToolCallParser()
 	private streamingToolCallIndices: Map<string, number> = new Map()
 
 	// Cached model info for current streaming session (set at start of each API request)
@@ -429,7 +439,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		onCreated,
 		initialTodos,
 		workspacePath,
+		agentId,
+		agentBus,
+		systemPromptSuffix,
 		initialStatus,
+		mode,
 	}: TaskOptions) {
 		super()
 
@@ -462,9 +476,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		// Normal use-case is usually retry similar history task with new workspace.
-		this.workspacePath = parentTask
-			? parentTask.workspacePath
-			: (workspacePath ?? getWorkspacePath(path.join(os.homedir(), "Desktop")))
+		this.workspacePath =
+			workspacePath ??
+			(parentTask ? parentTask.workspacePath : getWorkspacePath(path.join(os.homedir(), "Desktop")))
+		this.agentId = agentId
+		this.agentBus = agentBus
+		this.systemPromptSuffix = systemPromptSuffix
 
 		this.instanceId = crypto.randomUUID().slice(0, 8)
 		this.taskNumber = -1
@@ -540,10 +557,15 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		)
 
 		if (historyItem) {
-			this._taskMode = historyItem.mode || defaultModeSlug
+			this._taskMode = normalizeModeSlug(historyItem.mode || defaultModeSlug)
 			this._taskApiConfigName = historyItem.apiConfigName
 			this.taskModeReady = Promise.resolve()
 			this.taskApiConfigReady = Promise.resolve()
+		} else if (mode) {
+			this._taskMode = normalizeModeSlug(mode)
+			this._taskApiConfigName = undefined
+			this.taskModeReady = Promise.resolve()
+			this.taskApiConfigReady = this.initializeTaskApiConfigName(provider)
 		} else {
 			this._taskMode = undefined
 			this._taskApiConfigName = undefined
@@ -589,7 +611,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private async initializeTaskMode(provider: ClineProvider): Promise<void> {
 		try {
 			const state = await provider.getState()
-			this._taskMode = state?.mode || defaultModeSlug
+			this._taskMode = normalizeModeSlug(state?.mode || defaultModeSlug)
 		} catch (error) {
 			// If there's an error getting state, use the default mode
 			this._taskMode = defaultModeSlug
@@ -2712,8 +2734,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				// No legacy text-stream tool parser.
 				this.streamingToolCallIndices.clear()
 				// Clear any leftover streaming tool call state from previous interrupted streams
-				NativeToolCallParser.clearAllStreamingToolCalls()
-				NativeToolCallParser.clearRawChunkState()
+				this.nativeToolCallParser.clearAllStreamingToolCalls()
+				this.nativeToolCallParser.clearRawChunkState()
 
 				await this.diffViewProvider.reset()
 
@@ -2802,7 +2824,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							case "tool_call_partial": {
 								// Process raw tool call chunk through NativeToolCallParser
 								// which handles tracking, buffering, and emits events
-								const events = NativeToolCallParser.processRawChunk({
+								const events = this.nativeToolCallParser.processRawChunk({
 									index: chunk.index,
 									id: chunk.id,
 									name: chunk.name,
@@ -2824,7 +2846,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 										}
 
 										// Initialize streaming in NativeToolCallParser
-										NativeToolCallParser.startStreamingToolCall(event.id, event.name as ToolName)
+										this.nativeToolCallParser.startStreamingToolCall(
+											event.id,
+											event.name as ToolName,
+										)
 
 										// Before adding a new tool, finalize any preceding text block
 										// This prevents the text block from blocking tool presentation
@@ -2855,7 +2880,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 										presentAssistantMessage(this)
 									} else if (event.type === "tool_call_delta") {
 										// Process chunk using streaming JSON parser
-										const partialToolUse = NativeToolCallParser.processStreamingChunk(
+										const partialToolUse = this.nativeToolCallParser.processStreamingChunk(
 											event.id,
 											event.delta,
 										)
@@ -2876,7 +2901,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 										}
 									} else if (event.type === "tool_call_end") {
 										// Finalize the streaming tool call
-										const finalToolUse = NativeToolCallParser.finalizeStreamingToolCall(event.id)
+										const finalToolUse = this.nativeToolCallParser.finalizeStreamingToolCall(
+											event.id,
+										)
 
 										// Get the index for this tool call
 										const toolUseIndex = this.streamingToolCallIndices.get(event.id)
@@ -3223,11 +3250,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				// Finalize any remaining streaming tool calls that weren't explicitly ended
 				// This is critical for MCP tools which need tool_call_end events to be properly
 				// converted from ToolUse to McpToolUse via finalizeStreamingToolCall()
-				const finalizeEvents = NativeToolCallParser.finalizeRawChunks()
+				const finalizeEvents = this.nativeToolCallParser.finalizeRawChunks()
 				for (const event of finalizeEvents) {
 					if (event.type === "tool_call_end") {
 						// Finalize the streaming tool call
-						const finalToolUse = NativeToolCallParser.finalizeStreamingToolCall(event.id)
+						const finalToolUse = this.nativeToolCallParser.finalizeStreamingToolCall(event.id)
 
 						// Get the index for this tool call
 						const toolUseIndex = this.streamingToolCallIndices.get(event.id)
@@ -3677,7 +3704,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			const modelInfo = this.api.getModel().info
 
-			return SYSTEM_PROMPT(
+			const prompt = await SYSTEM_PROMPT(
 				provider.context,
 				this.cwd,
 				false,
@@ -3704,7 +3731,25 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				this.api.getModel().id,
 				provider.getSkillsManager(),
 			)
+
+			return this.systemPromptSuffix ? `${prompt}\n\n${this.systemPromptSuffix}` : prompt
 		})()
+	}
+
+	public requestAgentWriteIntent(relPath: string): WritePermission {
+		if (!this.agentId || !this.agentBus) {
+			return { approved: true }
+		}
+
+		return this.agentBus.requestWriteIntent(this.agentId, relPath)
+	}
+
+	public releaseAgentWriteIntent(relPath: string): void {
+		if (!this.agentId || !this.agentBus) {
+			return
+		}
+
+		this.agentBus.releaseWriteIntent(this.agentId, relPath)
 	}
 
 	private getCurrentProfileId(state: any): string {

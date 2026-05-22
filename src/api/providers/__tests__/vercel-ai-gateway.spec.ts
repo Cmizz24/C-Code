@@ -96,9 +96,9 @@ describe("VercelAiGatewayHandler", () => {
 			baseURL: "https://ai-gateway.vercel.sh/v1",
 			apiKey: mockOptions.vercelAiGatewayApiKey,
 			defaultHeaders: expect.objectContaining({
-				"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
-				"X-Title": "Roo Code",
-				"User-Agent": expect.stringContaining("RooCode/"),
+				"HTTP-Referer": "https://github.com/Cmizz24/C-Code",
+				"X-Title": "C Code",
+				"User-Agent": expect.stringContaining("CCode/"),
 			}),
 		})
 	})

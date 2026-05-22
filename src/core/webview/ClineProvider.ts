@@ -2,6 +2,8 @@ import os from "os"
 import * as path from "path"
 import fs from "fs/promises"
 import EventEmitter from "events"
+import { exec } from "child_process"
+import { promisify } from "util"
 
 import { Anthropic } from "@anthropic-ai/sdk"
 import delay from "delay"
@@ -22,11 +24,16 @@ import {
 	type TerminalActionId,
 	type TerminalActionPromptType,
 	type HistoryItem,
+	type ExecutionPlan,
 	type CreateTaskOptions,
 	type TokenUsage,
 	type ToolUsage,
 	type ExtensionMessage,
 	type ExtensionState,
+	type AgentEvent,
+	type AgentStatus,
+	type AgentStatusUpdate,
+	type MergeReviewEntry,
 	RooCodeEventName,
 	requestyDefaultModelId,
 	openRouterDefaultModelId,
@@ -43,7 +50,7 @@ import { Package } from "../../shared/package"
 import { findLast } from "../../shared/array"
 import { supportPrompt } from "../../shared/support-prompt"
 import { GlobalFileNames } from "../../shared/globalFileNames"
-import { Mode, defaultModeSlug, getModeBySlug } from "../../shared/modes"
+import { Mode, defaultModeSlug, getAllModes, getModeBySlug, normalizeModeSlug } from "../../shared/modes"
 import { experimentDefault } from "../../shared/experiments"
 import { formatLanguage } from "../../shared/language"
 import { WebviewMessage } from "../../shared/WebviewMessage"
@@ -89,6 +96,11 @@ import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { REQUESTY_BASE_URL } from "../../shared/utils/requesty"
 import { validateAndFixToolResultIds } from "../task/validateToolResultIds"
+import { AgentBus } from "../agents/AgentBus"
+import { getWorktreeManagerErrorMessage, WorktreeManager } from "../agents/WorktreeManager"
+import { OrchestratorEventLoop } from "../orchestrator/OrchestratorEventLoop"
+
+const execAsync = promisify(exec)
 
 /**
  * https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -108,6 +120,12 @@ interface PendingEditOperation {
 	timeoutId: NodeJS.Timeout
 	createdAt: number
 }
+
+type PlanStartResult = { ok: true } | { ok: false; error: string }
+
+export type PlanApprovalResult =
+	| { approved: false }
+	| { approved: true; plan: ExecutionPlan; startResult: PlanStartResult }
 
 export class ClineProvider
 	extends EventEmitter<TaskProviderEvents>
@@ -131,6 +149,53 @@ export class ClineProvider
 	private taskCreationCallback: (task: Task) => void
 	private taskEventListeners: WeakMap<Task, Array<() => void>> = new WeakMap()
 	private currentWorkspacePath: string | undefined
+	public activeExecutionPlan?: ExecutionPlan
+	private worktreeManager?: WorktreeManager
+	private orchestratorEventLoop?: OrchestratorEventLoop
+	private pendingPlanApproval?: (result: PlanApprovalResult) => void
+	private readonly worktreePathsByAgentId = new Map<string, string>()
+	private readonly deniedWriteReasons = new Map<string, string | undefined>()
+	private readonly forwardAgentEvent = (event: AgentEvent): void => {
+		switch (event.type) {
+			case "STATUS":
+				this.postAgentStatusUpdate({ agentId: event.agentId, status: event.status })
+				break
+			case "INTENT_WRITE":
+				if (event.permission.approved) {
+					this.postAgentStatusUpdate({
+						agentId: event.agentId,
+						status: this.getAgentStatus(event.agentId) ?? "running",
+						lastTouchedFile: event.path,
+					})
+				} else {
+					this.deniedWriteReasons.set(this.getConflictKey(event.agentId, event.path), event.permission.reason)
+				}
+				break
+			case "CONFLICT_QUERY":
+				this.postWriteIntentDenied(event.agentId, event.path, event.ownerAgentId)
+				break
+			case "INTENT_CLEARED":
+				this.postMessageToWebview({
+					type: "writeIntentCleared",
+					writeIntentConflict: { agentId: event.agentId, filePath: event.path },
+				}).catch(() => {})
+				break
+			case "BLOCKED":
+				this.postAgentStatusUpdate({
+					agentId: event.agentId,
+					status: "blocked",
+					reason: event.reason,
+					blockedOn: event.blockedOn,
+				})
+				break
+			case "COMPLETE":
+				this.postAgentStatusUpdate({ agentId: event.agentId, status: "complete", reason: event.result })
+				break
+			case "FAILED":
+				this.postAgentStatusUpdate({ agentId: event.agentId, status: "failed", reason: event.reason })
+				break
+		}
+	}
 	private _disposed = false
 
 	private recentTasksCache?: string[]
@@ -149,7 +214,7 @@ export class ClineProvider
 
 	public isViewLaunched = false
 	public settingsImportedAt?: number
-	public readonly latestAnnouncementId = "may-2026-final-roo-code-release" // Final Roo Code release announcement.
+	public readonly latestAnnouncementId = "may-2026-c-code-fork-update" // C Code fork update announcement.
 	public readonly providerSettingsManager: ProviderSettingsManager
 	public readonly customModesManager: CustomModesManager
 
@@ -161,6 +226,7 @@ export class ClineProvider
 	) {
 		super()
 		this.currentWorkspacePath = getWorkspacePath()
+		this.worktreeManager = new WorktreeManager(this.currentWorkspacePath)
 
 		ClineProvider.activeInstances.add(this)
 
@@ -550,6 +616,13 @@ export class ClineProvider
 		while (this.clineStack.length > 0) {
 			await this.removeClineFromStack()
 		}
+		this.orchestratorEventLoop?.stop()
+		this.orchestratorEventLoop = undefined
+		this.pendingPlanApproval?.({ approved: false })
+		this.pendingPlanApproval = undefined
+		AgentBus.reset()
+		await this.worktreeManager?.cleanup()
+		this.activeExecutionPlan = undefined
 
 		this.log("Cleared all tasks")
 
@@ -842,6 +915,15 @@ export class ClineProvider
 
 		// If the history item has a saved mode, restore it and its associated API configuration.
 		if (historyItem.mode) {
+			const originalMode = historyItem.mode
+			historyItem.mode = normalizeModeSlug(historyItem.mode)
+
+			if (historyItem.mode !== originalMode) {
+				this.log(
+					`Mode '${originalMode}' from history is deprecated. Falling back to mode '${historyItem.mode}'.`,
+				)
+			}
+
 			// Validate that the mode still exists
 			const customModes = await this.customModesManager.getCustomModes()
 			const modeExists = getModeBySlug(historyItem.mode, customModes) !== undefined
@@ -1145,7 +1227,7 @@ export class ClineProvider
 						window.AUDIO_BASE_URI = "${audioUri}"
 						window.MATERIAL_ICONS_BASE_URI = "${materialIconsUri}"
 					</script>
-					<title>Roo Code</title>
+					<title>C Code</title>
 				</head>
 				<body>
 					<div id="root"></div>
@@ -1224,7 +1306,7 @@ export class ClineProvider
 				window.AUDIO_BASE_URI = "${audioUri}"
 				window.MATERIAL_ICONS_BASE_URI = "${materialIconsUri}"
 			</script>
-            <title>Roo Code</title>
+				<title>C Code</title>
           </head>
           <body>
             <noscript>You need to enable JavaScript to run this app.</noscript>
@@ -1253,6 +1335,7 @@ export class ClineProvider
 	 * @param newMode The mode to switch to
 	 */
 	public async handleModeSwitch(newMode: Mode) {
+		newMode = normalizeModeSlug(newMode)
 		const task = this.getCurrentTask()
 
 		if (task) {
@@ -2114,6 +2197,7 @@ export class ClineProvider
 				}
 			})(),
 			debug: vscode.workspace.getConfiguration(Package.name).get<boolean>("debug", false),
+			activeExecutionPlan: this.activeExecutionPlan,
 		}
 	}
 
@@ -2613,6 +2697,7 @@ export class ClineProvider
 			// Ensure this task is present in clineStack before startTask() emits
 			// its initial state update, so state.currentTaskId is available ASAP.
 			startTask: false,
+			agentBus: options.agentId ? AgentBus.getInstance() : undefined,
 			...options,
 		})
 
@@ -2624,6 +2709,232 @@ export class ClineProvider
 		)
 
 		return task
+	}
+
+	private async startApprovedExecutionPlan(plan: ExecutionPlan): Promise<PlanStartResult> {
+		this.activeExecutionPlan = undefined
+		this.worktreePathsByAgentId.clear()
+		this.orchestratorEventLoop?.stop()
+
+		try {
+			await this.ensureWorktreeManager().validateGitRepository()
+		} catch (error) {
+			const message = getWorktreeManagerErrorMessage(error)
+			this.log(`[parallel-agents] ${message}`)
+			vscode.window.showErrorMessage(message)
+			return { ok: false, error: message }
+		}
+
+		this.activeExecutionPlan = plan
+		this.orchestratorEventLoop = new OrchestratorEventLoop(this)
+		this.attachAgentBusForwarders(AgentBus.getInstance())
+		this.orchestratorEventLoop.start(plan)
+		return { ok: true }
+	}
+
+	public requestPlanApproval(plan: ExecutionPlan): Promise<PlanApprovalResult> {
+		this.pendingPlanApproval?.({ approved: false })
+		this.postMessageToWebview({ type: "showPlanPreview", executionPlan: plan }).catch(() => {})
+
+		return new Promise((resolve) => {
+			this.pendingPlanApproval = resolve
+		})
+	}
+
+	public async approveExecutionPlan(plan: ExecutionPlan): Promise<void> {
+		const resolve = this.pendingPlanApproval
+		this.pendingPlanApproval = undefined
+		const startResult = await this.startApprovedExecutionPlan(plan)
+		resolve?.({ approved: true, plan, startResult })
+		this.postStateToWebviewWithoutClineMessages().catch(() => {})
+	}
+
+	public cancelExecutionPlan(): void {
+		this.activeExecutionPlan = undefined
+		const resolve = this.pendingPlanApproval
+		this.pendingPlanApproval = undefined
+		resolve?.({ approved: false })
+		this.postStateToWebviewWithoutClineMessages().catch(() => {})
+	}
+
+	public async createAgentWorktree(agentId: string, planId: string): Promise<string> {
+		try {
+			const worktreePath = await this.ensureWorktreeManager().createWorktree(agentId, planId)
+			this.worktreePathsByAgentId.set(agentId, worktreePath)
+			return worktreePath
+		} catch (error) {
+			const message = getWorktreeManagerErrorMessage(error)
+			this.log(`[parallel-agents] Failed to create worktree for ${agentId}: ${message}`)
+			vscode.window.showErrorMessage(message)
+			throw new Error(message)
+		}
+	}
+
+	private ensureWorktreeManager(): WorktreeManager {
+		if (!this.worktreeManager) {
+			this.currentWorkspacePath = this.currentWorkspacePath ?? getWorkspacePath()
+			this.worktreeManager = new WorktreeManager(this.currentWorkspacePath)
+		}
+
+		return this.worktreeManager
+	}
+
+	public handleAgentWaitOnConflict(agentId?: string, filePath?: string): void {
+		if (!agentId || !filePath) {
+			return
+		}
+
+		AgentBus.getInstance().markBlocked(agentId, `Waiting for write access to ${filePath}.`)
+	}
+
+	public handleAgentEscalateConflict(agentId?: string, filePath?: string): void {
+		if (!agentId || !filePath) {
+			return
+		}
+
+		const ownerAgentId = this.activeExecutionPlan?.fileOwnershipMap[filePath]
+		const ownerTask = ownerAgentId
+			? this.activeExecutionPlan?.agents.find((agent) => agent.id === ownerAgentId)?.task
+			: undefined
+		const message = `Parallel agent ${agentId} escalated a write conflict for ${filePath}${ownerTask ? `, owned by ${ownerTask}` : ""}.`
+		this.getCurrentTask()
+			?.say("text", message)
+			.catch(() => {})
+	}
+
+	public async showMergeReview(plan: ExecutionPlan): Promise<void> {
+		const entries = await Promise.all(plan.agents.map((agent) => this.buildMergeReviewEntry(plan, agent.id)))
+		await this.postMessageToWebview({ type: "showMergeReview", mergeReviewEntries: entries })
+	}
+
+	public async mergeApprovedAgents(agentIds: string[] = []): Promise<void> {
+		const plan = this.activeExecutionPlan
+		if (!plan) {
+			await this.postMessageToWebview({
+				type: "mergeFailed",
+				gitOutput: "No active execution plan is available.",
+			})
+			return
+		}
+
+		const approved = new Set(agentIds)
+		for (const agentId of approved) {
+			try {
+				await execAsync(
+					`git merge --no-edit ${this.shellQuote(this.getAgentBranchName(plan.planId, agentId))}`,
+					{
+						cwd: this.currentWorkspacePath ?? this.cwd,
+					},
+				)
+			} catch (error) {
+				await this.postMessageToWebview({
+					type: "mergeFailed",
+					agentId,
+					gitOutput: this.formatGitError(error),
+				})
+				return
+			}
+		}
+
+		await Promise.allSettled(
+			plan.agents.map((agent) => {
+				const worktreePath = this.worktreePathsByAgentId.get(agent.id) ?? agent.worktreePath
+				return worktreePath ? this.worktreeManager?.removeWorktree(worktreePath) : Promise.resolve()
+			}),
+		)
+
+		this.orchestratorEventLoop?.stop()
+		this.orchestratorEventLoop = undefined
+		AgentBus.reset()
+		this.worktreePathsByAgentId.clear()
+		this.activeExecutionPlan = undefined
+		await this.postMessageToWebview({ type: "mergeComplete" })
+		await this.postStateToWebviewWithoutClineMessages()
+	}
+
+	private attachAgentBusForwarders(bus: AgentBus): void {
+		bus.off("event", this.forwardAgentEvent)
+		bus.on("event", this.forwardAgentEvent)
+	}
+
+	private postAgentStatusUpdate(update: AgentStatusUpdate): void {
+		this.postMessageToWebview({ type: "agentStatusUpdate", agentStatusUpdate: update }).catch(() => {})
+	}
+
+	private postWriteIntentDenied(agentId: string, filePath: string, ownerAgentId?: string): void {
+		const ownerTask = ownerAgentId
+			? this.activeExecutionPlan?.agents.find((agent) => agent.id === ownerAgentId)?.task
+			: undefined
+		const reason = this.deniedWriteReasons.get(this.getConflictKey(agentId, filePath))
+
+		this.postMessageToWebview({
+			type: "writeIntentDenied",
+			writeIntentConflict: {
+				agentId,
+				filePath,
+				ownerAgentId,
+				ownerTask,
+				reason,
+			},
+		}).catch(() => {})
+	}
+
+	private getAgentStatus(agentId: string): AgentStatus | undefined {
+		return this.activeExecutionPlan?.agents.find((agent) => agent.id === agentId)?.status
+	}
+
+	private async buildMergeReviewEntry(plan: ExecutionPlan, agentId: string): Promise<MergeReviewEntry> {
+		const agent = plan.agents.find((candidate) => candidate.id === agentId)
+		const branch = this.getAgentBranchName(plan.planId, agentId)
+		const worktreePath = this.worktreePathsByAgentId.get(agentId) ?? agent?.worktreePath ?? ""
+		let diff = ""
+
+		try {
+			const { stdout } = await execAsync(`git diff HEAD...${this.shellQuote(branch)}`, {
+				cwd: this.currentWorkspacePath ?? this.cwd,
+			})
+			diff = stdout
+		} catch (error) {
+			diff = this.formatGitError(error)
+		}
+
+		return {
+			agentId,
+			mode: agent?.mode,
+			task: agent?.task ?? agentId,
+			diff,
+			worktreePath,
+			branch,
+		}
+	}
+
+	private getAgentBranchName(planId: string, agentId: string): string {
+		return `roo/parallel/${this.sanitizeBranchComponent(planId) || "plan"}/${this.sanitizeBranchComponent(agentId) || "agent"}`
+	}
+
+	private sanitizeBranchComponent(value: string): string {
+		return value
+			.trim()
+			.replace(/[^a-zA-Z0-9._/-]+/g, "-")
+			.replace(/^-+|-+$/g, "")
+			.slice(0, 80)
+	}
+
+	private shellQuote(value: string): string {
+		return `"${value.replace(/"/g, '\\"')}"`
+	}
+
+	private formatGitError(error: unknown): string {
+		if (error && typeof error === "object") {
+			const maybeOutput = error as { stdout?: string; stderr?: string; message?: string }
+			return [maybeOutput.stdout, maybeOutput.stderr, maybeOutput.message].filter(Boolean).join("\n")
+		}
+
+		return String(error)
+	}
+
+	private getConflictKey(agentId: string, filePath: string): string {
+		return `${agentId}:${filePath}`
 	}
 
 	public async cancelTask(): Promise<void> {
@@ -2737,7 +3048,7 @@ export class ClineProvider
 	public async getModes(): Promise<{ slug: string; name: string }[]> {
 		try {
 			const customModes = await this.customModesManager.getCustomModes()
-			return [...DEFAULT_MODES, ...customModes].map(({ slug, name }) => ({ slug, name }))
+			return getAllModes(customModes).map(({ slug, name }) => ({ slug, name }))
 		} catch (error) {
 			return DEFAULT_MODES.map(({ slug, name }) => ({ slug, name }))
 		}
@@ -2745,11 +3056,11 @@ export class ClineProvider
 
 	public async getMode(): Promise<string> {
 		const { mode } = await this.getState()
-		return mode
+		return normalizeModeSlug(mode)
 	}
 
 	public async setMode(mode: string): Promise<void> {
-		await this.setValues({ mode })
+		await this.setValues({ mode: normalizeModeSlug(mode) })
 	}
 
 	// Provider Profiles
@@ -2786,7 +3097,8 @@ export class ClineProvider
 		initialTodos: TodoItem[]
 		mode: string
 	}): Promise<Task> {
-		const { parentTaskId, message, initialTodos, mode } = params
+		const { parentTaskId, message, initialTodos } = params
+		const mode = normalizeModeSlug(params.mode)
 
 		// Metadata-driven delegation is always enabled
 

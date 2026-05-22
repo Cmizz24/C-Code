@@ -51,9 +51,12 @@ export type ToolCallStreamEvent = ApiStreamToolCallStartChunk | ApiStreamToolCal
  * provider-level raw chunks into start/delta/end events.
  */
 export class NativeToolCallParser {
+	private static readonly sharedParser = new NativeToolCallParser()
+	private rawChunkSequence = 0
+
 	// Streaming state management for argument accumulation (keyed by tool call id)
 	// Note: name is string to accommodate dynamic MCP tools (mcp--serverName--toolName)
-	private static streamingToolCalls = new Map<
+	private streamingToolCalls = new Map<
 		string,
 		{
 			id: string
@@ -62,16 +65,26 @@ export class NativeToolCallParser {
 		}
 	>()
 
-	// Raw chunk tracking state (keyed by index from API stream)
-	private static rawChunkTracker = new Map<
-		number,
+	// Raw chunk tracking state (keyed by robust per-call identity).
+	// Prefer provider-supplied id. When id is missing, create a per-stream sequence
+	// and use index only as a hint for finding the active call.
+	private rawChunkTracker = new Map<
+		string,
 		{
+			key: string
 			id: string
+			providerId?: string
 			name: string
+			index?: number
 			hasStarted: boolean
 			deltaBuffer: string[]
+			argumentsAccumulator: string
+			hasReceivedJsonLikeArguments: boolean
 		}
 	>()
+	private rawChunkTrackerByProviderId = new Map<string, string>()
+	private rawChunkTrackerKeysByIndex = new Map<number, string[]>()
+	private rawChunkTrackerKeysWithoutIndex: string[] = []
 
 	private static coerceOptionalBoolean(value: unknown): boolean | undefined {
 		if (typeof value === "boolean") {
@@ -96,34 +109,26 @@ export class NativeToolCallParser {
 	 * This is the entry point for providers that emit tool_call_partial chunks.
 	 * Returns an array of events to be processed by the consumer.
 	 */
-	public static processRawChunk(chunk: {
-		index: number
+	public processRawChunk(chunk: {
+		index?: number
 		id?: string
 		name?: string
 		arguments?: string
 	}): ToolCallStreamEvent[] {
 		const events: ToolCallStreamEvent[] = []
 		const { index, id, name, arguments: args } = chunk
+		const normalizedIndex = typeof index === "number" && Number.isFinite(index) ? index : undefined
 
-		let tracked = this.rawChunkTracker.get(index)
-
-		// Initialize new tool call tracking when we receive an id
-		if (id && !tracked) {
-			tracked = {
-				id,
-				name: name || "",
-				hasStarted: false,
-				deltaBuffer: [],
-			}
-			this.rawChunkTracker.set(index, tracked)
-		}
+		let tracked = this.resolveRawChunkTracker({ index: normalizedIndex, id, name, arguments: args })
 
 		if (!tracked) {
 			return events
 		}
 
-		// Update name if present in chunk and not yet set
-		if (name) {
+		// Update name if present in chunk and not yet set. If a no-id stream reuses an
+		// index for a different name, resolveRawChunkTracker creates a new tracker
+		// before this point so different tools cannot share an argument buffer.
+		if (name && !tracked.name) {
 			tracked.name = name
 		}
 
@@ -149,6 +154,11 @@ export class NativeToolCallParser {
 
 		// Emit delta event for argument chunks
 		if (args) {
+			tracked.argumentsAccumulator += args
+			if (/^\s*[{[]/.test(args)) {
+				tracked.hasReceivedJsonLikeArguments = true
+			}
+
 			if (tracked.hasStarted) {
 				events.push({
 					type: "tool_call_delta",
@@ -163,11 +173,128 @@ export class NativeToolCallParser {
 		return events
 	}
 
+	private resolveRawChunkTracker(chunk: {
+		index?: number
+		id?: string
+		name?: string
+		arguments?: string
+	}): (typeof this.rawChunkTracker extends Map<string, infer T> ? T : never) | undefined {
+		if (chunk.id) {
+			const existingKey = this.rawChunkTrackerByProviderId.get(chunk.id)
+			if (existingKey) {
+				return this.rawChunkTracker.get(existingKey)
+			}
+
+			const activeTracker = this.getActiveRawChunkTracker(chunk.index)
+			if (
+				activeTracker &&
+				!activeTracker.providerId &&
+				!this.shouldStartNewRawToolCall(activeTracker, chunk.name, chunk.arguments)
+			) {
+				activeTracker.providerId = chunk.id
+				this.rawChunkTrackerByProviderId.set(chunk.id, activeTracker.key)
+				if (!activeTracker.hasStarted) {
+					activeTracker.id = chunk.id
+				}
+				return activeTracker
+			}
+
+			return this.createRawChunkTracker(chunk.index, chunk.id, chunk.name)
+		}
+
+		const activeTracker = this.getActiveRawChunkTracker(chunk.index)
+		if (!activeTracker || this.shouldStartNewRawToolCall(activeTracker, chunk.name, chunk.arguments)) {
+			return this.createRawChunkTracker(chunk.index, undefined, chunk.name)
+		}
+
+		return activeTracker
+	}
+
+	private createRawChunkTracker(index: number | undefined, providerId: string | undefined, name: string | undefined) {
+		const sequence = this.rawChunkSequence++
+		const key = providerId ? `id:${providerId}` : `seq:${sequence}`
+		const tracker = {
+			key,
+			id: providerId ?? `tool_call_${sequence}`,
+			providerId,
+			name: name || "",
+			index,
+			hasStarted: false,
+			deltaBuffer: [],
+			argumentsAccumulator: "",
+			hasReceivedJsonLikeArguments: false,
+		}
+
+		this.rawChunkTracker.set(key, tracker)
+		if (providerId) {
+			this.rawChunkTrackerByProviderId.set(providerId, key)
+		}
+
+		if (index !== undefined) {
+			const keys = this.rawChunkTrackerKeysByIndex.get(index) ?? []
+			keys.push(key)
+			this.rawChunkTrackerKeysByIndex.set(index, keys)
+		} else {
+			this.rawChunkTrackerKeysWithoutIndex.push(key)
+		}
+
+		return tracker
+	}
+
+	private getActiveRawChunkTracker(index: number | undefined) {
+		const keys =
+			index !== undefined ? this.rawChunkTrackerKeysByIndex.get(index) : this.rawChunkTrackerKeysWithoutIndex
+		const activeKey = keys?.[keys.length - 1]
+		return activeKey ? this.rawChunkTracker.get(activeKey) : undefined
+	}
+
+	private shouldStartNewRawToolCall(
+		activeTracker: NonNullable<ReturnType<NativeToolCallParser["getActiveRawChunkTracker"]>>,
+		name: string | undefined,
+		args: string | undefined,
+	): boolean {
+		if (!name) {
+			return false
+		}
+
+		if (activeTracker.name && activeTracker.name !== name) {
+			return true
+		}
+
+		if (
+			activeTracker.hasReceivedJsonLikeArguments &&
+			this.isCompleteJsonValue(activeTracker.argumentsAccumulator)
+		) {
+			return true
+		}
+
+		const argsStartsWithJson = typeof args === "string" && /^\s*[{[]/.test(args)
+		return activeTracker.hasReceivedJsonLikeArguments && argsStartsWithJson
+	}
+
+	private isCompleteJsonValue(value: string): boolean {
+		try {
+			JSON.parse(value)
+			return true
+		} catch {
+			return false
+		}
+	}
+
+	public static processRawChunk(chunk: {
+		index?: number
+		id?: string
+		name?: string
+		arguments?: string
+	}): ToolCallStreamEvent[] {
+		return NativeToolCallParser.sharedParser.processRawChunk(chunk)
+	}
+
 	/**
 	 * Process stream finish reason.
 	 * Emits end events when finish_reason is 'tool_calls'.
 	 */
-	public static processFinishReason(finishReason: string | null | undefined): ToolCallStreamEvent[] {
+	public processFinishReason(finishReason: string | null | undefined): ToolCallStreamEvent[] {
 		const events: ToolCallStreamEvent[] = []
 
 		if (finishReason === "tool_calls" && this.rawChunkTracker.size > 0) {
@@ -182,11 +309,15 @@ export class NativeToolCallParser {
 		return events
 	}
 
+	public static processFinishReason(finishReason: string | null | undefined): ToolCallStreamEvent[] {
+		return NativeToolCallParser.sharedParser.processFinishReason(finishReason)
+	}
+
 	/**
 	 * Finalize any remaining tool calls that weren't explicitly ended.
 	 * Should be called at the end of stream processing.
 	 */
-	public static finalizeRawChunks(): ToolCallStreamEvent[] {
+	public finalizeRawChunks(): ToolCallStreamEvent[] {
 		const events: ToolCallStreamEvent[] = []
 
 		if (this.rawChunkTracker.size > 0) {
@@ -198,18 +329,30 @@ export class NativeToolCallParser {
 					})
 				}
 			}
-			this.rawChunkTracker.clear()
+			this.clearRawChunkState()
 		}
 
 		return events
+	}
+
+	public static finalizeRawChunks(): ToolCallStreamEvent[] {
+		return NativeToolCallParser.sharedParser.finalizeRawChunks()
 	}
 
 	/**
 	 * Clear all raw chunk tracking state.
 	 * Should be called when a new API request starts.
 	 */
-	public static clearRawChunkState(): void {
+	public clearRawChunkState(): void {
 		this.rawChunkTracker.clear()
+		this.rawChunkTrackerByProviderId.clear()
+		this.rawChunkTrackerKeysByIndex.clear()
+		this.rawChunkTrackerKeysWithoutIndex = []
+		this.rawChunkSequence = 0
+	}
+
+	public static clearRawChunkState(): void {
+		NativeToolCallParser.sharedParser.clearRawChunkState()
 	}
 
 	/**
@@ -217,7 +360,7 @@ export class NativeToolCallParser {
 	 * Initializes tracking for incremental argument parsing.
 	 * Accepts string to support both ToolName and dynamic MCP tools (mcp--serverName--toolName).
 	 */
-	public static startStreamingToolCall(id: string, name: string): void {
+	public startStreamingToolCall(id: string, name: string): void {
 		this.streamingToolCalls.set(id, {
 			id,
 			name,
@@ -225,21 +368,33 @@ export class NativeToolCallParser {
 		})
 	}
 
+	public static startStreamingToolCall(id: string, name: string): void {
+		NativeToolCallParser.sharedParser.startStreamingToolCall(id, name)
+	}
+
 	/**
 	 * Clear all streaming tool call state.
 	 * Should be called when a new API request starts to prevent memory leaks
 	 * from interrupted streams.
 	 */
-	public static clearAllStreamingToolCalls(): void {
+	public clearAllStreamingToolCalls(): void {
 		this.streamingToolCalls.clear()
+	}
+
+	public static clearAllStreamingToolCalls(): void {
+		NativeToolCallParser.sharedParser.clearAllStreamingToolCalls()
 	}
 
 	/**
 	 * Check if there are any active streaming tool calls.
 	 * Useful for debugging and testing.
 	 */
-	public static hasActiveStreamingToolCalls(): boolean {
+	public hasActiveStreamingToolCalls(): boolean {
 		return this.streamingToolCalls.size > 0
+	}
+
+	public static hasActiveStreamingToolCalls(): boolean {
+		return NativeToolCallParser.sharedParser.hasActiveStreamingToolCalls()
 	}
 
 	/**
@@ -247,7 +402,7 @@ export class NativeToolCallParser {
 	 * Uses partial-json-parser to extract values from incomplete JSON immediately.
 	 * Returns a partial ToolUse with currently parsed parameters.
 	 */
-	public static processStreamingChunk(id: string, chunk: string): ToolUse | null {
+	public processStreamingChunk(id: string, chunk: string): ToolUse | null {
 		const toolCall = this.streamingToolCalls.get(id)
 		if (!toolCall) {
 			return null
@@ -273,7 +428,7 @@ export class NativeToolCallParser {
 			const originalName = toolCall.name !== resolvedName ? toolCall.name : undefined
 
 			// Create partial ToolUse with extracted values
-			return this.createPartialToolUse(
+			return NativeToolCallParser.createPartialToolUse(
 				toolCall.id,
 				resolvedName,
 				partialArgs || {},
@@ -287,11 +442,15 @@ export class NativeToolCallParser {
 		}
 	}
 
+	public static processStreamingChunk(id: string, chunk: string): ToolUse | null {
+		return NativeToolCallParser.sharedParser.processStreamingChunk(id, chunk)
+	}
+
 	/**
 	 * Finalize a streaming tool call.
 	 * Parses the complete JSON and returns the final ToolUse or McpToolUse.
 	 */
-	public static finalizeStreamingToolCall(id: string): ToolUse | McpToolUse | null {
+	public finalizeStreamingToolCall(id: string): ToolUse | McpToolUse | null {
 		const toolCall = this.streamingToolCalls.get(id)
 		if (!toolCall) {
 			return null
@@ -299,7 +458,7 @@ export class NativeToolCallParser {
 
 		// Parse the complete accumulated JSON
 		// Cast to any for the name since parseToolCall handles both ToolName and dynamic MCP tools
-		const finalToolUse = this.parseToolCall({
+		const finalToolUse = NativeToolCallParser.parseToolCall({
 			id: toolCall.id,
 			name: toolCall.name as ToolName,
 			arguments: toolCall.argumentsAccumulator,
@@ -309,6 +468,10 @@ export class NativeToolCallParser {
 		this.streamingToolCalls.delete(id)
 
 		return finalToolUse
+	}
+
+	public static finalizeStreamingToolCall(id: string): ToolUse | McpToolUse | null {
+		return NativeToolCallParser.sharedParser.finalizeStreamingToolCall(id)
 	}
 
 	private static coerceOptionalNumber(value: unknown): number | undefined {
@@ -637,6 +800,17 @@ export class NativeToolCallParser {
 				}
 				break
 
+			case "plan_parallel_tasks":
+				if (partialArgs.goal !== undefined || partialArgs.agents !== undefined) {
+					nativeArgs = {
+						goal: partialArgs.goal,
+						sharedContext: partialArgs.sharedContext,
+						expectedFiles: Array.isArray(partialArgs.expectedFiles) ? partialArgs.expectedFiles : [],
+						agents: Array.isArray(partialArgs.agents) ? partialArgs.agents : [],
+					}
+				}
+				break
+
 			default:
 				break
 		}
@@ -698,7 +872,7 @@ export class NativeToolCallParser {
 
 		try {
 			// Parse the arguments JSON string
-			const args = toolCall.arguments === "" ? {} : JSON.parse(toolCall.arguments)
+			const args = NativeToolCallParser.parseToolArguments(toolCall.arguments)
 
 			// Build stringified params for display/logging.
 			// Tool execution MUST use nativeArgs (typed) and does not support legacy fallbacks.
@@ -986,6 +1160,17 @@ export class NativeToolCallParser {
 					}
 					break
 
+				case "plan_parallel_tasks":
+					if (args.goal !== undefined && args.agents !== undefined) {
+						nativeArgs = {
+							goal: args.goal,
+							sharedContext: args.sharedContext,
+							expectedFiles: args.expectedFiles,
+							agents: args.agents,
+						} as NativeArgsFor<TName>
+					}
+					break
+
 				default:
 					if (customToolRegistry.has(resolvedName)) {
 						nativeArgs = args as NativeArgsFor<TName>
@@ -1006,6 +1191,7 @@ export class NativeToolCallParser {
 
 			const result: ToolUse<TName> = {
 				type: "tool_use" as const,
+				id: toolCall.id,
 				name: resolvedName,
 				params,
 				partial: false, // Native tool calls are always complete when yielded
@@ -1031,6 +1217,78 @@ export class NativeToolCallParser {
 			console.error(`Tool call: ${JSON.stringify(toolCall, null, 2)}`)
 			return null
 		}
+	}
+
+	private static parseToolArguments(argumentsString: string): Record<string, any> {
+		if (argumentsString === "") {
+			return {}
+		}
+
+		try {
+			return JSON.parse(argumentsString)
+		} catch (error) {
+			if (NativeToolCallParser.hasAdjacentTopLevelJsonValues(argumentsString)) {
+				throw new Error(
+					`Tool call arguments contain multiple adjacent JSON values; expected exactly one JSON object. ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			}
+
+			throw error
+		}
+	}
+
+	private static hasAdjacentTopLevelJsonValues(value: string): boolean {
+		let depth = 0
+		let inString = false
+		let escaped = false
+		let started = false
+
+		for (let i = 0; i < value.length; i++) {
+			const char = value[i]
+
+			if (!started) {
+				if (/\s/.test(char)) {
+					continue
+				}
+				if (char !== "{" && char !== "[") {
+					return false
+				}
+				started = true
+			}
+
+			if (inString) {
+				if (escaped) {
+					escaped = false
+				} else if (char === "\\") {
+					escaped = true
+				} else if (char === '"') {
+					inString = false
+				}
+				continue
+			}
+
+			if (char === '"') {
+				inString = true
+				continue
+			}
+
+			if (char === "{" || char === "[") {
+				depth++
+				continue
+			}
+
+			if (char === "}" || char === "]") {
+				depth--
+				if (depth === 0) {
+					const rest = value.slice(i + 1).trimStart()
+					return rest.startsWith("{") || rest.startsWith("[")
+				}
+			}
+		}
+
+		return false
 	}
 
 	/**

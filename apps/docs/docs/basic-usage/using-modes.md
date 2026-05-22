@@ -1,9 +1,9 @@
 ---
-description: Learn how to use Roo Code's specialized modes for different tasks. Switch between Code, Ask, Architect, Debug, and Orchestrator modes for optimal AI assistance.
+description: Learn how to use Roo Code's specialized modes for different tasks. Switch between Code, Explain, Architect, Debug, and Orchestrator modes for optimal AI assistance.
 keywords:
     - Roo Code modes
     - Code mode
-    - Ask mode
+    - Explain mode
     - Architect mode
     - Debug mode
     - Orchestrator mode
@@ -38,11 +38,11 @@ Four ways to switch modes:
 
 1. **Dropdown menu:** Click the selector to the left of the chat input
 
-    <img src="/img/using-modes/using-modes.png" alt="Using the dropdown menu to switch modes" width="400" />
+ <img src="/img/using-modes/using-modes.png" alt="Using the dropdown menu to switch modes" width="400" />
 
-2. **Slash command:** Type `/architect`, `/ask`, `/debug`, `/code`, or `/orchestrator` at the beginning of your message. This will switch to that mode and clear the input field.
+2. **Slash command:** Type `/architect`, `/explain`, `/debug`, `/code`, or `/orchestrator` at the beginning of your message. This will switch to that mode and clear the input field.
 
-    <img src="/img/using-modes/using-modes-1.png" alt="Using slash commands to switch modes" width="400" />
+ <img src="/img/using-modes/using-modes-1.png" alt="Using slash commands to switch modes" width="400" />
 
 3. **Toggle command/Keyboard shortcut:** Use the keyboard shortcut below, applicable to your operating system. Each press cycles through the available modes in sequence, wrapping back to the first mode after reaching the end.
 
@@ -70,15 +70,15 @@ Four ways to switch modes:
 | **Ideal For**        | Writing code, implementing features, debugging, and general development                                  |
 | **Special Features** | No tool restrictions—full flexibility for all coding tasks                                               |
 
-### Ask Mode
+### Explain Mode
 
-| Aspect               | Details                                                                                                                                                                                                       |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Name**             | `❓ Ask`                                                                                                                                                                                                      |
-| **Description**      | A knowledgeable technical assistant focused on providing thorough and complete answers. It's less inclined to switch to implementing code unless explicitly requested and may use diagrams for clarification. |
-| **Tool Access**      | Limited access: `read`, `mcp` only (cannot edit files or run commands)                                                                                                                                        |
-| **Ideal For**        | Code explanation, concept exploration, and technical learning                                                                                                                                                 |
-| **Special Features** | Optimized for detailed, informative responses, often using diagrams for clarity, without modifying your project.                                                                                              |
+| Aspect               | Details                                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Name**             | `❓ Explain`                                                                                                                                            |
+| **Description**      | A knowledgeable technical explainer focused on clear answers, codebase understanding, recommendations, and educational guidance without making changes. |
+| **Tool Access**      | Limited access: `read`, `mcp` only (cannot edit files or run commands)                                                                                  |
+| **Ideal For**        | Code explanation, concept exploration, and technical learning                                                                                           |
+| **Special Features** | Optimized for clear explanations, code analysis, recommendations, and conceptual guidance without modifying your project.                               |
 
 ### Architect Mode
 

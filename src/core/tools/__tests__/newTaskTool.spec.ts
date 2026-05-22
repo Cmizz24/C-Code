@@ -24,7 +24,8 @@ vi.mock("../../../shared/package", () => ({
 // Mock other modules first - these are hoisted to the top
 vi.mock("../../../shared/modes", () => ({
 	getModeBySlug: vi.fn(),
-	defaultModeSlug: "ask",
+	defaultModeSlug: "architect",
+	normalizeModeSlug: vi.fn((slug: string) => (slug === "ask" ? "explain" : slug)),
 }))
 
 vi.mock("../../prompts/responses", () => ({
@@ -92,14 +93,14 @@ const mockCline = {
 	recordToolError: mockRecordToolError,
 	consecutiveMistakeCount: 0,
 	isPaused: false,
-	pausedModeSlug: "ask",
+	pausedModeSlug: "explain",
 	taskId: "mock-parent-task-id",
 	enableCheckpoints: false,
 	checkpointSave: mockCheckpointSave,
 	startSubtask: mockStartSubtask,
 	providerRef: {
 		deref: vi.fn(() => ({
-			getState: vi.fn(() => ({ customModes: [], mode: "ask" })),
+			getState: vi.fn(() => ({ customModes: [], mode: "explain" })),
 			handleModeSwitch: vi.fn(),
 			delegateParentAndOpenChild: mockDelegateParentAndOpenChild,
 		})),
@@ -609,7 +610,7 @@ describe("newTaskTool delegation flow", () => {
 		// Arrange: stub provider delegation
 		const providerSpy = {
 			getState: vi.fn().mockResolvedValue({
-				mode: "ask",
+				mode: "explain",
 				experiments: {},
 			}),
 			delegateParentAndOpenChild: vi.fn().mockResolvedValue({ taskId: "child-1" }),
@@ -626,7 +627,7 @@ describe("newTaskTool delegation flow", () => {
 			recordToolError: mockRecordToolError,
 			consecutiveMistakeCount: 0,
 			isPaused: false,
-			pausedModeSlug: "ask",
+			pausedModeSlug: "explain",
 			taskId: "mock-parent-task-id",
 			enableCheckpoints: false,
 			checkpointSave: mockCheckpointSave,

@@ -35,9 +35,36 @@ import { generateImageTool } from "../tools/GenerateImageTool"
 import { applyDiffTool as applyDiffToolClass } from "../tools/ApplyDiffTool"
 import { isValidToolName, validateToolUse } from "../tools/validateToolUse"
 import { codebaseSearchTool } from "../tools/CodebaseSearchTool"
+import { handlePlanParallelTasks } from "../tools/planParallelTasks"
 
 import { formatResponse } from "../prompts/responses"
 import { sanitizeToolUseId } from "../../utils/tool-id"
+
+function isTaskAbortError(cline: Task, error: unknown): boolean {
+	return (
+		cline.abort === true &&
+		error instanceof Error &&
+		error.message.includes("aborted") &&
+		error.message.includes(`${cline.taskId}.${cline.instanceId}`)
+	)
+}
+
+async function sayToolError(cline: Task, action: string, error: Error): Promise<void> {
+	try {
+		await cline.say("error", `Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`)
+	} catch (sayError) {
+		if (isTaskAbortError(cline, sayError)) {
+			console.warn(
+				`[presentAssistantMessage] Skipping error say for aborted task ${cline.taskId}.${cline.instanceId}: ${
+					sayError instanceof Error ? sayError.message : String(sayError)
+				}`,
+			)
+			return
+		}
+
+		throw sayError
+	}
+}
 
 /**
  * Processes and presents assistant message content to the user interface.
@@ -59,6 +86,10 @@ import { sanitizeToolUseId } from "../../utils/tool-id"
 export async function presentAssistantMessage(cline: Task) {
 	if (cline.abort) {
 		throw new Error(`[Task#presentAssistantMessage] task ${cline.taskId}.${cline.instanceId} aborted`)
+	}
+
+	if (cline.parallelPlanPaused) {
+		return
 	}
 
 	if (cline.presentAssistantMessageLocked) {
@@ -224,10 +255,7 @@ export async function presentAssistantMessage(cline: Task) {
 					return
 				}
 				const errorString = `Error ${action}: ${JSON.stringify(serializeError(error))}`
-				await cline.say(
-					"error",
-					`Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`,
-				)
+				await sayToolError(cline, action, error)
 				pushToolResult(formatResponse.toolError(errorString))
 			}
 
@@ -317,6 +345,11 @@ export async function presentAssistantMessage(cline: Task) {
 				break
 			}
 
+			const isCompleteParallelPlanTool = block.name === "plan_parallel_tasks" && !block.partial
+			if (isCompleteParallelPlanTool) {
+				cline.didAlreadyUseTool = true
+			}
+
 			// Fetch state early so it's available for toolDescription and validation
 			const state = await cline.providerRef.deref()?.getState()
 			const { mode, customModes, experiments: stateExperiments, disabledTools } = state ?? {}
@@ -374,6 +407,8 @@ export async function presentAssistantMessage(cline: Task) {
 						const modeName = getModeBySlug(mode, customModes)?.name ?? mode
 						return `[${block.name} in ${modeName} mode: '${message}']`
 					}
+					case "plan_parallel_tasks":
+						return `[${block.name} for '${block.params.goal}']`
 					case "run_slash_command":
 						return `[${block.name} for '${block.params.command}'${block.params.args ? ` with args: ${block.params.args}` : ""}]`
 					case "skill":
@@ -542,10 +577,7 @@ export async function presentAssistantMessage(cline: Task) {
 				}
 				const errorString = `Error ${action}: ${JSON.stringify(serializeError(error))}`
 
-				await cline.say(
-					"error",
-					`Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`,
-				)
+				await sayToolError(cline, action, error)
 
 				pushToolResult(formatResponse.toolError(errorString))
 			}
@@ -785,6 +817,61 @@ export async function presentAssistantMessage(cline: Task) {
 						toolCallId: block.id,
 					})
 					break
+				case "plan_parallel_tasks": {
+					if (block.partial) {
+						break
+					}
+
+					cline.parallelPlanPaused = true
+					try {
+						const result = handlePlanParallelTasks(
+							(block as ToolUse<"plan_parallel_tasks">).nativeArgs,
+							cline.cwd,
+						)
+						if (result.ok) {
+							const provider = cline.providerRef.deref()
+							const approvalResult = await provider?.requestPlanApproval(result.plan)
+
+							if (!approvalResult) {
+								pushToolResult(
+									formatResponse.toolError("Unable to show the parallel execution plan preview."),
+								)
+							} else if (!approvalResult.approved) {
+								pushToolResult(
+									`Parallel execution plan ${result.plan.planId} was canceled before Roo created worktrees or started agent tasks.`,
+								)
+							} else if (approvalResult.startResult.ok === false) {
+								pushToolResult(formatResponse.toolError(approvalResult.startResult.error))
+							} else {
+								pushToolResult(
+									`Approved execution plan ${approvalResult.plan.planId} with ${approvalResult.plan.agents.length} agents. Roo is creating worktrees and starting agent tasks programmatically. Do not call new_task for these parallel agents.\n${
+										result.warnings.length > 0
+											? `Warnings:\n- ${result.warnings.join("\n- ")}`
+											: "No warnings."
+									}`,
+								)
+							}
+						} else {
+							pushToolResult(
+								formatResponse.toolError(
+									`Invalid parallel task plan:\n- ${result.errors.join("\n- ")}`,
+								),
+							)
+						}
+					} catch (error) {
+						await handleError(
+							"planning parallel tasks",
+							error instanceof Error ? error : new Error(String(error)),
+						)
+					} finally {
+						cline.parallelPlanPaused = false
+						cline.assistantMessageContent.length = Math.min(
+							cline.assistantMessageContent.length,
+							cline.currentStreamingContentIndex + 1,
+						)
+					}
+					break
+				}
 				case "attempt_completion": {
 					const completionCallbacks: AttemptCompletionCallbacks = {
 						askApproval,

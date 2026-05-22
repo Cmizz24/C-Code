@@ -1661,7 +1661,7 @@
 - Sync API config selector style with mode selector
 - Fix keyboard shortcuts for non-QWERTY layouts (#6161 by @shlgug, PR by @app/roomote)
 - Add ESC key handling for modes, API provider, and indexing settings popovers (thanks @app/roomote!)
-- Make task mode sticky to task (thanks @app/roomote!)
+- Make texplain mode sticky to task (thanks @app/roomote!)
 - Add text wrapping to command patterns in Manage Command Permissions (thanks @app/roomote!)
 - Update list-files test for fixed hidden files bug (thanks @daniel-lxs!)
 - Fix normalize Windows paths to forward slashes in mode export (#6307 by @hannesrudolph, PR by @app/roomote)
@@ -2236,7 +2236,7 @@
 - Fix Requesty cost/token reporting (thanks @dtrugman!)
 - Improve command execution UI
 - Add more in-app links to relevant documentation
-- Update the new task tool description and the ask mode custom instructions in the system prompt
+- Update the new task tool description and the explain mode custom instructions in the system prompt
 - Add IPC types to roo-code.d.ts
 - Add build VSIX workflow to pull requests (thanks @SmartManoj!)
 - Improve apply_diff tool to intelligently deduce line numbers (thanks @samhvw8!)
@@ -2948,7 +2948,7 @@
 
 - Support project-specific custom modes in a .roomodes file
 - Add more Mistral models (thanks @d-oit and @bramburn!)
-- By popular request, make it so Ask mode can't write to Markdown files and is purely for chatting with
+- By popular request, make it so Explain mode can't write to Markdown files and is purely for chatting with
 - Add a setting to control the number of open editor tabs to tell the model about (665 is probably too many!)
 - Fix race condition bug with entering API key on the welcome screen
 
@@ -3023,8 +3023,8 @@
 - Visual improvements to the list of modes on the prompts tab
 - Fix double-scrollbar in provider dropdown
 - Visual cleanup to the list of modes on the prompts tab
-- Improvements to the default prompts for Architect and Ask mode
-- Allow switching between modes with slash messages like `/ask why is the sky blue?`
+- Improvements to the default prompts for Architect and Explain mode
+- Allow switching between modes with slash messages like `/explain why is the sky blue?`
 
 ## [3.3.9]
 
@@ -3166,7 +3166,7 @@
 
 ## [3.1.0]
 
-- You can now customize the role definition and instructions for each chat mode (Code, Architect, and Ask), either through the new Prompts tab in the top menu or mode-specific .clinerules-mode files. Prompt Enhancements have also been revamped: the "Enhance Prompt" button now works with any provider and API configuration, giving you the ability to craft messages with fully customizable prompts for even better results.
+- You can now customize the role definition and instructions for each chat mode (Code, Architect, and Explain), either through the new Prompts tab in the top menu or mode-specific .clinerules-mode files. Prompt Enhancements have also been revamped: the "Enhance Prompt" button now works with any provider and API configuration, giving you the ability to craft messages with fully customizable prompts for even better results.
 - Add a button to copy markdown out of the chat
 
 ## [3.0.3]

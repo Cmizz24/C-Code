@@ -15,6 +15,7 @@ import type { ModelRecord, RouterModels } from "./model.js"
 import type { OpenAiCodexRateLimitInfo } from "./providers/openai-codex-rate-limits.js"
 import type { SkillMetadata } from "./skills.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
+import type { AgentStatusUpdate, ExecutionPlan, MergeReviewEntry, WriteIntentConflict } from "./agents.js"
 
 /**
  * ExtensionMessage
@@ -81,6 +82,13 @@ export interface ExtensionMessage {
 		| "modes"
 		| "taskWithAggregatedCosts"
 		| "openAiCodexRateLimits"
+		| "agentStatusUpdate"
+		| "showPlanPreview"
+		| "writeIntentDenied"
+		| "writeIntentCleared"
+		| "showMergeReview"
+		| "mergeComplete"
+		| "mergeFailed"
 		// Worktree response types
 		| "worktreeList"
 		| "worktreeResult"
@@ -170,6 +178,13 @@ export interface ExtensionMessage {
 	taskHistory?: HistoryItem[] // For taskHistoryUpdated: full sorted task history
 	/** For taskHistoryItemUpdated: single updated/added history item */
 	taskHistoryItem?: HistoryItem
+	// Parallel agent system messages
+	executionPlan?: ExecutionPlan
+	agentStatusUpdate?: AgentStatusUpdate
+	writeIntentConflict?: WriteIntentConflict
+	mergeReviewEntries?: MergeReviewEntry[]
+	agentId?: string
+	gitOutput?: string
 	// Worktree response properties
 	worktrees?: Array<{
 		path: string
@@ -336,6 +351,7 @@ export type ExtensionState = Pick<
 	mcpServers?: McpServer[]
 	openAiCodexIsAuthenticated?: boolean
 	debug?: boolean
+	activeExecutionPlan?: ExecutionPlan
 
 	/**
 	 * Monotonically increasing sequence number for clineMessages state pushes.
@@ -502,6 +518,11 @@ export interface WebviewMessage {
 		| "requestModes"
 		| "switchMode"
 		| "debugSetting"
+		| "approvePlan"
+		| "cancelPlan"
+		| "agentWaitOnConflict"
+		| "agentEscalateConflict"
+		| "mergeApprovedAgents"
 		// Worktree messages
 		| "listWorktrees"
 		| "createWorktree"
@@ -546,6 +567,9 @@ export interface WebviewMessage {
 	promptMode?: string | "enhance"
 	customPrompt?: PromptComponent
 	dataUrls?: string[]
+	executionPlan?: ExecutionPlan
+	agentId?: string
+	filePath?: string
 	/** Generic payload for webview messages that use `values` */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	values?: Record<string, any>

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
-import { type ExtensionMessage } from "@roo-code/types"
+import { type ExecutionPlan, type ExtensionMessage, type MergeReviewEntry } from "@roo-code/types"
 
 import TranslationProvider from "./i18n/TranslationContext"
 import { vscode } from "./utils/vscode"
@@ -18,6 +18,8 @@ import ErrorBoundary from "./components/ErrorBoundary"
 import { useAddNonInteractiveClickListener } from "./components/ui/hooks/useNonInteractiveClick"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { STANDARD_TOOLTIP_DELAY } from "./components/ui/standard-tooltip"
+import { PlanPreviewModal } from "./components/agents/PlanPreviewModal"
+import { MergeReviewPanel } from "./components/agents/MergeReviewPanel"
 
 type Tab = "settings" | "history" | "chat"
 
@@ -50,6 +52,9 @@ const App = () => {
 
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 	const [tab, setTab] = useState<Tab>("chat")
+	const [planPreview, setPlanPreview] = useState<ExecutionPlan | undefined>(undefined)
+	const [mergeReviewEntries, setMergeReviewEntries] = useState<MergeReviewEntry[] | undefined>(undefined)
+	const [mergeFailure, setMergeFailure] = useState<{ agentId?: string; gitOutput?: string } | undefined>(undefined)
 
 	const [deleteMessageDialogState, setDeleteMessageDialogState] = useState<DeleteMessageDialogState>({
 		isOpen: false,
@@ -125,6 +130,24 @@ const App = () => {
 			if (message.type === "acceptInput") {
 				chatViewRef.current?.acceptInput()
 			}
+
+			if (message.type === "showPlanPreview" && message.executionPlan) {
+				setPlanPreview(message.executionPlan)
+			}
+
+			if (message.type === "showMergeReview" && message.mergeReviewEntries) {
+				setMergeReviewEntries(message.mergeReviewEntries)
+				setMergeFailure(undefined)
+			}
+
+			if (message.type === "mergeComplete") {
+				setMergeReviewEntries(undefined)
+				setMergeFailure(undefined)
+			}
+
+			if (message.type === "mergeFailed") {
+				setMergeFailure({ agentId: message.agentId, gitOutput: message.gitOutput ?? message.error })
+			}
 		},
 		[switchTab],
 	)
@@ -184,6 +207,15 @@ const App = () => {
 				showAnnouncement={showAnnouncement}
 				hideAnnouncement={() => setShowAnnouncement(false)}
 			/>
+			{planPreview && <PlanPreviewModal plan={planPreview} onClose={() => setPlanPreview(undefined)} />}
+			{mergeReviewEntries && (
+				<MergeReviewPanel
+					entries={mergeReviewEntries}
+					failedAgentId={mergeFailure?.agentId}
+					gitOutput={mergeFailure?.gitOutput}
+					onClose={() => setMergeReviewEntries(undefined)}
+				/>
+			)}
 			{deleteMessageDialogState.hasCheckpoint ? (
 				<MemoizedCheckpointRestoreDialog
 					open={deleteMessageDialogState.isOpen}

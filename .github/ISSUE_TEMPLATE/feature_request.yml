@@ -3,11 +3,11 @@ description: Propose an improvement in plain language focused on user benefit
 labels: ["enhancement"]
 title: "[ENHANCEMENT] "
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Thank you for helping improve Roo Code!
-        Please focus on the problem and the desired behavior in plain language.
+	- type: markdown
+	  attributes:
+	    value: |
+	      Thank you for helping improve C Code!
+	      Please focus on the problem and the desired behavior in plain language.
 
   - type: textarea
     id: problem
@@ -53,12 +53,12 @@ body:
         - label: This describes a specific problem with clear context and impact
           required: true
 
-  - type: textarea
-    id: roo-code-tasks
-    attributes:
-      label: Roo Code Task Links (optional)
-      description: If you explored this with Roo Code, share public task links for context.
-      placeholder: Paste your Roo Code share links here, one per line
+	- type: textarea
+	  id: roo-code-tasks
+	  attributes:
+	    label: C Code Task Links (optional)
+	    description: If you explored this with C Code, share public task links for context.
+	    placeholder: Paste your C Code share links here, one per line
 
   - type: markdown
     attributes:

@@ -52,7 +52,7 @@ Here are some examples of temperature settings that might work well for differen
 
 - **Code Mode (0.0-0.3):** For writing precise, correct code with consistent, deterministic results
 - **Architect Mode (0.4-0.7):** For brainstorming architecture or design solutions with balanced creativity and structure
-- **Ask Mode (0.7-1.0):** For explanations or open-ended questions requiring diverse and insightful responses
+- **Explain Mode (0.7-1.0):** For explanations or open-ended questions requiring diverse and insightful responses
 - **Debug Mode (0.0-0.3):** For troubleshooting bugs with consistent precision
 
 These are starting points – it's important to [experiment with different settings](#experimentation) to find what works best for your specific needs and preferences.

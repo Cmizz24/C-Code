@@ -7,6 +7,8 @@ import {
 	type ToolGroup,
 	type PromptComponent,
 	DEFAULT_MODES,
+	DEFAULT_MODE_GROUPS,
+	type BuiltInModeGroup,
 } from "@roo-code/types"
 
 import { addCustomInstructions } from "../core/prompts/sections/custom-instructions"
@@ -47,15 +49,102 @@ export const modes = DEFAULT_MODES
 // Export the default mode slug
 export const defaultModeSlug = modes[0].slug
 
+export const explainModeSlug = "explain"
+
+export const legacyModeSlugFallbacks: Readonly<Record<string, string>> = Object.freeze({
+	ask: explainModeSlug,
+})
+
+export function normalizeModeSlug(slug: string): string {
+	return legacyModeSlugFallbacks[slug] ?? slug
+}
+
+export function isLegacyModeSlug(slug: string): boolean {
+	return normalizeModeSlug(slug) !== slug
+}
+
+export function normalizeModeConfig(mode: ModeConfig): ModeConfig {
+	const normalizedSlug = normalizeModeSlug(mode.slug)
+
+	if (normalizedSlug === mode.slug) {
+		return mode
+	}
+
+	return {
+		...mode,
+		slug: normalizedSlug,
+	}
+}
+
+export const defaultModeGroups = DEFAULT_MODE_GROUPS
+
+export type ModeGroup = BuiltInModeGroup
+
+export const specialistModeSlugs = Object.freeze(
+	Object.entries(defaultModeGroups)
+		.filter(([group]) => group !== "defaults")
+		.flatMap(([, config]) => [...config.slugs]),
+)
+
+export const specialistModeSlugList = specialistModeSlugs.join(", ")
+
+export function getModeGroupForSlug(slug: string): ModeGroup | undefined {
+	const normalizedSlug = normalizeModeSlug(slug)
+
+	for (const [group, config] of Object.entries(defaultModeGroups) as Array<
+		[ModeGroup, (typeof defaultModeGroups)[ModeGroup]]
+	>) {
+		if ((config.slugs as readonly string[]).includes(normalizedSlug)) {
+			return group
+		}
+	}
+
+	return undefined
+}
+
+export function getGroupedModes(customModes?: ModeConfig[]): Array<{
+	group: ModeGroup | "custom"
+	label: string
+	modes: ModeConfig[]
+}> {
+	const allModes = getAllModes(customModes)
+	const groupedModes: Array<{ group: ModeGroup | "custom"; label: string; modes: ModeConfig[] }> = (
+		Object.entries(defaultModeGroups) as Array<[ModeGroup, (typeof defaultModeGroups)[ModeGroup]]>
+	)
+		.map(([group, config]) => ({
+			group,
+			label: config.label,
+			modes: config.slugs
+				.map((slug) => allModes.find((mode) => mode.slug === slug))
+				.filter((mode): mode is ModeConfig => mode !== undefined),
+		}))
+		.filter((group) => group.modes.length > 0)
+
+	const categorizedSlugs = new Set<string>(Object.values(defaultModeGroups).flatMap((config) => [...config.slugs]))
+	const customOnlyModes = allModes.filter((mode) => !categorizedSlugs.has(mode.slug))
+
+	if (customOnlyModes.length > 0) {
+		groupedModes.push({
+			group: "custom",
+			label: "Custom",
+			modes: customOnlyModes,
+		})
+	}
+
+	return groupedModes
+}
+
 // Helper functions
 export function getModeBySlug(slug: string, customModes?: ModeConfig[]): ModeConfig | undefined {
+	const normalizedSlug = normalizeModeSlug(slug)
+
 	// Check custom modes first
-	const customMode = customModes?.find((mode) => mode.slug === slug)
+	const customMode = customModes?.find((mode) => normalizeModeSlug(mode.slug) === normalizedSlug)
 	if (customMode) {
-		return customMode
+		return normalizeModeConfig(customMode)
 	}
 	// Then check built-in modes
-	return modes.find((mode) => mode.slug === slug)
+	return modes.find((mode) => mode.slug === normalizedSlug)
 }
 
 export function getModeConfig(slug: string, customModes?: ModeConfig[]): ModeConfig {
@@ -77,13 +166,14 @@ export function getAllModes(customModes?: ModeConfig[]): ModeConfig[] {
 
 	// Process custom modes
 	customModes.forEach((customMode) => {
-		const index = allModes.findIndex((mode) => mode.slug === customMode.slug)
+		const normalizedCustomMode = normalizeModeConfig(customMode)
+		const index = allModes.findIndex((mode) => mode.slug === normalizedCustomMode.slug)
 		if (index !== -1) {
 			// Override existing mode
-			allModes[index] = customMode
+			allModes[index] = normalizedCustomMode
 		} else {
 			// Add new mode
-			allModes.push(customMode)
+			allModes.push(normalizedCustomMode)
 		}
 	})
 
@@ -92,14 +182,17 @@ export function getAllModes(customModes?: ModeConfig[]): ModeConfig[] {
 
 // Check if a mode is custom or an override
 export function isCustomMode(slug: string, customModes?: ModeConfig[]): boolean {
-	return !!customModes?.some((mode) => mode.slug === slug)
+	const normalizedSlug = normalizeModeSlug(slug)
+	return !!customModes?.some((mode) => normalizeModeSlug(mode.slug) === normalizedSlug)
 }
 
 /**
  * Find a mode by its slug, don't fall back to built-in modes
  */
 export function findModeBySlug(slug: string, modes: readonly ModeConfig[] | undefined): ModeConfig | undefined {
-	return modes?.find((mode) => mode.slug === slug)
+	const normalizedSlug = normalizeModeSlug(slug)
+	const mode = modes?.find((mode) => normalizeModeSlug(mode.slug) === normalizedSlug)
+	return mode ? normalizeModeConfig(mode) : undefined
 }
 
 /**
@@ -109,8 +202,9 @@ export function findModeBySlug(slug: string, modes: readonly ModeConfig[] | unde
  * If neither is found, the default mode is used.
  */
 export function getModeSelection(mode: string, promptComponent?: PromptComponent, customModes?: ModeConfig[]) {
-	const customMode = findModeBySlug(mode, customModes)
-	const builtInMode = findModeBySlug(mode, modes)
+	const normalizedMode = normalizeModeSlug(mode)
+	const customMode = findModeBySlug(normalizedMode, customModes)
+	const builtInMode = findModeBySlug(normalizedMode, modes)
 
 	// If we have a custom mode, use it entirely
 	if (customMode) {
@@ -183,11 +277,13 @@ export async function getFullModeDetails(
 		language?: string
 	},
 ): Promise<ModeConfig> {
+	const normalizedModeSlug = normalizeModeSlug(modeSlug)
 	// First get the base mode config from custom modes or built-in modes
-	const baseMode = getModeBySlug(modeSlug, customModes) || modes.find((m) => m.slug === modeSlug) || modes[0]
+	const baseMode =
+		getModeBySlug(normalizedModeSlug, customModes) || modes.find((m) => m.slug === normalizedModeSlug) || modes[0]
 
 	// Check for any prompt component overrides
-	const promptComponent = customModePrompts?.[modeSlug]
+	const promptComponent = customModePrompts?.[normalizedModeSlug] ?? customModePrompts?.[modeSlug]
 
 	// Get the base custom instructions
 	const baseCustomInstructions = promptComponent?.customInstructions || baseMode.customInstructions || ""
@@ -201,7 +297,7 @@ export async function getFullModeDetails(
 			baseCustomInstructions,
 			options.globalCustomInstructions || "",
 			options.cwd,
-			modeSlug,
+			normalizedModeSlug,
 			{ language: options.language },
 		)
 	}

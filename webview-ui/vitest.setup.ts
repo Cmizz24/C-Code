@@ -1,5 +1,28 @@
 import "@testing-library/jest-dom"
 import "@testing-library/jest-dom/vitest"
+import { vi } from "vitest"
+
+vi.mock("react", async () => {
+	const { createRequire } = await import("module")
+	const require = createRequire(import.meta.url)
+	const React = require("react")
+
+	return { ...React, default: React }
+})
+
+vi.mock("react/jsx-runtime", async () => {
+	const { createRequire } = await import("module")
+	const require = createRequire(import.meta.url)
+
+	return require("react/jsx-runtime")
+})
+
+vi.mock("react/jsx-dev-runtime", async () => {
+	const { createRequire } = await import("module")
+	const require = createRequire(import.meta.url)
+
+	return require("react/jsx-dev-runtime")
+})
 
 // Force React into development mode for tests
 // This is needed to enable act(...) function in React Testing Library

@@ -358,7 +358,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 				const codexHeaders: Record<string, string> = {
 					originator: "roo-code",
 					session_id: taskId || this.sessionId,
-					"User-Agent": `roo-code/${Package.version} (${os.platform()} ${os.release()}; ${os.arch()}) node/${process.version.slice(1)}`,
+					"User-Agent": `${Package.name}/${Package.version} (${os.platform()} ${os.release()}; ${os.arch()}) node/${process.version.slice(1)}`,
 					...(accountId ? { "ChatGPT-Account-Id": accountId } : {}),
 				}
 
@@ -503,7 +503,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 			Authorization: `Bearer ${accessToken}`,
 			originator: "roo-code",
 			session_id: taskId || this.sessionId,
-			"User-Agent": `roo-code/${Package.version} (${os.platform()} ${os.release()}; ${os.arch()}) node/${process.version.slice(1)}`,
+			"User-Agent": `${Package.name}/${Package.version} (${os.platform()} ${os.release()}; ${os.arch()}) node/${process.version.slice(1)}`,
 		}
 
 		// Add ChatGPT-Account-Id if available (required for organization subscriptions)
@@ -1195,7 +1195,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 				Authorization: `Bearer ${accessToken}`,
 				originator: "roo-code",
 				session_id: this.sessionId,
-				"User-Agent": `roo-code/${Package.version} (${os.platform()} ${os.release()}; ${os.arch()}) node/${process.version.slice(1)}`,
+				"User-Agent": `${Package.name}/${Package.version} (${os.platform()} ${os.release()}; ${os.arch()}) node/${process.version.slice(1)}`,
 			}
 
 			// Add ChatGPT-Account-Id if available

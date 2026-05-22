@@ -9,18 +9,26 @@ import { validateToolUse, isToolAllowedForMode } from "../validateToolUse"
 
 const codeMode = modes.find((m) => m.slug === "code")?.slug || "code"
 const architectMode = modes.find((m) => m.slug === "architect")?.slug || "architect"
-const askMode = modes.find((m) => m.slug === "ask")?.slug || "ask"
+const explainMode = modes.find((m) => m.slug === "explain")?.slug || "explain"
 
 describe("mode-validator", () => {
 	describe("isToolAllowedForMode", () => {
 		describe("code mode", () => {
-			it("allows all code mode tools", () => {
-				// Code mode has all groups
-				Object.entries(TOOL_GROUPS).forEach(([_, config]) => {
-					config.tools.forEach((tool: string) => {
-						expect(isToolAllowedForMode(tool, codeMode, [])).toBe(true)
-					})
+			it("allows configured code mode tools", () => {
+				// Code mode has read, edit, command, and mcp groups. Mode-switching tools are always available.
+				const codeTools = [
+					...TOOL_GROUPS.read.tools,
+					...TOOL_GROUPS.edit.tools,
+					...TOOL_GROUPS.command.tools,
+					...TOOL_GROUPS.mcp.tools,
+					...TOOL_GROUPS.modes.tools,
+				]
+
+				codeTools.forEach((tool: string) => {
+					expect(isToolAllowedForMode(tool, codeMode, [])).toBe(true)
 				})
+
+				expect(isToolAllowedForMode("plan_parallel_tasks", codeMode, [])).toBe(false)
 			})
 
 			it("disallows unknown tools", () => {
@@ -38,12 +46,12 @@ describe("mode-validator", () => {
 			})
 		})
 
-		describe("ask mode", () => {
+		describe("explain mode", () => {
 			it("allows configured tools", () => {
-				// Ask mode has read and mcp groups
-				const askTools = [...TOOL_GROUPS.read.tools, ...TOOL_GROUPS.mcp.tools]
-				askTools.forEach((tool) => {
-					expect(isToolAllowedForMode(tool, askMode, [])).toBe(true)
+				// Explain mode has read and mcp groups
+				const explainTools = [...TOOL_GROUPS.read.tools, ...TOOL_GROUPS.mcp.tools]
+				explainTools.forEach((tool) => {
+					expect(isToolAllowedForMode(tool, explainMode, [])).toBe(true)
 				})
 			})
 		})

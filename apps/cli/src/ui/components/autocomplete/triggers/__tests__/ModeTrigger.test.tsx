@@ -5,7 +5,7 @@ describe("ModeTrigger", () => {
 		{ key: "code", slug: "code", name: "Code", description: "Write and modify code" },
 		{ key: "architect", slug: "architect", name: "Architect", description: "Plan and design" },
 		{ key: "debug", slug: "debug", name: "Debug", description: "Troubleshoot issues" },
-		{ key: "ask", slug: "ask", name: "Ask", description: "Get explanations" },
+		{ key: "explain", slug: "explain", name: "Explain", description: "Get explanations" },
 	]
 
 	describe("createModeTrigger", () => {

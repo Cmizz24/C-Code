@@ -194,6 +194,26 @@ vi.mock("../../../api/providers/fetchers/modelCache", () => ({
 
 vi.mock("../../../shared/modes", () => ({
 	modes: [{ slug: "code", name: "Code Mode", roleDefinition: "You are a code assistant", groups: ["read", "edit"] }],
+	getAllModes: vi.fn((customModes?: Array<{ slug: string }>) =>
+		customModes?.length
+			? [
+					{
+						slug: "code",
+						name: "Code Mode",
+						roleDefinition: "You are a code assistant",
+						groups: ["read", "edit"],
+					},
+					...customModes,
+				]
+			: [
+					{
+						slug: "code",
+						name: "Code Mode",
+						roleDefinition: "You are a code assistant",
+						groups: ["read", "edit"],
+					},
+				],
+	),
 	getModeBySlug: vi.fn().mockReturnValue({
 		slug: "code",
 		name: "Code Mode",
@@ -202,6 +222,7 @@ vi.mock("../../../shared/modes", () => ({
 	}),
 	getGroupName: vi.fn().mockReturnValue("General Tools"),
 	defaultModeSlug: "code",
+	normalizeModeSlug: vi.fn((slug: string) => (slug === "ask" ? "explain" : slug)),
 }))
 
 vi.mock("../diff/strategies/multi-search-replace", () => ({

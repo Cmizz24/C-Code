@@ -9,8 +9,8 @@
 		}
 	},
 	"landing": {
-		"greeting": "Benvenuto in Roo Code!",
-		"introduction": "Con una gamma di Modalità integrate ed estensibili, Roo Code ti permette di pianificare, architettare, codificare, debuggare e aumentare la tua produttività come mai prima d'ora.",
+		"greeting": "Benvenuto in C Code!",
+		"introduction": "Con una gamma di Modalità integrate ed estensibili, C Code ti permette di pianificare, architettare, codificare, debuggare e aumentare la tua produttività come mai prima d'ora.",
 		"getStarted": "Get Started"
 	},
 	"providerSignup": {

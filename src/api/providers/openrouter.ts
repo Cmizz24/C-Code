@@ -11,8 +11,6 @@ import {
 	DEEP_SEEK_DEFAULT_TEMPERATURE,
 } from "@roo-code/types"
 
-import { NativeToolCallParser } from "../../core/assistant-message/NativeToolCallParser"
-
 import type { ApiHandlerOptions } from "../../shared/api"
 
 import {
@@ -338,6 +336,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 		}
 
 		let lastUsage: CompletionUsage | undefined = undefined
+		const activeToolCallIds = new Set<string>()
 		// Accumulator for reasoning_details FROM the API.
 		// We preserve the original shape of reasoning_details to prevent malformed responses.
 		const reasoningDetailsAccumulator = new Map<
@@ -448,6 +447,10 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 				// Emit raw tool call chunks - NativeToolCallParser handles state management
 				if ("tool_calls" in delta && Array.isArray(delta.tool_calls)) {
 					for (const toolCall of delta.tool_calls) {
+						if (toolCall.id) {
+							activeToolCallIds.add(toolCall.id)
+						}
+
 						yield {
 							type: "tool_call_partial",
 							index: toolCall.index,
@@ -463,13 +466,13 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 				}
 			}
 
-			// Process finish_reason to emit tool_call_end events
-			// This ensures tool calls are finalized even if the stream doesn't properly close
-			if (finishReason) {
-				const endEvents = NativeToolCallParser.processFinishReason(finishReason)
-				for (const event of endEvents) {
-					yield event
+			// Process finish_reason to emit tool_call_end events using request-local state.
+			// This ensures tool calls are finalized even if the stream doesn't properly close.
+			if (finishReason === "tool_calls" && activeToolCallIds.size > 0) {
+				for (const id of activeToolCallIds) {
+					yield { type: "tool_call_end", id }
 				}
+				activeToolCallIds.clear()
 			}
 
 			if (chunk.usage) {

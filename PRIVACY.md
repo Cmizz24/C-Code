@@ -1,37 +1,37 @@
-# Roo Code Privacy Policy
+# C Code Privacy Policy
 
-**Last Updated: September 11th, 2025**
+**Last Updated: May 21st, 2026**
 
-Roo Code respects your privacy and is committed to transparency about how we handle your data. Below is a simple breakdown of where key pieces of data go—and, importantly, where they don’t.
+C Code is Cmizz's personal fork of Roo Code. This document explains where data may go when using this fork.
 
 ### **Where Your Data Goes (And Where It Doesn’t)**
 
-- **Code & Files**: Roo Code accesses files on your local machine when needed for AI-assisted features. When you send commands to Roo Code, relevant files may be transmitted to your chosen AI model provider (e.g., OpenAI, Anthropic, OpenRouter) to generate responses. AI providers may store data per their privacy policies.
-- **Commands**: Any commands executed through Roo Code happen on your local environment. However, when you use AI-powered features, the relevant code and context from your commands may be transmitted to your chosen AI model provider (e.g., OpenAI, Anthropic, OpenRouter) to generate responses. We do not have access to or store this data, but AI providers may process it per their privacy policies.
-- **Prompts & AI Requests**: When you use AI-powered features, your prompts and relevant project context are sent to your chosen AI model provider (e.g., OpenAI, Anthropic, OpenRouter) to generate responses. We do not store or process this data. These AI providers have their own privacy policies and may store data per their terms of service.
-- **API Keys & Credentials**: If you enter an API key (e.g., to connect an AI model), it is stored locally on your device and never sent to us or any third party, except the provider you have chosen.
-- **Telemetry (Usage Data)**: We collect anonymous feature usage and error data to help us improve Roo Code. This telemetry is powered by PostHog and includes your VS Code machine ID, feature usage patterns, and exception reports. This telemetry does **not** collect personally identifiable information, your code, or AI prompts. You can opt out of this telemetry at any time through the settings.
+- **Code & Files**: C Code accesses files on your local machine when needed for AI-assisted features. When you send requests to C Code, relevant files may be transmitted to your chosen AI model provider (e.g., OpenAI, Anthropic, OpenRouter) to generate responses. AI providers may store data per their own privacy policies.
+- **Commands**: Any commands executed through C Code happen in your local environment. However, relevant command output and project context may be transmitted to your chosen AI model provider when needed for AI-powered features.
+- **Prompts & AI Requests**: Your prompts and relevant project context are sent to your selected AI model provider to generate responses. Those providers have their own privacy policies and terms.
+- **API Keys & Credentials**: If you enter an API key, it is stored locally by VS Code/extension storage and is only used with the provider you selected.
+- **Telemetry (Usage Data)**: This fork does not currently include a project telemetry service. Your selected model providers may still receive request metadata as part of normal API usage.
 
 ### **How We Use Your Data (If Collected)**
 
-- We use telemetry to understand feature usage and improve Roo Code.
-- We do **not** sell or share your data.
-- We do **not** train any models on your data.
+- This fork does **not** sell your data.
+- This fork does **not** train models on your data.
+- Your chosen AI providers may process prompts, files, and metadata according to their own policies.
 
 ### **Your Choices & Control**
 
 - You can run models locally to prevent data being sent to third-parties.
-- Telemetry collection is enabled by default to help us improve Roo Code, but you can opt out at any time through the settings.
-- You can delete Roo Code to stop all data collection.
+- Review provider settings before sending sensitive context to remote models.
+- You can delete C Code to stop using the extension.
 
 ### **Security & Updates**
 
-We take reasonable measures to secure your data, but no system is 100% secure. If our privacy policy changes, we will notify you within the extension.
+No system is 100% secure. Keep dependencies, VS Code, and this fork updated when updates are available.
 
 ### **Contact Us**
 
-For any privacy-related questions, reach out to us at support@roocode.com.
+For privacy-related questions about this fork, use the C Code GitHub repository: https://github.com/Cmizz24/C-Code
 
 ---
 
-By using Roo Code, you agree to this Privacy Policy.
+By using C Code, you agree to this Privacy Policy.

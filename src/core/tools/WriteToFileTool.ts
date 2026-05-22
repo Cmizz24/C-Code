@@ -56,47 +56,58 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 		}
 
 		const isWriteProtected = task.rooProtectedController?.isWriteProtected(relPath) || false
+		const writePermission = task.requestAgentWriteIntent(relPath)
+		let didAcquireWriteIntent = false
 
-		let fileExists: boolean
-		const absolutePath = path.resolve(task.cwd, relPath)
-
-		if (task.diffViewProvider.editType !== undefined) {
-			fileExists = task.diffViewProvider.editType === "modify"
-		} else {
-			fileExists = await fileExistsAtPath(absolutePath)
-			task.diffViewProvider.editType = fileExists ? "modify" : "create"
+		if (!writePermission.approved) {
+			const reason = writePermission.reason ?? `Write denied for ${relPath}`
+			await task.say("error", reason)
+			pushToolResult(formatResponse.toolError(reason))
+			return
 		}
 
-		// Create parent directories early for new files to prevent ENOENT errors
-		// in subsequent operations (e.g., diffViewProvider.open, fs.readFile)
-		if (!fileExists) {
-			await createDirectoriesForFile(absolutePath)
-		}
-
-		if (newContent.startsWith("```")) {
-			newContent = newContent.split("\n").slice(1).join("\n")
-		}
-
-		if (newContent.endsWith("```")) {
-			newContent = newContent.split("\n").slice(0, -1).join("\n")
-		}
-
-		if (!task.api.getModel().id.includes("claude")) {
-			newContent = unescapeHtmlEntities(newContent)
-		}
-
-		const fullPath = relPath ? path.resolve(task.cwd, relPath) : ""
-		const isOutsideWorkspace = isPathOutsideWorkspace(fullPath)
-
-		const sharedMessageProps: ClineSayTool = {
-			tool: fileExists ? "editedExistingFile" : "newFileCreated",
-			path: getReadablePath(task.cwd, relPath),
-			content: newContent,
-			isOutsideWorkspace,
-			isProtected: isWriteProtected,
-		}
+		didAcquireWriteIntent = true
 
 		try {
+			let fileExists: boolean
+			const absolutePath = path.resolve(task.cwd, relPath)
+
+			if (task.diffViewProvider.editType !== undefined) {
+				fileExists = task.diffViewProvider.editType === "modify"
+			} else {
+				fileExists = await fileExistsAtPath(absolutePath)
+				task.diffViewProvider.editType = fileExists ? "modify" : "create"
+			}
+
+			// Create parent directories early for new files to prevent ENOENT errors
+			// in subsequent operations (e.g., diffViewProvider.open, fs.readFile)
+			if (!fileExists) {
+				await createDirectoriesForFile(absolutePath)
+			}
+
+			if (newContent.startsWith("```")) {
+				newContent = newContent.split("\n").slice(1).join("\n")
+			}
+
+			if (newContent.endsWith("```")) {
+				newContent = newContent.split("\n").slice(0, -1).join("\n")
+			}
+
+			if (!task.api.getModel().id.includes("claude")) {
+				newContent = unescapeHtmlEntities(newContent)
+			}
+
+			const fullPath = relPath ? path.resolve(task.cwd, relPath) : ""
+			const isOutsideWorkspace = isPathOutsideWorkspace(fullPath)
+
+			const sharedMessageProps: ClineSayTool = {
+				tool: fileExists ? "editedExistingFile" : "newFileCreated",
+				path: getReadablePath(task.cwd, relPath),
+				content: newContent,
+				isOutsideWorkspace,
+				isProtected: isWriteProtected,
+			}
+
 			task.consecutiveMistakeCount = 0
 
 			const provider = task.providerRef.deref()
@@ -190,6 +201,10 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 			await task.diffViewProvider.reset()
 			this.resetPartialState()
 			return
+		} finally {
+			if (didAcquireWriteIntent) {
+				task.releaseAgentWriteIntent(relPath)
+			}
 		}
 	}
 
