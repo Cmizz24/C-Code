@@ -35,6 +35,7 @@ import { generateImageTool } from "../tools/GenerateImageTool"
 import { applyDiffTool as applyDiffToolClass } from "../tools/ApplyDiffTool"
 import { isValidToolName, validateToolUse } from "../tools/validateToolUse"
 import { codebaseSearchTool } from "../tools/CodebaseSearchTool"
+import { handlePlanParallelTasks } from "../tools/planParallelTasks"
 
 import { formatResponse } from "../prompts/responses"
 import { sanitizeToolUseId } from "../../utils/tool-id"
@@ -374,6 +375,8 @@ export async function presentAssistantMessage(cline: Task) {
 						const modeName = getModeBySlug(mode, customModes)?.name ?? mode
 						return `[${block.name} in ${modeName} mode: '${message}']`
 					}
+					case "plan_parallel_tasks":
+						return `[${block.name} for '${block.params.goal}']`
 					case "run_slash_command":
 						return `[${block.name} for '${block.params.command}'${block.params.args ? ` with args: ${block.params.args}` : ""}]`
 					case "skill":
@@ -785,6 +788,27 @@ export async function presentAssistantMessage(cline: Task) {
 						toolCallId: block.id,
 					})
 					break
+				case "plan_parallel_tasks": {
+					const result = handlePlanParallelTasks(
+						(block as ToolUse<"plan_parallel_tasks">).nativeArgs!,
+						cline.cwd,
+					)
+					if (result.ok) {
+						cline.providerRef.deref()?.startOrchestratorEventLoop(result.plan)
+						pushToolResult(
+							`Created execution plan ${result.plan.planId} with ${result.plan.agents.length} agents.\n${
+								result.warnings.length > 0
+									? `Warnings:\n- ${result.warnings.join("\n- ")}`
+									: "No warnings."
+							}`,
+						)
+					} else {
+						pushToolResult(
+							formatResponse.toolError(`Invalid parallel task plan:\n- ${result.errors.join("\n- ")}`),
+						)
+					}
+					break
+				}
 				case "attempt_completion": {
 					const completionCallbacks: AttemptCompletionCallbacks = {
 						askApproval,

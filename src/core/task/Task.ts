@@ -24,6 +24,7 @@ import {
 	type TokenUsage,
 	type ToolUsage,
 	type ToolName,
+	type WritePermission,
 	type ContextCondense,
 	type ContextTruncation,
 	type ClineMessage,
@@ -128,6 +129,7 @@ import { AutoApprovalHandler, checkAutoApproval } from "../auto-approval"
 import { MessageManager } from "../message-manager"
 import { validateAndFixToolResultIds } from "./validateToolResultIds"
 import { mergeConsecutiveApiMessages } from "./mergeConsecutiveApiMessages"
+import { AgentBus } from "../agents/AgentBus"
 
 const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
 const DEFAULT_USAGE_COLLECTION_TIMEOUT_MS = 5000 // 5 seconds
@@ -151,6 +153,9 @@ export interface TaskOptions extends CreateTaskOptions {
 	onCreated?: (task: Task) => void
 	initialTodos?: TodoItem[]
 	workspacePath?: string
+	agentId?: string
+	agentBus?: AgentBus
+	systemPromptSuffix?: string
 	/** Initial status for the task's history item (e.g., "active" for child tasks) */
 	initialStatus?: "active" | "delegated" | "completed"
 }
@@ -171,6 +176,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	readonly parentTask: Task | undefined = undefined
 	readonly taskNumber: number
 	readonly workspacePath: string
+	readonly agentId?: string
+	readonly agentBus?: AgentBus
+	private readonly systemPromptSuffix?: string
 
 	/**
 	 * The mode associated with this task. Persisted across sessions
@@ -429,6 +437,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		onCreated,
 		initialTodos,
 		workspacePath,
+		agentId,
+		agentBus,
+		systemPromptSuffix,
 		initialStatus,
 	}: TaskOptions) {
 		super()
@@ -462,9 +473,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		// Normal use-case is usually retry similar history task with new workspace.
-		this.workspacePath = parentTask
-			? parentTask.workspacePath
-			: (workspacePath ?? getWorkspacePath(path.join(os.homedir(), "Desktop")))
+		this.workspacePath =
+			workspacePath ??
+			(parentTask ? parentTask.workspacePath : getWorkspacePath(path.join(os.homedir(), "Desktop")))
+		this.agentId = agentId
+		this.agentBus = agentBus
+		this.systemPromptSuffix = systemPromptSuffix
 
 		this.instanceId = crypto.randomUUID().slice(0, 8)
 		this.taskNumber = -1
@@ -3677,7 +3691,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			const modelInfo = this.api.getModel().info
 
-			return SYSTEM_PROMPT(
+			const prompt = await SYSTEM_PROMPT(
 				provider.context,
 				this.cwd,
 				false,
@@ -3704,7 +3718,25 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				this.api.getModel().id,
 				provider.getSkillsManager(),
 			)
+
+			return this.systemPromptSuffix ? `${prompt}\n\n${this.systemPromptSuffix}` : prompt
 		})()
+	}
+
+	public requestAgentWriteIntent(relPath: string): WritePermission {
+		if (!this.agentId || !this.agentBus) {
+			return { approved: true }
+		}
+
+		return this.agentBus.requestWriteIntent(this.agentId, relPath)
+	}
+
+	public releaseAgentWriteIntent(relPath: string): void {
+		if (!this.agentId || !this.agentBus) {
+			return
+		}
+
+		this.agentBus.releaseWriteIntent(this.agentId, relPath)
 	}
 
 	private getCurrentProfileId(state: any): string {

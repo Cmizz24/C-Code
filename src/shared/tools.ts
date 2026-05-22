@@ -1,6 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 
-import type { ClineAsk, ToolProgressStatus, ToolGroup, ToolName, GenerateImageParams } from "@roo-code/types"
+import type {
+	AgentDependency,
+	ClineAsk,
+	FileOwnership,
+	GenerateImageParams,
+	ToolGroup,
+	ToolName,
+	ToolProgressStatus,
+} from "@roo-code/types"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 
@@ -56,6 +64,15 @@ export const toolParamNames = [
 	"start_line",
 	"end_line",
 	"todos",
+	"goal",
+	"agents",
+	"expectedFiles",
+	"sharedContext",
+	"owns",
+	"mustNotTouch",
+	"dependsOn",
+	"worktreePath",
+	"signals",
 	"prompt",
 	"image",
 	// read_file parameters (native protocol)
@@ -103,6 +120,20 @@ export type NativeToolArgs = {
 	apply_patch: { patch: string }
 	list_files: { path: string; recursive?: boolean }
 	new_task: { mode: string; message: string; todos?: string }
+	plan_parallel_tasks: {
+		goal: string
+		sharedContext: string
+		expectedFiles: string[]
+		agents: Array<{
+			id: string
+			task: string
+			owns: FileOwnership[]
+			mustNotTouch: string[]
+			dependsOn: AgentDependency[]
+			worktreePath?: string
+			signals: string[]
+		}>
+	}
 	ask_followup_question: {
 		question: string
 		follow_up: Array<{ text: string; mode?: string }>
@@ -284,6 +315,7 @@ export const TOOL_DISPLAY_NAMES: Record<ToolName, string> = {
 	attempt_completion: "complete tasks",
 	switch_mode: "switch modes",
 	new_task: "create new task",
+	plan_parallel_tasks: "plan parallel tasks",
 	codebase_search: "codebase search",
 	update_todo_list: "update todo list",
 	run_slash_command: "run slash command",
@@ -310,6 +342,9 @@ export const TOOL_GROUPS: Record<ToolGroup, ToolGroupConfig> = {
 	modes: {
 		tools: ["switch_mode", "new_task"],
 		alwaysAvailable: true,
+	},
+	orchestrator: {
+		tools: ["plan_parallel_tasks"],
 	},
 }
 

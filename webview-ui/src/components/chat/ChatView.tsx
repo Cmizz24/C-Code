@@ -42,6 +42,7 @@ import { QueuedMessages } from "./QueuedMessages"
 import { WorktreeSelector } from "./WorktreeSelector"
 import FileChangesPanel from "./FileChangesPanel"
 import { useScrollLifecycle } from "@src/hooks/useScrollLifecycle"
+import { AgentStatusPanel } from "@src/components/agents/AgentStatusPanel"
 
 export interface ChatViewProps {
 	isHidden: boolean
@@ -83,6 +84,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		soundVolume,
 		messageQueue = [],
 		showWorktreesInHomeScreen,
+		activeExecutionPlan,
 	} = useExtensionState()
 
 	// Show a WarningRow when the user sends a message with a retired provider.
@@ -1640,6 +1642,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							atBottomThreshold={10}
 						/>
 					</div>
+					{activeExecutionPlan && <AgentStatusPanel />}
 					<FileChangesPanel clineMessages={messages} />
 					{areButtonsVisible && (
 						<div

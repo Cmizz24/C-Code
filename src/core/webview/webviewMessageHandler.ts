@@ -635,6 +635,28 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			}
 			break
 
+		case "approvePlan":
+			if (message.executionPlan) {
+				provider.approveExecutionPlan(message.executionPlan)
+			}
+			break
+
+		case "cancelPlan":
+			provider.cancelExecutionPlan()
+			break
+
+		case "agentWaitOnConflict":
+			provider.handleAgentWaitOnConflict(message.agentId, message.filePath)
+			break
+
+		case "agentEscalateConflict":
+			provider.handleAgentEscalateConflict(message.agentId, message.filePath)
+			break
+
+		case "mergeApprovedAgents":
+			await provider.mergeApprovedAgents(message.ids)
+			break
+
 		case "updateSettings":
 			if (message.updatedSettings) {
 				for (const [key, value] of Object.entries(message.updatedSettings)) {

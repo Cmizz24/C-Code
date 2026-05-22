@@ -637,6 +637,17 @@ export class NativeToolCallParser {
 				}
 				break
 
+			case "plan_parallel_tasks":
+				if (partialArgs.goal !== undefined || partialArgs.agents !== undefined) {
+					nativeArgs = {
+						goal: partialArgs.goal,
+						sharedContext: partialArgs.sharedContext,
+						expectedFiles: Array.isArray(partialArgs.expectedFiles) ? partialArgs.expectedFiles : [],
+						agents: Array.isArray(partialArgs.agents) ? partialArgs.agents : [],
+					}
+				}
+				break
+
 			default:
 				break
 		}
@@ -982,6 +993,17 @@ export class NativeToolCallParser {
 							mode: args.mode,
 							message: args.message,
 							todos: args.todos,
+						} as NativeArgsFor<TName>
+					}
+					break
+
+				case "plan_parallel_tasks":
+					if (args.goal !== undefined && args.agents !== undefined) {
+						nativeArgs = {
+							goal: args.goal,
+							sharedContext: args.sharedContext,
+							expectedFiles: args.expectedFiles,
+							agents: args.agents,
 						} as NativeArgsFor<TName>
 					}
 					break

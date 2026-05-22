@@ -81,6 +81,10 @@ async function generatePrompt(
 
 	// Tools catalog is not included in the system prompt.
 	const toolsCatalog = ""
+	const parallelOrchestratorInstructions =
+		mode === "orchestrator"
+			? "\n\nPARALLEL AGENT PLANNING\nWhen work can be parallelized across independent file ownership boundaries, call the `plan_parallel_tasks` tool before using `new_task`. Define each agent's owned files, must-not-touch paths, dependencies, and shared context so write coordination can prevent conflicts. If the plan reports conflicts or dependency cycles, revise the plan before delegating."
+			: ""
 
 	const basePrompt = `${roleDefinition}
 
@@ -99,6 +103,7 @@ ${getRulesSection(cwd, settings)}
 ${getSystemInfoSection(cwd)}
 
 ${getObjectiveSection()}
+${parallelOrchestratorInstructions}
 
 ${await addCustomInstructions(baseInstructions, globalCustomInstructions || "", cwd, mode, {
 	language: language ?? formatLanguage(vscode.env.language),

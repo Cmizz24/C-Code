@@ -1,4 +1,5 @@
 export * from "./api.js"
+export * from "./agents.js"
 export * from "./cli.js"
 export * from "./organization.js"
 export * from "./codebase-index.js"

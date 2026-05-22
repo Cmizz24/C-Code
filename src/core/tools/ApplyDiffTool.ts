@@ -26,6 +26,7 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 	async execute(params: ApplyDiffParams, task: Task, callbacks: ToolCallbacks): Promise<void> {
 		const { askApproval, handleError, pushToolResult } = callbacks
 		let { path: relPath, diff: diffContent } = params
+		let didAcquireWriteIntent = false
 
 		if (diffContent && !task.api.getModel().id.includes("claude")) {
 			diffContent = unescapeHtmlEntities(diffContent)
@@ -55,6 +56,16 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 			}
 
 			const absolutePath = path.resolve(task.cwd, relPath)
+			const writePermission = task.requestAgentWriteIntent(relPath)
+
+			if (!writePermission.approved) {
+				const reason = writePermission.reason ?? `Write denied for ${relPath}`
+				await task.say("error", reason)
+				pushToolResult(formatResponse.toolError(reason))
+				return
+			}
+			didAcquireWriteIntent = true
+
 			const fileExists = await fileExistsAtPath(absolutePath)
 
 			if (!fileExists) {
@@ -264,6 +275,10 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 			this.resetPartialState()
 			task.processQueuedMessages()
 			return
+		} finally {
+			if (didAcquireWriteIntent && relPath) {
+				task.releaseAgentWriteIntent(relPath)
+			}
 		}
 	}
 
