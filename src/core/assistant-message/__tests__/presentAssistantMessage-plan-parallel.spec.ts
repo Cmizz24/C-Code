@@ -30,6 +30,7 @@ describe("presentAssistantMessage - plan_parallel_tasks", () => {
 			presentAssistantMessageLocked: false,
 			presentAssistantMessageHasPendingUpdates: false,
 			parallelPlanPaused: false,
+			parallelExecutionPaused: false,
 			currentStreamingContentIndex: 0,
 			assistantMessageContent: [
 				{
@@ -83,6 +84,7 @@ describe("presentAssistantMessage - plan_parallel_tasks", () => {
 		)
 		expect(task.didAlreadyUseTool).toBe(true)
 		expect(task.parallelPlanPaused).toBe(false)
+		expect(task.parallelExecutionPaused).toBe(true)
 	})
 
 	it("pauses presentation while plan approval is pending and ignores concurrently streamed new_task blocks", async () => {
@@ -102,6 +104,7 @@ describe("presentAssistantMessage - plan_parallel_tasks", () => {
 			presentAssistantMessageLocked: false,
 			presentAssistantMessageHasPendingUpdates: false,
 			parallelPlanPaused: false,
+			parallelExecutionPaused: false,
 			currentStreamingContentIndex: 0,
 			assistantMessageContent: [
 				{
@@ -165,5 +168,6 @@ describe("presentAssistantMessage - plan_parallel_tasks", () => {
 		expect(task.assistantMessageContent).toHaveLength(1)
 		expect(task.currentStreamingContentIndex).toBe(1)
 		expect(task.didAlreadyUseTool).toBe(true)
+		expect(task.parallelExecutionPaused).toBe(true)
 	})
 })

@@ -41,6 +41,10 @@ function isAbortedTaskSayError(task: Task, error: unknown): boolean {
 	)
 }
 
+function isParallelAgentTask(task: Task): boolean {
+	return Boolean(task.agentId || task.agentBus)
+}
+
 export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 	readonly name = "attempt_completion" as const
 
@@ -100,8 +104,10 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 
 			await task.say("completion_result", result, undefined, false)
 
-			// Check for subtask using parentTaskId (metadata-driven delegation)
-			if (task.parentTaskId) {
+			// Check for subtask using parentTaskId (metadata-driven delegation).
+			// Parallel agent tasks also have parentTaskId lineage, but they complete
+			// through AgentBus / OrchestratorEventLoop rather than Boomerang delegation.
+			if (task.parentTaskId && !isParallelAgentTask(task)) {
 				// Check if this subtask has already completed and returned to parent
 				// to prevent duplicate tool_results when user revisits from history
 				const provider = task.providerRef.deref() as DelegationProvider | undefined

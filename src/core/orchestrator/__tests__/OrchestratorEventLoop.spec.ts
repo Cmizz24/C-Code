@@ -54,9 +54,9 @@ function createTwoAgentPlan(): ExecutionPlan {
 	}
 }
 
-function createTask(): TaskLike {
+function createTask(taskId = "task-id"): TaskLike {
 	return {
-		taskId: "task-id",
+		taskId,
 		metadata: {},
 		taskStatus: "running" as TaskLike["taskStatus"],
 		taskAsk: undefined,
@@ -168,6 +168,28 @@ describe("OrchestratorEventLoop", () => {
 			expect(options?.systemPromptSuffix).toContain(
 				"each native tool call must have exactly one JSON argument object",
 			)
+		}
+	})
+
+	it("uses the original orchestrator task as the parent for every spawned agent", async () => {
+		const orchestratorTask = createTask("orchestrator-task")
+		let currentTask: TaskLike | undefined = orchestratorTask
+		const provider = createProvider({
+			getCurrentTask: vi.fn(() => currentTask),
+			createTask: vi.fn(async (_message, _images, _parentTask, options) => {
+				const childTask = createTask(`child-${options?.agentId}`)
+				currentTask = childTask
+				return childTask
+			}),
+		})
+		const plan = createTwoAgentPlan()
+
+		new OrchestratorEventLoop(provider, AgentBus.getInstance()).start(plan)
+
+		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(2))
+		expect(provider.getCurrentTask).toHaveBeenCalledTimes(1)
+		for (const call of vi.mocked(provider.createTask).mock.calls) {
+			expect(call[2]).toBe(orchestratorTask)
 		}
 	})
 

@@ -532,6 +532,53 @@ describe("attemptCompletionTool", () => {
 				)
 			})
 
+			it("lets parallel agent children complete without Boomerang delegation status checks", async () => {
+				const block: AttemptCompletionToolUse = {
+					type: "tool_use",
+					name: "attempt_completion",
+					params: { result: "Agent finished" },
+					nativeArgs: { result: "Agent finished" },
+					partial: false,
+				}
+				const provider = {
+					getTaskWithId: vi.fn().mockResolvedValue({ historyItem: { status: undefined } }),
+					reopenParentFromDelegation: vi.fn(),
+				}
+				const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+
+				const parallelTask = mockTask as any
+				parallelTask.parentTaskId = "parent-task"
+				parallelTask.agentId = "ui-agent"
+				parallelTask.agentBus = {} as any
+				parallelTask.providerRef = { deref: () => provider } as any
+				parallelTask.ask = vi.fn().mockResolvedValue({ response: "yesButtonClicked", text: "", images: [] })
+
+				const callbacks: AttemptCompletionCallbacks = {
+					askApproval: mockAskApproval,
+					handleError: mockHandleError,
+					pushToolResult: mockPushToolResult,
+					askFinishSubTaskApproval: mockAskFinishSubTaskApproval,
+					toolDescription: mockToolDescription,
+				}
+
+				try {
+					await attemptCompletionTool.handle(mockTask as Task, block, callbacks)
+				} finally {
+					consoleError.mockRestore()
+				}
+
+				expect(provider.getTaskWithId).not.toHaveBeenCalled()
+				expect(mockAskFinishSubTaskApproval).not.toHaveBeenCalled()
+				expect(provider.reopenParentFromDelegation).not.toHaveBeenCalled()
+				expect(consoleError).not.toHaveBeenCalled()
+				expect(mockTask.emit).toHaveBeenCalledWith(
+					RooCodeEventName.TaskCompleted,
+					"task_1",
+					expect.anything(),
+					expect.anything(),
+				)
+			})
+
 			it("does not emit TaskCompleted when user provides follow-up feedback", async () => {
 				const block: AttemptCompletionToolUse = {
 					type: "tool_use",

@@ -348,6 +348,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	presentAssistantMessageLocked = false
 	presentAssistantMessageHasPendingUpdates = false
 	parallelPlanPaused = false
+	parallelExecutionPaused = false
 	userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolResultBlockParam)[] = []
 	userMessageContentReady = false
 
@@ -2502,6 +2503,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				throw new Error(`[RooCode#recursivelyMakeRooRequests] task ${this.taskId}.${this.instanceId} aborted`)
 			}
 
+			if (this.parallelExecutionPaused) {
+				await this.flushPendingToolResultsToHistory()
+				return true
+			}
+
 			if (this.consecutiveMistakeLimit > 0 && this.consecutiveMistakeCount >= this.consecutiveMistakeLimit) {
 				const { response, text, images } = await this.ask(
 					"mistake_limit_reached",
@@ -3502,6 +3508,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					// }
 
 					await pWaitFor(() => this.userMessageContentReady)
+
+					if (this.parallelExecutionPaused) {
+						await this.flushPendingToolResultsToHistory()
+						return true
+					}
 
 					// If the model did not tool use, then we need to tell it to
 					// either use a tool or attempt_completion.

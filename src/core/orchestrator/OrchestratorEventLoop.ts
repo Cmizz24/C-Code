@@ -1,4 +1,10 @@
-import { RooCodeEventName, type AgentPlan, type ExecutionPlan, type TaskProviderLike } from "@roo-code/types"
+import {
+	RooCodeEventName,
+	type AgentPlan,
+	type ExecutionPlan,
+	type TaskLike,
+	type TaskProviderLike,
+} from "@roo-code/types"
 
 import { AgentBus } from "../agents/AgentBus"
 
@@ -11,6 +17,7 @@ type AgentTaskProvider = TaskProviderLike & {
 
 export class OrchestratorEventLoop {
 	private readonly spawnedAgents = new Map<string, SpawnedTask>()
+	private orchestratorTask?: TaskLike
 	private running = false
 
 	constructor(
@@ -38,6 +45,7 @@ export class OrchestratorEventLoop {
 		this.running = false
 		this.bus.off("agentUnblocked", this.spawnAgent)
 		this.bus.off("allComplete", this.synthesizeCompletion)
+		this.orchestratorTask = undefined
 	}
 
 	private async startAgents(plan: ExecutionPlan): Promise<void> {
@@ -47,6 +55,7 @@ export class OrchestratorEventLoop {
 		}
 
 		this.bus.setExecutionPlan(plan)
+		this.orchestratorTask = this.provider.getCurrentTask()
 		this.bus.on("agentUnblocked", this.spawnAgent)
 		this.bus.on("allComplete", this.synthesizeCompletion)
 
@@ -69,7 +78,7 @@ export class OrchestratorEventLoop {
 			}
 
 			this.bus.markRunning(agent.id)
-			const task = await this.provider.createTask(agentMessage, undefined, this.provider.getCurrentTask(), {
+			const task = await this.provider.createTask(agentMessage, undefined, this.orchestratorTask, {
 				mode: agent.mode,
 				agentId: agent.id,
 				workspacePath: agent.worktreePath,
@@ -87,6 +96,10 @@ export class OrchestratorEventLoop {
 	}
 
 	private readonly synthesizeCompletion = (plan: ExecutionPlan): void => {
+		const orchestratorTask = this.orchestratorTask as (TaskLike & { parallelExecutionPaused?: boolean }) | undefined
+		if (orchestratorTask) {
+			orchestratorTask.parallelExecutionPaused = false
+		}
 		this.stop()
 		this.provider.showMergeReview?.(plan).catch(() => {})
 		this.provider.postStateToWebview().catch(() => {})

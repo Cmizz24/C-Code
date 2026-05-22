@@ -843,6 +843,7 @@ export async function presentAssistantMessage(cline: Task) {
 							} else if (approvalResult.startResult.ok === false) {
 								pushToolResult(formatResponse.toolError(approvalResult.startResult.error))
 							} else {
+								cline.parallelExecutionPaused = true
 								pushToolResult(
 									`Approved execution plan ${approvalResult.plan.planId} with ${approvalResult.plan.agents.length} agents. Roo is creating worktrees and starting agent tasks programmatically. Do not call new_task for these parallel agents.\n${
 										result.warnings.length > 0
