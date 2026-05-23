@@ -557,13 +557,41 @@ describe("SettingsView - Auto Approve Parallel Tasks", () => {
 		)
 	})
 
+	it("hides max concurrent parallel tasks while parallel tasks auto-approval is disabled", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView()
+
+		activateTab("autoApprove")
+
+		const content = getSettingsContent()
+		expect(within(content).queryByTestId("parallel-tasks-settings-section")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("max-concurrent-parallel-tasks-input")).not.toBeInTheDocument()
+	})
+
+	it("shows max concurrent parallel tasks nested in the parallel tasks section when enabled", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView()
+
+		activateTab("autoApprove")
+
+		const content = getSettingsContent()
+		const parallelTasksToggle = within(content).getByTestId("always-allow-parallel-tasks-toggle")
+		fireEvent.click(parallelTasksToggle)
+
+		const parallelTasksSection = within(content).getByTestId("parallel-tasks-settings-section")
+		expect(parallelTasksSection).toHaveClass("pl-3", "border-l-2", "border-vscode-button-background")
+		expect(within(parallelTasksSection).getByTestId("max-concurrent-parallel-tasks-input")).toBeInTheDocument()
+	})
+
 	it("saves max concurrent parallel tasks from cached state", () => {
 		const { activateTab, getSettingsContent } = renderSettingsView()
 
 		activateTab("autoApprove")
 
 		const content = getSettingsContent()
-		const maxConcurrentInput = within(content).getByTestId("max-concurrent-parallel-tasks-input")
+		const parallelTasksToggle = within(content).getByTestId("always-allow-parallel-tasks-toggle")
+		fireEvent.click(parallelTasksToggle)
+
+		const parallelTasksSection = within(content).getByTestId("parallel-tasks-settings-section")
+		const maxConcurrentInput = within(parallelTasksSection).getByTestId("max-concurrent-parallel-tasks-input")
 		fireEvent.change(maxConcurrentInput, { target: { value: "5" } })
 
 		const saveButton = screen.getByTestId("save-button")

@@ -189,39 +189,6 @@ export const AutoApproveSettings = ({
 						onMaxRequestsChange={(value) => setCachedStateField("allowedMaxRequests", value)}
 						onMaxCostChange={(value) => setCachedStateField("allowedMaxCost", value)}
 					/>
-
-					<SearchableSetting
-						settingId="auto-approve-max-concurrent-parallel-tasks"
-						section="autoApprove"
-						label={t("settings:autoApprove.parallelTasks.maxConcurrentLabel")}>
-						<div className="flex flex-col gap-2">
-							<label className="block font-medium" htmlFor="max-concurrent-parallel-tasks">
-								{t("settings:autoApprove.parallelTasks.maxConcurrentLabel")}
-							</label>
-							<div className="flex items-center gap-2">
-								<Input
-									id="max-concurrent-parallel-tasks"
-									type="number"
-									min={MIN_PARALLEL_TASK_CONCURRENCY}
-									max={MAX_PARALLEL_TASK_CONCURRENCY}
-									step={1}
-									value={maxConcurrentParallelTasksValue}
-									onChange={(e) => handleMaxConcurrentParallelTasksChange(e.target.value)}
-									className="w-24"
-									data-testid="max-concurrent-parallel-tasks-input"
-								/>
-								<span className="text-sm text-vscode-descriptionForeground">
-									{MIN_PARALLEL_TASK_CONCURRENCY}–{MAX_PARALLEL_TASK_CONCURRENCY}
-								</span>
-							</div>
-							<div className="text-vscode-descriptionForeground text-sm">
-								{t("settings:autoApprove.parallelTasks.maxConcurrentDescription", {
-									min: MIN_PARALLEL_TASK_CONCURRENCY,
-									max: MAX_PARALLEL_TASK_CONCURRENCY,
-								})}
-							</div>
-						</div>
-					</SearchableSetting>
 				</div>
 
 				{/* ADDITIONAL SETTINGS */}
@@ -321,6 +288,49 @@ export const AutoApproveSettings = ({
 							</div>
 							<div className="text-vscode-descriptionForeground text-sm mt-1">
 								{t("settings:autoApprove.followupQuestions.timeoutLabel")}
+							</div>
+						</SearchableSetting>
+					</div>
+				)}
+
+				{alwaysAllowParallelTasks && (
+					<div
+						className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background"
+						data-testid="parallel-tasks-settings-section">
+						<div className="flex items-center gap-4 font-bold">
+							<span className="codicon codicon-repo-forked" />
+							<div>{t("settings:autoApprove.parallelTasks.label")}</div>
+						</div>
+						<SearchableSetting
+							settingId="auto-approve-max-concurrent-parallel-tasks"
+							section="autoApprove"
+							label={t("settings:autoApprove.parallelTasks.maxConcurrentLabel")}>
+							<div className="flex flex-col gap-2">
+								<label className="block font-medium" htmlFor="max-concurrent-parallel-tasks">
+									{t("settings:autoApprove.parallelTasks.maxConcurrentLabel")}
+								</label>
+								<div className="flex items-center gap-2">
+									<Input
+										id="max-concurrent-parallel-tasks"
+										type="number"
+										min={MIN_PARALLEL_TASK_CONCURRENCY}
+										max={MAX_PARALLEL_TASK_CONCURRENCY}
+										step={1}
+										value={maxConcurrentParallelTasksValue}
+										onChange={(e) => handleMaxConcurrentParallelTasksChange(e.target.value)}
+										className="w-24"
+										data-testid="max-concurrent-parallel-tasks-input"
+									/>
+									<span className="text-sm text-vscode-descriptionForeground">
+										{MIN_PARALLEL_TASK_CONCURRENCY}–{MAX_PARALLEL_TASK_CONCURRENCY}
+									</span>
+								</div>
+								<div className="text-vscode-descriptionForeground text-sm">
+									{t("settings:autoApprove.parallelTasks.maxConcurrentDescription", {
+										min: MIN_PARALLEL_TASK_CONCURRENCY,
+										max: MAX_PARALLEL_TASK_CONCURRENCY,
+									})}
+								</div>
 							</div>
 						</SearchableSetting>
 					</div>
