@@ -83,6 +83,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		soundVolume,
 		messageQueue = [],
 		showWorktreesInHomeScreen,
+		activeExecutionPlan,
 	} = useExtensionState()
 
 	// Show a WarningRow when the user sends a message with a retired provider.
@@ -518,6 +519,10 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			return false
 		}
 
+		if (activeExecutionPlan) {
+			return true
+		}
+
 		const isLastMessagePartial = modifiedMessages.at(-1)?.partial === true
 
 		if (isLastMessagePartial) {
@@ -543,7 +548,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		}
 
 		return false
-	}, [modifiedMessages, clineAsk, enableButtons, primaryButtonText])
+	}, [modifiedMessages, clineAsk, enableButtons, primaryButtonText, activeExecutionPlan])
 
 	const markFollowUpAsAnswered = useCallback(() => {
 		const lastFollowUpMessage = messagesRef.current.findLast((msg: ClineMessage) => msg.ask === "followup")

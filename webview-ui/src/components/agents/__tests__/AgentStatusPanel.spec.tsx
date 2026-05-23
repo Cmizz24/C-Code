@@ -292,6 +292,36 @@ describe("AgentStatusPanel", () => {
 		expect(screen.getByTestId("agent-usage-summary")).toHaveTextContent("2/2 reporting · ↑ 1.5K · ↓ 340 · $0.02")
 	})
 
+	it("reopens persisted merge review entries from a saved parallelAgents row", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "review",
+			mergeReviewEntries: [
+				{
+					agentId: "ui-agent",
+					mode: "ui-ux",
+					task: "Build dashboard UI",
+					diff: "diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx\n+const title = 'Dashboard'",
+					worktreePath: "C:/repo/.roo/parallel-worktrees/plan-test/ui-agent",
+					branch: "parallel/plan-test/ui-agent",
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+
+		expect(screen.queryByTestId("merge-review-inline")).not.toBeInTheDocument()
+		fireEvent.click(screen.getByTestId("merge-review-toggle"))
+
+		const review = screen.getByTestId("merge-review-inline")
+		expect(screen.getByTestId("merge-review-toggle")).toHaveTextContent("Merge review saved")
+		expect(review).toHaveTextContent("Build dashboard UI")
+		expect(review).toHaveTextContent("parallel/plan-test/ui-agent")
+		expect(review).toHaveTextContent("diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx")
+	})
+
 	it("keeps an expanded agent row open when the same plan receives refreshed status props", () => {
 		const plan = createPlan()
 		const tool: ClineSayTool = {

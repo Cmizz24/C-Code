@@ -170,6 +170,9 @@ export class ClineProvider
 	private readonly parallelAgentActivities = new Map<string, ParallelAgentActivity[]>()
 	private readonly parallelWriteConflicts = new Map<string, WriteIntentConflict>()
 	private parallelUsageSummary?: ParallelAgentUsageSummary
+	private parallelStatusUpdateQueue: Promise<void> = Promise.resolve()
+	private parallelStatusUpdatePromise?: Promise<void>
+	private parallelStatusUpdateRequested = false
 	private readonly forwardAgentEvent = (event: AgentEvent): void => {
 		switch (event.type) {
 			case "STATUS":
@@ -204,7 +207,6 @@ export class ClineProvider
 				}).catch(() => {})
 				this.parallelWriteConflicts.delete(this.getConflictKey(event.agentId, event.path))
 				this.recordParallelAgentActivity(event.agentId, `Write access cleared for ${event.path}.`, "file")
-				this.updateParallelAgentStatusMessage().catch(() => {})
 				break
 			case "BLOCKED":
 				{
@@ -3194,6 +3196,46 @@ export class ClineProvider
 			this.parallelMergeReviewEntries = mergeReviewEntries
 		}
 
+		await this.queueParallelAgentStatusMessageUpdate()
+	}
+
+	private scheduleParallelAgentStatusMessageUpdate(): void {
+		this.queueParallelAgentStatusMessageUpdate().catch((error) => {
+			this.log(
+				`[parallel-agents] Failed to persist status message: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			)
+		})
+	}
+
+	private queueParallelAgentStatusMessageUpdate(): Promise<void> {
+		this.parallelStatusUpdateRequested = true
+
+		if (this.parallelStatusUpdatePromise) {
+			return this.parallelStatusUpdatePromise
+		}
+
+		const queued = this.parallelStatusUpdateQueue.then(async () => {
+			while (this.parallelStatusUpdateRequested) {
+				this.parallelStatusUpdateRequested = false
+				await this.writeParallelAgentStatusMessage()
+			}
+		})
+
+		let tracked: Promise<void>
+		tracked = queued.finally(() => {
+			if (this.parallelStatusUpdatePromise === tracked) {
+				this.parallelStatusUpdatePromise = undefined
+			}
+		})
+
+		this.parallelStatusUpdatePromise = tracked
+		this.parallelStatusUpdateQueue = tracked.catch(() => undefined)
+		return tracked
+	}
+
+	private async writeParallelAgentStatusMessage(): Promise<void> {
 		const plan = this.activeExecutionPlan
 		if (!plan) {
 			return
@@ -3267,7 +3309,7 @@ export class ClineProvider
 			this.parallelStatusPhase = "failed"
 		}
 
-		this.updateParallelAgentStatusMessage().catch(() => {})
+		this.scheduleParallelAgentStatusMessageUpdate()
 	}
 
 	private buildParallelUsageSummary(): ParallelAgentUsageSummary | undefined {
@@ -3332,7 +3374,7 @@ export class ClineProvider
 		} satisfies AgentStatusUpdate
 		this.parallelAgentStatusUpdates.set(agentId, update)
 		this.postAgentStatusUpdate(update)
-		this.updateParallelAgentStatusMessage().catch(() => {})
+		this.scheduleParallelAgentStatusMessageUpdate()
 	}
 
 	private handleBackgroundAgentMessage(task: Task, message: ClineMessage): void {
@@ -3528,7 +3570,6 @@ export class ClineProvider
 			`Waiting for write access to ${filePath}${ownerTask ? `, owned by ${ownerTask}` : ""}.`,
 			"wait",
 		)
-		this.updateParallelAgentStatusMessage().catch(() => {})
 	}
 
 	private getAgentStatus(agentId: string): AgentStatus | undefined {

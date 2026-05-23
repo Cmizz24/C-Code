@@ -4,7 +4,7 @@ import * as os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
 
-import type { GlobalState, ProviderSettings } from "@roo-code/types"
+import type { ClineMessage, ClineSayTool, ExecutionPlan, GlobalState, ProviderSettings } from "@roo-code/types"
 
 import { Task } from "../Task"
 import { ClineProvider } from "../../webview/ClineProvider"
@@ -408,6 +408,155 @@ describe("Task persistence", () => {
 			expect(callArgs.messages).not.toBe(task.clineMessages)
 			// But the content should be the same
 			expect(callArgs.messages).toEqual(task.clineMessages)
+		})
+
+		it("serializes concurrent saves to avoid overlapping ui_messages writes", async () => {
+			let inFlight = 0
+			let maxInFlight = 0
+			let releaseFirstSave!: () => void
+			const firstSaveBlocked = new Promise<void>((resolve) => {
+				releaseFirstSave = resolve
+			})
+
+			mockSaveTaskMessages.mockImplementation(async () => {
+				inFlight += 1
+				maxInFlight = Math.max(maxInFlight, inFlight)
+
+				try {
+					if (mockSaveTaskMessages.mock.calls.length === 1) {
+						await firstSaveBlocked
+					}
+				} finally {
+					inFlight -= 1
+				}
+			})
+
+			const task = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+				startTask: false,
+			})
+
+			task.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "serialize saves",
+				ts: Date.now(),
+			})
+
+			const firstSave = (task as Record<string, any>).saveClineMessages()
+			const secondSave = (task as Record<string, any>).saveClineMessages()
+
+			await vi.waitFor(() => expect(mockSaveTaskMessages).toHaveBeenCalledTimes(1))
+			expect(maxInFlight).toBe(1)
+
+			releaseFirstSave()
+			await expect(Promise.all([firstSave, secondSave])).resolves.toEqual([true, true])
+
+			expect(mockSaveTaskMessages).toHaveBeenCalledTimes(2)
+			expect(maxInFlight).toBe(1)
+		})
+	})
+
+	describe("parallel agent reload recovery", () => {
+		const createPlan = (): ExecutionPlan => ({
+			planId: "plan-1",
+			sharedContext: "shared",
+			fileOwnershipMap: { "src/a.ts": "agent-a" },
+			createdAt: 1,
+			agents: [
+				{
+					id: "agent-a",
+					mode: "code",
+					task: "Build A",
+					owns: [{ path: "src/a.ts", mode: "exclusive" }],
+					mustNotTouch: [],
+					dependsOn: [],
+					worktreePath: "",
+					status: "complete",
+					signals: [],
+				},
+				{
+					id: "agent-b",
+					mode: "code",
+					task: "Build B",
+					owns: [],
+					mustNotTouch: [],
+					dependsOn: [],
+					worktreePath: "",
+					status: "running",
+					signals: [],
+				},
+			],
+		})
+
+		it("marks persisted running parallel agent rows as interrupted while preserving review rows", async () => {
+			const task = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+				startTask: false,
+			})
+			const plan = createPlan()
+			const runningTool: ClineSayTool = {
+				tool: "parallelAgents",
+				executionPlan: plan,
+				parallelStatus: "running",
+				agentStatusUpdates: [
+					{ agentId: "agent-a", status: "complete", reason: "done" },
+					{ agentId: "agent-b", status: "running" },
+				],
+				agentActivities: [{ agentId: "agent-b", kind: "status", message: "Started running.", ts: 1 }],
+			}
+			const reviewTool: ClineSayTool = {
+				tool: "parallelAgents",
+				executionPlan: { ...plan, planId: "plan-review" },
+				parallelStatus: "review",
+				mergeReviewEntries: [
+					{
+						agentId: "agent-a",
+						mode: "code",
+						task: "Build A",
+						diff: "diff --git a/src/a.ts b/src/a.ts",
+						worktreePath: "worktree-a",
+						branch: "parallel/agent-a",
+					},
+				],
+			}
+
+			const messages: ClineMessage[] = [
+				{ type: "say", say: "tool", text: JSON.stringify(runningTool), ts: 1 },
+				{ type: "say", say: "tool", text: JSON.stringify(reviewTool), ts: 2 },
+			]
+
+			expect((task as Record<string, any>).markInterruptedParallelAgentMessages(messages)).toBe(true)
+
+			const interrupted = JSON.parse(messages[0].text!) as ClineSayTool
+			const preservedReview = JSON.parse(messages[1].text!) as ClineSayTool
+
+			expect(interrupted.parallelStatus).toBe("failed")
+			expect(interrupted.agentStatusUpdates).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ agentId: "agent-a", status: "complete" }),
+					expect.objectContaining({
+						agentId: "agent-b",
+						status: "failed",
+						reason: "Parallel execution was interrupted before it could be resumed.",
+					}),
+				]),
+			)
+			expect(interrupted.agentActivities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "agent-b",
+						kind: "error",
+						message: "Parallel execution was interrupted before it could be resumed.",
+					}),
+				]),
+			)
+			expect(preservedReview.parallelStatus).toBe("review")
+			expect(preservedReview.mergeReviewEntries).toEqual(reviewTool.mergeReviewEntries)
 		})
 	})
 

@@ -251,6 +251,8 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 	const [conflicts, setConflicts] = useState<ConflictBanner[]>(seededConflicts)
 	const [activities, setActivities] = useState<Record<string, AgentActivity[]>>(seededActivities)
 	const [expandedAgentIds, setExpandedAgentIds] = useState<Set<string>>(() => new Set())
+	const [isMergeReviewExpanded, setIsMergeReviewExpanded] = useState(false)
+	const mergeReviewEntries = tool?.mergeReviewEntries ?? []
 
 	useEffect(() => {
 		setStatusUpdates(seededStatusUpdates)
@@ -260,6 +262,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 
 	useEffect(() => {
 		setExpandedAgentIds(new Set())
+		setIsMergeReviewExpanded(false)
 	}, [executionPlan?.planId])
 
 	const toggleExpandedAgent = (agentId: string) => {
@@ -487,6 +490,53 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 									</div>
 								</div>
 							))}
+						</div>
+					)}
+
+					{mergeReviewEntries.length > 0 && (
+						<div className="mt-2 border-t border-vscode-sideBar-background pt-2 text-[11px] text-vscode-descriptionForeground">
+							<button
+								type="button"
+								data-testid="merge-review-toggle"
+								aria-expanded={isMergeReviewExpanded}
+								onClick={() => setIsMergeReviewExpanded((expanded) => !expanded)}
+								className="flex w-full items-center gap-1.5 rounded-sm px-1 py-0.5 text-left hover:bg-vscode-list-hoverBackground/40 focus:outline-none focus:ring-1 focus:ring-vscode-focusBorder">
+								<span
+									className={cn(
+										"codicon shrink-0 text-xs text-vscode-descriptionForeground",
+										isMergeReviewExpanded ? "codicon-chevron-up" : "codicon-chevron-down",
+									)}
+								/>
+								<span className="codicon codicon-git-merge shrink-0" />
+								<span className="truncate text-vscode-foreground">
+									Merge review saved · {mergeReviewEntries.length} agent
+									{mergeReviewEntries.length === 1 ? "" : "s"}
+								</span>
+							</button>
+							{isMergeReviewExpanded && (
+								<div data-testid="merge-review-inline" className="mt-2 flex flex-col gap-2">
+									{mergeReviewEntries.map((entry) => (
+										<div
+											key={entry.agentId}
+											className="rounded border border-vscode-sideBar-background bg-vscode-editor-background/80 p-2">
+											<div className="mb-1 flex min-w-0 flex-wrap items-baseline gap-1.5 text-vscode-foreground">
+												<span className="font-medium">
+													{labelByAgentId.get(entry.agentId) ?? entry.mode ?? entry.agentId}
+												</span>
+												<span className="min-w-0 truncate text-vscode-descriptionForeground">
+													{entry.task}
+												</span>
+												<span className="min-w-0 truncate font-mono text-vscode-descriptionForeground">
+													{entry.branch}
+												</span>
+											</div>
+											<pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded bg-vscode-sideBar-background/40 p-2 font-mono text-[10px] text-vscode-foreground">
+												{entry.diff || entry.noChangesReason || "No changes reported."}
+											</pre>
+										</div>
+									))}
+								</div>
+							)}
 						</div>
 					)}
 

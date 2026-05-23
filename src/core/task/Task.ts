@@ -28,6 +28,7 @@ import {
 	type ContextCondense,
 	type ContextTruncation,
 	type ClineMessage,
+	type ClineSayTool,
 	type ClineSay,
 	type ClineAsk,
 	type ToolProgressStatus,
@@ -313,6 +314,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	// LLM Messages & Chat Messages
 	apiConversationHistory: ApiMessage[] = []
 	clineMessages: ClineMessage[] = []
+	private clineMessagesSaveQueue: Promise<void> = Promise.resolve()
 
 	// Ask
 	private askResponse?: ClineAskResponse
@@ -1169,6 +1171,76 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		return readTaskMessages({ taskId: this.taskId, globalStoragePath: this.globalStoragePath })
 	}
 
+	private markInterruptedParallelAgentMessages(messages: ClineMessage[]): boolean {
+		const interruptionReason = "Parallel execution was interrupted before it could be resumed."
+		const interruptedAt = Date.now()
+		let didUpdate = false
+
+		for (const message of messages) {
+			if (message.type !== "say" || message.say !== "tool" || !message.text) {
+				continue
+			}
+
+			let tool: ClineSayTool
+			try {
+				tool = JSON.parse(message.text) as ClineSayTool
+			} catch {
+				continue
+			}
+
+			if (tool.tool !== "parallelAgents" || tool.parallelStatus !== "running" || !tool.executionPlan) {
+				continue
+			}
+
+			const planAgentIds = new Set(tool.executionPlan.agents.map((agent) => agent.id))
+			const previousUpdates = new Map((tool.agentStatusUpdates ?? []).map((update) => [update.agentId, update]))
+			const existingActivities = tool.agentActivities ?? []
+			const nextActivities: NonNullable<ClineSayTool["agentActivities"]> = [...existingActivities]
+			const nextUpdates: NonNullable<ClineSayTool["agentStatusUpdates"]> = []
+
+			for (const agent of tool.executionPlan.agents) {
+				const previous = previousUpdates.get(agent.id)
+
+				if (previous?.status === "complete") {
+					nextUpdates.push(previous)
+					continue
+				}
+
+				const previousAgentActivities =
+					previous?.activities ?? existingActivities.filter((activity) => activity.agentId === agent.id)
+				const interruptionActivity = {
+					agentId: agent.id,
+					kind: "error",
+					message: interruptionReason,
+					ts: interruptedAt,
+				} satisfies NonNullable<ClineSayTool["agentActivities"]>[number]
+
+				nextActivities.push(interruptionActivity)
+				nextUpdates.push({
+					...previous,
+					agentId: agent.id,
+					status: "failed",
+					reason: previous?.reason ?? interruptionReason,
+					activities: [...previousAgentActivities, interruptionActivity],
+				})
+			}
+
+			for (const update of previousUpdates.values()) {
+				if (!planAgentIds.has(update.agentId)) {
+					nextUpdates.push(update)
+				}
+			}
+
+			tool.parallelStatus = "failed"
+			tool.agentStatusUpdates = nextUpdates
+			tool.agentActivities = nextActivities
+			message.text = JSON.stringify(tool)
+			didUpdate = true
+		}
+
+		return didUpdate
+	}
+
 	private async addToClineMessages(message: ClineMessage) {
 		this.clineMessages.push(message)
 		const provider = this.providerRef.deref()
@@ -1199,9 +1271,20 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	private async saveClineMessages(): Promise<boolean> {
+		const queuedSave = this.clineMessagesSaveQueue.then(() => this.persistClineMessagesSnapshot())
+		this.clineMessagesSaveQueue = queuedSave.then(
+			() => undefined,
+			() => undefined,
+		)
+		return queuedSave
+	}
+
+	private async persistClineMessagesSnapshot(): Promise<boolean> {
 		try {
+			const messagesSnapshot = structuredClone(this.clineMessages)
+
 			await saveTaskMessages({
-				messages: structuredClone(this.clineMessages),
+				messages: messagesSnapshot,
 				taskId: this.taskId,
 				globalStoragePath: this.globalStoragePath,
 			})
@@ -1215,7 +1298,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				rootTaskId: this.rootTaskId,
 				parentTaskId: this.parentTaskId,
 				taskNumber: this.taskNumber,
-				messages: this.clineMessages,
+				messages: messagesSnapshot,
 				globalStoragePath: this.globalStoragePath,
 				workspace: this.cwd,
 				mode: this._taskMode || defaultModeSlug, // Use the task's own mode, not the current provider mode.
@@ -2030,6 +2113,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				if (cost === undefined && cancelReason === undefined) {
 					modifiedClineMessages.splice(lastApiReqStartedIndex, 1)
 				}
+			}
+
+			if (!this.providerRef.deref()?.activeExecutionPlan) {
+				this.markInterruptedParallelAgentMessages(modifiedClineMessages)
 			}
 
 			await this.overwriteClineMessages(modifiedClineMessages)

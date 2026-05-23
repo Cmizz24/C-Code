@@ -1037,6 +1037,76 @@ describe("ClineProvider", () => {
 		)
 	})
 
+	test("rapid AgentBus updates serialize persisted parallelAgents message saves without overlap", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		vi.mocked(parentTask.overwriteClineMessages).mockClear()
+
+		let inFlight = 0
+		let maxInFlight = 0
+		let releaseFirstOverwrite!: () => void
+		const firstOverwriteBlocked = new Promise<void>((resolve) => {
+			releaseFirstOverwrite = resolve
+		})
+		parentTask.overwriteClineMessages = vi.fn(async (messages: ClineMessage[]) => {
+			inFlight += 1
+			maxInFlight = Math.max(maxInFlight, inFlight)
+			parentTask.clineMessages = messages
+
+			try {
+				if (vi.mocked(parentTask.overwriteClineMessages).mock.calls.length === 1) {
+					await firstOverwriteBlocked
+				}
+			} finally {
+				inFlight -= 1
+			}
+		}) as typeof parentTask.overwriteClineMessages
+
+		const bus = AgentBus.getInstance()
+		bus.markRunning("dashboard-agent")
+		bus.requestWriteIntent("dashboard-agent", "src/dashboard.tsx")
+		bus.markBlocked("dashboard-agent", "Waiting for styles")
+		bus.markComplete("dashboard-agent", "Dashboard done")
+		bus.markRunning("styles-agent")
+
+		await vi.waitFor(() => expect(parentTask.overwriteClineMessages).toHaveBeenCalledTimes(1))
+		expect(maxInFlight).toBe(1)
+		bus.markBlocked("styles-agent", "Paused while the parent row save is in flight")
+
+		releaseFirstOverwrite()
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.agentStatusUpdates).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						status: "complete",
+						lastTouchedFile: "src/dashboard.tsx",
+						reason: "Dashboard done",
+					}),
+					expect.objectContaining({
+						agentId: "styles-agent",
+						status: "blocked",
+						reason: "Paused while the parent row save is in flight",
+					}),
+				]),
+			)
+		})
+
+		expect(maxInFlight).toBe(1)
+		expect(parentTask.overwriteClineMessages).toHaveBeenCalledTimes(2)
+	})
+
 	test("background agent messages persist concise activity summaries without raw child transcript text", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const parentTask = new Task(defaultTaskOptions)

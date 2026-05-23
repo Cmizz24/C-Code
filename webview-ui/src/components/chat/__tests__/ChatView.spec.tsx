@@ -1,7 +1,7 @@
 // pnpm --filter @roo-code/vscode-webview test src/components/chat/__tests__/ChatView.spec.tsx
 
 import React from "react"
-import { render, waitFor, act, fireEvent } from "@/utils/test-utils"
+import { render, waitFor, act, fireEvent, screen } from "@/utils/test-utils"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import { ExtensionStateContextProvider } from "@src/context/ExtensionStateContext"
@@ -186,12 +186,14 @@ vi.mock("react-i18next", () => ({
 
 interface ChatTextAreaProps {
 	onSend: () => void
+	onStop?: () => void
 	inputValue?: string
 	setInputValue?: (value: string) => void
 	sendingDisabled?: boolean
 	placeholderText?: string
 	selectedImages?: string[]
 	shouldDisableImages?: boolean
+	isStreaming?: boolean
 }
 
 const mockInputRef = React.createRef<HTMLInputElement>()
@@ -212,6 +214,12 @@ vi.mock("../ChatTextArea", () => {
 
 		return (
 			<div data-testid="chat-textarea">
+				<button
+					type="button"
+					data-testid="chat-textarea-send-stop"
+					onClick={props.isStreaming ? props.onStop : props.onSend}>
+					{props.isStreaming ? "stop" : "send"}
+				</button>
 				<input
 					ref={mockInputRef}
 					type="text"
@@ -1292,5 +1300,32 @@ describe("ChatView - Parallel Agent Status Tests", () => {
 		})
 
 		expect(queryByTestId("agent-status-chat-card")).not.toBeInTheDocument()
+	})
+
+	it("uses the standard chat stop button to cancel an active parallel execution plan", async () => {
+		renderChatView()
+
+		mockPostMessage({
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Initial task",
+				},
+				{
+					type: "say",
+					say: "text",
+					ts: Date.now() - 1000,
+					text: "Working on parallel plan",
+				},
+			],
+			activeExecutionPlan: createExecutionPlan(),
+		})
+
+		await waitFor(() => expect(screen.getByTestId("chat-textarea-send-stop")).toHaveTextContent("stop"))
+		fireEvent.click(screen.getByTestId("chat-textarea-send-stop"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "cancelTask" })
 	})
 })
