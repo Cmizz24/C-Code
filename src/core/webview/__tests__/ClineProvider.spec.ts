@@ -1076,6 +1076,55 @@ describe("ClineProvider", () => {
 		})
 	})
 
+	test("requestPlanApproval shows the plan preview and waits by default", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const plan = createExecutionPlan()
+
+		const approvalPromise = provider.requestPlanApproval(plan)
+		const approvalSpy = vi.fn()
+		approvalPromise.then(approvalSpy)
+
+		await vi.waitFor(() =>
+			expect(mockPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "showPlanPreview",
+					executionPlan: plan,
+				}),
+			),
+		)
+		await Promise.resolve()
+
+		expect(approvalSpy).not.toHaveBeenCalled()
+
+		await provider.cancelExecutionPlan()
+		await expect(approvalPromise).resolves.toEqual({ approved: false })
+	})
+
+	test("requestPlanApproval auto-starts valid parallel plans when parallel tasks auto-approval is enabled", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		await provider.setValues({ autoApprovalEnabled: true, alwaysAllowParallelTasks: true })
+		const validateGitRepository = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).worktreeManager = {
+			validateGitRepository,
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+		}
+		const plan = createExecutionPlan()
+
+		const result = await provider.requestPlanApproval(plan)
+
+		expect(result).toEqual({ approved: true, plan, startResult: { ok: true } })
+		expect(validateGitRepository).toHaveBeenCalled()
+		expect((provider as any).activeExecutionPlan).toBe(plan)
+		expect(
+			mockPostMessage.mock.calls.some(([message]: [ExtensionMessage]) => message.type === "showPlanPreview"),
+		).toBe(false)
+		await vi.waitFor(() => expect(getParallelAgentToolMessages(parentTask)).toHaveLength(1))
+	})
+
 	test("merge review collects uncommitted worktree changes before displaying agent diffs", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const parentTask = new Task(defaultTaskOptions)
@@ -1415,6 +1464,7 @@ describe("ClineProvider", () => {
 		expect(state).toHaveProperty("alwaysAllowReadOnly")
 		expect(state).toHaveProperty("alwaysAllowWrite")
 		expect(state).toHaveProperty("alwaysAllowExecute")
+		expect(state.alwaysAllowParallelTasks).toBe(false)
 		expect(state).toHaveProperty("taskHistory")
 		expect(state).toHaveProperty("soundEnabled")
 		expect(state).toHaveProperty("ttsEnabled")

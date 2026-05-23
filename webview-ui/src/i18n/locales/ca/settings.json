@@ -249,6 +249,10 @@
 			"label": "Subtasques",
 			"description": "Permetre la creació i finalització de subtasques sense requerir aprovació"
 		},
+		"parallelTasks": {
+			"label": "Tasques paral·leles",
+			"description": "Aprova automàticament els plans de tasques paral·leles vàlids i inicia els agents sense mostrar el modal de previsualització del pla"
+		},
 		"followupQuestions": {
 			"label": "Pregunta",
 			"description": "Seleccionar automàticament la primera resposta suggerida per a preguntes de seguiment després del temps d'espera configurat",

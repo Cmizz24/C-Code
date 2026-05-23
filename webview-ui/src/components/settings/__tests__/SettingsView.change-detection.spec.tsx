@@ -261,6 +261,7 @@ describe("SettingsView - Change Detection Fix", () => {
 		alwaysAllowMcp: false,
 		alwaysAllowModeSwitch: false,
 		alwaysAllowSubtasks: false,
+		alwaysAllowParallelTasks: false,
 		alwaysAllowWrite: false,
 		alwaysAllowWriteOutsideWorkspace: false,
 		alwaysAllowWriteProtected: false,

@@ -249,6 +249,10 @@
 			"label": "Subtaken",
 			"description": "Subtaken aanmaken en afronden zonder goedkeuring"
 		},
+		"parallelTasks": {
+			"label": "Parallelle taken",
+			"description": "Keur geldige plannen voor parallelle taken automatisch goed en start agents zonder het modal voor planvoorbeeld te tonen"
+		},
 		"followupQuestions": {
 			"label": "Vraag",
 			"description": "Selecteer automatisch het eerste voorgestelde antwoord voor vervolgvragen na de geconfigureerde time-out",

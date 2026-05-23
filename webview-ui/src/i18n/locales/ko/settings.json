@@ -249,6 +249,10 @@
 			"label": "하위 작업",
 			"description": "승인 없이 하위 작업 생성 및 완료 허용"
 		},
+		"parallelTasks": {
+			"label": "병렬 작업",
+			"description": "유효한 병렬 작업 계획을 자동으로 승인하고 계획 미리 보기 모달을 표시하지 않고 에이전트를 시작합니다"
+		},
 		"followupQuestions": {
 			"label": "질문",
 			"description": "설정된 시간이 지나면 후속 질문에 대한 첫 번째 제안 답변을 자동으로 선택합니다",

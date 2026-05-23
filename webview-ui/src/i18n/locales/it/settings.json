@@ -249,6 +249,10 @@
 			"label": "Sottoattività",
 			"description": "Consenti la creazione e il completamento di attività secondarie senza richiedere approvazione"
 		},
+		"parallelTasks": {
+			"label": "Attività parallele",
+			"description": "Approva automaticamente i piani di attività parallele validi e avvia gli agenti senza mostrare il modale di anteprima del piano"
+		},
 		"followupQuestions": {
 			"label": "Domanda",
 			"description": "Seleziona automaticamente la prima risposta suggerita per le domande di follow-up dopo il timeout configurato",

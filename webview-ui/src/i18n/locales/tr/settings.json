@@ -249,6 +249,10 @@
 			"label": "Alt Görevler",
 			"description": "Onay gerektirmeden alt görevlerin oluşturulmasına ve tamamlanmasına izin ver"
 		},
+		"parallelTasks": {
+			"label": "Paralel görevler",
+			"description": "Geçerli paralel görev planlarını otomatik olarak onayla ve plan önizleme penceresini göstermeden ajanları başlat"
+		},
 		"followupQuestions": {
 			"label": "Soru",
 			"description": "Yapılandırılan zaman aşımından sonra takip sorularına ilişkin ilk önerilen yanıtı otomatik olarak seç",

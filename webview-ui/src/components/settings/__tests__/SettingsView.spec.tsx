@@ -523,6 +523,34 @@ describe("SettingsView - API Configuration", () => {
 	})
 })
 
+describe("SettingsView - Auto Approve Parallel Tasks", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("saves the parallel tasks auto-approval toggle from cached state", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView()
+
+		activateTab("autoApprove")
+
+		const content = getSettingsContent()
+		const parallelTasksToggle = within(content).getByTestId("always-allow-parallel-tasks-toggle")
+		fireEvent.click(parallelTasksToggle)
+
+		const saveButton = screen.getByTestId("save-button")
+		fireEvent.click(saveButton)
+
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					alwaysAllowParallelTasks: true,
+				}),
+			}),
+		)
+	})
+})
+
 describe("SettingsView - Allowed Commands", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()

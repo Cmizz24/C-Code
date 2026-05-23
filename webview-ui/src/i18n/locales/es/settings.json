@@ -249,6 +249,10 @@
 			"label": "Subtareas",
 			"description": "Permitir la creación y finalización de subtareas sin requerir aprobación"
 		},
+		"parallelTasks": {
+			"label": "Tareas paralelas",
+			"description": "Aprobar automáticamente los planes de tareas paralelas válidos e iniciar agentes sin mostrar el modal de vista previa del plan"
+		},
 		"followupQuestions": {
 			"label": "Pregunta",
 			"description": "Seleccionar automáticamente la primera respuesta sugerida para preguntas de seguimiento después del tiempo de espera configurado",

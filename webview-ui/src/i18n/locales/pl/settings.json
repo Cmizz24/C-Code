@@ -249,6 +249,10 @@
 			"label": "Podzadania",
 			"description": "Zezwalaj na tworzenie i ukończenie podzadań bez konieczności zatwierdzania"
 		},
+		"parallelTasks": {
+			"label": "Zadania równoległe",
+			"description": "Automatycznie zatwierdzaj prawidłowe plany zadań równoległych i uruchamiaj agentów bez wyświetlania modala podglądu planu"
+		},
 		"followupQuestions": {
 			"label": "Pytanie",
 			"description": "Automatycznie wybierz pierwszą sugerowaną odpowiedź na pytania uzupełniające po skonfigurowanym limicie czasu",

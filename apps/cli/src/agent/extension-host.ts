@@ -241,6 +241,7 @@ export class ExtensionHost extends EventEmitter implements ExtensionHostInterfac
 					alwaysAllowMcp: true,
 					alwaysAllowModeSwitch: true,
 					alwaysAllowSubtasks: true,
+					alwaysAllowParallelTasks: true,
 					alwaysAllowExecute: true,
 					allowedCommands: ["*"],
 					...baseSettings,

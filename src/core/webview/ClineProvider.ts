@@ -2124,6 +2124,7 @@ export class ClineProvider
 			alwaysAllowMcp,
 			alwaysAllowModeSwitch,
 			alwaysAllowSubtasks,
+			alwaysAllowParallelTasks,
 			allowedMaxRequests,
 			allowedMaxCost,
 			autoCondenseContext,
@@ -2203,6 +2204,7 @@ export class ClineProvider
 			alwaysAllowMcp: alwaysAllowMcp ?? false,
 			alwaysAllowModeSwitch: alwaysAllowModeSwitch ?? false,
 			alwaysAllowSubtasks: alwaysAllowSubtasks ?? false,
+			alwaysAllowParallelTasks: alwaysAllowParallelTasks ?? false,
 			allowedMaxRequests,
 			allowedMaxCost,
 			autoCondenseContext: autoCondenseContext ?? true,
@@ -2351,6 +2353,7 @@ export class ClineProvider
 			alwaysAllowMcp: stateValues.alwaysAllowMcp ?? false,
 			alwaysAllowModeSwitch: stateValues.alwaysAllowModeSwitch ?? false,
 			alwaysAllowSubtasks: stateValues.alwaysAllowSubtasks ?? false,
+			alwaysAllowParallelTasks: stateValues.alwaysAllowParallelTasks ?? false,
 			alwaysAllowFollowupQuestions: stateValues.alwaysAllowFollowupQuestions ?? false,
 			followupAutoApproveTimeoutMs: stateValues.followupAutoApproveTimeoutMs ?? 60000,
 			diagnosticsEnabled: stateValues.diagnosticsEnabled ?? true,
@@ -2840,8 +2843,18 @@ export class ClineProvider
 		return { ok: true }
 	}
 
-	public requestPlanApproval(plan: ExecutionPlan): Promise<PlanApprovalResult> {
-		this.pendingPlanApproval?.({ approved: false })
+	public async requestPlanApproval(plan: ExecutionPlan): Promise<PlanApprovalResult> {
+		const resolvePendingPlanApproval = this.pendingPlanApproval
+		this.pendingPlanApproval = undefined
+		resolvePendingPlanApproval?.({ approved: false })
+
+		const { autoApprovalEnabled, alwaysAllowParallelTasks } = await this.getState()
+		if (autoApprovalEnabled && alwaysAllowParallelTasks) {
+			const startResult = await this.startApprovedExecutionPlan(plan)
+			this.postStateToWebviewWithoutClineMessages().catch(() => {})
+			return { approved: true, plan, startResult }
+		}
+
 		this.postMessageToWebview({ type: "showPlanPreview", executionPlan: plan }).catch(() => {})
 
 		return new Promise((resolve) => {

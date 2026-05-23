@@ -249,6 +249,10 @@
 			"label": "Teilaufgaben",
 			"description": "Erstellung und Abschluss von Unteraufgaben ohne Genehmigung erlauben"
 		},
+		"parallelTasks": {
+			"label": "Parallele Aufgaben",
+			"description": "Gültige Pläne für parallele Aufgaben automatisch genehmigen und Agenten starten, ohne das Modal zur Planvorschau anzuzeigen"
+		},
 		"followupQuestions": {
 			"label": "Frage",
 			"description": "Automatisch die erste vorgeschlagene Antwort für Folgefragen nach der konfigurierten Zeitüberschreitung auswählen",

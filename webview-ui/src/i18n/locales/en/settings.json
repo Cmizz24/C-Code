@@ -309,6 +309,10 @@
 			"label": "Subtasks",
 			"description": "Allow creation and completion of subtasks without requiring approval"
 		},
+		"parallelTasks": {
+			"label": "Parallel tasks",
+			"description": "Automatically approve valid parallel task plans and start agents without showing the plan preview modal"
+		},
 		"followupQuestions": {
 			"label": "Question",
 			"description": "Automatically select the first suggested answer for follow-up questions after the configured timeout",

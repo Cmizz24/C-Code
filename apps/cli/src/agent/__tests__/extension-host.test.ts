@@ -653,6 +653,7 @@ describe("ExtensionHost", () => {
 			expect(initialSettings.alwaysAllowReadOnly).toBe(true)
 			expect(initialSettings.alwaysAllowWrite).toBe(true)
 			expect(initialSettings.alwaysAllowExecute).toBe(true)
+			expect(initialSettings.alwaysAllowParallelTasks).toBe(true)
 		})
 
 		it("should disable auto-approval in interactive mode", () => {
