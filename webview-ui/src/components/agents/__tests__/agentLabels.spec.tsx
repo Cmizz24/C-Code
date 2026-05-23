@@ -78,4 +78,23 @@ describe("parallel agent labels", () => {
 		expect(screen.getByText("Implement the API call")).toBeInTheDocument()
 		expect(screen.getByText("code-agent")).toBeInTheDocument()
 	})
+
+	it("shows a clear no-change reason when merge review diffs are empty", () => {
+		const entries: MergeReviewEntry[] = [
+			{
+				agentId: "code-agent",
+				mode: "code",
+				task: "Check no-op formatting",
+				diff: "",
+				noChangesReason: "No changes detected in this agent worktree.",
+				worktreePath: "C:/repo/.roo/parallel-worktrees/plan-test/code-agent",
+				branch: "roo/parallel/plan-test/code-agent",
+			},
+		]
+
+		renderWithExtensionState(<MergeReviewPanel entries={entries} onClose={vi.fn()} />)
+
+		expect(screen.getByText("No changes detected in this agent worktree.")).toBeInTheDocument()
+		expect(screen.queryByText("No diff available for this agent.")).not.toBeInTheDocument()
+	})
 })

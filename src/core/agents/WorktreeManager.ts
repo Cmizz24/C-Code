@@ -35,6 +35,10 @@ function sanitizeBranchComponent(value: string): string {
 		.slice(0, 80)
 }
 
+function normalizeGitPath(filePath: string): string {
+	return filePath.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/$/, "")
+}
+
 export class WorktreeManager {
 	private readonly createdWorktrees = new Set<string>()
 	private gitRoot: string | undefined
@@ -79,6 +83,79 @@ export class WorktreeManager {
 	public async cleanup(): Promise<void> {
 		const worktrees = this.getCreatedWorktrees()
 		await Promise.allSettled(worktrees.map((worktreePath) => this.removeWorktree(worktreePath)))
+	}
+
+	public async prepareMergeReview(params: {
+		agentId: string
+		planId: string
+		worktreePath: string
+		branch: string
+		ownedPaths?: string[]
+	}): Promise<string> {
+		const ownedPaths = params.ownedPaths?.map(normalizeGitPath).filter(Boolean)
+
+		if (params.ownedPaths && ownedPaths?.length === 0) {
+			return ""
+		}
+
+		await this.commitPendingWorktreeChanges({ ...params, ownedPaths })
+		return this.getBranchDiff(params.branch, ownedPaths)
+	}
+
+	public async mergeBranch(branch: string): Promise<void> {
+		const gitRoot = await this.resolveGitRoot()
+		await execAsync(`git merge --no-edit ${shellQuote(branch)}`, { cwd: gitRoot })
+	}
+
+	private async commitPendingWorktreeChanges(params: {
+		agentId: string
+		planId: string
+		worktreePath: string
+		branch: string
+		ownedPaths?: string[]
+	}): Promise<void> {
+		const pathspec = this.formatPathspec(params.ownedPaths)
+		const addCommand = pathspec ? `git add -A -- ${pathspec}` : "git add -A -- ."
+		await execAsync(addCommand, { cwd: params.worktreePath })
+
+		if (!(await this.hasStagedChanges(params.worktreePath))) {
+			return
+		}
+
+		const commitMessage = `Parallel agent ${params.agentId} changes for ${params.planId}`
+		await execAsync(
+			`git -c user.name="Roo Parallel Agent" -c user.email="roo-parallel-agent@localhost" commit --no-verify -m ${shellQuote(commitMessage)}`,
+			{ cwd: params.worktreePath },
+		)
+	}
+
+	private async hasStagedChanges(worktreePath: string): Promise<boolean> {
+		try {
+			await execAsync("git diff --cached --quiet --exit-code", { cwd: worktreePath })
+			return false
+		} catch (error) {
+			if (error && typeof error === "object" && (error as { code?: number }).code === 1) {
+				return true
+			}
+
+			throw error
+		}
+	}
+
+	private async getBranchDiff(branch: string, ownedPaths?: string[]): Promise<string> {
+		const gitRoot = await this.resolveGitRoot()
+		const pathspec = this.formatPathspec(ownedPaths)
+		const pathspecArgs = pathspec ? ` -- ${pathspec}` : ""
+		const result = await execAsync(`git diff --binary HEAD...${shellQuote(branch)}${pathspecArgs}`, {
+			cwd: gitRoot,
+			maxBuffer: 50 * 1024 * 1024,
+		})
+		const stdout = typeof result === "string" ? result : result.stdout
+		return stdout
+	}
+
+	private formatPathspec(paths: string[] | undefined): string {
+		return paths?.map(shellQuote).join(" ") ?? ""
 	}
 
 	private async resolveGitRoot(): Promise<string> {

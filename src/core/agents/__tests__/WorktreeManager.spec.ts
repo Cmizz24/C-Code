@@ -123,4 +123,146 @@ describe("WorktreeManager", () => {
 			expect.any(Function),
 		)
 	})
+
+	it("commits pending tracked and new worktree files before generating merge review diff", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+
+			if (command === "git add -A -- .") {
+				return { stdout: "" }
+			}
+
+			if (command === "git diff --cached --quiet --exit-code") {
+				return { error: Object.assign(new Error("changes staged"), { code: 1 }) }
+			}
+
+			if (command.includes("commit --no-verify")) {
+				return { stdout: "[roo/parallel/plan/agent abc123] changes\n" }
+			}
+
+			if (command === 'git diff --binary HEAD..."roo/parallel/plan/agent"') {
+				return { stdout: "diff --git a/src/a.ts b/src/a.ts\nnew file mode 100644\n" }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		const diff = await manager.prepareMergeReview({
+			agentId: "agent",
+			planId: "plan",
+			worktreePath: "C:/repo/.roo/parallel-worktrees/plan/agent",
+			branch: "roo/parallel/plan/agent",
+		})
+
+		expect(diff).toContain("new file mode 100644")
+		expect(execMock).toHaveBeenNthCalledWith(
+			1,
+			"git add -A -- .",
+			expect.objectContaining({ cwd: "C:/repo/.roo/parallel-worktrees/plan/agent" }),
+			expect.any(Function),
+		)
+		expect(execMock).toHaveBeenNthCalledWith(
+			2,
+			"git diff --cached --quiet --exit-code",
+			expect.objectContaining({ cwd: "C:/repo/.roo/parallel-worktrees/plan/agent" }),
+			expect.any(Function),
+		)
+		expect(execMock).toHaveBeenNthCalledWith(
+			3,
+			expect.stringContaining('git -c user.name="Roo Parallel Agent"'),
+			expect.objectContaining({ cwd: "C:/repo/.roo/parallel-worktrees/plan/agent" }),
+			expect.any(Function),
+		)
+		expect(execMock).toHaveBeenNthCalledWith(
+			5,
+			'git diff --binary HEAD..."roo/parallel/plan/agent"',
+			expect.objectContaining({ cwd: "C:/repo", maxBuffer: 50 * 1024 * 1024 }),
+			expect.any(Function),
+		)
+	})
+
+	it("limits merge review staging and diffs to owned paths when provided", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+
+			if (command === 'git add -A -- "src/owned.ts" "src/owned-dir"') {
+				return { stdout: "" }
+			}
+
+			if (command === "git diff --cached --quiet --exit-code") {
+				return { error: Object.assign(new Error("changes staged"), { code: 1 }) }
+			}
+
+			if (command.includes("commit --no-verify")) {
+				return { stdout: "[roo/parallel/plan/agent abc123] changes\n" }
+			}
+
+			if (command === 'git diff --binary HEAD..."roo/parallel/plan/agent" -- "src/owned.ts" "src/owned-dir"') {
+				return { stdout: "diff --git a/src/owned.ts b/src/owned.ts\n" }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		const diff = await manager.prepareMergeReview({
+			agentId: "agent",
+			planId: "plan",
+			worktreePath: "C:/repo/.roo/parallel-worktrees/plan/agent",
+			branch: "roo/parallel/plan/agent",
+			ownedPaths: ["./src/owned.ts", "src/owned-dir/"],
+		})
+
+		expect(diff).toContain("src/owned.ts")
+		expect(execMock).toHaveBeenNthCalledWith(
+			1,
+			'git add -A -- "src/owned.ts" "src/owned-dir"',
+			expect.objectContaining({ cwd: "C:/repo/.roo/parallel-worktrees/plan/agent" }),
+			expect.any(Function),
+		)
+		expect(execMock).toHaveBeenNthCalledWith(
+			5,
+			'git diff --binary HEAD..."roo/parallel/plan/agent" -- "src/owned.ts" "src/owned-dir"',
+			expect.objectContaining({ cwd: "C:/repo", maxBuffer: 50 * 1024 * 1024 }),
+			expect.any(Function),
+		)
+	})
+
+	it("does not create an agent commit when auto-approved writes leave no staged changes", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+
+			if (command === "git add -A -- .") {
+				return { stdout: "" }
+			}
+
+			if (command === "git diff --cached --quiet --exit-code") {
+				return { stdout: "" }
+			}
+
+			if (command === 'git diff --binary HEAD..."roo/parallel/plan/agent"') {
+				return { stdout: "" }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		const diff = await manager.prepareMergeReview({
+			agentId: "agent",
+			planId: "plan",
+			worktreePath: "C:/repo/.roo/parallel-worktrees/plan/agent",
+			branch: "roo/parallel/plan/agent",
+		})
+
+		expect(diff).toBe("")
+		expect(execMock.mock.calls.some(([command]) => String(command).includes("commit --no-verify"))).toBe(false)
+	})
 })

@@ -2,8 +2,6 @@ import os from "os"
 import * as path from "path"
 import fs from "fs/promises"
 import EventEmitter from "events"
-import { exec } from "child_process"
-import { promisify } from "util"
 
 import { Anthropic } from "@anthropic-ai/sdk"
 import delay from "delay"
@@ -100,8 +98,6 @@ import { validateAndFixToolResultIds } from "../task/validateToolResultIds"
 import { AgentBus } from "../agents/AgentBus"
 import { getWorktreeManagerErrorMessage, WorktreeManager } from "../agents/WorktreeManager"
 import { OrchestratorEventLoop } from "../orchestrator/OrchestratorEventLoop"
-
-const execAsync = promisify(exec)
 
 /**
  * https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -2938,13 +2934,16 @@ export class ClineProvider
 
 		const approved = new Set(agentIds)
 		for (const agentId of approved) {
+			const branch = this.getAgentBranchName(plan.planId, agentId)
+			const agent = plan.agents.find((candidate) => candidate.id === agentId)
+			const worktreePath = this.worktreePathsByAgentId.get(agentId) ?? agent?.worktreePath
+
 			try {
-				await execAsync(
-					`git merge --no-edit ${this.shellQuote(this.getAgentBranchName(plan.planId, agentId))}`,
-					{
-						cwd: this.currentWorkspacePath ?? this.cwd,
-					},
-				)
+				if (worktreePath) {
+					await this.prepareAgentBranchForReview(plan, agentId, branch, worktreePath)
+				}
+
+				await this.ensureWorktreeManager().mergeBranch(branch)
 			} catch (error) {
 				await this.postMessageToWebview({
 					type: "mergeFailed",
@@ -3407,12 +3406,14 @@ export class ClineProvider
 		const branch = this.getAgentBranchName(plan.planId, agentId)
 		const worktreePath = this.worktreePathsByAgentId.get(agentId) ?? agent?.worktreePath ?? ""
 		let diff = ""
+		let noChangesReason: string | undefined
 
 		try {
-			const { stdout } = await execAsync(`git diff HEAD...${this.shellQuote(branch)}`, {
-				cwd: this.currentWorkspacePath ?? this.cwd,
-			})
-			diff = stdout
+			diff = worktreePath ? await this.prepareAgentBranchForReview(plan, agentId, branch, worktreePath) : ""
+
+			if (!diff.trim()) {
+				noChangesReason = "No changes detected in this agent worktree."
+			}
 		} catch (error) {
 			diff = this.formatGitError(error)
 		}
@@ -3422,9 +3423,34 @@ export class ClineProvider
 			mode: agent?.mode,
 			task: agent?.task ?? agentId,
 			diff,
+			noChangesReason,
 			worktreePath,
 			branch,
 		}
+	}
+
+	private async prepareAgentBranchForReview(
+		plan: ExecutionPlan,
+		agentId: string,
+		branch: string,
+		worktreePath: string,
+	): Promise<string> {
+		this.log(`[parallel-agents] Collecting merge-review diff for ${agentId} from ${worktreePath}`)
+		const agent = plan.agents.find((candidate) => candidate.id === agentId)
+		const ownedPaths = agent?.owns
+			.filter((ownership) => ownership.mode !== "read-only")
+			.map((ownership) => ownership.path)
+		const diff = await this.ensureWorktreeManager().prepareMergeReview({
+			agentId,
+			planId: plan.planId,
+			worktreePath,
+			branch,
+			ownedPaths,
+		})
+		this.log(
+			`[parallel-agents] Merge-review diff for ${agentId}: ${diff.trim() ? "changes detected" : "no changes detected"}`,
+		)
+		return diff
 	}
 
 	private getAgentBranchName(planId: string, agentId: string): string {
@@ -3437,10 +3463,6 @@ export class ClineProvider
 			.replace(/[^a-zA-Z0-9._/-]+/g, "-")
 			.replace(/^-+|-+$/g, "")
 			.slice(0, 80)
-	}
-
-	private shellQuote(value: string): string {
-		return `"${value.replace(/"/g, '\\"')}"`
 	}
 
 	private formatGitError(error: unknown): string {

@@ -115,6 +115,7 @@ export interface MergeReviewEntry {
 	mode?: string
 	task: string
 	diff: string
+	noChangesReason?: string
 	worktreePath: string
 	branch: string
 }

@@ -1076,6 +1076,97 @@ describe("ClineProvider", () => {
 		})
 	})
 
+	test("merge review collects uncommitted worktree changes before displaying agent diffs", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		const prepareMergeReview = vi.fn(async ({ agentId }: { agentId: string }) =>
+			agentId === "dashboard-agent"
+				? "diff --git a/src/dashboard.tsx b/src/dashboard.tsx\n+const dashboard = true\n"
+				: "",
+		)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview,
+			mergeBranch: vi.fn().mockResolvedValue(undefined),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(plan)
+		await vi.waitFor(() => expect((provider as any).activeExecutionPlan).toBe(plan))
+
+		await provider.showMergeReview(plan)
+
+		expect(prepareMergeReview).toHaveBeenCalledWith(
+			expect.objectContaining({
+				agentId: "dashboard-agent",
+				planId: "plan-webview-provider",
+				worktreePath: "/tmp/dashboard-agent",
+				branch: "roo/parallel/plan-webview-provider/dashboard-agent",
+				ownedPaths: ["src/dashboard.tsx"],
+			}),
+		)
+		expect(mockPostMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "showMergeReview",
+				mergeReviewEntries: expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						diff: expect.stringContaining("diff --git"),
+					}),
+					expect.objectContaining({
+						agentId: "styles-agent",
+						diff: "",
+						noChangesReason: "No changes detected in this agent worktree.",
+					}),
+				]),
+			}),
+		)
+	})
+
+	test("merge approval prepares and merges only selected agent branches after review", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		const prepareMergeReview = vi.fn(
+			async ({ agentId }: { agentId: string }) => `diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n`,
+		)
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		const removeWorktree = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview,
+			mergeBranch,
+			removeWorktree,
+			cleanup: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(plan)
+		await vi.waitFor(() => expect((provider as any).activeExecutionPlan).toBe(plan))
+
+		expect(mergeBranch).not.toHaveBeenCalled()
+		await provider.mergeApprovedAgents(["dashboard-agent"])
+
+		expect(prepareMergeReview).toHaveBeenCalledWith(
+			expect.objectContaining({
+				agentId: "dashboard-agent",
+				worktreePath: "/tmp/dashboard-agent",
+				ownedPaths: ["src/dashboard.tsx"],
+			}),
+		)
+		expect(mergeBranch).toHaveBeenCalledTimes(1)
+		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/dashboard-agent")
+		expect(mergeBranch).not.toHaveBeenCalledWith("roo/parallel/plan-webview-provider/styles-agent")
+		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
+		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
+		expect(mockPostMessage).toHaveBeenCalledWith({ type: "mergeComplete" })
+	})
+
 	test("background agent streaming aborts clean up without visible task rehydration", async () => {
 		const parentTask = new Task(defaultTaskOptions)
 		await provider.addClineToStack(parentTask)

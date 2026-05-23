@@ -115,7 +115,7 @@ export const MergeReviewPanel = ({ entries, failedAgentId, gitOutput, onClose }:
 									<DiffView source={entry.diff} />
 								) : (
 									<pre className="rounded bg-vscode-editor-background p-3 text-xs text-vscode-descriptionForeground">
-										No diff available for this agent.
+										{entry.noChangesReason ?? "No changes detected in this agent worktree."}
 									</pre>
 								)}
 							</section>
