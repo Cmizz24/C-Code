@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import type {
+	AgentActivityEvent,
 	AgentPlan,
 	AgentStatus,
 	AgentStatusUpdate,
@@ -28,6 +29,9 @@ interface AgentStatusPanelProps {
 }
 
 type AgentActivity = NonNullable<ClineSayTool["agentActivities"]>[number]
+type AgentActivityKind = NonNullable<AgentActivityEvent["kind"]>
+
+const AGENT_ACTIVITY_TRANSCRIPT_LIMIT = 50
 
 const phaseLabels: Record<NonNullable<ClineSayTool["parallelStatus"]>, string> = {
 	running: "running",
@@ -61,6 +65,52 @@ const statusIconClasses: Record<AgentStatus, string> = {
 	complete: "codicon-check text-vscode-charts-green",
 	failed: "codicon-error text-vscode-errorForeground",
 }
+
+const activityIconClasses: Record<AgentActivityKind, string> = {
+	status: "codicon-info text-vscode-descriptionForeground",
+	assistant: "codicon-comment text-vscode-foreground",
+	thinking: "codicon-loading codicon-modifier-spin text-vscode-foreground",
+	tool: "codicon-tools text-vscode-focusBorder",
+	approval: "codicon-shield text-vscode-editorWarning-foreground",
+	result: "codicon-output text-vscode-descriptionForeground",
+	wait: "codicon-clock text-vscode-editorWarning-foreground",
+	error: "codicon-error text-vscode-errorForeground",
+	completion: "codicon-check text-vscode-charts-green",
+	signal: "codicon-broadcast text-vscode-focusBorder",
+	file: "codicon-file-code text-vscode-focusBorder",
+}
+
+const getActivityKind = (activity: AgentActivity): AgentActivityKind => activity.kind ?? "status"
+
+const getActivityKey = (activity: AgentActivity, index: number): string =>
+	`${activity.agentId}:${activity.ts}:${getActivityKind(activity)}:${index}:${activity.message}`
+
+const sortAgentActivities = (activities: AgentActivity[]): AgentActivity[] =>
+	[...activities].sort((a, b) => a.ts - b.ts).slice(-AGENT_ACTIVITY_TRANSCRIPT_LIMIT)
+
+const mergeAgentActivityLists = (
+	previous: AgentActivity[],
+	incoming: AgentActivity[],
+	agentId: string,
+): AgentActivity[] => {
+	const merged = new Map<string, AgentActivity>()
+
+	for (const activity of [...previous, ...incoming]) {
+		if (activity.agentId !== agentId) {
+			continue
+		}
+
+		merged.set(`${activity.agentId}:${activity.ts}:${getActivityKind(activity)}:${activity.message}`, activity)
+	}
+
+	return sortAgentActivities(Array.from(merged.values()))
+}
+
+const groupAgentActivities = (activities: AgentActivity[] = []): Record<string, AgentActivity[]> =>
+	activities.reduce<Record<string, AgentActivity[]>>((grouped, activity) => {
+		grouped[activity.agentId] = sortAgentActivities([...(grouped[activity.agentId] ?? []), activity])
+		return grouped
+	}, {})
 
 const findLastTouchedFile = (agent: AgentPlan): string | undefined => {
 	const exclusiveOrShared = agent.owns.find((ownership) => ownership.mode !== "read-only")
@@ -128,13 +178,13 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 			})),
 		[tool?.writeIntentConflicts],
 	)
-	const seededActivities = useMemo<Record<string, AgentActivity>>(
-		() => Object.fromEntries((tool?.agentActivities ?? []).map((activity) => [activity.agentId, activity])),
+	const seededActivities = useMemo<Record<string, AgentActivity[]>>(
+		() => groupAgentActivities(tool?.agentActivities ?? []),
 		[tool?.agentActivities],
 	)
 	const [statusUpdates, setStatusUpdates] = useState<Record<string, AgentStatusUpdate>>(seededStatusUpdates)
 	const [conflicts, setConflicts] = useState<ConflictBanner[]>(seededConflicts)
-	const [activities, setActivities] = useState<Record<string, AgentActivity>>(seededActivities)
+	const [activities, setActivities] = useState<Record<string, AgentActivity[]>>(seededActivities)
 	const [expandedAgentIds, setExpandedAgentIds] = useState<Set<string>>(() => new Set())
 
 	useEffect(() => {
@@ -164,20 +214,32 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 
 			switch (message.type) {
 				case "agentStatusUpdate": {
-					if (!message.agentStatusUpdate) {
+					const update = message.agentStatusUpdate
+					if (!update) {
 						return
 					}
-					if (agentIds.size > 0 && !agentIds.has(message.agentStatusUpdate.agentId)) {
+					if (agentIds.size > 0 && !agentIds.has(update.agentId)) {
 						return
 					}
 
 					setStatusUpdates((prev) => ({
 						...prev,
-						[message.agentStatusUpdate!.agentId]: {
-							...prev[message.agentStatusUpdate!.agentId],
-							...message.agentStatusUpdate!,
+						[update.agentId]: {
+							...prev[update.agentId],
+							...update,
 						},
 					}))
+
+					if (update.activities) {
+						setActivities((prev) => ({
+							...prev,
+							[update.agentId]: mergeAgentActivityLists(
+								prev[update.agentId] ?? [],
+								update.activities ?? [],
+								update.agentId,
+							),
+						}))
+					}
 					break
 				}
 				case "writeIntentDenied": {
@@ -228,6 +290,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 
 		return executionPlan.agents.map((agent) => {
 			const statusUpdate = statusUpdates[agent.id]
+			const agentActivities = activities[agent.id] ?? statusUpdate?.activities ?? []
 			const recordedStatus = statusUpdate?.status ?? agent.status
 			const shouldRenderAsTerminal =
 				(phase === "cancelled" || phase === "failed") && recordedStatus !== "complete"
@@ -243,7 +306,8 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 						: undefined),
 				blockedOn: statusUpdate?.blockedOn ?? agent.dependsOn,
 				usage: statusUpdate?.usage,
-				activity: activities[agent.id],
+				activity: agentActivities.at(-1),
+				activities: agentActivities,
 			}
 		})
 	}, [activities, executionPlan, phase, statusUpdates])
@@ -365,6 +429,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 							const agentLabel = getAgentModeLabel(agent.mode, customModes)
 							const usage = getUsageSummary(agent.usage)
 							const activity = agent.activity?.message
+							const activityEvents = agent.activities
 							const isExpanded = expandedAgentIds.has(agent.id)
 							const detailsId = `agent-details-${agent.id}`
 							const agentConflicts = conflicts.filter((conflict) => conflict.agentId === agent.id)
@@ -445,6 +510,48 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 											id={detailsId}
 											data-testid="agent-details"
 											className="ml-6 mt-1 rounded border border-vscode-sideBar-background bg-vscode-editor-background/60 p-2 text-[11px] text-vscode-descriptionForeground">
+											<div className="mb-3">
+												<div className="mb-1 font-medium text-vscode-foreground">
+													{t("chat:parallelAgents.details.activity")}
+												</div>
+												<div
+													data-testid="agent-details-activity"
+													className="rounded border border-vscode-sideBar-background bg-vscode-editor-background/80 p-2">
+													{activityEvents.length > 0 ? (
+														<ol
+															data-testid="agent-activity-timeline"
+															className="flex min-w-0 flex-col gap-2">
+															{activityEvents.map((activityEvent, index) => {
+																const kind = getActivityKind(activityEvent)
+
+																return (
+																	<li
+																		key={getActivityKey(activityEvent, index)}
+																		data-testid="agent-activity-event"
+																		className="flex min-w-0 items-start gap-2">
+																		<span
+																			className={cn(
+																				"codicon mt-0.5 shrink-0 text-xs",
+																				activityIconClasses[kind],
+																			)}
+																		/>
+																		<div className="min-w-0 flex-1 rounded-sm bg-vscode-sideBar-background/40 px-2 py-1">
+																			<div className="mb-0.5 capitalize text-vscode-descriptionForeground/80">
+																				{kind}
+																			</div>
+																			<div className="min-w-0 whitespace-pre-wrap text-vscode-foreground">
+																				{activityEvent.message}
+																			</div>
+																		</div>
+																	</li>
+																)
+															})}
+														</ol>
+													) : (
+														<span>{t("chat:parallelAgents.details.noActivity")}</span>
+													)}
+												</div>
+											</div>
 											<dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-2">
 												<dt className="font-medium text-vscode-foreground">
 													{t("chat:parallelAgents.details.task")}
@@ -535,15 +642,6 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 												</dt>
 												<dd data-testid="agent-worktree" className="min-w-0 truncate font-mono">
 													{agent.worktreePath}
-												</dd>
-
-												<dt className="font-medium text-vscode-foreground">
-													{t("chat:parallelAgents.details.activity")}
-												</dt>
-												<dd
-													data-testid="agent-details-activity"
-													className="min-w-0 whitespace-pre-wrap">
-													{activity ?? t("chat:parallelAgents.details.noActivity")}
 												</dd>
 
 												<dt className="font-medium text-vscode-foreground">

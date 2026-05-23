@@ -15,7 +15,13 @@ import type { ModelRecord, RouterModels } from "./model.js"
 import type { OpenAiCodexRateLimitInfo } from "./providers/openai-codex-rate-limits.js"
 import type { SkillMetadata } from "./skills.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
-import type { AgentStatusUpdate, ExecutionPlan, MergeReviewEntry, WriteIntentConflict } from "./agents.js"
+import type {
+	AgentActivityEvent,
+	AgentStatusUpdate,
+	ExecutionPlan,
+	MergeReviewEntry,
+	WriteIntentConflict,
+} from "./agents.js"
 
 /**
  * ExtensionMessage
@@ -742,11 +748,7 @@ export interface ClineSayTool {
 	parallelStatus?: "running" | "review" | "merged" | "cancelled" | "failed"
 	agentStatusUpdates?: AgentStatusUpdate[]
 	writeIntentConflicts?: WriteIntentConflict[]
-	agentActivities?: Array<{
-		agentId: string
-		message: string
-		ts: number
-	}>
+	agentActivities?: AgentActivityEvent[]
 	parallelUsageSummary?: {
 		totalTokensIn: number
 		totalTokensOut: number

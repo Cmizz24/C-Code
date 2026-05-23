@@ -1068,11 +1068,73 @@ describe("ClineProvider", () => {
 				expect.arrayContaining([
 					expect.objectContaining({
 						agentId: "dashboard-agent",
+						kind: "thinking",
 						message: "Reasoning through the next step.",
 					}),
 				]),
 			)
+			expect(tool.agentStatusUpdates).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						activities: expect.arrayContaining([
+							expect.objectContaining({
+								kind: "thinking",
+								message: "Reasoning through the next step.",
+							}),
+						]),
+					}),
+				]),
+			)
 			expect(JSON.stringify(tool)).not.toContain("raw child chain-of-thought")
+		})
+	})
+
+	test("background agent activity transcripts are bounded per agent", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+		const backgroundTask = backgroundTasks.find((task) => task.agentId === "dashboard-agent") as Task
+		for (let index = 0; index < 55; index++) {
+			const childMessage: ClineMessage = {
+				type: "say",
+				say: "tool",
+				ts: 1_000 + index,
+				text: JSON.stringify({ tool: "readFile", path: `src/file-${index}.ts` }),
+			}
+
+			backgroundTask.emit(RooCodeEventName.Message, { action: "created", message: childMessage })
+		}
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			const activities = tool.agentActivities?.filter((activity) => activity.agentId === "dashboard-agent") ?? []
+			expect(activities).toHaveLength(50)
+			expect(activities[0]).toEqual(
+				expect.objectContaining({
+					message: "Reading src/file-5.ts.",
+					ts: 1_005,
+				}),
+			)
+			expect(activities.at(-1)).toEqual(
+				expect.objectContaining({
+					message: "Reading src/file-54.ts.",
+					ts: 1_054,
+				}),
+			)
+			const statusUpdate = tool.agentStatusUpdates?.find((update) => update.agentId === "dashboard-agent")
+			expect(statusUpdate?.activities).toHaveLength(50)
 		})
 	})
 

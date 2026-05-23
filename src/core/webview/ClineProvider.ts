@@ -29,6 +29,7 @@ import {
 	type ExtensionMessage,
 	type ExtensionState,
 	type AgentEvent,
+	type AgentActivityEvent,
 	type AgentStatus,
 	type AgentStatusUpdate,
 	type WriteIntentConflict,
@@ -126,8 +127,11 @@ export type PlanApprovalResult =
 	| { approved: true; plan: ExecutionPlan; startResult: PlanStartResult }
 
 type ParallelAgentToolStatus = NonNullable<ClineSayTool["parallelStatus"]>
-type ParallelAgentActivity = NonNullable<ClineSayTool["agentActivities"]>[number]
+type ParallelAgentActivity = AgentActivityEvent
 type ParallelAgentUsageSummary = NonNullable<ClineSayTool["parallelUsageSummary"]>
+type BackgroundAgentActivityDescription = Pick<ParallelAgentActivity, "kind" | "message">
+
+const PARALLEL_AGENT_ACTIVITY_LIMIT = 50
 
 export class ClineProvider
 	extends EventEmitter<TaskProviderEvents>
@@ -163,7 +167,7 @@ export class ClineProvider
 	private parallelStatusPhase: ParallelAgentToolStatus = "running"
 	private parallelMergeReviewEntries?: MergeReviewEntry[]
 	private readonly parallelAgentStatusUpdates = new Map<string, AgentStatusUpdate>()
-	private readonly parallelAgentActivities = new Map<string, ParallelAgentActivity>()
+	private readonly parallelAgentActivities = new Map<string, ParallelAgentActivity[]>()
 	private readonly parallelWriteConflicts = new Map<string, WriteIntentConflict>()
 	private parallelUsageSummary?: ParallelAgentUsageSummary
 	private readonly forwardAgentEvent = (event: AgentEvent): void => {
@@ -173,6 +177,7 @@ export class ClineProvider
 					const update = { agentId: event.agentId, status: event.status }
 					this.postAgentStatusUpdate(update)
 					this.recordParallelAgentStatus(update)
+					this.recordParallelAgentActivity(event.agentId, this.describeStatusActivity(event.status), "status")
 				}
 				break
 			case "INTENT_WRITE":
@@ -184,6 +189,7 @@ export class ClineProvider
 					}
 					this.postAgentStatusUpdate(update)
 					this.recordParallelAgentStatus(update)
+					this.recordParallelAgentActivity(event.agentId, `Writing ${event.path}.`, "file")
 				} else {
 					this.deniedWriteReasons.set(this.getConflictKey(event.agentId, event.path), event.permission.reason)
 				}
@@ -197,6 +203,7 @@ export class ClineProvider
 					writeIntentConflict: { agentId: event.agentId, filePath: event.path },
 				}).catch(() => {})
 				this.parallelWriteConflicts.delete(this.getConflictKey(event.agentId, event.path))
+				this.recordParallelAgentActivity(event.agentId, `Write access cleared for ${event.path}.`, "file")
 				this.updateParallelAgentStatusMessage().catch(() => {})
 				break
 			case "BLOCKED":
@@ -209,6 +216,7 @@ export class ClineProvider
 					} satisfies AgentStatusUpdate
 					this.postAgentStatusUpdate(update)
 					this.recordParallelAgentStatus(update)
+					this.recordParallelAgentActivity(event.agentId, `Blocked: ${event.reason}`, "wait")
 				}
 				break
 			case "COMPLETE":
@@ -220,6 +228,11 @@ export class ClineProvider
 					} satisfies AgentStatusUpdate
 					this.postAgentStatusUpdate(update)
 					this.recordParallelAgentStatus(update)
+					this.recordParallelAgentActivity(
+						event.agentId,
+						event.result ? `Completed: ${event.result}` : "Completed.",
+						"completion",
+					)
 				}
 				break
 			case "FAILED":
@@ -231,10 +244,11 @@ export class ClineProvider
 					} satisfies AgentStatusUpdate
 					this.postAgentStatusUpdate(update)
 					this.recordParallelAgentStatus(update)
+					this.recordParallelAgentActivity(event.agentId, `Failed: ${event.reason}`, "error")
 				}
 				break
 			case "SIGNAL":
-				this.recordParallelAgentActivity(event.agentId, `Signaled ${event.signal}.`)
+				this.recordParallelAgentActivity(event.agentId, `Signaled ${event.signal}.`, "signal")
 				break
 		}
 	}
@@ -3063,7 +3077,10 @@ export class ClineProvider
 	}
 
 	private postAgentStatusUpdate(update: AgentStatusUpdate): void {
-		this.postMessageToWebview({ type: "agentStatusUpdate", agentStatusUpdate: update }).catch(() => {})
+		this.postMessageToWebview({
+			type: "agentStatusUpdate",
+			agentStatusUpdate: this.withAgentActivities(update),
+		}).catch(() => {})
 	}
 
 	private postBackgroundAgentUsage(task: Task, usage: TokenUsage): void {
@@ -3206,7 +3223,7 @@ export class ClineProvider
 			parallelStatus: this.parallelStatusPhase,
 			agentStatusUpdates: Array.from(this.parallelAgentStatusUpdates.values()),
 			writeIntentConflicts: Array.from(this.parallelWriteConflicts.values()),
-			agentActivities: Array.from(this.parallelAgentActivities.values()).sort((a, b) => b.ts - a.ts),
+			agentActivities: this.getParallelAgentActivities(),
 			parallelUsageSummary: this.parallelUsageSummary,
 			mergeReviewEntries,
 		}
@@ -3243,7 +3260,7 @@ export class ClineProvider
 		}
 
 		const previous = this.parallelAgentStatusUpdates.get(update.agentId)
-		this.parallelAgentStatusUpdates.set(update.agentId, { ...previous, ...update })
+		this.parallelAgentStatusUpdates.set(update.agentId, this.withAgentActivities({ ...previous, ...update }))
 		this.parallelUsageSummary = this.buildParallelUsageSummary()
 
 		if (update.status === "failed" && this.parallelStatusPhase !== "cancelled") {
@@ -3284,16 +3301,37 @@ export class ClineProvider
 		)
 	}
 
-	private recordParallelAgentActivity(agentId: string, message: string, ts: number = Date.now()): void {
+	private recordParallelAgentActivity(
+		agentId: string,
+		message: string,
+		kind: ParallelAgentActivity["kind"] = "status",
+		ts: number = Date.now(),
+	): void {
 		if (!this.activeExecutionPlan) {
 			return
 		}
 
-		this.parallelAgentActivities.set(agentId, {
+		const previousActivities = this.parallelAgentActivities.get(agentId) ?? []
+		const activities = [
+			...previousActivities,
+			{
+				agentId,
+				kind,
+				message,
+				ts,
+			} satisfies ParallelAgentActivity,
+		].slice(-PARALLEL_AGENT_ACTIVITY_LIMIT)
+		this.parallelAgentActivities.set(agentId, activities)
+
+		const previousStatus = this.parallelAgentStatusUpdates.get(agentId)
+		const update = {
+			...previousStatus,
 			agentId,
-			message,
-			ts,
-		})
+			status: previousStatus?.status ?? this.getAgentStatus(agentId) ?? "running",
+			activities,
+		} satisfies AgentStatusUpdate
+		this.parallelAgentStatusUpdates.set(agentId, update)
+		this.postAgentStatusUpdate(update)
 		this.updateParallelAgentStatusMessage().catch(() => {})
 	}
 
@@ -3307,16 +3345,21 @@ export class ClineProvider
 			return
 		}
 
-		this.recordParallelAgentActivity(task.agentId, activity, message.ts)
+		this.recordParallelAgentActivity(task.agentId, activity.message, activity.kind, message.ts)
 	}
 
-	private describeBackgroundAgentMessage(message: ClineMessage): string | undefined {
+	private describeBackgroundAgentMessage(message: ClineMessage): BackgroundAgentActivityDescription | undefined {
 		if (message.partial) {
 			return undefined
 		}
 
 		if (message.type === "ask" && message.ask === "tool") {
-			return this.describeToolActivity(message.text, "Waiting for tool approval")
+			return {
+				kind: "approval",
+				message: message.isAnswered
+					? "Tool approval resolved."
+					: this.describeToolActivity(message.text, "Waiting for tool approval."),
+			}
 		}
 
 		if (message.type !== "say") {
@@ -3325,24 +3368,90 @@ export class ClineProvider
 
 		switch (message.say) {
 			case "api_req_started":
-				return "Thinking…"
+				return { kind: "thinking", message: "Thinking…" }
+			case "api_req_finished":
+				return { kind: "result", message: "Finished thinking." }
+			case "api_req_retried":
+				return { kind: "wait", message: "Retrying the model request." }
+			case "api_req_retry_delayed":
+				return { kind: "wait", message: "Waiting before retrying the model request." }
+			case "api_req_rate_limit_wait":
+				return { kind: "wait", message: "Waiting for the provider rate limit." }
+			case "text":
+				return this.describeAssistantTextActivity(message.text)
 			case "reasoning":
-				return "Reasoning through the next step."
+				return { kind: "thinking", message: "Reasoning through the next step." }
 			case "tool":
-				return this.describeToolActivity(message.text, "Used a tool")
+				return { kind: "tool", message: this.describeToolActivity(message.text, "Used a tool.") }
 			case "command_output":
-				return "Read command output."
+				return { kind: "result", message: "Read command output." }
 			case "mcp_server_request_started":
-				return "Contacted an MCP server."
+				return { kind: "tool", message: "Contacted an MCP server." }
 			case "mcp_server_response":
-				return "Received MCP server response."
+				return { kind: "result", message: "Received MCP server response." }
 			case "completion_result":
-				return "Reported completion."
+				return { kind: "completion", message: "Reported completion." }
 			case "error":
-				return "Encountered an error."
+				return { kind: "error", message: "Encountered an error." }
 			default:
 				return undefined
 		}
+	}
+
+	private withAgentActivities(update: AgentStatusUpdate): AgentStatusUpdate {
+		const activities = this.parallelAgentActivities.get(update.agentId)
+
+		if (!activities?.length) {
+			return update
+		}
+
+		return {
+			...update,
+			activities,
+		}
+	}
+
+	private getParallelAgentActivities(agentId?: string): ParallelAgentActivity[] {
+		const activities = agentId
+			? (this.parallelAgentActivities.get(agentId) ?? [])
+			: Array.from(this.parallelAgentActivities.values()).flat()
+
+		return [...activities].sort((a, b) => a.ts - b.ts)
+	}
+
+	private describeStatusActivity(status: AgentStatus): string {
+		switch (status) {
+			case "pending":
+				return "Queued and waiting to start."
+			case "running":
+				return "Started running."
+			case "blocked":
+				return "Blocked and waiting."
+			case "complete":
+				return "Completed."
+			case "failed":
+				return "Failed."
+		}
+	}
+
+	private describeAssistantTextActivity(text: string | undefined): BackgroundAgentActivityDescription {
+		const summary = this.summarizeActivityText(text)
+
+		return {
+			kind: "assistant",
+			message: summary ? `Said: ${summary}` : "Shared a response update.",
+		}
+	}
+
+	private summarizeActivityText(text: string | undefined): string | undefined {
+		const normalized = text?.replace(/\s+/g, " ").trim()
+		if (!normalized) {
+			return undefined
+		}
+
+		const maxLength = 160
+		const clipped = normalized.length > maxLength ? `${normalized.slice(0, maxLength - 1).trimEnd()}…` : normalized
+		return `“${clipped}”`
 	}
 
 	private describeToolActivity(text: string | undefined, fallback: string): string {
@@ -3414,6 +3523,11 @@ export class ClineProvider
 			writeIntentConflict: conflict,
 		}).catch(() => {})
 		this.parallelWriteConflicts.set(this.getConflictKey(agentId, filePath), conflict)
+		this.recordParallelAgentActivity(
+			agentId,
+			`Waiting for write access to ${filePath}${ownerTask ? `, owned by ${ownerTask}` : ""}.`,
+			"wait",
+		)
 		this.updateParallelAgentStatusMessage().catch(() => {})
 	}
 

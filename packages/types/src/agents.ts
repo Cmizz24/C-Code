@@ -14,6 +14,26 @@ export interface AgentDependency {
 
 export type AgentStatus = "pending" | "running" | "blocked" | "complete" | "failed"
 
+export type AgentActivityKind =
+	| "status"
+	| "assistant"
+	| "thinking"
+	| "tool"
+	| "approval"
+	| "result"
+	| "wait"
+	| "error"
+	| "completion"
+	| "signal"
+	| "file"
+
+export interface AgentActivityEvent {
+	agentId: string
+	message: string
+	ts: number
+	kind?: AgentActivityKind
+}
+
 export interface AgentPlan {
 	id: string
 	mode: string
@@ -100,6 +120,7 @@ export interface AgentStatusUpdate {
 	reason?: string
 	blockedOn?: AgentDependency[]
 	usage?: TokenUsage
+	activities?: AgentActivityEvent[]
 }
 
 export interface WriteIntentConflict {

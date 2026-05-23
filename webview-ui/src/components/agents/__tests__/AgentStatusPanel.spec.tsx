@@ -247,8 +247,15 @@ describe("AgentStatusPanel", () => {
 			agentActivities: [
 				{
 					agentId: "styles-agent",
+					kind: "tool",
 					message: "Applying a diff to src/dashboard.css.",
 					ts: 2,
+				},
+				{
+					agentId: "styles-agent",
+					kind: "completion",
+					message: "Reported completion.",
+					ts: 3,
 				},
 			],
 		}
@@ -257,7 +264,10 @@ describe("AgentStatusPanel", () => {
 
 		expect(screen.getByTestId("agent-status-summary")).toHaveTextContent("1/2 complete")
 		expect(screen.getAllByText("review ready")).not.toHaveLength(0)
-		expect(screen.getByTestId("agent-activity")).toHaveTextContent("Applying a diff to src/dashboard.css.")
+		expect(screen.getByTestId("agent-activity")).toHaveTextContent("Reported completion.")
+
+		fireEvent.click(screen.getAllByTestId("agent-status-toggle")[1])
+		expect(screen.getAllByTestId("agent-activity-event")).toHaveLength(2)
 	})
 
 	it("renders aggregate persisted child token usage in the tool header", () => {
