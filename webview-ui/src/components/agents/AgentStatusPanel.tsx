@@ -36,6 +36,13 @@ const phaseLabels: Record<NonNullable<ClineSayTool["parallelStatus"]>, string> =
 	failed: "failed",
 }
 
+const phaseTerminalStatuses = new Set<NonNullable<ClineSayTool["parallelStatus"]>>([
+	"review",
+	"merged",
+	"cancelled",
+	"failed",
+])
+
 const statusBadgeClasses: Record<AgentStatus, string> = {
 	pending:
 		"border-vscode-descriptionForeground/30 bg-vscode-descriptionForeground/10 text-vscode-descriptionForeground",
@@ -195,21 +202,33 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 		return () => window.removeEventListener("message", handleMessage)
 	}, [agentIds])
 
+	const phase = tool?.parallelStatus
 	const agents = useMemo(() => {
 		if (!executionPlan) {
 			return []
 		}
 
-		return executionPlan.agents.map((agent) => ({
-			...agent,
-			status: statusUpdates[agent.id]?.status ?? agent.status,
-			lastTouchedFile: statusUpdates[agent.id]?.lastTouchedFile ?? findLastTouchedFile(agent),
-			statusReason: statusUpdates[agent.id]?.reason,
-			blockedOn: statusUpdates[agent.id]?.blockedOn ?? agent.dependsOn,
-			usage: statusUpdates[agent.id]?.usage,
-			activity: activities[agent.id],
-		}))
-	}, [activities, executionPlan, statusUpdates])
+		return executionPlan.agents.map((agent) => {
+			const statusUpdate = statusUpdates[agent.id]
+			const recordedStatus = statusUpdate?.status ?? agent.status
+			const shouldRenderAsTerminal =
+				(phase === "cancelled" || phase === "failed") && recordedStatus !== "complete"
+
+			return {
+				...agent,
+				status: shouldRenderAsTerminal ? "failed" : recordedStatus,
+				lastTouchedFile: statusUpdate?.lastTouchedFile ?? findLastTouchedFile(agent),
+				statusReason:
+					statusUpdate?.reason ??
+					(phase === "cancelled" && recordedStatus !== "complete"
+						? "Parallel execution was cancelled."
+						: undefined),
+				blockedOn: statusUpdate?.blockedOn ?? agent.dependsOn,
+				usage: statusUpdate?.usage,
+				activity: activities[agent.id],
+			}
+		})
+	}, [activities, executionPlan, phase, statusUpdates])
 
 	if (!executionPlan) {
 		return null
@@ -219,9 +238,9 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 		executionPlan.agents.map((agent) => [agent.id, getAgentModeLabel(agent.mode, customModes)]),
 	)
 	const completeAgents = agents.filter((agent) => agent.status === "complete").length
-	const phase = tool?.parallelStatus
-	const overallStatus = phase === "failed" ? "failed" : getOverallStatus(agents)
+	const overallStatus = phase === "failed" || phase === "cancelled" ? "failed" : getOverallStatus(agents)
 	const runningAgents = agents.filter((agent) => agent.status === "running").length
+	const displayRunningAgents = phase && phaseTerminalStatuses.has(phase) ? 0 : runningAgents
 	const usageCount = agents.filter((agent) => agent.usage).length
 	const aggregateUsage = tool?.parallelUsageSummary
 	const usageSummary = aggregateUsage
@@ -248,7 +267,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 					<span
 						data-testid="agent-status-summary"
 						className="min-w-0 truncate text-vscode-descriptionForeground">
-						{completeAgents}/{agents.length} complete · {runningAgents} running · Plan{" "}
+						{completeAgents}/{agents.length} complete · {displayRunningAgents} running · Plan{" "}
 						{executionPlan.planId}
 					</span>
 					<Badge className={cn("shrink-0 capitalize", statusBadgeClasses[overallStatus])}>{phaseLabel}</Badge>

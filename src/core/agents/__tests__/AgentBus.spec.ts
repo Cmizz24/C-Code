@@ -146,4 +146,37 @@ describe("AgentBus", () => {
 		expect(events).toHaveBeenCalledWith({ type: "INTENT_CLEARED", agentId: "agent-a", path: "src/unowned.ts" })
 		expect(bus.requestWriteIntent("agent-b", "src/unowned.ts").approved).toBe(true)
 	})
+
+	it("emits allTerminal when all agents have either completed or failed", () => {
+		const allTerminal = vi.fn()
+		const allComplete = vi.fn()
+		bus.on("allTerminal", allTerminal)
+		bus.on("allComplete", allComplete)
+
+		bus.markComplete("agent-a")
+		bus.markFailed("agent-b", "Agent failed")
+		expect(allTerminal).not.toHaveBeenCalled()
+
+		bus.markComplete("agent-c")
+
+		expect(allTerminal).toHaveBeenCalledWith(expect.objectContaining({ planId: "plan-test" }))
+		expect(allComplete).not.toHaveBeenCalled()
+	})
+
+	it("fails blocked dependents when their dependency fails", () => {
+		const plan = createPlan()
+		plan.agents[1].dependsOn = [{ agentId: "agent-a", waitFor: "complete" }]
+		bus.setExecutionPlan(plan)
+		const events = vi.fn()
+		bus.on("event", events)
+
+		bus.markFailed("agent-a", "Agent failed")
+
+		expect(bus.getAgent("agent-b")?.status).toBe("failed")
+		expect(events).toHaveBeenCalledWith({
+			type: "FAILED",
+			agentId: "agent-b",
+			reason: "Dependency agent-a failed: Agent failed",
+		})
+	})
 })

@@ -6,6 +6,11 @@ import { OrchestratorEventLoop } from "../OrchestratorEventLoop"
 type TestProvider = TaskProviderLike & {
 	createAgentWorktree: ReturnType<typeof vi.fn>
 	removeAgentWorktree: ReturnType<typeof vi.fn>
+	showMergeReview?: ReturnType<typeof vi.fn>
+}
+
+type TestTask = TaskLike & {
+	emit: (event: RooCodeEventName, ...args: unknown[]) => boolean
 }
 
 function createPlan(): ExecutionPlan {
@@ -55,21 +60,39 @@ function createTwoAgentPlan(): ExecutionPlan {
 	}
 }
 
-function createTask(taskId = "task-id"): TaskLike {
-	return {
+function createTask(taskId = "task-id"): TestTask {
+	const listeners = new Map<string, Set<(...args: unknown[]) => unknown>>()
+	const task = {
 		taskId,
 		metadata: {},
 		taskStatus: "running" as TaskLike["taskStatus"],
 		taskAsk: undefined,
 		queuedMessages: [],
 		tokenUsage: undefined,
-		on: vi.fn().mockReturnThis(),
-		off: vi.fn().mockReturnThis(),
+		on: vi.fn((event: RooCodeEventName, listener: (...args: unknown[]) => unknown) => {
+			const key = String(event)
+			const eventListeners = listeners.get(key) ?? new Set<(...args: unknown[]) => unknown>()
+			eventListeners.add(listener)
+			listeners.set(key, eventListeners)
+			return task
+		}),
+		off: vi.fn((event: RooCodeEventName, listener: (...args: unknown[]) => unknown) => {
+			listeners.get(String(event))?.delete(listener)
+			return task
+		}),
+		emit: vi.fn((event: RooCodeEventName, ...args: unknown[]) => {
+			for (const listener of listeners.get(String(event)) ?? []) {
+				listener(...args)
+			}
+			return true
+		}),
 		approveAsk: vi.fn(),
 		denyAsk: vi.fn(),
 		submitUserMessage: vi.fn(),
 		abortTask: vi.fn(),
-	} as unknown as TaskLike
+	} as unknown as TestTask
+
+	return task
 }
 
 function createProvider(overrides: Partial<TestProvider> = {}): TestProvider {
@@ -222,7 +245,10 @@ describe("OrchestratorEventLoop", () => {
 	})
 
 	it("marks the agent failed instead of leaving a rejected worktree promise", async () => {
+		const orchestratorTask = createTask("orchestrator-task") as TaskLike & { parallelExecutionPaused?: boolean }
+		orchestratorTask.parallelExecutionPaused = true
 		const provider = createProvider({
+			getCurrentTask: vi.fn(() => orchestratorTask),
 			createAgentWorktree: vi.fn(async () => {
 				throw new Error("Parallel worktrees require a Git repository.")
 			}),
@@ -244,6 +270,34 @@ describe("OrchestratorEventLoop", () => {
 			}),
 		)
 		expect(provider.createTask).not.toHaveBeenCalled()
+		expect(orchestratorTask.parallelExecutionPaused).toBe(false)
+		expect(provider.postStateToWebview).toHaveBeenCalled()
+	})
+
+	it("unpauses the parent and does not show merge review when every child is terminal but one failed", async () => {
+		const orchestratorTask = createTask("orchestrator-task") as TaskLike & { parallelExecutionPaused?: boolean }
+		orchestratorTask.parallelExecutionPaused = true
+		const spawnedTasks: TestTask[] = []
+		const provider = createProvider({
+			getCurrentTask: vi.fn(() => orchestratorTask),
+			showMergeReview: vi.fn(async () => undefined),
+			createTask: vi.fn(async (_message, _images, _parentTask, options) => {
+				const task = createTask(`child-${options?.agentId}`)
+				spawnedTasks.push(task)
+				return task
+			}),
+		} as Partial<TestProvider> & { showMergeReview: ReturnType<typeof vi.fn> })
+
+		new OrchestratorEventLoop(provider, AgentBus.getInstance()).start(createTwoAgentPlan())
+
+		await vi.waitFor(() => expect(spawnedTasks).toHaveLength(2))
+		spawnedTasks[0].emit(RooCodeEventName.TaskAborted)
+		expect(orchestratorTask.parallelExecutionPaused).toBe(true)
+		spawnedTasks[1].emit(RooCodeEventName.TaskCompleted)
+
+		await vi.waitFor(() => expect(orchestratorTask.parallelExecutionPaused).toBe(false))
+		expect(provider.showMergeReview).not.toHaveBeenCalled()
+		expect(provider.postStateToWebview).toHaveBeenCalled()
 	})
 
 	it("aborts spawned child tasks and removes listeners when stopped", async () => {

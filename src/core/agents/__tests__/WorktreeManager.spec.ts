@@ -97,4 +97,30 @@ describe("WorktreeManager", () => {
 		expect(execMock).toHaveBeenCalledTimes(1)
 		expect(execMock.mock.calls[0][0]).toBe("git rev-parse --show-toplevel")
 	})
+
+	it("removes worktrees from the resolved git root instead of the workspace subfolder", async () => {
+		const manager = new WorktreeManager("C:/repo/packages/extension")
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+
+			return { stdout: "" }
+		})
+
+		await manager.removeWorktree("C:/repo/packages/extension/.roo/parallel-worktrees/plan/ui")
+
+		expect(execMock).toHaveBeenNthCalledWith(
+			1,
+			"git rev-parse --show-toplevel",
+			expect.objectContaining({ cwd: "C:/repo/packages/extension" }),
+			expect.any(Function),
+		)
+		expect(execMock).toHaveBeenNthCalledWith(
+			2,
+			expect.stringContaining("git worktree remove --force"),
+			expect.objectContaining({ cwd: "C:/repo" }),
+			expect.any(Function),
+		)
+	})
 })

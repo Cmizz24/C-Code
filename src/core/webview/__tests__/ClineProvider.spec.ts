@@ -11,6 +11,7 @@ import {
 	type ExecutionPlan,
 	type ExtensionMessage,
 	type ExtensionState,
+	type HistoryItem,
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 	RooCodeEventName,
@@ -398,6 +399,8 @@ describe("ClineProvider", () => {
 				parentTaskId: options?.historyItem?.parentTaskId ?? options?.parentTask?.taskId,
 				agentId: options?.agentId,
 				background: options?.background ?? false,
+				enableCheckpoints: options?.enableCheckpoints,
+				workspacePath: options?.workspacePath,
 				abortReason: undefined,
 				abandoned: false,
 				abort: false,
@@ -911,6 +914,7 @@ describe("ClineProvider", () => {
 		})
 
 		expect(backgroundTask.background).toBe(true)
+		expect((backgroundTask as any).enableCheckpoints).toBe(false)
 		expect(backgroundTask.parentTask).toBe(parentTask)
 		expect(backgroundTask.start).toHaveBeenCalledTimes(1)
 		expect(provider.getTaskStackSize()).toBe(1)
@@ -1096,6 +1100,56 @@ describe("ClineProvider", () => {
 		expect(backgroundTask.off).toHaveBeenCalled()
 	})
 
+	test("background agent completion finalizes AgentBus status before cleanup", async () => {
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		;(provider as any).activeExecutionPlan = plan
+		AgentBus.getInstance().setExecutionPlan(plan)
+
+		const backgroundTask = await provider.createTask("Run a specialist agent task", undefined, parentTask, {
+			agentId: "dashboard-agent",
+			background: true,
+			mode: "code",
+		})
+
+		backgroundTask.emit(
+			RooCodeEventName.TaskCompleted,
+			backgroundTask.taskId,
+			{
+				totalTokensIn: 10,
+				totalTokensOut: 5,
+				totalCacheWrites: 0,
+				totalCacheReads: 0,
+				totalCost: 0.01,
+				contextTokens: 15,
+			},
+			{},
+		)
+
+		expect(AgentBus.getInstance().getAgent("dashboard-agent")?.status).toBe("complete")
+		expect((provider as any).backgroundTasks.has(backgroundTask)).toBe(false)
+	})
+
+	test("background agent abort finalizes AgentBus status before cleanup", async () => {
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		;(provider as any).activeExecutionPlan = plan
+		AgentBus.getInstance().setExecutionPlan(plan)
+
+		const backgroundTask = await provider.createTask("Run a specialist agent task", undefined, parentTask, {
+			agentId: "dashboard-agent",
+			background: true,
+			mode: "code",
+		})
+
+		backgroundTask.emit(RooCodeEventName.TaskAborted)
+
+		expect(AgentBus.getInstance().getAgent("dashboard-agent")?.status).toBe("failed")
+		expect((provider as any).backgroundTasks.has(backgroundTask)).toBe(false)
+	})
+
 	test("top-level tasks cancel active parallel state before opening a new visible task", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const parentTask = new Task(defaultTaskOptions)
@@ -1128,6 +1182,79 @@ describe("ClineProvider", () => {
 		;(provider as any).forwardAgentEvent(oldPlanEvent)
 
 		expect(getParallelAgentToolMessages(nextTask)).toHaveLength(0)
+	})
+
+	test("cancelTask tears down active parallel state and persists cancelled agent statuses", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+		}
+		vi.spyOn(provider, "getTaskWithId").mockResolvedValue({
+			historyItem: {
+				id: parentTask.taskId,
+				number: 1,
+				ts: Date.now(),
+				task: "Parent task",
+				tokensIn: 0,
+				tokensOut: 0,
+				totalCost: 0,
+			} as HistoryItem,
+			apiConversationHistory: [],
+			taskDirPath: "/tmp/task",
+			apiConversationHistoryFilePath: "/tmp/task/api.json",
+			uiMessagesFilePath: "/tmp/task/messages.json",
+		})
+		vi.spyOn(provider, "createTaskWithHistoryItem").mockResolvedValue(undefined as any)
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+
+		await provider.cancelTask()
+
+		expect((provider as any).activeExecutionPlan).toBeUndefined()
+		expect((provider as any).backgroundTasks.size).toBe(0)
+		for (const backgroundTask of backgroundTasks) {
+			expect(backgroundTask.abortTask).toHaveBeenCalledWith(true)
+		}
+		const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+		expect(tool.parallelStatus).toBe("cancelled")
+		expect(tool.agentStatusUpdates).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ agentId: "dashboard-agent", status: "failed" }),
+				expect.objectContaining({ agentId: "styles-agent", status: "failed" }),
+			]),
+		)
+	})
+
+	test("clearTask tears down active parallel state before removing the visible task", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+
+		await provider.clearTask()
+
+		expect((provider as any).activeExecutionPlan).toBeUndefined()
+		expect((provider as any).backgroundTasks.size).toBe(0)
+		expect(provider.getTaskStackSize()).toBe(0)
+		for (const backgroundTask of backgroundTasks) {
+			expect(backgroundTask.abortTask).toHaveBeenCalledWith(true)
+		}
 	})
 
 	test("parallel status messages persist aggregate child token usage", async () => {

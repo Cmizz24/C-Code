@@ -1,12 +1,20 @@
 import EventEmitter from "events"
 
-import type { AgentDependency, AgentEvent, AgentPlan, ExecutionPlan, WritePermission } from "@roo-code/types"
+import type {
+	AgentDependency,
+	AgentEvent,
+	AgentPlan,
+	AgentStatus,
+	ExecutionPlan,
+	WritePermission,
+} from "@roo-code/types"
 
 type AgentBusEvents = {
 	event: [AgentEvent]
 	plan: [ExecutionPlan]
 	agentUnblocked: [AgentPlan]
 	allComplete: [ExecutionPlan]
+	allTerminal: [ExecutionPlan]
 }
 
 function normalizePath(filePath: string): string {
@@ -135,6 +143,10 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 
 	public markBlocked(agentId: string, reason: string, blockedOn?: AgentDependency[]): void {
 		const agent = this.getAgent(agentId)
+		if (this.isTerminalStatus(agent?.status)) {
+			return
+		}
+
 		if (agent) {
 			agent.status = "blocked"
 		}
@@ -144,6 +156,10 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 
 	public markRunning(agentId: string): void {
 		const agent = this.getAgent(agentId)
+		if (this.isTerminalStatus(agent?.status)) {
+			return
+		}
+
 		if (agent) {
 			agent.status = "running"
 		}
@@ -152,6 +168,10 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 
 	public markComplete(agentId: string, result?: string): void {
 		const agent = this.getAgent(agentId)
+		if (this.isTerminalStatus(agent?.status)) {
+			return
+		}
+
 		if (agent) {
 			agent.status = "complete"
 		}
@@ -163,16 +183,19 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		}
 		this.emitEvent({ type: "COMPLETE", agentId, result })
 		this.unblockReadyAgents()
-		if (this.executionPlan?.agents.every((agentPlan) => agentPlan.status === "complete")) {
-			this.emit("allComplete", this.executionPlan)
-		}
+		this.emitTerminalEvents()
 	}
 
 	public markFailed(agentId: string, reason: string): void {
 		const agent = this.getAgent(agentId)
+		if (this.isTerminalStatus(agent?.status)) {
+			return
+		}
+
 		if (agent) {
 			agent.status = "failed"
 		}
+		this.blockedAgents.delete(agentId)
 		for (const [filePath, writer] of this.activeWrites.entries()) {
 			if (writer === agentId) {
 				this.activeWrites.delete(filePath)
@@ -180,6 +203,49 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			}
 		}
 		this.emitEvent({ type: "FAILED", agentId, reason })
+		this.failBlockedDependents(agentId, reason)
+		this.emitTerminalEvents()
+	}
+
+	private isTerminalStatus(status: AgentStatus | undefined): boolean {
+		return status === "complete" || status === "failed"
+	}
+
+	private emitTerminalEvents(): void {
+		const plan = this.executionPlan
+		if (!plan || plan.agents.length === 0) {
+			return
+		}
+
+		if (plan.agents.every((agentPlan) => agentPlan.status === "complete")) {
+			this.emit("allComplete", plan)
+			return
+		}
+
+		if (plan.agents.every((agentPlan) => this.isTerminalStatus(agentPlan.status))) {
+			this.emit("allTerminal", plan)
+		}
+	}
+
+	private failBlockedDependents(failedAgentId: string, reason: string): void {
+		for (const agent of this.executionPlan?.agents ?? []) {
+			if (agent.status !== "blocked") {
+				continue
+			}
+
+			if (!agent.dependsOn.some((dependency) => dependency.agentId === failedAgentId)) {
+				continue
+			}
+
+			agent.status = "failed"
+			this.blockedAgents.delete(agent.id)
+			this.emitEvent({
+				type: "FAILED",
+				agentId: agent.id,
+				reason: `Dependency ${failedAgentId} failed: ${reason}`,
+			})
+			this.failBlockedDependents(agent.id, reason)
+		}
 	}
 
 	private emitEvent(event: AgentEvent): void {

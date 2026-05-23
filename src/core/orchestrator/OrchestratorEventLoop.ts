@@ -38,6 +38,10 @@ export class OrchestratorEventLoop {
 
 		this.running = true
 		void this.startAgents(plan).catch((error) => {
+			const message = error instanceof Error && error.message ? error.message : String(error)
+			for (const agent of plan.agents) {
+				this.bus.markFailed(agent.id, message)
+			}
 			this.stop()
 			Promise.resolve(this.provider.postStateToWebview()).catch(() => {})
 		})
@@ -54,6 +58,7 @@ export class OrchestratorEventLoop {
 		this.running = false
 		this.bus.off("agentUnblocked", this.spawnAgent)
 		this.bus.off("allComplete", this.synthesizeCompletion)
+		this.bus.off("allTerminal", this.synthesizeFailure)
 		this.cleanupSpawnedTasks(options)
 		this.orchestratorTask = undefined
 	}
@@ -82,6 +87,7 @@ export class OrchestratorEventLoop {
 		this.orchestratorTask = this.provider.getCurrentTask()
 		this.bus.on("agentUnblocked", this.spawnAgent)
 		this.bus.on("allComplete", this.synthesizeCompletion)
+		this.bus.on("allTerminal", this.synthesizeFailure)
 
 		for (const agent of plan.agents.filter((candidate) => candidate.status === "pending")) {
 			void this.spawnAgent(agent)
@@ -146,6 +152,15 @@ export class OrchestratorEventLoop {
 		}
 		this.stop()
 		this.provider.showMergeReview?.(plan).catch(() => {})
+		this.provider.postStateToWebview().catch(() => {})
+	}
+
+	private readonly synthesizeFailure = (_plan: ExecutionPlan): void => {
+		const orchestratorTask = this.orchestratorTask as (TaskLike & { parallelExecutionPaused?: boolean }) | undefined
+		if (orchestratorTask) {
+			orchestratorTask.parallelExecutionPaused = false
+		}
+		this.stop()
 		this.provider.postStateToWebview().catch(() => {})
 	}
 

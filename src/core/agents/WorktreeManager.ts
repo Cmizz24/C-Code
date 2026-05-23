@@ -69,7 +69,8 @@ export class WorktreeManager {
 
 	public async removeWorktree(worktreePath: string): Promise<void> {
 		try {
-			await execAsync(`git worktree remove --force ${shellQuote(worktreePath)}`, { cwd: this.repoRoot })
+			const gitRoot = await this.resolveGitRoot()
+			await execAsync(`git worktree remove --force ${shellQuote(worktreePath)}`, { cwd: gitRoot })
 		} finally {
 			this.createdWorktrees.delete(worktreePath)
 		}

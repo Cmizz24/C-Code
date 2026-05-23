@@ -159,4 +159,25 @@ describe("AgentStatusPanel", () => {
 
 		expect(screen.getByTestId("agent-usage-summary")).toHaveTextContent("2/2 reporting · ↑ 1.5K · ↓ 340 · $0.02")
 	})
+
+	it("renders cancelled persisted rows as terminal even if an old agent status says running", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "cancelled",
+			agentStatusUpdates: [
+				{
+					agentId: "ui-agent",
+					status: "running",
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+
+		expect(screen.getByTestId("agent-status-summary")).toHaveTextContent("0/2 complete · 0 running")
+		expect(screen.getAllByText("cancelled").length).toBeGreaterThan(0)
+		expect(screen.getByTestId("agent-status-chat-card").querySelector(".codicon-loading")).not.toBeInTheDocument()
+	})
 })

@@ -323,6 +323,7 @@ export class ClineProvider
 			const onTaskCompleted = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) => {
 				if (instance.background) {
 					this.postBackgroundAgentUsage(instance, tokenUsage)
+					this.finalizeBackgroundAgentTask(instance, "complete")
 					this.removeBackgroundTask(instance)
 				}
 
@@ -333,6 +334,7 @@ export class ClineProvider
 
 				try {
 					if (instance.background) {
+						this.finalizeBackgroundAgentTask(instance, "failed", "Agent task aborted.")
 						this.removeBackgroundTask(instance)
 						return
 					}
@@ -2789,7 +2791,6 @@ export class ClineProvider
 		const task = new Task({
 			provider: this,
 			apiConfiguration,
-			enableCheckpoints,
 			checkpointTimeout,
 			consecutiveMistakeLimit: apiConfiguration.consecutiveMistakeLimit,
 			task: text,
@@ -2805,6 +2806,7 @@ export class ClineProvider
 			startTask: false,
 			agentBus: options.agentId ? AgentBus.getInstance() : undefined,
 			...options,
+			enableCheckpoints: options.background ? false : (options.enableCheckpoints ?? enableCheckpoints),
 		})
 
 		if (options.background) {
@@ -2976,23 +2978,25 @@ export class ClineProvider
 				this.backgroundTasks.size > 0,
 		)
 
-		if (options.markCancelled && this.activeExecutionPlan) {
-			await this.updateParallelAgentStatusMessage("cancelled")
-		}
-
 		if (options.markCancelled) {
 			const resolve = this.pendingPlanApproval
 			this.pendingPlanApproval = undefined
 			resolve?.({ approved: false })
 		}
 
+		const stopReason = options.markCancelled
+			? "Parallel execution was cancelled."
+			: "Parallel execution was stopped."
+
 		this.orchestratorEventLoop?.stop({
 			abortSpawnedTasks: true,
-			reason: options.markCancelled ? "Parallel execution was cancelled." : "Parallel execution was stopped.",
+			reason: stopReason,
 		})
 		this.orchestratorEventLoop = undefined
 
 		for (const task of Array.from(this.backgroundTasks)) {
+			this.finalizeBackgroundAgentTask(task, "failed", stopReason)
+
 			try {
 				await task.abortTask(true)
 			} catch (error) {
@@ -3004,6 +3008,11 @@ export class ClineProvider
 			}
 
 			this.removeBackgroundTask(task)
+		}
+
+		if (options.markCancelled && this.activeExecutionPlan) {
+			this.failRemainingActiveParallelAgents(stopReason)
+			await this.updateParallelAgentStatusMessage("cancelled")
 		}
 
 		if (options.cleanupWorktrees) {
@@ -3051,6 +3060,50 @@ export class ClineProvider
 
 		this.postAgentStatusUpdate(update)
 		this.recordParallelAgentStatus(update)
+	}
+
+	private finalizeBackgroundAgentTask(task: Task, status: "complete" | "failed", reason?: string): void {
+		if (!task.background || !task.agentId || !this.activeExecutionPlan) {
+			return
+		}
+
+		const agent = this.activeExecutionPlan.agents.find((candidate) => candidate.id === task.agentId)
+		if (!agent || agent.status === "complete" || agent.status === "failed") {
+			return
+		}
+
+		const bus = AgentBus.getInstance()
+		if (status === "complete") {
+			bus.markComplete(task.agentId)
+		} else {
+			bus.markFailed(task.agentId, reason ?? "Agent task failed.")
+		}
+	}
+
+	private failRemainingActiveParallelAgents(reason: string): void {
+		if (!this.activeExecutionPlan) {
+			return
+		}
+
+		const bus = AgentBus.getInstance()
+		for (const agent of this.activeExecutionPlan.agents) {
+			if (agent.status === "complete" || agent.status === "failed") {
+				continue
+			}
+
+			if (bus.getAgent(agent.id)) {
+				bus.markFailed(agent.id, reason)
+			} else {
+				agent.status = "failed"
+				const update = {
+					agentId: agent.id,
+					status: "failed",
+					reason,
+				} satisfies AgentStatusUpdate
+				this.postAgentStatusUpdate(update)
+				this.recordParallelAgentStatus(update)
+			}
+		}
 	}
 
 	private resetParallelAgentStatusState(planId?: string): void {
@@ -3411,6 +3464,7 @@ export class ClineProvider
 		}
 
 		console.log(`[cancelTask] cancelling task ${task.taskId}.${task.instanceId}`)
+		await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
 
 		let historyItem: HistoryItem | undefined
 		try {
@@ -3497,6 +3551,7 @@ export class ClineProvider
 		if (this.clineStack.length > 0) {
 			const task = this.clineStack[this.clineStack.length - 1]
 			console.log(`[clearTask] clearing task ${task.taskId}.${task.instanceId}`)
+			await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
 			await this.removeClineFromStack()
 		}
 	}
