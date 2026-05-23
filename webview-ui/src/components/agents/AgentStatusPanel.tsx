@@ -12,6 +12,7 @@ import { Badge, Button } from "@/components/ui"
 import { ToolUseBlock, ToolUseBlockHeader } from "@/components/common/ToolUseBlock"
 import { ProgressIndicator } from "@/components/chat/ProgressIndicator"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useAppTranslation } from "@/i18n/TranslationContext"
 import { cn } from "@/lib/utils"
 import { formatLargeNumber } from "@/utils/format"
 import { vscode } from "@/utils/vscode"
@@ -111,6 +112,7 @@ const getUsageSummary = (usage: AgentStatusUpdate["usage"]): string | undefined 
 }
 
 export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
+	const { t } = useAppTranslation()
 	const { activeExecutionPlan, customModes } = useExtensionState()
 	const executionPlan = tool?.executionPlan ?? activeExecutionPlan
 	const agentIds = useMemo(() => new Set(executionPlan?.agents.map((agent) => agent.id) ?? []), [executionPlan])
@@ -133,12 +135,28 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 	const [statusUpdates, setStatusUpdates] = useState<Record<string, AgentStatusUpdate>>(seededStatusUpdates)
 	const [conflicts, setConflicts] = useState<ConflictBanner[]>(seededConflicts)
 	const [activities, setActivities] = useState<Record<string, AgentActivity>>(seededActivities)
+	const [expandedAgentIds, setExpandedAgentIds] = useState<Set<string>>(() => new Set())
 
 	useEffect(() => {
 		setStatusUpdates(seededStatusUpdates)
 		setConflicts(seededConflicts)
 		setActivities(seededActivities)
+		setExpandedAgentIds(new Set())
 	}, [executionPlan?.planId, seededActivities, seededConflicts, seededStatusUpdates])
+
+	const toggleExpandedAgent = (agentId: string) => {
+		setExpandedAgentIds((prev) => {
+			const next = new Set(prev)
+
+			if (next.has(agentId)) {
+				next.delete(agentId)
+			} else {
+				next.add(agentId)
+			}
+
+			return next
+		})
+	}
 
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent<ExtensionMessage>) => {
@@ -347,56 +365,216 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 							const agentLabel = getAgentModeLabel(agent.mode, customModes)
 							const usage = getUsageSummary(agent.usage)
 							const activity = agent.activity?.message
+							const isExpanded = expandedAgentIds.has(agent.id)
+							const detailsId = `agent-details-${agent.id}`
+							const agentConflicts = conflicts.filter((conflict) => conflict.agentId === agent.id)
 
 							return (
-								<li
-									key={agent.id}
-									data-testid="agent-status-row"
-									className="flex min-w-0 items-start gap-2">
-									<span
-										className={cn(
-											"codicon mt-0.5 shrink-0 text-sm",
-											statusIconClasses[agent.status],
-										)}
-									/>
-									<div className="min-w-0 flex-1">
-										<div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-											<span className="shrink-0 font-medium text-vscode-foreground">
-												{agentLabel}
-											</span>
-											<Badge
-												className={cn("shrink-0 capitalize", statusBadgeClasses[agent.status])}>
-												{agent.status}
-											</Badge>
-											<span className="min-w-0 truncate text-vscode-descriptionForeground">
-												{agent.task}
-											</span>
-										</div>
-										<div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-vscode-descriptionForeground">
-											<span className="min-w-0 truncate font-mono">
-												{agent.lastTouchedFile ?? "No file writes yet"}
-											</span>
-											<span>{waitingOn ? `Waiting on ${waitingOn}` : "Ready"}</span>
-											{usage && (
-												<span data-testid="agent-usage" className="font-mono">
-													{usage}
-												</span>
+								<li key={agent.id} data-testid="agent-status-row" className="min-w-0 rounded-sm">
+									<button
+										type="button"
+										data-testid="agent-status-toggle"
+										aria-expanded={isExpanded}
+										aria-controls={detailsId}
+										onClick={() => toggleExpandedAgent(agent.id)}
+										className="group flex w-full min-w-0 items-start gap-2 rounded-sm px-1 py-0.5 text-left hover:bg-vscode-list-hoverBackground/40 focus:outline-none focus:ring-1 focus:ring-vscode-focusBorder">
+										<span
+											className={cn(
+												"codicon mt-0.5 shrink-0 text-sm",
+												statusIconClasses[agent.status],
 											)}
-											{agent.statusReason && (
-												<span className="text-vscode-editorWarning-foreground">
-													{agent.statusReason}
+										/>
+										<div className="min-w-0 flex-1">
+											<div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+												<span className="shrink-0 font-medium text-vscode-foreground">
+													{agentLabel}
 												</span>
-											)}
-										</div>
-										{activity && (
-											<div
-												data-testid="agent-activity"
-												className="mt-0.5 truncate text-[11px] text-vscode-descriptionForeground">
-												<span className="codicon codicon-comment-discussion mr-1" />
-												{activity}
+												<Badge
+													className={cn(
+														"shrink-0 capitalize",
+														statusBadgeClasses[agent.status],
+													)}>
+													{agent.status}
+												</Badge>
+												<span className="min-w-0 truncate text-vscode-descriptionForeground">
+													{agent.task}
+												</span>
 											</div>
-										)}
-									</div>
+											<div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-vscode-descriptionForeground">
+												<span className="min-w-0 truncate font-mono">
+													{agent.lastTouchedFile ??
+														t("chat:parallelAgents.details.noFileWrites")}
+												</span>
+												<span>
+													{waitingOn
+														? t("chat:parallelAgents.details.waitingOn", {
+																agents: waitingOn,
+															})
+														: t("chat:parallelAgents.details.ready")}
+												</span>
+												{usage && (
+													<span data-testid="agent-usage" className="font-mono">
+														{usage}
+													</span>
+												)}
+												{agent.statusReason && (
+													<span className="text-vscode-editorWarning-foreground">
+														{agent.statusReason}
+													</span>
+												)}
+											</div>
+											{activity && (
+												<div
+													data-testid="agent-activity"
+													className="mt-0.5 truncate text-[11px] text-vscode-descriptionForeground">
+													<span className="codicon codicon-comment-discussion mr-1" />
+													{activity}
+												</div>
+											)}
+										</div>
+										<span
+											className={cn(
+												"codicon mt-0.5 shrink-0 text-xs text-vscode-descriptionForeground opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100",
+												isExpanded ? "codicon-chevron-up" : "codicon-chevron-down",
+											)}
+										/>
+									</button>
+
+									{isExpanded && (
+										<div
+											id={detailsId}
+											data-testid="agent-details"
+											className="ml-6 mt-1 rounded border border-vscode-sideBar-background bg-vscode-editor-background/60 p-2 text-[11px] text-vscode-descriptionForeground">
+											<dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-2">
+												<dt className="font-medium text-vscode-foreground">
+													{t("chat:parallelAgents.details.task")}
+												</dt>
+												<dd
+													data-testid="agent-details-task"
+													className="min-w-0 whitespace-pre-wrap">
+													{agent.task}
+												</dd>
+
+												<dt className="font-medium text-vscode-foreground">
+													{t("chat:parallelAgents.details.ownedFiles")}
+												</dt>
+												<dd data-testid="agent-owned-files" className="min-w-0">
+													<ul className="flex min-w-0 flex-col gap-0.5">
+														{agent.owns.map((ownership) => (
+															<li
+																key={`${ownership.path}:${ownership.mode}`}
+																className="min-w-0 truncate">
+																<span className="font-mono">{ownership.path}</span>{" "}
+																<span className="text-vscode-descriptionForeground/80">
+																	({ownership.mode})
+																</span>
+															</li>
+														))}
+													</ul>
+												</dd>
+
+												<dt className="font-medium text-vscode-foreground">
+													{t("chat:parallelAgents.details.mustNotTouch")}
+												</dt>
+												<dd data-testid="agent-must-not-touch" className="min-w-0 font-mono">
+													{agent.mustNotTouch.length > 0
+														? agent.mustNotTouch.join(", ")
+														: t("chat:parallelAgents.details.none")}
+												</dd>
+
+												<dt className="font-medium text-vscode-foreground">
+													{t("chat:parallelAgents.details.status")}
+												</dt>
+												<dd className="min-w-0">
+													<div className="flex min-w-0 flex-wrap items-center gap-1.5">
+														<Badge
+															className={cn(
+																"capitalize",
+																statusBadgeClasses[agent.status],
+															)}>
+															{agent.status}
+														</Badge>
+														{agent.statusReason && (
+															<span className="text-vscode-editorWarning-foreground">
+																{agent.statusReason}
+															</span>
+														)}
+													</div>
+												</dd>
+
+												<dt className="font-medium text-vscode-foreground">
+													{t("chat:parallelAgents.details.waiting")}
+												</dt>
+												<dd data-testid="agent-waiting" className="min-w-0">
+													{waitingOn
+														? t("chat:parallelAgents.details.waitingOn", {
+																agents: waitingOn,
+															})
+														: t("chat:parallelAgents.details.ready")}
+												</dd>
+
+												<dt className="font-medium text-vscode-foreground">
+													{t("chat:parallelAgents.details.lastTouched")}
+												</dt>
+												<dd
+													data-testid="agent-last-touched"
+													className="min-w-0 truncate font-mono">
+													{agent.lastTouchedFile ??
+														t("chat:parallelAgents.details.noFileWrites")}
+												</dd>
+
+												<dt className="font-medium text-vscode-foreground">
+													{t("chat:parallelAgents.details.usage")}
+												</dt>
+												<dd data-testid="agent-details-usage" className="min-w-0 font-mono">
+													{usage ?? t("chat:parallelAgents.details.noUsage")}
+												</dd>
+
+												<dt className="font-medium text-vscode-foreground">
+													{t("chat:parallelAgents.details.worktree")}
+												</dt>
+												<dd data-testid="agent-worktree" className="min-w-0 truncate font-mono">
+													{agent.worktreePath}
+												</dd>
+
+												<dt className="font-medium text-vscode-foreground">
+													{t("chat:parallelAgents.details.activity")}
+												</dt>
+												<dd
+													data-testid="agent-details-activity"
+													className="min-w-0 whitespace-pre-wrap">
+													{activity ?? t("chat:parallelAgents.details.noActivity")}
+												</dd>
+
+												<dt className="font-medium text-vscode-foreground">
+													{t("chat:parallelAgents.details.conflicts")}
+												</dt>
+												<dd data-testid="agent-details-conflicts" className="min-w-0">
+													{agentConflicts.length > 0 ? (
+														<ul className="flex min-w-0 flex-col gap-1">
+															{agentConflicts.map((conflict) => (
+																<li
+																	key={conflict.key}
+																	className="min-w-0 text-vscode-editorWarning-foreground">
+																	<span className="font-mono">
+																		{conflict.filePath}
+																	</span>
+																	{conflict.ownerTask && (
+																		<span> — {conflict.ownerTask}</span>
+																	)}
+																	{conflict.reason && (
+																		<span>: {conflict.reason}</span>
+																	)}
+																</li>
+															))}
+														</ul>
+													) : (
+														t("chat:parallelAgents.details.noConflicts")
+													)}
+												</dd>
+											</dl>
+										</div>
+									)}
 								</li>
 							)
 						})}

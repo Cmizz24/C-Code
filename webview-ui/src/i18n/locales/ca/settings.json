@@ -251,6 +251,8 @@
 		},
 		"parallelTasks": {
 			"label": "Tasques paral·leles",
+			"maxConcurrentLabel": "Màxim d'agents paral·lels",
+			"maxConcurrentDescription": "Tria quants agents es poden executar alhora per a un pla de tasques paral·leles aprovat ({{min}}–{{max}}). Els agents pendents s'inicien quan els agents en execució acaben.",
 			"description": "Aprova automàticament els plans de tasques paral·leles vàlids i inicia els agents sense mostrar el modal de previsualització del pla"
 		},
 		"followupQuestions": {

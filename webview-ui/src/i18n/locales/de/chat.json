@@ -261,6 +261,27 @@
 		"completionInstructions": "Teilaufgabe abgeschlossen! Du kannst die Ergebnisse überprüfen und Korrekturen oder nächste Schritte vorschlagen. Wenn alles gut aussieht, bestätige, um das Ergebnis an die übergeordnete Aufgabe zurückzugeben.",
 		"goToSubtask": "Aufgabe anzeigen"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "Aufgabe",
+			"ownedFiles": "Zugewiesene Dateien",
+			"mustNotTouch": "Nicht anfassen",
+			"status": "Status",
+			"waiting": "Wartet",
+			"lastTouched": "Zuletzt berührt",
+			"usage": "Nutzung",
+			"worktree": "Worktree",
+			"activity": "Aktivität",
+			"conflicts": "Konflikte",
+			"none": "Keine",
+			"ready": "Bereit",
+			"waitingOn": "Wartet auf {{agents}}",
+			"noFileWrites": "Noch keine Dateiänderungen",
+			"noUsage": "Noch keine Nutzung gemeldet",
+			"noActivity": "Noch keine Aktivität gemeldet",
+			"noConflicts": "Keine Konflikte"
+		}
+	},
 	"questions": {
 		"hasQuestion": "Roo hat eine Frage"
 	},

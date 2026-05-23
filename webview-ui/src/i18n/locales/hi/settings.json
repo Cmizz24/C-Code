@@ -251,6 +251,8 @@
 		},
 		"parallelTasks": {
 			"label": "समानांतर कार्य",
+			"maxConcurrentLabel": "अधिकतम समानांतर agents",
+			"maxConcurrentDescription": "चुनें कि स्वीकृत समानांतर कार्य योजना के लिए एक बार में कितने agents चल सकते हैं ({{min}}–{{max}})। लंबित agents तब शुरू होते हैं जब चल रहे agents समाप्त होते हैं।",
 			"description": "मान्य समानांतर कार्य योजनाओं को अपने आप स्वीकृत करें और योजना पूर्वावलोकन मोडल दिखाए बिना agents शुरू करें"
 		},
 		"followupQuestions": {

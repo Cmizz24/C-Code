@@ -28,6 +28,7 @@ export class EditTool extends BaseTool<"edit"> {
 	async execute(params: EditParams, task: Task, callbacks: ToolCallbacks): Promise<void> {
 		const { file_path: relPath, old_string: oldString, new_string: newString, replace_all: replaceAll } = params
 		const { askApproval, handleError, pushToolResult } = callbacks
+		let didAcquireWriteIntent = false
 
 		try {
 			// Validate required parameters
@@ -74,6 +75,16 @@ export class EditTool extends BaseTool<"edit"> {
 
 			// Check if file is write-protected
 			const isWriteProtected = task.rooProtectedController?.isWriteProtected(relPath) || false
+			const writePermission = task.requestAgentWriteIntent(relPath)
+
+			if (!writePermission.approved) {
+				const reason = writePermission.reason ?? `Write denied for ${relPath}`
+				await task.say("error", reason)
+				pushToolResult(formatResponse.toolError(reason))
+				return
+			}
+
+			didAcquireWriteIntent = true
 
 			const absolutePath = path.resolve(task.cwd, relPath)
 
@@ -240,6 +251,10 @@ export class EditTool extends BaseTool<"edit"> {
 			await handleError("edit", error as Error)
 			await task.diffViewProvider.reset()
 			this.resetPartialState()
+		} finally {
+			if (didAcquireWriteIntent) {
+				task.releaseAgentWriteIntent(relPath)
+			}
 		}
 	}
 

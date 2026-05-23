@@ -60,6 +60,27 @@ function createTwoAgentPlan(): ExecutionPlan {
 	}
 }
 
+function createMultiAgentPlan(count: number): ExecutionPlan {
+	const plan = createPlan()
+	return {
+		...plan,
+		fileOwnershipMap: Object.fromEntries(
+			Array.from({ length: count }, (_, index) => [`src/file-${index + 1}.ts`, `agent-${index + 1}`]),
+		),
+		agents: Array.from({ length: count }, (_, index) => ({
+			id: `agent-${index + 1}`,
+			mode: "code",
+			task: `Implement file ${index + 1}`,
+			owns: [{ path: `src/file-${index + 1}.ts`, mode: "exclusive" as const }],
+			mustNotTouch: [],
+			dependsOn: [],
+			worktreePath: `C:/repo/.roo/parallel-worktrees/plan-test/agent-${index + 1}`,
+			status: "pending" as const,
+			signals: [],
+		})),
+	}
+}
+
 function createTask(taskId = "task-id"): TestTask {
 	const listeners = new Map<string, Set<(...args: unknown[]) => unknown>>()
 	const task = {
@@ -244,6 +265,79 @@ describe("OrchestratorEventLoop", () => {
 		expect(vi.mocked(provider.createTask).mock.calls.every((call) => call[3]?.background === true)).toBe(true)
 	})
 
+	it("limits initial runnable agents and starts queued agents when capacity is freed", async () => {
+		const spawnedTasks = new Map<string, TestTask>()
+		const provider = createProvider({
+			createTask: vi.fn(async (_message, _images, _parentTask, options) => {
+				const agentId = options?.agentId ?? "unknown"
+				const task = createTask(`child-${agentId}`)
+				spawnedTasks.set(agentId, task)
+				return task
+			}),
+		})
+
+		new OrchestratorEventLoop(provider, AgentBus.getInstance(), { maxConcurrentAgents: 2 }).start(
+			createMultiAgentPlan(4),
+		)
+
+		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(2))
+		expect(vi.mocked(provider.createTask).mock.calls.map((call) => call[3]?.agentId)).toEqual([
+			"agent-1",
+			"agent-2",
+		])
+
+		spawnedTasks.get("agent-1")?.emit(RooCodeEventName.TaskCompleted)
+
+		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(3))
+		expect(vi.mocked(provider.createTask).mock.calls.map((call) => call[3]?.agentId)).toEqual([
+			"agent-1",
+			"agent-2",
+			"agent-3",
+		])
+
+		spawnedTasks.get("agent-2")?.emit(RooCodeEventName.TaskAborted)
+
+		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(4))
+		expect(vi.mocked(provider.createTask).mock.calls.map((call) => call[3]?.agentId)).toEqual([
+			"agent-1",
+			"agent-2",
+			"agent-3",
+			"agent-4",
+		])
+	})
+
+	it("preserves dependency blocking while filling available concurrency slots", async () => {
+		const spawnedTasks = new Map<string, TestTask>()
+		const plan = createMultiAgentPlan(3)
+		plan.agents[1].dependsOn = [{ agentId: "agent-1", waitFor: "complete" }]
+		const provider = createProvider({
+			createTask: vi.fn(async (_message, _images, _parentTask, options) => {
+				const agentId = options?.agentId ?? "unknown"
+				const task = createTask(`child-${agentId}`)
+				spawnedTasks.set(agentId, task)
+				return task
+			}),
+		})
+
+		new OrchestratorEventLoop(provider, AgentBus.getInstance(), { maxConcurrentAgents: 2 }).start(plan)
+
+		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(2))
+		expect(vi.mocked(provider.createTask).mock.calls.map((call) => call[3]?.agentId)).toEqual([
+			"agent-1",
+			"agent-3",
+		])
+		expect(AgentBus.getInstance().getAgent("agent-2")?.status).toBe("blocked")
+
+		spawnedTasks.get("agent-1")?.emit(RooCodeEventName.TaskCompleted)
+
+		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(3))
+		expect(vi.mocked(provider.createTask).mock.calls.map((call) => call[3]?.agentId)).toEqual([
+			"agent-1",
+			"agent-3",
+			"agent-2",
+		])
+	})
+
 	it("marks the agent failed instead of leaving a rejected worktree promise", async () => {
 		const orchestratorTask = createTask("orchestrator-task") as TaskLike & { parallelExecutionPaused?: boolean }
 		orchestratorTask.parallelExecutionPaused = true
@@ -319,10 +413,66 @@ describe("OrchestratorEventLoop", () => {
 		for (const task of spawnedTasks) {
 			expect(task.off).toHaveBeenCalledWith(RooCodeEventName.TaskCompleted, expect.any(Function))
 			expect(task.off).toHaveBeenCalledWith(RooCodeEventName.TaskAborted, expect.any(Function))
+			expect(task.off).toHaveBeenCalledWith(RooCodeEventName.TaskInteractive, expect.any(Function))
+			expect(task.off).toHaveBeenCalledWith(RooCodeEventName.TaskResumable, expect.any(Function))
+			expect(task.off).toHaveBeenCalledWith(RooCodeEventName.TaskIdle, expect.any(Function))
 			expect(task.abortTask).toHaveBeenCalled()
 		}
 		expect(AgentBus.getInstance().getAgent("ui")?.status).toBe("failed")
 		expect(AgentBus.getInstance().getAgent("styles")?.status).toBe("failed")
+	})
+
+	it("fails and aborts background child tasks that require hidden approval", async () => {
+		let spawnedTask: TestTask | undefined
+		const provider = createProvider({
+			createTask: vi.fn(async () => {
+				spawnedTask = createTask("child-ui")
+				return spawnedTask
+			}),
+		})
+
+		new OrchestratorEventLoop(provider, AgentBus.getInstance()).start(createPlan())
+
+		await vi.waitFor(() => expect(spawnedTask).toBeDefined())
+		;(spawnedTask as TestTask & { taskAsk?: { type: "ask"; ts: number; ask: "tool" } }).taskAsk = {
+			type: "ask",
+			ts: Date.now(),
+			ask: "tool",
+		}
+		spawnedTask?.emit(RooCodeEventName.TaskInteractive)
+
+		await vi.waitFor(() => expect(AgentBus.getInstance().getAgent("ui")?.status).toBe("failed"))
+		expect(spawnedTask?.denyAsk).toHaveBeenCalledWith({
+			text: "Agent task requires tool approval that cannot be surfaced from a background agent.",
+		})
+		expect(spawnedTask?.abortTask).toHaveBeenCalled()
+		expect(provider.postStateToWebview).toHaveBeenCalled()
+	})
+
+	it("approves completion_result asks and marks waiting background child tasks complete", async () => {
+		let spawnedTask: TestTask | undefined
+		const provider = createProvider({
+			createTask: vi.fn(async () => {
+				spawnedTask = createTask("child-ui")
+				return spawnedTask
+			}),
+		})
+
+		new OrchestratorEventLoop(provider, AgentBus.getInstance()).start(createPlan())
+
+		await vi.waitFor(() => expect(spawnedTask).toBeDefined())
+		;(spawnedTask as TestTask & { taskAsk?: { type: "ask"; ts: number; ask: "completion_result" } }).taskAsk = {
+			type: "ask",
+			ts: Date.now(),
+			ask: "completion_result",
+		}
+		spawnedTask?.emit(RooCodeEventName.TaskIdle)
+
+		await vi.waitFor(() => expect(AgentBus.getInstance().getAgent("ui")?.status).toBe("complete"))
+		expect(spawnedTask?.approveAsk).toHaveBeenCalled()
+		expect(spawnedTask?.denyAsk).not.toHaveBeenCalled()
+		expect(spawnedTask?.abortTask).not.toHaveBeenCalled()
+		expect(provider.postStateToWebview).toHaveBeenCalled()
 	})
 
 	it("removes a newly-created worktree if the loop stops before child task creation", async () => {

@@ -149,6 +149,8 @@ describe("editFileTool", () => {
 		mockTask.recordToolUsage = vi.fn()
 		mockTask.processQueuedMessages = vi.fn()
 		mockTask.sayAndCreateMissingParamError = vi.fn().mockResolvedValue("Missing param error")
+		mockTask.requestAgentWriteIntent = vi.fn().mockReturnValue({ approved: true })
+		mockTask.releaseAgentWriteIntent = vi.fn()
 
 		mockAskApproval = vi.fn().mockResolvedValue(true)
 		mockHandleError = vi.fn().mockResolvedValue(undefined)
@@ -559,6 +561,23 @@ describe("editFileTool", () => {
 			expect(mockTask.diffViewProvider.saveChanges).toHaveBeenCalled()
 			expect(mockTask.didEditFile).toBe(true)
 			expect(mockTask.recordToolUsage).toHaveBeenCalledWith("edit_file")
+			expect(mockTask.requestAgentWriteIntent).toHaveBeenCalledWith(testFilePath)
+			expect(mockTask.releaseAgentWriteIntent).toHaveBeenCalledWith(testFilePath)
+		})
+
+		it("denies edits when agent write intent is rejected", async () => {
+			mockTask.requestAgentWriteIntent.mockReturnValue({
+				approved: false,
+				reason: "test/file.txt is owned by another agent.",
+			})
+
+			const result = await executeEditFileTool()
+
+			expect(result).toContain("owned by another agent")
+			expect(mockTask.say).toHaveBeenCalledWith("error", "test/file.txt is owned by another agent.")
+			expect(mockAskApproval).not.toHaveBeenCalled()
+			expect(mockTask.diffViewProvider.saveChanges).not.toHaveBeenCalled()
+			expect(mockTask.releaseAgentWriteIntent).not.toHaveBeenCalled()
 		})
 
 		it("reverts changes when user rejects", async () => {

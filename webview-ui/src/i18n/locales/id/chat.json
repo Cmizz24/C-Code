@@ -312,6 +312,27 @@
 		"completionInstructions": "Subtugas selesai! Kamu bisa meninjau hasilnya dan menyarankan koreksi atau langkah selanjutnya. Jika semuanya terlihat baik, konfirmasi untuk mengembalikan hasil ke tugas induk.",
 		"goToSubtask": "Lihat tugas"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "Tugas",
+			"ownedFiles": "File yang dimiliki",
+			"mustNotTouch": "Jangan disentuh",
+			"status": "Status",
+			"waiting": "Menunggu",
+			"lastTouched": "Terakhir disentuh",
+			"usage": "Penggunaan",
+			"worktree": "Worktree",
+			"activity": "Aktivitas",
+			"conflicts": "Konflik",
+			"none": "Tidak ada",
+			"ready": "Siap",
+			"waitingOn": "Menunggu {{agents}}",
+			"noFileWrites": "Belum ada penulisan file",
+			"noUsage": "Belum ada penggunaan yang dilaporkan",
+			"noActivity": "Belum ada aktivitas yang dilaporkan",
+			"noConflicts": "Tidak ada konflik"
+		}
+	},
 	"questions": {
 		"hasQuestion": "Roo punya pertanyaan"
 	},

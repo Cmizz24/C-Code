@@ -251,6 +251,8 @@
 		},
 		"parallelTasks": {
 			"label": "Tugas paralel",
+			"maxConcurrentLabel": "Maksimum agent paralel",
+			"maxConcurrentDescription": "Pilih berapa banyak agent yang boleh berjalan sekaligus untuk rencana tugas paralel yang disetujui ({{min}}–{{max}}). Agent yang tertunda dimulai saat agent yang berjalan selesai.",
 			"description": "Setujui otomatis rencana tugas paralel yang valid dan mulai agents tanpa menampilkan modal pratinjau rencana"
 		},
 		"followupQuestions": {

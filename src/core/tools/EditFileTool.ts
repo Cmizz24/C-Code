@@ -146,6 +146,8 @@ export class EditFileTool extends BaseTool<"edit_file"> {
 		const { askApproval, handleError, pushToolResult } = callbacks
 		let relPathForErrorHandling: string | undefined
 		let operationPreviewForErrorHandling: string | undefined
+		let writeIntentRelPath: string | undefined
+		let didAcquireWriteIntent = false
 
 		const finalizePartialToolAskIfNeeded = async (relPath: string): Promise<void> => {
 			if (!this.didSendPartialToolAsk) {
@@ -219,6 +221,18 @@ export class EditFileTool extends BaseTool<"edit_file"> {
 
 			// Check if file is write-protected
 			const isWriteProtected = task.rooProtectedController?.isWriteProtected(relPath) || false
+			const writePermission = task.requestAgentWriteIntent(relPath)
+
+			if (!writePermission.approved) {
+				const reason = writePermission.reason ?? `Write denied for ${relPath}`
+				await finalizePartialToolAskIfNeeded(relPath)
+				await task.say("error", reason)
+				pushToolResult(formatResponse.toolError(reason))
+				return
+			}
+
+			writeIntentRelPath = relPath
+			didAcquireWriteIntent = true
 
 			const absolutePath = path.resolve(task.cwd, relPath)
 			const fileExists = await fileExistsAtPath(absolutePath)
@@ -478,6 +492,9 @@ export class EditFileTool extends BaseTool<"edit_file"> {
 			await task.diffViewProvider.reset()
 			task.didToolFailInCurrentTurn = true
 		} finally {
+			if (didAcquireWriteIntent && writeIntentRelPath) {
+				task.releaseAgentWriteIntent(writeIntentRelPath)
+			}
 			this.didSendPartialToolAsk = false
 			this.partialToolAskRelPath = undefined
 			this.resetPartialState()

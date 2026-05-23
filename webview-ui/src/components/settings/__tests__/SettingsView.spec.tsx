@@ -170,8 +170,15 @@ vi.mock("@/components/ui", () => ({
 		</button>
 	),
 	StandardTooltip: ({ children, content }: any) => <div title={content}>{children}</div>,
-	Input: ({ value, onChange, placeholder, "data-testid": dataTestId }: any) => (
-		<input type="text" value={value} onChange={onChange} placeholder={placeholder} data-testid={dataTestId} />
+	Input: ({ value, onChange, placeholder, type, "data-testid": dataTestId, ...props }: any) => (
+		<input
+			type={type ?? "text"}
+			value={value}
+			onChange={onChange}
+			placeholder={placeholder}
+			data-testid={dataTestId}
+			{...props}
+		/>
 	),
 	Select: ({ children, value, onValueChange }: any) => (
 		<div data-testid="select" data-value={value}>
@@ -545,6 +552,28 @@ describe("SettingsView - Auto Approve Parallel Tasks", () => {
 				type: "updateSettings",
 				updatedSettings: expect.objectContaining({
 					alwaysAllowParallelTasks: true,
+				}),
+			}),
+		)
+	})
+
+	it("saves max concurrent parallel tasks from cached state", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView()
+
+		activateTab("autoApprove")
+
+		const content = getSettingsContent()
+		const maxConcurrentInput = within(content).getByTestId("max-concurrent-parallel-tasks-input")
+		fireEvent.change(maxConcurrentInput, { target: { value: "5" } })
+
+		const saveButton = screen.getByTestId("save-button")
+		fireEvent.click(saveButton)
+
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					maxConcurrentParallelTasks: 5,
 				}),
 			}),
 		)

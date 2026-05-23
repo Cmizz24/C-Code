@@ -261,6 +261,27 @@
 		"completionInstructions": "Sottoattività completata! Puoi rivedere i risultati e suggerire correzioni o prossimi passi. Se tutto sembra a posto, conferma per restituire il risultato all'attività principale.",
 		"goToSubtask": "Visualizza attività"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "Attività",
+			"ownedFiles": "File assegnati",
+			"mustNotTouch": "Da non toccare",
+			"status": "Stato",
+			"waiting": "In attesa",
+			"lastTouched": "Ultimo modificato",
+			"usage": "Utilizzo",
+			"worktree": "Worktree",
+			"activity": "Attività",
+			"conflicts": "Conflitti",
+			"none": "Nessuno",
+			"ready": "Pronto",
+			"waitingOn": "In attesa di {{agents}}",
+			"noFileWrites": "Nessuna scrittura di file finora",
+			"noUsage": "Nessun utilizzo segnalato finora",
+			"noActivity": "Nessuna attività segnalata finora",
+			"noConflicts": "Nessun conflitto"
+		}
+	},
 	"questions": {
 		"hasQuestion": "Roo ha una domanda"
 	},

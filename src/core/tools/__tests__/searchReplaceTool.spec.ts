@@ -147,6 +147,8 @@ describe("searchReplaceTool", () => {
 		mockCline.recordToolUsage = vi.fn()
 		mockCline.processQueuedMessages = vi.fn()
 		mockCline.sayAndCreateMissingParamError = vi.fn().mockResolvedValue("Missing param error")
+		mockCline.requestAgentWriteIntent = vi.fn().mockReturnValue({ approved: true })
+		mockCline.releaseAgentWriteIntent = vi.fn()
 
 		mockAskApproval = vi.fn().mockResolvedValue(true)
 		mockHandleError = vi.fn().mockResolvedValue(undefined)
@@ -313,6 +315,23 @@ describe("searchReplaceTool", () => {
 			expect(mockCline.diffViewProvider.saveChanges).toHaveBeenCalled()
 			expect(mockCline.didEditFile).toBe(true)
 			expect(mockCline.recordToolUsage).toHaveBeenCalledWith("search_replace")
+			expect(mockCline.requestAgentWriteIntent).toHaveBeenCalledWith(testFilePath)
+			expect(mockCline.releaseAgentWriteIntent).toHaveBeenCalledWith(testFilePath)
+		})
+
+		it("denies replacements when agent write intent is rejected", async () => {
+			mockCline.requestAgentWriteIntent.mockReturnValue({
+				approved: false,
+				reason: "test/file.txt is owned by another agent.",
+			})
+
+			const result = await executeSearchReplaceTool()
+
+			expect(result).toContain("owned by another agent")
+			expect(mockCline.say).toHaveBeenCalledWith("error", "test/file.txt is owned by another agent.")
+			expect(mockAskApproval).not.toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.saveChanges).not.toHaveBeenCalled()
+			expect(mockCline.releaseAgentWriteIntent).not.toHaveBeenCalled()
 		})
 
 		it("reverts changes when user rejects", async () => {

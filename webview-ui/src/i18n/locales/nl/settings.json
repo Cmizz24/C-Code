@@ -251,6 +251,8 @@
 		},
 		"parallelTasks": {
 			"label": "Parallelle taken",
+			"maxConcurrentLabel": "Maximale parallelle agents",
+			"maxConcurrentDescription": "Kies hoeveel agents tegelijk mogen draaien voor een goedgekeurd plan met parallelle taken ({{min}}–{{max}}). Wachtende agents starten zodra actieve agents klaar zijn.",
 			"description": "Keur geldige plannen voor parallelle taken automatisch goed en start agents zonder het modal voor planvoorbeeld te tonen"
 		},
 		"followupQuestions": {

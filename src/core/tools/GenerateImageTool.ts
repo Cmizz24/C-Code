@@ -172,6 +172,8 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 			isOutsideWorkspace,
 			isProtected: isWriteProtected,
 		}
+		let writeIntentRelPath: string | undefined
+		let didAcquireWriteIntent = false
 
 		try {
 			task.consecutiveMistakeCount = 0
@@ -228,6 +230,17 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 				finalPath = `${finalPath}.${imageFormat === "jpeg" ? "jpg" : imageFormat}`
 			}
 
+			const writePermission = task.requestAgentWriteIntent(finalPath)
+			if (!writePermission.approved) {
+				const reason = writePermission.reason ?? `Write denied for ${finalPath}`
+				await task.say("error", reason)
+				pushToolResult(formatResponse.toolError(reason))
+				return
+			}
+
+			writeIntentRelPath = finalPath
+			didAcquireWriteIntent = true
+
 			const imageBuffer = Buffer.from(base64Data, "base64")
 
 			const absolutePath = path.resolve(task.cwd, finalPath)
@@ -255,6 +268,10 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 			pushToolResult(formatResponse.toolResult(getReadablePath(task.cwd, finalPath)))
 		} catch (error) {
 			await handleError("generating image", error as Error)
+		} finally {
+			if (didAcquireWriteIntent && writeIntentRelPath) {
+				task.releaseAgentWriteIntent(writeIntentRelPath)
+			}
 		}
 	}
 

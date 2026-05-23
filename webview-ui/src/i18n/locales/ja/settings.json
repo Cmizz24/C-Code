@@ -251,6 +251,8 @@
 		},
 		"parallelTasks": {
 			"label": "並列タスク",
+			"maxConcurrentLabel": "並列エージェントの最大数",
+			"maxConcurrentDescription": "承認済みの並列タスクプランで同時に実行できるエージェント数を選択します（{{min}}～{{max}}）。保留中のエージェントは実行中のエージェントが完了すると開始されます。",
 			"description": "有効な並列タスク計画を自動承認し、計画プレビューのモーダルを表示せずにエージェントを開始します"
 		},
 		"followupQuestions": {

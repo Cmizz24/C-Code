@@ -74,6 +74,27 @@ export const MAX_CHECKPOINT_TIMEOUT_SECONDS = 60
 export const DEFAULT_CHECKPOINT_TIMEOUT_SECONDS = 15
 
 /**
+ * Default maximum number of runnable parallel agents to execute at once.
+ */
+export const DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS = 3
+
+/**
+ * Allowed range for the persisted parallel-agent concurrency setting.
+ */
+export const MIN_PARALLEL_TASK_CONCURRENCY = 1
+export const MAX_PARALLEL_TASK_CONCURRENCY = 16
+
+export const normalizeParallelTaskConcurrency = (value: unknown): number => {
+	const numericValue = typeof value === "number" ? value : Number(value)
+
+	if (!Number.isFinite(numericValue)) {
+		return DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS
+	}
+
+	return Math.min(Math.max(Math.trunc(numericValue), MIN_PARALLEL_TASK_CONCURRENCY), MAX_PARALLEL_TASK_CONCURRENCY)
+}
+
+/**
  * GlobalSettings
  */
 
@@ -106,6 +127,12 @@ export const globalSettingsSchema = z.object({
 	alwaysAllowModeSwitch: z.boolean().optional(),
 	alwaysAllowSubtasks: z.boolean().optional(),
 	alwaysAllowParallelTasks: z.boolean().optional(),
+	maxConcurrentParallelTasks: z
+		.number()
+		.int()
+		.min(MIN_PARALLEL_TASK_CONCURRENCY)
+		.max(MAX_PARALLEL_TASK_CONCURRENCY)
+		.optional(),
 	alwaysAllowExecute: z.boolean().optional(),
 	alwaysAllowFollowupQuestions: z.boolean().optional(),
 	followupAutoApproveTimeoutMs: z.number().optional(),

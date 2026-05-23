@@ -106,6 +106,7 @@ export class ApplyPatchTool extends BaseTool<"apply_patch"> {
 			for (const change of changes) {
 				const relPath = change.path
 				const absolutePath = path.resolve(task.cwd, relPath)
+				let acquiredWriteIntents: string[] = []
 
 				// Check access permissions
 				const accessAllowed = task.rooIgnoreController?.validateAccess(relPath)
@@ -117,16 +118,29 @@ export class ApplyPatchTool extends BaseTool<"apply_patch"> {
 
 				// Check if file is write-protected
 				const isWriteProtected = task.rooProtectedController?.isWriteProtected(relPath) || false
+				const writeIntentPaths =
+					change.movePath && change.movePath !== relPath ? [relPath, change.movePath] : [relPath]
+				const writeIntents = await this.acquireAgentWriteIntents(writeIntentPaths, task, callbacks)
 
-				if (change.type === "add") {
-					// Create new file
-					await this.handleAddFile(change, absolutePath, relPath, task, callbacks, isWriteProtected)
-				} else if (change.type === "delete") {
-					// Delete file
-					await this.handleDeleteFile(absolutePath, relPath, task, callbacks, isWriteProtected)
-				} else if (change.type === "update") {
-					// Update file
-					await this.handleUpdateFile(change, absolutePath, relPath, task, callbacks, isWriteProtected)
+				if (!writeIntents) {
+					return
+				}
+
+				acquiredWriteIntents = writeIntents
+
+				try {
+					if (change.type === "add") {
+						// Create new file
+						await this.handleAddFile(change, absolutePath, relPath, task, callbacks, isWriteProtected)
+					} else if (change.type === "delete") {
+						// Delete file
+						await this.handleDeleteFile(absolutePath, relPath, task, callbacks, isWriteProtected)
+					} else if (change.type === "update") {
+						// Update file
+						await this.handleUpdateFile(change, absolutePath, relPath, task, callbacks, isWriteProtected)
+					}
+				} finally {
+					this.releaseAgentWriteIntents(acquiredWriteIntents, task)
 				}
 			}
 
@@ -135,6 +149,37 @@ export class ApplyPatchTool extends BaseTool<"apply_patch"> {
 		} catch (error) {
 			await handleError("apply patch", error as Error)
 			await task.diffViewProvider.reset()
+		}
+	}
+
+	private async acquireAgentWriteIntents(
+		relPaths: string[],
+		task: Task,
+		callbacks: ToolCallbacks,
+	): Promise<string[] | undefined> {
+		const acquiredWriteIntents: string[] = []
+		const uniqueRelPaths = Array.from(new Set(relPaths))
+
+		for (const relPath of uniqueRelPaths) {
+			const writePermission = task.requestAgentWriteIntent(relPath)
+
+			if (!writePermission.approved) {
+				this.releaseAgentWriteIntents(acquiredWriteIntents, task)
+				const reason = writePermission.reason ?? `Write denied for ${relPath}`
+				await task.say("error", reason)
+				callbacks.pushToolResult(formatResponse.toolError(reason))
+				return undefined
+			}
+
+			acquiredWriteIntents.push(relPath)
+		}
+
+		return acquiredWriteIntents
+	}
+
+	private releaseAgentWriteIntents(relPaths: string[], task: Task): void {
+		for (const relPath of relPaths.slice().reverse()) {
+			task.releaseAgentWriteIntent(relPath)
 		}
 	}
 

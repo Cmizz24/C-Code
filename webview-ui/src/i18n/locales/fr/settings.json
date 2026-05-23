@@ -252,6 +252,8 @@
 		},
 		"parallelTasks": {
 			"label": "Tâches parallèles",
+			"maxConcurrentLabel": "Nombre maximal d'agents parallèles",
+			"maxConcurrentDescription": "Choisis combien d'agents peuvent s'exécuter en même temps pour un plan de tâches parallèles approuvé ({{min}}–{{max}}). Les agents en attente démarrent quand les agents en cours se terminent.",
 			"description": "Approuver automatiquement les plans de tâches parallèles valides et démarrer les agents sans afficher la fenêtre modale d'aperçu du plan"
 		},
 		"followupQuestions": {

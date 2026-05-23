@@ -2,6 +2,12 @@ import { HTMLAttributes, useState } from "react"
 import { X } from "lucide-react"
 import { Trans } from "react-i18next"
 import { Package } from "@roo/package"
+import {
+	DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
+	MAX_PARALLEL_TASK_CONCURRENCY,
+	MIN_PARALLEL_TASK_CONCURRENCY,
+	normalizeParallelTaskConcurrency,
+} from "@roo-code/types"
 
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
@@ -28,6 +34,7 @@ type AutoApproveSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	alwaysAllowModeSwitch?: boolean
 	alwaysAllowSubtasks?: boolean
 	alwaysAllowParallelTasks?: boolean
+	maxConcurrentParallelTasks?: number
 	alwaysAllowExecute?: boolean
 	alwaysAllowFollowupQuestions?: boolean
 	followupAutoApproveTimeoutMs?: number
@@ -45,6 +52,7 @@ type AutoApproveSettingsProps = HTMLAttributes<HTMLDivElement> & {
 		| "alwaysAllowModeSwitch"
 		| "alwaysAllowSubtasks"
 		| "alwaysAllowParallelTasks"
+		| "maxConcurrentParallelTasks"
 		| "alwaysAllowExecute"
 		| "alwaysAllowFollowupQuestions"
 		| "followupAutoApproveTimeoutMs"
@@ -65,6 +73,7 @@ export const AutoApproveSettings = ({
 	alwaysAllowModeSwitch,
 	alwaysAllowSubtasks,
 	alwaysAllowParallelTasks,
+	maxConcurrentParallelTasks,
 	alwaysAllowExecute,
 	alwaysAllowFollowupQuestions,
 	followupAutoApproveTimeoutMs = 60000,
@@ -83,6 +92,16 @@ export const AutoApproveSettings = ({
 	const toggles = useAutoApprovalToggles()
 
 	const { effectiveAutoApprovalEnabled } = useAutoApprovalState(toggles, autoApprovalEnabled)
+	const maxConcurrentParallelTasksValue = normalizeParallelTaskConcurrency(
+		maxConcurrentParallelTasks ?? DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
+	)
+
+	const handleMaxConcurrentParallelTasksChange = (value: string) => {
+		setCachedStateField(
+			"maxConcurrentParallelTasks",
+			value.trim() === "" ? DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS : normalizeParallelTaskConcurrency(value),
+		)
+	}
 
 	const handleAddCommand = () => {
 		const currentCommands = allowedCommands ?? []
@@ -170,6 +189,39 @@ export const AutoApproveSettings = ({
 						onMaxRequestsChange={(value) => setCachedStateField("allowedMaxRequests", value)}
 						onMaxCostChange={(value) => setCachedStateField("allowedMaxCost", value)}
 					/>
+
+					<SearchableSetting
+						settingId="auto-approve-max-concurrent-parallel-tasks"
+						section="autoApprove"
+						label={t("settings:autoApprove.parallelTasks.maxConcurrentLabel")}>
+						<div className="flex flex-col gap-2">
+							<label className="block font-medium" htmlFor="max-concurrent-parallel-tasks">
+								{t("settings:autoApprove.parallelTasks.maxConcurrentLabel")}
+							</label>
+							<div className="flex items-center gap-2">
+								<Input
+									id="max-concurrent-parallel-tasks"
+									type="number"
+									min={MIN_PARALLEL_TASK_CONCURRENCY}
+									max={MAX_PARALLEL_TASK_CONCURRENCY}
+									step={1}
+									value={maxConcurrentParallelTasksValue}
+									onChange={(e) => handleMaxConcurrentParallelTasksChange(e.target.value)}
+									className="w-24"
+									data-testid="max-concurrent-parallel-tasks-input"
+								/>
+								<span className="text-sm text-vscode-descriptionForeground">
+									{MIN_PARALLEL_TASK_CONCURRENCY}–{MAX_PARALLEL_TASK_CONCURRENCY}
+								</span>
+							</div>
+							<div className="text-vscode-descriptionForeground text-sm">
+								{t("settings:autoApprove.parallelTasks.maxConcurrentDescription", {
+									min: MIN_PARALLEL_TASK_CONCURRENCY,
+									max: MAX_PARALLEL_TASK_CONCURRENCY,
+								})}
+							</div>
+						</div>
+					</SearchableSetting>
 				</div>
 
 				{/* ADDITIONAL SETTINGS */}

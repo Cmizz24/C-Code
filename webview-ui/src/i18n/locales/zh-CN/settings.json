@@ -251,6 +251,8 @@
 		},
 		"parallelTasks": {
 			"label": "并行任务",
+			"maxConcurrentLabel": "最大并行代理数",
+			"maxConcurrentDescription": "选择已批准的并行任务计划可同时运行多少个代理（{{min}}–{{max}}）。等待中的代理会在运行中的代理完成后启动。",
 			"description": "自动批准有效的并行任务计划并启动代理，而不显示计划预览模态框"
 		},
 		"followupQuestions": {

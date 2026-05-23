@@ -251,6 +251,8 @@
 		},
 		"parallelTasks": {
 			"label": "Paralel görevler",
+			"maxConcurrentLabel": "Maksimum paralel ajan",
+			"maxConcurrentDescription": "Onaylanmış bir paralel görev planı için aynı anda kaç ajanın çalışabileceğini seç ({{min}}–{{max}}). Bekleyen ajanlar, çalışan ajanlar tamamlandığında başlar.",
 			"description": "Geçerli paralel görev planlarını otomatik olarak onayla ve plan önizleme penceresini göstermeden ajanları başlat"
 		},
 		"followupQuestions": {

@@ -261,6 +261,27 @@
 		"completionInstructions": "उपकार्य पूर्ण! आप परिणामों की समीक्षा कर सकते हैं और सुधार या अगले चरण सुझा सकते हैं। यदि सब कुछ ठीक लगता है, तो मुख्य कार्य को परिणाम वापस करने के लिए पुष्टि करें।",
 		"goToSubtask": "कार्य देखें"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "कार्य",
+			"ownedFiles": "स्वामित्व वाली फ़ाइलें",
+			"mustNotTouch": "नहीं छूना है",
+			"status": "स्थिति",
+			"waiting": "प्रतीक्षा",
+			"lastTouched": "आखिरी बार छुआ गया",
+			"usage": "उपयोग",
+			"worktree": "Worktree",
+			"activity": "गतिविधि",
+			"conflicts": "टकराव",
+			"none": "कोई नहीं",
+			"ready": "तैयार",
+			"waitingOn": "{{agents}} की प्रतीक्षा में",
+			"noFileWrites": "अभी तक कोई फ़ाइल लिखी नहीं गई",
+			"noUsage": "अभी तक कोई उपयोग रिपोर्ट नहीं हुआ",
+			"noActivity": "अभी तक कोई गतिविधि रिपोर्ट नहीं हुई",
+			"noConflicts": "कोई टकराव नहीं"
+		}
+	},
 	"questions": {
 		"hasQuestion": "Roo का एक प्रश्न है"
 	},

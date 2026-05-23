@@ -1,13 +1,39 @@
 import type { ClineSayTool, ExecutionPlan, ExtensionMessage } from "@roo-code/types"
 
-import { act, render, screen } from "@/utils/test-utils"
+import { act, fireEvent, render, screen, within } from "@/utils/test-utils"
 import { ExtensionStateContext } from "@/context/ExtensionStateContext"
+import { TranslationContext } from "@/i18n/TranslationContext"
 
 import { AgentStatusPanel } from "../AgentStatusPanel"
 
 vi.mock("@/utils/format", () => ({
 	formatLargeNumber: vi.fn((num: number) => (num >= 1000 ? `${(num / 1000).toFixed(1)}K` : num.toString())),
 }))
+
+const translations: Record<string, string> = {
+	"chat:parallelAgents.details.task": "Task",
+	"chat:parallelAgents.details.ownedFiles": "Owned files",
+	"chat:parallelAgents.details.mustNotTouch": "Must not touch",
+	"chat:parallelAgents.details.status": "Status",
+	"chat:parallelAgents.details.waiting": "Waiting",
+	"chat:parallelAgents.details.lastTouched": "Last touched",
+	"chat:parallelAgents.details.usage": "Usage",
+	"chat:parallelAgents.details.worktree": "Worktree",
+	"chat:parallelAgents.details.activity": "Activity",
+	"chat:parallelAgents.details.conflicts": "Conflicts",
+	"chat:parallelAgents.details.none": "None",
+	"chat:parallelAgents.details.ready": "Ready",
+	"chat:parallelAgents.details.waitingOn": "Waiting on {{agents}}",
+	"chat:parallelAgents.details.noFileWrites": "No file writes yet",
+	"chat:parallelAgents.details.noUsage": "No usage reported yet",
+	"chat:parallelAgents.details.noActivity": "No activity reported yet",
+	"chat:parallelAgents.details.noConflicts": "No conflicts",
+}
+
+const t = (key: string, options?: Record<string, unknown>) => {
+	const value = translations[key] ?? key
+	return value.replace(/{{(\w+)}}/g, (_, placeholder) => String(options?.[placeholder] ?? ""))
+}
 
 function createPlan(): ExecutionPlan {
 	return {
@@ -47,9 +73,11 @@ function createPlan(): ExecutionPlan {
 
 function renderWithExtensionState(ui: React.ReactElement, plan: ExecutionPlan | undefined = createPlan()) {
 	return render(
-		<ExtensionStateContext.Provider value={{ activeExecutionPlan: plan, customModes: [] } as any}>
-			{ui}
-		</ExtensionStateContext.Provider>,
+		<TranslationContext.Provider value={{ t, i18n: {} as any }}>
+			<ExtensionStateContext.Provider value={{ activeExecutionPlan: plan, customModes: [] } as any}>
+				{ui}
+			</ExtensionStateContext.Provider>
+		</TranslationContext.Provider>,
 	)
 }
 
@@ -65,6 +93,100 @@ describe("AgentStatusPanel", () => {
 		expect(screen.getAllByTestId("agent-status-row")).toHaveLength(2)
 		expect(container.querySelectorAll("article")).toHaveLength(0)
 		expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+	})
+
+	it("expands and collapses agent rows with detailed task ownership and activity", () => {
+		const plan = createPlan()
+		plan.agents[0] = {
+			...plan.agents[0],
+			task: "Build dashboard UI with long copy that should only be fully readable in the expanded detail panel.",
+			owns: [
+				{ path: "src/Dashboard.tsx", mode: "exclusive" },
+				{ path: "src/shared/theme.ts", mode: "shared" },
+			],
+			mustNotTouch: ["src/dashboard.css"],
+		}
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "running",
+			agentStatusUpdates: [
+				{
+					agentId: "ui-agent",
+					status: "running",
+					lastTouchedFile: "src/Dashboard.tsx",
+					usage: {
+						totalTokensIn: 1200,
+						totalTokensOut: 340,
+						totalCacheWrites: 0,
+						totalCacheReads: 0,
+						totalCost: 0.02,
+						contextTokens: 1540,
+					},
+				},
+			],
+			agentActivities: [
+				{
+					agentId: "ui-agent",
+					message: "Edited Dashboard component layout.",
+					ts: 2,
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+
+		expect(screen.queryByTestId("agent-details")).not.toBeInTheDocument()
+
+		const firstToggle = screen.getAllByTestId("agent-status-toggle")[0]
+		fireEvent.click(firstToggle)
+
+		expect(firstToggle).toHaveAttribute("aria-expanded", "true")
+		const details = screen.getByTestId("agent-details")
+		expect(within(details).getByTestId("agent-details-task")).toHaveTextContent("Build dashboard UI with long copy")
+		expect(within(details).getByTestId("agent-owned-files")).toHaveTextContent("src/Dashboard.tsx")
+		expect(within(details).getByTestId("agent-owned-files")).toHaveTextContent("src/shared/theme.ts")
+		expect(within(details).getByTestId("agent-must-not-touch")).toHaveTextContent("src/dashboard.css")
+		expect(within(details).getByTestId("agent-last-touched")).toHaveTextContent("src/Dashboard.tsx")
+		expect(within(details).getByTestId("agent-details-activity")).toHaveTextContent(
+			"Edited Dashboard component layout.",
+		)
+		expect(within(details).getByTestId("agent-details-usage")).toHaveTextContent("↑ 1.2K · ↓ 340 · $0.02")
+		expect(within(details).getByTestId("agent-worktree")).toHaveTextContent(
+			"C:/repo/.roo/parallel-worktrees/plan-test/ui-agent",
+		)
+		expect(within(details).getByTestId("agent-details-conflicts")).toHaveTextContent("No conflicts")
+
+		fireEvent.click(firstToggle)
+
+		expect(firstToggle).toHaveAttribute("aria-expanded", "false")
+		expect(screen.queryByTestId("agent-details")).not.toBeInTheDocument()
+	})
+
+	it("shows per-agent conflict information in expanded details", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "running",
+			writeIntentConflicts: [
+				{
+					agentId: "styles-agent",
+					filePath: "src/Dashboard.tsx",
+					ownerTask: "ui-agent",
+					reason: "exclusive ownership",
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+
+		fireEvent.click(screen.getAllByTestId("agent-status-toggle")[1])
+
+		const details = screen.getByTestId("agent-details")
+		expect(within(details).getByTestId("agent-details-conflicts")).toHaveTextContent("src/Dashboard.tsx")
+		expect(within(details).getByTestId("agent-details-conflicts")).toHaveTextContent("ui-agent")
+		expect(within(details).getByTestId("agent-details-conflicts")).toHaveTextContent("exclusive ownership")
 	})
 
 	it("shows running progress and live agent status updates with real usage metadata only when emitted", () => {

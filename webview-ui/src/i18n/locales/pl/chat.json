@@ -261,6 +261,27 @@
 		"completionInstructions": "Podzadanie zakończone! Możesz przejrzeć wyniki i zasugerować poprawki lub następne kroki. Jeśli wszystko wygląda dobrze, potwierdź, aby zwrócić wynik do zadania nadrzędnego.",
 		"goToSubtask": "Wyświetl zadanie"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "Zadanie",
+			"ownedFiles": "Przypisane pliki",
+			"mustNotTouch": "Nie dotykać",
+			"status": "Status",
+			"waiting": "Oczekiwanie",
+			"lastTouched": "Ostatnio dotknięte",
+			"usage": "Użycie",
+			"worktree": "Worktree",
+			"activity": "Aktywność",
+			"conflicts": "Konflikty",
+			"none": "Brak",
+			"ready": "Gotowe",
+			"waitingOn": "Oczekiwanie na {{agents}}",
+			"noFileWrites": "Brak zapisów plików",
+			"noUsage": "Nie zgłoszono jeszcze użycia",
+			"noActivity": "Nie zgłoszono jeszcze aktywności",
+			"noConflicts": "Brak konfliktów"
+		}
+	},
 	"questions": {
 		"hasQuestion": "Roo ma pytanie"
 	},

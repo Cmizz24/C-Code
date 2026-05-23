@@ -16,6 +16,7 @@ import {
 	RouterModels,
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
+	DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
 } from "@roo-code/types"
 
 import { findLastIndex } from "@roo/array"
@@ -59,6 +60,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setAlwaysAllowModeSwitch: (value: boolean) => void
 	setAlwaysAllowSubtasks: (value: boolean) => void
 	setAlwaysAllowParallelTasks: (value: boolean) => void
+	setMaxConcurrentParallelTasks: (value: number) => void
 	setShowRooIgnoredFiles: (value: boolean) => void
 	setEnableSubfolderRules: (value: boolean) => void
 	setShowAnnouncement: (value: boolean) => void
@@ -205,6 +207,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		autoApprovalEnabled: false,
 		customModes: [],
 		alwaysAllowParallelTasks: false,
+		maxConcurrentParallelTasks: DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
 		maxOpenTabsContext: 20,
 		maxWorkspaceFiles: 200,
 		cwd: "",
@@ -465,6 +468,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setAlwaysAllowSubtasks: (value) => setState((prevState) => ({ ...prevState, alwaysAllowSubtasks: value })),
 		setAlwaysAllowParallelTasks: (value) =>
 			setState((prevState) => ({ ...prevState, alwaysAllowParallelTasks: value })),
+		setMaxConcurrentParallelTasks: (value) =>
+			setState((prevState) => ({ ...prevState, maxConcurrentParallelTasks: value })),
 		setAlwaysAllowFollowupQuestions,
 		setFollowupAutoApproveTimeoutMs: (value) =>
 			setState((prevState) => ({ ...prevState, followupAutoApproveTimeoutMs: value })),

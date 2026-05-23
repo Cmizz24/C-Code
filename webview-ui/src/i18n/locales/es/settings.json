@@ -251,6 +251,8 @@
 		},
 		"parallelTasks": {
 			"label": "Tareas paralelas",
+			"maxConcurrentLabel": "Máximo de agentes paralelos",
+			"maxConcurrentDescription": "Elige cuántos agentes pueden ejecutarse a la vez para un plan de tareas paralelas aprobado ({{min}}–{{max}}). Los agentes pendientes se inician cuando terminan los que están en ejecución.",
 			"description": "Aprobar automáticamente los planes de tareas paralelas válidos e iniciar agentes sin mostrar el modal de vista previa del plan"
 		},
 		"followupQuestions": {

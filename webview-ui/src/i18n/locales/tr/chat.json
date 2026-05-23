@@ -262,6 +262,27 @@
 		"completionInstructions": "Alt görev tamamlandı! Sonuçları inceleyebilir ve düzeltmeler veya sonraki adımlar önerebilirsiniz. Her şey iyi görünüyorsa, sonucu üst göreve döndürmek için onaylayın.",
 		"goToSubtask": "Görevi görüntüle"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "Görev",
+			"ownedFiles": "Sahip olunan dosyalar",
+			"mustNotTouch": "Dokunma",
+			"status": "Durum",
+			"waiting": "Bekliyor",
+			"lastTouched": "Son dokunulan",
+			"usage": "Kullanım",
+			"worktree": "Worktree",
+			"activity": "Etkinlik",
+			"conflicts": "Çakışmalar",
+			"none": "Yok",
+			"ready": "Hazır",
+			"waitingOn": "{{agents}} bekleniyor",
+			"noFileWrites": "Henüz dosya yazımı yok",
+			"noUsage": "Henüz kullanım bildirilmedi",
+			"noActivity": "Henüz etkinlik bildirilmedi",
+			"noConflicts": "Çakışma yok"
+		}
+	},
 	"questions": {
 		"hasQuestion": "Roo'nun bir sorusu var"
 	},

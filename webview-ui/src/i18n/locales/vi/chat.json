@@ -262,6 +262,27 @@
 		"completionInstructions": "Nhiệm vụ phụ đã hoàn thành! Bạn có thể xem lại kết quả và đề xuất các sửa đổi hoặc bước tiếp theo. Nếu mọi thứ có vẻ tốt, hãy xác nhận để trả kết quả về nhiệm vụ chính.",
 		"goToSubtask": "Xem nhiệm vụ"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "Nhiệm vụ",
+			"ownedFiles": "Tệp được giao",
+			"mustNotTouch": "Không được chạm",
+			"status": "Trạng thái",
+			"waiting": "Đang chờ",
+			"lastTouched": "Chạm lần cuối",
+			"usage": "Mức dùng",
+			"worktree": "Worktree",
+			"activity": "Hoạt động",
+			"conflicts": "Xung đột",
+			"none": "Không có",
+			"ready": "Sẵn sàng",
+			"waitingOn": "Đang chờ {{agents}}",
+			"noFileWrites": "Chưa có lần ghi tệp nào",
+			"noUsage": "Chưa có mức dùng nào được báo cáo",
+			"noActivity": "Chưa có hoạt động nào được báo cáo",
+			"noConflicts": "Không có xung đột"
+		}
+	},
 	"questions": {
 		"hasQuestion": "Roo có một câu hỏi"
 	},

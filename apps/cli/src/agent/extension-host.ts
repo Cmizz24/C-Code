@@ -23,6 +23,7 @@ import type {
 	RooCodeSettings,
 	WebviewMessage,
 } from "@roo-code/types"
+import { DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS } from "@roo-code/types"
 import { createVSCodeAPI, IExtensionHost, ExtensionHostEventMap, setRuntimeConfigValues } from "@roo-code/vscode-shim"
 import { DebugLogger, setDebugLogEnabled } from "@roo-code/core/cli"
 
@@ -223,6 +224,7 @@ export class ExtensionHost extends EventEmitter implements ExtensionHostInterfac
 			mode: this.options.mode,
 			consecutiveMistakeLimit: this.options.consecutiveMistakeLimit ?? DEFAULT_FLAGS.consecutiveMistakeLimit,
 			commandExecutionTimeout: 300,
+			maxConcurrentParallelTasks: DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
 			enableCheckpoints: false,
 			experiments: {
 				customTools: true,

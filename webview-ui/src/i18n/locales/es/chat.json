@@ -261,6 +261,27 @@
 		"completionInstructions": "¡Subtarea completada! Puedes revisar los resultados y sugerir correcciones o próximos pasos. Si todo se ve bien, confirma para devolver el resultado a la tarea principal.",
 		"goToSubtask": "Ver tarea"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "Tarea",
+			"ownedFiles": "Archivos asignados",
+			"mustNotTouch": "No tocar",
+			"status": "Estado",
+			"waiting": "Esperando",
+			"lastTouched": "Último tocado",
+			"usage": "Uso",
+			"worktree": "Worktree",
+			"activity": "Actividad",
+			"conflicts": "Conflictos",
+			"none": "Ninguno",
+			"ready": "Listo",
+			"waitingOn": "Esperando a {{agents}}",
+			"noFileWrites": "Aún no hay escrituras de archivos",
+			"noUsage": "Aún no se ha informado uso",
+			"noActivity": "Aún no se ha informado actividad",
+			"noConflicts": "Sin conflictos"
+		}
+	},
 	"questions": {
 		"hasQuestion": "Roo tiene una pregunta"
 	},

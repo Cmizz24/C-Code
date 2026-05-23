@@ -37,6 +37,7 @@ import {
 	requestyDefaultModelId,
 	openRouterDefaultModelId,
 	DEFAULT_WRITE_DELAY_MS,
+	normalizeParallelTaskConcurrency,
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_MODES,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
@@ -2125,6 +2126,7 @@ export class ClineProvider
 			alwaysAllowModeSwitch,
 			alwaysAllowSubtasks,
 			alwaysAllowParallelTasks,
+			maxConcurrentParallelTasks,
 			allowedMaxRequests,
 			allowedMaxCost,
 			autoCondenseContext,
@@ -2205,6 +2207,7 @@ export class ClineProvider
 			alwaysAllowModeSwitch: alwaysAllowModeSwitch ?? false,
 			alwaysAllowSubtasks: alwaysAllowSubtasks ?? false,
 			alwaysAllowParallelTasks: alwaysAllowParallelTasks ?? false,
+			maxConcurrentParallelTasks: normalizeParallelTaskConcurrency(maxConcurrentParallelTasks),
 			allowedMaxRequests,
 			allowedMaxCost,
 			autoCondenseContext: autoCondenseContext ?? true,
@@ -2354,6 +2357,7 @@ export class ClineProvider
 			alwaysAllowModeSwitch: stateValues.alwaysAllowModeSwitch ?? false,
 			alwaysAllowSubtasks: stateValues.alwaysAllowSubtasks ?? false,
 			alwaysAllowParallelTasks: stateValues.alwaysAllowParallelTasks ?? false,
+			maxConcurrentParallelTasks: normalizeParallelTaskConcurrency(stateValues.maxConcurrentParallelTasks),
 			alwaysAllowFollowupQuestions: stateValues.alwaysAllowFollowupQuestions ?? false,
 			followupAutoApproveTimeoutMs: stateValues.followupAutoApproveTimeoutMs ?? 60000,
 			diagnosticsEnabled: stateValues.diagnosticsEnabled ?? true,
@@ -2837,7 +2841,10 @@ export class ClineProvider
 
 		this.activeExecutionPlan = plan
 		await this.updateParallelAgentStatusMessage("running")
-		this.orchestratorEventLoop = new OrchestratorEventLoop(this)
+		const { maxConcurrentParallelTasks } = await this.getState()
+		this.orchestratorEventLoop = new OrchestratorEventLoop(this, AgentBus.getInstance(), {
+			maxConcurrentAgents: maxConcurrentParallelTasks,
+		})
 		this.attachAgentBusForwarders(AgentBus.getInstance())
 		this.orchestratorEventLoop.start(plan)
 		return { ok: true }

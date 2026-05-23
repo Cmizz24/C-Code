@@ -261,6 +261,27 @@
 		"completionInstructions": "サブタスク完了！結果を確認し、修正や次のステップを提案できます。問題なければ、親タスクに結果を返すために確認してください。",
 		"goToSubtask": "タスクを表示"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "タスク",
+			"ownedFiles": "担当ファイル",
+			"mustNotTouch": "触ってはいけないもの",
+			"status": "ステータス",
+			"waiting": "待機中",
+			"lastTouched": "最後に触ったもの",
+			"usage": "使用量",
+			"worktree": "Worktree",
+			"activity": "アクティビティ",
+			"conflicts": "競合",
+			"none": "なし",
+			"ready": "準備完了",
+			"waitingOn": "{{agents}} を待機中",
+			"noFileWrites": "まだファイル書き込みはありません",
+			"noUsage": "まだ使用量は報告されていません",
+			"noActivity": "まだアクティビティは報告されていません",
+			"noConflicts": "競合なし"
+		}
+	},
 	"questions": {
 		"hasQuestion": "Rooは質問があります"
 	},

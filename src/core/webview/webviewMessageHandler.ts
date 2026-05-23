@@ -16,6 +16,7 @@ import {
 	type EditQueuedMessagePayload,
 	RooCodeSettings,
 	ExperimentId,
+	normalizeParallelTaskConcurrency,
 	checkoutDiffPayloadSchema,
 	checkoutRestorePayloadSchema,
 } from "@roo-code/types"
@@ -665,6 +666,8 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					if (key === "language") {
 						newValue = value ?? "en"
 						changeLanguage(newValue as Language)
+					} else if (key === "maxConcurrentParallelTasks") {
+						newValue = normalizeParallelTaskConcurrency(value)
 					} else if (key === "allowedCommands") {
 						const commands = value ?? []
 

@@ -311,6 +311,8 @@
 		},
 		"parallelTasks": {
 			"label": "Parallel tasks",
+			"maxConcurrentLabel": "Maximum parallel agents",
+			"maxConcurrentDescription": "Choose how many agents may run at once for an approved parallel task plan ({{min}}–{{max}}). Pending agents start as running agents finish.",
 			"description": "Automatically approve valid parallel task plans and start agents without showing the plan preview modal"
 		},
 		"followupQuestions": {

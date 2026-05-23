@@ -251,6 +251,8 @@
 		},
 		"parallelTasks": {
 			"label": "Tác vụ song song",
+			"maxConcurrentLabel": "Số agent song song tối đa",
+			"maxConcurrentDescription": "Chọn số agent có thể chạy cùng lúc cho một kế hoạch tác vụ song song đã được phê duyệt ({{min}}–{{max}}). Agent đang chờ sẽ bắt đầu khi agent đang chạy hoàn tất.",
 			"description": "Tự động phê duyệt các kế hoạch tác vụ song song hợp lệ và khởi động agents mà không hiển thị hộp thoại xem trước kế hoạch"
 		},
 		"followupQuestions": {

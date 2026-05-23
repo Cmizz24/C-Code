@@ -251,6 +251,8 @@
 		},
 		"parallelTasks": {
 			"label": "Parallele Aufgaben",
+			"maxConcurrentLabel": "Maximale parallele Agents",
+			"maxConcurrentDescription": "Wähle, wie viele Agents gleichzeitig für einen genehmigten Plan für parallele Aufgaben laufen dürfen ({{min}}–{{max}}). Wartende Agents starten, sobald laufende Agents fertig sind.",
 			"description": "Gültige Pläne für parallele Aufgaben automatisch genehmigen und Agenten starten, ohne das Modal zur Planvorschau anzuzeigen"
 		},
 		"followupQuestions": {

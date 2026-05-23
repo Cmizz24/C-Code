@@ -1,5 +1,7 @@
 import {
 	RooCodeEventName,
+	normalizeParallelTaskConcurrency,
+	type AgentEvent,
 	type AgentPlan,
 	type ExecutionPlan,
 	type TaskLike,
@@ -13,6 +15,9 @@ type SpawnedTaskRecord = {
 	task: SpawnedTask
 	onCompleted: () => void
 	onAborted: () => void
+	onInteractive: () => void
+	onResumable: () => void
+	onIdle: () => void
 }
 
 type AgentTaskProvider = TaskProviderLike & {
@@ -23,13 +28,18 @@ type AgentTaskProvider = TaskProviderLike & {
 
 export class OrchestratorEventLoop {
 	private readonly spawnedAgents = new Map<string, SpawnedTaskRecord>()
+	private readonly spawningAgents = new Set<string>()
+	private readonly maxConcurrentAgents: number
 	private orchestratorTask?: TaskLike
 	private running = false
 
 	constructor(
 		private readonly provider: AgentTaskProvider,
 		private readonly bus: AgentBus = AgentBus.getInstance(),
-	) {}
+		options: { maxConcurrentAgents?: number } = {},
+	) {
+		this.maxConcurrentAgents = normalizeParallelTaskConcurrency(options.maxConcurrentAgents)
+	}
 
 	public start(plan: ExecutionPlan): void {
 		if (this.running) {
@@ -56,25 +66,42 @@ export class OrchestratorEventLoop {
 		}
 
 		this.running = false
-		this.bus.off("agentUnblocked", this.spawnAgent)
+		this.bus.off("agentUnblocked", this.scheduleAgents)
+		this.bus.off("event", this.onAgentEvent)
 		this.bus.off("allComplete", this.synthesizeCompletion)
 		this.bus.off("allTerminal", this.synthesizeFailure)
+		this.spawningAgents.clear()
 		this.cleanupSpawnedTasks(options)
 		this.orchestratorTask = undefined
 	}
 
+	private cleanupSpawnedTask(agentId: string): SpawnedTaskRecord | undefined {
+		const record = this.spawnedAgents.get(agentId)
+		if (!record) {
+			return undefined
+		}
+
+		record.task.off(RooCodeEventName.TaskCompleted, record.onCompleted)
+		record.task.off(RooCodeEventName.TaskAborted, record.onAborted)
+		record.task.off(RooCodeEventName.TaskInteractive, record.onInteractive)
+		record.task.off(RooCodeEventName.TaskResumable, record.onResumable)
+		record.task.off(RooCodeEventName.TaskIdle, record.onIdle)
+		this.spawnedAgents.delete(agentId)
+		return record
+	}
+
 	private cleanupSpawnedTasks(options: { abortSpawnedTasks?: boolean; reason?: string } = {}): void {
-		for (const [agentId, record] of this.spawnedAgents.entries()) {
-			record.task.off(RooCodeEventName.TaskCompleted, record.onCompleted)
-			record.task.off(RooCodeEventName.TaskAborted, record.onAborted)
+		for (const agentId of Array.from(this.spawnedAgents.keys())) {
+			const record = this.cleanupSpawnedTask(agentId)
+			if (!record) {
+				continue
+			}
 
 			if (options.abortSpawnedTasks) {
 				this.bus.markFailed(agentId, options.reason ?? "Parallel execution was cancelled.")
 				Promise.resolve(record.task.abortTask()).catch(() => {})
 			}
 		}
-
-		this.spawnedAgents.clear()
 	}
 
 	private async startAgents(plan: ExecutionPlan): Promise<void> {
@@ -85,19 +112,66 @@ export class OrchestratorEventLoop {
 
 		this.bus.setExecutionPlan(plan)
 		this.orchestratorTask = this.provider.getCurrentTask()
-		this.bus.on("agentUnblocked", this.spawnAgent)
+		this.bus.on("agentUnblocked", this.scheduleAgents)
+		this.bus.on("event", this.onAgentEvent)
 		this.bus.on("allComplete", this.synthesizeCompletion)
 		this.bus.on("allTerminal", this.synthesizeFailure)
 
-		for (const agent of plan.agents.filter((candidate) => candidate.status === "pending")) {
+		this.scheduleAgents()
+	}
+
+	private readonly onAgentEvent = (event: AgentEvent): void => {
+		if (event.type === "COMPLETE" || event.type === "FAILED") {
+			this.scheduleAgents()
+		}
+	}
+
+	private readonly scheduleAgents = (): void => {
+		if (!this.running) {
+			return
+		}
+
+		const plan = this.bus.getExecutionPlan()
+		if (!plan) {
+			return
+		}
+
+		const availableSlots = this.maxConcurrentAgents - this.getActiveAgentCount(plan)
+		if (availableSlots <= 0) {
+			return
+		}
+
+		const runnableAgents = plan.agents.filter(
+			(agent) =>
+				agent.status === "pending" && !this.spawnedAgents.has(agent.id) && !this.spawningAgents.has(agent.id),
+		)
+
+		for (const agent of runnableAgents.slice(0, availableSlots)) {
 			void this.spawnAgent(agent)
 		}
 	}
 
+	private getActiveAgentCount(plan: ExecutionPlan): number {
+		const runningAgentIds = new Set(
+			plan.agents.filter((agent) => agent.status === "running").map((agent) => agent.id),
+		)
+		const spawningAgentCount = Array.from(this.spawningAgents).filter((agentId) => {
+			if (runningAgentIds.has(agentId)) {
+				return false
+			}
+
+			const agent = plan.agents.find((candidate) => candidate.id === agentId)
+			return agent && agent.status !== "complete" && agent.status !== "failed"
+		}).length
+
+		return runningAgentIds.size + spawningAgentCount
+	}
+
 	private readonly spawnAgent = async (agent: AgentPlan): Promise<void> => {
-		if (this.spawnedAgents.has(agent.id)) {
+		if (this.spawnedAgents.has(agent.id) || this.spawningAgents.has(agent.id)) {
 			return
 		}
+		this.spawningAgents.add(agent.id)
 
 		try {
 			if (!this.running) {
@@ -132,17 +206,72 @@ export class OrchestratorEventLoop {
 				return
 			}
 
-			const onCompleted = () => this.bus.markComplete(agent.id)
-			const onAborted = () => this.bus.markFailed(agent.id, "Agent task aborted.")
-			this.spawnedAgents.set(agent.id, { task, onCompleted, onAborted })
+			const onCompleted = () => {
+				this.cleanupSpawnedTask(agent.id)
+				this.bus.markComplete(agent.id)
+			}
+			const onAborted = () => {
+				this.cleanupSpawnedTask(agent.id)
+				this.bus.markFailed(agent.id, "Agent task aborted.")
+			}
+			const onInteractive = () =>
+				this.handleWaitingBackgroundTask(agent.id, task, RooCodeEventName.TaskInteractive)
+			const onResumable = () => this.handleWaitingBackgroundTask(agent.id, task, RooCodeEventName.TaskResumable)
+			const onIdle = () => this.handleWaitingBackgroundTask(agent.id, task, RooCodeEventName.TaskIdle)
+			this.spawnedAgents.set(agent.id, { task, onCompleted, onAborted, onInteractive, onResumable, onIdle })
 
 			task.on(RooCodeEventName.TaskCompleted, onCompleted)
 			task.on(RooCodeEventName.TaskAborted, onAborted)
+			task.on(RooCodeEventName.TaskInteractive, onInteractive)
+			task.on(RooCodeEventName.TaskResumable, onResumable)
+			task.on(RooCodeEventName.TaskIdle, onIdle)
 		} catch (error) {
 			const message = error instanceof Error && error.message ? error.message : String(error)
 			this.bus.markFailed(agent.id, message)
 			Promise.resolve(this.provider.postStateToWebview()).catch(() => {})
+		} finally {
+			this.spawningAgents.delete(agent.id)
+			this.scheduleAgents()
 		}
+	}
+
+	private handleWaitingBackgroundTask(agentId: string, task: SpawnedTask, eventName: RooCodeEventName): void {
+		if (!this.running) {
+			return
+		}
+
+		const askType = task.taskAsk?.ask
+		if (askType === "completion_result") {
+			this.cleanupSpawnedTask(agentId)
+			this.bus.markComplete(agentId)
+			task.approveAsk()
+			Promise.resolve(this.provider.postStateToWebview()).catch(() => {})
+			return
+		}
+
+		const reason = this.describeWaitingBackgroundTask(task, eventName)
+		this.cleanupSpawnedTask(agentId)
+		this.bus.markFailed(agentId, reason)
+		try {
+			task.denyAsk({ text: reason })
+		} catch {
+			// Non-fatal: the ask may already have been cleared by the task.
+		}
+		Promise.resolve(task.abortTask()).catch(() => {})
+		Promise.resolve(this.provider.postStateToWebview()).catch(() => {})
+	}
+
+	private describeWaitingBackgroundTask(task: SpawnedTask, eventName: RooCodeEventName): string {
+		const askType = task.taskAsk?.ask
+		if (askType) {
+			return `Agent task requires ${askType} approval that cannot be surfaced from a background agent.`
+		}
+
+		if (eventName === RooCodeEventName.TaskIdle) {
+			return "Agent task is idle and cannot continue without parent approval."
+		}
+
+		return "Agent task is waiting for an unsupported background interaction."
 	}
 
 	private readonly synthesizeCompletion = (plan: ExecutionPlan): void => {

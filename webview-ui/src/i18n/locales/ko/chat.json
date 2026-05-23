@@ -261,6 +261,27 @@
 		"completionInstructions": "하위 작업 완료! 결과를 검토하고 수정 사항이나 다음 단계를 제안할 수 있습니다. 모든 것이 괜찮아 보이면, 부모 작업에 결과를 반환하기 위해 확인해주세요.",
 		"goToSubtask": "작업 보기"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "작업",
+			"ownedFiles": "담당 파일",
+			"mustNotTouch": "건드리면 안 됨",
+			"status": "상태",
+			"waiting": "대기 중",
+			"lastTouched": "마지막으로 건드림",
+			"usage": "사용량",
+			"worktree": "Worktree",
+			"activity": "활동",
+			"conflicts": "충돌",
+			"none": "없음",
+			"ready": "준비됨",
+			"waitingOn": "{{agents}} 대기 중",
+			"noFileWrites": "아직 파일 쓰기 없음",
+			"noUsage": "아직 보고된 사용량 없음",
+			"noActivity": "아직 보고된 활동 없음",
+			"noConflicts": "충돌 없음"
+		}
+	},
 	"questions": {
 		"hasQuestion": "Roo에게 질문이 있습니다"
 	},

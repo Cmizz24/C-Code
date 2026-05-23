@@ -27,6 +27,8 @@ export class SearchReplaceTool extends BaseTool<"search_replace"> {
 	async execute(params: SearchReplaceParams, task: Task, callbacks: ToolCallbacks): Promise<void> {
 		const { file_path, old_string, new_string } = params
 		const { askApproval, handleError, pushToolResult } = callbacks
+		let writeIntentRelPath: string | undefined
+		let didAcquireWriteIntent = false
 
 		try {
 			// Validate required parameters
@@ -79,6 +81,17 @@ export class SearchReplaceTool extends BaseTool<"search_replace"> {
 
 			// Check if file is write-protected
 			const isWriteProtected = task.rooProtectedController?.isWriteProtected(relPath) || false
+			const writePermission = task.requestAgentWriteIntent(relPath)
+
+			if (!writePermission.approved) {
+				const reason = writePermission.reason ?? `Write denied for ${relPath}`
+				await task.say("error", reason)
+				pushToolResult(formatResponse.toolError(reason))
+				return
+			}
+
+			writeIntentRelPath = relPath
+			didAcquireWriteIntent = true
 
 			const absolutePath = path.resolve(task.cwd, relPath)
 
@@ -236,6 +249,10 @@ export class SearchReplaceTool extends BaseTool<"search_replace"> {
 			await handleError("search and replace", error as Error)
 			await task.diffViewProvider.reset()
 			this.resetPartialState()
+		} finally {
+			if (didAcquireWriteIntent && writeIntentRelPath) {
+				task.releaseAgentWriteIntent(writeIntentRelPath)
+			}
 		}
 	}
 

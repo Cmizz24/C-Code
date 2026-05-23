@@ -257,6 +257,7 @@ export type ExtensionState = Pick<
 	| "alwaysAllowModeSwitch"
 	| "alwaysAllowSubtasks"
 	| "alwaysAllowParallelTasks"
+	| "maxConcurrentParallelTasks"
 	| "alwaysAllowFollowupQuestions"
 	| "alwaysAllowExecute"
 	| "followupAutoApproveTimeoutMs"

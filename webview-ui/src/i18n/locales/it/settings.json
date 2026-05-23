@@ -251,6 +251,8 @@
 		},
 		"parallelTasks": {
 			"label": "Attività parallele",
+			"maxConcurrentLabel": "Numero massimo di agenti paralleli",
+			"maxConcurrentDescription": "Scegli quanti agenti possono essere eseguiti contemporaneamente per un piano di attività parallele approvato ({{min}}–{{max}}). Gli agenti in attesa partono quando quelli in esecuzione terminano.",
 			"description": "Approva automaticamente i piani di attività parallele validi e avvia gli agenti senza mostrare il modale di anteprima del piano"
 		},
 		"followupQuestions": {
