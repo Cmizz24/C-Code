@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { Fragment, useEffect, useMemo, useState } from "react"
 import type {
 	AgentActivityEvent,
 	AgentPlan,
@@ -30,8 +30,15 @@ interface AgentStatusPanelProps {
 
 type AgentActivity = NonNullable<ClineSayTool["agentActivities"]>[number]
 type AgentActivityKind = NonNullable<AgentActivityEvent["kind"]>
+type DisplayAgentActivity = AgentActivity & {
+	count?: number
+	hiddenBefore?: number
+}
 
 const AGENT_ACTIVITY_TRANSCRIPT_LIMIT = 50
+const AGENT_ACTIVITY_DISPLAY_LIMIT = 12
+
+const hiddenExpandedActivityKinds = new Set<AgentActivityKind>(["thinking"])
 
 const phaseLabels: Record<NonNullable<ClineSayTool["parallelStatus"]>, string> = {
 	running: "running",
@@ -84,6 +91,64 @@ const getActivityKind = (activity: AgentActivity): AgentActivityKind => activity
 
 const getActivityKey = (activity: AgentActivity, index: number): string =>
 	`${activity.agentId}:${activity.ts}:${getActivityKind(activity)}:${index}:${activity.message}`
+
+const shouldShowExpandedActivity = (activity: AgentActivity): boolean => {
+	const kind = getActivityKind(activity)
+
+	if (hiddenExpandedActivityKinds.has(kind)) {
+		return false
+	}
+
+	if (kind === "status" && ["Queued and waiting to start.", "Started running."].includes(activity.message)) {
+		return false
+	}
+
+	if (kind === "approval" && activity.message === "Tool approval resolved.") {
+		return false
+	}
+
+	if (kind === "result" && activity.message === "Finished thinking.") {
+		return false
+	}
+
+	return true
+}
+
+const collapseAgentActivities = (activities: AgentActivity[]): DisplayAgentActivity[] => {
+	const collapsed: DisplayAgentActivity[] = []
+
+	for (const activity of activities) {
+		const previous = collapsed.at(-1)
+		const kind = getActivityKind(activity)
+
+		if (previous && getActivityKind(previous) === kind && previous.message === activity.message) {
+			previous.count = (previous.count ?? 1) + 1
+			previous.ts = activity.ts
+			continue
+		}
+
+		collapsed.push({ ...activity, count: 1 })
+	}
+
+	return collapsed
+}
+
+const getDisplayAgentActivities = (activities: AgentActivity[] = []): DisplayAgentActivity[] => {
+	const meaningfulActivities = activities.filter(shouldShowExpandedActivity)
+	const sourceActivities = meaningfulActivities.length > 0 ? meaningfulActivities : activities
+	const collapsedActivities = collapseAgentActivities(sourceActivities)
+	const hiddenBefore = Math.max(0, collapsedActivities.length - AGENT_ACTIVITY_DISPLAY_LIMIT)
+	const visibleActivities = collapsedActivities.slice(-AGENT_ACTIVITY_DISPLAY_LIMIT)
+
+	if (hiddenBefore > 0 && visibleActivities[0]) {
+		visibleActivities[0] = {
+			...visibleActivities[0],
+			hiddenBefore,
+		}
+	}
+
+	return visibleActivities
+}
 
 const sortAgentActivities = (activities: AgentActivity[]): AgentActivity[] =>
 	[...activities].sort((a, b) => a.ts - b.ts).slice(-AGENT_ACTIVITY_TRANSCRIPT_LIMIT)
@@ -191,8 +256,11 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 		setStatusUpdates(seededStatusUpdates)
 		setConflicts(seededConflicts)
 		setActivities(seededActivities)
-		setExpandedAgentIds(new Set())
 	}, [executionPlan?.planId, seededActivities, seededConflicts, seededStatusUpdates])
+
+	useEffect(() => {
+		setExpandedAgentIds(new Set())
+	}, [executionPlan?.planId])
 
 	const toggleExpandedAgent = (agentId: string) => {
 		setExpandedAgentIds((prev) => {
@@ -291,6 +359,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 		return executionPlan.agents.map((agent) => {
 			const statusUpdate = statusUpdates[agent.id]
 			const agentActivities = activities[agent.id] ?? statusUpdate?.activities ?? []
+			const displayActivities = getDisplayAgentActivities(agentActivities)
 			const recordedStatus = statusUpdate?.status ?? agent.status
 			const shouldRenderAsTerminal =
 				(phase === "cancelled" || phase === "failed") && recordedStatus !== "complete"
@@ -306,8 +375,8 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 						: undefined),
 				blockedOn: statusUpdate?.blockedOn ?? agent.dependsOn,
 				usage: statusUpdate?.usage,
-				activity: agentActivities.at(-1),
-				activities: agentActivities,
+				activity: displayActivities.at(-1) ?? agentActivities.at(-1),
+				activities: displayActivities,
 			}
 		})
 	}, [activities, executionPlan, phase, statusUpdates])
@@ -523,27 +592,43 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 															className="flex min-w-0 flex-col gap-2">
 															{activityEvents.map((activityEvent, index) => {
 																const kind = getActivityKind(activityEvent)
+																const repeatCount = activityEvent.count ?? 1
+																const activityKey = getActivityKey(activityEvent, index)
 
 																return (
-																	<li
-																		key={getActivityKey(activityEvent, index)}
-																		data-testid="agent-activity-event"
-																		className="flex min-w-0 items-start gap-2">
-																		<span
-																			className={cn(
-																				"codicon mt-0.5 shrink-0 text-xs",
-																				activityIconClasses[kind],
-																			)}
-																		/>
-																		<div className="min-w-0 flex-1 rounded-sm bg-vscode-sideBar-background/40 px-2 py-1">
-																			<div className="mb-0.5 capitalize text-vscode-descriptionForeground/80">
-																				{kind}
+																	<Fragment key={activityKey}>
+																		{activityEvent.hiddenBefore && (
+																			<li
+																				data-testid="agent-activity-hidden-count"
+																				className="ml-5 text-vscode-descriptionForeground/80">
+																				{activityEvent.hiddenBefore} older
+																				activity events hidden
+																			</li>
+																		)}
+																		<li
+																			data-testid="agent-activity-event"
+																			className="flex min-w-0 items-start gap-2">
+																			<span
+																				className={cn(
+																					"codicon mt-0.5 shrink-0 text-xs",
+																					activityIconClasses[kind],
+																				)}
+																			/>
+																			<div className="min-w-0 flex-1 rounded-sm bg-vscode-sideBar-background/40 px-2 py-1">
+																				<div className="mb-0.5 flex items-center gap-1.5 capitalize text-vscode-descriptionForeground/80">
+																					<span>{kind}</span>
+																					{repeatCount > 1 && (
+																						<span data-testid="agent-activity-repeat-count">
+																							×{repeatCount}
+																						</span>
+																					)}
+																				</div>
+																				<div className="min-w-0 whitespace-pre-wrap text-vscode-foreground">
+																					{activityEvent.message}
+																				</div>
 																			</div>
-																			<div className="min-w-0 whitespace-pre-wrap text-vscode-foreground">
-																				{activityEvent.message}
-																			</div>
-																		</div>
-																	</li>
+																		</li>
+																	</Fragment>
 																)
 															})}
 														</ol>

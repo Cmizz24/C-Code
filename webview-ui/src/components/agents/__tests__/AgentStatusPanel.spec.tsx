@@ -292,6 +292,163 @@ describe("AgentStatusPanel", () => {
 		expect(screen.getByTestId("agent-usage-summary")).toHaveTextContent("2/2 reporting · ↑ 1.5K · ↓ 340 · $0.02")
 	})
 
+	it("keeps an expanded agent row open when the same plan receives refreshed status props", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "running",
+			agentStatusUpdates: [
+				{
+					agentId: "ui-agent",
+					status: "running",
+					lastTouchedFile: "src/Dashboard.tsx",
+				},
+			],
+			agentActivities: [
+				{
+					agentId: "ui-agent",
+					kind: "tool",
+					message: "Reading src/Dashboard.tsx.",
+					ts: 2,
+				},
+			],
+		}
+
+		const { rerender } = renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+
+		const firstToggle = screen.getAllByTestId("agent-status-toggle")[0]
+		fireEvent.click(firstToggle)
+		expect(firstToggle).toHaveAttribute("aria-expanded", "true")
+		expect(screen.getByTestId("agent-details")).toBeInTheDocument()
+
+		rerender(
+			<TranslationContext.Provider value={{ t, i18n: {} as any }}>
+				<ExtensionStateContext.Provider value={{ activeExecutionPlan: undefined, customModes: [] } as any}>
+					<AgentStatusPanel
+						tool={{
+							...tool,
+							agentStatusUpdates: [
+								{
+									agentId: "ui-agent",
+									status: "running",
+									lastTouchedFile: "src/shared/theme.ts",
+								},
+							],
+							agentActivities: [
+								...(tool.agentActivities ?? []),
+								{
+									agentId: "ui-agent",
+									kind: "tool",
+									message: "Applying a diff to src/shared/theme.ts.",
+									ts: 3,
+								},
+							],
+						}}
+					/>
+				</ExtensionStateContext.Provider>
+			</TranslationContext.Provider>,
+		)
+
+		expect(screen.getAllByTestId("agent-status-toggle")[0]).toHaveAttribute("aria-expanded", "true")
+		expect(screen.getByTestId("agent-details")).toBeInTheDocument()
+		expect(screen.getByTestId("agent-last-touched")).toHaveTextContent("src/shared/theme.ts")
+	})
+
+	it("shows a concise activity timeline by filtering thinking noise and grouping repeated events", () => {
+		const plan = createPlan()
+		const noisyActivities: NonNullable<ClineSayTool["agentActivities"]> = [
+			{
+				agentId: "ui-agent",
+				kind: "thinking",
+				message: "Thinking…",
+				ts: 1,
+			},
+			{
+				agentId: "ui-agent",
+				kind: "thinking",
+				message: "Reasoning through the next step.",
+				ts: 2,
+			},
+			{
+				agentId: "ui-agent",
+				kind: "approval",
+				message: "Tool approval resolved.",
+				ts: 3,
+			},
+			{
+				agentId: "ui-agent",
+				kind: "tool",
+				message: "Reading src/Dashboard.tsx.",
+				ts: 4,
+			},
+			{
+				agentId: "ui-agent",
+				kind: "tool",
+				message: "Reading src/Dashboard.tsx.",
+				ts: 5,
+			},
+			{
+				agentId: "ui-agent",
+				kind: "tool",
+				message: "Applying a diff to src/Dashboard.tsx.",
+				ts: 6,
+			},
+			{
+				agentId: "ui-agent",
+				kind: "completion",
+				message: "Reported completion.",
+				ts: 7,
+			},
+		]
+
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "running",
+			agentActivities: noisyActivities,
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+		fireEvent.click(screen.getAllByTestId("agent-status-toggle")[0])
+
+		const details = screen.getByTestId("agent-details")
+		expect(within(details).queryByText("Thinking…")).not.toBeInTheDocument()
+		expect(within(details).queryByText("Reasoning through the next step.")).not.toBeInTheDocument()
+		expect(within(details).queryByText("Tool approval resolved.")).not.toBeInTheDocument()
+		expect(within(details).getAllByTestId("agent-activity-event")).toHaveLength(3)
+		expect(within(details).getByText("Reading src/Dashboard.tsx.")).toBeInTheDocument()
+		expect(within(details).getByTestId("agent-activity-repeat-count")).toHaveTextContent("×2")
+		expect(within(details).getByText("Applying a diff to src/Dashboard.tsx.")).toBeInTheDocument()
+		expect(within(details).getByText("Reported completion.")).toBeInTheDocument()
+	})
+
+	it("limits expanded activity to recent meaningful entries with an older count", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "running",
+			agentActivities: Array.from({ length: 14 }, (_, index) => ({
+				agentId: "ui-agent",
+				kind: "tool" as const,
+				message: `Reading src/file-${index}.ts.`,
+				ts: index + 1,
+			})),
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+		fireEvent.click(screen.getAllByTestId("agent-status-toggle")[0])
+
+		const details = screen.getByTestId("agent-details")
+		expect(within(details).getAllByTestId("agent-activity-event")).toHaveLength(12)
+		expect(within(details).getByTestId("agent-activity-hidden-count")).toHaveTextContent(
+			"2 older activity events hidden",
+		)
+		expect(within(details).queryByText("Reading src/file-0.ts.")).not.toBeInTheDocument()
+		expect(within(details).getByText("Reading src/file-13.ts.")).toBeInTheDocument()
+	})
+
 	it("renders cancelled persisted rows as terminal even if an old agent status says running", () => {
 		const plan = createPlan()
 		const tool: ClineSayTool = {
