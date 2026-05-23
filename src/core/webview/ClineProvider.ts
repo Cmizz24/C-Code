@@ -278,6 +278,7 @@ export class ClineProvider
 			const onTaskStarted = () => this.emit(RooCodeEventName.TaskStarted, instance.taskId)
 			const onTaskCompleted = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) => {
 				if (instance.background) {
+					this.postBackgroundAgentUsage(instance, tokenUsage)
 					this.removeBackgroundTask(instance)
 				}
 
@@ -327,8 +328,10 @@ export class ClineProvider
 			const onTaskUnpaused = (taskId: string) => this.emit(RooCodeEventName.TaskUnpaused, taskId)
 			const onTaskSpawned = (taskId: string) => this.emit(RooCodeEventName.TaskSpawned, taskId)
 			const onTaskUserMessage = (taskId: string) => this.emit(RooCodeEventName.TaskUserMessage, taskId)
-			const onTaskTokenUsageUpdated = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) =>
+			const onTaskTokenUsageUpdated = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) => {
+				this.postBackgroundAgentUsage(instance, tokenUsage)
 				this.emit(RooCodeEventName.TaskTokenUsageUpdated, taskId, tokenUsage, toolUsage)
+			}
 
 			// Attach the listeners.
 			instance.on(RooCodeEventName.TaskStarted, onTaskStarted)
@@ -2913,6 +2916,18 @@ export class ClineProvider
 
 	private postAgentStatusUpdate(update: AgentStatusUpdate): void {
 		this.postMessageToWebview({ type: "agentStatusUpdate", agentStatusUpdate: update }).catch(() => {})
+	}
+
+	private postBackgroundAgentUsage(task: Task, usage: TokenUsage): void {
+		if (!task.background || !task.agentId) {
+			return
+		}
+
+		this.postAgentStatusUpdate({
+			agentId: task.agentId,
+			status: this.getAgentStatus(task.agentId) ?? "running",
+			usage,
+		})
 	}
 
 	private postWriteIntentDenied(agentId: string, filePath: string, ownerAgentId?: string): void {

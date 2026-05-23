@@ -379,6 +379,7 @@ describe("ClineProvider", () => {
 				parentTask: options?.parentTask,
 				rootTaskId: options?.historyItem?.rootTaskId ?? options?.rootTask?.taskId,
 				parentTaskId: options?.historyItem?.parentTaskId ?? options?.parentTask?.taskId,
+				agentId: options?.agentId,
 				background: options?.background ?? false,
 				abortReason: undefined,
 				abandoned: false,
@@ -850,6 +851,47 @@ describe("ClineProvider", () => {
 		expect(backgroundTask.emit).not.toHaveBeenCalledWith(RooCodeEventName.TaskFocused)
 		expect(focusedTaskIds).toEqual([])
 		expect((provider as any).backgroundTasks.has(backgroundTask)).toBe(true)
+	})
+
+	test("background agent token usage is forwarded to the parallel status message", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+
+		const backgroundTask = await provider.createTask("Run a specialist agent task", undefined, parentTask, {
+			agentId: "dashboard-js-animation",
+			background: true,
+			mode: "code",
+		})
+
+		backgroundTask.emit(
+			RooCodeEventName.TaskTokenUsageUpdated,
+			backgroundTask.taskId,
+			{
+				totalTokensIn: 100,
+				totalTokensOut: 50,
+				totalCacheWrites: 0,
+				totalCacheReads: 0,
+				totalCost: 0.01,
+				contextTokens: 150,
+			},
+			{},
+		)
+
+		expect(mockPostMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "agentStatusUpdate",
+				agentStatusUpdate: expect.objectContaining({
+					agentId: "dashboard-js-animation",
+					status: "running",
+					usage: expect.objectContaining({
+						totalTokensIn: 100,
+						totalTokensOut: 50,
+						totalCost: 0.01,
+					}),
+				}),
+			}),
+		)
 	})
 
 	test("background agent streaming aborts clean up without visible task rehydration", async () => {

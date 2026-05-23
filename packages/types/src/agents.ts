@@ -1,3 +1,5 @@
+import type { TokenUsage } from "./message.js"
+
 export interface FileOwnership {
 	path: string
 	mode: "exclusive" | "read-only" | "shared"
@@ -97,6 +99,7 @@ export interface AgentStatusUpdate {
 	lastTouchedFile?: string
 	reason?: string
 	blockedOn?: AgentDependency[]
+	usage?: TokenUsage
 }
 
 export interface WriteIntentConflict {
