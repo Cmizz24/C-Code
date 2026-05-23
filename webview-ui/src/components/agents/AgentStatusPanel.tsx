@@ -223,7 +223,12 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 	const overallStatus = phase === "failed" ? "failed" : getOverallStatus(agents)
 	const runningAgents = agents.filter((agent) => agent.status === "running").length
 	const usageCount = agents.filter((agent) => agent.usage).length
-	const usageSummary = usageCount > 0 ? `${usageCount}/${agents.length} reporting usage` : undefined
+	const aggregateUsage = tool?.parallelUsageSummary
+	const usageSummary = aggregateUsage
+		? `${aggregateUsage.reportingAgents}/${agents.length} reporting · ↑ ${formatLargeNumber(aggregateUsage.totalTokensIn + aggregateUsage.totalCacheReads)} · ↓ ${formatLargeNumber(aggregateUsage.totalTokensOut)} · $${aggregateUsage.totalCost.toFixed(2)}`
+		: usageCount > 0
+			? `${usageCount}/${agents.length} reporting usage`
+			: undefined
 	const phaseLabel = phase ? phaseLabels[phase] : overallStatus
 
 	return (

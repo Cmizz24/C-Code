@@ -135,4 +135,15 @@ describe("AgentBus", () => {
 
 		expect(unblocked).toHaveBeenCalledWith(expect.objectContaining({ id: "agent-b", status: "pending" }))
 	})
+
+	it("clears active write locks when an agent fails", () => {
+		const events = vi.fn()
+		bus.on("event", events)
+
+		expect(bus.requestWriteIntent("agent-a", "src/unowned.ts").approved).toBe(true)
+		bus.markFailed("agent-a", "Cancelled")
+
+		expect(events).toHaveBeenCalledWith({ type: "INTENT_CLEARED", agentId: "agent-a", path: "src/unowned.ts" })
+		expect(bus.requestWriteIntent("agent-b", "src/unowned.ts").approved).toBe(true)
+	})
 })

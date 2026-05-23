@@ -137,4 +137,26 @@ describe("AgentStatusPanel", () => {
 		expect(screen.getAllByText("review ready")).not.toHaveLength(0)
 		expect(screen.getByTestId("agent-activity")).toHaveTextContent("Applying a diff to src/dashboard.css.")
 	})
+
+	it("renders aggregate persisted child token usage in the tool header", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "running",
+			parallelUsageSummary: {
+				totalTokensIn: 1200,
+				totalTokensOut: 340,
+				totalCacheWrites: 0,
+				totalCacheReads: 300,
+				totalCost: 0.02,
+				contextTokens: 1540,
+				reportingAgents: 2,
+			},
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+
+		expect(screen.getByTestId("agent-usage-summary")).toHaveTextContent("2/2 reporting · ↑ 1.5K · ↓ 340 · $0.02")
+	})
 })

@@ -130,6 +130,7 @@ export type PlanApprovalResult =
 
 type ParallelAgentToolStatus = NonNullable<ClineSayTool["parallelStatus"]>
 type ParallelAgentActivity = NonNullable<ClineSayTool["agentActivities"]>[number]
+type ParallelAgentUsageSummary = NonNullable<ClineSayTool["parallelUsageSummary"]>
 
 export class ClineProvider
 	extends EventEmitter<TaskProviderEvents>
@@ -167,6 +168,7 @@ export class ClineProvider
 	private readonly parallelAgentStatusUpdates = new Map<string, AgentStatusUpdate>()
 	private readonly parallelAgentActivities = new Map<string, ParallelAgentActivity>()
 	private readonly parallelWriteConflicts = new Map<string, WriteIntentConflict>()
+	private parallelUsageSummary?: ParallelAgentUsageSummary
 	private readonly forwardAgentEvent = (event: AgentEvent): void => {
 		switch (event.type) {
 			case "STATUS":
@@ -698,6 +700,7 @@ export class ClineProvider
 		this.log("Disposing ClineProvider...")
 
 		// Clear all tasks from the stack.
+		await this.teardownParallelExecution({ resetBus: true, cleanupWorktrees: true })
 		while (this.clineStack.length > 0) {
 			await this.removeClineFromStack()
 		}
@@ -714,12 +717,8 @@ export class ClineProvider
 
 			this.removeBackgroundTask(task)
 		}
-		this.orchestratorEventLoop?.stop()
-		this.orchestratorEventLoop = undefined
 		this.pendingPlanApproval?.({ approved: false })
 		this.pendingPlanApproval = undefined
-		AgentBus.reset()
-		await this.worktreeManager?.cleanup()
 		this.activeExecutionPlan = undefined
 
 		this.log("Cleared all tasks")
@@ -1008,6 +1007,7 @@ export class ClineProvider
 		const isRehydratingCurrentTask = currentTask && currentTask.taskId === historyItem.id
 
 		if (!isRehydratingCurrentTask) {
+			await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
 			await this.removeClineFromStack()
 		}
 
@@ -2002,7 +2002,12 @@ export class ClineProvider
 	}
 
 	async refreshWorkspace() {
-		this.currentWorkspacePath = getWorkspacePath()
+		const nextWorkspacePath = getWorkspacePath()
+		if (nextWorkspacePath !== this.currentWorkspacePath) {
+			await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
+			this.currentWorkspacePath = nextWorkspacePath
+			this.worktreeManager = new WorktreeManager(nextWorkspacePath)
+		}
 		await this.postStateToWebview()
 	}
 
@@ -2770,6 +2775,7 @@ export class ClineProvider
 		// are created without parent lineage in a degraded path.
 		if (!parentTask && !options.background) {
 			try {
+				await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
 				await this.removeClineFromStack()
 			} catch {
 				// Non-fatal
@@ -2816,10 +2822,8 @@ export class ClineProvider
 	}
 
 	private async startApprovedExecutionPlan(plan: ExecutionPlan): Promise<PlanStartResult> {
+		await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
 		this.resetParallelAgentStatusState(plan.planId)
-		this.activeExecutionPlan = undefined
-		this.worktreePathsByAgentId.clear()
-		this.orchestratorEventLoop?.stop()
 
 		try {
 			await this.ensureWorktreeManager().validateGitRepository()
@@ -2855,9 +2859,8 @@ export class ClineProvider
 		this.postStateToWebviewWithoutClineMessages().catch(() => {})
 	}
 
-	public cancelExecutionPlan(): void {
-		this.updateParallelAgentStatusMessage("cancelled").catch(() => {})
-		this.activeExecutionPlan = undefined
+	public async cancelExecutionPlan(): Promise<void> {
+		await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
 		const resolve = this.pendingPlanApproval
 		this.pendingPlanApproval = undefined
 		resolve?.({ approved: false })
@@ -2877,10 +2880,15 @@ export class ClineProvider
 		}
 	}
 
+	public async removeAgentWorktree(worktreePath: string): Promise<void> {
+		await this.ensureWorktreeManager().removeWorktree(worktreePath)
+	}
+
 	private ensureWorktreeManager(): WorktreeManager {
-		if (!this.worktreeManager) {
-			this.currentWorkspacePath = this.currentWorkspacePath ?? getWorkspacePath()
-			this.worktreeManager = new WorktreeManager(this.currentWorkspacePath)
+		const workspacePath = getWorkspacePath()
+		if (!this.worktreeManager || this.currentWorkspacePath !== workspacePath) {
+			this.currentWorkspacePath = workspacePath
+			this.worktreeManager = new WorktreeManager(workspacePath)
 		}
 
 		return this.worktreeManager
@@ -2953,13 +2961,72 @@ export class ClineProvider
 		)
 
 		await this.updateParallelAgentStatusMessage("merged")
-		this.orchestratorEventLoop?.stop()
-		this.orchestratorEventLoop = undefined
-		AgentBus.reset()
-		this.worktreePathsByAgentId.clear()
-		this.activeExecutionPlan = undefined
+		await this.teardownParallelExecution({ resetBus: true })
 		await this.postMessageToWebview({ type: "mergeComplete" })
 		await this.postStateToWebviewWithoutClineMessages()
+	}
+
+	private async teardownParallelExecution(
+		options: { markCancelled?: boolean; resetBus?: boolean; cleanupWorktrees?: boolean } = {},
+	): Promise<void> {
+		const hadParallelState = Boolean(
+			this.activeExecutionPlan ||
+				this.orchestratorEventLoop ||
+				this.pendingPlanApproval ||
+				this.backgroundTasks.size > 0,
+		)
+
+		if (options.markCancelled && this.activeExecutionPlan) {
+			await this.updateParallelAgentStatusMessage("cancelled")
+		}
+
+		if (options.markCancelled) {
+			const resolve = this.pendingPlanApproval
+			this.pendingPlanApproval = undefined
+			resolve?.({ approved: false })
+		}
+
+		this.orchestratorEventLoop?.stop({
+			abortSpawnedTasks: true,
+			reason: options.markCancelled ? "Parallel execution was cancelled." : "Parallel execution was stopped.",
+		})
+		this.orchestratorEventLoop = undefined
+
+		for (const task of Array.from(this.backgroundTasks)) {
+			try {
+				await task.abortTask(true)
+			} catch (error) {
+				this.log(
+					`[parallel-agents] Failed to abort background task ${task.taskId}.${task.instanceId}: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			}
+
+			this.removeBackgroundTask(task)
+		}
+
+		if (options.cleanupWorktrees) {
+			const knownWorktreePaths = Array.from(this.worktreePathsByAgentId.values())
+			await this.worktreeManager?.cleanup()
+			await Promise.allSettled(
+				knownWorktreePaths.map((worktreePath) => this.worktreeManager?.removeWorktree(worktreePath)),
+			)
+		}
+
+		if (options.resetBus) {
+			AgentBus.getInstance().off("event", this.forwardAgentEvent)
+			AgentBus.reset()
+		}
+
+		this.activeExecutionPlan = undefined
+		this.worktreePathsByAgentId.clear()
+		this.deniedWriteReasons.clear()
+		this.resetParallelAgentStatusState()
+
+		if (hadParallelState) {
+			this.log("[parallel-agents] Cleared active parallel execution state")
+		}
 	}
 
 	private attachAgentBusForwarders(bus: AgentBus): void {
@@ -2991,6 +3058,7 @@ export class ClineProvider
 		this.parallelStatusPlanId = planId
 		this.parallelStatusPhase = "running"
 		this.parallelMergeReviewEntries = undefined
+		this.parallelUsageSummary = undefined
 		this.parallelAgentStatusUpdates.clear()
 		this.parallelAgentActivities.clear()
 		this.parallelWriteConflicts.clear()
@@ -3067,6 +3135,7 @@ export class ClineProvider
 			agentStatusUpdates: Array.from(this.parallelAgentStatusUpdates.values()),
 			writeIntentConflicts: Array.from(this.parallelWriteConflicts.values()),
 			agentActivities: Array.from(this.parallelAgentActivities.values()).sort((a, b) => b.ts - a.ts),
+			parallelUsageSummary: this.parallelUsageSummary,
 			mergeReviewEntries,
 		}
 	}
@@ -3103,12 +3172,44 @@ export class ClineProvider
 
 		const previous = this.parallelAgentStatusUpdates.get(update.agentId)
 		this.parallelAgentStatusUpdates.set(update.agentId, { ...previous, ...update })
+		this.parallelUsageSummary = this.buildParallelUsageSummary()
 
-		if (update.status === "failed") {
+		if (update.status === "failed" && this.parallelStatusPhase !== "cancelled") {
 			this.parallelStatusPhase = "failed"
 		}
 
 		this.updateParallelAgentStatusMessage().catch(() => {})
+	}
+
+	private buildParallelUsageSummary(): ParallelAgentUsageSummary | undefined {
+		const updatesWithUsage = Array.from(this.parallelAgentStatusUpdates.values()).filter((update) => update.usage)
+
+		if (updatesWithUsage.length === 0) {
+			return undefined
+		}
+
+		return updatesWithUsage.reduce<ParallelAgentUsageSummary>(
+			(summary, update) => {
+				const usage = update.usage!
+				summary.totalTokensIn += usage.totalTokensIn
+				summary.totalTokensOut += usage.totalTokensOut
+				summary.totalCacheWrites += usage.totalCacheWrites ?? 0
+				summary.totalCacheReads += usage.totalCacheReads ?? 0
+				summary.totalCost += usage.totalCost
+				summary.contextTokens += usage.contextTokens
+				summary.reportingAgents += 1
+				return summary
+			},
+			{
+				totalTokensIn: 0,
+				totalTokensOut: 0,
+				totalCacheWrites: 0,
+				totalCacheReads: 0,
+				totalCost: 0,
+				contextTokens: 0,
+				reportingAgents: 0,
+			},
+		)
 	}
 
 	private recordParallelAgentActivity(agentId: string, message: string, ts: number = Date.now()): void {

@@ -1,6 +1,6 @@
 import type OpenAI from "openai"
 
-const PLAN_PARALLEL_TASKS_DESCRIPTION = `Create an execution plan for independent agents when work can be split across agents that own non-conflicting files. After the user approves the plan, Roo starts the agents programmatically as normal single-scope specialist tasks; do not call new_task for these parallel agents. The tool validates file ownership conflicts and dependency cycles, then registers the plan for write coordination.`
+const PLAN_PARALLEL_TASKS_DESCRIPTION = `Create an execution plan for independent agents only when the user explicitly asks for parallel agents or the work can be split across multiple agents that own non-conflicting files. Do not use this tool for simple single-file edits or ordinary sequential implementation. After the user approves the plan, Roo starts the agents programmatically as normal single-scope specialist tasks; do not call new_task for these parallel agents. The tool validates file ownership conflicts and dependency cycles, then registers the plan for write coordination.`
 
 export default {
 	type: "function",

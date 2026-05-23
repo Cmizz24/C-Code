@@ -5,6 +5,7 @@ import { OrchestratorEventLoop } from "../OrchestratorEventLoop"
 
 type TestProvider = TaskProviderLike & {
 	createAgentWorktree: ReturnType<typeof vi.fn>
+	removeAgentWorktree: ReturnType<typeof vi.fn>
 }
 
 function createPlan(): ExecutionPlan {
@@ -90,6 +91,7 @@ function createProvider(overrides: Partial<TestProvider> = {}): TestProvider {
 		off: vi.fn().mockReturnThis(),
 		postStateToWebview: vi.fn(async () => undefined),
 		createAgentWorktree: vi.fn(async (agentId: string, planId: string) => `C:/repo/.roo/${planId}/${agentId}`),
+		removeAgentWorktree: vi.fn(async () => undefined),
 		...overrides,
 	} as unknown as TestProvider
 }
@@ -241,6 +243,52 @@ describe("OrchestratorEventLoop", () => {
 				reason: "Parallel worktrees require a Git repository.",
 			}),
 		)
+		expect(provider.createTask).not.toHaveBeenCalled()
+	})
+
+	it("aborts spawned child tasks and removes listeners when stopped", async () => {
+		const spawnedTasks: TaskLike[] = []
+		const provider = createProvider({
+			createTask: vi.fn(async (_message, _images, _parentTask, options) => {
+				const task = createTask(`child-${options?.agentId}`)
+				spawnedTasks.push(task)
+				return task
+			}),
+		})
+		const loop = new OrchestratorEventLoop(provider, AgentBus.getInstance())
+
+		loop.start(createTwoAgentPlan())
+
+		await vi.waitFor(() => expect(spawnedTasks).toHaveLength(2))
+		loop.stop({ abortSpawnedTasks: true, reason: "Cancelled for test." })
+
+		for (const task of spawnedTasks) {
+			expect(task.off).toHaveBeenCalledWith(RooCodeEventName.TaskCompleted, expect.any(Function))
+			expect(task.off).toHaveBeenCalledWith(RooCodeEventName.TaskAborted, expect.any(Function))
+			expect(task.abortTask).toHaveBeenCalled()
+		}
+		expect(AgentBus.getInstance().getAgent("ui")?.status).toBe("failed")
+		expect(AgentBus.getInstance().getAgent("styles")?.status).toBe("failed")
+	})
+
+	it("removes a newly-created worktree if the loop stops before child task creation", async () => {
+		let resolveWorktree: (path: string) => void = () => {}
+		const provider = createProvider({
+			createAgentWorktree: vi.fn(
+				async () =>
+					new Promise<string>((resolve) => {
+						resolveWorktree = resolve
+					}),
+			),
+		})
+		const loop = new OrchestratorEventLoop(provider, AgentBus.getInstance())
+
+		loop.start(createPlan())
+		await vi.waitFor(() => expect(provider.createAgentWorktree).toHaveBeenCalled())
+		loop.stop({ abortSpawnedTasks: true })
+		resolveWorktree("C:/repo/.roo/plan-test/ui")
+
+		await vi.waitFor(() => expect(provider.removeAgentWorktree).toHaveBeenCalledWith("C:/repo/.roo/plan-test/ui"))
 		expect(provider.createTask).not.toHaveBeenCalled()
 	})
 })

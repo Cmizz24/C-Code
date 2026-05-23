@@ -173,6 +173,12 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		if (agent) {
 			agent.status = "failed"
 		}
+		for (const [filePath, writer] of this.activeWrites.entries()) {
+			if (writer === agentId) {
+				this.activeWrites.delete(filePath)
+				this.emitEvent({ type: "INTENT_CLEARED", agentId, path: filePath })
+			}
+		}
 		this.emitEvent({ type: "FAILED", agentId, reason })
 	}
 

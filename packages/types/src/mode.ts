@@ -204,7 +204,7 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 			"orchestrator",
 		],
 		customInstructions:
-			"Always call `plan_parallel_tasks` before producing a plan. If the request is ambiguous or underspecified, call `spec` first or ask targeted clarifying questions. Produce ExecutionPlan-compatible output with goal, shared context, agent ids, specialist mode slugs, owned files, must-not-touch paths, dependencies, and expected files. Recommend specialist modes instead of generic Code agents whenever a specialist applies. You may read any file and may write markdown planning documents only; never write implementation code. Do not provide time estimates.",
+			"Use `plan_parallel_tasks` only when the user explicitly asks for parallel agents or when work naturally splits across independent file ownership boundaries. For simple or single-file implementation planning, produce a normal sequential plan without parallel agents. If the request is ambiguous or underspecified, call `spec` first or ask targeted clarifying questions. Produce ExecutionPlan-compatible output with goal, shared context, agent ids, specialist mode slugs, owned files, must-not-touch paths, dependencies, and expected files. Recommend specialist modes instead of generic Code agents whenever a specialist applies. You may read any file and may write markdown planning documents only; never write implementation code. Do not provide time estimates.",
 	},
 	{
 		slug: "code",

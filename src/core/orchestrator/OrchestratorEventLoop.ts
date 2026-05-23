@@ -9,14 +9,20 @@ import {
 import { AgentBus } from "../agents/AgentBus"
 
 type SpawnedTask = Awaited<ReturnType<TaskProviderLike["createTask"]>>
+type SpawnedTaskRecord = {
+	task: SpawnedTask
+	onCompleted: () => void
+	onAborted: () => void
+}
 
 type AgentTaskProvider = TaskProviderLike & {
 	createAgentWorktree?: (agentId: string, planId: string) => Promise<string>
+	removeAgentWorktree?: (worktreePath: string) => Promise<void>
 	showMergeReview?: (plan: ExecutionPlan) => Promise<void>
 }
 
 export class OrchestratorEventLoop {
-	private readonly spawnedAgents = new Map<string, SpawnedTask>()
+	private readonly spawnedAgents = new Map<string, SpawnedTaskRecord>()
 	private orchestratorTask?: TaskLike
 	private running = false
 
@@ -37,15 +43,33 @@ export class OrchestratorEventLoop {
 		})
 	}
 
-	public stop(): void {
+	public stop(options: { abortSpawnedTasks?: boolean; reason?: string } = {}): void {
 		if (!this.running) {
+			if (options.abortSpawnedTasks) {
+				this.cleanupSpawnedTasks(options)
+			}
 			return
 		}
 
 		this.running = false
 		this.bus.off("agentUnblocked", this.spawnAgent)
 		this.bus.off("allComplete", this.synthesizeCompletion)
+		this.cleanupSpawnedTasks(options)
 		this.orchestratorTask = undefined
+	}
+
+	private cleanupSpawnedTasks(options: { abortSpawnedTasks?: boolean; reason?: string } = {}): void {
+		for (const [agentId, record] of this.spawnedAgents.entries()) {
+			record.task.off(RooCodeEventName.TaskCompleted, record.onCompleted)
+			record.task.off(RooCodeEventName.TaskAborted, record.onAborted)
+
+			if (options.abortSpawnedTasks) {
+				this.bus.markFailed(agentId, options.reason ?? "Parallel execution was cancelled.")
+				Promise.resolve(record.task.abortTask()).catch(() => {})
+			}
+		}
+
+		this.spawnedAgents.clear()
 	}
 
 	private async startAgents(plan: ExecutionPlan): Promise<void> {
@@ -70,11 +94,22 @@ export class OrchestratorEventLoop {
 		}
 
 		try {
+			if (!this.running) {
+				return
+			}
+
 			const plan = this.bus.getExecutionPlan()
 			const agentMessage = this.buildAgentMessage(agent, plan)
 			const systemPromptSuffix = this.buildSystemPromptSuffix(agent, plan)
 			if (plan && this.provider.createAgentWorktree) {
 				agent.worktreePath = await this.provider.createAgentWorktree(agent.id, plan.planId)
+			}
+
+			if (!this.running) {
+				if (agent.worktreePath) {
+					await this.provider.removeAgentWorktree?.(agent.worktreePath)
+				}
+				return
 			}
 
 			this.bus.markRunning(agent.id)
@@ -85,10 +120,18 @@ export class OrchestratorEventLoop {
 				workspacePath: agent.worktreePath,
 				systemPromptSuffix,
 			})
-			this.spawnedAgents.set(agent.id, task)
 
-			task.on(RooCodeEventName.TaskCompleted, () => this.bus.markComplete(agent.id))
-			task.on(RooCodeEventName.TaskAborted, () => this.bus.markFailed(agent.id, "Agent task aborted."))
+			if (!this.running) {
+				Promise.resolve(task.abortTask()).catch(() => {})
+				return
+			}
+
+			const onCompleted = () => this.bus.markComplete(agent.id)
+			const onAborted = () => this.bus.markFailed(agent.id, "Agent task aborted.")
+			this.spawnedAgents.set(agent.id, { task, onCompleted, onAborted })
+
+			task.on(RooCodeEventName.TaskCompleted, onCompleted)
+			task.on(RooCodeEventName.TaskAborted, onAborted)
 		} catch (error) {
 			const message = error instanceof Error && error.message ? error.message : String(error)
 			this.bus.markFailed(agent.id, message)

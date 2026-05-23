@@ -642,7 +642,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			break
 
 		case "cancelPlan":
-			provider.cancelExecutionPlan()
+			await provider.cancelExecutionPlan()
 			break
 
 		case "agentWaitOnConflict":

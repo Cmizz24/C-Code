@@ -970,6 +970,7 @@ describe("ClineProvider", () => {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
 		}
 
 		await provider.approveExecutionPlan(createExecutionPlan())
@@ -999,6 +1000,7 @@ describe("ClineProvider", () => {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
 		}
 
 		await provider.approveExecutionPlan(createExecutionPlan())
@@ -1039,6 +1041,7 @@ describe("ClineProvider", () => {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
 		}
 
 		await provider.approveExecutionPlan(createExecutionPlan())
@@ -1091,6 +1094,98 @@ describe("ClineProvider", () => {
 		expect(provider.getTaskStackSize()).toBe(1)
 		expect(provider.getCurrentTask()).toBe(parentTask)
 		expect(backgroundTask.off).toHaveBeenCalled()
+	})
+
+	test("top-level tasks cancel active parallel state before opening a new visible task", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+
+		const nextTask = await provider.createTask("Build an HTML dashboard")
+
+		expect(provider.getCurrentTask()).toBe(nextTask)
+		expect((provider as any).activeExecutionPlan).toBeUndefined()
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBe(0))
+		for (const backgroundTask of backgroundTasks) {
+			expect(backgroundTask.abortTask).toHaveBeenCalledWith(true)
+		}
+
+		const oldPlanEvent = {
+			type: "COMPLETE",
+			agentId: "dashboard-agent",
+			result: "Stale completion",
+		} as const
+		;(provider as any).forwardAgentEvent(oldPlanEvent)
+
+		expect(getParallelAgentToolMessages(nextTask)).toHaveLength(0)
+	})
+
+	test("parallel status messages persist aggregate child token usage", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(1))
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+		const dashboardTask = backgroundTasks.find((task) => task.agentId === "dashboard-agent") as Task
+		const stylesTask = backgroundTasks.find((task) => task.agentId === "styles-agent") as Task
+
+		dashboardTask.emit(
+			RooCodeEventName.TaskTokenUsageUpdated,
+			dashboardTask.taskId,
+			{
+				totalTokensIn: 100,
+				totalTokensOut: 50,
+				totalCacheWrites: 10,
+				totalCacheReads: 20,
+				totalCost: 0.01,
+				contextTokens: 150,
+			},
+			{},
+		)
+		stylesTask.emit(
+			RooCodeEventName.TaskTokenUsageUpdated,
+			stylesTask.taskId,
+			{
+				totalTokensIn: 200,
+				totalTokensOut: 70,
+				totalCacheWrites: 0,
+				totalCacheReads: 30,
+				totalCost: 0.02,
+				contextTokens: 270,
+			},
+			{},
+		)
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.parallelUsageSummary).toEqual({
+				totalTokensIn: 300,
+				totalTokensOut: 120,
+				totalCacheWrites: 10,
+				totalCacheReads: 50,
+				totalCost: 0.03,
+				contextTokens: 420,
+				reportingAgents: 2,
+			})
+		})
 	})
 
 	test("getState returns correct initial state", async () => {

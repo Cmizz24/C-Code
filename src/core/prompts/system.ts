@@ -94,7 +94,7 @@ async function generatePrompt(
 	const toolsCatalog = ""
 	const parallelOrchestratorInstructions = (() => {
 		if (mode === "architect") {
-			return `\n\nEXECUTIONPLAN ARCHITECTURE\nAlways call the \`plan_parallel_tasks\` tool before producing an implementation plan. If the request is ambiguous or underspecified, delegate to or request the \`spec\` specialist first. Produce ExecutionPlan-compatible plans with goal, shared context, agent ids, specialist mode slugs, owned files, must-not-touch paths, dependencies, and expected files. Assign specialist modes from this slug list whenever applicable: ${specialistModeSlugList}. Use \`code\` only for general fallback implementation. You may read any file but must not write implementation code.`
+			return `\n\nEXECUTIONPLAN ARCHITECTURE\nUse the \`plan_parallel_tasks\` tool only when the user explicitly asks for parallel agents or when the work naturally splits across independent file ownership boundaries. For simple or single-file implementation planning, produce a normal sequential plan without parallel agents. If the request is ambiguous or underspecified, delegate to or request the \`spec\` specialist first. Produce ExecutionPlan-compatible plans with goal, shared context, agent ids, specialist mode slugs, owned files, must-not-touch paths, dependencies, and expected files. Assign specialist modes from this slug list whenever applicable: ${specialistModeSlugList}. Use \`code\` only for general fallback implementation. You may read any file but must not write implementation code.`
 		}
 
 		if (mode === "orchestrator") {

@@ -745,6 +745,15 @@ export interface ClineSayTool {
 		message: string
 		ts: number
 	}>
+	parallelUsageSummary?: {
+		totalTokensIn: number
+		totalTokensOut: number
+		totalCacheWrites: number
+		totalCacheReads: number
+		totalCost: number
+		contextTokens: number
+		reportingAgents: number
+	}
 	mergeReviewEntries?: MergeReviewEntry[]
 	// For readCommandOutput
 	readStart?: number
