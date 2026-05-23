@@ -42,7 +42,6 @@ import { QueuedMessages } from "./QueuedMessages"
 import { WorktreeSelector } from "./WorktreeSelector"
 import FileChangesPanel from "./FileChangesPanel"
 import { useScrollLifecycle } from "@src/hooks/useScrollLifecycle"
-import { AgentStatusPanel } from "@src/components/agents/AgentStatusPanel"
 
 export interface ChatViewProps {
 	isHidden: boolean
@@ -84,7 +83,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		soundVolume,
 		messageQueue = [],
 		showWorktreesInHomeScreen,
-		activeExecutionPlan,
 	} = useExtensionState()
 
 	// Show a WarningRow when the user sends a message with a retired provider.
@@ -1420,15 +1418,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const itemContent = useCallback(
 		(index: number, messageOrGroup: ClineMessage) => {
 			const hasCheckpoint = modifiedMessages.some((message) => message.say === "checkpoint_saved")
-			const messageCount = groupedMessages.length + (activeExecutionPlan ? 1 : 0)
-
-			if ((messageOrGroup as any).type === "parallel_status") {
-				return (
-					<div className="px-[15px] py-[10px] pr-[6px]">
-						<AgentStatusPanel />
-					</div>
-				)
-			}
+			const messageCount = groupedMessages.length
 
 			// regular message
 			return (
@@ -1467,7 +1457,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			)
 		},
 		[
-			activeExecutionPlan,
 			expandedRows,
 			toggleRowExpansion,
 			modifiedMessages,
@@ -1645,17 +1634,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							key={task.ts}
 							className="scrollable grow overflow-y-scroll mb-1"
 							increaseViewportBy={{ top: 3_000, bottom: 1000 }}
-							data={
-								activeExecutionPlan
-									? [
-											...groupedMessages,
-											{
-												type: "parallel_status",
-												ts: activeExecutionPlan.createdAt || -1,
-											} as unknown as ClineMessage,
-										]
-									: groupedMessages
-							}
+							data={groupedMessages}
 							itemContent={itemContent}
 							followOutput={followOutputCallback}
 							atBottomStateChange={atBottomStateChangeCallback}

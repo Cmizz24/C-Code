@@ -33,6 +33,7 @@ import {
 	type AgentEvent,
 	type AgentStatus,
 	type AgentStatusUpdate,
+	type WriteIntentConflict,
 	type MergeReviewEntry,
 	RooCodeEventName,
 	requestyDefaultModelId,
@@ -89,7 +90,7 @@ import { CustomModesManager } from "../config/CustomModesManager"
 import { Task } from "../task/Task"
 
 import { webviewMessageHandler } from "./webviewMessageHandler"
-import type { ClineMessage, TodoItem } from "@roo-code/types"
+import type { ClineMessage, ClineSayTool, TodoItem } from "@roo-code/types"
 import { readApiMessages, saveApiMessages, saveTaskMessages, TaskHistoryStore } from "../task-persistence"
 import { readTaskMessages } from "../task-persistence/taskMessages"
 import { getNonce } from "./getNonce"
@@ -127,6 +128,9 @@ export type PlanApprovalResult =
 	| { approved: false }
 	| { approved: true; plan: ExecutionPlan; startResult: PlanStartResult }
 
+type ParallelAgentToolStatus = NonNullable<ClineSayTool["parallelStatus"]>
+type ParallelAgentActivity = NonNullable<ClineSayTool["agentActivities"]>[number]
+
 export class ClineProvider
 	extends EventEmitter<TaskProviderEvents>
 	implements vscode.WebviewViewProvider, TaskProviderLike
@@ -156,18 +160,31 @@ export class ClineProvider
 	private pendingPlanApproval?: (result: PlanApprovalResult) => void
 	private readonly worktreePathsByAgentId = new Map<string, string>()
 	private readonly deniedWriteReasons = new Map<string, string | undefined>()
+	private parallelStatusMessageTs?: number
+	private parallelStatusPlanId?: string
+	private parallelStatusPhase: ParallelAgentToolStatus = "running"
+	private parallelMergeReviewEntries?: MergeReviewEntry[]
+	private readonly parallelAgentStatusUpdates = new Map<string, AgentStatusUpdate>()
+	private readonly parallelAgentActivities = new Map<string, ParallelAgentActivity>()
+	private readonly parallelWriteConflicts = new Map<string, WriteIntentConflict>()
 	private readonly forwardAgentEvent = (event: AgentEvent): void => {
 		switch (event.type) {
 			case "STATUS":
-				this.postAgentStatusUpdate({ agentId: event.agentId, status: event.status })
+				{
+					const update = { agentId: event.agentId, status: event.status }
+					this.postAgentStatusUpdate(update)
+					this.recordParallelAgentStatus(update)
+				}
 				break
 			case "INTENT_WRITE":
 				if (event.permission.approved) {
-					this.postAgentStatusUpdate({
+					const update = {
 						agentId: event.agentId,
 						status: this.getAgentStatus(event.agentId) ?? "running",
 						lastTouchedFile: event.path,
-					})
+					}
+					this.postAgentStatusUpdate(update)
+					this.recordParallelAgentStatus(update)
 				} else {
 					this.deniedWriteReasons.set(this.getConflictKey(event.agentId, event.path), event.permission.reason)
 				}
@@ -180,20 +197,45 @@ export class ClineProvider
 					type: "writeIntentCleared",
 					writeIntentConflict: { agentId: event.agentId, filePath: event.path },
 				}).catch(() => {})
+				this.parallelWriteConflicts.delete(this.getConflictKey(event.agentId, event.path))
+				this.updateParallelAgentStatusMessage().catch(() => {})
 				break
 			case "BLOCKED":
-				this.postAgentStatusUpdate({
-					agentId: event.agentId,
-					status: "blocked",
-					reason: event.reason,
-					blockedOn: event.blockedOn,
-				})
+				{
+					const update = {
+						agentId: event.agentId,
+						status: "blocked",
+						reason: event.reason,
+						blockedOn: event.blockedOn,
+					} satisfies AgentStatusUpdate
+					this.postAgentStatusUpdate(update)
+					this.recordParallelAgentStatus(update)
+				}
 				break
 			case "COMPLETE":
-				this.postAgentStatusUpdate({ agentId: event.agentId, status: "complete", reason: event.result })
+				{
+					const update = {
+						agentId: event.agentId,
+						status: "complete",
+						reason: event.result,
+					} satisfies AgentStatusUpdate
+					this.postAgentStatusUpdate(update)
+					this.recordParallelAgentStatus(update)
+				}
 				break
 			case "FAILED":
-				this.postAgentStatusUpdate({ agentId: event.agentId, status: "failed", reason: event.reason })
+				{
+					const update = {
+						agentId: event.agentId,
+						status: "failed",
+						reason: event.reason,
+					} satisfies AgentStatusUpdate
+					this.postAgentStatusUpdate(update)
+					this.recordParallelAgentStatus(update)
+				}
+				break
+			case "SIGNAL":
+				this.recordParallelAgentActivity(event.agentId, `Signaled ${event.signal}.`)
 				break
 		}
 	}
@@ -328,6 +370,9 @@ export class ClineProvider
 			const onTaskUnpaused = (taskId: string) => this.emit(RooCodeEventName.TaskUnpaused, taskId)
 			const onTaskSpawned = (taskId: string) => this.emit(RooCodeEventName.TaskSpawned, taskId)
 			const onTaskUserMessage = (taskId: string) => this.emit(RooCodeEventName.TaskUserMessage, taskId)
+			const onTaskMessage = ({ message }: { action: "created" | "updated"; message: ClineMessage }) => {
+				this.handleBackgroundAgentMessage(instance, message)
+			}
 			const onTaskTokenUsageUpdated = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) => {
 				this.postBackgroundAgentUsage(instance, tokenUsage)
 				this.emit(RooCodeEventName.TaskTokenUsageUpdated, taskId, tokenUsage, toolUsage)
@@ -347,6 +392,7 @@ export class ClineProvider
 			instance.on(RooCodeEventName.TaskUnpaused, onTaskUnpaused)
 			instance.on(RooCodeEventName.TaskSpawned, onTaskSpawned)
 			instance.on(RooCodeEventName.TaskUserMessage, onTaskUserMessage)
+			instance.on(RooCodeEventName.Message, onTaskMessage)
 			instance.on(RooCodeEventName.TaskTokenUsageUpdated, onTaskTokenUsageUpdated)
 
 			// Store the cleanup functions for later removal.
@@ -364,6 +410,7 @@ export class ClineProvider
 				() => instance.off(RooCodeEventName.TaskPaused, onTaskPaused),
 				() => instance.off(RooCodeEventName.TaskUnpaused, onTaskUnpaused),
 				() => instance.off(RooCodeEventName.TaskSpawned, onTaskSpawned),
+				() => instance.off(RooCodeEventName.Message, onTaskMessage),
 				() => instance.off(RooCodeEventName.TaskTokenUsageUpdated, onTaskTokenUsageUpdated),
 			])
 		}
@@ -2769,6 +2816,7 @@ export class ClineProvider
 	}
 
 	private async startApprovedExecutionPlan(plan: ExecutionPlan): Promise<PlanStartResult> {
+		this.resetParallelAgentStatusState(plan.planId)
 		this.activeExecutionPlan = undefined
 		this.worktreePathsByAgentId.clear()
 		this.orchestratorEventLoop?.stop()
@@ -2783,6 +2831,7 @@ export class ClineProvider
 		}
 
 		this.activeExecutionPlan = plan
+		await this.updateParallelAgentStatusMessage("running")
 		this.orchestratorEventLoop = new OrchestratorEventLoop(this)
 		this.attachAgentBusForwarders(AgentBus.getInstance())
 		this.orchestratorEventLoop.start(plan)
@@ -2807,6 +2856,7 @@ export class ClineProvider
 	}
 
 	public cancelExecutionPlan(): void {
+		this.updateParallelAgentStatusMessage("cancelled").catch(() => {})
 		this.activeExecutionPlan = undefined
 		const resolve = this.pendingPlanApproval
 		this.pendingPlanApproval = undefined
@@ -2861,6 +2911,8 @@ export class ClineProvider
 
 	public async showMergeReview(plan: ExecutionPlan): Promise<void> {
 		const entries = await Promise.all(plan.agents.map((agent) => this.buildMergeReviewEntry(plan, agent.id)))
+		this.parallelMergeReviewEntries = entries
+		await this.updateParallelAgentStatusMessage("review", entries)
 		await this.postMessageToWebview({ type: "showMergeReview", mergeReviewEntries: entries })
 	}
 
@@ -2900,6 +2952,7 @@ export class ClineProvider
 			}),
 		)
 
+		await this.updateParallelAgentStatusMessage("merged")
 		this.orchestratorEventLoop?.stop()
 		this.orchestratorEventLoop = undefined
 		AgentBus.reset()
@@ -2923,11 +2976,251 @@ export class ClineProvider
 			return
 		}
 
-		this.postAgentStatusUpdate({
+		const update = {
 			agentId: task.agentId,
 			status: this.getAgentStatus(task.agentId) ?? "running",
 			usage,
+		} satisfies AgentStatusUpdate
+
+		this.postAgentStatusUpdate(update)
+		this.recordParallelAgentStatus(update)
+	}
+
+	private resetParallelAgentStatusState(planId?: string): void {
+		this.parallelStatusMessageTs = undefined
+		this.parallelStatusPlanId = planId
+		this.parallelStatusPhase = "running"
+		this.parallelMergeReviewEntries = undefined
+		this.parallelAgentStatusUpdates.clear()
+		this.parallelAgentActivities.clear()
+		this.parallelWriteConflicts.clear()
+	}
+
+	private async ensureParallelAgentStatusMessage(plan: ExecutionPlan): Promise<void> {
+		const task = this.getCurrentTask()
+
+		if (!task || task.background) {
+			return
+		}
+
+		const existing = this.findParallelAgentStatusMessage(task, plan.planId)
+		if (existing) {
+			this.parallelStatusMessageTs = existing.ts
+			this.parallelStatusPlanId = plan.planId
+			return
+		}
+
+		await task.say(
+			"tool",
+			JSON.stringify(this.buildParallelAgentToolPayload(plan)),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			{ isNonInteractive: true },
+		)
+
+		const created = this.findParallelAgentStatusMessage(task, plan.planId)
+		this.parallelStatusMessageTs = created?.ts
+		this.parallelStatusPlanId = plan.planId
+	}
+
+	private async updateParallelAgentStatusMessage(
+		phase?: ParallelAgentToolStatus,
+		mergeReviewEntries?: MergeReviewEntry[],
+	): Promise<void> {
+		if (phase) {
+			this.parallelStatusPhase = phase
+		}
+
+		if (mergeReviewEntries) {
+			this.parallelMergeReviewEntries = mergeReviewEntries
+		}
+
+		const plan = this.activeExecutionPlan
+		if (!plan) {
+			return
+		}
+
+		await this.ensureParallelAgentStatusMessage(plan)
+
+		const task = this.getCurrentTask()
+		if (!task || task.background) {
+			return
+		}
+
+		const message = this.findParallelAgentStatusMessage(task, plan.planId)
+		if (!message) {
+			return
+		}
+
+		message.text = JSON.stringify(this.buildParallelAgentToolPayload(plan, this.parallelMergeReviewEntries))
+		await task.overwriteClineMessages([...task.clineMessages])
+		await this.postMessageToWebview({ type: "messageUpdated", clineMessage: message })
+	}
+
+	private buildParallelAgentToolPayload(plan: ExecutionPlan, mergeReviewEntries?: MergeReviewEntry[]): ClineSayTool {
+		return {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: this.parallelStatusPhase,
+			agentStatusUpdates: Array.from(this.parallelAgentStatusUpdates.values()),
+			writeIntentConflicts: Array.from(this.parallelWriteConflicts.values()),
+			agentActivities: Array.from(this.parallelAgentActivities.values()).sort((a, b) => b.ts - a.ts),
+			mergeReviewEntries,
+		}
+	}
+
+	private findParallelAgentStatusMessage(task: Task, planId: string): ClineMessage | undefined {
+		const byTimestamp = this.parallelStatusMessageTs
+			? task.clineMessages.find((message) => message.ts === this.parallelStatusMessageTs)
+			: undefined
+
+		if (byTimestamp && this.isParallelAgentStatusMessageForPlan(byTimestamp, planId)) {
+			return byTimestamp
+		}
+
+		return task.clineMessages.find((message) => this.isParallelAgentStatusMessageForPlan(message, planId))
+	}
+
+	private isParallelAgentStatusMessageForPlan(message: ClineMessage, planId: string): boolean {
+		if (message.type !== "say" || message.say !== "tool" || !message.text) {
+			return false
+		}
+
+		try {
+			const tool = JSON.parse(message.text) as ClineSayTool
+			return tool.tool === "parallelAgents" && tool.executionPlan?.planId === planId
+		} catch {
+			return false
+		}
+	}
+
+	private recordParallelAgentStatus(update: AgentStatusUpdate): void {
+		if (!this.activeExecutionPlan) {
+			return
+		}
+
+		const previous = this.parallelAgentStatusUpdates.get(update.agentId)
+		this.parallelAgentStatusUpdates.set(update.agentId, { ...previous, ...update })
+
+		if (update.status === "failed") {
+			this.parallelStatusPhase = "failed"
+		}
+
+		this.updateParallelAgentStatusMessage().catch(() => {})
+	}
+
+	private recordParallelAgentActivity(agentId: string, message: string, ts: number = Date.now()): void {
+		if (!this.activeExecutionPlan) {
+			return
+		}
+
+		this.parallelAgentActivities.set(agentId, {
+			agentId,
+			message,
+			ts,
 		})
+		this.updateParallelAgentStatusMessage().catch(() => {})
+	}
+
+	private handleBackgroundAgentMessage(task: Task, message: ClineMessage): void {
+		if (!task.background || !task.agentId || !this.activeExecutionPlan) {
+			return
+		}
+
+		const activity = this.describeBackgroundAgentMessage(message)
+		if (!activity) {
+			return
+		}
+
+		this.recordParallelAgentActivity(task.agentId, activity, message.ts)
+	}
+
+	private describeBackgroundAgentMessage(message: ClineMessage): string | undefined {
+		if (message.partial) {
+			return undefined
+		}
+
+		if (message.type === "ask" && message.ask === "tool") {
+			return this.describeToolActivity(message.text, "Waiting for tool approval")
+		}
+
+		if (message.type !== "say") {
+			return undefined
+		}
+
+		switch (message.say) {
+			case "api_req_started":
+				return "Thinking…"
+			case "reasoning":
+				return "Reasoning through the next step."
+			case "tool":
+				return this.describeToolActivity(message.text, "Used a tool")
+			case "command_output":
+				return "Read command output."
+			case "mcp_server_request_started":
+				return "Contacted an MCP server."
+			case "mcp_server_response":
+				return "Received MCP server response."
+			case "completion_result":
+				return "Reported completion."
+			case "error":
+				return "Encountered an error."
+			default:
+				return undefined
+		}
+	}
+
+	private describeToolActivity(text: string | undefined, fallback: string): string {
+		const tool = text ? this.tryParseToolPayload(text) : undefined
+
+		switch (tool?.tool) {
+			case "editedExistingFile":
+				return `Editing ${tool.path ?? "a file"}.`
+			case "appliedDiff":
+				return `Applying a diff to ${tool.path ?? "a file"}.`
+			case "newFileCreated":
+				return `Creating ${tool.path ?? "a file"}.`
+			case "readFile":
+				return `Reading ${tool.path ?? "a file"}.`
+			case "codebaseSearch":
+				return "Searching the codebase."
+			case "searchFiles":
+				return tool.regex ? `Searching files for ${tool.regex}.` : "Searching files."
+			case "listFilesTopLevel":
+			case "listFilesRecursive":
+				return `Listing ${tool.path ?? "files"}.`
+			case "readCommandOutput":
+				return "Reading command output."
+			case "runSlashCommand":
+				return tool.command ? `Running /${tool.command}.` : "Running a slash command."
+			case "switchMode":
+				return tool.mode ? `Switching to ${tool.mode} mode.` : "Switching mode."
+			case "newTask":
+				return "Starting a subtask."
+			case "finishTask":
+				return "Finishing a subtask."
+			case "skill":
+				return tool.skill ? `Loading ${tool.skill} skill.` : "Loading a skill."
+			case "generateImage":
+			case "imageGenerated":
+				return "Working with an image."
+			case "updateTodoList":
+				return "Updating the todo list."
+			case "parallelAgents":
+				return "Updating parallel agent status."
+			default:
+				return fallback
+		}
+	}
+
+	private tryParseToolPayload(text: string): ClineSayTool | undefined {
+		try {
+			return JSON.parse(text) as ClineSayTool
+		} catch {
+			return undefined
+		}
 	}
 
 	private postWriteIntentDenied(agentId: string, filePath: string, ownerAgentId?: string): void {
@@ -2935,17 +3228,20 @@ export class ClineProvider
 			? this.activeExecutionPlan?.agents.find((agent) => agent.id === ownerAgentId)?.task
 			: undefined
 		const reason = this.deniedWriteReasons.get(this.getConflictKey(agentId, filePath))
+		const conflict = {
+			agentId,
+			filePath,
+			ownerAgentId,
+			ownerTask,
+			reason,
+		} satisfies WriteIntentConflict
 
 		this.postMessageToWebview({
 			type: "writeIntentDenied",
-			writeIntentConflict: {
-				agentId,
-				filePath,
-				ownerAgentId,
-				ownerTask,
-				reason,
-			},
+			writeIntentConflict: conflict,
 		}).catch(() => {})
+		this.parallelWriteConflicts.set(this.getConflictKey(agentId, filePath), conflict)
+		this.updateParallelAgentStatusMessage().catch(() => {})
 	}
 
 	private getAgentStatus(agentId: string): AgentStatus | undefined {

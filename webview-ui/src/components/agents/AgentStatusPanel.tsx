@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from "react"
-import type { AgentPlan, AgentStatus, AgentStatusUpdate, ExtensionMessage, WriteIntentConflict } from "@roo-code/types"
+import type {
+	AgentPlan,
+	AgentStatus,
+	AgentStatusUpdate,
+	ClineSayTool,
+	ExtensionMessage,
+	WriteIntentConflict,
+} from "@roo-code/types"
 
 import { Badge, Button } from "@/components/ui"
 import { ToolUseBlock, ToolUseBlockHeader } from "@/components/common/ToolUseBlock"
@@ -13,6 +20,20 @@ import { getAgentModeLabel } from "./agentDisplay"
 
 type ConflictBanner = WriteIntentConflict & {
 	key: string
+}
+
+interface AgentStatusPanelProps {
+	tool?: ClineSayTool
+}
+
+type AgentActivity = NonNullable<ClineSayTool["agentActivities"]>[number]
+
+const phaseLabels: Record<NonNullable<ClineSayTool["parallelStatus"]>, string> = {
+	running: "running",
+	review: "review ready",
+	merged: "merged",
+	cancelled: "cancelled",
+	failed: "failed",
 }
 
 const statusBadgeClasses: Record<AgentStatus, string> = {
@@ -82,15 +103,35 @@ const getUsageSummary = (usage: AgentStatusUpdate["usage"]): string | undefined 
 	return parts.length > 0 ? parts.join(" · ") : undefined
 }
 
-export const AgentStatusPanel = () => {
+export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 	const { activeExecutionPlan, customModes } = useExtensionState()
-	const [statusUpdates, setStatusUpdates] = useState<Record<string, AgentStatusUpdate>>({})
-	const [conflicts, setConflicts] = useState<ConflictBanner[]>([])
+	const executionPlan = tool?.executionPlan ?? activeExecutionPlan
+	const agentIds = useMemo(() => new Set(executionPlan?.agents.map((agent) => agent.id) ?? []), [executionPlan])
+	const seededStatusUpdates = useMemo(
+		() => Object.fromEntries((tool?.agentStatusUpdates ?? []).map((update) => [update.agentId, update])),
+		[tool?.agentStatusUpdates],
+	)
+	const seededConflicts = useMemo<ConflictBanner[]>(
+		() =>
+			(tool?.writeIntentConflicts ?? []).map((conflict) => ({
+				...conflict,
+				key: `${conflict.agentId}:${conflict.filePath}`,
+			})),
+		[tool?.writeIntentConflicts],
+	)
+	const seededActivities = useMemo<Record<string, AgentActivity>>(
+		() => Object.fromEntries((tool?.agentActivities ?? []).map((activity) => [activity.agentId, activity])),
+		[tool?.agentActivities],
+	)
+	const [statusUpdates, setStatusUpdates] = useState<Record<string, AgentStatusUpdate>>(seededStatusUpdates)
+	const [conflicts, setConflicts] = useState<ConflictBanner[]>(seededConflicts)
+	const [activities, setActivities] = useState<Record<string, AgentActivity>>(seededActivities)
 
 	useEffect(() => {
-		setStatusUpdates({})
-		setConflicts([])
-	}, [activeExecutionPlan?.planId])
+		setStatusUpdates(seededStatusUpdates)
+		setConflicts(seededConflicts)
+		setActivities(seededActivities)
+	}, [executionPlan?.planId, seededActivities, seededConflicts, seededStatusUpdates])
 
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent<ExtensionMessage>) => {
@@ -99,6 +140,9 @@ export const AgentStatusPanel = () => {
 			switch (message.type) {
 				case "agentStatusUpdate": {
 					if (!message.agentStatusUpdate) {
+						return
+					}
+					if (agentIds.size > 0 && !agentIds.has(message.agentStatusUpdate.agentId)) {
 						return
 					}
 
@@ -117,6 +161,9 @@ export const AgentStatusPanel = () => {
 					}
 
 					const conflict = message.writeIntentConflict
+					if (agentIds.size > 0 && !agentIds.has(conflict.agentId)) {
+						return
+					}
 					const key = `${conflict.agentId}:${conflict.filePath}`
 					setConflicts((prev) => [
 						...prev.filter((item) => item.key !== key),
@@ -133,6 +180,9 @@ export const AgentStatusPanel = () => {
 					}
 
 					const { agentId, filePath } = message.writeIntentConflict
+					if (agentIds.size > 0 && !agentIds.has(agentId)) {
+						return
+					}
 					setConflicts((prev) =>
 						prev.filter((item) => !(item.agentId === agentId && item.filePath === filePath)),
 					)
@@ -143,35 +193,38 @@ export const AgentStatusPanel = () => {
 
 		window.addEventListener("message", handleMessage)
 		return () => window.removeEventListener("message", handleMessage)
-	}, [])
+	}, [agentIds])
 
 	const agents = useMemo(() => {
-		if (!activeExecutionPlan) {
+		if (!executionPlan) {
 			return []
 		}
 
-		return activeExecutionPlan.agents.map((agent) => ({
+		return executionPlan.agents.map((agent) => ({
 			...agent,
 			status: statusUpdates[agent.id]?.status ?? agent.status,
 			lastTouchedFile: statusUpdates[agent.id]?.lastTouchedFile ?? findLastTouchedFile(agent),
 			statusReason: statusUpdates[agent.id]?.reason,
 			blockedOn: statusUpdates[agent.id]?.blockedOn ?? agent.dependsOn,
 			usage: statusUpdates[agent.id]?.usage,
+			activity: activities[agent.id],
 		}))
-	}, [activeExecutionPlan, statusUpdates])
+	}, [activities, executionPlan, statusUpdates])
 
-	if (!activeExecutionPlan) {
+	if (!executionPlan) {
 		return null
 	}
 
 	const labelByAgentId = new Map(
-		activeExecutionPlan.agents.map((agent) => [agent.id, getAgentModeLabel(agent.mode, customModes)]),
+		executionPlan.agents.map((agent) => [agent.id, getAgentModeLabel(agent.mode, customModes)]),
 	)
 	const completeAgents = agents.filter((agent) => agent.status === "complete").length
-	const overallStatus = getOverallStatus(agents)
+	const phase = tool?.parallelStatus
+	const overallStatus = phase === "failed" ? "failed" : getOverallStatus(agents)
 	const runningAgents = agents.filter((agent) => agent.status === "running").length
 	const usageCount = agents.filter((agent) => agent.usage).length
 	const usageSummary = usageCount > 0 ? `${usageCount}/${agents.length} reporting usage` : undefined
+	const phaseLabel = phase ? phaseLabels[phase] : overallStatus
 
 	return (
 		<section
@@ -191,11 +244,9 @@ export const AgentStatusPanel = () => {
 						data-testid="agent-status-summary"
 						className="min-w-0 truncate text-vscode-descriptionForeground">
 						{completeAgents}/{agents.length} complete · {runningAgents} running · Plan{" "}
-						{activeExecutionPlan.planId}
+						{executionPlan.planId}
 					</span>
-					<Badge className={cn("shrink-0 capitalize", statusBadgeClasses[overallStatus])}>
-						{overallStatus}
-					</Badge>
+					<Badge className={cn("shrink-0 capitalize", statusBadgeClasses[overallStatus])}>{phaseLabel}</Badge>
 				</div>
 			</div>
 
@@ -207,7 +258,7 @@ export const AgentStatusPanel = () => {
 							{completeAgents}/{agents.length} agents complete
 						</span>
 						<span className="shrink-0 text-vscode-descriptionForeground">·</span>
-						<span className="truncate">{overallStatus}</span>
+						<span className="truncate">{phaseLabel}</span>
 						{usageSummary && (
 							<>
 								<span className="shrink-0 text-vscode-descriptionForeground">·</span>
@@ -271,6 +322,7 @@ export const AgentStatusPanel = () => {
 								.join(", ")
 							const agentLabel = getAgentModeLabel(agent.mode, customModes)
 							const usage = getUsageSummary(agent.usage)
+							const activity = agent.activity?.message
 
 							return (
 								<li
@@ -312,6 +364,14 @@ export const AgentStatusPanel = () => {
 												</span>
 											)}
 										</div>
+										{activity && (
+											<div
+												data-testid="agent-activity"
+												className="mt-0.5 truncate text-[11px] text-vscode-descriptionForeground">
+												<span className="codicon codicon-comment-discussion mr-1" />
+												{activity}
+											</div>
+										)}
 									</div>
 								</li>
 							)

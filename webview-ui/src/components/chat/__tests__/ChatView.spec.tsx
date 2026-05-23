@@ -47,6 +47,18 @@ vi.mock("use-sound", () => ({
 // Mock components that use ESM dependencies
 vi.mock("../ChatRow", () => ({
 	default: function MockChatRow({ message }: { message: ClineMessage }) {
+		if (message.type === "say" && message.say === "tool" && message.text) {
+			try {
+				const tool = JSON.parse(message.text)
+
+				if (tool.tool === "parallelAgents") {
+					return <section data-testid="agent-status-chat-card">Parallel agents status</section>
+				}
+			} catch {
+				// Fall through to the generic chat row mock for malformed tool payloads.
+			}
+		}
+
 		return <div data-testid="chat-row">{JSON.stringify(message)}</div>
 	},
 }))
@@ -1194,8 +1206,68 @@ describe("ChatView - Parallel Agent Status Tests", () => {
 		vi.clearAllMocks()
 	})
 
-	it("renders parallel status as a scrollable chat item instead of a persistent panel", async () => {
+	const createExecutionPlan = () => ({
+		planId: "plan-chat-flow",
+		sharedContext: "shared",
+		fileOwnershipMap: {},
+		createdAt: 12345,
+		agents: [
+			{
+				id: "agent-1",
+				mode: "code",
+				task: "Build UI",
+				owns: [{ path: "src/ui.tsx", mode: "exclusive" }],
+				mustNotTouch: [],
+				dependsOn: [],
+				worktreePath: "",
+				status: "running",
+				signals: [],
+			},
+		],
+	})
+
+	it("renders persisted parallel agent status as a native scrollable tool row", async () => {
 		const { getByTestId, queryByTestId } = renderChatView()
+		const executionPlan = createExecutionPlan()
+
+		mockPostMessage({
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Initial task",
+				},
+				{
+					type: "say",
+					say: "text",
+					ts: Date.now() - 1000,
+					text: "Working on parallel plan",
+				},
+				{
+					type: "say",
+					say: "tool",
+					ts: Date.now(),
+					text: JSON.stringify({
+						tool: "parallelAgents",
+						executionPlan,
+						parallelStatus: "running",
+					}),
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(getByTestId("agent-status-chat-card")).toBeInTheDocument()
+		})
+
+		const list = getByTestId("virtuoso-item-list")
+		expect(list).toContainElement(getByTestId("agent-status-chat-card"))
+		expect(queryByTestId("chat-textarea")).toBeInTheDocument()
+	})
+
+	it("does not append a synthetic parallel status row from active extension state alone", async () => {
+		const { queryByTestId } = renderChatView()
 
 		mockPostMessage({
 			clineMessages: [
@@ -1212,33 +1284,13 @@ describe("ChatView - Parallel Agent Status Tests", () => {
 					text: "Working on parallel plan",
 				},
 			],
-			activeExecutionPlan: {
-				planId: "plan-chat-flow",
-				sharedContext: "shared",
-				fileOwnershipMap: {},
-				createdAt: 12345,
-				agents: [
-					{
-						id: "agent-1",
-						mode: "code",
-						task: "Build UI",
-						owns: [{ path: "src/ui.tsx", mode: "exclusive" }],
-						mustNotTouch: [],
-						dependsOn: [],
-						worktreePath: "",
-						status: "running",
-						signals: [],
-					},
-				],
-			},
+			activeExecutionPlan: createExecutionPlan(),
 		})
 
 		await waitFor(() => {
-			expect(getByTestId("agent-status-chat-card")).toBeInTheDocument()
+			expect(queryByTestId("chat-textarea")).toBeInTheDocument()
 		})
 
-		const list = getByTestId("virtuoso-item-list")
-		expect(list).toContainElement(getByTestId("agent-status-chat-card"))
-		expect(queryByTestId("chat-textarea")).toBeInTheDocument()
+		expect(queryByTestId("agent-status-chat-card")).not.toBeInTheDocument()
 	})
 })

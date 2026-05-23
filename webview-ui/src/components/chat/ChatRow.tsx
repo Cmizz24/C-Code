@@ -33,6 +33,7 @@ import Thumbnails from "../common/Thumbnails"
 import ImageBlock from "../common/ImageBlock"
 import ErrorRow from "./ErrorRow"
 import WarningRow from "./WarningRow"
+import { AgentStatusPanel } from "@src/components/agents/AgentStatusPanel"
 
 import McpResourceRow from "../mcp/McpResourceRow"
 
@@ -1405,6 +1406,8 @@ export const ChatRowContent = ({
 					if (!sayTool) return null
 
 					switch (sayTool.tool) {
+						case "parallelAgents":
+							return <AgentStatusPanel tool={sayTool} />
 						case "runSlashCommand": {
 							const slashCommandInfo = sayTool
 							return (

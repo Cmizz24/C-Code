@@ -733,7 +733,19 @@ export interface ClineSayTool {
 		| "runSlashCommand"
 		| "updateTodoList"
 		| "skill"
+		| "parallelAgents"
 	path?: string
+	// Properties for parallelAgents tool status messages
+	executionPlan?: ExecutionPlan
+	parallelStatus?: "running" | "review" | "merged" | "cancelled" | "failed"
+	agentStatusUpdates?: AgentStatusUpdate[]
+	writeIntentConflicts?: WriteIntentConflict[]
+	agentActivities?: Array<{
+		agentId: string
+		message: string
+		ts: number
+	}>
+	mergeReviewEntries?: MergeReviewEntry[]
 	// For readCommandOutput
 	readStart?: number
 	readEnd?: number

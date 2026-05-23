@@ -1,4 +1,4 @@
-import type { ExecutionPlan, ExtensionMessage } from "@roo-code/types"
+import type { ClineSayTool, ExecutionPlan, ExtensionMessage } from "@roo-code/types"
 
 import { act, render, screen } from "@/utils/test-utils"
 import { ExtensionStateContext } from "@/context/ExtensionStateContext"
@@ -45,7 +45,7 @@ function createPlan(): ExecutionPlan {
 	}
 }
 
-function renderWithExtensionState(ui: React.ReactElement, plan = createPlan()) {
+function renderWithExtensionState(ui: React.ReactElement, plan: ExecutionPlan | undefined = createPlan()) {
 	return render(
 		<ExtensionStateContext.Provider value={{ activeExecutionPlan: plan, customModes: [] } as any}>
 			{ui}
@@ -107,5 +107,34 @@ describe("AgentStatusPanel", () => {
 		expect(screen.getByTestId("agent-status-summary")).toHaveTextContent("2/2 complete")
 		expect(screen.getAllByText("complete").length).toBeGreaterThan(0)
 		expect(screen.getAllByTestId("agent-status-row")).toHaveLength(2)
+	})
+
+	it("renders from a persisted parallelAgents tool payload without active extension state", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "review",
+			agentStatusUpdates: [
+				{
+					agentId: "styles-agent",
+					status: "complete",
+					lastTouchedFile: "src/dashboard.css",
+				},
+			],
+			agentActivities: [
+				{
+					agentId: "styles-agent",
+					message: "Applying a diff to src/dashboard.css.",
+					ts: 2,
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+
+		expect(screen.getByTestId("agent-status-summary")).toHaveTextContent("1/2 complete")
+		expect(screen.getAllByText("review ready")).not.toHaveLength(0)
+		expect(screen.getByTestId("agent-activity")).toHaveTextContent("Applying a diff to src/dashboard.css.")
 	})
 })
