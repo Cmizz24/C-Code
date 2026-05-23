@@ -104,10 +104,13 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 
 			await task.say("completion_result", result, undefined, false)
 
+			if (isParallelAgentTask(task)) {
+				this.emitTaskCompleted(task)
+				return
+			}
+
 			// Check for subtask using parentTaskId (metadata-driven delegation).
-			// Parallel agent tasks also have parentTaskId lineage, but they complete
-			// through AgentBus / OrchestratorEventLoop rather than Boomerang delegation.
-			if (task.parentTaskId && !isParallelAgentTask(task)) {
+			if (task.parentTaskId) {
 				// Check if this subtask has already completed and returned to parent
 				// to prevent duplicate tool_results when user revisits from history
 				const provider = task.providerRef.deref() as DelegationProvider | undefined

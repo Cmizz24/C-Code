@@ -93,6 +93,8 @@ export interface CreateTaskOptions {
 	workspacePath?: string
 	agentId?: string
 	systemPromptSuffix?: string
+	/** Run task without pushing it onto the visible task stack. */
+	background?: boolean
 	/** Initial status for the task's history item (e.g., "active" for child tasks) */
 	initialStatus?: "active" | "delegated" | "completed"
 	/** Whether to start the task loop immediately (default: true).

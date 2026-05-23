@@ -532,7 +532,7 @@ describe("attemptCompletionTool", () => {
 				)
 			})
 
-			it("lets parallel agent children complete without Boomerang delegation status checks", async () => {
+			it("lets parallel agent children complete without visible approval or Boomerang delegation", async () => {
 				const block: AttemptCompletionToolUse = {
 					type: "tool_use",
 					name: "attempt_completion",
@@ -568,6 +568,7 @@ describe("attemptCompletionTool", () => {
 				}
 
 				expect(provider.getTaskWithId).not.toHaveBeenCalled()
+				expect(parallelTask.ask).not.toHaveBeenCalled()
 				expect(mockAskFinishSubTaskApproval).not.toHaveBeenCalled()
 				expect(provider.reopenParentFromDelegation).not.toHaveBeenCalled()
 				expect(consoleError).not.toHaveBeenCalled()

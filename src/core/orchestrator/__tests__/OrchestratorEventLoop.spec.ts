@@ -127,6 +127,7 @@ describe("OrchestratorEventLoop", () => {
 		expect(options).toMatchObject({
 			mode: "ui-ux",
 			agentId: "ui",
+			background: true,
 			workspacePath: "C:/repo/.roo/plan-test/ui",
 		})
 		expect(options?.systemPromptSuffix).toContain("Single-agent task guidance:")
@@ -163,6 +164,7 @@ describe("OrchestratorEventLoop", () => {
 		expect(stylesMessage).not.toContain("Build the dashboard UI")
 
 		for (const options of [uiOptions, stylesOptions]) {
+			expect(options?.background).toBe(true)
 			expect(options?.systemPromptSuffix).toContain("Treat this as one normal specialist task")
 			expect(options?.systemPromptSuffix).toContain("use one tool call at a time")
 			expect(options?.systemPromptSuffix).toContain(
@@ -190,7 +192,31 @@ describe("OrchestratorEventLoop", () => {
 		expect(provider.getCurrentTask).toHaveBeenCalledTimes(1)
 		for (const call of vi.mocked(provider.createTask).mock.calls) {
 			expect(call[2]).toBe(orchestratorTask)
+			expect(call[3]?.background).toBe(true)
 		}
+		expect(currentTask).not.toBe(orchestratorTask)
+	})
+
+	it("requests background child tasks so the provider can keep the orchestrator visible", async () => {
+		const orchestratorTask = createTask("orchestrator-task")
+		let currentTask: TaskLike | undefined = orchestratorTask
+		const provider = createProvider({
+			getCurrentTask: vi.fn(() => currentTask),
+			createTask: vi.fn(async (_message, _images, _parentTask, options) => {
+				const childTask = createTask(`child-${options?.agentId}`)
+				if (!options?.background) {
+					currentTask = childTask
+				}
+				return childTask
+			}),
+		})
+
+		new OrchestratorEventLoop(provider, AgentBus.getInstance()).start(createTwoAgentPlan())
+
+		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(2))
+		expect(provider.getCurrentTask).toHaveBeenCalledTimes(1)
+		expect(currentTask).toBe(orchestratorTask)
+		expect(vi.mocked(provider.createTask).mock.calls.every((call) => call[3]?.background === true)).toBe(true)
 	})
 
 	it("marks the agent failed instead of leaving a rejected worktree promise", async () => {

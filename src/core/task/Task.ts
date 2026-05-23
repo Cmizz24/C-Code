@@ -178,6 +178,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	readonly workspacePath: string
 	readonly agentId?: string
 	readonly agentBus?: AgentBus
+	readonly background: boolean
 	private readonly systemPromptSuffix?: string
 
 	/**
@@ -442,6 +443,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		workspacePath,
 		agentId,
 		agentBus,
+		background = false,
 		systemPromptSuffix,
 		initialStatus,
 		mode,
@@ -482,6 +484,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			(parentTask ? parentTask.workspacePath : getWorkspacePath(path.join(os.homedir(), "Desktop")))
 		this.agentId = agentId
 		this.agentBus = agentBus
+		this.background = background
 		this.systemPromptSuffix = systemPromptSuffix
 
 		this.instanceId = crypto.randomUUID().slice(0, 8)
@@ -517,7 +520,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.messageQueueStateChangedHandler = () => {
 			this.emit(RooCodeEventName.TaskUserMessage, this.taskId)
 			this.emit(RooCodeEventName.QueuedMessagesUpdated, this.taskId, this.messageQueueService.messages)
-			this.providerRef.deref()?.postStateToWebviewWithoutTaskHistory()
+			if (!this.background) {
+				this.providerRef.deref()?.postStateToWebviewWithoutTaskHistory()
+			}
 		}
 
 		this.messageQueueService.on("stateChanged", this.messageQueueStateChangedHandler)
@@ -1169,7 +1174,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const provider = this.providerRef.deref()
 		// Avoid resending large, mostly-static fields (notably taskHistory) on every chat message update.
 		// taskHistory is maintained in-memory in the webview and updated via taskHistoryItemUpdated.
-		await provider?.postStateToWebviewWithoutTaskHistory()
+		if (!this.background) {
+			await provider?.postStateToWebviewWithoutTaskHistory()
+		}
 		this.emit(RooCodeEventName.Message, { action: "created", message })
 		await this.saveClineMessages()
 	}
@@ -1181,6 +1188,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	private async updateClineMessage(message: ClineMessage) {
+		if (this.background) {
+			this.emit(RooCodeEventName.Message, { action: "updated", message })
+			return
+		}
+
 		const provider = this.providerRef.deref()
 		await provider?.postMessageToWebview({ type: "messageUpdated", clineMessage: message })
 		this.emit(RooCodeEventName.Message, { action: "updated", message })
@@ -1926,7 +1938,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// The todo list is already set in the constructor if initialTodos were provided
 			// No need to add any messages - the todoList property is already set
 
-			await this.providerRef.deref()?.postStateToWebviewWithoutTaskHistory()
+			if (!this.background) {
+				await this.providerRef.deref()?.postStateToWebviewWithoutTaskHistory()
+			}
 
 			await this.say("text", task, images)
 

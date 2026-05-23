@@ -81,6 +81,7 @@ export class OrchestratorEventLoop {
 			const task = await this.provider.createTask(agentMessage, undefined, this.orchestratorTask, {
 				mode: agent.mode,
 				agentId: agent.id,
+				background: true,
 				workspacePath: agent.worktreePath,
 				systemPromptSuffix,
 			})

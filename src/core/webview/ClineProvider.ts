@@ -141,6 +141,7 @@ export class ClineProvider
 	private webviewDisposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private clineStack: Task[] = []
+	private backgroundTasks: Set<Task> = new Set()
 	private codeIndexStatusSubscription?: vscode.Disposable
 	private codeIndexManager?: CodeIndexManager
 	private _workspaceTracker?: WorkspaceTracker // workSpaceTracker read-only for access outside this class
@@ -275,12 +276,22 @@ export class ClineProvider
 
 			// Create named listener functions so we can remove them later.
 			const onTaskStarted = () => this.emit(RooCodeEventName.TaskStarted, instance.taskId)
-			const onTaskCompleted = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) =>
+			const onTaskCompleted = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) => {
+				if (instance.background) {
+					this.removeBackgroundTask(instance)
+				}
+
 				this.emit(RooCodeEventName.TaskCompleted, taskId, tokenUsage, toolUsage)
+			}
 			const onTaskAborted = async () => {
 				this.emit(RooCodeEventName.TaskAborted, instance.taskId)
 
 				try {
+					if (instance.background) {
+						this.removeBackgroundTask(instance)
+						return
+					}
+
 					// Only rehydrate on genuine streaming failures.
 					// User-initiated cancels are handled by cancelTask().
 					if (instance.abortReason === "streaming_failed") {
@@ -422,6 +433,30 @@ export class ClineProvider
 
 		if (!state || typeof state.mode !== "string") {
 			throw new Error(t("common:errors.retrieve_current_mode"))
+		}
+	}
+
+	private async addBackgroundTask(task: Task) {
+		this.backgroundTasks.add(task)
+		await this.performPreparationTasks(task)
+
+		const state = await this.getState()
+
+		if (!state || typeof state.mode !== "string") {
+			throw new Error(t("common:errors.retrieve_current_mode"))
+		}
+	}
+
+	private removeBackgroundTask(task: Task) {
+		if (!this.backgroundTasks.delete(task)) {
+			return
+		}
+
+		const cleanupFunctions = this.taskEventListeners.get(task)
+
+		if (cleanupFunctions) {
+			cleanupFunctions.forEach((cleanup) => cleanup())
+			this.taskEventListeners.delete(task)
 		}
 	}
 
@@ -615,6 +650,19 @@ export class ClineProvider
 		// Clear all tasks from the stack.
 		while (this.clineStack.length > 0) {
 			await this.removeClineFromStack()
+		}
+		for (const task of Array.from(this.backgroundTasks)) {
+			try {
+				await task.abortTask(true)
+			} catch (error) {
+				this.log(
+					`[ClineProvider#dispose] abort background task failed ${task.taskId}.${task.instanceId}: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			}
+
+			this.removeBackgroundTask(task)
 		}
 		this.orchestratorEventLoop?.stop()
 		this.orchestratorEventLoop = undefined
@@ -2667,8 +2715,10 @@ export class ClineProvider
 		const { apiConfiguration, organizationAllowList, enableCheckpoints, checkpointTimeout, experiments } =
 			await this.getState()
 
-		// Single-open-task invariant: always enforce for user-initiated top-level tasks
-		if (!parentTask) {
+		// Single-open-task invariant: always enforce for user-initiated top-level tasks.
+		// Background agent tasks must never disturb the visible task, even if they
+		// are created without parent lineage in a degraded path.
+		if (!parentTask && !options.background) {
 			try {
 				await this.removeClineFromStack()
 			} catch {
@@ -2701,11 +2751,15 @@ export class ClineProvider
 			...options,
 		})
 
-		await this.addClineToStack(task)
+		if (options.background) {
+			await this.addBackgroundTask(task)
+		} else {
+			await this.addClineToStack(task)
+		}
 		task.start()
 
 		this.log(
-			`[createTask] ${task.parentTask ? "child" : "parent"} task ${task.taskId}.${task.instanceId} instantiated`,
+			`[createTask] ${task.parentTask ? "child" : "parent"}${task.background ? " background" : ""} task ${task.taskId}.${task.instanceId} instantiated`,
 		)
 
 		return task

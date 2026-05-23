@@ -11,6 +11,7 @@ import {
 	type ExtensionState,
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
+	RooCodeEventName,
 } from "@roo-code/types"
 
 import { defaultModeSlug } from "../../../shared/modes"
@@ -181,21 +182,59 @@ vi.mock("../../../integrations/workspace/WorkspaceTracker", () => {
 })
 
 vi.mock("../../task/Task", () => ({
-	Task: vi.fn().mockImplementation((options: any) => ({
-		api: undefined,
-		abortTask: vi.fn(),
-		handleWebviewAskResponse: vi.fn(),
-		clineMessages: [],
-		apiConversationHistory: [],
-		overwriteClineMessages: vi.fn(),
-		overwriteApiConversationHistory: vi.fn(),
-		getTaskNumber: vi.fn().mockReturnValue(0),
-		setTaskNumber: vi.fn(),
-		setParentTask: vi.fn(),
-		setRootTask: vi.fn(),
-		taskId: options?.historyItem?.id || "test-task-id",
-		emit: vi.fn(),
-	})),
+	Task: vi.fn().mockImplementation((options: any) => {
+		const listeners = new Map<string, Set<(...args: any[]) => unknown>>()
+		const task: any = {
+			api: undefined,
+			apiConfiguration: options?.apiConfiguration,
+			abortTask: vi.fn(),
+			cancelCurrentRequest: vi.fn(),
+			handleWebviewAskResponse: vi.fn(),
+			clineMessages: [],
+			apiConversationHistory: [],
+			overwriteClineMessages: vi.fn(),
+			overwriteApiConversationHistory: vi.fn(),
+			getTaskNumber: vi.fn().mockReturnValue(0),
+			setTaskNumber: vi.fn(),
+			setParentTask: vi.fn(),
+			setRootTask: vi.fn(),
+			start: vi.fn(),
+			taskId: options?.historyItem?.id || options?.taskId || "test-task-id",
+			instanceId: `test-instance-${options?.historyItem?.id || options?.taskId || options?.taskNumber || "new"}`,
+			rootTask: options?.rootTask,
+			parentTask: options?.parentTask,
+			rootTaskId: options?.historyItem?.rootTaskId ?? options?.rootTask?.taskId,
+			parentTaskId: options?.historyItem?.parentTaskId ?? options?.parentTask?.taskId,
+			background: options?.background ?? false,
+			abortReason: undefined,
+			abandoned: false,
+			abort: false,
+			isStreaming: false,
+			didFinishAbortingStream: false,
+			isWaitingForFirstChunk: false,
+			on: vi.fn((event: string, listener: (...args: any[]) => unknown) => {
+				const key = String(event)
+				const eventListeners = listeners.get(key) ?? new Set<(...args: any[]) => unknown>()
+				eventListeners.add(listener)
+				listeners.set(key, eventListeners)
+				return task
+			}),
+			off: vi.fn((event: string, listener: (...args: any[]) => unknown) => {
+				listeners.get(String(event))?.delete(listener)
+				return task
+			}),
+			emit: vi.fn((event: string, ...args: any[]) => {
+				for (const listener of listeners.get(String(event)) ?? []) {
+					void listener(...args)
+				}
+				return true
+			}),
+		}
+
+		options?.onCreated?.(task)
+
+		return task
+	}),
 }))
 
 vi.mock("../../../integrations/misc/extract-text", () => ({
@@ -318,9 +357,12 @@ afterAll(() => {
 describe("ClineProvider", () => {
 	beforeAll(() => {
 		vi.mocked(Task).mockImplementation((options: any) => {
+			const listeners = new Map<string, Set<(...args: any[]) => unknown>>()
 			const task: any = {
 				api: undefined,
+				apiConfiguration: options?.apiConfiguration,
 				abortTask: vi.fn(),
+				cancelCurrentRequest: vi.fn(),
 				handleWebviewAskResponse: vi.fn(),
 				clineMessages: [],
 				apiConversationHistory: [],
@@ -330,13 +372,44 @@ describe("ClineProvider", () => {
 				setTaskNumber: vi.fn(),
 				setParentTask: vi.fn(),
 				setRootTask: vi.fn(),
-				taskId: options?.historyItem?.id || "test-task-id",
-				emit: vi.fn(),
+				start: vi.fn(),
+				taskId: options?.historyItem?.id || options?.taskId || "test-task-id",
+				instanceId: `test-instance-${options?.historyItem?.id || options?.taskId || options?.taskNumber || "new"}`,
+				rootTask: options?.rootTask,
+				parentTask: options?.parentTask,
+				rootTaskId: options?.historyItem?.rootTaskId ?? options?.rootTask?.taskId,
+				parentTaskId: options?.historyItem?.parentTaskId ?? options?.parentTask?.taskId,
+				background: options?.background ?? false,
+				abortReason: undefined,
+				abandoned: false,
+				abort: false,
+				isStreaming: false,
+				didFinishAbortingStream: false,
+				isWaitingForFirstChunk: false,
+				on: vi.fn((event: string, listener: (...args: any[]) => unknown) => {
+					const key = String(event)
+					const eventListeners = listeners.get(key) ?? new Set<(...args: any[]) => unknown>()
+					eventListeners.add(listener)
+					listeners.set(key, eventListeners)
+					return task
+				}),
+				off: vi.fn((event: string, listener: (...args: any[]) => unknown) => {
+					listeners.get(String(event))?.delete(listener)
+					return task
+				}),
+				emit: vi.fn((event: string, ...args: any[]) => {
+					for (const listener of listeners.get(String(event)) ?? []) {
+						void listener(...args)
+					}
+					return true
+				}),
 			}
 
 			Object.defineProperty(task, "messageManager", {
 				get: () => new MessageManager(task),
 			})
+
+			options?.onCreated?.(task)
 
 			return task
 		})
@@ -749,6 +822,58 @@ describe("ClineProvider", () => {
 
 		// verify current cline instance is the last one added
 		expect(provider.getCurrentTask()).toBe(mockCline2)
+	})
+
+	test("createTask starts background agents without changing the visible task stack", async () => {
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		vi.mocked(parentTask.emit).mockClear()
+
+		const removeClineFromStackSpy = vi.spyOn(provider, "removeClineFromStack")
+		const focusedTaskIds: string[] = []
+		provider.on(RooCodeEventName.TaskFocused, (taskId) => {
+			focusedTaskIds.push(taskId)
+		})
+
+		const backgroundTask = await provider.createTask("Run a specialist agent task", undefined, parentTask, {
+			agentId: "dashboard-js-animation",
+			background: true,
+			mode: "code",
+		})
+
+		expect(backgroundTask.background).toBe(true)
+		expect(backgroundTask.parentTask).toBe(parentTask)
+		expect(backgroundTask.start).toHaveBeenCalledTimes(1)
+		expect(provider.getTaskStackSize()).toBe(1)
+		expect(provider.getCurrentTask()).toBe(parentTask)
+		expect(removeClineFromStackSpy).not.toHaveBeenCalled()
+		expect(backgroundTask.emit).not.toHaveBeenCalledWith(RooCodeEventName.TaskFocused)
+		expect(focusedTaskIds).toEqual([])
+		expect((provider as any).backgroundTasks.has(backgroundTask)).toBe(true)
+	})
+
+	test("background agent streaming aborts clean up without visible task rehydration", async () => {
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+
+		const backgroundTask = await provider.createTask("Run a specialist agent task", undefined, parentTask, {
+			agentId: "dashboard-js-animation",
+			background: true,
+			mode: "code",
+		})
+		backgroundTask.abortReason = "streaming_failed"
+
+		const getTaskWithIdSpy = vi.spyOn(provider, "getTaskWithId")
+		const createTaskWithHistoryItemSpy = vi.spyOn(provider, "createTaskWithHistoryItem")
+
+		backgroundTask.emit(RooCodeEventName.TaskAborted)
+
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.has(backgroundTask)).toBe(false))
+		expect(getTaskWithIdSpy).not.toHaveBeenCalled()
+		expect(createTaskWithHistoryItemSpy).not.toHaveBeenCalled()
+		expect(provider.getTaskStackSize()).toBe(1)
+		expect(provider.getCurrentTask()).toBe(parentTask)
+		expect(backgroundTask.off).toHaveBeenCalled()
 	})
 
 	test("getState returns correct initial state", async () => {
