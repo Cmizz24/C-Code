@@ -1389,35 +1389,40 @@ describe("ClineProvider", () => {
 				ownedPaths: ["src/dashboard.tsx"],
 			}),
 		)
-		expect(mockPostMessage).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: "showMergeReview",
-				mergeReviewEntries: expect.arrayContaining([
-					expect.objectContaining({
-						agentId: "dashboard-agent",
-						diff: expect.stringContaining("diff --git"),
-						changeStats: {
-							filesChanged: 1,
-							additions: 1,
-							deletions: 0,
-							totalChanges: 1,
-							binaryFiles: 0,
-						},
-					}),
-					expect.objectContaining({
-						agentId: "styles-agent",
-						diff: "",
-						noChangesReason: "No changes detected in this agent worktree.",
-						changeStats: {
-							filesChanged: 0,
-							additions: 0,
-							deletions: 0,
-							totalChanges: 0,
-							binaryFiles: 0,
-						},
-					}),
-				]),
-			}),
+		expect(
+			mockPostMessage.mock.calls.some(([message]: [ExtensionMessage]) => message.type === "showMergeReview"),
+		).toBe(false)
+		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+		expect(statusTool.parallelStatus).toBe("review")
+		expect(statusTool.mergeReviewEntries).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					diff: expect.stringContaining("diff --git"),
+					changeStats: {
+						filesChanged: 1,
+						additions: 1,
+						deletions: 0,
+						totalChanges: 1,
+						binaryFiles: 0,
+					},
+				}),
+				expect.objectContaining({
+					agentId: "styles-agent",
+					diff: "",
+					noChangesReason: "No changes detected in this agent worktree.",
+					changeStats: {
+						filesChanged: 0,
+						additions: 0,
+						deletions: 0,
+						totalChanges: 0,
+						binaryFiles: 0,
+					},
+				}),
+			]),
+		)
+		expect(statusTool.parallelReviewSummary?.markdown).toContain(
+			"Full per-agent diffs are available in the saved parallel agent merge review row in chat.",
 		)
 	})
 
@@ -1516,15 +1521,9 @@ describe("ClineProvider", () => {
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
 		expect(cleanupPlanBaseline).toHaveBeenCalledWith("plan-webview-provider")
-		expect(mockPostMessage).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: "showMergeReview",
-				mergeReviewEntries: expect.arrayContaining([
-					expect.objectContaining({ agentId: "dashboard-agent" }),
-					expect.objectContaining({ agentId: "styles-agent" }),
-				]),
-			}),
-		)
+		expect(
+			mockPostMessage.mock.calls.some(([message]: [ExtensionMessage]) => message.type === "showMergeReview"),
+		).toBe(false)
 		expect(mockPostMessage).toHaveBeenCalledWith({ type: "mergeComplete" })
 
 		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
@@ -1550,7 +1549,9 @@ describe("ClineProvider", () => {
 		expect(statusTool.parallelReviewSummary).toEqual(
 			expect.objectContaining({
 				path: ".roo/parallel-agent-review.md",
-				markdown: expect.stringContaining("Full per-agent diffs are available in the merge review panel."),
+				markdown: expect.stringContaining(
+					"Full per-agent diffs are available in the saved parallel agent merge review row in chat.",
+				),
 			}),
 		)
 		expect(statusTool.parallelReviewSummary?.markdown).toContain("dashboard-agent: merged; 1 files, +1/-0")
@@ -1592,10 +1593,18 @@ describe("ClineProvider", () => {
 		await provider.showMergeReview(plan)
 
 		expect(mergeBranch).not.toHaveBeenCalled()
-		expect(mockPostMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "showMergeReview" }))
+		expect(
+			mockPostMessage.mock.calls.some(([message]: [ExtensionMessage]) => message.type === "showMergeReview"),
+		).toBe(false)
 		expect(mockPostMessage).not.toHaveBeenCalledWith({ type: "mergeComplete" })
 		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
 		expect(statusTool.parallelStatus).toBe("review")
+		expect(statusTool.mergeReviewEntries).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ agentId: "dashboard-agent" }),
+				expect.objectContaining({ agentId: "styles-agent" }),
+			]),
+		)
 	})
 
 	test("skips auto-merge when the final review has an unmergeable entry", async () => {
@@ -1633,20 +1642,20 @@ describe("ClineProvider", () => {
 		await provider.showMergeReview(plan)
 
 		expect(mergeBranch).not.toHaveBeenCalled()
-		expect(mockPostMessage).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: "showMergeReview",
-				mergeReviewEntries: expect.arrayContaining([
-					expect.objectContaining({
-						agentId: "styles-agent",
-						reviewError: "Merge conflict during review",
-						mergeable: false,
-					}),
-				]),
-			}),
-		)
+		expect(
+			mockPostMessage.mock.calls.some(([message]: [ExtensionMessage]) => message.type === "showMergeReview"),
+		).toBe(false)
 		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
 		expect(statusTool.parallelStatus).toBe("review")
+		expect(statusTool.mergeReviewEntries).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "styles-agent",
+					reviewError: "Merge conflict during review",
+					mergeable: false,
+				}),
+			]),
+		)
 		expect(statusTool.agentActivities).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
@@ -1821,6 +1830,93 @@ describe("ClineProvider", () => {
 			expect.arrayContaining([expect.objectContaining({ agentId: "dashboard-agent", mergeStatus: "merged" })]),
 		)
 		expect(mockPostMessage).toHaveBeenCalledWith({ type: "mergeComplete" })
+	})
+
+	test("merge denial restores persisted review state and marks the chat row cancelled", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		parentTask.apiConversationHistory = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "Resume pending parallel review" }],
+			},
+		] as any
+		parentTask.overwriteApiConversationHistory = vi.fn(async (history) => {
+			parentTask.apiConversationHistory = history as any
+		})
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		parentTask.clineMessages = [
+			{
+				type: "say",
+				say: "tool",
+				text: JSON.stringify({
+					tool: "parallelAgents",
+					executionPlan: plan,
+					parallelStatus: "review",
+					agentStatusUpdates: plan.agents.map((agent) => ({ agentId: agent.id, status: "complete" })),
+					mergeReviewEntries: plan.agents.map((agent) => ({
+						agentId: agent.id,
+						mode: agent.mode,
+						task: agent.task,
+						diff: `diff --git a/src/${agent.id}.ts b/src/${agent.id}.ts\n+done\n`,
+						worktreePath: `/tmp/${agent.id}`,
+						branch: `roo/parallel/plan-webview-provider/${agent.id}`,
+						mergeStatus: "pending",
+					})),
+				} satisfies ClineSayTool),
+				ts: 101,
+			},
+		]
+		await provider.addClineToStack(parentTask)
+		const removeWorktree = vi.fn().mockResolvedValue(undefined)
+		const cleanup = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = undefined
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview: vi.fn(
+				async ({ agentId }: { agentId: string }) =>
+					`diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
+			),
+			mergeBranch: vi.fn().mockResolvedValue(undefined),
+			removeWorktree,
+			cleanup,
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await expect(provider.denyMergeReview()).resolves.toBe(true)
+
+		expect(cleanup).toHaveBeenCalled()
+		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
+		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
+		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+		expect(statusTool.parallelStatus).toBe("cancelled")
+		expect(statusTool.mergeReviewEntries).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					mergeStatus: "skipped",
+					autoMergeSkippedReason: "Merge review was denied from chat.",
+				}),
+				expect.objectContaining({
+					agentId: "styles-agent",
+					mergeStatus: "skipped",
+					autoMergeSkippedReason: "Merge review was denied from chat.",
+				}),
+			]),
+		)
+		expect(mockPostMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "mergeFailed" }))
+		const lastApiMessage = parentTask.apiConversationHistory.at(-1) as any
+		expect(lastApiMessage.content[0].text).toContain(
+			"[PARALLEL AGENT SUMMARY] Plan plan-webview-provider is cancelled.",
+		)
+		expect(lastApiMessage.content[0].text).toContain("Merge review was denied from chat.")
 	})
 
 	test("background agent streaming aborts clean up without visible task rehydration", async () => {

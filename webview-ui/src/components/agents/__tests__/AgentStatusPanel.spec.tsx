@@ -3,7 +3,6 @@ import type { ClineSayTool, ExecutionPlan, ExtensionMessage } from "@roo-code/ty
 import { act, fireEvent, render, screen, within } from "@/utils/test-utils"
 import { ExtensionStateContext } from "@/context/ExtensionStateContext"
 import { TranslationContext } from "@/i18n/TranslationContext"
-import { vscode } from "@/utils/vscode"
 
 import { AgentStatusPanel } from "../AgentStatusPanel"
 
@@ -330,7 +329,7 @@ describe("AgentStatusPanel", () => {
 				markdown: [
 					"# Parallel agent review for plan-test",
 					"",
-					"Full per-agent diffs are available in the merge review panel.",
+					"Full per-agent diffs are available in the saved parallel agent merge review row in chat.",
 					"- ui-agent: pending; 1 files, +1/-1",
 				].join("\n"),
 			},
@@ -340,7 +339,9 @@ describe("AgentStatusPanel", () => {
 
 		const summary = screen.getByTestId("parallel-agent-review-summary")
 		expect(summary).toHaveTextContent("Parallel agent review summary")
-		expect(summary).toHaveTextContent("Full per-agent diffs are available in the merge review panel.")
+		expect(summary).toHaveTextContent(
+			"Full per-agent diffs are available in the saved parallel agent merge review row in chat.",
+		)
 		expect(summary).not.toHaveTextContent("User Edits")
 		expect(summary).not.toHaveTextContent("User Edit")
 	})
@@ -397,8 +398,7 @@ describe("AgentStatusPanel", () => {
 		expect(screen.getByTestId("merge-review-inline-diff-ui-agent")).toBeInTheDocument()
 	})
 
-	it("posts selected persisted merge review entries from the inline chat row", () => {
-		vi.mocked(vscode.postMessage).mockClear()
+	it("renders persisted merge review statuses without inline approval controls", () => {
 		const plan = createPlan()
 		const tool: ClineSayTool = {
 			tool: "parallelAgents",
@@ -436,26 +436,14 @@ describe("AgentStatusPanel", () => {
 		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
 		fireEvent.click(screen.getByTestId("merge-review-toggle"))
 
-		const mergeButton = screen.getByTestId("merge-review-inline-merge-approved")
-		expect(mergeButton).toBeDisabled()
 		expect(screen.getByTestId("merge-review-inline-status-ui-agent")).toHaveTextContent("pending")
 		expect(screen.getByTestId("merge-review-inline-status-styles-agent")).toHaveTextContent("merged")
-
-		const uiApproval = screen.getByTestId("merge-review-inline-approval-ui-agent")
-		const stylesApproval = screen.getByTestId("merge-review-inline-approval-styles-agent")
-		expect(stylesApproval).toBeDisabled()
-
-		fireEvent.click(uiApproval)
-
-		expect(uiApproval).toHaveAttribute("aria-pressed", "true")
-		expect(mergeButton).not.toBeDisabled()
-
-		fireEvent.click(mergeButton)
-
-		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "mergeApprovedAgents", ids: ["ui-agent"] })
+		expect(screen.queryByTestId("merge-review-inline-merge-approved")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("merge-review-inline-approval-ui-agent")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("merge-review-inline-approval-styles-agent")).not.toBeInTheDocument()
 	})
 
-	it("shows failed merge details and disables unsafe inline merge review entries", () => {
+	it("shows failed merge details and skipped auto-merge reasons", () => {
 		const plan = createPlan()
 		const tool: ClineSayTool = {
 			tool: "parallelAgents",
@@ -493,7 +481,7 @@ describe("AgentStatusPanel", () => {
 		expect(screen.getByTestId("merge-review-inline-status-ui-agent")).toHaveTextContent("failed")
 		expect(screen.getByTestId("merge-review-inline-merge-error-ui-agent")).toHaveTextContent("CONFLICT (add/add)")
 		expect(screen.getByTestId("merge-review-inline-conflicts-ui-agent")).toHaveTextContent("index.html")
-		expect(screen.getByTestId("merge-review-inline-approval-ui-agent")).toBeDisabled()
+		expect(screen.queryByTestId("merge-review-inline-approval-ui-agent")).not.toBeInTheDocument()
 
 		expect(screen.getByTestId("merge-review-inline-status-styles-agent")).toHaveTextContent("skipped")
 		expect(screen.getByTestId("merge-review-inline-auto-skip-styles-agent")).toHaveTextContent(

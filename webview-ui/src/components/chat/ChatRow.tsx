@@ -467,6 +467,8 @@ export const ChatRowContent = ({
 		)
 
 		switch (tool.tool as string) {
+			case "parallelAgents":
+				return <AgentStatusPanel tool={tool} />
 			case "editedExistingFile":
 			case "appliedDiff":
 			case "newFileCreated":

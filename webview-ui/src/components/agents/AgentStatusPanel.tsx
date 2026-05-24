@@ -21,7 +21,12 @@ import { formatLargeNumber } from "@/utils/format"
 import { vscode } from "@/utils/vscode"
 
 import { getAgentModeLabel } from "./agentDisplay"
-import { formatMergeReviewStatsLabel, getMergeReviewChangeStats, hasMergeReviewDiff } from "./mergeReviewDisplay"
+import {
+	formatMergeReviewStatsLabel,
+	getMergeReviewChangeStats,
+	getMergeReviewEntryStatus,
+	hasMergeReviewDiff,
+} from "./mergeReviewDisplay"
 
 type ConflictBanner = WriteIntentConflict & {
 	key: string
@@ -81,20 +86,6 @@ const mergeReviewStatusBadgeClasses: Record<NonNullable<MergeReviewEntry["mergeS
 	failed: "border-vscode-errorForeground/50 bg-vscode-errorForeground/10 text-vscode-errorForeground",
 	skipped:
 		"border-vscode-editorWarning-foreground/50 bg-vscode-editorWarning-foreground/10 text-vscode-editorWarning-foreground",
-}
-
-const getMergeReviewEntryStatus = (entry: MergeReviewEntry): NonNullable<MergeReviewEntry["mergeStatus"]> =>
-	entry.mergeStatus ?? (entry.reviewError || entry.mergeError ? "failed" : "pending")
-
-const isMergeReviewEntrySelectable = (entry: MergeReviewEntry): boolean => {
-	const status = getMergeReviewEntryStatus(entry)
-	return (
-		entry.mergeable !== false &&
-		!entry.reviewError &&
-		!entry.mergeError &&
-		status !== "failed" &&
-		status !== "merged"
-	)
 }
 
 const activityIconClasses: Record<AgentActivityKind, string> = {
@@ -285,17 +276,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 	const [expandedAgentIds, setExpandedAgentIds] = useState<Set<string>>(() => new Set())
 	const [isMergeReviewExpanded, setIsMergeReviewExpanded] = useState(false)
 	const [expandedMergeReviewDiffIds, setExpandedMergeReviewDiffIds] = useState<Set<string>>(() => new Set())
-	const [approvedMergeReviewAgentIds, setApprovedMergeReviewAgentIds] = useState<Set<string>>(() => new Set())
 	const mergeReviewEntries = useMemo(() => tool?.mergeReviewEntries ?? [], [tool?.mergeReviewEntries])
-	const approvedMergeReviewIds = useMemo(
-		() =>
-			mergeReviewEntries
-				.filter(
-					(entry) => approvedMergeReviewAgentIds.has(entry.agentId) && isMergeReviewEntrySelectable(entry),
-				)
-				.map((entry) => entry.agentId),
-		[approvedMergeReviewAgentIds, mergeReviewEntries],
-	)
 
 	useEffect(() => {
 		setStatusUpdates(seededStatusUpdates)
@@ -307,23 +288,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 		setExpandedAgentIds(new Set())
 		setIsMergeReviewExpanded(false)
 		setExpandedMergeReviewDiffIds(new Set())
-		setApprovedMergeReviewAgentIds(new Set())
 	}, [executionPlan?.planId])
-
-	useEffect(() => {
-		setApprovedMergeReviewAgentIds((prev) => {
-			if (prev.size === 0) {
-				return prev
-			}
-
-			const selectableAgentIds = new Set(
-				mergeReviewEntries.filter(isMergeReviewEntrySelectable).map((entry) => entry.agentId),
-			)
-			const next = new Set([...prev].filter((agentId) => selectableAgentIds.has(agentId)))
-
-			return next.size === prev.size ? prev : next
-		})
-	}, [mergeReviewEntries])
 
 	const toggleExpandedAgent = (agentId: string) => {
 		setExpandedAgentIds((prev) => {
@@ -351,32 +316,6 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 
 			return next
 		})
-	}
-
-	const toggleMergeReviewApproval = (entry: MergeReviewEntry) => {
-		if (!isMergeReviewEntrySelectable(entry)) {
-			return
-		}
-
-		setApprovedMergeReviewAgentIds((prev) => {
-			const next = new Set(prev)
-
-			if (next.has(entry.agentId)) {
-				next.delete(entry.agentId)
-			} else {
-				next.add(entry.agentId)
-			}
-
-			return next
-		})
-	}
-
-	const mergeApprovedReviewEntries = () => {
-		if (approvedMergeReviewIds.length === 0) {
-			return
-		}
-
-		vscode.postMessage({ type: "mergeApprovedAgents", ids: approvedMergeReviewIds })
 	}
 
 	useEffect(() => {
@@ -636,8 +575,6 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 										const hasDiff = hasMergeReviewDiff(entry)
 										const isDiffExpanded = expandedMergeReviewDiffIds.has(entry.agentId)
 										const mergeStatus = getMergeReviewEntryStatus(entry)
-										const canApprove = isMergeReviewEntrySelectable(entry)
-										const approved = approvedMergeReviewAgentIds.has(entry.agentId) && canApprove
 
 										return (
 											<div
@@ -663,19 +600,6 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 													<span className="min-w-0 truncate font-mono text-vscode-descriptionForeground">
 														{entry.branch}
 													</span>
-												</div>
-												<div className="mb-2 flex flex-wrap items-center gap-1.5">
-													<Button
-														variant={approved ? "primary" : "secondary"}
-														size="sm"
-														data-testid={`merge-review-inline-approval-${entry.agentId}`}
-														aria-pressed={approved}
-														disabled={!canApprove}
-														onClick={() => toggleMergeReviewApproval(entry)}>
-														{approved
-															? t("chat:parallelAgents.mergeReview.approved")
-															: t("chat:parallelAgents.mergeReview.approveAndMerge")}
-													</Button>
 												</div>
 												<div
 													data-testid={`merge-review-inline-stats-${entry.agentId}`}
@@ -777,16 +701,6 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 											</div>
 										)
 									})}
-									<div className="flex justify-end border-t border-vscode-sideBar-background pt-2">
-										<Button
-											variant="primary"
-											size="sm"
-											data-testid="merge-review-inline-merge-approved"
-											disabled={approvedMergeReviewIds.length === 0}
-											onClick={mergeApprovedReviewEntries}>
-											{t("chat:parallelAgents.mergeReview.mergeAllApproved")}
-										</Button>
-									</div>
 								</div>
 							)}
 						</div>

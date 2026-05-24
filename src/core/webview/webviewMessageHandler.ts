@@ -658,6 +658,10 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			await provider.mergeApprovedAgents(message.ids)
 			break
 
+		case "mergeDeniedAgents":
+			await provider.denyMergeReview()
+			break
+
 		case "updateSettings":
 			if (message.updatedSettings) {
 				for (const [key, value] of Object.entries(message.updatedSettings)) {

@@ -1,11 +1,11 @@
-import type { ExecutionPlan, MergeReviewEntry } from "@roo-code/types"
+import type { ClineSayTool, ExecutionPlan, MergeReviewEntry } from "@roo-code/types"
 
 import { fireEvent, render, screen } from "@/utils/test-utils"
 import { ExtensionStateContext } from "@/context/ExtensionStateContext"
 import { TranslationContext } from "@/i18n/TranslationContext"
 
 import { PlanPreviewModal } from "../PlanPreviewModal"
-import { MergeReviewPanel } from "../MergeReviewPanel"
+import { AgentStatusPanel } from "../AgentStatusPanel"
 
 const extensionState = {
 	customModes: [],
@@ -36,6 +36,18 @@ function renderWithExtensionState(ui: React.ReactElement) {
 			<ExtensionStateContext.Provider value={extensionState as any}>{ui}</ExtensionStateContext.Provider>
 		</TranslationContext.Provider>,
 	)
+}
+
+function renderSavedMergeReview(entries: MergeReviewEntry[], plan: ExecutionPlan = createPlan()) {
+	const tool: ClineSayTool = {
+		tool: "parallelAgents",
+		executionPlan: plan,
+		parallelStatus: "review",
+		mergeReviewEntries: entries,
+	}
+
+	renderWithExtensionState(<AgentStatusPanel tool={tool} />)
+	fireEvent.click(screen.getByTestId("merge-review-toggle"))
 }
 
 function createPlan(): ExecutionPlan {
@@ -84,30 +96,30 @@ describe("parallel agent labels", () => {
 		expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument()
 	})
 
-	it("shows assigned mode labels in merge review entries", () => {
+	it("shows assigned mode labels in saved merge review entries", () => {
 		const entries: MergeReviewEntry[] = [
 			{
-				agentId: "code-agent",
-				mode: "code",
-				task: "Implement the API call",
+				agentId: "ui-agent",
+				mode: "ui-ux",
+				task: "Review the dashboard flow",
 				diff: "",
-				worktreePath: "C:/repo/.roo/parallel-worktrees/plan-test/code-agent",
-				branch: "roo/parallel/plan-test/code-agent",
+				worktreePath: "C:/repo/.roo/parallel-worktrees/plan-test/ui-agent",
+				branch: "roo/parallel/plan-test/ui-agent",
 			},
 		]
 
-		renderWithExtensionState(<MergeReviewPanel entries={entries} onClose={vi.fn()} />)
+		renderSavedMergeReview(entries)
 
-		expect(screen.getByText("Code")).toBeInTheDocument()
-		expect(screen.getByText("Implement the API call")).toBeInTheDocument()
-		expect(screen.getByText("code-agent")).toBeInTheDocument()
+		expect(screen.getAllByText("UI/UX").length).toBeGreaterThan(0)
+		expect(screen.getAllByText("Review the dashboard flow").length).toBeGreaterThan(0)
+		expect(screen.getByText("roo/parallel/plan-test/ui-agent")).toBeInTheDocument()
 	})
 
-	it("shows compact merge review stats and collapses diffs until expanded", () => {
+	it("shows compact saved merge review stats and collapses diffs until expanded", () => {
 		const entries: MergeReviewEntry[] = [
 			{
-				agentId: "code-agent",
-				mode: "code",
+				agentId: "ui-agent",
+				mode: "ui-ux",
 				task: "Implement the API call",
 				diff: [
 					"diff --git a/src/api.ts b/src/api.ts",
@@ -119,22 +131,22 @@ describe("parallel agent labels", () => {
 					"diff --git a/assets/logo.png b/assets/logo.png",
 					"Binary files a/assets/logo.png and b/assets/logo.png differ",
 				].join("\n"),
-				worktreePath: "C:/repo/.roo/parallel-worktrees/plan-test/code-agent",
-				branch: "roo/parallel/plan-test/code-agent",
+				worktreePath: "C:/repo/.roo/parallel-worktrees/plan-test/ui-agent",
+				branch: "roo/parallel/plan-test/ui-agent",
 			},
 		]
 
-		renderWithExtensionState(<MergeReviewPanel entries={entries} onClose={vi.fn()} />)
+		renderSavedMergeReview(entries)
 
-		const stats = screen.getByTestId("merge-review-stats-code-agent")
+		const stats = screen.getByTestId("merge-review-inline-stats-ui-agent")
 		expect(stats).toHaveTextContent("2 files")
 		expect(stats).toHaveTextContent("3 lines")
 		expect(stats).toHaveTextContent("+2")
 		expect(stats).toHaveTextContent("-1")
 		expect(stats).toHaveTextContent("1 binary file")
-		expect(screen.queryByTestId("merge-review-diff-code-agent")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("merge-review-inline-diff-ui-agent")).not.toBeInTheDocument()
 
-		const diffToggle = screen.getByTestId("merge-review-diff-toggle-code-agent")
+		const diffToggle = screen.getByTestId("merge-review-inline-diff-toggle-ui-agent")
 		expect(diffToggle).toHaveAttribute("aria-expanded", "false")
 		expect(diffToggle).toHaveTextContent("Show diff")
 
@@ -142,23 +154,23 @@ describe("parallel agent labels", () => {
 
 		expect(diffToggle).toHaveAttribute("aria-expanded", "true")
 		expect(diffToggle).toHaveTextContent("Hide diff")
-		expect(screen.getByTestId("merge-review-diff-code-agent")).toBeInTheDocument()
+		expect(screen.getByTestId("merge-review-inline-diff-ui-agent")).toBeInTheDocument()
 	})
 
-	it("shows a clear no-change reason when merge review diffs are empty", () => {
+	it("shows a clear no-change reason when saved merge review diffs are empty", () => {
 		const entries: MergeReviewEntry[] = [
 			{
-				agentId: "code-agent",
-				mode: "code",
+				agentId: "ui-agent",
+				mode: "ui-ux",
 				task: "Check no-op formatting",
 				diff: "",
 				noChangesReason: "No changes detected in this agent worktree.",
-				worktreePath: "C:/repo/.roo/parallel-worktrees/plan-test/code-agent",
-				branch: "roo/parallel/plan-test/code-agent",
+				worktreePath: "C:/repo/.roo/parallel-worktrees/plan-test/ui-agent",
+				branch: "roo/parallel/plan-test/ui-agent",
 			},
 		]
 
-		renderWithExtensionState(<MergeReviewPanel entries={entries} onClose={vi.fn()} />)
+		renderSavedMergeReview(entries)
 
 		expect(screen.getByText("No changes detected in this agent worktree.")).toBeInTheDocument()
 		expect(screen.queryByText("No diff available for this agent.")).not.toBeInTheDocument()

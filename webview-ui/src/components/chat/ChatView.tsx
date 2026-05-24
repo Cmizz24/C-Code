@@ -14,6 +14,7 @@ import type { ClineAsk, ClineSayTool, ClineMessage, ExtensionMessage, AudioType 
 import { isRetiredProvider } from "@roo-code/types"
 
 import { findLast } from "@roo/array"
+import { safeJsonParse } from "@roo/core"
 import { SuggestionItem } from "@roo-code/types"
 import { combineApiRequests } from "@roo/combineApiRequests"
 import { combineCommandSequences } from "@roo/combineCommandSequences"
@@ -42,6 +43,7 @@ import { QueuedMessages } from "./QueuedMessages"
 import { WorktreeSelector } from "./WorktreeSelector"
 import FileChangesPanel from "./FileChangesPanel"
 import { useScrollLifecycle } from "@src/hooks/useScrollLifecycle"
+import { getSelectableMergeReviewAgentIds } from "@src/components/agents/mergeReviewDisplay"
 
 export interface ChatViewProps {
 	isHidden: boolean
@@ -56,6 +58,20 @@ export interface ChatViewRef {
 export const MAX_IMAGES_PER_MESSAGE = 20 // This is the Anthropic limit.
 
 const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0
+
+type PendingMergeReviewAction = {
+	agentIds: string[]
+	planId?: string
+}
+
+const getParallelAgentToolFromMessage = (message: ClineMessage): ClineSayTool | undefined => {
+	if (message.type !== "say" || message.say !== "tool" || !message.text) {
+		return undefined
+	}
+
+	const tool = safeJsonParse<ClineSayTool>(message.text)
+	return tool?.tool === "parallelAgents" ? tool : undefined
+}
 
 const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewProps> = (
 	{ isHidden, showAnnouncement, hideAnnouncement },
@@ -208,6 +224,26 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	// would have to true again even if messages didn't change.
 	const lastMessage = useMemo(() => messages.at(-1), [messages])
 	const secondLastMessage = useMemo(() => messages.at(-2), [messages])
+	const pendingMergeReviewAction = useMemo<PendingMergeReviewAction | undefined>(() => {
+		for (let index = messages.length - 1; index >= 0; index -= 1) {
+			const tool = getParallelAgentToolFromMessage(messages[index])
+			if (!tool) {
+				continue
+			}
+
+			if (tool.parallelStatus !== "review") {
+				return undefined
+			}
+
+			const agentIds = getSelectableMergeReviewAgentIds(tool.mergeReviewEntries ?? [])
+			return {
+				agentIds,
+				planId: tool.executionPlan?.planId,
+			}
+		}
+
+		return undefined
+	}, [messages])
 
 	const volume = typeof soundVolume === "number" ? soundVolume : 0.5
 	const [playNotification] = useSound(`${audioBaseUri}/notification.wav`, { volume, soundEnabled, interrupt: true })
@@ -251,6 +287,19 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	}
 
 	useDeepCompareEffect(() => {
+		if (pendingMergeReviewAction && lastMessage?.type !== "ask") {
+			setSendingDisabled(false)
+			setClineAsk(undefined)
+			setEnableButtons(true)
+			setPrimaryButtonText(
+				pendingMergeReviewAction.agentIds.length > 0
+					? t("chat:parallelAgents.mergeReview.mergeAllApproved")
+					: undefined,
+			)
+			setSecondaryButtonText(t("chat:reject.title"))
+			return
+		}
+
 		// if last message is an ask, show user ask UI
 		// if user finished a task, then start a new task with a new conversation history since in this moment that the extension is waiting for user response, the user could close the extension and the conversation history would be lost.
 		// basically as long as a task is active, the conversation history will be persisted
@@ -407,6 +456,16 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					// Don't want to reset since there could be a "say" after
 					// an "ask" while ask is waiting for response.
 					switch (lastMessage.say) {
+						case "tool": {
+							const tool = getParallelAgentToolFromMessage(lastMessage)
+							if (tool && tool.parallelStatus !== "review") {
+								setClineAsk(undefined)
+								setEnableButtons(false)
+								setPrimaryButtonText(undefined)
+								setSecondaryButtonText(undefined)
+							}
+							break
+						}
 						case "api_req_retry_delayed":
 						case "api_req_rate_limit_wait":
 							setSendingDisabled(true)
@@ -437,7 +496,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					break
 			}
 		}
-	}, [lastMessage, secondLastMessage])
+	}, [lastMessage, secondLastMessage, pendingMergeReviewAction])
 
 	// Update button text when messages change (e.g., completion_result is added) for subtasks in resume_task state
 	useEffect(() => {
@@ -718,6 +777,15 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 			const trimmedInput = text?.trim()
 
+			if (!clineAsk && pendingMergeReviewAction?.agentIds.length) {
+				vscode.postMessage({ type: "mergeApprovedAgents", ids: pendingMergeReviewAction.agentIds })
+				setSendingDisabled(true)
+				setEnableButtons(false)
+				setPrimaryButtonText(undefined)
+				setSecondaryButtonText(undefined)
+				return
+			}
+
 			switch (clineAsk) {
 				case "api_req_failed":
 				case "command":
@@ -782,7 +850,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			setPrimaryButtonText(undefined)
 			setSecondaryButtonText(undefined)
 		},
-		[clineAsk, startNewTask, currentTaskItem?.parentTaskId],
+		[clineAsk, startNewTask, currentTaskItem?.parentTaskId, pendingMergeReviewAction],
 	)
 
 	const handleSecondaryButtonClick = useCallback(
@@ -791,6 +859,15 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			userRespondedRef.current = true
 
 			const trimmedInput = text?.trim()
+
+			if (!clineAsk && pendingMergeReviewAction) {
+				vscode.postMessage({ type: "mergeDeniedAgents", ids: pendingMergeReviewAction.agentIds })
+				setSendingDisabled(true)
+				setEnableButtons(false)
+				setPrimaryButtonText(undefined)
+				setSecondaryButtonText(undefined)
+				return
+			}
 
 			if (isStreaming) {
 				vscode.postMessage({ type: "cancelTask" })
@@ -831,7 +908,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			setClineAsk(undefined)
 			setEnableButtons(false)
 		},
-		[clineAsk, startNewTask, isStreaming, setDidClickCancel],
+		[clineAsk, startNewTask, isStreaming, setDidClickCancel, pendingMergeReviewAction],
 	)
 
 	const { info: model } = useSelectedModel(apiConfiguration)

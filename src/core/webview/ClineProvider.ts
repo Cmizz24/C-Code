@@ -3019,7 +3019,6 @@ export class ClineProvider
 		this.recordParallelAgentReviewSummary(plan, entries)
 		await this.updateParallelAgentStatusMessage("review", entries)
 		await this.appendParallelAgentOutcomeSummary(plan, "review", entries)
-		await this.postMessageToWebview({ type: "showMergeReview", mergeReviewEntries: entries })
 
 		if (autoMergeDecision.enabled && autoMergeDecision.skipReasons.length === 0) {
 			await this.mergeApprovedAgents(autoMergeDecision.approvedAgentIds, { autoApproved: true })
@@ -3217,6 +3216,41 @@ export class ClineProvider
 		await this.appendParallelAgentOutcomeSummary(plan, "merged", this.parallelMergeReviewEntries)
 		await this.teardownParallelExecution({ resetBus: true })
 		await this.postMessageToWebview({ type: "mergeComplete" })
+		await this.postStateToWebviewWithoutClineMessages()
+		return true
+	}
+
+	public async denyMergeReview(): Promise<boolean> {
+		let plan = this.activeExecutionPlan
+		if (!plan) {
+			plan = await this.restorePersistedParallelReviewState()
+		}
+
+		if (!plan) {
+			await this.postMessageToWebview({
+				type: "mergeFailed",
+				gitOutput: "No active execution plan is available.",
+			})
+			return false
+		}
+
+		const entries = await this.ensureMergeReviewEntriesForPlan(plan)
+		for (const entry of entries) {
+			if (entry.mergeStatus === "merged" || entry.mergeStatus === "failed") {
+				continue
+			}
+
+			this.updateMergeReviewEntry(entry.agentId, {
+				mergeStatus: "skipped",
+				autoMergeSkippedReason: "Merge review was denied from chat.",
+			})
+			this.recordParallelAgentActivity(entry.agentId, "Merge review denied from chat.", "approval")
+		}
+
+		this.recordParallelAgentReviewSummary(plan, this.parallelMergeReviewEntries)
+		await this.updateParallelAgentStatusMessage("cancelled", this.parallelMergeReviewEntries)
+		await this.appendParallelAgentOutcomeSummary(plan, "cancelled", this.parallelMergeReviewEntries)
+		await this.teardownParallelExecution({ resetBus: true, cleanupWorktrees: true })
 		await this.postStateToWebviewWithoutClineMessages()
 		return true
 	}
@@ -3601,7 +3635,7 @@ export class ClineProvider
 
 	private async appendParallelAgentOutcomeSummary(
 		plan: ExecutionPlan,
-		status: "review" | "merged" | "failed",
+		status: "review" | "merged" | "failed" | "cancelled",
 		entries: MergeReviewEntry[] | undefined,
 	): Promise<void> {
 		const task = this.getCurrentTask()
@@ -3652,7 +3686,7 @@ export class ClineProvider
 		const lines = [
 			`# Parallel agent review for ${plan.planId}`,
 			"",
-			"Full per-agent diffs are available in the merge review panel.",
+			"Full per-agent diffs are available in the saved parallel agent merge review row in chat.",
 			"",
 			...entries.map((entry) => {
 				const stats = entry.changeStats
@@ -3676,7 +3710,7 @@ export class ClineProvider
 
 	private buildParallelAgentOutcomeSummary(
 		plan: ExecutionPlan,
-		status: "review" | "merged" | "failed",
+		status: "review" | "merged" | "failed" | "cancelled",
 		entries: MergeReviewEntry[] | undefined,
 	): string {
 		const entrySummaries = (entries ?? []).map((entry) => {

@@ -532,6 +532,7 @@ export interface WebviewMessage {
 		| "agentWaitOnConflict"
 		| "agentEscalateConflict"
 		| "mergeApprovedAgents"
+		| "mergeDeniedAgents"
 		// Worktree messages
 		| "listWorktrees"
 		| "createWorktree"

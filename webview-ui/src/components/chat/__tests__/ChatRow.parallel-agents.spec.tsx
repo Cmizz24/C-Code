@@ -93,7 +93,7 @@ describe("ChatRow - parallelAgents tool", () => {
 					"@@ -0,0 +1,4 @@",
 					"+# Parallel agent review for plan-chat-row",
 					"+",
-					"+Full per-agent diffs are available in the merge review panel.",
+					"+Full per-agent diffs are available in the saved parallel agent merge review row in chat.",
 					"+- agent-1: pending; 1 files, +1/-0",
 				].join("\n"),
 			}),
@@ -105,7 +105,7 @@ describe("ChatRow - parallelAgents tool", () => {
 			"Parallel agent review summary",
 		)
 		expect(screen.getByTestId("parallel-agent-review-summary-row")).toHaveTextContent(
-			"Full per-agent diffs are available in the merge review panel.",
+			"Full per-agent diffs are available in the saved parallel agent merge review row in chat.",
 		)
 		expect(screen.queryByText("User Edits")).not.toBeInTheDocument()
 		expect(screen.queryByText("User Edit")).not.toBeInTheDocument()
