@@ -53,6 +53,7 @@ import {
 	MIN_CHECKPOINT_TIMEOUT_SECONDS,
 	MAX_MCP_TOOLS_THRESHOLD,
 	countEnabledMcpTools,
+	normalizeParallelTaskConcurrency,
 } from "@roo-code/types"
 
 // api
@@ -1733,7 +1734,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		// Get condensing configuration
 		const state = await this.providerRef.deref()?.getState()
 		const customCondensingPrompt = state?.customSupportPrompts?.CONDENSE
-		const { mode, apiConfiguration } = state ?? {}
+		const { mode, apiConfiguration, maxConcurrentParallelTasks } = state ?? {}
 
 		const { contextTokens: prevContextTokens } = this.getTokenUsage()
 
@@ -1751,6 +1752,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				apiConfiguration,
 				disabledTools: this.getDisabledToolsForNativeRequests(state?.disabledTools),
 				modelInfo,
+				maxParallelAgents: normalizeParallelTaskConcurrency(maxConcurrentParallelTasks),
 				includeAllToolsWithRestrictions: false,
 			})
 			allTools = toolsResult.tools
@@ -3810,6 +3812,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			language,
 			apiConfiguration,
 			enableSubfolderRules,
+			maxConcurrentParallelTasks,
 		} = state ?? {}
 
 		return await (async () => {
@@ -3843,6 +3846,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						.getConfiguration(Package.name)
 						.get<boolean>("newTaskRequireTodos", false),
 					isStealthModel: modelInfo?.isStealthModel,
+					maxParallelAgents: normalizeParallelTaskConcurrency(maxConcurrentParallelTasks),
 				},
 				undefined, // todoList
 				this.api.getModel().id,
@@ -3878,7 +3882,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	private async handleContextWindowExceededError(): Promise<void> {
 		const state = await this.providerRef.deref()?.getState()
-		const { profileThresholds = {}, mode, apiConfiguration } = state ?? {}
+		const { profileThresholds = {}, mode, apiConfiguration, maxConcurrentParallelTasks } = state ?? {}
 
 		const { contextTokens } = this.getTokenUsage()
 		const modelInfo = this.api.getModel().info
@@ -3916,6 +3920,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				apiConfiguration,
 				disabledTools: this.getDisabledToolsForNativeRequests(state?.disabledTools),
 				modelInfo,
+				maxParallelAgents: normalizeParallelTaskConcurrency(maxConcurrentParallelTasks),
 				includeAllToolsWithRestrictions: false,
 			})
 			allTools = toolsResult.tools
@@ -4049,6 +4054,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			autoCondenseContext = true,
 			autoCondenseContextPercent = 100,
 			profileThresholds = {},
+			maxConcurrentParallelTasks,
 		} = state ?? {}
 
 		// Get condensing configuration for automatic triggers.
@@ -4130,6 +4136,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						apiConfiguration,
 						disabledTools: this.getDisabledToolsForNativeRequests(state?.disabledTools),
 						modelInfo,
+						maxParallelAgents: normalizeParallelTaskConcurrency(maxConcurrentParallelTasks),
 						includeAllToolsWithRestrictions: false,
 					})
 					contextMgmtTools = toolsResult.tools
@@ -4294,6 +4301,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				apiConfiguration,
 				disabledTools: this.getDisabledToolsForNativeRequests(state?.disabledTools),
 				modelInfo,
+				maxParallelAgents: normalizeParallelTaskConcurrency(state?.maxConcurrentParallelTasks),
 				includeAllToolsWithRestrictions: supportsAllowedFunctionNames,
 			})
 			allTools = toolsResult.tools

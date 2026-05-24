@@ -123,6 +123,18 @@ describe("AgentBus", () => {
 		expect(bus.getAgent("agent-b")?.status).toBe("pending")
 	})
 
+	it("treats already-complete agents as satisfied when setting a plan", () => {
+		const plan = createPlan()
+		plan.agents[0].status = "complete"
+		plan.agents[1].status = "blocked"
+		plan.agents[1].dependsOn = [{ agentId: "agent-a", waitFor: "complete" }]
+
+		bus.setExecutionPlan(plan)
+
+		expect(bus.getAgent("agent-a")?.status).toBe("complete")
+		expect(bus.getAgent("agent-b")?.status).toBe("pending")
+	})
+
 	it("unblocks agents when signal dependencies are satisfied", () => {
 		const plan = createPlan()
 		plan.agents[1].dependsOn = [{ agentId: "agent-a", waitFor: "signal", signal: "types-ready" }]

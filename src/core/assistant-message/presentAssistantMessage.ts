@@ -1,7 +1,13 @@
 import { serializeError } from "serialize-error"
 import { Anthropic } from "@anthropic-ai/sdk"
 
-import type { ToolName, ClineAsk, ToolProgressStatus } from "@roo-code/types"
+import {
+	normalizeParallelTaskConcurrency,
+	type ToolName,
+	type ClineAsk,
+	type ToolProgressStatus,
+	type TodoItem,
+} from "@roo-code/types"
 import { customToolRegistry } from "@roo-code/core"
 
 import { t } from "../../i18n"
@@ -28,7 +34,7 @@ import { askFollowupQuestionTool } from "../tools/AskFollowupQuestionTool"
 import { switchModeTool } from "../tools/SwitchModeTool"
 import { attemptCompletionTool, AttemptCompletionCallbacks } from "../tools/AttemptCompletionTool"
 import { newTaskTool } from "../tools/NewTaskTool"
-import { updateTodoListTool } from "../tools/UpdateTodoListTool"
+import { updateTodoListTool, updateTodoStatusForTask } from "../tools/UpdateTodoListTool"
 import { runSlashCommandTool } from "../tools/RunSlashCommandTool"
 import { skillTool } from "../tools/SkillTool"
 import { generateImageTool } from "../tools/GenerateImageTool"
@@ -48,6 +54,45 @@ function isTaskAbortError(cline: Task, error: unknown): boolean {
 		error.message.includes("aborted") &&
 		error.message.includes(`${cline.taskId}.${cline.instanceId}`)
 	)
+}
+
+function findCurrentParallelPlanningTodo(todos: TodoItem[] | undefined): TodoItem | undefined {
+	if (!todos?.length) {
+		return undefined
+	}
+
+	return (
+		todos.find(
+			(todo) =>
+				todo.status === "in_progress" &&
+				/\b(parallel|agent|execution)\b/i.test(todo.content) &&
+				/\b(plan|planning)\b/i.test(todo.content),
+		) ?? todos.find((todo) => todo.status === "in_progress")
+	)
+}
+
+async function completeCurrentParallelPlanningTodo(cline: Task): Promise<boolean> {
+	const todo = findCurrentParallelPlanningTodo(cline.todoList)
+	if (!todo || !updateTodoStatusForTask(cline, todo.id, "completed")) {
+		return false
+	}
+
+	const todoPayload = JSON.stringify({
+		tool: "updateTodoList",
+		todos: cline.todoList ?? [],
+	})
+
+	await cline
+		.say("user_edit_todos", todoPayload, undefined, false, undefined, undefined, { isNonInteractive: true })
+		.catch((error) => {
+			console.warn(
+				`[presentAssistantMessage] Failed to persist parallel planning todo completion: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			)
+		})
+	await (cline.providerRef.deref()?.postStateToWebviewWithoutTaskHistory?.() ?? Promise.resolve()).catch(() => {})
+	return true
 }
 
 async function sayToolError(cline: Task, action: string, error: Error): Promise<void> {
@@ -355,7 +400,14 @@ export async function presentAssistantMessage(cline: Task) {
 
 			// Fetch state early so it's available for toolDescription and validation
 			const state = await cline.providerRef.deref()?.getState()
-			const { mode, customModes, experiments: stateExperiments, disabledTools } = state ?? {}
+			const {
+				mode,
+				customModes,
+				experiments: stateExperiments,
+				disabledTools,
+				maxConcurrentParallelTasks,
+			} = state ?? {}
+			const maxParallelAgents = normalizeParallelTaskConcurrency(maxConcurrentParallelTasks)
 			const disabledToolsForTask = withBackgroundAgentDisabledTools(disabledTools, cline)
 
 			const toolDescription = (): string => {
@@ -831,8 +883,10 @@ export async function presentAssistantMessage(cline: Task) {
 						const result = handlePlanParallelTasks(
 							(block as ToolUse<"plan_parallel_tasks">).nativeArgs,
 							cline.cwd,
+							{ maxAgents: maxParallelAgents },
 						)
 						if (result.ok) {
+							await completeCurrentParallelPlanningTodo(cline)
 							const provider = cline.providerRef.deref()
 							const approvalResult = await provider?.requestPlanApproval(result.plan)
 

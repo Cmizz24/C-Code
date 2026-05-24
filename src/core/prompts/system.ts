@@ -93,12 +93,19 @@ async function generatePrompt(
 	// Tools catalog is not included in the system prompt.
 	const toolsCatalog = ""
 	const parallelOrchestratorInstructions = (() => {
+		const maxAgentInstruction = settings?.maxParallelAgents
+			? ` Limit every ExecutionPlan to at most ${settings.maxParallelAgents} total agents; if the work appears to require more, combine compatible scopes or plan sequential follow-up work because the backend rejects oversized plans.`
+			: ""
+		const todoSequencingInstruction = settings?.todoListEnabled
+			? " Complete the active planning todo before requesting plan approval or delegating execution so the todo list never shows planning as incomplete while delegation is already active."
+			: ""
+
 		if (mode === "architect") {
-			return `\n\nEXECUTIONPLAN ARCHITECTURE\nUse the \`plan_parallel_tasks\` tool only when the user explicitly asks for parallel agents or when the work naturally splits across independent file ownership boundaries. For simple or single-file implementation planning, produce a normal sequential plan without parallel agents. If the request is ambiguous or underspecified, delegate to or request the \`spec\` specialist first. Produce ExecutionPlan-compatible plans with goal, shared context, agent ids, specialist mode slugs, owned files, must-not-touch paths, dependencies, and expected files. Assign specialist modes from this slug list whenever applicable: ${specialistModeSlugList}. Use \`code\` only for general fallback implementation. You may read any file but must not write implementation code.`
+			return `\n\nEXECUTIONPLAN ARCHITECTURE\nUse the \`plan_parallel_tasks\` tool only when the user explicitly asks for parallel agents or when the work naturally splits across independent file ownership boundaries. For simple or single-file implementation planning, produce a normal sequential plan without parallel agents. If the request is ambiguous or underspecified, delegate to or request the \`spec\` specialist first. Produce ExecutionPlan-compatible plans with goal, shared context, agent ids, specialist mode slugs, owned files, must-not-touch paths, dependencies, and expected files.${maxAgentInstruction}${todoSequencingInstruction} Assign specialist modes from this slug list whenever applicable: ${specialistModeSlugList}. Use \`code\` only for general fallback implementation. You may read any file but must not write implementation code.`
 		}
 
 		if (mode === "orchestrator") {
-			return `\n\nPARALLEL AGENT PLANNING\nWhen work can be parallelized across independent file ownership boundaries, call the \`plan_parallel_tasks\` tool before using \`new_task\`. Define each agent's specialist mode slug, owned files, must-not-touch paths, dependencies, and shared context so AgentBus write coordination can prevent conflicts. Assign the best specialist mode from this slug list: ${specialistModeSlugList}. Use \`code\` only for general fallback implementation. If the plan reports conflicts or dependency cycles, revise the plan before delegating. For simple single-agent work, fall back to sequential Boomerang behavior and delegate once. Never write implementation code directly.`
+			return `\n\nPARALLEL AGENT PLANNING\nWhen work can be parallelized across independent file ownership boundaries, call the \`plan_parallel_tasks\` tool before using \`new_task\`. Define each agent's specialist mode slug, owned files, must-not-touch paths, dependencies, and shared context so AgentBus write coordination can prevent conflicts.${maxAgentInstruction}${todoSequencingInstruction} Assign the best specialist mode from this slug list: ${specialistModeSlugList}. Use \`code\` only for general fallback implementation. If the plan reports conflicts, dependency cycles, or max-agent validation errors, revise the plan before delegating. For simple single-agent work, fall back to sequential Boomerang behavior and delegate once. Never write implementation code directly.`
 		}
 
 		return ""

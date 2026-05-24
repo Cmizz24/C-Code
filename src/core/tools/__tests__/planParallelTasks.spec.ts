@@ -46,6 +46,29 @@ describe("handlePlanParallelTasks", () => {
 		}
 	})
 
+	it("rejects plans with more agents than the configured maximum", () => {
+		const result = handlePlanParallelTasks(
+			{
+				goal: "Split implementation work",
+				agents: Array.from({ length: 3 }, (_, index) => ({
+					id: `agent-${index + 1}`,
+					mode: "code",
+					task: `Implement file ${index + 1}`,
+					owns: [{ path: `src/file-${index + 1}.ts`, mode: "exclusive" as const }],
+				})),
+			},
+			"/repo",
+			{ maxAgents: 2 },
+		)
+
+		expect(result.ok).toBe(false)
+		if (!result.ok) {
+			expect(result.errors).toContain(
+				"Parallel task plan includes 3 agents, but maximum parallel agents is configured to 2. Reduce the plan to 2 agents or fewer.",
+			)
+		}
+	})
+
 	it("rejects conflicting exclusive file ownership", () => {
 		const result = handlePlanParallelTasks(
 			{

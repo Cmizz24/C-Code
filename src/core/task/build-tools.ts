@@ -24,6 +24,8 @@ interface BuildToolsOptions {
 	apiConfiguration: ProviderSettings | undefined
 	disabledTools?: string[]
 	modelInfo?: ModelInfo
+	/** Maximum total agents allowed in a parallel execution plan. */
+	maxParallelAgents?: number
 	/**
 	 * If true, returns all tools without mode filtering, but also includes
 	 * the list of allowed tool names for use with allowedFunctionNames.
@@ -89,6 +91,7 @@ export async function buildNativeToolsArrayWithRestrictions(options: BuildToolsO
 		apiConfiguration,
 		disabledTools,
 		modelInfo,
+		maxParallelAgents,
 		includeAllToolsWithRestrictions,
 	} = options
 
@@ -111,6 +114,7 @@ export async function buildNativeToolsArrayWithRestrictions(options: BuildToolsO
 	// Build native tools with dynamic read_file tool based on settings.
 	const nativeTools = getNativeTools({
 		supportsImages,
+		maxParallelAgents,
 	})
 
 	// Filter native tools based on mode restrictions.

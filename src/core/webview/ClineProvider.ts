@@ -2851,6 +2851,15 @@ export class ClineProvider
 	}
 
 	private async startApprovedExecutionPlan(plan: ExecutionPlan): Promise<PlanStartResult> {
+		const { maxConcurrentParallelTasks } = await this.getState()
+		const maxParallelAgents = normalizeParallelTaskConcurrency(maxConcurrentParallelTasks)
+		if (plan.agents.length > maxParallelAgents) {
+			const message = `Parallel execution plan ${plan.planId} includes ${plan.agents.length} agents, but maximum parallel agents is configured to ${maxParallelAgents}. Reduce the plan to ${maxParallelAgents} agents or fewer.`
+			this.log(`[parallel-agents] ${message}`)
+			vscode.window.showErrorMessage(message)
+			return { ok: false, error: message }
+		}
+
 		await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
 		this.resetParallelAgentStatusState(plan.planId)
 
@@ -2867,9 +2876,8 @@ export class ClineProvider
 
 		this.activeExecutionPlan = plan
 		await this.updateParallelAgentStatusMessage("running")
-		const { maxConcurrentParallelTasks } = await this.getState()
 		this.orchestratorEventLoop = new OrchestratorEventLoop(this, AgentBus.getInstance(), {
-			maxConcurrentAgents: maxConcurrentParallelTasks,
+			maxConcurrentAgents: maxParallelAgents,
 		})
 		this.attachAgentBusForwarders(AgentBus.getInstance())
 		this.orchestratorEventLoop.start(plan)

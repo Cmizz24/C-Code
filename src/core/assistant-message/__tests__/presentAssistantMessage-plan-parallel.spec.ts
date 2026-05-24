@@ -11,6 +11,70 @@ vi.mock("../../tools/validateToolUse", () => ({
 	isValidToolName: vi.fn(() => true),
 }))
 
+function createPlanAgent(id: string, filePath: string) {
+	return {
+		id,
+		mode: "code",
+		task: `Implement ${filePath}`,
+		owns: [{ path: filePath, mode: "exclusive" as const }],
+	}
+}
+
+function createPlanPresentationTask({
+	provider,
+	agents,
+	todoList,
+}: {
+	provider: any
+	agents: any[]
+	todoList?: any[]
+}) {
+	const task: any = {
+		taskId: "task-id",
+		instanceId: "instance-id",
+		abort: false,
+		cwd: "C:/repo",
+		presentAssistantMessageLocked: false,
+		presentAssistantMessageHasPendingUpdates: false,
+		parallelPlanPaused: false,
+		parallelExecutionPaused: false,
+		currentStreamingContentIndex: 0,
+		assistantMessageContent: [
+			{
+				type: "tool_use",
+				id: "tool-plan",
+				name: "plan_parallel_tasks",
+				params: { goal: "Build dashboard" },
+				nativeArgs: {
+					goal: "Build dashboard",
+					sharedContext: "Build the dashboard",
+					expectedFiles: agents.flatMap((agent) => agent.owns.map((ownership: any) => ownership.path)),
+					agents,
+				},
+				partial: false,
+			},
+		],
+		userMessageContent: [],
+		didCompleteReadingStream: true,
+		didRejectTool: false,
+		didAlreadyUseTool: false,
+		consecutiveMistakeCount: 0,
+		api: { getModel: () => ({ id: "test-model", info: {} }) },
+		recordToolUsage: vi.fn(),
+		recordToolError: vi.fn(),
+		toolRepetitionDetector: { check: vi.fn().mockReturnValue({ allowExecution: true }) },
+		providerRef: { deref: () => provider },
+		say: vi.fn().mockResolvedValue(undefined),
+		ask: vi.fn().mockResolvedValue({ response: "yesButtonClicked" }),
+		todoList,
+	}
+	task.pushToolResultToUserContent = vi.fn((toolResult) => {
+		task.userMessageContent.push(toolResult)
+		return true
+	})
+	return task
+}
+
 describe("presentAssistantMessage - plan_parallel_tasks", () => {
 	it("waits for explicit plan approval before returning a tool result", async () => {
 		let approvePlan: (value: PlanApprovalResult) => void = () => {}
@@ -168,6 +232,59 @@ describe("presentAssistantMessage - plan_parallel_tasks", () => {
 		expect(task.assistantMessageContent).toHaveLength(1)
 		expect(task.currentStreamingContentIndex).toBe(1)
 		expect(task.didAlreadyUseTool).toBe(true)
+		expect(task.parallelExecutionPaused).toBe(true)
+	})
+
+	it("rejects oversized native plans before requesting approval", async () => {
+		const provider = {
+			getState: vi.fn().mockResolvedValue({ mode: "code", customModes: [], maxConcurrentParallelTasks: 1 }),
+			requestPlanApproval: vi.fn(),
+		}
+		const task = createPlanPresentationTask({
+			provider,
+			agents: [createPlanAgent("ui", "src/Dashboard.tsx"), createPlanAgent("api", "src/api.ts")],
+		})
+
+		await presentAssistantMessage(task)
+
+		expect(provider.requestPlanApproval).not.toHaveBeenCalled()
+		expect(task.pushToolResultToUserContent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				content: expect.stringContaining("maximum parallel agents is configured to 1"),
+			}),
+		)
+		expect(task.parallelExecutionPaused).toBe(false)
+	})
+
+	it("completes the active parallel planning todo before requesting approval", async () => {
+		const requestPlanApproval = vi.fn(async (plan: ExecutionPlan): Promise<PlanApprovalResult> => {
+			return { approved: true, plan, startResult: { ok: true } }
+		})
+		const provider = {
+			getState: vi.fn().mockResolvedValue({ mode: "code", customModes: [], maxConcurrentParallelTasks: 5 }),
+			requestPlanApproval,
+			postStateToWebviewWithoutTaskHistory: vi.fn().mockResolvedValue(undefined),
+		}
+		const task = createPlanPresentationTask({
+			provider,
+			agents: [createPlanAgent("ui", "src/Dashboard.tsx")],
+			todoList: [{ id: "todo-plan", content: "Plan parallel agent execution", status: "in_progress" }],
+		})
+
+		await presentAssistantMessage(task)
+
+		expect(task.todoList[0].status).toBe("completed")
+		expect(task.say).toHaveBeenCalledWith(
+			"user_edit_todos",
+			expect.stringContaining('"status":"completed"'),
+			undefined,
+			false,
+			undefined,
+			undefined,
+			{ isNonInteractive: true },
+		)
+		expect(task.say.mock.invocationCallOrder[0]).toBeLessThan(requestPlanApproval.mock.invocationCallOrder[0])
+		expect(provider.postStateToWebviewWithoutTaskHistory).toHaveBeenCalled()
 		expect(task.parallelExecutionPaused).toBe(true)
 	})
 })

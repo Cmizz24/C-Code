@@ -55,13 +55,25 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		this.completedAgents.clear()
 		this.signalsByAgent.clear()
 		this.blockedAgents.clear()
+
 		for (const agent of plan.agents) {
+			if (agent.status === "complete") {
+				this.completedAgents.add(agent.id)
+			}
+		}
+
+		for (const agent of plan.agents) {
+			if (this.isTerminalStatus(agent.status)) {
+				continue
+			}
+
 			agent.status = this.areDependenciesSatisfied(agent.dependsOn) ? "pending" : "blocked"
 			if (agent.status === "blocked") {
 				this.blockedAgents.add(agent.id)
 			}
 		}
 		this.emit("plan", plan)
+		this.emitTerminalEvents()
 	}
 
 	public getExecutionPlan(): ExecutionPlan | undefined {
@@ -144,6 +156,16 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	public markBlocked(agentId: string, reason: string, blockedOn?: AgentDependency[]): void {
 		const agent = this.getAgent(agentId)
 		if (this.isTerminalStatus(agent?.status)) {
+			return
+		}
+
+		if (blockedOn?.length && this.areDependenciesSatisfied(blockedOn)) {
+			if (agent?.status === "blocked") {
+				agent.status = "pending"
+				this.blockedAgents.delete(agentId)
+				this.emitEvent({ type: "STATUS", agentId, status: "pending" })
+				this.emit("agentUnblocked", agent)
+			}
 			return
 		}
 

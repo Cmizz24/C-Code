@@ -10,7 +10,7 @@ import executeCommand from "./execute_command"
 import generateImage from "./generate_image"
 import listFiles from "./list_files"
 import newTask from "./new_task"
-import planParallelTasksTool from "./plan_parallel_tasks"
+import { createPlanParallelTasksTool } from "./plan_parallel_tasks"
 import readCommandOutput from "./read_command_output"
 import { createReadFileTool, type ReadFileToolOptions } from "./read_file"
 import runSlashCommand from "./run_slash_command"
@@ -32,6 +32,8 @@ export type { ReadFileToolOptions } from "./read_file"
 export interface NativeToolsOptions {
 	/** Whether the model supports image processing (default: false) */
 	supportsImages?: boolean
+	/** Maximum total agents allowed in a parallel execution plan. */
+	maxParallelAgents?: number
 }
 
 /**
@@ -41,7 +43,7 @@ export interface NativeToolsOptions {
  * @returns Array of native tool definitions
  */
 export function getNativeTools(options: NativeToolsOptions = {}): OpenAI.Chat.ChatCompletionTool[] {
-	const { supportsImages = false } = options
+	const { supportsImages = false, maxParallelAgents } = options
 
 	const readFileOptions: ReadFileToolOptions = {
 		supportsImages,
@@ -58,7 +60,7 @@ export function getNativeTools(options: NativeToolsOptions = {}): OpenAI.Chat.Ch
 		generateImage,
 		listFiles,
 		newTask,
-		planParallelTasksTool,
+		createPlanParallelTasksTool({ maxAgents: maxParallelAgents }),
 		readCommandOutput,
 		createReadFileTool(readFileOptions),
 		runSlashCommand,

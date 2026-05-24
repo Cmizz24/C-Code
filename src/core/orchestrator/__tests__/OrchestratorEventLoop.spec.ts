@@ -338,6 +338,23 @@ describe("OrchestratorEventLoop", () => {
 		])
 	})
 
+	it("starts dependents whose prerequisites are already complete without respawning completed agents", async () => {
+		const plan = createMultiAgentPlan(3)
+		plan.agents[0].status = "complete"
+		plan.agents[1].status = "blocked"
+		plan.agents[1].dependsOn = [{ agentId: "agent-1", waitFor: "complete" }]
+		const provider = createProvider()
+
+		new OrchestratorEventLoop(provider, AgentBus.getInstance(), { maxConcurrentAgents: 2 }).start(plan)
+
+		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(2))
+		expect(vi.mocked(provider.createTask).mock.calls.map((call) => call[3]?.agentId)).toEqual([
+			"agent-2",
+			"agent-3",
+		])
+		expect(provider.createAgentWorktree).not.toHaveBeenCalledWith("agent-1", "plan-test")
+	})
+
 	it("marks the agent failed instead of leaving a rejected worktree promise", async () => {
 		const orchestratorTask = createTask("orchestrator-task") as TaskLike & { parallelExecutionPaused?: boolean }
 		orchestratorTask.parallelExecutionPaused = true

@@ -25,6 +25,11 @@ export type PlanParallelTasksResult =
 	| { ok: true; plan: ExecutionPlan; warnings: string[] }
 	| { ok: false; errors: string[]; warnings: string[] }
 
+export interface PlanParallelTasksOptions {
+	/** Maximum total agents allowed in the proposed execution plan. */
+	maxAgents?: number
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value)
 }
@@ -115,7 +120,11 @@ function findDependencyCycle(agents: PlanParallelTasksInputAgent[]): string[] | 
 	return undefined
 }
 
-export function handlePlanParallelTasks(input: unknown, repoRoot: string): PlanParallelTasksResult {
+export function handlePlanParallelTasks(
+	input: unknown,
+	repoRoot: string,
+	options: PlanParallelTasksOptions = {},
+): PlanParallelTasksResult {
 	const errors: string[] = []
 	const warnings: string[] = []
 
@@ -142,6 +151,16 @@ export function handlePlanParallelTasks(input: unknown, repoRoot: string): PlanP
 	const rawAgents = input.agents
 	if (!Array.isArray(rawAgents) || rawAgents.length === 0) {
 		errors.push("At least one agent must be provided.")
+	}
+
+	const maxAgents =
+		typeof options.maxAgents === "number" && Number.isFinite(options.maxAgents)
+			? Math.trunc(options.maxAgents)
+			: undefined
+	if (Array.isArray(rawAgents) && maxAgents !== undefined && maxAgents > 0 && rawAgents.length > maxAgents) {
+		errors.push(
+			`Parallel task plan includes ${rawAgents.length} agents, but maximum parallel agents is configured to ${maxAgents}. Reduce the plan to ${maxAgents} agents or fewer.`,
+		)
 	}
 
 	const agents: PlanParallelTasksInputAgent[] = []

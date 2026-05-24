@@ -74,7 +74,7 @@ export const MAX_CHECKPOINT_TIMEOUT_SECONDS = 60
 export const DEFAULT_CHECKPOINT_TIMEOUT_SECONDS = 15
 
 /**
- * Default maximum number of runnable parallel agents to execute at once.
+ * Default maximum number of parallel agents allowed in a plan and runnable at once.
  */
 export const DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS = 3
 
