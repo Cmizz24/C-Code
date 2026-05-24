@@ -405,8 +405,8 @@ export class ClineProvider
 			const onTaskUnpaused = (taskId: string) => this.emit(RooCodeEventName.TaskUnpaused, taskId)
 			const onTaskSpawned = (taskId: string) => this.emit(RooCodeEventName.TaskSpawned, taskId)
 			const onTaskUserMessage = (taskId: string) => this.emit(RooCodeEventName.TaskUserMessage, taskId)
-			const onTaskMessage = ({ message }: { action: "created" | "updated"; message: ClineMessage }) => {
-				this.handleBackgroundAgentMessage(instance, message)
+			const onTaskMessage = ({ action, message }: { action: "created" | "updated"; message: ClineMessage }) => {
+				this.handleBackgroundAgentMessage(instance, action, message)
 			}
 			const onTaskTokenUsageUpdated = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) => {
 				this.postBackgroundAgentUsage(instance, tokenUsage)
@@ -3830,21 +3830,27 @@ export class ClineProvider
 		message: string,
 		kind: ParallelAgentActivity["kind"] = "status",
 		ts: number = Date.now(),
+		options: { replaceExistingTimestamp?: boolean } = {},
 	): void {
 		if (!this.activeExecutionPlan) {
 			return
 		}
 
 		const previousActivities = this.parallelAgentActivities.get(agentId) ?? []
-		const activities = [
-			...previousActivities,
-			{
-				agentId,
-				kind,
-				message,
-				ts,
-			} satisfies ParallelAgentActivity,
-		].slice(-PARALLEL_AGENT_ACTIVITY_LIMIT)
+		const nextActivity = {
+			agentId,
+			kind,
+			message,
+			ts,
+		} satisfies ParallelAgentActivity
+		const replaceIndex = options.replaceExistingTimestamp
+			? previousActivities.findIndex((activity) => activity.ts === ts)
+			: -1
+		const updatedActivities =
+			replaceIndex >= 0
+				? previousActivities.map((activity, index) => (index === replaceIndex ? nextActivity : activity))
+				: [...previousActivities, nextActivity]
+		const activities = updatedActivities.slice(-PARALLEL_AGENT_ACTIVITY_LIMIT)
 		this.parallelAgentActivities.set(agentId, activities)
 
 		const previousStatus = this.parallelAgentStatusUpdates.get(agentId)
@@ -3859,7 +3865,7 @@ export class ClineProvider
 		this.scheduleParallelAgentStatusMessageUpdate()
 	}
 
-	private handleBackgroundAgentMessage(task: Task, message: ClineMessage): void {
+	private handleBackgroundAgentMessage(task: Task, action: "created" | "updated", message: ClineMessage): void {
 		if (!task.background || !task.agentId || !this.activeExecutionPlan) {
 			return
 		}
@@ -3869,15 +3875,20 @@ export class ClineProvider
 			return
 		}
 
-		this.recordParallelAgentActivity(task.agentId, activity.message, activity.kind, message.ts)
+		this.recordParallelAgentActivity(task.agentId, activity.message, activity.kind, message.ts, {
+			replaceExistingTimestamp: action === "updated",
+		})
 	}
 
 	private describeBackgroundAgentMessage(message: ClineMessage): BackgroundAgentActivityDescription | undefined {
-		if (message.partial) {
-			return undefined
-		}
-
 		if (message.type === "ask" && message.ask === "tool") {
+			if (message.partial) {
+				return {
+					kind: "tool",
+					message: this.describeToolActivity(message.text, "Preparing a tool call."),
+				}
+			}
+
 			return {
 				kind: "approval",
 				message: message.isAnswered
@@ -3890,9 +3901,13 @@ export class ClineProvider
 			return undefined
 		}
 
+		if (message.partial) {
+			return this.describePartialBackgroundAgentSayMessage(message)
+		}
+
 		switch (message.say) {
 			case "api_req_started":
-				return { kind: "thinking", message: "Thinking…" }
+				return { kind: "thinking", message: "Waiting for model response." }
 			case "api_req_finished":
 				return { kind: "result", message: "Finished thinking." }
 			case "api_req_retried":
@@ -3917,6 +3932,39 @@ export class ClineProvider
 				return { kind: "completion", message: "Reported completion." }
 			case "error":
 				return { kind: "error", message: "Encountered an error." }
+			default:
+				return undefined
+		}
+	}
+
+	private describePartialBackgroundAgentSayMessage(
+		message: ClineMessage,
+	): BackgroundAgentActivityDescription | undefined {
+		if (message.type !== "say") {
+			return undefined
+		}
+
+		switch (message.say) {
+			case "api_req_started":
+				return { kind: "thinking", message: "Waiting for model response." }
+			case "api_req_retried":
+				return { kind: "wait", message: "Retrying the model request." }
+			case "api_req_retry_delayed":
+				return { kind: "wait", message: "Waiting before retrying the model request." }
+			case "api_req_rate_limit_wait":
+				return { kind: "wait", message: "Waiting for the provider rate limit." }
+			case "reasoning":
+				return { kind: "thinking", message: "Reasoning through the next step." }
+			case "text":
+				return { kind: "assistant", message: "Drafting a response." }
+			case "tool":
+				return { kind: "tool", message: this.describeToolActivity(message.text, "Preparing a tool call.") }
+			case "command_output":
+				return { kind: "result", message: "Reading command output." }
+			case "mcp_server_request_started":
+				return { kind: "tool", message: "Contacting an MCP server." }
+			case "mcp_server_response":
+				return { kind: "result", message: "Receiving MCP server response." }
 			default:
 				return undefined
 		}

@@ -1169,6 +1169,91 @@ describe("ClineProvider", () => {
 		})
 	})
 
+	test("background agent partial messages replace generic thinking with sanitized live progress", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+		const backgroundTask = backgroundTasks.find((task) => task.agentId === "dashboard-agent") as Task
+		const apiRequestStarted: ClineMessage = {
+			type: "say",
+			say: "api_req_started",
+			ts: 1_500,
+			text: JSON.stringify({ apiProtocol: "anthropic" }),
+		}
+		const partialReasoning: ClineMessage = {
+			type: "say",
+			say: "reasoning",
+			ts: 1_501,
+			text: "raw streamed child reasoning should not be copied",
+			partial: true,
+		}
+		const partialTool: ClineMessage = {
+			type: "ask",
+			ask: "tool",
+			ts: 1_501,
+			text: JSON.stringify({ tool: "write_to_file", path: "src/dashboard.tsx" }),
+			partial: true,
+		}
+
+		backgroundTask.emit(RooCodeEventName.Message, { action: "created", message: apiRequestStarted })
+		backgroundTask.emit(RooCodeEventName.Message, { action: "created", message: partialReasoning })
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			const activities = tool.agentActivities?.filter((activity) => activity.agentId === "dashboard-agent") ?? []
+			expect(activities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "thinking",
+						message: "Reasoning through the next step.",
+						ts: 1_501,
+					}),
+				]),
+			)
+			expect(JSON.stringify(tool)).not.toContain("raw streamed child reasoning")
+		})
+
+		backgroundTask.emit(RooCodeEventName.Message, { action: "updated", message: partialTool })
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			const activities = tool.agentActivities?.filter((activity) => activity.agentId === "dashboard-agent") ?? []
+			expect(activities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "thinking",
+						message: "Waiting for model response.",
+						ts: 1_500,
+					}),
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "tool",
+						message: "Writing src/dashboard.tsx.",
+						ts: 1_501,
+					}),
+				]),
+			)
+			expect(activities.filter((activity) => activity.ts === 1_501)).toHaveLength(1)
+			expect(activities.map((activity) => activity.message)).not.toContain("Thinking…")
+			expect(JSON.stringify(tool)).not.toContain("raw streamed child reasoning")
+		})
+	})
+
 	test("background agent activity transcripts are bounded per agent", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const parentTask = new Task(defaultTaskOptions)
