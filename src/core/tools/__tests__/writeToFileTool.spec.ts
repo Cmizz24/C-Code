@@ -179,6 +179,8 @@ describe("writeToFileTool", () => {
 		mockCline.say = vi.fn().mockResolvedValue(undefined)
 		mockCline.ask = vi.fn().mockResolvedValue(undefined)
 		mockCline.recordToolError = vi.fn()
+		mockCline.requestAgentWriteIntent = vi.fn().mockReturnValue({ approved: true })
+		mockCline.releaseAgentWriteIntent = vi.fn()
 		mockCline.sayAndCreateMissingParamError = vi.fn().mockResolvedValue("Missing param error")
 
 		mockAskApproval = vi.fn().mockResolvedValue(true)

@@ -201,7 +201,7 @@ export class DiffViewProvider {
 		userEdits: string | undefined
 		finalContent: string | undefined
 	}> {
-		if (!this.relPath || !this.newContent || !this.activeDiffEditor) {
+		if (!this.relPath || this.newContent === undefined || !this.activeDiffEditor) {
 			return { newProblemsMessage: undefined, userEdits: undefined, finalContent: undefined }
 		}
 

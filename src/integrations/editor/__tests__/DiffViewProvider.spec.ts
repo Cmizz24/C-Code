@@ -488,6 +488,29 @@ describe("DiffViewProvider", () => {
 			expect(result.newProblemsMessage).toBe("")
 		})
 
+		it("should save an approved empty-content edit", async () => {
+			const save = vi.fn().mockResolvedValue(undefined)
+			;(diffViewProvider as any).newContent = ""
+			;(diffViewProvider as any).activeDiffEditor = {
+				document: {
+					getText: vi.fn().mockReturnValue(""),
+					isDirty: true,
+					save,
+				},
+			}
+			;(diffViewProvider as any).closeAllDiffViews = vi.fn().mockResolvedValue(undefined)
+
+			const result = await diffViewProvider.saveChanges(false, 0)
+
+			expect(save).toHaveBeenCalled()
+			expect(vscode.window.showTextDocument).toHaveBeenCalledWith(
+				expect.objectContaining({ fsPath: `${mockCwd}/test.ts` }),
+				{ preview: false, preserveFocus: true },
+			)
+			expect((diffViewProvider as any).closeAllDiffViews).toHaveBeenCalled()
+			expect(result).toEqual({ newProblemsMessage: "", userEdits: undefined, finalContent: "" })
+		})
+
 		it("should use default values when no parameters provided", async () => {
 			const mockDelay = vi.mocked(delay)
 			mockDelay.mockClear()
