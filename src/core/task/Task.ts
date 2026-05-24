@@ -388,7 +388,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				block.type === "tool_result" && block.tool_use_id === toolResult.tool_use_id,
 		)
 		if (existingResult) {
-			console.warn(
+			console.debug(
 				`[Task#pushToolResultToUserContent] Skipping duplicate tool_result for tool_use_id: ${toolResult.tool_use_id}`,
 			)
 			return false

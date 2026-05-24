@@ -2078,8 +2078,9 @@ describe("pushToolResultToUserContent", () => {
 			content: "Second result (should be skipped)",
 		}
 
-		// Spy on console.warn to verify warning is logged
+		// Spy on console.debug to verify duplicate suppression is de-noised from warning-level output
 		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+		const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {})
 
 		// Add first result - should succeed
 		const added1 = task.pushToolResultToUserContent(toolResult1)
@@ -2094,12 +2095,14 @@ describe("pushToolResultToUserContent", () => {
 		// Verify only the first result is in the array
 		expect(task.userMessageContent[0]).toEqual(toolResult1)
 
-		// Verify warning was logged
-		expect(warnSpy).toHaveBeenCalledWith(
+		// Verify duplicate suppression is logged below warning level
+		expect(warnSpy).not.toHaveBeenCalled()
+		expect(debugSpy).toHaveBeenCalledWith(
 			expect.stringContaining("Skipping duplicate tool_result for tool_use_id: duplicate-id"),
 		)
 
 		warnSpy.mockRestore()
+		debugSpy.mockRestore()
 	})
 
 	it("should allow different tool_use_ids to be added", () => {

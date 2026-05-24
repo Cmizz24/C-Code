@@ -1219,6 +1219,85 @@ describe("ClineProvider", () => {
 		})
 	})
 
+	test("background agent tool activity labels use concrete tool states before falling back", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+		const backgroundTask = backgroundTasks.find((task) => task.agentId === "dashboard-agent") as Task
+		const messages: ClineMessage[] = [
+			{
+				type: "say",
+				say: "tool",
+				ts: 2_000,
+				text: JSON.stringify({ tool: "write_to_file", path: "src/dashboard.tsx" }),
+			},
+			{
+				type: "say",
+				say: "tool",
+				ts: 2_001,
+				text: JSON.stringify({ tool: "apply_diff", path: "src/dashboard.tsx" }),
+			},
+			{
+				type: "say",
+				say: "tool",
+				ts: 2_002,
+				text: JSON.stringify({ tool: "execute_command", command: "npm test" }),
+			},
+			{
+				type: "ask",
+				ask: "tool",
+				ts: 2_003,
+				text: JSON.stringify({ tool: "ask_followup_question", question: "Which behavior should I use?" }),
+			},
+		]
+
+		for (const message of messages) {
+			backgroundTask.emit(RooCodeEventName.Message, { action: "created", message })
+		}
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.agentActivities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "tool",
+						message: "Writing src/dashboard.tsx.",
+					}),
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "tool",
+						message: "Applying a diff to src/dashboard.tsx.",
+					}),
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "tool",
+						message: "Running command: npm test.",
+					}),
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "approval",
+						message: "Waiting for a follow-up answer.",
+					}),
+				]),
+			)
+			expect(tool.agentActivities?.map((activity) => activity.message)).not.toContain("Thinking…")
+		})
+	})
+
 	test("requestPlanApproval shows the plan preview and waits by default", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const plan = createExecutionPlan()
@@ -1381,6 +1460,7 @@ describe("ClineProvider", () => {
 		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/dashboard-agent", {
 			planId: "plan-webview-provider",
 			worktreePath: "/tmp/dashboard-agent",
+			ownedPaths: ["src/dashboard.tsx"],
 		})
 		expect(mergeBranch).not.toHaveBeenCalledWith("roo/parallel/plan-webview-provider/styles-agent")
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
@@ -1426,10 +1506,12 @@ describe("ClineProvider", () => {
 		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/dashboard-agent", {
 			planId: "plan-webview-provider",
 			worktreePath: "/tmp/dashboard-agent",
+			ownedPaths: ["src/dashboard.tsx"],
 		})
 		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/styles-agent", {
 			planId: "plan-webview-provider",
 			worktreePath: "/tmp/styles-agent",
+			ownedPaths: ["src/styles.css"],
 		})
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
@@ -1461,6 +1543,20 @@ describe("ClineProvider", () => {
 				}),
 			]),
 		)
+		const reviewSummaryMessages = parentTask.clineMessages.filter(
+			(message) => message.type === "say" && message.say === "user_feedback_diff",
+		)
+		expect(reviewSummaryMessages).toHaveLength(1)
+		const reviewSummaryTool = JSON.parse(reviewSummaryMessages[0].text ?? "{}") as ClineSayTool
+		expect(reviewSummaryTool).toEqual(
+			expect.objectContaining({
+				tool: "parallelAgents",
+				path: ".roo/parallel-agent-review.md",
+				diff: expect.stringContaining("Full per-agent diffs are available in the merge review panel."),
+			}),
+		)
+		expect(reviewSummaryTool.diff).toContain("dashboard-agent: pending; 1 files, +1/-0")
+		expect(reviewSummaryTool.diff).not.toContain("diff --git a/src/dashboard-agent.ts")
 	})
 
 	test.each([
@@ -1622,6 +1718,7 @@ describe("ClineProvider", () => {
 		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/dashboard-agent", {
 			planId: "plan-webview-provider",
 			worktreePath: "/tmp/dashboard-agent",
+			ownedPaths: ["src/dashboard.tsx"],
 		})
 		expect(removeWorktree).not.toHaveBeenCalled()
 		expect(mockPostMessage).toHaveBeenCalledWith(
@@ -1716,6 +1813,7 @@ describe("ClineProvider", () => {
 		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/dashboard-agent", {
 			planId: "plan-webview-provider",
 			worktreePath: "/tmp/dashboard-agent",
+			ownedPaths: ["src/dashboard.tsx"],
 		})
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")

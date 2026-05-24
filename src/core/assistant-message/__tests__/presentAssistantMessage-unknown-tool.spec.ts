@@ -9,6 +9,14 @@ vi.mock("../../tools/validateToolUse", () => ({
 	validateToolUse: vi.fn(),
 	isValidToolName: vi.fn(() => false),
 }))
+vi.mock("../../tools/ListFilesTool", () => ({
+	listFilesTool: {
+		handle: vi.fn(async (_task: any, _block: any, callbacks: any) => {
+			callbacks.pushToolResult("first result")
+			callbacks.pushToolResult("second result")
+		}),
+	},
+}))
 
 describe("presentAssistantMessage - Unknown Tool Handling", () => {
 	let mockTask: any
@@ -230,5 +238,46 @@ describe("presentAssistantMessage - Unknown Tool Handling", () => {
 		expect(toolResult).toBeDefined()
 		expect(toolResult.is_error).toBe(true)
 		expect(toolResult.content).toContain("due to user rejecting a previous tool")
+	})
+
+	it("should de-noise duplicate native tool_result emissions from tool handlers", async () => {
+		const toolCallId = "tool_call_duplicate_result_test"
+		const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {})
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+
+		mockTask.assistantMessageContent = [
+			{
+				type: "tool_use",
+				id: toolCallId,
+				name: "list_files",
+				params: { path: "." },
+				nativeArgs: { path: "." },
+				partial: false,
+			},
+		]
+
+		try {
+			await presentAssistantMessage(mockTask)
+
+			const toolResults = mockTask.userMessageContent.filter(
+				(item: any) => item.type === "tool_result" && item.tool_use_id === toolCallId,
+			)
+
+			expect(toolResults).toHaveLength(1)
+			expect(toolResults[0]).toEqual(
+				expect.objectContaining({
+					tool_use_id: toolCallId,
+					content: "first result",
+				}),
+			)
+			expect(mockTask.pushToolResultToUserContent).toHaveBeenCalledTimes(1)
+			expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("Skipping duplicate tool_result"))
+			expect(debugSpy).toHaveBeenCalledWith(
+				`[presentAssistantMessage] Skipping duplicate tool_result for tool_use_id: ${toolCallId}`,
+			)
+		} finally {
+			debugSpy.mockRestore()
+			warnSpy.mockRestore()
+		}
 	})
 })

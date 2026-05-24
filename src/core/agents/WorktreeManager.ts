@@ -20,7 +20,7 @@ export class WorktreeManagerError extends Error {
 	}
 }
 
-export type WorktreeMergeFailureStage = "rebase" | "merge"
+export type WorktreeMergeFailureStage = "rebase" | "merge" | "apply"
 
 export class WorktreeMergeError extends WorktreeManagerError {
 	constructor(
@@ -80,11 +80,21 @@ function formatMergeFailureMessage(
 	abortError: string | undefined,
 	originalError: string,
 ): string {
-	const action = stage === "rebase" ? "rebase" : "merge"
-	const target = stage === "rebase" ? "onto the current workspace HEAD" : "into the workspace"
-	const cleanupMessage = abortError
-		? `Roo attempted to abort the in-progress ${action}, but Git returned:\n${abortError}`
-		: `Roo aborted the in-progress ${action} so the repository/worktree is ready for manual review.`
+	const action = stage === "rebase" ? "rebase" : stage === "apply" ? "apply" : "merge"
+	const target =
+		stage === "rebase"
+			? "onto the current workspace HEAD"
+			: stage === "apply"
+				? "to the workspace"
+				: "into the workspace"
+	const cleanupMessage =
+		stage === "apply"
+			? abortError
+				? `Roo attempted to clean up the failed patch application, but Git returned:\n${abortError}`
+				: "Roo stopped before applying unsafe patch changes so the workspace is ready for manual review."
+			: abortError
+				? `Roo attempted to abort the in-progress ${action}, but Git returned:\n${abortError}`
+				: `Roo aborted the in-progress ${action} so the repository/worktree is ready for manual review.`
 	const conflictMessage = conflictedFiles.length > 0 ? `\nConflicted files:\n- ${conflictedFiles.join("\n- ")}` : ""
 	const gitMessage = originalError ? `\n\nGit output:\n${originalError}` : ""
 
@@ -204,9 +214,22 @@ export class WorktreeManager {
 		return this.getBranchDiff(params.branch, ownedPaths, this.workspaceBaselines.get(params.planId)?.commit)
 	}
 
-	public async mergeBranch(branch: string, params: { planId?: string; worktreePath?: string } = {}): Promise<void> {
+	public async mergeBranch(
+		branch: string,
+		params: { planId?: string; worktreePath?: string; ownedPaths?: string[] } = {},
+	): Promise<void> {
 		const gitRoot = await this.resolveGitRoot()
 		const baseline = params.planId ? this.workspaceBaselines.get(params.planId) : undefined
+		const ownedPaths = params.ownedPaths?.map(normalizeGitPath).filter(Boolean)
+
+		if (baseline && ownedPaths?.length) {
+			await this.applyOwnedBranchDiff(branch, {
+				gitRoot,
+				baselineCommit: baseline.commit,
+				ownedPaths,
+			})
+			return
+		}
 
 		if (baseline && params.worktreePath) {
 			const currentHead = await this.getCurrentHead(gitRoot)
@@ -238,6 +261,87 @@ export class WorktreeManager {
 			const conflictedFiles = await this.getConflictedFiles(gitRoot)
 			const abortError = await this.abortGitOperation(gitRoot, "merge")
 			throw new WorktreeMergeError("merge", branch, gitRoot, conflictedFiles, abortError, formatGitFailure(error))
+		}
+	}
+
+	private async applyOwnedBranchDiff(
+		branch: string,
+		params: { gitRoot: string; baselineCommit: string; ownedPaths: string[] },
+	): Promise<void> {
+		const diff = await this.getBranchDiff(branch, params.ownedPaths, params.baselineCommit)
+		if (!diff.trim()) {
+			return
+		}
+
+		const changedPaths = await this.getWorkspaceChangesSinceBaseline(
+			params.gitRoot,
+			params.baselineCommit,
+			params.ownedPaths,
+		)
+		if (changedPaths.length > 0) {
+			throw new WorktreeMergeError(
+				"apply",
+				branch,
+				params.gitRoot,
+				changedPaths,
+				undefined,
+				`Current workspace content changed since the parallel baseline for owned paths:\n- ${changedPaths.join("\n- ")}`,
+			)
+		}
+
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "roo-parallel-merge-patch-"))
+		const patchPath = path.join(tempDir, "agent.diff")
+
+		try {
+			await fs.writeFile(patchPath, diff, "utf8")
+			await execAsync(`git apply --binary --3way --check ${shellQuote(patchPath)}`, {
+				cwd: params.gitRoot,
+				maxBuffer: 50 * 1024 * 1024,
+			})
+			await execAsync(`git apply --binary --3way ${shellQuote(patchPath)}`, {
+				cwd: params.gitRoot,
+				maxBuffer: 50 * 1024 * 1024,
+			})
+		} catch (error) {
+			const conflictedFiles = await this.getConflictedFiles(params.gitRoot)
+			throw new WorktreeMergeError(
+				"apply",
+				branch,
+				params.gitRoot,
+				conflictedFiles.length > 0 ? conflictedFiles : params.ownedPaths,
+				undefined,
+				formatGitFailure(error),
+			)
+		} finally {
+			await fs.rm(tempDir, { recursive: true, force: true })
+		}
+	}
+
+	private async getWorkspaceChangesSinceBaseline(
+		gitRoot: string,
+		baselineCommit: string,
+		ownedPaths: string[],
+	): Promise<string[]> {
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "roo-parallel-current-snapshot-"))
+		const tempIndexPath = path.join(tempDir, "index")
+		const tempIndexEnv = { ...process.env, GIT_INDEX_FILE: tempIndexPath }
+
+		try {
+			await execAsync(`git read-tree ${baselineCommit}`, { cwd: gitRoot, env: tempIndexEnv })
+
+			for (const chunk of this.chunkPathspecs(ownedPaths)) {
+				await execAsync(`git add -A -- ${this.formatPathspec(chunk)}`, { cwd: gitRoot, env: tempIndexEnv })
+			}
+
+			const pathspec = this.formatPathspec(ownedPaths)
+			const pathspecArgs = pathspec ? ` -- ${pathspec}` : ""
+			return await this.getNullSeparatedGitOutput(
+				`git diff --cached --name-only -z ${baselineCommit}${pathspecArgs}`,
+				gitRoot,
+				tempIndexEnv,
+			)
+		} finally {
+			await fs.rm(tempDir, { recursive: true, force: true })
 		}
 	}
 

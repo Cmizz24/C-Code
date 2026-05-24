@@ -12,10 +12,12 @@ vi.mock("fs/promises", () => ({
 		mkdtemp: vi.fn().mockResolvedValue("C:/tmp/roo-parallel-baseline-1"),
 		rm: vi.fn().mockResolvedValue(undefined),
 		readFile: vi.fn().mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" })),
+		writeFile: vi.fn().mockResolvedValue(undefined),
 	},
 	mkdtemp: vi.fn().mockResolvedValue("C:/tmp/roo-parallel-baseline-1"),
 	rm: vi.fn().mockResolvedValue(undefined),
 	readFile: vi.fn().mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" })),
+	writeFile: vi.fn().mockResolvedValue(undefined),
 }))
 
 const execMock = vi.mocked(exec)
@@ -37,6 +39,8 @@ describe("WorktreeManager", () => {
 		fsMock.mkdtemp.mockResolvedValue("C:/tmp/roo-parallel-baseline-1")
 		fsMock.rm.mockResolvedValue(undefined)
 		fsMock.readFile.mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" }))
+		fsMock.writeFile.mockClear()
+		fsMock.writeFile.mockResolvedValue(undefined)
 	})
 
 	it("captures the current workspace state before adding a worktree from the synthetic baseline", async () => {
@@ -509,6 +513,97 @@ describe("WorktreeManager", () => {
 
 		expect(diff).toBe("")
 		expect(execMock.mock.calls.some(([command]) => String(command).includes("commit --no-verify"))).toBe(false)
+	})
+
+	it("applies owned branch diffs directly without rebasing safe single-owner files", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		;(manager as any).workspaceBaselines.set("plan-test", {
+			planId: "plan-test",
+			commit: "baseline123",
+			ref: "refs/roo/parallel-baselines/plan-test",
+		})
+		fsMock.mkdtemp
+			.mockResolvedValueOnce("C:/tmp/roo-parallel-current-snapshot-1")
+			.mockResolvedValueOnce("C:/tmp/roo-parallel-merge-patch-1")
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+			if (command === 'git diff --binary baseline123..."roo/parallel/plan-test/ui-agent" -- "src/index.html"') {
+				return { stdout: "diff --git a/src/index.html b/src/index.html\n+<main />\n" }
+			}
+			if (command === "git read-tree baseline123") {
+				return { stdout: "" }
+			}
+			if (command === 'git add -A -- "src/index.html"') {
+				return { stdout: "" }
+			}
+			if (command === 'git diff --cached --name-only -z baseline123 -- "src/index.html"') {
+				return { stdout: "" }
+			}
+			if (command === 'git apply --binary --3way --check "C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff"') {
+				return { stdout: "" }
+			}
+			if (command === 'git apply --binary --3way "C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff"') {
+				return { stdout: "" }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await manager.mergeBranch("roo/parallel/plan-test/ui-agent", {
+			planId: "plan-test",
+			worktreePath: "C:/worktrees/ui-agent",
+			ownedPaths: ["src/index.html"],
+		})
+
+		expect(execMock.mock.calls.some(([command]) => String(command).includes("git rebase"))).toBe(false)
+		expect(execMock.mock.calls.some(([command]) => String(command).includes("git merge --no-edit"))).toBe(false)
+		expect(fsMock.writeFile).toHaveBeenCalledWith(
+			"C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff",
+			"diff --git a/src/index.html b/src/index.html\n+<main />\n",
+			"utf8",
+		)
+	})
+
+	it("blocks owned branch apply when the current workspace changed since the baseline", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		;(manager as any).workspaceBaselines.set("plan-test", {
+			planId: "plan-test",
+			commit: "baseline123",
+			ref: "refs/roo/parallel-baselines/plan-test",
+		})
+		fsMock.mkdtemp.mockResolvedValue("C:/tmp/roo-parallel-current-snapshot-1")
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+			if (command === 'git diff --binary baseline123..."roo/parallel/plan-test/ui-agent" -- "src/index.html"') {
+				return { stdout: "diff --git a/src/index.html b/src/index.html\n+<main />\n" }
+			}
+			if (command === "git read-tree baseline123") {
+				return { stdout: "" }
+			}
+			if (command === 'git add -A -- "src/index.html"') {
+				return { stdout: "" }
+			}
+			if (command === 'git diff --cached --name-only -z baseline123 -- "src/index.html"') {
+				return { stdout: "src/index.html\0" }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await expect(
+			manager.mergeBranch("roo/parallel/plan-test/ui-agent", {
+				planId: "plan-test",
+				worktreePath: "C:/worktrees/ui-agent",
+				ownedPaths: ["src/index.html"],
+			}),
+		).rejects.toThrow("Current workspace content changed since the parallel baseline")
+
+		expect(fsMock.writeFile).not.toHaveBeenCalled()
+		expect(execMock.mock.calls.some(([command]) => String(command).includes("git apply"))).toBe(false)
 	})
 
 	it("aborts an in-progress rebase when rebasing a baseline-derived agent branch fails", async () => {

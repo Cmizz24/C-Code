@@ -133,6 +133,13 @@ type ParallelAgentUsageSummary = NonNullable<ClineSayTool["parallelUsageSummary"
 type BackgroundAgentActivityDescription = Pick<ParallelAgentActivity, "kind" | "message">
 type MergeApprovedAgentsOptions = { autoApproved?: boolean }
 type AutoMergeReviewSkipReason = { agentId?: string; reason: string }
+type ActivityToolPayload = Omit<ClineSayTool, "tool"> & {
+	tool?: string
+	filePath?: string
+	name?: string
+	serverName?: string
+	uri?: string
+}
 type AutoMergeReviewDecision = {
 	enabled: boolean
 	approvedAgentIds: string[]
@@ -140,6 +147,7 @@ type AutoMergeReviewDecision = {
 }
 
 const PARALLEL_AGENT_ACTIVITY_LIMIT = 50
+const PARALLEL_REVIEW_SUMMARY_PATH = ".roo/parallel-agent-review.md"
 
 export class ClineProvider
 	extends EventEmitter<TaskProviderEvents>
@@ -2921,11 +2929,14 @@ export class ClineProvider
 
 	public async createAgentWorktree(agentId: string, planId: string): Promise<string> {
 		try {
+			this.recordParallelAgentActivity(agentId, "Creating isolated worktree.", "tool")
 			const worktreePath = await this.ensureWorktreeManager().createWorktree(agentId, planId)
 			this.worktreePathsByAgentId.set(agentId, worktreePath)
+			this.recordParallelAgentActivity(agentId, `Created isolated worktree at ${worktreePath}.`, "file")
 			return worktreePath
 		} catch (error) {
 			const message = getWorktreeManagerErrorMessage(error)
+			this.recordParallelAgentActivity(agentId, `Failed to create worktree: ${message}`, "error")
 			this.log(`[parallel-agents] Failed to create worktree for ${agentId}: ${message}`)
 			vscode.window.showErrorMessage(message)
 			throw new Error(message)
@@ -3004,6 +3015,7 @@ export class ClineProvider
 		}
 
 		await this.updateParallelAgentStatusMessage("review", entries)
+		await this.emitParallelAgentReviewSummary(plan, entries)
 		await this.appendParallelAgentOutcomeSummary(plan, "review", entries)
 		await this.postMessageToWebview({ type: "showMergeReview", mergeReviewEntries: entries })
 
@@ -3139,11 +3151,19 @@ export class ClineProvider
 				this.worktreePathsByAgentId.get(agentId) ?? agent?.worktreePath ?? reviewEntry?.worktreePath
 
 			try {
+				this.recordParallelAgentActivity(agentId, `Preparing branch ${branch} for merge.`, "tool")
+
 				if (worktreePath) {
 					await this.prepareAgentBranchForReview(plan, agentId, branch, worktreePath)
 				}
 
-				await this.ensureWorktreeManager().mergeBranch(branch, { planId: plan.planId, worktreePath })
+				const ownedPaths = this.getAgentOwnedPaths(agent)
+				this.recordParallelAgentActivity(agentId, `Applying branch ${branch} to the workspace.`, "file")
+				await this.ensureWorktreeManager().mergeBranch(branch, {
+					planId: plan.planId,
+					worktreePath,
+					ownedPaths,
+				})
 				this.updateMergeReviewEntry(agentId, {
 					mergeStatus: "merged",
 					mergeError: undefined,
@@ -3153,6 +3173,8 @@ export class ClineProvider
 
 				if (options.autoApproved) {
 					this.recordParallelAgentActivity(agentId, `Auto-merged branch ${branch}.`, "completion")
+				} else {
+					this.recordParallelAgentActivity(agentId, `Merged branch ${branch}.`, "completion")
 				}
 			} catch (error) {
 				const gitOutput = this.formatGitError(error)
@@ -3405,7 +3427,11 @@ export class ClineProvider
 		this.parallelStatusUpdateRequested = true
 
 		if (this.parallelStatusUpdatePromise) {
-			return this.parallelStatusUpdatePromise
+			return this.parallelStatusUpdatePromise.then(async () => {
+				if (this.parallelStatusUpdateRequested) {
+					await this.queueParallelAgentStatusMessageUpdate()
+				}
+			})
 		}
 
 		const queued = this.parallelStatusUpdateQueue.then(async () => {
@@ -3604,6 +3630,74 @@ export class ClineProvider
 				}`,
 			)
 		}
+	}
+
+	private async emitParallelAgentReviewSummary(plan: ExecutionPlan, entries: MergeReviewEntry[]): Promise<void> {
+		const task = this.getCurrentTask()
+		if (!task || task.background) {
+			return
+		}
+
+		const summaryDiff = this.buildParallelAgentReviewSummaryDiff(plan, entries)
+		const existingSummary = [...task.clineMessages].reverse().find((message) => {
+			if (message.type !== "say" || message.say !== "user_feedback_diff" || !message.text) {
+				return false
+			}
+
+			const tool = this.tryParseToolPayload(message.text)
+			return (
+				tool?.tool === "parallelAgents" &&
+				tool.path === PARALLEL_REVIEW_SUMMARY_PATH &&
+				tool.diff === summaryDiff
+			)
+		})
+
+		const payload: ClineSayTool = {
+			tool: "parallelAgents",
+			path: PARALLEL_REVIEW_SUMMARY_PATH,
+			diff: summaryDiff,
+		}
+
+		if (existingSummary) {
+			return
+		}
+
+		await task.say("user_feedback_diff", JSON.stringify(payload), undefined, false, undefined, undefined, {
+			isNonInteractive: true,
+		})
+	}
+
+	private buildParallelAgentReviewSummaryDiff(plan: ExecutionPlan, entries: MergeReviewEntry[]): string {
+		const lines = [
+			`# Parallel agent review for ${plan.planId}`,
+			"",
+			"Full per-agent diffs are available in the merge review panel.",
+			"",
+			...entries.map((entry) => {
+				const stats = entry.changeStats
+				const statsText = stats
+					? `${stats.filesChanged} files, +${stats.additions}/-${stats.deletions}`
+					: entry.diff.trim()
+						? "changes detected"
+						: "no changes"
+				const state = entry.mergeStatus ?? (entry.reviewError ? "failed" : "pending")
+				const detail =
+					entry.mergeError ?? entry.reviewError ?? entry.autoMergeSkippedReason ?? entry.noChangesReason
+				return `- ${entry.agentId}: ${state}; ${statsText}${detail ? `; ${detail}` : ""}`
+			}),
+		]
+		const addedLines = lines.map((line) => `+${line}`).join("\n")
+
+		return [
+			`diff --git a/${PARALLEL_REVIEW_SUMMARY_PATH} b/${PARALLEL_REVIEW_SUMMARY_PATH}`,
+			"new file mode 100644",
+			"index 0000000..0000000",
+			"--- /dev/null",
+			`+++ b/${PARALLEL_REVIEW_SUMMARY_PATH}`,
+			`@@ -0,0 +1,${lines.length} @@`,
+			addedLines,
+			"",
+		].join("\n")
 	}
 
 	private buildParallelAgentOutcomeSummary(
@@ -3877,45 +3971,95 @@ export class ClineProvider
 	}
 
 	private describeToolActivity(text: string | undefined, fallback: string): string {
-		const tool = text ? this.tryParseToolPayload(text) : undefined
+		const tool = text ? this.tryParseActivityToolPayload(text) : undefined
+		const toolName = tool?.tool
+		const targetPath = tool?.path ?? tool?.filePath
+		if (!tool || !toolName) {
+			return fallback
+		}
 
-		switch (tool?.tool) {
+		switch (toolName) {
 			case "editedExistingFile":
-				return `Editing ${tool.path ?? "a file"}.`
+			case "edit":
+			case "edit_file":
+			case "search_and_replace":
+			case "search_replace":
+				return `Editing ${targetPath ?? "a file"}.`
 			case "appliedDiff":
-				return `Applying a diff to ${tool.path ?? "a file"}.`
+			case "apply_diff":
+			case "apply_patch":
+				return `Applying a diff to ${targetPath ?? "a file"}.`
 			case "newFileCreated":
-				return `Creating ${tool.path ?? "a file"}.`
+				return `Creating ${targetPath ?? "a file"}.`
+			case "write_to_file":
+				return `Writing ${targetPath ?? "a file"}.`
 			case "readFile":
-				return `Reading ${tool.path ?? "a file"}.`
+			case "read_file":
+				return `Reading ${targetPath ?? "a file"}.`
 			case "codebaseSearch":
+			case "codebase_search":
 				return "Searching the codebase."
 			case "searchFiles":
+			case "search_files":
 				return tool.regex ? `Searching files for ${tool.regex}.` : "Searching files."
 			case "listFilesTopLevel":
 			case "listFilesRecursive":
-				return `Listing ${tool.path ?? "files"}.`
+			case "list_files":
+				return `Listing ${targetPath ?? "files"}.`
+			case "execute_command":
+				return tool.command ? `Running command: ${tool.command}.` : "Running a command."
 			case "readCommandOutput":
+			case "read_command_output":
 				return "Reading command output."
 			case "runSlashCommand":
+			case "run_slash_command":
 				return tool.command ? `Running /${tool.command}.` : "Running a slash command."
 			case "switchMode":
+			case "switch_mode":
 				return tool.mode ? `Switching to ${tool.mode} mode.` : "Switching mode."
 			case "newTask":
+			case "new_task":
 				return "Starting a subtask."
 			case "finishTask":
+			case "attempt_completion":
 				return "Finishing a subtask."
+			case "plan_parallel_tasks":
+				return "Planning parallel agents."
 			case "skill":
 				return tool.skill ? `Loading ${tool.skill} skill.` : "Loading a skill."
 			case "generateImage":
+			case "generate_image":
 			case "imageGenerated":
 				return "Working with an image."
 			case "updateTodoList":
+			case "update_todo_list":
 				return "Updating the todo list."
 			case "parallelAgents":
 				return "Updating parallel agent status."
+			case "use_mcp_tool":
+				return tool.serverName
+					? `Calling MCP tool${tool.name ? ` ${tool.name}` : ""} on ${tool.serverName}.`
+					: "Calling an MCP tool."
+			case "access_mcp_resource":
+				return tool.serverName
+					? `Reading MCP resource${tool.uri ? ` ${tool.uri}` : ""} from ${tool.serverName}.`
+					: "Reading an MCP resource."
+			case "ask_followup_question":
+				return "Waiting for a follow-up answer."
 			default:
 				return fallback
+		}
+	}
+
+	private getAgentOwnedPaths(agent: ExecutionPlan["agents"][number] | undefined): string[] | undefined {
+		return agent?.owns.filter((ownership) => ownership.mode !== "read-only").map((ownership) => ownership.path)
+	}
+
+	private tryParseActivityToolPayload(text: string): ActivityToolPayload | undefined {
+		try {
+			return JSON.parse(text) as ActivityToolPayload
+		} catch {
+			return undefined
 		}
 	}
 
@@ -3999,9 +4143,8 @@ export class ClineProvider
 	): Promise<string> {
 		this.log(`[parallel-agents] Collecting merge-review diff for ${agentId} from ${worktreePath}`)
 		const agent = plan.agents.find((candidate) => candidate.id === agentId)
-		const ownedPaths = agent?.owns
-			.filter((ownership) => ownership.mode !== "read-only")
-			.map((ownership) => ownership.path)
+		this.recordParallelAgentActivity(agentId, "Reviewing branch changes.", "tool")
+		const ownedPaths = this.getAgentOwnedPaths(agent)
 		const diff = await this.ensureWorktreeManager().prepareMergeReview({
 			agentId,
 			planId: plan.planId,

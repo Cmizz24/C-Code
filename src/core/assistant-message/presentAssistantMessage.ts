@@ -210,7 +210,7 @@ export async function presentAssistantMessage(cline: Task) {
 
 			const pushToolResult = (content: ToolResponse, feedbackImages?: string[]) => {
 				if (hasToolResult) {
-					console.warn(
+					console.debug(
 						`[presentAssistantMessage] Skipping duplicate tool_result for mcp_tool_use: ${toolCallId}`,
 					)
 					return
@@ -537,7 +537,7 @@ export async function presentAssistantMessage(cline: Task) {
 			const pushToolResult = (content: ToolResponse) => {
 				// Native tool calling: only allow ONE tool_result per tool call
 				if (hasToolResult) {
-					console.warn(
+					console.debug(
 						`[presentAssistantMessage] Skipping duplicate tool_result for tool_use_id: ${toolCallId}`,
 					)
 					return
