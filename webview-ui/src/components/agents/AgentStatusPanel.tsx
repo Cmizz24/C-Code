@@ -503,6 +503,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 			? `${usageCount}/${agents.length} reporting usage`
 			: undefined
 	const phaseLabel = phase ? phaseLabels[phase] : overallStatus
+	const reviewSummaryMarkdown = tool?.parallelReviewSummary?.markdown?.trim()
 
 	return (
 		<section
@@ -546,6 +547,20 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 							</>
 						)}
 					</ToolUseBlockHeader>
+
+					{reviewSummaryMarkdown && (
+						<div
+							data-testid="parallel-agent-review-summary"
+							className="mt-2 rounded border border-vscode-sideBar-background bg-vscode-sideBar-background/30 p-2 text-[11px] text-vscode-descriptionForeground">
+							<div className="mb-1 flex items-center gap-1.5 text-vscode-foreground">
+								<span className="codicon codicon-git-merge shrink-0" />
+								<span className="font-medium">Parallel agent review summary</span>
+							</div>
+							<pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px] text-vscode-foreground">
+								{reviewSummaryMarkdown}
+							</pre>
+						</div>
+					)}
 
 					{conflicts.length > 0 && (
 						<div className="mt-2 flex flex-col gap-1.5 border-t border-vscode-sideBar-background pt-2">

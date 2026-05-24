@@ -1546,17 +1546,15 @@ describe("ClineProvider", () => {
 		const reviewSummaryMessages = parentTask.clineMessages.filter(
 			(message) => message.type === "say" && message.say === "user_feedback_diff",
 		)
-		expect(reviewSummaryMessages).toHaveLength(1)
-		const reviewSummaryTool = JSON.parse(reviewSummaryMessages[0].text ?? "{}") as ClineSayTool
-		expect(reviewSummaryTool).toEqual(
+		expect(reviewSummaryMessages).toHaveLength(0)
+		expect(statusTool.parallelReviewSummary).toEqual(
 			expect.objectContaining({
-				tool: "parallelAgents",
 				path: ".roo/parallel-agent-review.md",
-				diff: expect.stringContaining("Full per-agent diffs are available in the merge review panel."),
+				markdown: expect.stringContaining("Full per-agent diffs are available in the merge review panel."),
 			}),
 		)
-		expect(reviewSummaryTool.diff).toContain("dashboard-agent: pending; 1 files, +1/-0")
-		expect(reviewSummaryTool.diff).not.toContain("diff --git a/src/dashboard-agent.ts")
+		expect(statusTool.parallelReviewSummary?.markdown).toContain("dashboard-agent: merged; 1 files, +1/-0")
+		expect(statusTool.parallelReviewSummary?.markdown).not.toContain("diff --git a/src/dashboard-agent.ts")
 	})
 
 	test.each([

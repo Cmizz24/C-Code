@@ -139,6 +139,11 @@ export interface MergeReviewChangeStats {
 	binaryFiles: number
 }
 
+export interface ParallelAgentReviewSummary {
+	path: string
+	markdown: string
+}
+
 export function computeMergeReviewChangeStats(diff: string): MergeReviewChangeStats {
 	const stats: MergeReviewChangeStats = {
 		filesChanged: 0,

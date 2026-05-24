@@ -20,6 +20,7 @@ import type {
 	AgentStatusUpdate,
 	ExecutionPlan,
 	MergeReviewEntry,
+	ParallelAgentReviewSummary,
 	WriteIntentConflict,
 } from "./agents.js"
 
@@ -758,6 +759,7 @@ export interface ClineSayTool {
 		contextTokens: number
 		reportingAgents: number
 	}
+	parallelReviewSummary?: ParallelAgentReviewSummary
 	mergeReviewEntries?: MergeReviewEntry[]
 	// For readCommandOutput
 	readStart?: number

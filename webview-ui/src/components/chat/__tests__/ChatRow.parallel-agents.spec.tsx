@@ -77,4 +77,37 @@ describe("ChatRow - parallelAgents tool", () => {
 
 		expect(screen.getByTestId("agent-status-panel")).toHaveTextContent("plan-chat-row")
 	})
+
+	it("renders legacy parallelAgents review summaries without the user edit UI", () => {
+		const message: ClineMessage = {
+			type: "say",
+			say: "user_feedback_diff",
+			ts: Date.now(),
+			text: JSON.stringify({
+				tool: "parallelAgents",
+				path: ".roo/parallel-agent-review.md",
+				diff: [
+					"diff --git a/.roo/parallel-agent-review.md b/.roo/parallel-agent-review.md",
+					"--- /dev/null",
+					"+++ b/.roo/parallel-agent-review.md",
+					"@@ -0,0 +1,4 @@",
+					"+# Parallel agent review for plan-chat-row",
+					"+",
+					"+Full per-agent diffs are available in the merge review panel.",
+					"+- agent-1: pending; 1 files, +1/-0",
+				].join("\n"),
+			}),
+		}
+
+		renderChatRow(message)
+
+		expect(screen.getByTestId("parallel-agent-review-summary-row")).toHaveTextContent(
+			"Parallel agent review summary",
+		)
+		expect(screen.getByTestId("parallel-agent-review-summary-row")).toHaveTextContent(
+			"Full per-agent diffs are available in the merge review panel.",
+		)
+		expect(screen.queryByText("User Edits")).not.toBeInTheDocument()
+		expect(screen.queryByText("User Edit")).not.toBeInTheDocument()
+	})
 })

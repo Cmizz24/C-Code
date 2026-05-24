@@ -34,6 +34,7 @@ import {
 	type AgentStatusUpdate,
 	type WriteIntentConflict,
 	type MergeReviewEntry,
+	type ParallelAgentReviewSummary,
 	computeMergeReviewChangeStats,
 	RooCodeEventName,
 	requestyDefaultModelId,
@@ -186,6 +187,7 @@ export class ClineProvider
 	private readonly parallelAgentActivities = new Map<string, ParallelAgentActivity[]>()
 	private readonly parallelWriteConflicts = new Map<string, WriteIntentConflict>()
 	private parallelUsageSummary?: ParallelAgentUsageSummary
+	private parallelReviewSummary?: ParallelAgentReviewSummary
 	private parallelStatusUpdateQueue: Promise<void> = Promise.resolve()
 	private parallelStatusUpdatePromise?: Promise<void>
 	private parallelStatusUpdateRequested = false
@@ -3014,8 +3016,8 @@ export class ClineProvider
 			this.applyAutoMergeSkipReasons(entries, autoMergeDecision.skipReasons)
 		}
 
+		this.recordParallelAgentReviewSummary(plan, entries)
 		await this.updateParallelAgentStatusMessage("review", entries)
-		await this.emitParallelAgentReviewSummary(plan, entries)
 		await this.appendParallelAgentOutcomeSummary(plan, "review", entries)
 		await this.postMessageToWebview({ type: "showMergeReview", mergeReviewEntries: entries })
 
@@ -3189,6 +3191,7 @@ export class ClineProvider
 					this.recordParallelAgentActivity(agentId, `Auto-merge failed: ${gitOutput}`, "error")
 				}
 
+				this.recordParallelAgentReviewSummary(plan, this.parallelMergeReviewEntries)
 				await this.updateParallelAgentStatusMessage("review", this.parallelMergeReviewEntries)
 				await this.appendParallelAgentOutcomeSummary(plan, "failed", this.parallelMergeReviewEntries)
 
@@ -3209,6 +3212,7 @@ export class ClineProvider
 		)
 		await this.worktreeManager?.cleanupPlanBaseline(plan.planId)
 
+		this.recordParallelAgentReviewSummary(plan, this.parallelMergeReviewEntries)
 		await this.updateParallelAgentStatusMessage("merged")
 		await this.appendParallelAgentOutcomeSummary(plan, "merged", this.parallelMergeReviewEntries)
 		await this.teardownParallelExecution({ resetBus: true })
@@ -3364,6 +3368,7 @@ export class ClineProvider
 		this.parallelStatusPhase = "running"
 		this.parallelMergeReviewEntries = undefined
 		this.parallelUsageSummary = undefined
+		this.parallelReviewSummary = undefined
 		this.parallelAgentStatusUpdates.clear()
 		this.parallelAgentActivities.clear()
 		this.parallelWriteConflicts.clear()
@@ -3485,6 +3490,7 @@ export class ClineProvider
 			writeIntentConflicts: Array.from(this.parallelWriteConflicts.values()),
 			agentActivities: this.getParallelAgentActivities(),
 			parallelUsageSummary: this.parallelUsageSummary,
+			parallelReviewSummary: this.parallelReviewSummary,
 			mergeReviewEntries,
 		}
 	}
@@ -3555,6 +3561,9 @@ export class ClineProvider
 		this.parallelStatusPlanId = reviewMessage.executionPlan.planId
 		this.parallelMergeReviewEntries = reviewMessage.mergeReviewEntries
 		this.parallelUsageSummary = reviewMessage.parallelUsageSummary
+		this.parallelReviewSummary =
+			reviewMessage.parallelReviewSummary ??
+			this.buildParallelAgentReviewSummary(reviewMessage.executionPlan, reviewMessage.mergeReviewEntries ?? [])
 		this.parallelAgentStatusUpdates.clear()
 		for (const update of reviewMessage.agentStatusUpdates ?? []) {
 			this.parallelAgentStatusUpdates.set(update.agentId, update)
@@ -3632,42 +3641,14 @@ export class ClineProvider
 		}
 	}
 
-	private async emitParallelAgentReviewSummary(plan: ExecutionPlan, entries: MergeReviewEntry[]): Promise<void> {
-		const task = this.getCurrentTask()
-		if (!task || task.background) {
-			return
-		}
-
-		const summaryDiff = this.buildParallelAgentReviewSummaryDiff(plan, entries)
-		const existingSummary = [...task.clineMessages].reverse().find((message) => {
-			if (message.type !== "say" || message.say !== "user_feedback_diff" || !message.text) {
-				return false
-			}
-
-			const tool = this.tryParseToolPayload(message.text)
-			return (
-				tool?.tool === "parallelAgents" &&
-				tool.path === PARALLEL_REVIEW_SUMMARY_PATH &&
-				tool.diff === summaryDiff
-			)
-		})
-
-		const payload: ClineSayTool = {
-			tool: "parallelAgents",
-			path: PARALLEL_REVIEW_SUMMARY_PATH,
-			diff: summaryDiff,
-		}
-
-		if (existingSummary) {
-			return
-		}
-
-		await task.say("user_feedback_diff", JSON.stringify(payload), undefined, false, undefined, undefined, {
-			isNonInteractive: true,
-		})
+	private recordParallelAgentReviewSummary(plan: ExecutionPlan, entries: MergeReviewEntry[] | undefined): void {
+		this.parallelReviewSummary = this.buildParallelAgentReviewSummary(plan, entries ?? [])
 	}
 
-	private buildParallelAgentReviewSummaryDiff(plan: ExecutionPlan, entries: MergeReviewEntry[]): string {
+	private buildParallelAgentReviewSummary(
+		plan: ExecutionPlan,
+		entries: MergeReviewEntry[],
+	): ParallelAgentReviewSummary {
 		const lines = [
 			`# Parallel agent review for ${plan.planId}`,
 			"",
@@ -3686,18 +3667,11 @@ export class ClineProvider
 				return `- ${entry.agentId}: ${state}; ${statsText}${detail ? `; ${detail}` : ""}`
 			}),
 		]
-		const addedLines = lines.map((line) => `+${line}`).join("\n")
 
-		return [
-			`diff --git a/${PARALLEL_REVIEW_SUMMARY_PATH} b/${PARALLEL_REVIEW_SUMMARY_PATH}`,
-			"new file mode 100644",
-			"index 0000000..0000000",
-			"--- /dev/null",
-			`+++ b/${PARALLEL_REVIEW_SUMMARY_PATH}`,
-			`@@ -0,0 +1,${lines.length} @@`,
-			addedLines,
-			"",
-		].join("\n")
+		return {
+			path: PARALLEL_REVIEW_SUMMARY_PATH,
+			markdown: lines.join("\n"),
+		}
 	}
 
 	private buildParallelAgentOutcomeSummary(

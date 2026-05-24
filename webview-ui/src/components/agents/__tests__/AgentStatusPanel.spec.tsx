@@ -319,6 +319,32 @@ describe("AgentStatusPanel", () => {
 		expect(screen.getByTestId("agent-usage-summary")).toHaveTextContent("2/2 reporting · ↑ 1.5K · ↓ 340 · $0.02")
 	})
 
+	it("renders the serialized parallel review summary inside the tool card", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "review",
+			parallelReviewSummary: {
+				path: ".roo/parallel-agent-review.md",
+				markdown: [
+					"# Parallel agent review for plan-test",
+					"",
+					"Full per-agent diffs are available in the merge review panel.",
+					"- ui-agent: pending; 1 files, +1/-1",
+				].join("\n"),
+			},
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+
+		const summary = screen.getByTestId("parallel-agent-review-summary")
+		expect(summary).toHaveTextContent("Parallel agent review summary")
+		expect(summary).toHaveTextContent("Full per-agent diffs are available in the merge review panel.")
+		expect(summary).not.toHaveTextContent("User Edits")
+		expect(summary).not.toHaveTextContent("User Edit")
+	})
+
 	it("reopens persisted merge review entries from a saved parallelAgents row", () => {
 		const plan = createPlan()
 		const tool: ClineSayTool = {
