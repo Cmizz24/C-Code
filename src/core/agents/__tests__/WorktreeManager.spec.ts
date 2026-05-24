@@ -535,6 +535,12 @@ describe("WorktreeManager", () => {
 			if (command === "git read-tree baseline123") {
 				return { stdout: "" }
 			}
+			if (command === 'git ls-files -z -- "src/index.html"') {
+				return { stdout: "src/index.html\0" }
+			}
+			if (command === 'git ls-files --others --exclude-standard -z -- "src/index.html"') {
+				return { stdout: "" }
+			}
 			if (command === 'git add -A -- "src/index.html"') {
 				return { stdout: "" }
 			}
@@ -566,6 +572,68 @@ describe("WorktreeManager", () => {
 		)
 	})
 
+	it("does not run git add on absent owned paths before applying a new-file branch diff", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		;(manager as any).workspaceBaselines.set("plan-test", {
+			planId: "plan-test",
+			commit: "baseline123",
+			ref: "refs/roo/parallel-baselines/plan-test",
+		})
+		fsMock.mkdtemp
+			.mockResolvedValueOnce("C:/tmp/roo-parallel-current-snapshot-1")
+			.mockResolvedValueOnce("C:/tmp/roo-parallel-merge-patch-1")
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+			if (command === 'git diff --binary baseline123..."roo/parallel/plan-test/ui-agent" -- "index.html"') {
+				return {
+					stdout:
+						"diff --git a/index.html b/index.html\n" +
+						"new file mode 100644\n" +
+						"index 0000000..166ef26\n" +
+						"--- /dev/null\n" +
+						"+++ b/index.html\n" +
+						"@@ -0,0 +1 @@\n" +
+						"+<main />\n",
+				}
+			}
+			if (command === "git read-tree baseline123") {
+				return { stdout: "" }
+			}
+			if (command === 'git ls-files -z -- "index.html"') {
+				return { stdout: "" }
+			}
+			if (command === 'git ls-files --others --exclude-standard -z -- "index.html"') {
+				return { stdout: "" }
+			}
+			if (command === 'git diff --cached --name-only -z baseline123 -- "index.html"') {
+				return { stdout: "" }
+			}
+			if (command === 'git apply --binary --3way --check "C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff"') {
+				return { stdout: "" }
+			}
+			if (command === 'git apply --binary --3way "C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff"') {
+				return { stdout: "" }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await manager.mergeBranch("roo/parallel/plan-test/ui-agent", {
+			planId: "plan-test",
+			worktreePath: "C:/worktrees/ui-agent",
+			ownedPaths: ["index.html"],
+		})
+
+		expect(execMock.mock.calls.some(([command]) => command === 'git add -A -- "index.html"')).toBe(false)
+		expect(fsMock.writeFile).toHaveBeenCalledWith(
+			"C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff",
+			expect.stringContaining("new file mode 100644"),
+			"utf8",
+		)
+	})
+
 	it("blocks owned branch apply when the current workspace changed since the baseline", async () => {
 		const manager = new WorktreeManager("C:/repo")
 		;(manager as any).workspaceBaselines.set("plan-test", {
@@ -582,6 +650,12 @@ describe("WorktreeManager", () => {
 				return { stdout: "diff --git a/src/index.html b/src/index.html\n+<main />\n" }
 			}
 			if (command === "git read-tree baseline123") {
+				return { stdout: "" }
+			}
+			if (command === 'git ls-files -z -- "src/index.html"') {
+				return { stdout: "src/index.html\0" }
+			}
+			if (command === 'git ls-files --others --exclude-standard -z -- "src/index.html"') {
 				return { stdout: "" }
 			}
 			if (command === 'git add -A -- "src/index.html"') {

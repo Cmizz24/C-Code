@@ -328,8 +328,9 @@ export class WorktreeManager {
 
 		try {
 			await execAsync(`git read-tree ${baselineCommit}`, { cwd: gitRoot, env: tempIndexEnv })
+			const currentSnapshotPaths = await this.getCurrentSnapshotPaths(gitRoot, ownedPaths, tempIndexEnv)
 
-			for (const chunk of this.chunkPathspecs(ownedPaths)) {
+			for (const chunk of this.chunkPathspecs(currentSnapshotPaths)) {
 				await execAsync(`git add -A -- ${this.formatPathspec(chunk)}`, { cwd: gitRoot, env: tempIndexEnv })
 			}
 
@@ -343,6 +344,30 @@ export class WorktreeManager {
 		} finally {
 			await fs.rm(tempDir, { recursive: true, force: true })
 		}
+	}
+
+	private async getCurrentSnapshotPaths(
+		gitRoot: string,
+		ownedPaths: string[],
+		env: NodeJS.ProcessEnv,
+	): Promise<string[]> {
+		const currentSnapshotPaths = new Set<string>()
+
+		for (const chunk of this.chunkPathspecs(ownedPaths)) {
+			const pathspec = this.formatPathspec(chunk)
+			const baselinePaths = await this.getNullSeparatedGitOutput(`git ls-files -z -- ${pathspec}`, gitRoot, env)
+			const untrackedPaths = await this.getNullSeparatedGitOutput(
+				`git ls-files --others --exclude-standard -z -- ${pathspec}`,
+				gitRoot,
+				env,
+			)
+
+			for (const filePath of [...baselinePaths, ...untrackedPaths]) {
+				currentSnapshotPaths.add(filePath)
+			}
+		}
+
+		return Array.from(currentSnapshotPaths)
 	}
 
 	private async abortGitOperation(cwd: string, operation: WorktreeMergeFailureStage): Promise<string | undefined> {
