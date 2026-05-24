@@ -492,6 +492,51 @@ describe("AgentStatusPanel", () => {
 		expect(within(details).getByText("Reported completion.")).toBeInTheDocument()
 	})
 
+	it("shows only the latest thinking state when an agent is currently thinking", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "running",
+			agentActivities: [
+				{
+					agentId: "ui-agent",
+					kind: "tool",
+					message: "Reading src/Dashboard.tsx.",
+					ts: 1,
+				},
+				{
+					agentId: "ui-agent",
+					kind: "thinking",
+					message: "Thinking…",
+					ts: 2,
+				},
+				{
+					agentId: "ui-agent",
+					kind: "thinking",
+					message: "Reasoning through the next step.",
+					ts: 3,
+				},
+				{
+					agentId: "ui-agent",
+					kind: "thinking",
+					message: "Thinking…",
+					ts: 4,
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+		fireEvent.click(screen.getAllByTestId("agent-status-toggle")[0])
+
+		const details = screen.getByTestId("agent-details")
+		expect(within(details).getAllByTestId("agent-activity-event")).toHaveLength(2)
+		expect(within(details).getByText("Reading src/Dashboard.tsx.")).toBeInTheDocument()
+		expect(within(details).getAllByText("Thinking…")).toHaveLength(1)
+		expect(within(details).queryByText("Reasoning through the next step.")).not.toBeInTheDocument()
+		expect(within(details).queryByTestId("agent-activity-repeat-count")).not.toBeInTheDocument()
+	})
+
 	it("limits expanded activity to recent meaningful entries with an older count", () => {
 		const plan = createPlan()
 		const tool: ClineSayTool = {

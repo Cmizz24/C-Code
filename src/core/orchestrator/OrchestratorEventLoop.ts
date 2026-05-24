@@ -302,6 +302,7 @@ export class OrchestratorEventLoop {
 			`Must not touch:\n${agent.mustNotTouch.map((filePath) => `- ${filePath}`).join("\n") || "- none"}`,
 			"Use normal sequential tool calls: call one tool, wait for its result, then decide the next step. Never combine multiple tool argument JSON objects into one tool call.",
 			"Only edit files allowed by your ownership scope. Use attempt_completion when finished.",
+			"Complete your assigned scope directly; do not delegate, spawn, or orchestrate additional tasks.",
 		]
 			.filter(Boolean)
 			.join("\n\n")
@@ -316,6 +317,7 @@ export class OrchestratorEventLoop {
 			"- Use normal sequential tool calls: call one tool, wait for its result, then decide the next step.",
 			"- If another prompt mentions batching or parallelizing tools, this child task overrides it: use one tool call at a time unless the platform emits separate native tool calls.",
 			"- Never concatenate multiple tool argument JSON objects into one tool call; each native tool call must have exactly one JSON argument object.",
+			"- Complete your assigned scope directly; do not delegate, spawn, or orchestrate additional tasks.",
 			"- Write access is coordinated automatically; denied writes mean the path is outside your ownership scope or currently unavailable.",
 			"- Do not edit mustNotTouch paths or paths owned exclusively by another agent.",
 		].join("\n")

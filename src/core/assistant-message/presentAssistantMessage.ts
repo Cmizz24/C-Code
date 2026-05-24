@@ -39,6 +39,7 @@ import { handlePlanParallelTasks } from "../tools/planParallelTasks"
 
 import { formatResponse } from "../prompts/responses"
 import { sanitizeToolUseId } from "../../utils/tool-id"
+import { isBackgroundAgentToolRestrictedTask, withBackgroundAgentDisabledTools } from "../agents/backgroundAgentTools"
 
 function isTaskAbortError(cline: Task, error: unknown): boolean {
 	return (
@@ -345,7 +346,9 @@ export async function presentAssistantMessage(cline: Task) {
 				break
 			}
 
-			const isCompleteParallelPlanTool = block.name === "plan_parallel_tasks" && !block.partial
+			const isBackgroundAgentTask = isBackgroundAgentToolRestrictedTask(cline)
+			const isCompleteParallelPlanTool =
+				block.name === "plan_parallel_tasks" && !block.partial && !isBackgroundAgentTask
 			if (isCompleteParallelPlanTool) {
 				cline.didAlreadyUseTool = true
 			}
@@ -353,6 +356,7 @@ export async function presentAssistantMessage(cline: Task) {
 			// Fetch state early so it's available for toolDescription and validation
 			const state = await cline.providerRef.deref()?.getState()
 			const { mode, customModes, experiments: stateExperiments, disabledTools } = state ?? {}
+			const disabledToolsForTask = withBackgroundAgentDisabledTools(disabledTools, cline)
 
 			const toolDescription = (): string => {
 				switch (block.name) {
@@ -603,7 +607,7 @@ export async function presentAssistantMessage(cline: Task) {
 
 				try {
 					const toolRequirements =
-						disabledTools?.reduce(
+						disabledToolsForTask?.reduce(
 							(acc: Record<string, boolean>, tool: string) => {
 								acc[tool] = false
 								const resolvedToolName = resolveToolAlias(tool)

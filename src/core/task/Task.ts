@@ -131,6 +131,7 @@ import { MessageManager } from "../message-manager"
 import { validateAndFixToolResultIds } from "./validateToolResultIds"
 import { mergeConsecutiveApiMessages } from "./mergeConsecutiveApiMessages"
 import { AgentBus } from "../agents/AgentBus"
+import { withBackgroundAgentDisabledTools } from "../agents/backgroundAgentTools"
 
 const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
 const DEFAULT_USAGE_COLLECTION_TIMEOUT_MS = 5000 // 5 seconds
@@ -181,6 +182,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	readonly agentBus?: AgentBus
 	readonly background: boolean
 	private readonly systemPromptSuffix?: string
+
+	private getDisabledToolsForNativeRequests(disabledTools: readonly string[] | undefined): string[] | undefined {
+		return withBackgroundAgentDisabledTools(disabledTools, this)
+	}
 
 	/**
 	 * The mode associated with this task. Persisted across sessions
@@ -1744,7 +1749,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				customModes: state?.customModes,
 				experiments: state?.experiments,
 				apiConfiguration,
-				disabledTools: state?.disabledTools,
+				disabledTools: this.getDisabledToolsForNativeRequests(state?.disabledTools),
 				modelInfo,
 				includeAllToolsWithRestrictions: false,
 			})
@@ -3909,7 +3914,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				customModes: state?.customModes,
 				experiments: state?.experiments,
 				apiConfiguration,
-				disabledTools: state?.disabledTools,
+				disabledTools: this.getDisabledToolsForNativeRequests(state?.disabledTools),
 				modelInfo,
 				includeAllToolsWithRestrictions: false,
 			})
@@ -4123,7 +4128,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						customModes: state?.customModes,
 						experiments: state?.experiments,
 						apiConfiguration,
-						disabledTools: state?.disabledTools,
+						disabledTools: this.getDisabledToolsForNativeRequests(state?.disabledTools),
 						modelInfo,
 						includeAllToolsWithRestrictions: false,
 					})
@@ -4287,7 +4292,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				customModes: state?.customModes,
 				experiments: state?.experiments,
 				apiConfiguration,
-				disabledTools: state?.disabledTools,
+				disabledTools: this.getDisabledToolsForNativeRequests(state?.disabledTools),
 				modelInfo,
 				includeAllToolsWithRestrictions: supportsAllowedFunctionNames,
 			})

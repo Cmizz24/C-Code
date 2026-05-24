@@ -40,8 +40,6 @@ type DisplayAgentActivity = AgentActivity & {
 const AGENT_ACTIVITY_TRANSCRIPT_LIMIT = 50
 const AGENT_ACTIVITY_DISPLAY_LIMIT = 12
 
-const hiddenExpandedActivityKinds = new Set<AgentActivityKind>(["thinking"])
-
 const phaseLabels: Record<NonNullable<ClineSayTool["parallelStatus"]>, string> = {
 	running: "running",
 	review: "review ready",
@@ -97,7 +95,7 @@ const getActivityKey = (activity: AgentActivity, index: number): string =>
 const shouldShowExpandedActivity = (activity: AgentActivity): boolean => {
 	const kind = getActivityKind(activity)
 
-	if (hiddenExpandedActivityKinds.has(kind)) {
+	if (kind === "thinking") {
 		return false
 	}
 
@@ -114,6 +112,11 @@ const shouldShowExpandedActivity = (activity: AgentActivity): boolean => {
 	}
 
 	return true
+}
+
+const getLatestCurrentThinkingActivity = (activities: AgentActivity[]): AgentActivity | undefined => {
+	const latestActivity = activities.at(-1)
+	return latestActivity && getActivityKind(latestActivity) === "thinking" ? latestActivity : undefined
 }
 
 const collapseAgentActivities = (activities: AgentActivity[]): DisplayAgentActivity[] => {
@@ -137,7 +140,10 @@ const collapseAgentActivities = (activities: AgentActivity[]): DisplayAgentActiv
 
 const getDisplayAgentActivities = (activities: AgentActivity[] = []): DisplayAgentActivity[] => {
 	const meaningfulActivities = activities.filter(shouldShowExpandedActivity)
-	const sourceActivities = meaningfulActivities.length > 0 ? meaningfulActivities : activities
+	const latestThinkingActivity = getLatestCurrentThinkingActivity(activities)
+	const sourceActivities = latestThinkingActivity
+		? [...meaningfulActivities, latestThinkingActivity]
+		: meaningfulActivities
 	const collapsedActivities = collapseAgentActivities(sourceActivities)
 	const hiddenBefore = Math.max(0, collapsedActivities.length - AGENT_ACTIVITY_DISPLAY_LIMIT)
 	const visibleActivities = collapsedActivities.slice(-AGENT_ACTIVITY_DISPLAY_LIMIT)
