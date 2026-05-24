@@ -131,6 +131,71 @@ export interface WriteIntentConflict {
 	reason?: string
 }
 
+export interface MergeReviewChangeStats {
+	filesChanged: number
+	additions: number
+	deletions: number
+	totalChanges: number
+	binaryFiles: number
+}
+
+export function computeMergeReviewChangeStats(diff: string): MergeReviewChangeStats {
+	const stats: MergeReviewChangeStats = {
+		filesChanged: 0,
+		additions: 0,
+		deletions: 0,
+		totalChanges: 0,
+		binaryFiles: 0,
+	}
+
+	let sawDiffHeader = false
+	let currentFileIsBinary = false
+
+	const finishCurrentFile = () => {
+		if (currentFileIsBinary) {
+			stats.binaryFiles += 1
+			currentFileIsBinary = false
+		}
+	}
+
+	const lines = diff.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n")
+
+	for (const line of lines) {
+		if (line.startsWith("diff --git ")) {
+			finishCurrentFile()
+			sawDiffHeader = true
+			stats.filesChanged += 1
+			continue
+		}
+
+		const isBinaryMarker = line.startsWith("Binary files ") || line === "GIT binary patch"
+
+		if (!sawDiffHeader) {
+			if (isBinaryMarker) {
+				stats.filesChanged = Math.max(stats.filesChanged, 1)
+				currentFileIsBinary = true
+			}
+			continue
+		}
+
+		if (isBinaryMarker) {
+			currentFileIsBinary = true
+			continue
+		}
+
+		if (line.startsWith("+") && !line.startsWith("+++")) {
+			stats.additions += 1
+		} else if (line.startsWith("-") && !line.startsWith("---")) {
+			stats.deletions += 1
+		}
+	}
+
+	finishCurrentFile()
+	stats.totalChanges = stats.additions + stats.deletions
+
+	return stats
+}
+
 export interface MergeReviewEntry {
 	agentId: string
 	mode?: string
@@ -139,4 +204,7 @@ export interface MergeReviewEntry {
 	noChangesReason?: string
 	worktreePath: string
 	branch: string
+	changeStats?: MergeReviewChangeStats
+	reviewError?: string
+	mergeable?: boolean
 }

@@ -10,6 +10,7 @@ import type {
 } from "@roo-code/types"
 
 import { Badge, Button } from "@/components/ui"
+import DiffView from "@/components/common/DiffView"
 import { ToolUseBlock, ToolUseBlockHeader } from "@/components/common/ToolUseBlock"
 import { ProgressIndicator } from "@/components/chat/ProgressIndicator"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -19,6 +20,7 @@ import { formatLargeNumber } from "@/utils/format"
 import { vscode } from "@/utils/vscode"
 
 import { getAgentModeLabel } from "./agentDisplay"
+import { formatMergeReviewStatsLabel, getMergeReviewChangeStats, hasMergeReviewDiff } from "./mergeReviewDisplay"
 
 type ConflictBanner = WriteIntentConflict & {
 	key: string
@@ -252,6 +254,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 	const [activities, setActivities] = useState<Record<string, AgentActivity[]>>(seededActivities)
 	const [expandedAgentIds, setExpandedAgentIds] = useState<Set<string>>(() => new Set())
 	const [isMergeReviewExpanded, setIsMergeReviewExpanded] = useState(false)
+	const [expandedMergeReviewDiffIds, setExpandedMergeReviewDiffIds] = useState<Set<string>>(() => new Set())
 	const mergeReviewEntries = tool?.mergeReviewEntries ?? []
 
 	useEffect(() => {
@@ -263,10 +266,25 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 	useEffect(() => {
 		setExpandedAgentIds(new Set())
 		setIsMergeReviewExpanded(false)
+		setExpandedMergeReviewDiffIds(new Set())
 	}, [executionPlan?.planId])
 
 	const toggleExpandedAgent = (agentId: string) => {
 		setExpandedAgentIds((prev) => {
+			const next = new Set(prev)
+
+			if (next.has(agentId)) {
+				next.delete(agentId)
+			} else {
+				next.add(agentId)
+			}
+
+			return next
+		})
+	}
+
+	const toggleMergeReviewDiff = (agentId: string) => {
+		setExpandedMergeReviewDiffIds((prev) => {
 			const next = new Set(prev)
 
 			if (next.has(agentId)) {
@@ -515,26 +533,100 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 							</button>
 							{isMergeReviewExpanded && (
 								<div data-testid="merge-review-inline" className="mt-2 flex flex-col gap-2">
-									{mergeReviewEntries.map((entry) => (
-										<div
-											key={entry.agentId}
-											className="rounded border border-vscode-sideBar-background bg-vscode-editor-background/80 p-2">
-											<div className="mb-1 flex min-w-0 flex-wrap items-baseline gap-1.5 text-vscode-foreground">
-												<span className="font-medium">
-													{labelByAgentId.get(entry.agentId) ?? entry.mode ?? entry.agentId}
-												</span>
-												<span className="min-w-0 truncate text-vscode-descriptionForeground">
-													{entry.task}
-												</span>
-												<span className="min-w-0 truncate font-mono text-vscode-descriptionForeground">
-													{entry.branch}
-												</span>
+									{mergeReviewEntries.map((entry) => {
+										const stats = getMergeReviewChangeStats(entry)
+										const statsLabel = formatMergeReviewStatsLabel(stats, t)
+										const hasDiff = hasMergeReviewDiff(entry)
+										const isDiffExpanded = expandedMergeReviewDiffIds.has(entry.agentId)
+
+										return (
+											<div
+												key={entry.agentId}
+												className="rounded border border-vscode-sideBar-background bg-vscode-editor-background/80 p-2">
+												<div className="mb-1 flex min-w-0 flex-wrap items-baseline gap-1.5 text-vscode-foreground">
+													<span className="font-medium">
+														{labelByAgentId.get(entry.agentId) ??
+															entry.mode ??
+															entry.agentId}
+													</span>
+													<span className="min-w-0 truncate text-vscode-descriptionForeground">
+														{entry.task}
+													</span>
+													<span className="min-w-0 truncate font-mono text-vscode-descriptionForeground">
+														{entry.branch}
+													</span>
+												</div>
+												<div
+													data-testid={`merge-review-inline-stats-${entry.agentId}`}
+													className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-vscode-descriptionForeground"
+													aria-label={statsLabel}>
+													<span>
+														{t("chat:parallelAgents.mergeReview.stats.files", {
+															count: stats.filesChanged,
+														})}
+													</span>
+													<span>
+														{t("chat:parallelAgents.mergeReview.stats.lines", {
+															count: stats.totalChanges,
+														})}
+													</span>
+													<span className="font-mono text-vscode-charts-green">
+														+{stats.additions}
+													</span>
+													<span className="font-mono text-vscode-charts-red">
+														-{stats.deletions}
+													</span>
+													{stats.binaryFiles > 0 && (
+														<span>
+															{t("chat:parallelAgents.mergeReview.stats.binaryFiles", {
+																count: stats.binaryFiles,
+															})}
+														</span>
+													)}
+												</div>
+												{entry.reviewError ? (
+													<pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded bg-vscode-errorForeground/10 p-2 font-mono text-[10px] text-vscode-errorForeground">
+														{entry.reviewError}
+													</pre>
+												) : hasDiff ? (
+													<div className="rounded border border-vscode-sideBar-background bg-vscode-sideBar-background/30">
+														<button
+															type="button"
+															data-testid={`merge-review-inline-diff-toggle-${entry.agentId}`}
+															aria-expanded={isDiffExpanded}
+															onClick={() => toggleMergeReviewDiff(entry.agentId)}
+															className="flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-left text-[10px] text-vscode-foreground hover:bg-vscode-list-hoverBackground/40 focus:outline-none focus:ring-1 focus:ring-vscode-focusBorder">
+															<span
+																className={cn(
+																	"codicon shrink-0 text-xs text-vscode-descriptionForeground",
+																	isDiffExpanded
+																		? "codicon-chevron-up"
+																		: "codicon-chevron-down",
+																)}
+															/>
+															<span>
+																{isDiffExpanded
+																	? t("chat:parallelAgents.mergeReview.hideDiff")
+																	: t("chat:parallelAgents.mergeReview.showDiff")}
+															</span>
+														</button>
+														{isDiffExpanded && (
+															<div
+																data-testid={`merge-review-inline-diff-${entry.agentId}`}
+																className="max-h-80 overflow-auto border-t border-vscode-sideBar-background">
+																<DiffView source={entry.diff} />
+															</div>
+														)}
+													</div>
+												) : (
+													<pre className="whitespace-pre-wrap break-words rounded bg-vscode-sideBar-background/40 p-2 font-mono text-[10px] text-vscode-foreground">
+														{entry.noChangesReason ||
+															t("chat:parallelAgents.mergeReview.noChangesReported")}
+													</pre>
+												)}
 											</div>
-											<pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded bg-vscode-sideBar-background/40 p-2 font-mono text-[10px] text-vscode-foreground">
-												{entry.diff || entry.noChangesReason || "No changes reported."}
-											</pre>
-										</div>
-									))}
+										)
+									})}
 								</div>
 							)}
 						</div>

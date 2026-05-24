@@ -12,10 +12,12 @@ import {
 	DialogTitle,
 } from "@/components/ui"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useAppTranslation } from "@/i18n/TranslationContext"
 import { cn } from "@/lib/utils"
 import { vscode } from "@/utils/vscode"
 
 import { getAgentModeLabel } from "./agentDisplay"
+import { formatMergeReviewStatsLabel, getMergeReviewChangeStats, hasMergeReviewDiff } from "./mergeReviewDisplay"
 
 interface MergeReviewPanelProps {
 	entries: MergeReviewEntry[]
@@ -25,10 +27,24 @@ interface MergeReviewPanelProps {
 }
 
 export const MergeReviewPanel = ({ entries, failedAgentId, gitOutput, onClose }: MergeReviewPanelProps) => {
+	const { t } = useAppTranslation()
 	const { customModes } = useExtensionState()
 	const [approvedAgentIds, setApprovedAgentIds] = useState<Set<string>>(() => new Set())
+	const [expandedDiffAgentIds, setExpandedDiffAgentIds] = useState<Set<string>>(() => new Set())
 
 	const approvedIds = useMemo(() => [...approvedAgentIds], [approvedAgentIds])
+
+	const toggleDiff = (agentId: string) => {
+		setExpandedDiffAgentIds((current) => {
+			const next = new Set(current)
+			if (next.has(agentId)) {
+				next.delete(agentId)
+			} else {
+				next.add(agentId)
+			}
+			return next
+		})
+	}
 
 	const toggleApproval = (agentId: string) => {
 		setApprovedAgentIds((current) => {
@@ -58,10 +74,8 @@ export const MergeReviewPanel = ({ entries, failedAgentId, gitOutput, onClose }:
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
 			<DialogContent className="max-h-[92vh] max-w-[min(1100px,96vw)] overflow-y-auto">
 				<DialogHeader>
-					<DialogTitle>Review agent changes</DialogTitle>
-					<DialogDescription>
-						Approve agent branches to merge back into the repository, or discard unapproved worktrees.
-					</DialogDescription>
+					<DialogTitle>{t("chat:parallelAgents.mergeReview.title")}</DialogTitle>
+					<DialogDescription>{t("chat:parallelAgents.mergeReview.description")}</DialogDescription>
 				</DialogHeader>
 
 				<div className="space-y-4">
@@ -69,6 +83,11 @@ export const MergeReviewPanel = ({ entries, failedAgentId, gitOutput, onClose }:
 						const approved = approvedAgentIds.has(entry.agentId)
 						const failed = failedAgentId === entry.agentId
 						const agentLabel = getAgentModeLabel(entry.mode, customModes)
+						const stats = getMergeReviewChangeStats(entry)
+						const statsLabel = formatMergeReviewStatsLabel(stats, t)
+						const hasDiff = hasMergeReviewDiff(entry)
+						const isDiffExpanded = expandedDiffAgentIds.has(entry.agentId)
+						const canApprove = entry.mergeable !== false
 
 						return (
 							<section
@@ -88,19 +107,50 @@ export const MergeReviewPanel = ({ entries, failedAgentId, gitOutput, onClose }:
 											<span>{entry.branch}</span>
 											<span>{entry.worktreePath}</span>
 										</div>
+										<div
+											data-testid={`merge-review-stats-${entry.agentId}`}
+											className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-vscode-descriptionForeground"
+											aria-label={statsLabel}>
+											<span className="rounded bg-vscode-editor-background px-2 py-0.5">
+												{t("chat:parallelAgents.mergeReview.stats.files", {
+													count: stats.filesChanged,
+												})}
+											</span>
+											<span className="rounded bg-vscode-editor-background px-2 py-0.5">
+												{t("chat:parallelAgents.mergeReview.stats.lines", {
+													count: stats.totalChanges,
+												})}
+											</span>
+											<span className="font-mono font-medium text-vscode-charts-green">
+												+{stats.additions}
+											</span>
+											<span className="font-mono font-medium text-vscode-charts-red">
+												-{stats.deletions}
+											</span>
+											{stats.binaryFiles > 0 && (
+												<span>
+													{t("chat:parallelAgents.mergeReview.stats.binaryFiles", {
+														count: stats.binaryFiles,
+													})}
+												</span>
+											)}
+										</div>
 									</div>
 									<div className="flex flex-wrap gap-2">
 										<Button
 											variant={approved ? "primary" : "secondary"}
 											size="sm"
+											disabled={!canApprove}
 											onClick={() => toggleApproval(entry.agentId)}>
-											{approved ? "Approved" : "Approve & Merge"}
+											{approved
+												? t("chat:parallelAgents.mergeReview.approved")
+												: t("chat:parallelAgents.mergeReview.approveAndMerge")}
 										</Button>
 										<Button
 											variant="destructive"
 											size="sm"
 											onClick={() => discardAgent(entry.agentId)}>
-											Discard
+											{t("chat:parallelAgents.mergeReview.discard")}
 										</Button>
 									</div>
 								</div>
@@ -111,11 +161,44 @@ export const MergeReviewPanel = ({ entries, failedAgentId, gitOutput, onClose }:
 									</pre>
 								)}
 
-								{entry.diff.trim() ? (
-									<DiffView source={entry.diff} />
+								{entry.reviewError ? (
+									<pre className="rounded border border-vscode-errorForeground/60 bg-vscode-errorForeground/10 p-3 text-xs text-vscode-errorForeground whitespace-pre-wrap">
+										{entry.reviewError}
+									</pre>
+								) : hasDiff ? (
+									<div className="rounded border border-vscode-panel-border bg-vscode-editor-background/60">
+										<button
+											type="button"
+											data-testid={`merge-review-diff-toggle-${entry.agentId}`}
+											aria-expanded={isDiffExpanded}
+											onClick={() => toggleDiff(entry.agentId)}
+											className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-vscode-foreground hover:bg-vscode-list-hoverBackground/40 focus:outline-none focus:ring-1 focus:ring-vscode-focusBorder">
+											<span
+												className={cn(
+													"codicon shrink-0 text-xs text-vscode-descriptionForeground",
+													isDiffExpanded ? "codicon-chevron-up" : "codicon-chevron-down",
+												)}
+											/>
+											<span>
+												{isDiffExpanded
+													? t("chat:parallelAgents.mergeReview.hideDiff")
+													: t("chat:parallelAgents.mergeReview.showDiff")}
+											</span>
+											<span className="ml-auto truncate font-normal text-vscode-descriptionForeground">
+												{statsLabel}
+											</span>
+										</button>
+										{isDiffExpanded && (
+											<div
+												data-testid={`merge-review-diff-${entry.agentId}`}
+												className="border-t border-vscode-panel-border">
+												<DiffView source={entry.diff} />
+											</div>
+										)}
+									</div>
 								) : (
 									<pre className="rounded bg-vscode-editor-background p-3 text-xs text-vscode-descriptionForeground">
-										{entry.noChangesReason ?? "No changes detected in this agent worktree."}
+										{entry.noChangesReason ?? t("chat:parallelAgents.mergeReview.noChanges")}
 									</pre>
 								)}
 							</section>
@@ -125,10 +208,10 @@ export const MergeReviewPanel = ({ entries, failedAgentId, gitOutput, onClose }:
 
 				<DialogFooter>
 					<Button variant="secondary" onClick={onClose}>
-						Close
+						{t("chat:parallelAgents.mergeReview.close")}
 					</Button>
 					<Button variant="primary" disabled={approvedIds.length === 0} onClick={mergeApproved}>
-						Merge All Approved
+						{t("chat:parallelAgents.mergeReview.mergeAllApproved")}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

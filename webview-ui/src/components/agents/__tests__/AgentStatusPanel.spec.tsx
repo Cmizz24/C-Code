@@ -28,9 +28,26 @@ const translations: Record<string, string> = {
 	"chat:parallelAgents.details.noUsage": "No usage reported yet",
 	"chat:parallelAgents.details.noActivity": "No activity reported yet",
 	"chat:parallelAgents.details.noConflicts": "No conflicts",
+	"chat:parallelAgents.mergeReview.showDiff": "Show diff",
+	"chat:parallelAgents.mergeReview.hideDiff": "Hide diff",
+	"chat:parallelAgents.mergeReview.noChangesReported": "No changes reported.",
 }
 
 const t = (key: string, options?: Record<string, unknown>) => {
+	const count = Number(options?.count)
+
+	if (key === "chat:parallelAgents.mergeReview.stats.files") {
+		return `${count} ${count === 1 ? "file" : "files"}`
+	}
+
+	if (key === "chat:parallelAgents.mergeReview.stats.lines") {
+		return `${count} ${count === 1 ? "line" : "lines"}`
+	}
+
+	if (key === "chat:parallelAgents.mergeReview.stats.binaryFiles") {
+		return `${count} ${count === 1 ? "binary file" : "binary files"}`
+	}
+
 	const value = translations[key] ?? key
 	return value.replace(/{{(\w+)}}/g, (_, placeholder) => String(options?.[placeholder] ?? ""))
 }
@@ -303,7 +320,13 @@ describe("AgentStatusPanel", () => {
 					agentId: "ui-agent",
 					mode: "ui-ux",
 					task: "Build dashboard UI",
-					diff: "diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx\n+const title = 'Dashboard'",
+					diff: [
+						"diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx",
+						"--- a/src/Dashboard.tsx",
+						"+++ b/src/Dashboard.tsx",
+						"-const title = 'Old dashboard'",
+						"+const title = 'Dashboard'",
+					].join("\n"),
 					worktreePath: "C:/repo/.roo/parallel-worktrees/plan-test/ui-agent",
 					branch: "parallel/plan-test/ui-agent",
 				},
@@ -319,7 +342,23 @@ describe("AgentStatusPanel", () => {
 		expect(screen.getByTestId("merge-review-toggle")).toHaveTextContent("Merge review saved")
 		expect(review).toHaveTextContent("Build dashboard UI")
 		expect(review).toHaveTextContent("parallel/plan-test/ui-agent")
-		expect(review).toHaveTextContent("diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx")
+
+		const stats = screen.getByTestId("merge-review-inline-stats-ui-agent")
+		expect(stats).toHaveTextContent("1 file")
+		expect(stats).toHaveTextContent("2 lines")
+		expect(stats).toHaveTextContent("+1")
+		expect(stats).toHaveTextContent("-1")
+		expect(screen.queryByTestId("merge-review-inline-diff-ui-agent")).not.toBeInTheDocument()
+
+		const diffToggle = screen.getByTestId("merge-review-inline-diff-toggle-ui-agent")
+		expect(diffToggle).toHaveAttribute("aria-expanded", "false")
+		expect(diffToggle).toHaveTextContent("Show diff")
+
+		fireEvent.click(diffToggle)
+
+		expect(diffToggle).toHaveAttribute("aria-expanded", "true")
+		expect(diffToggle).toHaveTextContent("Hide diff")
+		expect(screen.getByTestId("merge-review-inline-diff-ui-agent")).toBeInTheDocument()
 	})
 
 	it("keeps an expanded agent row open when the same plan receives refreshed status props", () => {

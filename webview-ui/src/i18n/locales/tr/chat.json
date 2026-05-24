@@ -281,6 +281,27 @@
 			"noUsage": "Henüz kullanım bildirilmedi",
 			"noActivity": "Henüz etkinlik bildirilmedi",
 			"noConflicts": "Çakışma yok"
+		},
+		"mergeReview": {
+			"title": "Aracı değişikliklerini gözden geçir",
+			"description": "Aracı branch'lerini depoya geri merge etmek için onayla veya onaylanmayan worktree'leri at.",
+			"approved": "Onaylandı",
+			"approveAndMerge": "Onayla ve merge et",
+			"discard": "At",
+			"showDiff": "Diff'i göster",
+			"hideDiff": "Diff'i gizle",
+			"noChanges": "Bu aracı worktree'sinde değişiklik algılanmadı.",
+			"noChangesReported": "Değişiklik bildirilmedi.",
+			"close": "Kapat",
+			"mergeAllApproved": "Tüm onaylananları merge et",
+			"stats": {
+				"files_one": "{{count}} dosya",
+				"files_other": "{{count}} dosya",
+				"lines_one": "{{count}} satır",
+				"lines_other": "{{count}} satır",
+				"binaryFiles_one": "{{count}} binary dosya",
+				"binaryFiles_other": "{{count}} binary dosya"
+			}
 		}
 	},
 	"questions": {

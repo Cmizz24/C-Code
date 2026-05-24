@@ -276,6 +276,27 @@
 			"noUsage": "Использование пока не сообщалось",
 			"noActivity": "Активность пока не сообщалась",
 			"noConflicts": "Конфликтов нет"
+		},
+		"mergeReview": {
+			"title": "Проверить изменения агентов",
+			"description": "Одобри ветки агентов, чтобы влить их обратно в репозиторий, или отклони неодобренные worktree.",
+			"approved": "Одобрено",
+			"approveAndMerge": "Одобрить и влить",
+			"discard": "Отклонить",
+			"showDiff": "Показать diff",
+			"hideDiff": "Скрыть diff",
+			"noChanges": "В этом worktree агента изменений не обнаружено.",
+			"noChangesReported": "Изменения не сообщались.",
+			"close": "Закрыть",
+			"mergeAllApproved": "Влить все одобренные",
+			"stats": {
+				"files_one": "{{count}} файл",
+				"files_other": "{{count}} файлов",
+				"lines_one": "{{count}} строка",
+				"lines_other": "{{count}} строк",
+				"binaryFiles_one": "{{count}} бинарный файл",
+				"binaryFiles_other": "{{count}} бинарных файлов"
+			}
 		}
 	},
 	"questions": {

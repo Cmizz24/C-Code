@@ -1297,11 +1297,25 @@ describe("ClineProvider", () => {
 					expect.objectContaining({
 						agentId: "dashboard-agent",
 						diff: expect.stringContaining("diff --git"),
+						changeStats: {
+							filesChanged: 1,
+							additions: 1,
+							deletions: 0,
+							totalChanges: 1,
+							binaryFiles: 0,
+						},
 					}),
 					expect.objectContaining({
 						agentId: "styles-agent",
 						diff: "",
 						noChangesReason: "No changes detected in this agent worktree.",
+						changeStats: {
+							filesChanged: 0,
+							additions: 0,
+							deletions: 0,
+							totalChanges: 0,
+							binaryFiles: 0,
+						},
 					}),
 				]),
 			}),
@@ -1346,6 +1360,167 @@ describe("ClineProvider", () => {
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
 		expect(mockPostMessage).toHaveBeenCalledWith({ type: "mergeComplete" })
+	})
+
+	test("auto-approves and merges the final review when both auto-approval settings are enabled", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		await provider.setValues({ autoApprovalEnabled: true, alwaysAllowParallelTasks: true })
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const prepareMergeReview = vi.fn(
+			async ({ agentId }: { agentId: string }) => `diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
+		)
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		const removeWorktree = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreePathsByAgentId.set("styles-agent", "/tmp/styles-agent")
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview,
+			mergeBranch,
+			removeWorktree,
+			cleanup: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.showMergeReview(plan)
+
+		expect(mergeBranch).toHaveBeenCalledTimes(2)
+		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/dashboard-agent")
+		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/styles-agent")
+		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
+		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
+		expect(mockPostMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "showMergeReview",
+				mergeReviewEntries: expect.arrayContaining([
+					expect.objectContaining({ agentId: "dashboard-agent" }),
+					expect.objectContaining({ agentId: "styles-agent" }),
+				]),
+			}),
+		)
+		expect(mockPostMessage).toHaveBeenCalledWith({ type: "mergeComplete" })
+
+		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+		expect(statusTool.parallelStatus).toBe("merged")
+		expect(statusTool.agentActivities).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					message: "Auto-approved final merge review.",
+					kind: "approval",
+				}),
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					message: "Auto-merged branch roo/parallel/plan-webview-provider/dashboard-agent.",
+					kind: "completion",
+				}),
+			]),
+		)
+	})
+
+	test.each([
+		["global auto-approval", { autoApprovalEnabled: false, alwaysAllowParallelTasks: true }],
+		["parallel task auto-approval", { autoApprovalEnabled: true, alwaysAllowParallelTasks: false }],
+	])("does not auto-merge the final review when %s is disabled", async (_setting, values) => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		await provider.setValues(values)
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreePathsByAgentId.set("styles-agent", "/tmp/styles-agent")
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview: vi.fn(
+				async ({ agentId }: { agentId: string }) =>
+					`diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
+			),
+			mergeBranch,
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.showMergeReview(plan)
+
+		expect(mergeBranch).not.toHaveBeenCalled()
+		expect(mockPostMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "showMergeReview" }))
+		expect(mockPostMessage).not.toHaveBeenCalledWith({ type: "mergeComplete" })
+		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+		expect(statusTool.parallelStatus).toBe("review")
+	})
+
+	test("skips auto-merge when the final review has an unmergeable entry", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		await provider.setValues({ autoApprovalEnabled: true, alwaysAllowParallelTasks: true })
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreePathsByAgentId.set("styles-agent", "/tmp/styles-agent")
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview: vi.fn(async ({ agentId }: { agentId: string }) => {
+				if (agentId === "styles-agent") {
+					throw new Error("Merge conflict during review")
+				}
+
+				return `diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`
+			}),
+			mergeBranch,
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.showMergeReview(plan)
+
+		expect(mergeBranch).not.toHaveBeenCalled()
+		expect(mockPostMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "showMergeReview",
+				mergeReviewEntries: expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "styles-agent",
+						reviewError: "Merge conflict during review",
+						mergeable: false,
+					}),
+				]),
+			}),
+		)
+		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+		expect(statusTool.parallelStatus).toBe("review")
+		expect(statusTool.agentActivities).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "styles-agent",
+					message: "Auto-merge skipped: styles-agent has a merge review error",
+					kind: "wait",
+				}),
+			]),
+		)
 	})
 
 	test("background agent streaming aborts clean up without visible task rehydration", async () => {

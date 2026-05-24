@@ -34,6 +34,7 @@ import {
 	type AgentStatusUpdate,
 	type WriteIntentConflict,
 	type MergeReviewEntry,
+	computeMergeReviewChangeStats,
 	RooCodeEventName,
 	requestyDefaultModelId,
 	openRouterDefaultModelId,
@@ -130,6 +131,13 @@ type ParallelAgentToolStatus = NonNullable<ClineSayTool["parallelStatus"]>
 type ParallelAgentActivity = AgentActivityEvent
 type ParallelAgentUsageSummary = NonNullable<ClineSayTool["parallelUsageSummary"]>
 type BackgroundAgentActivityDescription = Pick<ParallelAgentActivity, "kind" | "message">
+type MergeApprovedAgentsOptions = { autoApproved?: boolean }
+type AutoMergeReviewSkipReason = { agentId?: string; reason: string }
+type AutoMergeReviewDecision = {
+	enabled: boolean
+	approvedAgentIds: string[]
+	skipReasons: AutoMergeReviewSkipReason[]
+}
 
 const PARALLEL_AGENT_ACTIVITY_LIMIT = 50
 
@@ -2954,18 +2962,125 @@ export class ClineProvider
 	public async showMergeReview(plan: ExecutionPlan): Promise<void> {
 		const entries = await Promise.all(plan.agents.map((agent) => this.buildMergeReviewEntry(plan, agent.id)))
 		this.parallelMergeReviewEntries = entries
+		const autoMergeDecision = await this.evaluateAutoMergeReview(plan, entries)
+
+		if (autoMergeDecision.enabled) {
+			if (autoMergeDecision.skipReasons.length > 0) {
+				for (const skipReason of autoMergeDecision.skipReasons) {
+					const agentId = skipReason.agentId ?? plan.agents[0]?.id
+					if (agentId) {
+						this.recordParallelAgentActivity(agentId, `Auto-merge skipped: ${skipReason.reason}`, "wait")
+					}
+				}
+
+				this.log(
+					`[parallel-agents] Auto-merge skipped: ${autoMergeDecision.skipReasons
+						.map((skipReason) => skipReason.reason)
+						.join("; ")}`,
+				)
+			} else {
+				for (const agentId of autoMergeDecision.approvedAgentIds) {
+					this.recordParallelAgentActivity(agentId, "Auto-approved final merge review.", "approval")
+				}
+
+				this.log(
+					`[parallel-agents] Auto-approved final merge review for ${autoMergeDecision.approvedAgentIds.length} agent branch(es).`,
+				)
+			}
+		}
+
 		await this.updateParallelAgentStatusMessage("review", entries)
 		await this.postMessageToWebview({ type: "showMergeReview", mergeReviewEntries: entries })
+
+		if (autoMergeDecision.enabled && autoMergeDecision.skipReasons.length === 0) {
+			await this.mergeApprovedAgents(autoMergeDecision.approvedAgentIds, { autoApproved: true })
+		}
 	}
 
-	public async mergeApprovedAgents(agentIds: string[] = []): Promise<void> {
+	private async evaluateAutoMergeReview(
+		plan: ExecutionPlan,
+		entries: MergeReviewEntry[],
+	): Promise<AutoMergeReviewDecision> {
+		const { autoApprovalEnabled, alwaysAllowParallelTasks } = await this.getState()
+
+		if (!autoApprovalEnabled || !alwaysAllowParallelTasks) {
+			return { enabled: false, approvedAgentIds: [], skipReasons: [] }
+		}
+
+		const entriesByAgentId = new Map(entries.map((entry) => [entry.agentId, entry]))
+		const conflictsByAgentId = new Map<string, WriteIntentConflict>()
+		const skipReasons: AutoMergeReviewSkipReason[] = []
+
+		for (const conflict of this.parallelWriteConflicts.values()) {
+			conflictsByAgentId.set(conflict.agentId, conflict)
+		}
+
+		if (entries.length === 0) {
+			skipReasons.push({ reason: "no merge review entries were available" })
+		}
+
+		for (const agent of plan.agents) {
+			const entry = entriesByAgentId.get(agent.id)
+
+			if (agent.status !== "complete") {
+				skipReasons.push({ agentId: agent.id, reason: `${agent.id} is ${agent.status}` })
+				continue
+			}
+
+			if (!entry) {
+				skipReasons.push({ agentId: agent.id, reason: `${agent.id} has no merge review entry` })
+				continue
+			}
+
+			if (entry.mergeable === false || entry.reviewError) {
+				skipReasons.push({ agentId: agent.id, reason: `${agent.id} has a merge review error` })
+				continue
+			}
+
+			if (!entry.branch) {
+				skipReasons.push({ agentId: agent.id, reason: `${agent.id} has no review branch` })
+				continue
+			}
+
+			if (!entry.worktreePath) {
+				skipReasons.push({ agentId: agent.id, reason: `${agent.id} has no worktree path` })
+				continue
+			}
+
+			const conflict = conflictsByAgentId.get(agent.id)
+			if (conflict) {
+				skipReasons.push({
+					agentId: agent.id,
+					reason: `${agent.id} still has a write conflict for ${conflict.filePath}`,
+				})
+			}
+		}
+
+		const planAgentIds = new Set(plan.agents.map((agent) => agent.id))
+		for (const entry of entries) {
+			if (!planAgentIds.has(entry.agentId)) {
+				skipReasons.push({ agentId: entry.agentId, reason: `${entry.agentId} is not in the active plan` })
+			}
+		}
+
+		return {
+			enabled: true,
+			approvedAgentIds: skipReasons.length > 0 ? [] : plan.agents.map((agent) => agent.id),
+			skipReasons,
+		}
+	}
+
+	public async mergeApprovedAgents(
+		agentIds: string[] = [],
+		options: MergeApprovedAgentsOptions = {},
+	): Promise<boolean> {
 		const plan = this.activeExecutionPlan
 		if (!plan) {
 			await this.postMessageToWebview({
 				type: "mergeFailed",
 				gitOutput: "No active execution plan is available.",
 			})
-			return
+			return false
 		}
 
 		const approved = new Set(agentIds)
@@ -2980,13 +3095,26 @@ export class ClineProvider
 				}
 
 				await this.ensureWorktreeManager().mergeBranch(branch)
+
+				if (options.autoApproved) {
+					this.recordParallelAgentActivity(agentId, `Auto-merged branch ${branch}.`, "completion")
+				}
 			} catch (error) {
+				if (options.autoApproved) {
+					this.recordParallelAgentActivity(
+						agentId,
+						`Auto-merge failed: ${this.formatGitError(error)}`,
+						"error",
+					)
+					await this.updateParallelAgentStatusMessage("review", this.parallelMergeReviewEntries)
+				}
+
 				await this.postMessageToWebview({
 					type: "mergeFailed",
 					agentId,
 					gitOutput: this.formatGitError(error),
 				})
-				return
+				return false
 			}
 		}
 
@@ -3001,6 +3129,7 @@ export class ClineProvider
 		await this.teardownParallelExecution({ resetBus: true })
 		await this.postMessageToWebview({ type: "mergeComplete" })
 		await this.postStateToWebviewWithoutClineMessages()
+		return true
 	}
 
 	private async teardownParallelExecution(
@@ -3582,6 +3711,7 @@ export class ClineProvider
 		const worktreePath = this.worktreePathsByAgentId.get(agentId) ?? agent?.worktreePath ?? ""
 		let diff = ""
 		let noChangesReason: string | undefined
+		let reviewError: string | undefined
 
 		try {
 			diff = worktreePath ? await this.prepareAgentBranchForReview(plan, agentId, branch, worktreePath) : ""
@@ -3590,7 +3720,8 @@ export class ClineProvider
 				noChangesReason = "No changes detected in this agent worktree."
 			}
 		} catch (error) {
-			diff = this.formatGitError(error)
+			reviewError = this.formatGitError(error)
+			diff = reviewError
 		}
 
 		return {
@@ -3601,6 +3732,9 @@ export class ClineProvider
 			noChangesReason,
 			worktreePath,
 			branch,
+			changeStats: computeMergeReviewChangeStats(diff),
+			reviewError,
+			mergeable: reviewError ? false : undefined,
 		}
 	}
 

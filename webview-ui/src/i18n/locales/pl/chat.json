@@ -280,6 +280,27 @@
 			"noUsage": "Nie zgłoszono jeszcze użycia",
 			"noActivity": "Nie zgłoszono jeszcze aktywności",
 			"noConflicts": "Brak konfliktów"
+		},
+		"mergeReview": {
+			"title": "Przejrzyj zmiany agentów",
+			"description": "Zatwierdź gałęzie agentów, aby scalić je z powrotem z repozytorium, albo odrzuć niezatwierdzone worktree.",
+			"approved": "Zatwierdzono",
+			"approveAndMerge": "Zatwierdź i scal",
+			"discard": "Odrzuć",
+			"showDiff": "Pokaż diff",
+			"hideDiff": "Ukryj diff",
+			"noChanges": "Nie wykryto zmian w tym worktree agenta.",
+			"noChangesReported": "Nie zgłoszono zmian.",
+			"close": "Zamknij",
+			"mergeAllApproved": "Scal wszystkie zatwierdzone",
+			"stats": {
+				"files_one": "{{count}} plik",
+				"files_other": "{{count}} plików",
+				"lines_one": "{{count}} linia",
+				"lines_other": "{{count}} linii",
+				"binaryFiles_one": "{{count}} plik binarny",
+				"binaryFiles_other": "{{count}} plików binarnych"
+			}
 		}
 	},
 	"questions": {

@@ -281,6 +281,27 @@
 			"noUsage": "Chưa có mức dùng nào được báo cáo",
 			"noActivity": "Chưa có hoạt động nào được báo cáo",
 			"noConflicts": "Không có xung đột"
+		},
+		"mergeReview": {
+			"title": "Xem lại thay đổi của agent",
+			"description": "Phê duyệt branch của agent để merge trở lại repository, hoặc loại bỏ các worktree chưa được phê duyệt.",
+			"approved": "Đã phê duyệt",
+			"approveAndMerge": "Phê duyệt & merge",
+			"discard": "Loại bỏ",
+			"showDiff": "Hiển thị diff",
+			"hideDiff": "Ẩn diff",
+			"noChanges": "Không phát hiện thay đổi trong worktree của agent này.",
+			"noChangesReported": "Không có thay đổi nào được báo cáo.",
+			"close": "Đóng",
+			"mergeAllApproved": "Merge tất cả mục đã phê duyệt",
+			"stats": {
+				"files_one": "{{count}} tệp",
+				"files_other": "{{count}} tệp",
+				"lines_one": "{{count}} dòng",
+				"lines_other": "{{count}} dòng",
+				"binaryFiles_one": "{{count}} tệp nhị phân",
+				"binaryFiles_other": "{{count}} tệp nhị phân"
+			}
 		}
 	},
 	"questions": {

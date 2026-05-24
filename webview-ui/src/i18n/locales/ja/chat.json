@@ -280,6 +280,27 @@
 			"noUsage": "まだ使用量は報告されていません",
 			"noActivity": "まだアクティビティは報告されていません",
 			"noConflicts": "競合なし"
+		},
+		"mergeReview": {
+			"title": "エージェントの変更をレビュー",
+			"description": "エージェントのブランチを承認してリポジトリへマージするか、未承認の worktree を破棄します。",
+			"approved": "承認済み",
+			"approveAndMerge": "承認してマージ",
+			"discard": "破棄",
+			"showDiff": "diffを表示",
+			"hideDiff": "diffを非表示",
+			"noChanges": "このエージェント worktree では変更が検出されませんでした。",
+			"noChangesReported": "変更は報告されていません。",
+			"close": "閉じる",
+			"mergeAllApproved": "承認済みをすべてマージ",
+			"stats": {
+				"files_one": "{{count}} ファイル",
+				"files_other": "{{count}} ファイル",
+				"lines_one": "{{count}} 行",
+				"lines_other": "{{count}} 行",
+				"binaryFiles_one": "{{count}} バイナリファイル",
+				"binaryFiles_other": "{{count}} バイナリファイル"
+			}
 		}
 	},
 	"questions": {

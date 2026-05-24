@@ -280,6 +280,27 @@
 			"noUsage": "Encara no s'ha informat d'ús",
 			"noActivity": "Encara no s'ha informat d'activitat",
 			"noConflicts": "Sense conflictes"
+		},
+		"mergeReview": {
+			"title": "Revisa els canvis dels agents",
+			"description": "Aprova les branques dels agents per fusionar-les de nou al repositori, o descarta els worktrees no aprovats.",
+			"approved": "Aprovat",
+			"approveAndMerge": "Aprova i fusiona",
+			"discard": "Descarta",
+			"showDiff": "Mostra el diff",
+			"hideDiff": "Amaga el diff",
+			"noChanges": "No s'han detectat canvis en aquest worktree de l'agent.",
+			"noChangesReported": "No s'han informat canvis.",
+			"close": "Tanca",
+			"mergeAllApproved": "Fusiona tots els aprovats",
+			"stats": {
+				"files_one": "{{count}} fitxer",
+				"files_other": "{{count}} fitxers",
+				"lines_one": "{{count}} línia",
+				"lines_other": "{{count}} línies",
+				"binaryFiles_one": "{{count}} fitxer binari",
+				"binaryFiles_other": "{{count}} fitxers binaris"
+			}
 		}
 	},
 	"questions": {

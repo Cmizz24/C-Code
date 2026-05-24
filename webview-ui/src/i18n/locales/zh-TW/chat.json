@@ -325,6 +325,27 @@
 			"noUsage": "尚未回報用量",
 			"noActivity": "尚未回報活動",
 			"noConflicts": "無衝突"
+		},
+		"mergeReview": {
+			"title": "審查代理變更",
+			"description": "核准代理分支以合併回儲存庫，或丟棄未核准的 worktree。",
+			"approved": "已核准",
+			"approveAndMerge": "核准並合併",
+			"discard": "丟棄",
+			"showDiff": "顯示 diff",
+			"hideDiff": "隱藏 diff",
+			"noChanges": "此代理 worktree 中未偵測到變更。",
+			"noChangesReported": "未回報任何變更。",
+			"close": "關閉",
+			"mergeAllApproved": "合併所有已核准項目",
+			"stats": {
+				"files_one": "{{count}} 個檔案",
+				"files_other": "{{count}} 個檔案",
+				"lines_one": "{{count}} 行",
+				"lines_other": "{{count}} 行",
+				"binaryFiles_one": "{{count}} 個二進位檔案",
+				"binaryFiles_other": "{{count}} 個二進位檔案"
+			}
 		}
 	},
 	"questions": {

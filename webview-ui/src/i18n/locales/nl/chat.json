@@ -275,6 +275,27 @@
 			"noUsage": "Nog geen gebruik gemeld",
 			"noActivity": "Nog geen activiteit gemeld",
 			"noConflicts": "Geen conflicten"
+		},
+		"mergeReview": {
+			"title": "Agentwijzigingen bekijken",
+			"description": "Keur agent-branches goed om ze terug naar de repository te mergen, of verwerp niet-goedgekeurde worktrees.",
+			"approved": "Goedgekeurd",
+			"approveAndMerge": "Goedkeuren & mergen",
+			"discard": "Verwerpen",
+			"showDiff": "Diff tonen",
+			"hideDiff": "Diff verbergen",
+			"noChanges": "Geen wijzigingen gedetecteerd in deze agent-worktree.",
+			"noChangesReported": "Geen wijzigingen gemeld.",
+			"close": "Sluiten",
+			"mergeAllApproved": "Alle goedgekeurde mergen",
+			"stats": {
+				"files_one": "{{count}} bestand",
+				"files_other": "{{count}} bestanden",
+				"lines_one": "{{count}} regel",
+				"lines_other": "{{count}} regels",
+				"binaryFiles_one": "{{count}} binair bestand",
+				"binaryFiles_other": "{{count}} binaire bestanden"
+			}
 		}
 	},
 	"questions": {
