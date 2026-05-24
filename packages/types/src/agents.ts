@@ -207,4 +207,8 @@ export interface MergeReviewEntry {
 	changeStats?: MergeReviewChangeStats
 	reviewError?: string
 	mergeable?: boolean
+	mergeStatus?: "pending" | "merged" | "failed" | "skipped"
+	mergeError?: string
+	autoMergeSkippedReason?: string
+	conflictedFiles?: string[]
 }

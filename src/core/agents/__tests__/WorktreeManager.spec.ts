@@ -510,4 +510,150 @@ describe("WorktreeManager", () => {
 		expect(diff).toBe("")
 		expect(execMock.mock.calls.some(([command]) => String(command).includes("commit --no-verify"))).toBe(false)
 	})
+
+	it("aborts an in-progress rebase when rebasing a baseline-derived agent branch fails", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+			if (command === "git rev-parse --verify HEAD") {
+				return { stdout: "abc123\n" }
+			}
+			if (command === "git read-tree HEAD") {
+				return { stdout: "" }
+			}
+			if (command === "git diff --name-only -z HEAD --") {
+				return { stdout: "" }
+			}
+			if (command === "git ls-files --others --exclude-standard -z") {
+				return { stdout: "" }
+			}
+			if (command === "git ls-files -z") {
+				return { stdout: "" }
+			}
+			if (command === "git write-tree") {
+				return { stdout: "tree123\n" }
+			}
+			if (command.includes("commit-tree tree123 -p HEAD")) {
+				return { stdout: "baseline123\n" }
+			}
+			if (command === 'git update-ref "refs/roo/parallel-baselines/plan" baseline123') {
+				return { stdout: "" }
+			}
+			if (command === "git rev-parse HEAD") {
+				return { stdout: "current123\n" }
+			}
+			if (command === "git rev-list --count baseline123..roo/parallel/plan/agent") {
+				return { stdout: "1\n" }
+			}
+			if (command === "git rebase --onto current123 baseline123") {
+				return {
+					error: Object.assign(new Error("Command failed: git rebase --onto current123 baseline123"), {
+						stderr: "CONFLICT (add/add): Merge conflict in index.html",
+					}),
+				}
+			}
+			if (command === "git diff --name-only --diff-filter=U -z") {
+				return { stdout: "index.html\0" }
+			}
+			if (command === "git rebase --abort") {
+				return { stdout: "" }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await manager.captureWorkspaceBaseline("plan")
+		execMock.mockClear()
+
+		const merge = manager.mergeBranch("roo/parallel/plan/agent", {
+			planId: "plan",
+			worktreePath: "C:/repo/.roo/parallel-worktrees/plan/agent",
+		})
+
+		await expect(merge).rejects.toThrow(
+			/Failed to rebase parallel agent branch roo\/parallel\/plan\/agent[\s\S]*index\.html/,
+		)
+
+		expect(execMock).toHaveBeenCalledWith(
+			"git rebase --abort",
+			expect.objectContaining({ cwd: "C:/repo/.roo/parallel-worktrees/plan/agent" }),
+			expect.any(Function),
+		)
+		expect(execMock.mock.calls.some(([command]) => String(command).startsWith("git merge --no-edit"))).toBe(false)
+	})
+
+	it("aborts an in-progress workspace merge when merging an agent branch fails", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+			if (command === "git rev-parse --verify HEAD") {
+				return { stdout: "abc123\n" }
+			}
+			if (command === "git read-tree HEAD") {
+				return { stdout: "" }
+			}
+			if (command === "git diff --name-only -z HEAD --") {
+				return { stdout: "" }
+			}
+			if (command === "git ls-files --others --exclude-standard -z") {
+				return { stdout: "" }
+			}
+			if (command === "git ls-files -z") {
+				return { stdout: "" }
+			}
+			if (command === "git write-tree") {
+				return { stdout: "tree123\n" }
+			}
+			if (command.includes("commit-tree tree123 -p HEAD")) {
+				return { stdout: "baseline123\n" }
+			}
+			if (command === 'git update-ref "refs/roo/parallel-baselines/plan" baseline123') {
+				return { stdout: "" }
+			}
+			if (command === "git rev-parse HEAD") {
+				return { stdout: "current123\n" }
+			}
+			if (command === "git rev-list --count baseline123..roo/parallel/plan/agent") {
+				return { stdout: "1\n" }
+			}
+			if (command === "git rebase --onto current123 baseline123") {
+				return { stdout: "" }
+			}
+			if (command === 'git merge --no-edit "roo/parallel/plan/agent"') {
+				return {
+					error: Object.assign(new Error('Command failed: git merge --no-edit "roo/parallel/plan/agent"'), {
+						stderr: "CONFLICT (add/add): Merge conflict in index.html",
+					}),
+				}
+			}
+			if (command === "git diff --name-only --diff-filter=U -z") {
+				return { stdout: "index.html\0" }
+			}
+			if (command === "git merge --abort") {
+				return { stdout: "" }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await manager.captureWorkspaceBaseline("plan")
+		execMock.mockClear()
+
+		await expect(
+			manager.mergeBranch("roo/parallel/plan/agent", {
+				planId: "plan",
+				worktreePath: "C:/repo/.roo/parallel-worktrees/plan/agent",
+			}),
+		).rejects.toThrow(/Failed to merge parallel agent branch roo\/parallel\/plan\/agent/)
+
+		expect(execMock).toHaveBeenCalledWith(
+			"git merge --abort",
+			expect.objectContaining({ cwd: "C:/repo" }),
+			expect.any(Function),
+		)
+	})
 })

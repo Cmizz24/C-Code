@@ -20,6 +20,22 @@ export class WorktreeManagerError extends Error {
 	}
 }
 
+export type WorktreeMergeFailureStage = "rebase" | "merge"
+
+export class WorktreeMergeError extends WorktreeManagerError {
+	constructor(
+		readonly stage: WorktreeMergeFailureStage,
+		readonly branch: string,
+		readonly cwd: string,
+		readonly conflictedFiles: string[],
+		readonly abortError: string | undefined,
+		readonly originalError: string,
+	) {
+		super(formatMergeFailureMessage(stage, branch, conflictedFiles, abortError, originalError))
+		this.name = "WorktreeMergeError"
+	}
+}
+
 export function getWorktreeManagerErrorMessage(error: unknown): string {
 	if (error instanceof WorktreeManagerError) {
 		return error.message
@@ -46,6 +62,33 @@ function sanitizeBranchComponent(value: string): string {
 
 function normalizeGitPath(filePath: string): string {
 	return filePath.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/$/, "")
+}
+
+function formatGitFailure(error: unknown): string {
+	if (error && typeof error === "object") {
+		const maybeOutput = error as { stdout?: string; stderr?: string; message?: string }
+		return [maybeOutput.stdout, maybeOutput.stderr, maybeOutput.message].filter(Boolean).join("\n")
+	}
+
+	return String(error)
+}
+
+function formatMergeFailureMessage(
+	stage: WorktreeMergeFailureStage,
+	branch: string,
+	conflictedFiles: string[],
+	abortError: string | undefined,
+	originalError: string,
+): string {
+	const action = stage === "rebase" ? "rebase" : "merge"
+	const target = stage === "rebase" ? "onto the current workspace HEAD" : "into the workspace"
+	const cleanupMessage = abortError
+		? `Roo attempted to abort the in-progress ${action}, but Git returned:\n${abortError}`
+		: `Roo aborted the in-progress ${action} so the repository/worktree is ready for manual review.`
+	const conflictMessage = conflictedFiles.length > 0 ? `\nConflicted files:\n- ${conflictedFiles.join("\n- ")}` : ""
+	const gitMessage = originalError ? `\n\nGit output:\n${originalError}` : ""
+
+	return `Failed to ${action} parallel agent branch ${branch} ${target}.${conflictMessage}\n${cleanupMessage}${gitMessage}`
 }
 
 export class WorktreeManager {
@@ -172,11 +215,39 @@ export class WorktreeManager {
 			if (branchCommitCount === 0) {
 				await execAsync(`git reset --hard ${currentHead}`, { cwd: params.worktreePath })
 			} else {
-				await execAsync(`git rebase --onto ${currentHead} ${baseline.commit}`, { cwd: params.worktreePath })
+				try {
+					await execAsync(`git rebase --onto ${currentHead} ${baseline.commit}`, { cwd: params.worktreePath })
+				} catch (error) {
+					const conflictedFiles = await this.getConflictedFiles(params.worktreePath)
+					const abortError = await this.abortGitOperation(params.worktreePath, "rebase")
+					throw new WorktreeMergeError(
+						"rebase",
+						branch,
+						params.worktreePath,
+						conflictedFiles,
+						abortError,
+						formatGitFailure(error),
+					)
+				}
 			}
 		}
 
-		await execAsync(`git merge --no-edit ${shellQuote(branch)}`, { cwd: gitRoot })
+		try {
+			await execAsync(`git merge --no-edit ${shellQuote(branch)}`, { cwd: gitRoot })
+		} catch (error) {
+			const conflictedFiles = await this.getConflictedFiles(gitRoot)
+			const abortError = await this.abortGitOperation(gitRoot, "merge")
+			throw new WorktreeMergeError("merge", branch, gitRoot, conflictedFiles, abortError, formatGitFailure(error))
+		}
+	}
+
+	private async abortGitOperation(cwd: string, operation: WorktreeMergeFailureStage): Promise<string | undefined> {
+		try {
+			await execAsync(`git ${operation} --abort`, { cwd })
+			return undefined
+		} catch (error) {
+			return formatGitFailure(error)
+		}
 	}
 
 	private async createWorkspaceBaseline(planId: string): Promise<WorkspaceBaseline> {
@@ -344,6 +415,14 @@ export class WorktreeManager {
 		const result = await execAsync(`git rev-list --count ${revisionRange}`, { cwd })
 		const stdout = typeof result === "string" ? result : result.stdout
 		return Number(stdout.trim()) || 0
+	}
+
+	private async getConflictedFiles(cwd: string): Promise<string[]> {
+		try {
+			return await this.getNullSeparatedGitOutput("git diff --name-only --diff-filter=U -z", cwd)
+		} catch {
+			return []
+		}
 	}
 
 	private async getCurrentHead(gitRoot: string): Promise<string> {

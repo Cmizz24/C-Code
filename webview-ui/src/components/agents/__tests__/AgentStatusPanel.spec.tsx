@@ -3,11 +3,18 @@ import type { ClineSayTool, ExecutionPlan, ExtensionMessage } from "@roo-code/ty
 import { act, fireEvent, render, screen, within } from "@/utils/test-utils"
 import { ExtensionStateContext } from "@/context/ExtensionStateContext"
 import { TranslationContext } from "@/i18n/TranslationContext"
+import { vscode } from "@/utils/vscode"
 
 import { AgentStatusPanel } from "../AgentStatusPanel"
 
 vi.mock("@/utils/format", () => ({
 	formatLargeNumber: vi.fn((num: number) => (num >= 1000 ? `${(num / 1000).toFixed(1)}K` : num.toString())),
+}))
+
+vi.mock("@/utils/vscode", () => ({
+	vscode: {
+		postMessage: vi.fn(),
+	},
 }))
 
 const translations: Record<string, string> = {
@@ -28,6 +35,9 @@ const translations: Record<string, string> = {
 	"chat:parallelAgents.details.noUsage": "No usage reported yet",
 	"chat:parallelAgents.details.noActivity": "No activity reported yet",
 	"chat:parallelAgents.details.noConflicts": "No conflicts",
+	"chat:parallelAgents.mergeReview.approved": "Approved",
+	"chat:parallelAgents.mergeReview.approveAndMerge": "Approve & Merge",
+	"chat:parallelAgents.mergeReview.mergeAllApproved": "Merge All Approved",
 	"chat:parallelAgents.mergeReview.showDiff": "Show diff",
 	"chat:parallelAgents.mergeReview.hideDiff": "Hide diff",
 	"chat:parallelAgents.mergeReview.noChangesReported": "No changes reported.",
@@ -359,6 +369,110 @@ describe("AgentStatusPanel", () => {
 		expect(diffToggle).toHaveAttribute("aria-expanded", "true")
 		expect(diffToggle).toHaveTextContent("Hide diff")
 		expect(screen.getByTestId("merge-review-inline-diff-ui-agent")).toBeInTheDocument()
+	})
+
+	it("posts selected persisted merge review entries from the inline chat row", () => {
+		vi.mocked(vscode.postMessage).mockClear()
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "review",
+			mergeReviewEntries: [
+				{
+					agentId: "ui-agent",
+					mode: "ui-ux",
+					task: "Build dashboard UI",
+					diff: [
+						"diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx",
+						"--- a/src/Dashboard.tsx",
+						"+++ b/src/Dashboard.tsx",
+						"-const title = 'Old dashboard'",
+						"+const title = 'Dashboard'",
+					].join("\n"),
+					worktreePath: "C:/repo/.roo/parallel-worktrees/plan-test/ui-agent",
+					branch: "parallel/plan-test/ui-agent",
+					mergeStatus: "pending",
+				},
+				{
+					agentId: "styles-agent",
+					mode: "code",
+					task: "Implement compact styles",
+					diff: "",
+					noChangesReason: "No changes detected.",
+					worktreePath: "C:/repo/.roo/parallel-worktrees/plan-test/styles-agent",
+					branch: "parallel/plan-test/styles-agent",
+					mergeStatus: "merged",
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+		fireEvent.click(screen.getByTestId("merge-review-toggle"))
+
+		const mergeButton = screen.getByTestId("merge-review-inline-merge-approved")
+		expect(mergeButton).toBeDisabled()
+		expect(screen.getByTestId("merge-review-inline-status-ui-agent")).toHaveTextContent("pending")
+		expect(screen.getByTestId("merge-review-inline-status-styles-agent")).toHaveTextContent("merged")
+
+		const uiApproval = screen.getByTestId("merge-review-inline-approval-ui-agent")
+		const stylesApproval = screen.getByTestId("merge-review-inline-approval-styles-agent")
+		expect(stylesApproval).toBeDisabled()
+
+		fireEvent.click(uiApproval)
+
+		expect(uiApproval).toHaveAttribute("aria-pressed", "true")
+		expect(mergeButton).not.toBeDisabled()
+
+		fireEvent.click(mergeButton)
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "mergeApprovedAgents", ids: ["ui-agent"] })
+	})
+
+	it("shows failed merge details and disables unsafe inline merge review entries", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "review",
+			mergeReviewEntries: [
+				{
+					agentId: "ui-agent",
+					mode: "ui-ux",
+					task: "Build dashboard UI",
+					diff: "",
+					worktreePath: "C:/repo/.roo/parallel-worktrees/plan-test/ui-agent",
+					branch: "parallel/plan-test/ui-agent",
+					mergeStatus: "failed",
+					mergeError: "CONFLICT (add/add): Merge conflict in index.html",
+					conflictedFiles: ["index.html"],
+					mergeable: false,
+				},
+				{
+					agentId: "styles-agent",
+					mode: "code",
+					task: "Implement compact styles",
+					diff: "",
+					worktreePath: "C:/repo/.roo/parallel-worktrees/plan-test/styles-agent",
+					branch: "parallel/plan-test/styles-agent",
+					mergeStatus: "skipped",
+					autoMergeSkippedReason: "styles-agent still has a write conflict for src/Dashboard.tsx",
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+		fireEvent.click(screen.getByTestId("merge-review-toggle"))
+
+		expect(screen.getByTestId("merge-review-inline-status-ui-agent")).toHaveTextContent("failed")
+		expect(screen.getByTestId("merge-review-inline-merge-error-ui-agent")).toHaveTextContent("CONFLICT (add/add)")
+		expect(screen.getByTestId("merge-review-inline-conflicts-ui-agent")).toHaveTextContent("index.html")
+		expect(screen.getByTestId("merge-review-inline-approval-ui-agent")).toBeDisabled()
+
+		expect(screen.getByTestId("merge-review-inline-status-styles-agent")).toHaveTextContent("skipped")
+		expect(screen.getByTestId("merge-review-inline-auto-skip-styles-agent")).toHaveTextContent(
+			"styles-agent still has a write conflict",
+		)
 	})
 
 	it("keeps an expanded agent row open when the same plan receives refreshed status props", () => {
