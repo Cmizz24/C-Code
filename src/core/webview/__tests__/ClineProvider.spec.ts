@@ -972,9 +972,11 @@ describe("ClineProvider", () => {
 		await provider.addClineToStack(parentTask)
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			removeWorktree: vi.fn().mockResolvedValue(undefined),
 			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
 		}
 
 		await provider.approveExecutionPlan(createExecutionPlan())
@@ -1002,9 +1004,11 @@ describe("ClineProvider", () => {
 		await provider.addClineToStack(parentTask)
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			removeWorktree: vi.fn().mockResolvedValue(undefined),
 			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
 		}
 
 		await provider.approveExecutionPlan(createExecutionPlan())
@@ -1043,9 +1047,11 @@ describe("ClineProvider", () => {
 		await provider.addClineToStack(parentTask)
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			removeWorktree: vi.fn().mockResolvedValue(undefined),
 			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
 		}
 
 		await provider.approveExecutionPlan(createExecutionPlan())
@@ -1113,9 +1119,11 @@ describe("ClineProvider", () => {
 		await provider.addClineToStack(parentTask)
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			removeWorktree: vi.fn().mockResolvedValue(undefined),
 			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
 		}
 
 		await provider.approveExecutionPlan(createExecutionPlan())
@@ -1166,9 +1174,11 @@ describe("ClineProvider", () => {
 		await provider.addClineToStack(parentTask)
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			removeWorktree: vi.fn().mockResolvedValue(undefined),
 			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
 		}
 
 		await provider.approveExecutionPlan(createExecutionPlan())
@@ -1238,11 +1248,14 @@ describe("ClineProvider", () => {
 		await provider.addClineToStack(parentTask)
 		await provider.setValues({ autoApprovalEnabled: true, alwaysAllowParallelTasks: true })
 		const validateGitRepository = vi.fn().mockResolvedValue(undefined)
+		const captureWorkspaceBaseline = vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" })
 		;(provider as any).worktreeManager = {
 			validateGitRepository,
+			captureWorkspaceBaseline,
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			removeWorktree: vi.fn().mockResolvedValue(undefined),
 			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
 		}
 		const plan = createExecutionPlan()
 
@@ -1250,6 +1263,10 @@ describe("ClineProvider", () => {
 
 		expect(result).toEqual({ approved: true, plan, startResult: { ok: true } })
 		expect(validateGitRepository).toHaveBeenCalled()
+		expect(captureWorkspaceBaseline).toHaveBeenCalledWith("plan-webview-provider")
+		expect(validateGitRepository.mock.invocationCallOrder[0]).toBeLessThan(
+			captureWorkspaceBaseline.mock.invocationCallOrder[0],
+		)
 		expect((provider as any).activeExecutionPlan).toBe(plan)
 		expect(
 			mockPostMessage.mock.calls.some(([message]: [ExtensionMessage]) => message.type === "showPlanPreview"),
@@ -1269,11 +1286,13 @@ describe("ClineProvider", () => {
 		)
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			prepareMergeReview,
 			mergeBranch: vi.fn().mockResolvedValue(undefined),
 			removeWorktree: vi.fn().mockResolvedValue(undefined),
 			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
 		}
 
 		await provider.approveExecutionPlan(plan)
@@ -1332,13 +1351,16 @@ describe("ClineProvider", () => {
 		)
 		const mergeBranch = vi.fn().mockResolvedValue(undefined)
 		const removeWorktree = vi.fn().mockResolvedValue(undefined)
+		const cleanupPlanBaseline = vi.fn().mockResolvedValue(undefined)
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			prepareMergeReview,
 			mergeBranch,
 			removeWorktree,
 			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline,
 		}
 
 		await provider.approveExecutionPlan(plan)
@@ -1355,10 +1377,14 @@ describe("ClineProvider", () => {
 			}),
 		)
 		expect(mergeBranch).toHaveBeenCalledTimes(1)
-		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/dashboard-agent")
+		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/dashboard-agent", {
+			planId: "plan-webview-provider",
+			worktreePath: "/tmp/dashboard-agent",
+		})
 		expect(mergeBranch).not.toHaveBeenCalledWith("roo/parallel/plan-webview-provider/styles-agent")
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
+		expect(cleanupPlanBaseline).toHaveBeenCalledWith("plan-webview-provider")
 		expect(mockPostMessage).toHaveBeenCalledWith({ type: "mergeComplete" })
 	})
 
@@ -1378,25 +1404,35 @@ describe("ClineProvider", () => {
 		)
 		const mergeBranch = vi.fn().mockResolvedValue(undefined)
 		const removeWorktree = vi.fn().mockResolvedValue(undefined)
+		const cleanupPlanBaseline = vi.fn().mockResolvedValue(undefined)
 		;(provider as any).activeExecutionPlan = plan
 		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
 		;(provider as any).worktreePathsByAgentId.set("styles-agent", "/tmp/styles-agent")
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			prepareMergeReview,
 			mergeBranch,
 			removeWorktree,
 			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline,
 		}
 
 		await provider.showMergeReview(plan)
 
 		expect(mergeBranch).toHaveBeenCalledTimes(2)
-		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/dashboard-agent")
-		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/styles-agent")
+		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/dashboard-agent", {
+			planId: "plan-webview-provider",
+			worktreePath: "/tmp/dashboard-agent",
+		})
+		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/styles-agent", {
+			planId: "plan-webview-provider",
+			worktreePath: "/tmp/styles-agent",
+		})
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
+		expect(cleanupPlanBaseline).toHaveBeenCalledWith("plan-webview-provider")
 		expect(mockPostMessage).toHaveBeenCalledWith(
 			expect.objectContaining({
 				type: "showMergeReview",
@@ -1446,6 +1482,7 @@ describe("ClineProvider", () => {
 		;(provider as any).worktreePathsByAgentId.set("styles-agent", "/tmp/styles-agent")
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			prepareMergeReview: vi.fn(
 				async ({ agentId }: { agentId: string }) =>
@@ -1454,6 +1491,7 @@ describe("ClineProvider", () => {
 			mergeBranch,
 			removeWorktree: vi.fn().mockResolvedValue(undefined),
 			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
 		}
 
 		await provider.showMergeReview(plan)
@@ -1482,6 +1520,7 @@ describe("ClineProvider", () => {
 		;(provider as any).worktreePathsByAgentId.set("styles-agent", "/tmp/styles-agent")
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			prepareMergeReview: vi.fn(async ({ agentId }: { agentId: string }) => {
 				if (agentId === "styles-agent") {
@@ -1493,6 +1532,7 @@ describe("ClineProvider", () => {
 			mergeBranch,
 			removeWorktree: vi.fn().mockResolvedValue(undefined),
 			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
 		}
 
 		await provider.showMergeReview(plan)
@@ -1603,9 +1643,11 @@ describe("ClineProvider", () => {
 		await provider.addClineToStack(parentTask)
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			removeWorktree: vi.fn().mockResolvedValue(undefined),
 			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
 		}
 
 		await provider.approveExecutionPlan(createExecutionPlan())
@@ -1637,9 +1679,11 @@ describe("ClineProvider", () => {
 		await provider.addClineToStack(parentTask)
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			removeWorktree: vi.fn().mockResolvedValue(undefined),
 			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
 		}
 		vi.spyOn(provider, "getTaskWithId").mockResolvedValue({
 			historyItem: {
@@ -1685,9 +1729,11 @@ describe("ClineProvider", () => {
 		await provider.addClineToStack(parentTask)
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			removeWorktree: vi.fn().mockResolvedValue(undefined),
 			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
 		}
 
 		await provider.approveExecutionPlan(createExecutionPlan())
@@ -1710,9 +1756,11 @@ describe("ClineProvider", () => {
 		await provider.addClineToStack(parentTask)
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
 			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
 			removeWorktree: vi.fn().mockResolvedValue(undefined),
 			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
 		}
 
 		await provider.approveExecutionPlan(createExecutionPlan())

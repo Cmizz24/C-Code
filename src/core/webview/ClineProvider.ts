@@ -2855,7 +2855,9 @@ export class ClineProvider
 		this.resetParallelAgentStatusState(plan.planId)
 
 		try {
-			await this.ensureWorktreeManager().validateGitRepository()
+			const worktreeManager = this.ensureWorktreeManager()
+			await worktreeManager.validateGitRepository()
+			await worktreeManager.captureWorkspaceBaseline(plan.planId)
 		} catch (error) {
 			const message = getWorktreeManagerErrorMessage(error)
 			this.log(`[parallel-agents] ${message}`)
@@ -3094,7 +3096,7 @@ export class ClineProvider
 					await this.prepareAgentBranchForReview(plan, agentId, branch, worktreePath)
 				}
 
-				await this.ensureWorktreeManager().mergeBranch(branch)
+				await this.ensureWorktreeManager().mergeBranch(branch, { planId: plan.planId, worktreePath })
 
 				if (options.autoApproved) {
 					this.recordParallelAgentActivity(agentId, `Auto-merged branch ${branch}.`, "completion")
@@ -3124,6 +3126,7 @@ export class ClineProvider
 				return worktreePath ? this.worktreeManager?.removeWorktree(worktreePath) : Promise.resolve()
 			}),
 		)
+		await this.worktreeManager?.cleanupPlanBaseline(plan.planId)
 
 		await this.updateParallelAgentStatusMessage("merged")
 		await this.teardownParallelExecution({ resetBus: true })
