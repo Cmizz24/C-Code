@@ -35,13 +35,27 @@ export interface AgentActivityEvent {
 	kind?: AgentActivityKind
 }
 
-export type AgentCoordinationKind = "shared-context" | "ownership" | "dependency" | "signal" | "completion"
+export type AgentCoordinationKind =
+	| "shared-context"
+	| "ownership"
+	| "dependency"
+	| "signal"
+	| "completion"
+	| "note"
+	| "question"
+	| "answer"
+	| "decision"
+	| "blocker"
 
 export interface AgentCoordinationEvent {
+	id?: string
 	agentId?: string
+	targetAgentId?: string
 	message: string
 	ts: number
 	kind: AgentCoordinationKind
+	relatedFiles?: string[]
+	replyToId?: string
 }
 
 export interface AgentPlan {
@@ -128,6 +142,10 @@ export type AgentEvent =
 			type: "INTENT_CLEARED"
 			agentId: string
 			path: string
+	  }
+	| {
+			type: "COORDINATION"
+			event: AgentCoordinationEvent
 	  }
 
 export interface AgentStatusUpdate {

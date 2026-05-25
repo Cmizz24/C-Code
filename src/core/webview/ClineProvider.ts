@@ -332,6 +332,16 @@ export class ClineProvider
 					message: `Agent ${event.agentId} signaled ${event.signal}.`,
 				})
 				break
+			case "COORDINATION":
+				this.recordParallelAgentCoordinationEvent(event.event)
+				if (event.event.agentId) {
+					this.recordParallelAgentActivity(
+						event.event.agentId,
+						`Coordination ${event.event.kind}: ${event.event.message}`,
+						"message",
+					)
+				}
+				break
 		}
 	}
 	private _disposed = false
@@ -3433,6 +3443,13 @@ export class ClineProvider
 		}).catch(() => {})
 	}
 
+	private postAgentCoordinationUpdate(event: AgentCoordinationEvent): void {
+		this.postMessageToWebview({
+			type: "agentCoordinationUpdate",
+			agentCoordinationEvent: event,
+		}).catch(() => {})
+	}
+
 	private postBackgroundAgentUsage(task: Task, usage: TokenUsage): void {
 		if (!task.background || !task.agentId) {
 			return
@@ -4009,16 +4026,19 @@ export class ClineProvider
 
 	private recordParallelAgentCoordinationEvent(
 		event: Omit<ParallelAgentCoordinationEvent, "ts"> & { ts?: number },
-	): void {
+	): ParallelAgentCoordinationEvent | undefined {
 		if (!this.activeExecutionPlan) {
-			return
+			return undefined
 		}
 
-		this.parallelAgentCoordinationEvents = [
-			...this.parallelAgentCoordinationEvents,
-			{ ...event, ts: event.ts ?? Date.now() },
-		].slice(-PARALLEL_AGENT_COORDINATION_LIMIT)
+		const storedEvent = { ...event, ts: event.ts ?? Date.now() }
+
+		this.parallelAgentCoordinationEvents = [...this.parallelAgentCoordinationEvents, storedEvent].slice(
+			-PARALLEL_AGENT_COORDINATION_LIMIT,
+		)
+		this.postAgentCoordinationUpdate(storedEvent)
 		this.scheduleParallelAgentStatusMessageUpdate()
+		return storedEvent
 	}
 
 	private describeAgentDependency(dependency: AgentDependency): string {

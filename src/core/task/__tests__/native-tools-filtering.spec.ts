@@ -126,5 +126,17 @@ describe("Native Tools Filtering by Mode", () => {
 				expect(isToolAllowedForMode(tool as any, "restrictive", [restrictiveMode])).toBe(true)
 			})
 		})
+
+		it("only includes the background coordination native tool when explicitly requested", async () => {
+			const { getNativeTools } = await import("../../prompts/tools/native-tools")
+
+			const defaultToolNames = getNativeTools().map((tool: any) => tool.function.name)
+			const backgroundToolNames = getNativeTools({ includeAgentCoordinationTool: true }).map(
+				(tool: any) => tool.function.name,
+			)
+
+			expect(defaultToolNames).not.toContain("coordinate_agents")
+			expect(backgroundToolNames).toContain("coordinate_agents")
+		})
 	})
 })

@@ -5,6 +5,7 @@ import applyPatch from "./apply_patch"
 import askFollowupQuestion from "./ask_followup_question"
 import attemptCompletion from "./attempt_completion"
 import codebaseSearch from "./codebase_search"
+import coordinateAgents from "./coordinate_agents"
 import editTool from "./edit"
 import executeCommand from "./execute_command"
 import generateImage from "./generate_image"
@@ -34,6 +35,8 @@ export interface NativeToolsOptions {
 	supportsImages?: boolean
 	/** Maximum total agents allowed in a parallel execution plan. */
 	maxParallelAgents?: number
+	/** Include the background-only parallel agent coordination tool. */
+	includeAgentCoordinationTool?: boolean
 }
 
 /**
@@ -43,19 +46,20 @@ export interface NativeToolsOptions {
  * @returns Array of native tool definitions
  */
 export function getNativeTools(options: NativeToolsOptions = {}): OpenAI.Chat.ChatCompletionTool[] {
-	const { supportsImages = false, maxParallelAgents } = options
+	const { supportsImages = false, maxParallelAgents, includeAgentCoordinationTool = false } = options
 
 	const readFileOptions: ReadFileToolOptions = {
 		supportsImages,
 	}
 
-	return [
+	const tools = [
 		accessMcpResource,
 		apply_diff,
 		applyPatch,
 		askFollowupQuestion,
 		attemptCompletion,
 		codebaseSearch,
+		...(includeAgentCoordinationTool ? [coordinateAgents] : []),
 		executeCommand,
 		generateImage,
 		listFiles,
@@ -73,6 +77,8 @@ export function getNativeTools(options: NativeToolsOptions = {}): OpenAI.Chat.Ch
 		updateTodoList,
 		writeToFile,
 	] satisfies OpenAI.Chat.ChatCompletionTool[]
+
+	return tools
 }
 
 // Backward compatibility: export default tools with line ranges enabled

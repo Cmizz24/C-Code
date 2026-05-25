@@ -219,6 +219,13 @@ describe("mode-validator", () => {
 			expect(() => validateToolUse("apply_diff", codeMode, [], requirements)).not.toThrow()
 		})
 
+		it("denies background-only coordination tool unless the runtime requirement is met", () => {
+			expect(() => validateToolUse("coordinate_agents", codeMode, [], { coordinate_agents: false })).toThrow(
+				'Tool "coordinate_agents" is not allowed in code mode.',
+			)
+			expect(() => validateToolUse("coordinate_agents", codeMode, [], { coordinate_agents: true })).not.toThrow()
+		})
+
 		it("handles undefined requirements gracefully", () => {
 			expect(() => validateToolUse("apply_diff", codeMode, [], undefined)).not.toThrow()
 		})

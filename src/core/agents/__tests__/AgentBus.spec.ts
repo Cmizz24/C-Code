@@ -1,6 +1,6 @@
 import type { ExecutionPlan } from "@roo-code/types"
 
-import { AgentBus } from "../AgentBus"
+import { AGENT_COORDINATION_EVENT_LIMIT, AGENT_COORDINATION_MESSAGE_MAX_LENGTH, AgentBus } from "../AgentBus"
 
 function createPlan(): ExecutionPlan {
 	return {
@@ -205,5 +205,106 @@ describe("AgentBus", () => {
 			agentId: "agent-b",
 			reason: "Dependency agent-a failed: Agent failed",
 		})
+	})
+
+	it("publishes sanitized bounded coordination messages and emits them", () => {
+		const events = vi.fn()
+		bus.on("event", events)
+
+		const event = bus.publishCoordination("agent-a", {
+			kind: "decision",
+			message: [
+				"Decision: use selector data-testid=save-button.",
+				"<thinking>private chain-of-thought should not leak</thinking>",
+				"Next: styles-agent can wire styles.",
+			].join("\n"),
+			targetAgentId: "agent-b",
+			relatedFiles: [
+				".\\src\\a.ts",
+				"src/a.ts",
+				"src/b.ts",
+				"src/c.ts",
+				"src/d.ts",
+				"src/e.ts",
+				"src/f.ts",
+				"src/g.ts",
+				"src/h.ts",
+				"src/i.ts",
+			],
+			replyToId: "question-1",
+		})
+
+		expect(event).toEqual(
+			expect.objectContaining({
+				agentId: "agent-a",
+				targetAgentId: "agent-b",
+				kind: "decision",
+				replyToId: "question-1",
+			}),
+		)
+		expect(event.message).toContain("Decision: use selector")
+		expect(event.message).toContain("[redacted private reasoning]")
+		expect(event.message).not.toContain("private chain-of-thought should not leak")
+		expect(event.relatedFiles).toEqual([
+			"src/a.ts",
+			"src/b.ts",
+			"src/c.ts",
+			"src/d.ts",
+			"src/e.ts",
+			"src/f.ts",
+			"src/g.ts",
+			"src/h.ts",
+		])
+		expect(events).toHaveBeenCalledWith({ type: "COORDINATION", event })
+	})
+
+	it("returns only recent relevant coordination messages for each agent", () => {
+		const broadcast = bus.publishCoordination("agent-a", { kind: "note", message: "Broadcast note" })
+		const targetedToB = bus.publishCoordination("agent-a", {
+			kind: "question",
+			message: "Question for B",
+			targetAgentId: "agent-b",
+		})
+		bus.publishCoordination("agent-b", {
+			kind: "answer",
+			message: "Answer for A",
+			targetAgentId: "agent-a",
+			replyToId: targetedToB.id,
+		})
+		bus.publishCoordination("agent-c", {
+			kind: "blocker",
+			message: "Private blocker for C",
+			targetAgentId: "agent-c",
+		})
+
+		expect(bus.getCoordinationEvents("agent-b").map((event) => event.message)).toEqual([
+			broadcast.message,
+			targetedToB.message,
+		])
+		expect(bus.getCoordinationEvents("agent-a").map((event) => event.message)).toEqual(["Answer for A"])
+		expect(bus.getCoordinationEvents("agent-a", { includeSelf: true }).map((event) => event.message)).toEqual([
+			"Broadcast note",
+			"Question for B",
+			"Answer for A",
+		])
+	})
+
+	it("bounds stored and read coordination messages and resets them with a new plan", () => {
+		for (let index = 0; index < AGENT_COORDINATION_EVENT_LIMIT + 5; index++) {
+			bus.publishCoordination("agent-a", {
+				kind: "note",
+				message: `Message ${index} ${"x".repeat(AGENT_COORDINATION_MESSAGE_MAX_LENGTH + 20)}`,
+			})
+		}
+
+		const recent = bus.getCoordinationEvents("agent-b", { limit: 100 })
+		expect(recent).toHaveLength(20)
+		expect(recent.at(0)?.message).toContain(`Message ${AGENT_COORDINATION_EVENT_LIMIT - 15}`)
+		expect(recent.at(-1)?.message).toContain(`Message ${AGENT_COORDINATION_EVENT_LIMIT + 4}`)
+		expect(recent.at(-1)?.message.length).toBe(AGENT_COORDINATION_MESSAGE_MAX_LENGTH)
+
+		bus.setExecutionPlan(createPlan())
+
+		expect(bus.getCoordinationEvents("agent-b", { includeSelf: true })).toEqual([])
 	})
 })

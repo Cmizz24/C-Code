@@ -91,6 +91,7 @@ export interface ExtensionMessage {
 		| "taskWithAggregatedCosts"
 		| "openAiCodexRateLimits"
 		| "agentStatusUpdate"
+		| "agentCoordinationUpdate"
 		| "showPlanPreview"
 		| "writeIntentDenied"
 		| "writeIntentCleared"
@@ -189,6 +190,7 @@ export interface ExtensionMessage {
 	// Parallel agent system messages
 	executionPlan?: ExecutionPlan
 	agentStatusUpdate?: AgentStatusUpdate
+	agentCoordinationEvent?: AgentCoordinationEvent
 	writeIntentConflict?: WriteIntentConflict
 	mergeReviewEntries?: MergeReviewEntry[]
 	agentId?: string

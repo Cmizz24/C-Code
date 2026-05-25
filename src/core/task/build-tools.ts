@@ -26,6 +26,8 @@ interface BuildToolsOptions {
 	modelInfo?: ModelInfo
 	/** Maximum total agents allowed in a parallel execution plan. */
 	maxParallelAgents?: number
+	/** Whether to expose the background-only parallel agent coordination tool. */
+	includeAgentCoordinationTool?: boolean
 	/**
 	 * If true, returns all tools without mode filtering, but also includes
 	 * the list of allowed tool names for use with allowedFunctionNames.
@@ -92,6 +94,7 @@ export async function buildNativeToolsArrayWithRestrictions(options: BuildToolsO
 		disabledTools,
 		modelInfo,
 		maxParallelAgents,
+		includeAgentCoordinationTool,
 		includeAllToolsWithRestrictions,
 	} = options
 
@@ -115,6 +118,7 @@ export async function buildNativeToolsArrayWithRestrictions(options: BuildToolsO
 	const nativeTools = getNativeTools({
 		supportsImages,
 		maxParallelAgents,
+		includeAgentCoordinationTool,
 	})
 
 	// Filter native tools based on mode restrictions.

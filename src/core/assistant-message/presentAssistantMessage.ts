@@ -41,11 +41,16 @@ import { generateImageTool } from "../tools/GenerateImageTool"
 import { applyDiffTool as applyDiffToolClass } from "../tools/ApplyDiffTool"
 import { isValidToolName, validateToolUse } from "../tools/validateToolUse"
 import { codebaseSearchTool } from "../tools/CodebaseSearchTool"
+import { coordinateAgentsTool } from "../tools/CoordinateAgentsTool"
 import { handlePlanParallelTasks } from "../tools/planParallelTasks"
 
 import { formatResponse } from "../prompts/responses"
 import { sanitizeToolUseId } from "../../utils/tool-id"
-import { isBackgroundAgentToolRestrictedTask, withBackgroundAgentDisabledTools } from "../agents/backgroundAgentTools"
+import {
+	getBackgroundAgentToolRequirements,
+	isBackgroundAgentToolRestrictedTask,
+	withBackgroundAgentDisabledTools,
+} from "../agents/backgroundAgentTools"
 
 function isTaskAbortError(cline: Task, error: unknown): boolean {
 	return (
@@ -454,6 +459,8 @@ export async function presentAssistantMessage(cline: Task) {
 					}
 					case "plan_parallel_tasks":
 						return `[${block.name} for '${block.params.goal}']`
+					case "coordinate_agents":
+						return `[${block.name} ${block.params.action ?? ""}]`
 					case "run_slash_command":
 						return `[${block.name} for '${block.params.command}'${block.params.args ? ` with args: ${block.params.args}` : ""}]`
 					case "skill":
@@ -648,15 +655,12 @@ export async function presentAssistantMessage(cline: Task) {
 
 				try {
 					const toolRequirements =
-						disabledToolsForTask?.reduce(
-							(acc: Record<string, boolean>, tool: string) => {
-								acc[tool] = false
-								const resolvedToolName = resolveToolAlias(tool)
-								acc[resolvedToolName] = false
-								return acc
-							},
-							{} as Record<string, boolean>,
-						) ?? {}
+						disabledToolsForTask?.reduce((acc: Record<string, boolean>, tool: string) => {
+							acc[tool] = false
+							const resolvedToolName = resolveToolAlias(tool)
+							acc[resolvedToolName] = false
+							return acc
+						}, getBackgroundAgentToolRequirements(cline)) ?? getBackgroundAgentToolRequirements(cline)
 
 					validateToolUse(
 						block.name as ToolName,
@@ -920,6 +924,13 @@ export async function presentAssistantMessage(cline: Task) {
 					}
 					break
 				}
+				case "coordinate_agents":
+					await coordinateAgentsTool.handle(cline, block as ToolUse<"coordinate_agents">, {
+						askApproval,
+						handleError,
+						pushToolResult,
+					})
+					break
 				case "attempt_completion": {
 					const completionCallbacks: AttemptCompletionCallbacks = {
 						askApproval,

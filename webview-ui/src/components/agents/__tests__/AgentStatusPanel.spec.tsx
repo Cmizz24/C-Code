@@ -357,6 +357,67 @@ describe("AgentStatusPanel", () => {
 		expect(within(feed).queryByRole("textbox")).not.toBeInTheDocument()
 	})
 
+	it("renders live coordination updates with compact metadata and keeps the feed bounded", () => {
+		renderWithExtensionState(<AgentStatusPanel />)
+
+		for (let index = 0; index < 10; index++) {
+			const update: ExtensionMessage = {
+				type: "agentCoordinationUpdate",
+				agentCoordinationEvent: {
+					id: `coord-${index}`,
+					agentId: index === 9 ? "ui-agent" : "styles-agent",
+					targetAgentId: index === 9 ? "styles-agent" : undefined,
+					kind: index === 9 ? "question" : "note",
+					message: index === 9 ? "Can you confirm the dashboard selector?" : `Coordination ${index}`,
+					relatedFiles: index === 9 ? ["src/Dashboard.tsx", "src/dashboard.css"] : undefined,
+					replyToId: index === 9 ? "coord-7" : undefined,
+					ts: 1_700_000_000_000 + index,
+				},
+			}
+
+			act(() => {
+				window.dispatchEvent(new MessageEvent("message", { data: update }))
+			})
+		}
+
+		const feed = screen.getByTestId("agent-coordination-feed")
+		expect(feed).toHaveTextContent("read-only · latest 8")
+		expect(feed).not.toHaveTextContent("Coordination 0")
+		expect(feed).not.toHaveTextContent("Coordination 1")
+		expect(feed).toHaveTextContent("Can you confirm the dashboard selector?")
+		expect(feed).toHaveTextContent("question")
+		expect(feed).toHaveTextContent("UI/UX")
+		expect(feed).toHaveTextContent("→ Code")
+		expect(feed).toHaveTextContent("reply coord-7")
+		expect(screen.getAllByTestId("agent-coordination-related-file")).toHaveLength(2)
+		expect(feed).toHaveTextContent("src/Dashboard.tsx")
+		expect(feed).toHaveTextContent("src/dashboard.css")
+		expect(within(feed).queryByRole("button")).not.toBeInTheDocument()
+		expect(within(feed).queryByRole("textbox")).not.toBeInTheDocument()
+	})
+
+	it("ignores live coordination updates outside the active plan", () => {
+		renderWithExtensionState(<AgentStatusPanel />)
+
+		act(() => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "agentCoordinationUpdate",
+						agentCoordinationEvent: {
+							agentId: "unrelated-agent",
+							kind: "note",
+							message: "This should not render.",
+							ts: 1_700_000_000_000,
+						},
+					} satisfies ExtensionMessage,
+				}),
+			)
+		})
+
+		expect(screen.queryByTestId("agent-coordination-feed")).not.toBeInTheDocument()
+	})
+
 	it("renders the serialized parallel review summary inside the tool card", () => {
 		const plan = createPlan()
 		const tool: ClineSayTool = {

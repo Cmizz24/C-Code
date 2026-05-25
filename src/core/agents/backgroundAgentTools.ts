@@ -7,6 +7,8 @@ export const BACKGROUND_AGENT_DISABLED_TOOLS = [
 	"run_slash_command",
 ] as const satisfies readonly ToolName[]
 
+export const BACKGROUND_AGENT_ONLY_TOOLS = ["coordinate_agents"] as const satisfies readonly ToolName[]
+
 export type BackgroundAgentToolRestrictionState = {
 	background?: boolean
 	agentId?: string
@@ -25,4 +27,13 @@ export function withBackgroundAgentDisabledTools(
 	}
 
 	return Array.from(new Set([...(disabledTools ?? []), ...BACKGROUND_AGENT_DISABLED_TOOLS]))
+}
+
+export function getBackgroundAgentToolRequirements(task: BackgroundAgentToolRestrictionState): Record<string, boolean> {
+	const isBackgroundAgent = isBackgroundAgentToolRestrictedTask(task)
+
+	return BACKGROUND_AGENT_ONLY_TOOLS.reduce<Record<string, boolean>>((requirements, toolName) => {
+		requirements[toolName] = isBackgroundAgent
+		return requirements
+	}, {})
 }

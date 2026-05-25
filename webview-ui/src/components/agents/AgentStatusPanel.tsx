@@ -130,6 +130,11 @@ const coordinationIconClasses: Record<AgentCoordinationKind, string> = {
 	dependency: "codicon-link text-vscode-editorWarning-foreground",
 	signal: "codicon-broadcast text-vscode-focusBorder",
 	completion: "codicon-check text-vscode-charts-green",
+	note: "codicon-note text-vscode-descriptionForeground",
+	question: "codicon-question text-vscode-editorWarning-foreground",
+	answer: "codicon-comment-discussion text-vscode-focusBorder",
+	decision: "codicon-pass-filled text-vscode-charts-green",
+	blocker: "codicon-error text-vscode-errorForeground",
 }
 
 const coordinationKindLabels: Record<AgentCoordinationKind, string> = {
@@ -138,6 +143,11 @@ const coordinationKindLabels: Record<AgentCoordinationKind, string> = {
 	dependency: "dependency",
 	signal: "signal",
 	completion: "completion",
+	note: "note",
+	question: "question",
+	answer: "answer",
+	decision: "decision",
+	blocker: "blocker",
 }
 
 const getActivityKind = (activity: AgentActivity): AgentActivityKind => activity.kind ?? "status"
@@ -149,8 +159,27 @@ const getCoordinationKindLabel = (event: AgentCoordination): string => coordinat
 const getActivityKey = (activity: AgentActivity, index: number): string =>
 	`${activity.agentId}:${activity.ts}:${getActivityKind(activity)}:${index}:${activity.message}`
 
+const getCoordinationIdentity = (event: AgentCoordination): string =>
+	event.id
+		? `id:${event.id}`
+		: `${event.agentId ?? "plan"}:${event.targetAgentId ?? "all"}:${event.ts}:${event.kind}:${event.replyToId ?? ""}:${event.message}`
+
 const getCoordinationKey = (event: AgentCoordination, index: number): string =>
-	`${event.agentId ?? "plan"}:${event.ts}:${event.kind}:${index}:${event.message}`
+	`${getCoordinationIdentity(event)}:${index}`
+
+const isCoordinationEventForPlan = (event: AgentCoordination, agentIds: Set<string>): boolean => {
+	if (agentIds.size === 0) {
+		return true
+	}
+
+	if (!event.agentId && !event.targetAgentId) {
+		return true
+	}
+
+	return Boolean(
+		(event.agentId && agentIds.has(event.agentId)) || (event.targetAgentId && agentIds.has(event.targetAgentId)),
+	)
+}
 
 const isRealActivityTimestamp = (ts: number | undefined, now: number): ts is number =>
 	typeof ts === "number" && Number.isFinite(ts) && ts >= MIN_REAL_ACTIVITY_TS && ts <= now + 60_000
@@ -276,6 +305,19 @@ const sortAgentActivities = (activities: AgentActivity[]): AgentActivity[] =>
 
 const sortAgentCoordinationEvents = (events: AgentCoordination[] = []): AgentCoordination[] =>
 	[...events].sort((a, b) => a.ts - b.ts).slice(-AGENT_COORDINATION_DISPLAY_LIMIT)
+
+const mergeAgentCoordinationEvents = (
+	previous: AgentCoordination[],
+	incoming: AgentCoordination[],
+): AgentCoordination[] => {
+	const merged = new Map<string, AgentCoordination>()
+
+	for (const event of [...previous, ...incoming]) {
+		merged.set(getCoordinationIdentity(event), event)
+	}
+
+	return sortAgentCoordinationEvents(Array.from(merged.values()))
+}
 
 const mergeAgentActivityLists = (
 	previous: AgentActivity[],
@@ -554,6 +596,15 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 					}
 					break
 				}
+				case "agentCoordinationUpdate": {
+					const coordinationEvent = message.agentCoordinationEvent
+					if (!coordinationEvent || !isCoordinationEventForPlan(coordinationEvent, agentIds)) {
+						return
+					}
+
+					setCoordinationEvents((prev) => mergeAgentCoordinationEvents(prev, [coordinationEvent]))
+					break
+				}
 				case "writeIntentDenied": {
 					if (!message.writeIntentConflict) {
 						return
@@ -647,6 +698,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 	const phaseLabel = phase ? phaseLabels[phase] : overallStatus
 	const reviewSummaryMarkdown = tool?.parallelReviewSummary?.markdown?.trim()
 	const coordinationFeedEvents = sortAgentCoordinationEvents(coordinationEvents)
+	const getAgentLabel = (agentId: string): string => labelByAgentId.get(agentId) ?? agentId
 
 	return (
 		<section
@@ -713,35 +765,60 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 							<div className="mb-1 flex items-center gap-1.5 text-vscode-foreground">
 								<span className="codicon codicon-radio-tower shrink-0" />
 								<span className="font-medium">Coordination</span>
-								<span className="text-vscode-descriptionForeground">read-only</span>
+								<span className="text-vscode-descriptionForeground">read-only · latest 8</span>
 							</div>
-							<ol className="flex flex-col gap-1">
+							<ol className="flex max-h-48 flex-col gap-1 overflow-y-auto pr-1">
 								{coordinationFeedEvents.map((event, index) => {
 									const timestampLabel = getCoordinationTimestampLabel(event, now)
+									const senderLabel = event.agentId ? getAgentLabel(event.agentId) : "Plan"
+									const targetLabel = event.targetAgentId
+										? getAgentLabel(event.targetAgentId)
+										: "all agents"
+									const relatedFiles = event.relatedFiles?.filter(Boolean) ?? []
+									const hasMetadata =
+										event.targetAgentId || event.replyToId || relatedFiles.length > 0
 
 									return (
 										<li
 											key={getCoordinationKey(event, index)}
-											className="flex min-w-0 flex-wrap items-start gap-x-1.5 gap-y-0.5 text-vscode-descriptionForeground">
-											<span
-												className={cn(
-													"codicon mt-0.5 shrink-0 text-[11px]",
-													coordinationIconClasses[event.kind],
-												)}
-											/>
-											<Badge className="shrink-0 border-vscode-descriptionForeground/30 bg-vscode-descriptionForeground/10 text-[10px] text-vscode-descriptionForeground">
-												{getCoordinationKindLabel(event)}
-											</Badge>
-											{event.agentId && (
-												<span className="shrink-0 text-vscode-foreground">
-													{labelByAgentId.get(event.agentId) ?? event.agentId}
+											className="min-w-0 rounded bg-vscode-editor-background/30 px-1.5 py-1 text-vscode-descriptionForeground">
+											<div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+												<span
+													className={cn(
+														"codicon shrink-0 text-[11px]",
+														coordinationIconClasses[event.kind],
+													)}
+												/>
+												<Badge className="shrink-0 border-vscode-descriptionForeground/30 bg-vscode-descriptionForeground/10 text-[10px] text-vscode-descriptionForeground">
+													{getCoordinationKindLabel(event)}
+												</Badge>
+												<span className="shrink-0 text-vscode-foreground">{senderLabel}</span>
+												<span className="shrink-0 text-vscode-descriptionForeground">
+													→ {targetLabel}
 												</span>
-											)}
-											<span className="min-w-0 flex-1 whitespace-pre-wrap break-words text-vscode-foreground">
+												{timestampLabel && (
+													<span className="ml-auto shrink-0 font-mono text-[10px]">
+														{timestampLabel}
+													</span>
+												)}
+											</div>
+											<div className="mt-0.5 whitespace-pre-wrap break-words text-vscode-foreground">
 												{event.message}
-											</span>
-											{timestampLabel && (
-												<span className="shrink-0 font-mono text-[10px]">{timestampLabel}</span>
+											</div>
+											{hasMetadata && (
+												<div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 text-[10px] text-vscode-descriptionForeground">
+													{event.replyToId && (
+														<span className="font-mono">reply {event.replyToId}</span>
+													)}
+													{relatedFiles.map((file) => (
+														<Badge
+															key={file}
+															data-testid="agent-coordination-related-file"
+															className="max-w-full border-vscode-descriptionForeground/20 bg-vscode-descriptionForeground/5 font-mono text-[10px] text-vscode-descriptionForeground">
+															<span className="truncate">{file}</span>
+														</Badge>
+													))}
+												</div>
 											)}
 										</li>
 									)

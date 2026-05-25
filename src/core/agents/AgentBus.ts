@@ -2,6 +2,8 @@ import EventEmitter from "events"
 
 import type {
 	AgentActivityKind,
+	AgentCoordinationEvent,
+	AgentCoordinationKind,
 	AgentDependency,
 	AgentEvent,
 	AgentPlan,
@@ -9,6 +11,26 @@ import type {
 	ExecutionPlan,
 	WritePermission,
 } from "@roo-code/types"
+
+export const AGENT_COORDINATION_EVENT_LIMIT = 50
+export const AGENT_COORDINATION_MESSAGE_MAX_LENGTH = 500
+const AGENT_COORDINATION_RELATED_FILES_LIMIT = 8
+const AGENT_COORDINATION_PATH_MAX_LENGTH = 200
+const AGENT_COORDINATION_READ_LIMIT = 8
+const AGENT_COORDINATION_READ_LIMIT_MAX = 20
+
+export type PublishAgentCoordinationInput = {
+	kind?: AgentCoordinationKind
+	message: string
+	targetAgentId?: string
+	relatedFiles?: string[]
+	replyToId?: string
+}
+
+export type GetAgentCoordinationOptions = {
+	limit?: number
+	includeSelf?: boolean
+}
 
 type AgentBusEvents = {
 	event: [AgentEvent]
@@ -20,6 +42,14 @@ type AgentBusEvents = {
 
 function normalizePath(filePath: string): string {
 	return filePath.replace(/\\/g, "/").replace(/^\.\//, "")
+}
+
+function clampInteger(value: number | undefined, fallback: number, max: number): number {
+	if (!Number.isFinite(value)) {
+		return fallback
+	}
+
+	return Math.min(Math.max(Math.floor(value as number), 1), max)
 }
 
 function pathMatches(ownedPath: string, requestedPath: string): boolean {
@@ -39,6 +69,8 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	private readonly completedAgents = new Set<string>()
 	private readonly signalsByAgent = new Map<string, Set<string>>()
 	private readonly blockedAgents = new Set<string>()
+	private coordinationEvents: AgentCoordinationEvent[] = []
+	private coordinationSequence = 0
 
 	public static getInstance(): AgentBus {
 		AgentBus.instance ??= new AgentBus()
@@ -56,6 +88,8 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		this.completedAgents.clear()
 		this.signalsByAgent.clear()
 		this.blockedAgents.clear()
+		this.coordinationEvents = []
+		this.coordinationSequence = 0
 
 		for (const agent of plan.agents) {
 			if (agent.status === "complete") {
@@ -148,6 +182,44 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	): void {
 		const normalizedPath = filePath ? normalizePath(filePath) : undefined
 		this.emitEvent({ type: "PROGRESS", agentId, message, kind, path: normalizedPath })
+	}
+
+	public publishCoordination(agentId: string, input: PublishAgentCoordinationInput): AgentCoordinationEvent {
+		const message = this.sanitizeCoordinationMessage(input.message)
+		const kind = this.sanitizeCoordinationKind(input.kind)
+		const targetAgentId = this.sanitizeAgentId(input.targetAgentId)
+		const relatedFiles = this.sanitizeRelatedFiles(input.relatedFiles)
+		const replyToId = this.sanitizeIdentifier(input.replyToId)
+		const event: AgentCoordinationEvent = {
+			id: `${Date.now()}-${++this.coordinationSequence}`,
+			agentId,
+			message,
+			ts: Date.now(),
+			kind,
+			...(targetAgentId ? { targetAgentId } : {}),
+			...(relatedFiles.length > 0 ? { relatedFiles } : {}),
+			...(replyToId ? { replyToId } : {}),
+		}
+
+		this.coordinationEvents = [...this.coordinationEvents, event].slice(-AGENT_COORDINATION_EVENT_LIMIT)
+		this.emitEvent({ type: "COORDINATION", event })
+
+		return event
+	}
+
+	public getCoordinationEvents(agentId: string, options: GetAgentCoordinationOptions = {}): AgentCoordinationEvent[] {
+		const limit = clampInteger(options.limit, AGENT_COORDINATION_READ_LIMIT, AGENT_COORDINATION_READ_LIMIT_MAX)
+		const includeSelf = options.includeSelf ?? false
+
+		return this.coordinationEvents
+			.filter((event) => {
+				if (!includeSelf && event.agentId === agentId) {
+					return false
+				}
+
+				return !event.targetAgentId || event.targetAgentId === agentId || event.agentId === agentId
+			})
+			.slice(-limit)
 	}
 
 	public emitSignal(agentId: string, signal: string, payload?: string): void {
@@ -287,6 +359,86 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 
 	private emitEvent(event: AgentEvent): void {
 		this.emit("event", event)
+	}
+
+	private sanitizeCoordinationKind(kind: AgentCoordinationKind | undefined): AgentCoordinationKind {
+		switch (kind) {
+			case "question":
+			case "answer":
+			case "decision":
+			case "blocker":
+			case "note":
+				return kind
+			default:
+				return "note"
+		}
+	}
+
+	private sanitizeCoordinationMessage(message: string): string {
+		const withoutReasoningBlocks = String(message ?? "")
+			.replace(
+				/<\s*(thinking|analysis|reasoning)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi,
+				"[redacted private reasoning]",
+			)
+			.replace(/\b(chain[-\s]?of[-\s]?thought|private reasoning|internal reasoning)\b/gi, "private reasoning")
+		const normalized = withoutReasoningBlocks
+			.split("")
+			.map((char) => (this.isControlCharacter(char) ? " " : char))
+			.join("")
+			.replace(/\s+/g, " ")
+			.trim()
+
+		if (!normalized) {
+			return "Coordination update."
+		}
+
+		return normalized.slice(0, AGENT_COORDINATION_MESSAGE_MAX_LENGTH)
+	}
+
+	private sanitizeAgentId(agentId: string | undefined): string | undefined {
+		const normalized = this.sanitizeIdentifier(agentId)
+
+		if (!normalized || !this.executionPlan?.agents.some((agent) => agent.id === normalized)) {
+			return undefined
+		}
+
+		return normalized
+	}
+
+	private sanitizeIdentifier(value: string | undefined): string | undefined {
+		const normalized = String(value ?? "")
+			.split("")
+			.filter((char) => !this.isControlCharacter(char))
+			.join("")
+			.trim()
+			.slice(0, 120)
+
+		return normalized || undefined
+	}
+
+	private isControlCharacter(char: string): boolean {
+		const code = char.charCodeAt(0)
+
+		return code <= 31 || code === 127
+	}
+
+	private sanitizeRelatedFiles(files: string[] | undefined): string[] {
+		const uniqueFiles = new Set<string>()
+
+		for (const filePath of files ?? []) {
+			const normalizedPath = normalizePath(String(filePath ?? "").trim()).slice(
+				0,
+				AGENT_COORDINATION_PATH_MAX_LENGTH,
+			)
+			if (normalizedPath) {
+				uniqueFiles.add(normalizedPath)
+			}
+			if (uniqueFiles.size >= AGENT_COORDINATION_RELATED_FILES_LIMIT) {
+				break
+			}
+		}
+
+		return Array.from(uniqueFiles)
 	}
 
 	private findOwnerAgentId(filePath: string): string | undefined {

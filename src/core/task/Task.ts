@@ -25,6 +25,7 @@ import {
 	type ToolUsage,
 	type ToolName,
 	type WritePermission,
+	type AgentCoordinationEvent,
 	type AgentActivityKind,
 	type ContextCondense,
 	type ContextTruncation,
@@ -132,8 +133,8 @@ import { AutoApprovalHandler, checkAutoApproval } from "../auto-approval"
 import { MessageManager } from "../message-manager"
 import { validateAndFixToolResultIds } from "./validateToolResultIds"
 import { mergeConsecutiveApiMessages } from "./mergeConsecutiveApiMessages"
-import { AgentBus } from "../agents/AgentBus"
-import { withBackgroundAgentDisabledTools } from "../agents/backgroundAgentTools"
+import { AgentBus, type GetAgentCoordinationOptions, type PublishAgentCoordinationInput } from "../agents/AgentBus"
+import { isBackgroundAgentToolRestrictedTask, withBackgroundAgentDisabledTools } from "../agents/backgroundAgentTools"
 
 const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
 const DEFAULT_USAGE_COLLECTION_TIMEOUT_MS = 5000 // 5 seconds
@@ -187,6 +188,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	private getDisabledToolsForNativeRequests(disabledTools: readonly string[] | undefined): string[] | undefined {
 		return withBackgroundAgentDisabledTools(disabledTools, this)
+	}
+
+	private shouldIncludeAgentCoordinationTool(): boolean {
+		return isBackgroundAgentToolRestrictedTask(this) && Boolean(this.agentBus)
 	}
 
 	/**
@@ -1785,6 +1790,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				disabledTools: this.getDisabledToolsForNativeRequests(state?.disabledTools),
 				modelInfo,
 				maxParallelAgents: normalizeParallelTaskConcurrency(maxConcurrentParallelTasks),
+				includeAgentCoordinationTool: this.shouldIncludeAgentCoordinationTool(),
 				includeAllToolsWithRestrictions: false,
 			})
 			allTools = toolsResult.tools
@@ -3926,6 +3932,26 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.agentBus.reportProgress(this.agentId, message, kind, relPath)
 	}
 
+	public canCoordinateWithAgents(): boolean {
+		return this.shouldIncludeAgentCoordinationTool()
+	}
+
+	public publishAgentCoordination(input: PublishAgentCoordinationInput): AgentCoordinationEvent | undefined {
+		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
+			return undefined
+		}
+
+		return this.agentBus.publishCoordination(this.agentId, input)
+	}
+
+	public getAgentCoordinationEvents(options?: GetAgentCoordinationOptions): AgentCoordinationEvent[] {
+		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
+			return []
+		}
+
+		return this.agentBus.getCoordinationEvents(this.agentId, options)
+	}
+
 	private getCurrentProfileId(state: any): string {
 		return (
 			state?.listApiConfigMeta?.find((profile: any) => profile.name === state?.currentApiConfigName)?.id ??
@@ -3975,6 +4001,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				disabledTools: this.getDisabledToolsForNativeRequests(state?.disabledTools),
 				modelInfo,
 				maxParallelAgents: normalizeParallelTaskConcurrency(maxConcurrentParallelTasks),
+				includeAgentCoordinationTool: this.shouldIncludeAgentCoordinationTool(),
 				includeAllToolsWithRestrictions: false,
 			})
 			allTools = toolsResult.tools
@@ -4194,6 +4221,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						disabledTools: this.getDisabledToolsForNativeRequests(state?.disabledTools),
 						modelInfo,
 						maxParallelAgents: normalizeParallelTaskConcurrency(maxConcurrentParallelTasks),
+						includeAgentCoordinationTool: this.shouldIncludeAgentCoordinationTool(),
 						includeAllToolsWithRestrictions: false,
 					})
 					contextMgmtTools = toolsResult.tools
@@ -4359,6 +4387,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				disabledTools: this.getDisabledToolsForNativeRequests(state?.disabledTools),
 				modelInfo,
 				maxParallelAgents: normalizeParallelTaskConcurrency(state?.maxConcurrentParallelTasks),
+				includeAgentCoordinationTool: this.shouldIncludeAgentCoordinationTool(),
 				includeAllToolsWithRestrictions: supportsAllowedFunctionNames,
 			})
 			allTools = toolsResult.tools

@@ -1,4 +1,9 @@
-import { BACKGROUND_AGENT_DISABLED_TOOLS, withBackgroundAgentDisabledTools } from "../backgroundAgentTools"
+import {
+	BACKGROUND_AGENT_DISABLED_TOOLS,
+	BACKGROUND_AGENT_ONLY_TOOLS,
+	getBackgroundAgentToolRequirements,
+	withBackgroundAgentDisabledTools,
+} from "../backgroundAgentTools"
 
 describe("backgroundAgentTools", () => {
 	it("does not change disabled tools for foreground tasks", () => {
@@ -15,5 +20,16 @@ describe("backgroundAgentTools", () => {
 		expect(BACKGROUND_AGENT_DISABLED_TOOLS).toEqual(
 			expect.arrayContaining(["new_task", "plan_parallel_tasks", "switch_mode", "run_slash_command"]),
 		)
+	})
+
+	it("requires background agent context for background-only coordination tools", () => {
+		expect(BACKGROUND_AGENT_ONLY_TOOLS).toEqual(["coordinate_agents"])
+		expect(getBackgroundAgentToolRequirements({ background: false, agentId: "ui" })).toEqual({
+			coordinate_agents: false,
+		})
+		expect(getBackgroundAgentToolRequirements({ background: true })).toEqual({ coordinate_agents: false })
+		expect(getBackgroundAgentToolRequirements({ background: true, agentId: "ui" })).toEqual({
+			coordinate_agents: true,
+		})
 	})
 })
