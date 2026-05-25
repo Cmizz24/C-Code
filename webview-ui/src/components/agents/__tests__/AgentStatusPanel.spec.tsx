@@ -694,6 +694,41 @@ describe("AgentStatusPanel", () => {
 		expect(within(details).getByText("Applying a diff to src/Dashboard.tsx.")).toBeInTheDocument()
 	})
 
+	it("uses a safe running fallback instead of a stale diff-start current activity", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "running",
+			agentStatusUpdates: [
+				{
+					agentId: "ui-agent",
+					status: "running",
+					lastTouchedFile: "src/Dashboard.tsx",
+				},
+			],
+			agentActivities: [
+				{
+					agentId: "ui-agent",
+					kind: "tool",
+					message: "Applying a diff to src/Dashboard.tsx.",
+					ts: 1,
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+		fireEvent.click(screen.getAllByTestId("agent-status-toggle")[0])
+
+		expect(screen.getByTestId("agent-activity")).toHaveTextContent(
+			"Working on src/Dashboard.tsx after diff request...",
+		)
+		expect(screen.getByTestId("agent-activity")).not.toHaveTextContent("Applying a diff")
+		expect(
+			within(screen.getByTestId("agent-details")).getByText("Applying a diff to src/Dashboard.tsx."),
+		).toBeInTheDocument()
+	})
+
 	it("uses terminal status instead of a stale tool-start label", () => {
 		const plan = createPlan()
 		const tool: ClineSayTool = {

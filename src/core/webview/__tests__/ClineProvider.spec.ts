@@ -1401,6 +1401,73 @@ describe("ClineProvider", () => {
 		})
 	})
 
+	test("pending diff tool asks supersede stale diff-start activity labels", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+		const backgroundTask = backgroundTasks.find((task) => task.agentId === "dashboard-agent") as Task
+		const diffAsk: ClineMessage = {
+			type: "ask",
+			ask: "tool",
+			ts: 2_050,
+			text: JSON.stringify({ tool: "appliedDiff", path: "src/dashboard.css" }),
+			partial: true,
+		}
+
+		backgroundTask.emit(RooCodeEventName.Message, { action: "created", message: diffAsk })
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.agentActivities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "tool",
+						message: "Applying a diff to src/dashboard.css.",
+						ts: 2_050,
+					}),
+				]),
+			)
+		})
+
+		backgroundTask.emit(RooCodeEventName.Message, {
+			action: "updated",
+			message: { ...diffAsk, partial: false },
+		})
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			const activities = tool.agentActivities?.filter((activity) => activity.agentId === "dashboard-agent") ?? []
+			const statusUpdate = tool.agentStatusUpdates?.find((update) => update.agentId === "dashboard-agent")
+
+			expect(activities.filter((activity) => activity.ts === 2_050)).toEqual([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					kind: "approval",
+					message: "Waiting for diff approval for src/dashboard.css.",
+					ts: 2_050,
+				}),
+			])
+			expect(activities.map((activity) => activity.message)).not.toContain(
+				"Applying a diff to src/dashboard.css.",
+			)
+			expect(statusUpdate?.activities?.at(-1)?.message).toBe("Waiting for diff approval for src/dashboard.css.")
+		})
+	})
+
 	test("answered write tool asks supersede stale diff-start activity labels", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const parentTask = new Task(defaultTaskOptions)

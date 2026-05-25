@@ -277,6 +277,26 @@ const shouldUseStatusActivityOverLatest = (latestActivity: AgentActivity, status
 	}
 }
 
+const getStaleDiffCurrentActivityFallback = (
+	activity: AgentActivity,
+	status: AgentStatus,
+): AgentActivity | undefined => {
+	if (status !== "running" || getActivityKind(activity) !== "tool") {
+		return undefined
+	}
+
+	const match = activity.message.match(/^Applying a diff to (.+)\.$/)
+	if (!match) {
+		return undefined
+	}
+
+	return {
+		...activity,
+		kind: "wait",
+		message: `Working on ${match[1]} after diff request...`,
+	}
+}
+
 const getCurrentAgentActivity = (
 	agentId: string,
 	status: AgentStatus,
@@ -288,9 +308,12 @@ const getCurrentAgentActivity = (
 	const latestActivity = activities.at(-1)
 
 	if (latestActivity && shouldShowCurrentActivity(latestActivity)) {
-		return statusActivity && shouldUseStatusActivityOverLatest(latestActivity, status)
-			? statusActivity
-			: latestActivity
+		const currentActivity =
+			statusActivity && shouldUseStatusActivityOverLatest(latestActivity, status)
+				? statusActivity
+				: latestActivity
+
+		return getStaleDiffCurrentActivityFallback(currentActivity, status) ?? currentActivity
 	}
 
 	return statusActivity ?? displayActivities.at(-1) ?? latestActivity

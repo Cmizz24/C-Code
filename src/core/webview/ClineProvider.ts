@@ -3919,10 +3919,7 @@ export class ClineProvider
 
 			return message.isAnswered
 				? this.describeResolvedToolActivity(message.text)
-				: {
-						kind: "approval",
-						message: this.describeToolActivity(message.text, "Waiting for tool approval."),
-					}
+				: this.describePendingToolApprovalActivity(message.text)
 		}
 
 		if (message.type !== "say") {
@@ -4178,6 +4175,25 @@ export class ClineProvider
 				return "Waiting for a follow-up answer."
 			default:
 				return fallback
+		}
+	}
+
+	private describePendingToolApprovalActivity(text: string | undefined): BackgroundAgentActivityDescription {
+		const parsedTool = this.parseActivityTool(text)
+		if (!parsedTool) {
+			return { kind: "approval", message: "Waiting for tool approval." }
+		}
+
+		const { toolName, targetPath } = parsedTool
+		const fileLabel = targetPath ?? "a file"
+
+		switch (toolName) {
+			case "appliedDiff":
+			case "apply_diff":
+			case "apply_patch":
+				return { kind: "approval", message: `Waiting for diff approval for ${fileLabel}.` }
+			default:
+				return { kind: "approval", message: this.describeToolActivity(text, "Waiting for tool approval.") }
 		}
 	}
 
