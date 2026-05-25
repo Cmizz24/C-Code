@@ -653,6 +653,7 @@ async function execRipgrep(rgPath: string, args: string[], limit: number): Promi
 
 		const rgProcess = childProcess.spawn(rgPath, args)
 		let output = ""
+		let stderrOutput = ""
 		let results: string[] = []
 
 		// Set timeout to avoid hanging
@@ -674,9 +675,9 @@ async function execRipgrep(rgPath: string, args: string[], limit: number): Promi
 			}
 		})
 
-		// Process stderr but don't fail on non-zero exit codes
+		// Collect stderr so we can classify expected race conditions before logging.
 		rgProcess.stderr.on("data", (data) => {
-			console.error(`ripgrep stderr: ${data}`)
+			stderrOutput += data.toString()
 		})
 
 		// Handle process completion
@@ -686,9 +687,10 @@ async function execRipgrep(rgPath: string, args: string[], limit: number): Promi
 
 			// Process any remaining output
 			processRipgrepOutput(true)
+			const didSuppressExpectedMissingPathError = handleRipgrepStderr(stderrOutput, searchDir)
 
 			// Log non-zero exit codes but don't fail
-			if (code !== 0 && code !== null && code !== 143 /* SIGTERM */) {
+			if (code !== 0 && code !== null && code !== 143 /* SIGTERM */ && !didSuppressExpectedMissingPathError) {
 				console.warn(`ripgrep process exited with code ${code}, returning partial results`)
 			}
 
@@ -724,4 +726,43 @@ async function execRipgrep(rgPath: string, args: string[], limit: number): Promi
 			}
 		}
 	})
+}
+
+function handleRipgrepStderr(stderrOutput: string, searchDir: string): boolean {
+	const stderr = stderrOutput.trim()
+
+	if (!stderr) {
+		return false
+	}
+
+	if (isExpectedRipgrepMissingPathError(stderr, searchDir)) {
+		return true
+	}
+
+	console.warn(`ripgrep stderr: ${stderr}`)
+	return false
+}
+
+function isExpectedRipgrepMissingPathError(stderr: string, searchDir: string): boolean {
+	const hasMissingPathError =
+		/\(os error\s*[23]\)/i.test(stderr) ||
+		/the system cannot find the (?:file|path) specified/i.test(stderr) ||
+		/no such file or directory/i.test(stderr)
+
+	if (!hasMissingPathError) {
+		return false
+	}
+
+	const normalizedStderr = normalizePathForRipgrepLogMatch(stderr)
+	const normalizedSearchDir = normalizePathForRipgrepLogMatch(searchDir)
+
+	return normalizedStderr.includes(normalizedSearchDir) || isParallelWorktreePath(normalizedStderr)
+}
+
+function normalizePathForRipgrepLogMatch(value: string): string {
+	return value.replace(/\\/g, "/").toLowerCase()
+}
+
+function isParallelWorktreePath(value: string): boolean {
+	return /(^|\/)\.roo\/parallel-worktrees(\/|$)/i.test(value)
 }

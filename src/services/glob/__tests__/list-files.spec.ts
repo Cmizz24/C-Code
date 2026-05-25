@@ -239,6 +239,85 @@ describe("list-files symlink support", () => {
 		expect(hasBDir).toBe(true)
 		expect(hasCDir).toBe(true)
 	})
+
+	it("should not log deleted parallel worktree ripgrep stderr as an error", async () => {
+		const mockSpawn = vi.mocked(childProcess.spawn)
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+		const missingWorktreePath = String.raw`c:\Users\clayton\Documents\C-Code\.roo\parallel-worktrees\plan-mpimvjgi\dashboard-agent`
+		const mockProcess = {
+			stdout: {
+				on: vi.fn(),
+			},
+			stderr: {
+				on: vi.fn((event, callback) => {
+					if (event === "data") {
+						setTimeout(
+							() =>
+								callback(
+									`rg: ${missingWorktreePath}: IO error for operation on ${missingWorktreePath}: The system cannot find the path specified. (os error 3)\n`,
+								),
+							10,
+						)
+					}
+				}),
+			},
+			on: vi.fn((event, callback) => {
+				if (event === "close") {
+					setTimeout(() => callback(2), 20)
+				}
+			}),
+			kill: vi.fn(),
+		}
+
+		mockSpawn.mockReturnValue(mockProcess as any)
+
+		await listFiles(missingWorktreePath, true, 100)
+
+		expect(errorSpy).not.toHaveBeenCalled()
+		expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("ripgrep stderr"))
+		expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("ripgrep process exited with code 2"))
+
+		errorSpy.mockRestore()
+		warnSpy.mockRestore()
+	})
+
+	it("should preserve unexpected ripgrep stderr visibility without using console.error", async () => {
+		const mockSpawn = vi.mocked(childProcess.spawn)
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+		const mockProcess = {
+			stdout: {
+				on: vi.fn(),
+			},
+			stderr: {
+				on: vi.fn((event, callback) => {
+					if (event === "data") {
+						setTimeout(() => callback("rg: unexpected permission failure\n"), 10)
+					}
+				}),
+			},
+			on: vi.fn((event, callback) => {
+				if (event === "close") {
+					setTimeout(() => callback(2), 20)
+				}
+			}),
+			kill: vi.fn(),
+		}
+
+		mockSpawn.mockReturnValue(mockProcess as any)
+
+		await listFiles("/test/dir", true, 100)
+
+		expect(errorSpy).not.toHaveBeenCalled()
+		expect(warnSpy).toHaveBeenCalledWith(
+			expect.stringContaining("ripgrep stderr: rg: unexpected permission failure"),
+		)
+		expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("ripgrep process exited with code 2"))
+
+		errorSpy.mockRestore()
+		warnSpy.mockRestore()
+	})
 })
 
 describe("hidden directory exclusion", () => {
