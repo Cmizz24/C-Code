@@ -618,6 +618,39 @@ describe("AgentStatusPanel", () => {
 		expect(within(details).getByText("Reported completion.")).toBeInTheDocument()
 	})
 
+	it("renders assistant and child message activity rows with the clearer message label", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "running",
+			agentActivities: [
+				{
+					agentId: "ui-agent",
+					kind: "assistant",
+					message: "Said: I am wiring the dashboard shell.",
+					ts: 1,
+				},
+				{
+					agentId: "ui-agent",
+					kind: "message",
+					message: "Said: I finished the dashboard shell.",
+					ts: 2,
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+		fireEvent.click(screen.getAllByTestId("agent-status-toggle")[0])
+
+		const details = screen.getByTestId("agent-details")
+		const activityLabels = within(details).getAllByTestId("agent-activity-kind")
+
+		expect(activityLabels).toHaveLength(2)
+		expect(activityLabels.map((label) => label.textContent)).toEqual(["message", "message"])
+		expect(activityLabels.map((label) => label.textContent)).not.toContain("assistant")
+	})
+
 	it("shows only the latest thinking state when an agent is currently thinking", () => {
 		const plan = createPlan()
 		const tool: ClineSayTool = {

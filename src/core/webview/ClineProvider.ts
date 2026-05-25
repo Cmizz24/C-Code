@@ -4014,7 +4014,7 @@ export class ClineProvider
 			case "reasoning":
 				return { kind: "thinking", message: "Reasoning through the next step." }
 			case "text":
-				return { kind: "assistant", message: "Drafting a response." }
+				return { kind: "message", message: "Drafting an agent message." }
 			case "tool":
 				return { kind: "tool", message: this.describeToolActivity(message.text, "Preparing a tool call.") }
 			case "command_output":
@@ -4111,7 +4111,7 @@ export class ClineProvider
 		const summary = this.summarizeActivityText(text)
 
 		return {
-			kind: "assistant",
+			kind: "message",
 			message: summary ? `Said: ${summary}` : "Shared a response update.",
 		}
 	}

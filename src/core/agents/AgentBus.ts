@@ -171,11 +171,15 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		}
 
 		if (blockedOn?.length && this.areDependenciesSatisfied(blockedOn)) {
-			if (agent?.status === "blocked") {
-				agent.status = "pending"
+			if (agent) {
+				const nextStatus = agent.status === "running" ? "running" : "pending"
+				agent.status = nextStatus
 				this.blockedAgents.delete(agentId)
-				this.emitEvent({ type: "STATUS", agentId, status: "pending" })
-				this.emit("agentUnblocked", agent)
+				this.emitEvent({ type: "STATUS", agentId, status: nextStatus })
+
+				if (nextStatus === "pending") {
+					this.emit("agentUnblocked", agent)
+				}
 			}
 			return
 		}

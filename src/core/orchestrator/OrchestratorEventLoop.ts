@@ -308,9 +308,20 @@ export class OrchestratorEventLoop {
 	}
 
 	private buildAgentMessage(agent: AgentPlan, plan?: ExecutionPlan): string {
+		const dependencyContext = agent.dependsOn
+			.map((dependency) => {
+				const waitDescription =
+					dependency.waitFor === "signal"
+						? `signal${dependency.signal ? ` ${dependency.signal}` : ""}`
+						: "complete"
+				return `- Wait for ${dependency.agentId} ${waitDescription}${dependency.context ? `: ${dependency.context}` : ""}`
+			})
+			.join("\n")
+
 		return [
 			`You are agent ${agent.id}, running a normal single ${agent.mode} specialist task.`,
 			plan?.sharedContext ? `Shared context:\n${plan.sharedContext}` : undefined,
+			dependencyContext ? `Dependency context:\n${dependencyContext}` : undefined,
 			`Task:\n${agent.task}`,
 			`Your single ownership scope (the only files or directories you may edit):\n${agent.owns.map((ownership) => `- ${ownership.path} (${ownership.mode})`).join("\n") || "- none"}`,
 			`Must not touch:\n${agent.mustNotTouch.map((filePath) => `- ${filePath}`).join("\n") || "- none"}`,
@@ -323,10 +334,21 @@ export class OrchestratorEventLoop {
 	}
 
 	private buildSystemPromptSuffix(agent: AgentPlan, plan?: ExecutionPlan): string {
+		const dependencyContext = agent.dependsOn
+			.map((dependency) => {
+				const waitDescription =
+					dependency.waitFor === "signal"
+						? `signal${dependency.signal ? ` ${dependency.signal}` : ""}`
+						: "complete"
+				return `- Wait for ${dependency.agentId} ${waitDescription}${dependency.context ? `: ${dependency.context}` : ""}`
+			})
+			.join("\n")
+
 		return [
 			"Single-agent task guidance:",
 			`- Agent id: ${agent.id}`,
 			`- Execution plan: ${plan?.planId ?? "unknown"}`,
+			dependencyContext ? `- Dependency context:\n${dependencyContext}` : undefined,
 			"- Treat this as one normal specialist task with one ownership scope, not as a complex orchestration task.",
 			"- Use normal sequential tool calls: call one tool, wait for its result, then decide the next step.",
 			"- If another prompt mentions batching or parallelizing tools, this child task overrides it: use one tool call at a time unless the platform emits separate native tool calls.",
@@ -334,6 +356,8 @@ export class OrchestratorEventLoop {
 			"- Complete your assigned scope directly; do not delegate, spawn, or orchestrate additional tasks.",
 			"- Write access is coordinated automatically; denied writes mean the path is outside your ownership scope or currently unavailable.",
 			"- Do not edit mustNotTouch paths or paths owned exclusively by another agent.",
-		].join("\n")
+		]
+			.filter(Boolean)
+			.join("\n")
 	}
 }

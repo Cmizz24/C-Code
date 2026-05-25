@@ -125,6 +125,74 @@ describe("handlePlanParallelTasks", () => {
 		}
 	})
 
+	it("keeps independent agents pending when shared contracts avoid completion dependencies", () => {
+		const result = handlePlanParallelTasks(
+			{
+				goal: "Build a dashboard from agreed UI and styling contracts",
+				sharedContext:
+					"UI owns src/Dashboard.tsx. Styles owns src/dashboard.css. Use data-testid=dashboard-root and CSS variables documented here as the interface contract.",
+				agents: [
+					{
+						id: "ui-agent",
+						mode: "ui-ux",
+						task: "Implement dashboard markup using the shared data-testid and class contract.",
+						owns: [{ path: "src/Dashboard.tsx", mode: "exclusive" }],
+					},
+					{
+						id: "styles-agent",
+						mode: "css-styling",
+						task: "Implement dashboard styles against the shared class and CSS variable contract.",
+						owns: [{ path: "src/dashboard.css", mode: "exclusive" }],
+					},
+				],
+			},
+			"/repo",
+		)
+
+		expect(result.ok).toBe(true)
+		if (result.ok) {
+			expect(result.plan.sharedContext).toContain("interface contract")
+			expect(result.plan.agents.map((agent) => [agent.id, agent.status])).toEqual([
+				["ui-agent", "pending"],
+				["styles-agent", "pending"],
+			])
+			expect(result.warnings).not.toEqual(expect.arrayContaining([expect.stringContaining("waits for")]))
+		}
+	})
+
+	it("warns when a completion dependency blocks agents with non-conflicting ownership", () => {
+		const result = handlePlanParallelTasks(
+			{
+				goal: "Build a dashboard from agreed UI and styling contracts",
+				sharedContext: "Use the planned DOM and CSS contract instead of waiting for full UI completion.",
+				agents: [
+					{
+						id: "ui-agent",
+						mode: "ui-ux",
+						task: "Implement dashboard markup.",
+						owns: [{ path: "src/Dashboard.tsx", mode: "exclusive" }],
+					},
+					{
+						id: "styles-agent",
+						mode: "css-styling",
+						task: "Implement dashboard styles.",
+						owns: [{ path: "src/dashboard.css", mode: "exclusive" }],
+						dependsOn: [{ agentId: "ui-agent", waitFor: "complete" }],
+					},
+				],
+			},
+			"/repo",
+		)
+
+		expect(result.ok).toBe(true)
+		if (result.ok) {
+			expect(result.plan.agents.find((agent) => agent.id === "styles-agent")?.status).toBe("blocked")
+			expect(result.warnings).toContain(
+				"Agent styles-agent waits for ui-agent to complete despite non-conflicting ownership. If this is only an interface or DOM/API contract, move that contract into sharedContext or the agent task and remove the dependency so both agents can run in parallel. Use a signal dependency for a narrow handoff instead of waiting for full completion.",
+			)
+		}
+	})
+
 	it("rejects dependency cycles", () => {
 		const result = handlePlanParallelTasks(
 			{

@@ -93,6 +93,7 @@ const mergeReviewStatusBadgeClasses: Record<NonNullable<MergeReviewEntry["mergeS
 const activityIconClasses: Record<AgentActivityKind, string> = {
 	status: "codicon-info text-vscode-descriptionForeground",
 	assistant: "codicon-comment text-vscode-foreground",
+	message: "codicon-comment text-vscode-foreground",
 	thinking: "codicon-loading codicon-modifier-spin text-vscode-foreground",
 	tool: "codicon-tools text-vscode-focusBorder",
 	approval: "codicon-shield text-vscode-editorWarning-foreground",
@@ -104,7 +105,24 @@ const activityIconClasses: Record<AgentActivityKind, string> = {
 	file: "codicon-file-code text-vscode-focusBorder",
 }
 
+const activityKindLabels: Record<AgentActivityKind, string> = {
+	status: "status",
+	assistant: "message",
+	message: "message",
+	thinking: "thinking",
+	tool: "tool",
+	approval: "approval",
+	result: "result",
+	wait: "wait",
+	error: "error",
+	completion: "completion",
+	signal: "signal",
+	file: "file",
+}
+
 const getActivityKind = (activity: AgentActivity): AgentActivityKind => activity.kind ?? "status"
+
+const getActivityKindLabel = (activity: AgentActivity): string => activityKindLabels[getActivityKind(activity)]
 
 const getActivityKey = (activity: AgentActivity, index: number): string =>
 	`${activity.agentId}:${activity.ts}:${getActivityKind(activity)}:${index}:${activity.message}`
@@ -991,7 +1009,11 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 																			/>
 																			<div className="min-w-0 flex-1 rounded-sm bg-vscode-sideBar-background/40 px-2 py-1">
 																				<div className="mb-0.5 flex min-w-0 flex-wrap items-center gap-1.5 capitalize text-vscode-descriptionForeground/80">
-																					<span>{kind}</span>
+																					<span data-testid="agent-activity-kind">
+																						{getActivityKindLabel(
+																							activityEvent,
+																						)}
+																					</span>
 																					{repeatCount > 1 && (
 																						<span data-testid="agent-activity-repeat-count">
 																							×{repeatCount}

@@ -135,6 +135,21 @@ describe("AgentBus", () => {
 		expect(bus.getAgent("agent-b")?.status).toBe("pending")
 	})
 
+	it("unblocks an agent immediately when newly marked blocked on an already-complete dependency", () => {
+		bus.markComplete("agent-a", "done")
+
+		const unblocked = vi.fn()
+		const events = vi.fn()
+		bus.on("agentUnblocked", unblocked)
+		bus.on("event", events)
+
+		bus.markBlocked("agent-b", "Waiting for UI contract", [{ agentId: "agent-a", waitFor: "complete" }])
+
+		expect(bus.getAgent("agent-b")?.status).toBe("pending")
+		expect(unblocked).toHaveBeenCalledWith(expect.objectContaining({ id: "agent-b", status: "pending" }))
+		expect(events).toHaveBeenCalledWith({ type: "STATUS", agentId: "agent-b", status: "pending" })
+	})
+
 	it("unblocks agents when signal dependencies are satisfied", () => {
 		const plan = createPlan()
 		plan.agents[1].dependsOn = [{ agentId: "agent-a", waitFor: "signal", signal: "types-ready" }]

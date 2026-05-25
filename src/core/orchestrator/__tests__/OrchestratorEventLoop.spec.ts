@@ -221,6 +221,43 @@ describe("OrchestratorEventLoop", () => {
 		}
 	})
 
+	it("includes dependency context without duplicating signal wording", async () => {
+		const provider = createProvider()
+		const plan = createTwoAgentPlan()
+		plan.agents[1] = {
+			...plan.agents[1],
+			dependsOn: [
+				{
+					agentId: "ui",
+					waitFor: "signal",
+					signal: "contract-ready",
+					context: "Use the declared DOM and class names once signalled.",
+				},
+			],
+			status: "blocked",
+		}
+
+		new OrchestratorEventLoop(provider, AgentBus.getInstance()).start(plan)
+
+		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(1))
+		AgentBus.getInstance().emitSignal("ui", "contract-ready", "UI contract is ready")
+		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(2))
+		const stylesCall = vi
+			.mocked(provider.createTask)
+			.mock.calls.find(([, , , options]) => options?.agentId === "styles")
+		expect(stylesCall).toBeDefined()
+		const [message, , , options] = stylesCall!
+
+		expect(message).toContain(
+			"- Wait for ui signal contract-ready: Use the declared DOM and class names once signalled.",
+		)
+		expect(message).not.toContain("signal signal")
+		expect(options?.systemPromptSuffix).toContain(
+			"- Wait for ui signal contract-ready: Use the declared DOM and class names once signalled.",
+		)
+		expect(options?.systemPromptSuffix).not.toContain("signal signal")
+	})
+
 	it("uses the original orchestrator task as the parent for every spawned agent", async () => {
 		const orchestratorTask = createTask("orchestrator-task")
 		let currentTask: TaskLike | undefined = orchestratorTask

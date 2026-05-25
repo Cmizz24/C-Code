@@ -17,6 +17,7 @@ export type AgentStatus = "pending" | "running" | "blocked" | "complete" | "fail
 export type AgentActivityKind =
 	| "status"
 	| "assistant"
+	| "message"
 	| "thinking"
 	| "tool"
 	| "approval"

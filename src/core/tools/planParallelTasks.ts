@@ -78,6 +78,26 @@ function ownershipsConflict(left: FileOwnership, right: FileOwnership): boolean 
 	return normalizePlanPath(left.path) === normalizePlanPath(right.path)
 }
 
+function hasWritableOwnershipConflict(left: PlanParallelTasksInputAgent, right: PlanParallelTasksInputAgent): boolean {
+	for (const leftOwnership of left.owns ?? []) {
+		if (leftOwnership.mode === "read-only") {
+			continue
+		}
+
+		for (const rightOwnership of right.owns ?? []) {
+			if (rightOwnership.mode === "read-only") {
+				continue
+			}
+
+			if (normalizePlanPath(leftOwnership.path) === normalizePlanPath(rightOwnership.path)) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 function findDependencyCycle(agents: PlanParallelTasksInputAgent[]): string[] | undefined {
 	const graph = new Map(
 		agents.map((agent) => [agent.id, agent.dependsOn?.map((dependency) => dependency.agentId) ?? []]),
@@ -279,11 +299,21 @@ export function handlePlanParallelTasks(
 
 	for (const agent of agents) {
 		for (const dependency of agent.dependsOn ?? []) {
+			const dependencyAgent = agents.find((candidate) => candidate.id === dependency.agentId)
 			if (!agentIds.has(dependency.agentId)) {
 				errors.push(`Agent ${agent.id} depends on unknown agent ${dependency.agentId}.`)
 			}
 			if (dependency.waitFor === "signal" && !dependency.signal) {
 				errors.push(`Agent ${agent.id} has a signal dependency on ${dependency.agentId} without a signal.`)
+			}
+			if (
+				dependency.waitFor === "complete" &&
+				dependencyAgent &&
+				!hasWritableOwnershipConflict(agent, dependencyAgent)
+			) {
+				warnings.push(
+					`Agent ${agent.id} waits for ${dependency.agentId} to complete despite non-conflicting ownership. If this is only an interface or DOM/API contract, move that contract into sharedContext or the agent task and remove the dependency so both agents can run in parallel. Use a signal dependency for a narrow handoff instead of waiting for full completion.`,
+				)
 			}
 		}
 	}

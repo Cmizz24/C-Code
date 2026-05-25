@@ -1765,7 +1765,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		// Get condensing configuration
 		const state = await this.providerRef.deref()?.getState()
 		const customCondensingPrompt = state?.customSupportPrompts?.CONDENSE
-		const { mode, apiConfiguration, maxConcurrentParallelTasks } = state ?? {}
+		const { apiConfiguration, maxConcurrentParallelTasks } = state ?? {}
+		const taskMode = await this.getTaskMode()
 
 		const { contextTokens: prevContextTokens } = this.getTokenUsage()
 
@@ -1777,7 +1778,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			const toolsResult = await buildNativeToolsArrayWithRestrictions({
 				provider,
 				cwd: this.cwd,
-				mode,
+				mode: taskMode,
 				customModes: state?.customModes,
 				experiments: state?.experiments,
 				apiConfiguration,
@@ -1791,7 +1792,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		// Build metadata with tools and taskId for the condensing API call
 		const metadata: ApiHandlerCreateMessageMetadata = {
-			mode,
+			mode: taskMode,
 			taskId: this.taskId,
 			...(allTools.length > 0
 				? {
@@ -3934,7 +3935,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	private async handleContextWindowExceededError(): Promise<void> {
 		const state = await this.providerRef.deref()?.getState()
-		const { profileThresholds = {}, mode, apiConfiguration, maxConcurrentParallelTasks } = state ?? {}
+		const { profileThresholds = {}, apiConfiguration, maxConcurrentParallelTasks } = state ?? {}
+		const taskMode = await this.getTaskMode()
 
 		const { contextTokens } = this.getTokenUsage()
 		const modelInfo = this.api.getModel().info
@@ -3966,7 +3968,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			const toolsResult = await buildNativeToolsArrayWithRestrictions({
 				provider,
 				cwd: this.cwd,
-				mode,
+				mode: taskMode,
 				customModes: state?.customModes,
 				experiments: state?.experiments,
 				apiConfiguration,
@@ -3980,7 +3982,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		// Build metadata with tools and taskId for the condensing API call
 		const metadata: ApiHandlerCreateMessageMetadata = {
-			mode,
+			mode: taskMode,
 			taskId: this.taskId,
 			...(allTools.length > 0
 				? {
@@ -4103,12 +4105,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			apiConfiguration,
 			autoApprovalEnabled,
 			requestDelaySeconds,
-			mode,
 			autoCondenseContext = true,
 			autoCondenseContextPercent = 100,
 			profileThresholds = {},
 			maxConcurrentParallelTasks,
 		} = state ?? {}
+		const taskMode = await this.getTaskMode()
 
 		// Get condensing configuration for automatic triggers.
 		const customCondensingPrompt = state?.customSupportPrompts?.CONDENSE
@@ -4185,7 +4187,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					const toolsResult = await buildNativeToolsArrayWithRestrictions({
 						provider,
 						cwd: this.cwd,
-						mode,
+						mode: taskMode,
 						customModes: state?.customModes,
 						experiments: state?.experiments,
 						apiConfiguration,
@@ -4200,7 +4202,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			// Build metadata with tools and taskId for the condensing API call
 			const contextMgmtMetadata: ApiHandlerCreateMessageMetadata = {
-				mode,
+				mode: taskMode,
 				taskId: this.taskId,
 				...(contextMgmtTools.length > 0
 					? {
@@ -4350,7 +4352,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			const toolsResult = await buildNativeToolsArrayWithRestrictions({
 				provider,
 				cwd: this.cwd,
-				mode,
+				mode: taskMode,
 				customModes: state?.customModes,
 				experiments: state?.experiments,
 				apiConfiguration,
@@ -4366,7 +4368,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const shouldIncludeTools = allTools.length > 0
 
 		const metadata: ApiHandlerCreateMessageMetadata = {
-			mode: mode,
+			mode: taskMode,
 			taskId: this.taskId,
 			suppressPreviousResponseId: this.skipPrevResponseIdOnce,
 			// Include tools whenever they are present.

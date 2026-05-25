@@ -11,6 +11,7 @@ import type { GlobalState, ProviderSettings, ModelInfo } from "@roo-code/types"
 import { Task } from "../Task"
 import { ClineProvider } from "../../webview/ClineProvider"
 import { ApiStreamChunk } from "../../../api/transform/stream"
+import type { ApiHandlerCreateMessageMetadata } from "../../../api"
 import { ContextProxy } from "../../config/ContextProxy"
 import { processUserContentMentions } from "../../mentions/processUserContentMentions"
 import { MultiSearchReplaceDiffStrategy } from "../../diff/strategies/multi-search-replace"
@@ -191,6 +192,26 @@ const mockMessages = [
 		text: "historical task",
 	},
 ]
+
+const createMockApiStream = (text = "response") =>
+	({
+		async *[Symbol.asyncIterator]() {
+			yield { type: "text", text }
+		},
+		async next() {
+			return { done: true, value: { type: "text", text } }
+		},
+		async return() {
+			return { done: true, value: undefined }
+		},
+		async throw(e: any) {
+			throw e
+		},
+		[Symbol.asyncDispose]: async () => {},
+	}) as AsyncGenerator<ApiStreamChunk>
+
+const getMetadataToolNames = (metadata: ApiHandlerCreateMessageMetadata | undefined): string[] =>
+	(metadata?.tools ?? []).map((tool) => (tool as { function: { name: string } }).function.name)
 
 describe("Cline", () => {
 	let mockProvider: any
@@ -944,23 +965,6 @@ describe("Cline", () => {
 			let mockApiConfig: any
 			let mockDelay: ReturnType<typeof vi.fn>
 
-			const createMockStream = (text = "response") =>
-				({
-					async *[Symbol.asyncIterator]() {
-						yield { type: "text", text }
-					},
-					async next() {
-						return { done: true, value: { type: "text", text } }
-					},
-					async return() {
-						return { done: true, value: undefined }
-					},
-					async throw(e: any) {
-						throw e
-					},
-					[Symbol.asyncDispose]: async () => {},
-				}) as AsyncGenerator<ApiStreamChunk>
-
 			beforeEach(() => {
 				vi.clearAllMocks()
 				// Reset the global timestamp before each test
@@ -1244,7 +1248,7 @@ describe("Cline", () => {
 					startTask: false,
 				})
 				vi.spyOn(parent as any, "getSystemPrompt").mockResolvedValue("mock system prompt")
-				vi.spyOn(parent.api, "createMessage").mockImplementation(() => createMockStream("parent response"))
+				vi.spyOn(parent.api, "createMessage").mockImplementation(() => createMockApiStream("parent response"))
 
 				const parentIterator = parent.attemptApiRequest(0)
 				await parentIterator.next()
@@ -1268,7 +1272,9 @@ describe("Cline", () => {
 						startTask: false,
 					})
 					vi.spyOn(agentA as any, "getSystemPrompt").mockResolvedValue("mock system prompt")
-					vi.spyOn(agentA.api, "createMessage").mockImplementation(() => createMockStream("agent a response"))
+					vi.spyOn(agentA.api, "createMessage").mockImplementation(() =>
+						createMockApiStream("agent a response"),
+					)
 					const agentASaySpy = vi.spyOn(agentA, "say")
 
 					const agentB = new Task({
@@ -1282,7 +1288,9 @@ describe("Cline", () => {
 						startTask: false,
 					})
 					vi.spyOn(agentB as any, "getSystemPrompt").mockResolvedValue("mock system prompt")
-					vi.spyOn(agentB.api, "createMessage").mockImplementation(() => createMockStream("agent b response"))
+					vi.spyOn(agentB.api, "createMessage").mockImplementation(() =>
+						createMockApiStream("agent b response"),
+					)
 					const agentBSaySpy = vi.spyOn(agentB, "say")
 
 					const agentAIterator = agentA.attemptApiRequest(0)
@@ -1412,6 +1420,80 @@ describe("Cline", () => {
 				const globalTimestamp = (Task as any).lastGlobalApiRequestTime
 				expect(globalTimestamp).toBeDefined()
 				expect(globalTimestamp).toBeGreaterThan(0)
+			})
+		})
+
+		describe("Background Agent Tool Metadata", () => {
+			let mockProvider: any
+			let mockApiConfig: any
+
+			beforeEach(() => {
+				vi.clearAllMocks()
+				Task.resetGlobalApiRequestTime()
+
+				mockApiConfig = {
+					apiProvider: "anthropic",
+					apiKey: "test-key",
+					rateLimitSeconds: 0,
+				}
+
+				mockProvider = {
+					context: {
+						globalStorageUri: { fsPath: "/test/storage" },
+						globalState: {
+							get: vi.fn().mockImplementation(() => undefined),
+							update: vi.fn().mockResolvedValue(undefined),
+							keys: vi.fn().mockReturnValue([]),
+						},
+					},
+					cwd: "/repo",
+					getState: vi.fn().mockResolvedValue({
+						mode: "orchestrator",
+						apiConfiguration: mockApiConfig,
+						mcpEnabled: false,
+					}),
+					getMcpHub: vi.fn().mockReturnValue(undefined),
+					getSkillsManager: vi.fn().mockReturnValue(undefined),
+					say: vi.fn(),
+					postStateToWebview: vi.fn().mockResolvedValue(undefined),
+					postStateToWebviewWithoutTaskHistory: vi.fn().mockResolvedValue(undefined),
+					postMessageToWebview: vi.fn().mockResolvedValue(undefined),
+					updateTaskHistory: vi.fn().mockResolvedValue(undefined),
+				}
+			})
+
+			afterEach(() => {
+				Task.resetGlobalApiRequestTime()
+			})
+
+			it("uses the background child task mode for native tools while blocking delegation tools", async () => {
+				const child = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "parallel child task",
+					mode: "code",
+					background: true,
+					agentId: "agent-a",
+					startTask: false,
+				})
+				vi.spyOn(child as any, "getSystemPrompt").mockResolvedValue("mock system prompt")
+				const createMessageSpy = vi
+					.spyOn(child.api, "createMessage")
+					.mockImplementation(() => createMockApiStream("child response"))
+
+				const iterator = child.attemptApiRequest(0)
+				await iterator.next()
+
+				const metadata = createMessageSpy.mock.calls[0]?.[2] as ApiHandlerCreateMessageMetadata | undefined
+				const toolNames = getMetadataToolNames(metadata)
+
+				expect(metadata?.mode).toBe("code")
+				expect(await child.getTaskMode()).toBe("code")
+				expect(toolNames).toEqual(expect.arrayContaining(["write_to_file", "apply_diff"]))
+				expect(toolNames).toEqual(expect.arrayContaining(["execute_command", "read_command_output"]))
+				expect(toolNames).not.toEqual(
+					expect.arrayContaining(["plan_parallel_tasks", "new_task", "switch_mode", "run_slash_command"]),
+				)
 			})
 		})
 
