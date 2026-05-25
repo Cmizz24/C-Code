@@ -199,6 +199,8 @@ vi.mock("../../task/Task", () => ({
 			apiConversationHistory: [],
 			overwriteClineMessages: vi.fn(),
 			overwriteApiConversationHistory: vi.fn(),
+			resumeAfterParallelExecution: vi.fn(),
+			dispose: vi.fn(),
 			getTaskNumber: vi.fn().mockReturnValue(0),
 			setTaskNumber: vi.fn(),
 			setParentTask: vi.fn(),
@@ -387,6 +389,8 @@ describe("ClineProvider", () => {
 					task.clineMessages = messages
 				}),
 				overwriteApiConversationHistory: vi.fn(),
+				resumeAfterParallelExecution: vi.fn(),
+				dispose: vi.fn(),
 				getTaskNumber: vi.fn().mockReturnValue(0),
 				setTaskNumber: vi.fn(),
 				setParentTask: vi.fn(),
@@ -1797,6 +1801,56 @@ describe("ClineProvider", () => {
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
 		expect(cleanupPlanBaseline).toHaveBeenCalledWith("plan-webview-provider")
 		expect(mockPostMessage).toHaveBeenCalledWith({ type: "mergeComplete" })
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
+	})
+
+	test("merge approval disposes completed background agents before deleting worktrees", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const removeWorktree = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreePathsByAgentId.set("styles-agent", "/tmp/styles-agent")
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview: vi.fn(
+				async ({ agentId }: { agentId: string }) =>
+					`diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
+			),
+			mergeBranch: vi.fn().mockResolvedValue(undefined),
+			removeWorktree,
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+		const backgroundTask = await provider.createTask("agent work", undefined, parentTask, {
+			agentId: "dashboard-agent",
+			background: true,
+			workspacePath: "/tmp/dashboard-agent",
+			startTask: false,
+		})
+		const disposeOrder: string[] = []
+		backgroundTask.dispose = vi.fn(() => {
+			disposeOrder.push("dispose")
+		})
+		removeWorktree.mockImplementation(async () => {
+			disposeOrder.push("removeWorktree")
+		})
+
+		await expect(provider.mergeApprovedAgents(["dashboard-agent", "styles-agent"])).resolves.toBe(true)
+
+		expect(backgroundTask.dispose).toHaveBeenCalledTimes(1)
+		expect(disposeOrder[0]).toBe("dispose")
+		expect(disposeOrder).toContain("removeWorktree")
+		expect((provider as any).backgroundTasks.size).toBe(0)
 	})
 
 	test("auto-approves and merges the final review when both auto-approval settings are enabled", async () => {

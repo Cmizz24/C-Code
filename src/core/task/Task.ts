@@ -602,7 +602,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			this._taskMode = normalizeModeSlug(mode)
 			this._taskApiConfigName = undefined
 			this.taskModeReady = Promise.resolve()
-			this.taskApiConfigReady = this.initializeTaskApiConfigName(provider)
+			this.taskApiConfigReady = background ? Promise.resolve() : this.initializeTaskApiConfigName(provider)
 		} else {
 			this._taskMode = undefined
 			this._taskApiConfigName = undefined
@@ -706,6 +706,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	 * @param provider - The ClineProvider instance to listen to
 	 */
 	private setupProviderProfileChangeListener(provider: ClineProvider): void {
+		if (this.background) {
+			return
+		}
+
 		// Only set up listener if provider has the on method (may not exist in test mocks)
 		if (typeof provider.on !== "function") {
 			return
@@ -883,6 +887,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	 */
 	public setTaskApiConfigName(apiConfigName: string | undefined): void {
 		this._taskApiConfigName = apiConfigName
+	}
+
+	public setTaskMode(mode: string | undefined): void {
+		this._taskMode = normalizeModeSlug(mode || defaultModeSlug)
 	}
 
 	static create(options: TaskOptions): [Task, Promise<void>] {
@@ -2513,6 +2521,15 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	 * - Immediately continues task loop without user interaction
 	 */
 	public async resumeAfterDelegation(): Promise<void> {
+		await this.resumeAfterPausedToolFlow()
+	}
+
+	public async resumeAfterParallelExecution(): Promise<void> {
+		this.parallelExecutionPaused = false
+		await this.resumeAfterPausedToolFlow()
+	}
+
+	private async resumeAfterPausedToolFlow(): Promise<void> {
 		// Clear any ask states that might have been set during history load
 		this.idleAsk = undefined
 		this.resumableAsk = undefined
@@ -2696,7 +2713,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			const showRooIgnoredFiles = state?.showRooIgnoredFiles ?? false
 			const includeDiagnosticMessages = state?.includeDiagnosticMessages ?? true
 			const maxDiagnosticMessages = state?.maxDiagnosticMessages ?? 50
-			const currentMode = state?.mode ?? defaultModeSlug
+			const currentMode = this.background ? await this.getTaskMode() : (state?.mode ?? defaultModeSlug)
 
 			const { content: parsedUserContent, mode: slashCommandMode } = await processUserContentMentions({
 				userContent: currentUserContent,
@@ -2717,7 +2734,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					const state = await provider.getState()
 					const targetMode = getModeBySlug(slashCommandMode, state?.customModes)
 					if (targetMode) {
-						await provider.handleModeSwitch(slashCommandMode)
+						if (this.background) {
+							this.setTaskMode(slashCommandMode)
+						} else {
+							await provider.handleModeSwitch(slashCommandMode)
+						}
 					}
 				}
 			}
@@ -3827,16 +3848,16 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const state = await this.providerRef.deref()?.getState()
 
 		const {
-			mode,
 			customModes,
 			customModePrompts,
 			customInstructions,
 			experiments,
 			language,
-			apiConfiguration,
 			enableSubfolderRules,
 			maxConcurrentParallelTasks,
 		} = state ?? {}
+		const taskMode = await this.getTaskMode()
+		const taskApiConfiguration = this.apiConfiguration
 
 		return await (async () => {
 			const provider = this.providerRef.deref()
@@ -3853,7 +3874,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				false,
 				mcpHub,
 				this.diffStrategy,
-				mode ?? defaultModeSlug,
+				taskMode,
 				customModePrompts,
 				customModes,
 				customInstructions,
@@ -3861,7 +3882,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				language,
 				rooIgnoreInstructions,
 				{
-					todoListEnabled: apiConfiguration?.todoListEnabled ?? true,
+					todoListEnabled: taskApiConfiguration?.todoListEnabled ?? true,
 					useAgentRules:
 						vscode.workspace.getConfiguration(Package.name).get<boolean>("useAgentRules") ?? true,
 					enableSubfolderRules: enableSubfolderRules ?? false,

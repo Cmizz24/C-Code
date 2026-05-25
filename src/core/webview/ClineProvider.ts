@@ -564,6 +564,14 @@ export class ClineProvider
 			cleanupFunctions.forEach((cleanup) => cleanup())
 			this.taskEventListeners.delete(task)
 		}
+
+		try {
+			task.dispose()
+		} catch (error) {
+			this.log(
+				`[background-task] Failed to dispose task ${task.taskId}.${task.instanceId}: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
 	}
 
 	async performPreparationTasks(cline: Task) {
@@ -3228,6 +3236,11 @@ export class ClineProvider
 			}
 		}
 
+		for (const task of Array.from(this.backgroundTasks)) {
+			this.finalizeBackgroundAgentTask(task, "complete")
+			this.removeBackgroundTask(task)
+		}
+
 		await Promise.allSettled(
 			plan.agents.map((agent) => {
 				const worktreePath = this.worktreePathsByAgentId.get(agent.id) ?? agent.worktreePath
@@ -3242,7 +3255,23 @@ export class ClineProvider
 		await this.teardownParallelExecution({ resetBus: true })
 		await this.postMessageToWebview({ type: "mergeComplete" })
 		await this.postStateToWebviewWithoutClineMessages()
+		await this.resumeParentAfterParallelMerge()
 		return true
+	}
+
+	private async resumeParentAfterParallelMerge(): Promise<void> {
+		const task = this.getCurrentTask()
+		if (!task || task.background) {
+			return
+		}
+
+		try {
+			await task.resumeAfterParallelExecution()
+		} catch (error) {
+			this.log(
+				`[parallel-agents] Failed to resume parent task after merge: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
 	}
 
 	public async denyMergeReview(): Promise<boolean> {

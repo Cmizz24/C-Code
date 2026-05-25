@@ -3,6 +3,8 @@ import type { ToolName } from "@roo-code/types"
 export const BACKGROUND_AGENT_DISABLED_TOOLS = [
 	"new_task",
 	"plan_parallel_tasks",
+	"switch_mode",
+	"run_slash_command",
 ] as const satisfies readonly ToolName[]
 
 export type BackgroundAgentToolRestrictionState = {

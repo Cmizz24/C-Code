@@ -40,7 +40,9 @@ export class SwitchModeTool extends BaseTool<"switch_mode"> {
 			}
 
 			// Check if already in requested mode
-			const currentMode = normalizeModeSlug((await task.providerRef.deref()?.getState())?.mode ?? defaultModeSlug)
+			const currentMode = task.background
+				? normalizeModeSlug(await task.getTaskMode())
+				: normalizeModeSlug((await task.providerRef.deref()?.getState())?.mode ?? defaultModeSlug)
 
 			if (currentMode === mode_slug) {
 				task.recordToolError("switch_mode")
@@ -56,8 +58,12 @@ export class SwitchModeTool extends BaseTool<"switch_mode"> {
 				return
 			}
 
-			// Switch the mode using shared handler
-			await task.providerRef.deref()?.handleModeSwitch(mode_slug)
+			if (task.background) {
+				task.setTaskMode(mode_slug)
+			} else {
+				// Switch the mode using shared handler
+				await task.providerRef.deref()?.handleModeSwitch(mode_slug)
+			}
 
 			pushToolResult(
 				`Successfully switched from ${getModeBySlug(currentMode)?.name ?? currentMode} mode to ${
