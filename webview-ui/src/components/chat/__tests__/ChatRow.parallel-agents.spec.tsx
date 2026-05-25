@@ -78,7 +78,7 @@ describe("ChatRow - parallelAgents tool", () => {
 		expect(screen.getByTestId("agent-status-panel")).toHaveTextContent("plan-chat-row")
 	})
 
-	it("renders legacy parallelAgents review summaries without the user edit UI", () => {
+	it("hides legacy parallelAgents review summaries without the user edit UI", () => {
 		const message: ClineMessage = {
 			type: "say",
 			say: "user_feedback_diff",
@@ -93,7 +93,7 @@ describe("ChatRow - parallelAgents tool", () => {
 					"@@ -0,0 +1,4 @@",
 					"+# Parallel agent review for plan-chat-row",
 					"+",
-					"+Full per-agent diffs are available in the saved parallel agent merge review row in chat.",
+					"+Full per-agent diffs are available in the persisted parallel agents card.",
 					"+- agent-1: pending; 1 files, +1/-0",
 				].join("\n"),
 			}),
@@ -101,12 +101,11 @@ describe("ChatRow - parallelAgents tool", () => {
 
 		renderChatRow(message)
 
-		expect(screen.getByTestId("parallel-agent-review-summary-row")).toHaveTextContent(
-			"Parallel agent review summary",
-		)
-		expect(screen.getByTestId("parallel-agent-review-summary-row")).toHaveTextContent(
-			"Full per-agent diffs are available in the saved parallel agent merge review row in chat.",
-		)
+		expect(screen.queryByTestId("parallel-agent-review-summary-row")).not.toBeInTheDocument()
+		expect(screen.queryByText("Parallel agent review summary")).not.toBeInTheDocument()
+		expect(
+			screen.queryByText("Full per-agent diffs are available in the persisted parallel agents card."),
+		).not.toBeInTheDocument()
 		expect(screen.queryByText("User Edits")).not.toBeInTheDocument()
 		expect(screen.queryByText("User Edit")).not.toBeInTheDocument()
 	})

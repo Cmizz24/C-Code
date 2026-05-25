@@ -926,6 +926,23 @@ describe("ClineProvider", () => {
 		expect((provider as any).backgroundTasks.has(backgroundTask)).toBe(true)
 	})
 
+	test("createTask can delay background agent start until lifecycle listeners are attached", async () => {
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+
+		const backgroundTask = await provider.createTask("Run a specialist agent task", undefined, parentTask, {
+			agentId: "dashboard-js-animation",
+			background: true,
+			mode: "code",
+			startTask: false,
+		})
+
+		expect(backgroundTask.background).toBe(true)
+		expect(backgroundTask.parentTask).toBe(parentTask)
+		expect(backgroundTask.start).not.toHaveBeenCalled()
+		expect((provider as any).backgroundTasks.has(backgroundTask)).toBe(true)
+	})
+
 	test("background agent token usage is forwarded to the parallel status message", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const parentTask = new Task(defaultTaskOptions)
@@ -1237,7 +1254,8 @@ describe("ClineProvider", () => {
 					expect.objectContaining({
 						agentId: "dashboard-agent",
 						kind: "thinking",
-						message: "Waiting for model response.",
+						message:
+							"Requesting the next model action after created isolated worktree at /tmp/dashboard-agent",
 						ts: 1_500,
 					}),
 					expect.objectContaining({
@@ -1507,7 +1525,7 @@ describe("ClineProvider", () => {
 			]),
 		)
 		expect(statusTool.parallelReviewSummary?.markdown).toContain(
-			"Full per-agent diffs are available in the saved parallel agent merge review row in chat.",
+			"Full per-agent diffs are available in the persisted parallel agents card.",
 		)
 	})
 
@@ -1635,7 +1653,7 @@ describe("ClineProvider", () => {
 			expect.objectContaining({
 				path: ".roo/parallel-agent-review.md",
 				markdown: expect.stringContaining(
-					"Full per-agent diffs are available in the saved parallel agent merge review row in chat.",
+					"Full per-agent diffs are available in the persisted parallel agents card.",
 				),
 			}),
 		)
@@ -1840,6 +1858,12 @@ describe("ClineProvider", () => {
 		)
 		expect(lastApiMessage.content[0].text).toContain("dashboard-agent")
 		expect(lastApiMessage.content[0].text).toContain("CONFLICT (add/add)")
+		expect(lastApiMessage.content[0].text).toContain("Use the persisted parallel agents card")
+		expect(
+			parentTask.clineMessages.filter(
+				(message) => message.type === "say" && message.say === "user_feedback_diff",
+			),
+		).toHaveLength(0)
 	})
 
 	test("merge approval restores persisted review state when live parallel agents are gone", async () => {
@@ -2002,6 +2026,12 @@ describe("ClineProvider", () => {
 			"[PARALLEL AGENT SUMMARY] Plan plan-webview-provider is cancelled.",
 		)
 		expect(lastApiMessage.content[0].text).toContain("Merge review was denied from chat.")
+		expect(lastApiMessage.content[0].text).toContain("Use the persisted parallel agents card")
+		expect(
+			parentTask.clineMessages.filter(
+				(message) => message.type === "say" && message.say === "user_feedback_diff",
+			),
+		).toHaveLength(0)
 	})
 
 	test("background agent streaming aborts clean up without visible task rehydration", async () => {

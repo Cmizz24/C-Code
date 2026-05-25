@@ -128,6 +128,7 @@ export interface TaskLike {
 	readonly queuedMessages: QueuedMessage[]
 	readonly tokenUsage: TokenUsage | undefined
 
+	start(): void
 	on<K extends keyof TaskEvents>(event: K, listener: (...args: TaskEvents[K]) => void | Promise<void>): this
 	off<K extends keyof TaskEvents>(event: K, listener: (...args: TaskEvents[K]) => void | Promise<void>): this
 

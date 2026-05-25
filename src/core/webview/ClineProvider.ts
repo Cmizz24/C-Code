@@ -132,6 +132,10 @@ type ParallelAgentToolStatus = NonNullable<ClineSayTool["parallelStatus"]>
 type ParallelAgentActivity = AgentActivityEvent
 type ParallelAgentUsageSummary = NonNullable<ClineSayTool["parallelUsageSummary"]>
 type BackgroundAgentActivityDescription = Pick<ParallelAgentActivity, "kind" | "message">
+type BackgroundAgentActivityDescriptionOptions = {
+	agentId?: string
+	partial?: boolean
+}
 type MergeApprovedAgentsOptions = { autoApproved?: boolean }
 type AutoMergeReviewSkipReason = { agentId?: string; reason: string }
 type ActivityToolPayload = Omit<ClineSayTool, "tool"> & {
@@ -2838,11 +2842,12 @@ export class ClineProvider
 			taskNumber: this.clineStack.length + 1,
 			onCreated: this.taskCreationCallback,
 			initialTodos: options.initialTodos,
-			// Ensure this task is present in clineStack before startTask() emits
-			// its initial state update, so state.currentTaskId is available ASAP.
-			startTask: false,
 			agentBus: options.agentId ? AgentBus.getInstance() : undefined,
 			...options,
+			// Always defer initial execution until the provider has registered the
+			// task in the visible/background collection. Callers can additionally
+			// pass startTask: false to attach their own lifecycle listeners first.
+			startTask: false,
 			enableCheckpoints: options.background ? false : (options.enableCheckpoints ?? enableCheckpoints),
 		})
 
@@ -2851,7 +2856,9 @@ export class ClineProvider
 		} else {
 			await this.addClineToStack(task)
 		}
-		task.start()
+		if (options.startTask !== false) {
+			task.start()
+		}
 
 		this.log(
 			`[createTask] ${task.parentTask ? "child" : "parent"}${task.background ? " background" : ""} task ${task.taskId}.${task.instanceId} instantiated`,
@@ -3686,7 +3693,7 @@ export class ClineProvider
 		const lines = [
 			`# Parallel agent review for ${plan.planId}`,
 			"",
-			"Full per-agent diffs are available in the saved parallel agent merge review row in chat.",
+			"Full per-agent diffs are available in the persisted parallel agents card.",
 			"",
 			...entries.map((entry) => {
 				const stats = entry.changeStats
@@ -3729,7 +3736,7 @@ export class ClineProvider
 			`[PARALLEL AGENT SUMMARY] Plan ${plan.planId} is ${status}.`,
 			`Shared context: ${plan.sharedContext}`,
 			entrySummaries.length > 0 ? entrySummaries.join("\n") : "No merge review entries were recorded.",
-			"Use the saved parallel agent merge review row in chat for approval/merge actions; do not rerun plan_parallel_tasks for this plan unless the user explicitly asks for a new plan.",
+			"Use the persisted parallel agents card for approval/merge actions; do not rerun plan_parallel_tasks for this plan unless the user explicitly asks for a new plan.",
 		].join("\n")
 	}
 
@@ -3870,7 +3877,7 @@ export class ClineProvider
 			return
 		}
 
-		const activity = this.describeBackgroundAgentMessage(message)
+		const activity = this.describeBackgroundAgentMessage(message, { agentId: task.agentId })
 		if (!activity) {
 			return
 		}
@@ -3880,7 +3887,10 @@ export class ClineProvider
 		})
 	}
 
-	private describeBackgroundAgentMessage(message: ClineMessage): BackgroundAgentActivityDescription | undefined {
+	private describeBackgroundAgentMessage(
+		message: ClineMessage,
+		options: BackgroundAgentActivityDescriptionOptions = {},
+	): BackgroundAgentActivityDescription | undefined {
 		if (message.type === "ask" && message.ask === "tool") {
 			if (message.partial) {
 				return {
@@ -3902,12 +3912,12 @@ export class ClineProvider
 		}
 
 		if (message.partial) {
-			return this.describePartialBackgroundAgentSayMessage(message)
+			return this.describePartialBackgroundAgentSayMessage(message, options)
 		}
 
 		switch (message.say) {
 			case "api_req_started":
-				return { kind: "thinking", message: "Waiting for model response." }
+				return { kind: "thinking", message: this.describeApiRequestActivity(options.agentId) }
 			case "api_req_finished":
 				return { kind: "result", message: "Finished thinking." }
 			case "api_req_retried":
@@ -3939,6 +3949,7 @@ export class ClineProvider
 
 	private describePartialBackgroundAgentSayMessage(
 		message: ClineMessage,
+		options: BackgroundAgentActivityDescriptionOptions = {},
 	): BackgroundAgentActivityDescription | undefined {
 		if (message.type !== "say") {
 			return undefined
@@ -3946,7 +3957,10 @@ export class ClineProvider
 
 		switch (message.say) {
 			case "api_req_started":
-				return { kind: "thinking", message: "Waiting for model response." }
+				return {
+					kind: "thinking",
+					message: this.describeApiRequestActivity(options.agentId, { partial: true }),
+				}
 			case "api_req_retried":
 				return { kind: "wait", message: "Retrying the model request." }
 			case "api_req_retry_delayed":
@@ -3968,6 +3982,49 @@ export class ClineProvider
 			default:
 				return undefined
 		}
+	}
+
+	private describeApiRequestActivity(agentId: string | undefined, options: { partial?: boolean } = {}): string {
+		const recentActivity = agentId ? this.getLastActionableParallelAgentActivity(agentId) : undefined
+		if (recentActivity) {
+			return `Requesting the next model action after ${recentActivity}`
+		}
+
+		const status = agentId ? this.getAgentStatus(agentId) : undefined
+		switch (status) {
+			case "pending":
+				return "Requesting the first model action before this agent starts work."
+			case "running":
+				return options.partial ? "Streaming the next model action." : "Requesting the next model action."
+			case "blocked":
+				return "Checking whether blocked work can resume."
+			case "complete":
+				return "Confirming completed agent work."
+			case "failed":
+				return "Collecting failure details from the model."
+			default:
+				return options.partial ? "Streaming the next model action." : "Requesting the next model action."
+		}
+	}
+
+	private getLastActionableParallelAgentActivity(agentId: string): string | undefined {
+		const activities = this.parallelAgentActivities.get(agentId)
+		if (!activities?.length) {
+			return undefined
+		}
+
+		for (const activity of [...activities].reverse()) {
+			if (activity.kind === "thinking" || activity.kind === "wait" || activity.kind === "status") {
+				continue
+			}
+
+			const normalized = activity.message.replace(/[.。]\s*$/, "").trim()
+			if (normalized) {
+				return normalized.charAt(0).toLowerCase() + normalized.slice(1)
+			}
+		}
+
+		return undefined
 	}
 
 	private withAgentActivities(update: AgentStatusUpdate): AgentStatusUpdate {

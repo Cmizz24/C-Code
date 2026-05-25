@@ -90,6 +90,7 @@ function createTask(taskId = "task-id"): TestTask {
 		taskAsk: undefined,
 		queuedMessages: [],
 		tokenUsage: undefined,
+		start: vi.fn(),
 		on: vi.fn((event: RooCodeEventName, listener: (...args: unknown[]) => unknown) => {
 			const key = String(event)
 			const eventListeners = listeners.get(key) ?? new Set<(...args: unknown[]) => unknown>()
@@ -174,6 +175,7 @@ describe("OrchestratorEventLoop", () => {
 			mode: "ui-ux",
 			agentId: "ui",
 			background: true,
+			startTask: false,
 			workspacePath: "C:/repo/.roo/plan-test/ui",
 		})
 		expect(options?.systemPromptSuffix).toContain("Single-agent task guidance:")
@@ -512,4 +514,45 @@ describe("OrchestratorEventLoop", () => {
 		await vi.waitFor(() => expect(provider.removeAgentWorktree).toHaveBeenCalledWith("C:/repo/.roo/plan-test/ui"))
 		expect(provider.createTask).not.toHaveBeenCalled()
 	})
+
+	it.each([
+		{
+			event: RooCodeEventName.TaskCompleted,
+			expectedStatus: "complete",
+			label: "completion",
+		},
+		{
+			event: RooCodeEventName.TaskAborted,
+			expectedStatus: "failed",
+			label: "abort",
+		},
+	] as const)(
+		"captures synchronous child task $label emitted during delayed start",
+		async ({ event, expectedStatus }) => {
+			let spawnedTask: TestTask | undefined
+			const provider = createProvider({
+				showMergeReview: vi.fn(async () => undefined),
+				createTask: vi.fn(async (_message, _images, _parentTask, options) => {
+					spawnedTask = createTask(`child-${options?.agentId}`)
+					spawnedTask.start = vi.fn(() => {
+						spawnedTask?.emit(event)
+					})
+					return spawnedTask
+				}),
+			} as Partial<TestProvider> & { showMergeReview: ReturnType<typeof vi.fn> })
+
+			new OrchestratorEventLoop(provider, AgentBus.getInstance()).start(createPlan())
+
+			await vi.waitFor(() => expect(spawnedTask).toBeDefined())
+			await vi.waitFor(() => expect(AgentBus.getInstance().getAgent("ui")?.status).toBe(expectedStatus))
+			expect(vi.mocked(provider.createTask).mock.calls[0][3]).toMatchObject({ startTask: false })
+			expect(spawnedTask?.on).toHaveBeenCalledWith(RooCodeEventName.TaskCompleted, expect.any(Function))
+			expect(spawnedTask?.on).toHaveBeenCalledWith(RooCodeEventName.TaskAborted, expect.any(Function))
+			expect(spawnedTask?.start).toHaveBeenCalledTimes(1)
+
+			const startOrder = (spawnedTask?.start as any).mock.invocationCallOrder[0]
+			const listenerOrders = (spawnedTask?.on as any).mock.invocationCallOrder as number[]
+			expect(listenerOrders.every((order) => order < startOrder)).toBe(true)
+		},
+	)
 })

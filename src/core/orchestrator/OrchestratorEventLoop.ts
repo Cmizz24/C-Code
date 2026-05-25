@@ -192,13 +192,13 @@ export class OrchestratorEventLoop {
 				return
 			}
 
-			this.bus.markRunning(agent.id)
 			const task = await this.provider.createTask(agentMessage, undefined, this.orchestratorTask, {
 				mode: agent.mode,
 				agentId: agent.id,
 				background: true,
 				workspacePath: agent.worktreePath,
 				systemPromptSuffix,
+				startTask: false,
 			})
 
 			if (!this.running) {
@@ -225,6 +225,20 @@ export class OrchestratorEventLoop {
 			task.on(RooCodeEventName.TaskInteractive, onInteractive)
 			task.on(RooCodeEventName.TaskResumable, onResumable)
 			task.on(RooCodeEventName.TaskIdle, onIdle)
+
+			if (!this.running) {
+				this.cleanupSpawnedTask(agent.id)
+				Promise.resolve(task.abortTask()).catch(() => {})
+				return
+			}
+
+			try {
+				this.bus.markRunning(agent.id)
+				task.start()
+			} catch (error) {
+				this.cleanupSpawnedTask(agent.id)
+				throw error
+			}
 		} catch (error) {
 			const message = error instanceof Error && error.message ? error.message : String(error)
 			this.bus.markFailed(agent.id, message)

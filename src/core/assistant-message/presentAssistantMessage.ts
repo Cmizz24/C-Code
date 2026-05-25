@@ -77,20 +77,9 @@ async function completeCurrentParallelPlanningTodo(cline: Task): Promise<boolean
 		return false
 	}
 
-	const todoPayload = JSON.stringify({
-		tool: "updateTodoList",
-		todos: cline.todoList ?? [],
-	})
-
-	await cline
-		.say("user_edit_todos", todoPayload, undefined, false, undefined, undefined, { isNonInteractive: true })
-		.catch((error) => {
-			console.warn(
-				`[presentAssistantMessage] Failed to persist parallel planning todo completion: ${
-					error instanceof Error ? error.message : String(error)
-				}`,
-			)
-		})
+	// This is an internal bookkeeping update for the current task state, not a
+	// user-authored todo edit. Emitting user_edit_todos here creates a visible
+	// "User Edit/User Edits" chat row before the parallel agents card.
 	await (cline.providerRef.deref()?.postStateToWebviewWithoutTaskHistory?.() ?? Promise.resolve()).catch(() => {})
 	return true
 }

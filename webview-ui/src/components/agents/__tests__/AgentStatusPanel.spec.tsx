@@ -329,7 +329,7 @@ describe("AgentStatusPanel", () => {
 				markdown: [
 					"# Parallel agent review for plan-test",
 					"",
-					"Full per-agent diffs are available in the saved parallel agent merge review row in chat.",
+					"Full per-agent diffs are available in the persisted parallel agents card.",
 					"- ui-agent: pending; 1 files, +1/-1",
 				].join("\n"),
 			},
@@ -339,9 +339,7 @@ describe("AgentStatusPanel", () => {
 
 		const summary = screen.getByTestId("parallel-agent-review-summary")
 		expect(summary).toHaveTextContent("Parallel agent review summary")
-		expect(summary).toHaveTextContent(
-			"Full per-agent diffs are available in the saved parallel agent merge review row in chat.",
-		)
+		expect(summary).toHaveTextContent("Full per-agent diffs are available in the persisted parallel agents card.")
 		expect(summary).not.toHaveTextContent("User Edits")
 		expect(summary).not.toHaveTextContent("User Edit")
 	})

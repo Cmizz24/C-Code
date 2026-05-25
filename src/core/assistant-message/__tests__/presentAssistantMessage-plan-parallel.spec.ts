@@ -256,7 +256,7 @@ describe("presentAssistantMessage - plan_parallel_tasks", () => {
 		expect(task.parallelExecutionPaused).toBe(false)
 	})
 
-	it("completes the active parallel planning todo before requesting approval", async () => {
+	it("completes the active parallel planning todo without adding a visible user edit row", async () => {
 		const requestPlanApproval = vi.fn(async (plan: ExecutionPlan): Promise<PlanApprovalResult> => {
 			return { approved: true, plan, startResult: { ok: true } }
 		})
@@ -274,16 +274,18 @@ describe("presentAssistantMessage - plan_parallel_tasks", () => {
 		await presentAssistantMessage(task)
 
 		expect(task.todoList[0].status).toBe("completed")
-		expect(task.say).toHaveBeenCalledWith(
+		expect(task.say).not.toHaveBeenCalledWith(
 			"user_edit_todos",
-			expect.stringContaining('"status":"completed"'),
-			undefined,
-			false,
-			undefined,
-			undefined,
-			{ isNonInteractive: true },
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
 		)
-		expect(task.say.mock.invocationCallOrder[0]).toBeLessThan(requestPlanApproval.mock.invocationCallOrder[0])
+		expect(provider.postStateToWebviewWithoutTaskHistory.mock.invocationCallOrder[0]).toBeLessThan(
+			requestPlanApproval.mock.invocationCallOrder[0],
+		)
 		expect(provider.postStateToWebviewWithoutTaskHistory).toHaveBeenCalled()
 		expect(task.parallelExecutionPaused).toBe(true)
 	})

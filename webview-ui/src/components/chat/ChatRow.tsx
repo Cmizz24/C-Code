@@ -131,41 +131,6 @@ interface ChatRowProps {
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 
-const getParallelAgentReviewSummaryText = (tool?: ClineSayTool): string => {
-	const markdown = tool?.parallelReviewSummary?.markdown?.trim()
-	if (markdown) {
-		return markdown
-	}
-
-	const diff = tool?.diff?.trim()
-	if (!diff) {
-		return "Parallel agent review summary is available in the parallel agents tool card."
-	}
-
-	const addedLines = diff
-		.replace(/\r\n/g, "\n")
-		.replace(/\r/g, "\n")
-		.split("\n")
-		.filter((line) => line.startsWith("+") && !line.startsWith("+++"))
-		.map((line) => line.slice(1))
-
-	return addedLines.length > 0 ? addedLines.join("\n").trim() : diff
-}
-
-const ParallelAgentReviewSummaryRow = ({ tool }: { tool?: ClineSayTool }) => (
-	<div data-testid="parallel-agent-review-summary-row" className="w-full text-xs text-vscode-descriptionForeground">
-		<ToolUseBlock className="cursor-default bg-vscode-editor-background/80">
-			<ToolUseBlockHeader className="cursor-default gap-2">
-				<span className="codicon codicon-git-merge text-vscode-descriptionForeground" />
-				<span className="truncate font-medium text-vscode-foreground">Parallel agent review summary</span>
-			</ToolUseBlockHeader>
-			<pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words border-t border-vscode-sideBar-background p-2 font-mono text-[11px] text-vscode-foreground">
-				{getParallelAgentReviewSummaryText(tool)}
-			</pre>
-		</ToolUseBlock>
-	</div>
-)
-
 const ChatRow = memo(
 	(props: ChatRowProps) => {
 		const { isLast, onHeightChange, message } = props
@@ -1316,7 +1281,7 @@ export const ChatRowContent = ({
 				case "user_feedback_diff":
 					const tool = safeJsonParse<ClineSayTool>(message.text)
 					if (tool?.tool === "parallelAgents") {
-						return <ParallelAgentReviewSummaryRow tool={tool} />
+						return null
 					}
 
 					return (
