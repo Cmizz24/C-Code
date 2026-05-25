@@ -255,6 +255,17 @@ export class OrchestratorEventLoop {
 		}
 
 		const askType = task.taskAsk?.ask
+		if (askType === "mistake_limit_reached") {
+			this.bus.reportProgress(
+				agentId,
+				"Automatically continued after the agent reached the internal mistake limit; background agents cannot request hidden guidance.",
+				"wait",
+			)
+			task.approveAsk()
+			Promise.resolve(this.provider.postStateToWebview()).catch(() => {})
+			return
+		}
+
 		if (askType === "completion_result") {
 			this.cleanupSpawnedTask(agentId)
 			this.bus.markComplete(agentId)

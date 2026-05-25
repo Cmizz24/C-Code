@@ -563,6 +563,43 @@ describe("OrchestratorEventLoop", () => {
 		expect(provider.postStateToWebview).toHaveBeenCalled()
 	})
 
+	it("continues background child tasks that hit the internal mistake-limit guidance path", async () => {
+		let spawnedTask: TestTask | undefined
+		const events: unknown[] = []
+		AgentBus.getInstance().on("event", (event) => events.push(event))
+		const provider = createProvider({
+			createTask: vi.fn(async () => {
+				spawnedTask = createTask("child-ui")
+				return spawnedTask
+			}),
+		})
+
+		new OrchestratorEventLoop(provider, AgentBus.getInstance()).start(createPlan())
+
+		await vi.waitFor(() => expect(spawnedTask).toBeDefined())
+		;(spawnedTask as TestTask & { taskAsk?: { type: "ask"; ts: number; ask: "mistake_limit_reached" } }).taskAsk = {
+			type: "ask",
+			ts: Date.now(),
+			ask: "mistake_limit_reached",
+		}
+		spawnedTask?.emit(RooCodeEventName.TaskIdle)
+
+		await vi.waitFor(() => expect(spawnedTask?.approveAsk).toHaveBeenCalled())
+		expect(AgentBus.getInstance().getAgent("ui")?.status).toBe("running")
+		expect(spawnedTask?.denyAsk).not.toHaveBeenCalled()
+		expect(spawnedTask?.abortTask).not.toHaveBeenCalled()
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "PROGRESS",
+				agentId: "ui",
+				kind: "wait",
+			}),
+		)
+
+		spawnedTask?.emit(RooCodeEventName.TaskCompleted)
+		await vi.waitFor(() => expect(AgentBus.getInstance().getAgent("ui")?.status).toBe("complete"))
+	})
+
 	it("removes a newly-created worktree if the loop stops before child task creation", async () => {
 		let resolveWorktree: (path: string) => void = () => {}
 		const provider = createProvider({
