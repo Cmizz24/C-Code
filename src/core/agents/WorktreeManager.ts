@@ -216,18 +216,27 @@ export class WorktreeManager {
 
 	public async mergeBranch(
 		branch: string,
-		params: { planId?: string; worktreePath?: string; ownedPaths?: string[] } = {},
+		params: { planId?: string; worktreePath?: string; ownedPaths?: string[]; autoApproved?: boolean } = {},
 	): Promise<void> {
 		const gitRoot = await this.resolveGitRoot()
 		const baseline = params.planId ? this.workspaceBaselines.get(params.planId) : undefined
 		const ownedPaths = params.ownedPaths?.map(normalizeGitPath).filter(Boolean)
 
 		if (baseline && ownedPaths?.length) {
-			await this.applyOwnedBranchDiff(branch, {
-				gitRoot,
-				baselineCommit: baseline.commit,
-				ownedPaths,
-			})
+			if (params.autoApproved) {
+				await this.materializeOwnedBranchChanges(branch, {
+					gitRoot,
+					baselineCommit: baseline.commit,
+					ownedPaths,
+				})
+			} else {
+				await this.applyOwnedBranchDiff(branch, {
+					gitRoot,
+					baselineCommit: baseline.commit,
+					ownedPaths,
+				})
+			}
+
 			return
 		}
 
@@ -261,6 +270,121 @@ export class WorktreeManager {
 			const conflictedFiles = await this.getConflictedFiles(gitRoot)
 			const abortError = await this.abortGitOperation(gitRoot, "merge")
 			throw new WorktreeMergeError("merge", branch, gitRoot, conflictedFiles, abortError, formatGitFailure(error))
+		}
+	}
+
+	private async materializeOwnedBranchChanges(
+		branch: string,
+		params: { gitRoot: string; baselineCommit: string; ownedPaths: string[] },
+	): Promise<void> {
+		let changedPaths = params.ownedPaths
+
+		try {
+			changedPaths = await this.getOwnedBranchChangedPaths(
+				params.gitRoot,
+				branch,
+				params.baselineCommit,
+				params.ownedPaths,
+			)
+
+			if (changedPaths.length === 0) {
+				return
+			}
+
+			const pathsToCheckout: string[] = []
+			const pathsToRemove: string[] = []
+
+			for (const filePath of changedPaths) {
+				if (await this.branchPathExists(params.gitRoot, branch, filePath)) {
+					pathsToCheckout.push(filePath)
+				} else {
+					pathsToRemove.push(filePath)
+				}
+			}
+
+			await this.checkoutOwnedPathsFromBranch(params.gitRoot, branch, pathsToCheckout)
+			await this.removeOwnedPaths(params.gitRoot, pathsToRemove)
+		} catch (error) {
+			throw new WorktreeMergeError(
+				"apply",
+				branch,
+				params.gitRoot,
+				changedPaths.length > 0 ? changedPaths : params.ownedPaths,
+				undefined,
+				formatGitFailure(error),
+			)
+		}
+	}
+
+	private async getOwnedBranchChangedPaths(
+		gitRoot: string,
+		branch: string,
+		baselineCommit: string,
+		ownedPaths: string[],
+	): Promise<string[]> {
+		const pathspec = this.formatPathspec(ownedPaths)
+		const pathspecArgs = pathspec ? ` -- ${pathspec}` : ""
+		const changedPaths = await this.getNullSeparatedGitOutput(
+			`git diff --name-only -z --no-renames ${baselineCommit}...${shellQuote(branch)}${pathspecArgs}`,
+			gitRoot,
+		)
+		const uniqueChangedPaths = new Set<string>()
+
+		for (const changedPath of changedPaths) {
+			if (this.isPathWithinOwnedPaths(changedPath, ownedPaths)) {
+				uniqueChangedPaths.add(changedPath)
+			}
+		}
+
+		return Array.from(uniqueChangedPaths)
+	}
+
+	private isPathWithinOwnedPaths(filePath: string, ownedPaths: string[]): boolean {
+		const normalizedFilePath = normalizeGitPath(filePath)
+
+		return ownedPaths.some((ownedPath) => {
+			const normalizedOwnedPath = normalizeGitPath(ownedPath)
+			return (
+				normalizedOwnedPath === "." ||
+				normalizedFilePath === normalizedOwnedPath ||
+				normalizedFilePath.startsWith(`${normalizedOwnedPath}/`)
+			)
+		})
+	}
+
+	private async branchPathExists(gitRoot: string, branch: string, filePath: string): Promise<boolean> {
+		try {
+			await execAsync(`git cat-file -e ${shellQuote(`${branch}:${filePath}`)}`, { cwd: gitRoot })
+			return true
+		} catch {
+			return false
+		}
+	}
+
+	private async checkoutOwnedPathsFromBranch(gitRoot: string, branch: string, filePaths: string[]): Promise<void> {
+		for (const chunk of this.chunkPathspecs(filePaths)) {
+			const checkoutCommand = `git checkout -f ${shellQuote(branch)} -- ${this.formatPathspec(chunk)}`
+
+			try {
+				await execAsync(checkoutCommand, { cwd: gitRoot, maxBuffer: 50 * 1024 * 1024 })
+			} catch {
+				await Promise.all(
+					chunk.map((filePath) => fs.rm(path.join(gitRoot, filePath), { recursive: true, force: true })),
+				)
+				await execAsync(checkoutCommand, { cwd: gitRoot, maxBuffer: 50 * 1024 * 1024 })
+			}
+		}
+	}
+
+	private async removeOwnedPaths(gitRoot: string, filePaths: string[]): Promise<void> {
+		for (const chunk of this.chunkPathspecs(filePaths)) {
+			await execAsync(`git rm -f --ignore-unmatch -- ${this.formatPathspec(chunk)}`, {
+				cwd: gitRoot,
+				maxBuffer: 50 * 1024 * 1024,
+			})
+			await Promise.all(
+				chunk.map((filePath) => fs.rm(path.join(gitRoot, filePath), { recursive: true, force: true })),
+			)
 		}
 	}
 

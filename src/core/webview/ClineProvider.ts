@@ -3171,6 +3171,7 @@ export class ClineProvider
 					planId: plan.planId,
 					worktreePath,
 					ownedPaths,
+					autoApproved: options.autoApproved === true,
 				})
 				this.updateMergeReviewEntry(agentId, {
 					mergeStatus: "merged",

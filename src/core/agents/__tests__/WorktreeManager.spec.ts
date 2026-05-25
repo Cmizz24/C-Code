@@ -39,6 +39,7 @@ describe("WorktreeManager", () => {
 		fsMock.mkdtemp.mockResolvedValue("C:/tmp/roo-parallel-baseline-1")
 		fsMock.rm.mockResolvedValue(undefined)
 		fsMock.readFile.mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" }))
+		fsMock.rm.mockClear()
 		fsMock.writeFile.mockClear()
 		fsMock.writeFile.mockResolvedValue(undefined)
 	})
@@ -632,6 +633,98 @@ describe("WorktreeManager", () => {
 			expect.stringContaining("new file mode 100644"),
 			"utf8",
 		)
+	})
+
+	it("materializes auto-approved owned file changes from the agent branch without patch safety checks", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		;(manager as any).workspaceBaselines.set("plan-test", {
+			planId: "plan-test",
+			commit: "baseline123",
+			ref: "refs/roo/parallel-baselines/plan-test",
+		})
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+			if (
+				command ===
+				'git diff --name-only -z --no-renames baseline123..."roo/parallel/plan-test/ui-agent" -- "index.html"'
+			) {
+				return { stdout: "index.html\0src/not-owned.ts\0" }
+			}
+			if (command === 'git cat-file -e "roo/parallel/plan-test/ui-agent:index.html"') {
+				return { stdout: "" }
+			}
+			if (command === 'git checkout -f "roo/parallel/plan-test/ui-agent" -- "index.html"') {
+				return { stdout: "" }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await manager.mergeBranch("roo/parallel/plan-test/ui-agent", {
+			planId: "plan-test",
+			worktreePath: "C:/worktrees/ui-agent",
+			ownedPaths: ["index.html"],
+			autoApproved: true,
+		})
+
+		expect(execMock).toHaveBeenCalledWith(
+			'git checkout -f "roo/parallel/plan-test/ui-agent" -- "index.html"',
+			expect.objectContaining({ cwd: "C:/repo", maxBuffer: 50 * 1024 * 1024 }),
+			expect.any(Function),
+		)
+		expect(execMock.mock.calls.some(([command]) => String(command).includes("src/not-owned.ts"))).toBe(false)
+		expect(execMock.mock.calls.some(([command]) => String(command).startsWith("git read-tree"))).toBe(false)
+		expect(execMock.mock.calls.some(([command]) => String(command).startsWith("git apply"))).toBe(false)
+		expect(fsMock.writeFile).not.toHaveBeenCalled()
+	})
+
+	it("materializes auto-approved owned deletions from the agent branch", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		;(manager as any).workspaceBaselines.set("plan-test", {
+			planId: "plan-test",
+			commit: "baseline123",
+			ref: "refs/roo/parallel-baselines/plan-test",
+		})
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+			if (
+				command ===
+				'git diff --name-only -z --no-renames baseline123..."roo/parallel/plan-test/ui-agent" -- "obsolete.html"'
+			) {
+				return { stdout: "obsolete.html\0" }
+			}
+			if (command === 'git cat-file -e "roo/parallel/plan-test/ui-agent:obsolete.html"') {
+				return { error: new Error("fatal: path does not exist in branch") }
+			}
+			if (command === 'git rm -f --ignore-unmatch -- "obsolete.html"') {
+				return { stdout: "" }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await manager.mergeBranch("roo/parallel/plan-test/ui-agent", {
+			planId: "plan-test",
+			worktreePath: "C:/worktrees/ui-agent",
+			ownedPaths: ["obsolete.html"],
+			autoApproved: true,
+		})
+
+		expect(execMock).toHaveBeenCalledWith(
+			'git rm -f --ignore-unmatch -- "obsolete.html"',
+			expect.objectContaining({ cwd: "C:/repo", maxBuffer: 50 * 1024 * 1024 }),
+			expect.any(Function),
+		)
+		expect(fsMock.rm).toHaveBeenCalledWith(expect.stringContaining("obsolete.html"), {
+			recursive: true,
+			force: true,
+		})
+		expect(execMock.mock.calls.some(([command]) => String(command).startsWith("git apply"))).toBe(false)
+		expect(fsMock.writeFile).not.toHaveBeenCalled()
 	})
 
 	it("blocks owned branch apply when the current workspace changed since the baseline", async () => {

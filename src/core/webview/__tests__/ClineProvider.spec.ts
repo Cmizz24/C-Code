@@ -1569,6 +1569,7 @@ describe("ClineProvider", () => {
 			planId: "plan-webview-provider",
 			worktreePath: "/tmp/dashboard-agent",
 			ownedPaths: ["src/dashboard.tsx"],
+			autoApproved: false,
 		})
 		expect(mergeBranch).not.toHaveBeenCalledWith("roo/parallel/plan-webview-provider/styles-agent")
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
@@ -1615,11 +1616,13 @@ describe("ClineProvider", () => {
 			planId: "plan-webview-provider",
 			worktreePath: "/tmp/dashboard-agent",
 			ownedPaths: ["src/dashboard.tsx"],
+			autoApproved: true,
 		})
 		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/styles-agent", {
 			planId: "plan-webview-provider",
 			worktreePath: "/tmp/styles-agent",
 			ownedPaths: ["src/styles.css"],
+			autoApproved: true,
 		})
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
@@ -1829,6 +1832,7 @@ describe("ClineProvider", () => {
 			planId: "plan-webview-provider",
 			worktreePath: "/tmp/dashboard-agent",
 			ownedPaths: ["src/dashboard.tsx"],
+			autoApproved: false,
 		})
 		expect(removeWorktree).not.toHaveBeenCalled()
 		expect(mockPostMessage).toHaveBeenCalledWith(
@@ -1930,6 +1934,7 @@ describe("ClineProvider", () => {
 			planId: "plan-webview-provider",
 			worktreePath: "/tmp/dashboard-agent",
 			ownedPaths: ["src/dashboard.tsx"],
+			autoApproved: false,
 		})
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")

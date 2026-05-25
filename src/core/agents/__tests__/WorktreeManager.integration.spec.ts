@@ -90,4 +90,69 @@ describe("WorktreeManager integration", () => {
 		).rejects.toThrow(/Current workspace content changed since the parallel baseline[\s\S]*index\.html/)
 		await expect(fs.readFile(path.join(repoRoot, "index.html"), "utf8")).resolves.toBe("<main>Local</main>\n")
 	})
+
+	it("auto-approved owned file materialization survives a missing current workspace file", async () => {
+		repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "roo-worktree-manager-auto-materialize-missing-"))
+		await initializeRepository(repoRoot)
+		await fs.writeFile(path.join(repoRoot, "index.html"), "<main>Baseline</main>\n", "utf8")
+		await git(repoRoot, ["add", "index.html"])
+		await git(repoRoot, ["commit", "-m", "add index"])
+
+		manager = new WorktreeManager(repoRoot)
+		const worktreePath = await manager.createWorktree("agent", "plan")
+		await fs.writeFile(path.join(worktreePath, "index.html"), "<main>Agent</main>\n", "utf8")
+
+		const diff = await manager.prepareMergeReview({
+			agentId: "agent",
+			planId: "plan",
+			worktreePath,
+			branch: "roo/parallel/plan/agent",
+			ownedPaths: ["index.html"],
+		})
+
+		expect(diff).toContain("<main>Agent</main>")
+
+		await fs.rm(path.join(repoRoot, "index.html"), { force: true })
+		await manager.mergeBranch("roo/parallel/plan/agent", {
+			planId: "plan",
+			worktreePath,
+			ownedPaths: ["index.html"],
+			autoApproved: true,
+		})
+
+		await expect(fs.readFile(path.join(repoRoot, "index.html"), "utf8")).resolves.toMatch(
+			/^<main>Agent<\/main>\r?\n$/,
+		)
+	})
+
+	it("auto-approved owned new-file materialization overwrites a current workspace file at the owned path", async () => {
+		repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "roo-worktree-manager-auto-materialize-new-"))
+		await initializeRepository(repoRoot)
+
+		manager = new WorktreeManager(repoRoot)
+		const worktreePath = await manager.createWorktree("agent", "plan")
+		await fs.writeFile(path.join(worktreePath, "index.html"), "<main>Agent</main>\n", "utf8")
+
+		const diff = await manager.prepareMergeReview({
+			agentId: "agent",
+			planId: "plan",
+			worktreePath,
+			branch: "roo/parallel/plan/agent",
+			ownedPaths: ["index.html"],
+		})
+
+		expect(diff).toContain("new file mode 100644")
+
+		await fs.writeFile(path.join(repoRoot, "index.html"), "<main>Local</main>\n", "utf8")
+		await manager.mergeBranch("roo/parallel/plan/agent", {
+			planId: "plan",
+			worktreePath,
+			ownedPaths: ["index.html"],
+			autoApproved: true,
+		})
+
+		await expect(fs.readFile(path.join(repoRoot, "index.html"), "utf8")).resolves.toMatch(
+			/^<main>Agent<\/main>\r?\n$/,
+		)
+	})
 })
