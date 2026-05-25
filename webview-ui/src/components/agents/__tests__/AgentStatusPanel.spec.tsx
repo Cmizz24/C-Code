@@ -663,6 +663,66 @@ describe("AgentStatusPanel", () => {
 		expect(within(details).queryByTestId("agent-activity-repeat-count")).not.toBeInTheDocument()
 	})
 
+	it("uses latest hidden current activity instead of a stale diff-start label", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "running",
+			agentActivities: [
+				{
+					agentId: "ui-agent",
+					kind: "tool",
+					message: "Applying a diff to src/Dashboard.tsx.",
+					ts: 1,
+				},
+				{
+					agentId: "ui-agent",
+					kind: "approval",
+					message: "Tool approval resolved.",
+					ts: 2,
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+		fireEvent.click(screen.getAllByTestId("agent-status-toggle")[0])
+
+		expect(screen.getByTestId("agent-activity")).toHaveTextContent("Tool approval resolved.")
+		const details = screen.getByTestId("agent-details")
+		expect(within(details).queryByText("Tool approval resolved.")).not.toBeInTheDocument()
+		expect(within(details).getByText("Applying a diff to src/Dashboard.tsx.")).toBeInTheDocument()
+	})
+
+	it("uses terminal status instead of a stale tool-start label", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "review",
+			agentStatusUpdates: [
+				{
+					agentId: "ui-agent",
+					status: "complete",
+					lastTouchedFile: "src/Dashboard.tsx",
+				},
+			],
+			agentActivities: [
+				{
+					agentId: "ui-agent",
+					kind: "tool",
+					message: "Applying a diff to src/Dashboard.tsx.",
+					ts: 1,
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+
+		expect(screen.getByTestId("agent-activity")).toHaveTextContent("Completed.")
+		expect(screen.getByTestId("agent-activity")).not.toHaveTextContent("Applying a diff")
+	})
+
 	it("limits expanded activity to recent meaningful entries with an older count", () => {
 		const plan = createPlan()
 		const tool: ClineSayTool = {

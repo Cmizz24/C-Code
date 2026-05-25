@@ -129,6 +129,16 @@ const shouldShowExpandedActivity = (activity: AgentActivity): boolean => {
 	return true
 }
 
+const shouldShowCurrentActivity = (activity: AgentActivity): boolean => {
+	const kind = getActivityKind(activity)
+
+	if (kind === "status" && ["Queued and waiting to start.", "Started running."].includes(activity.message)) {
+		return false
+	}
+
+	return true
+}
+
 const getLatestCurrentThinkingActivity = (activities: AgentActivity[]): AgentActivity | undefined => {
 	const latestActivity = activities.at(-1)
 	return latestActivity && getActivityKind(latestActivity) === "thinking" ? latestActivity : undefined
@@ -223,6 +233,67 @@ const getOverallStatus = (agents: Array<AgentPlan & { status: AgentStatus }>): A
 	}
 
 	return "pending"
+}
+
+const getStatusCurrentActivity = (
+	agentId: string,
+	status: AgentStatus,
+	statusReason?: string,
+): AgentActivity | undefined => {
+	switch (status) {
+		case "blocked":
+			return {
+				agentId,
+				kind: "status",
+				message: statusReason ?? "Blocked and waiting.",
+				ts: Number.MAX_SAFE_INTEGER,
+			}
+		case "complete":
+			return { agentId, kind: "completion", message: "Completed.", ts: Number.MAX_SAFE_INTEGER }
+		case "failed":
+			return {
+				agentId,
+				kind: "error",
+				message: statusReason ?? "Failed.",
+				ts: Number.MAX_SAFE_INTEGER,
+			}
+		default:
+			return undefined
+	}
+}
+
+const shouldUseStatusActivityOverLatest = (latestActivity: AgentActivity, status: AgentStatus): boolean => {
+	const kind = getActivityKind(latestActivity)
+
+	switch (status) {
+		case "blocked":
+			return !["status", "wait", "error"].includes(kind)
+		case "complete":
+			return !["completion", "status"].includes(kind)
+		case "failed":
+			return !["error", "status"].includes(kind)
+		default:
+			return false
+	}
+}
+
+const getCurrentAgentActivity = (
+	agentId: string,
+	status: AgentStatus,
+	statusReason: string | undefined,
+	activities: AgentActivity[],
+	displayActivities: DisplayAgentActivity[],
+): AgentActivity | undefined => {
+	const statusActivity = getStatusCurrentActivity(agentId, status, statusReason)
+	const latestActivity = activities.at(-1)
+
+	if (latestActivity && shouldShowCurrentActivity(latestActivity)) {
+		return statusActivity && shouldUseStatusActivityOverLatest(latestActivity, status)
+			? statusActivity
+			: latestActivity
+	}
+
+	return statusActivity ?? displayActivities.at(-1) ?? latestActivity
 }
 
 const getUsageSummary = (usage: AgentStatusUpdate["usage"]): string | undefined => {
@@ -405,19 +476,21 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 			const recordedStatus = statusUpdate?.status ?? agent.status
 			const shouldRenderAsTerminal =
 				(phase === "cancelled" || phase === "failed") && recordedStatus !== "complete"
+			const status = shouldRenderAsTerminal ? "failed" : recordedStatus
+			const statusReason =
+				statusUpdate?.reason ??
+				(phase === "cancelled" && recordedStatus !== "complete"
+					? "Parallel execution was cancelled."
+					: undefined)
 
 			return {
 				...agent,
-				status: shouldRenderAsTerminal ? "failed" : recordedStatus,
+				status,
 				lastTouchedFile: statusUpdate?.lastTouchedFile ?? findLastTouchedFile(agent),
-				statusReason:
-					statusUpdate?.reason ??
-					(phase === "cancelled" && recordedStatus !== "complete"
-						? "Parallel execution was cancelled."
-						: undefined),
+				statusReason,
 				blockedOn: statusUpdate?.blockedOn ?? agent.dependsOn,
 				usage: statusUpdate?.usage,
-				activity: displayActivities.at(-1) ?? agentActivities.at(-1),
+				activity: getCurrentAgentActivity(agent.id, status, statusReason, agentActivities, displayActivities),
 				activities: displayActivities,
 			}
 		})

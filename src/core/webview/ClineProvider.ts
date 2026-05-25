@@ -145,6 +145,11 @@ type ActivityToolPayload = Omit<ClineSayTool, "tool"> & {
 	serverName?: string
 	uri?: string
 }
+type ParsedActivityTool = {
+	tool: ActivityToolPayload
+	toolName: string
+	targetPath?: string
+}
 type AutoMergeReviewDecision = {
 	enabled: boolean
 	approvedAgentIds: string[]
@@ -3900,12 +3905,12 @@ export class ClineProvider
 				}
 			}
 
-			return {
-				kind: "approval",
-				message: message.isAnswered
-					? "Tool approval resolved."
-					: this.describeToolActivity(message.text, "Waiting for tool approval."),
-			}
+			return message.isAnswered
+				? this.describeResolvedToolActivity(message.text)
+				: {
+						kind: "approval",
+						message: this.describeToolActivity(message.text, "Waiting for tool approval."),
+					}
 		}
 
 		if (message.type !== "say") {
@@ -4085,12 +4090,11 @@ export class ClineProvider
 	}
 
 	private describeToolActivity(text: string | undefined, fallback: string): string {
-		const tool = text ? this.tryParseActivityToolPayload(text) : undefined
-		const toolName = tool?.tool
-		const targetPath = tool?.path ?? tool?.filePath
-		if (!tool || !toolName) {
+		const parsedTool = this.parseActivityTool(text)
+		if (!parsedTool) {
 			return fallback
 		}
+		const { tool, toolName, targetPath } = parsedTool
 
 		switch (toolName) {
 			case "editedExistingFile":
@@ -4162,6 +4166,49 @@ export class ClineProvider
 				return "Waiting for a follow-up answer."
 			default:
 				return fallback
+		}
+	}
+
+	private describeResolvedToolActivity(text: string | undefined): BackgroundAgentActivityDescription {
+		const parsedTool = this.parseActivityTool(text)
+		if (!parsedTool) {
+			return { kind: "approval", message: "Tool approval resolved." }
+		}
+
+		const { toolName, targetPath } = parsedTool
+		const fileLabel = targetPath ?? "a file"
+
+		switch (toolName) {
+			case "appliedDiff":
+			case "apply_diff":
+			case "apply_patch":
+				return { kind: "file", message: `Saving diff changes to ${fileLabel}.` }
+			case "editedExistingFile":
+			case "edit":
+			case "edit_file":
+			case "search_and_replace":
+			case "search_replace":
+			case "write_to_file":
+				return { kind: "file", message: `Saving changes to ${fileLabel}.` }
+			case "newFileCreated":
+				return { kind: "file", message: `Saving new file ${fileLabel}.` }
+			default:
+				return { kind: "approval", message: "Tool approval resolved." }
+		}
+	}
+
+	private parseActivityTool(text: string | undefined): ParsedActivityTool | undefined {
+		const tool = text ? this.tryParseActivityToolPayload(text) : undefined
+		const toolName = tool?.tool
+
+		if (!tool || !toolName) {
+			return undefined
+		}
+
+		return {
+			tool,
+			toolName,
+			targetPath: tool.path ?? tool.filePath,
 		}
 	}
 
