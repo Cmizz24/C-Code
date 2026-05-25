@@ -1474,6 +1474,87 @@ describe("ClineProvider", () => {
 		})
 	})
 
+	test("background agent progress events supersede stale file-operation labels during long writes", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+		const backgroundTask = backgroundTasks.find((task) => task.agentId === "dashboard-agent") as Task
+		const diffAsk: ClineMessage = {
+			type: "ask",
+			ask: "tool",
+			ts: 2_200,
+			text: JSON.stringify({ tool: "appliedDiff", path: "src/dashboard.tsx" }),
+			partial: true,
+		}
+
+		backgroundTask.emit(RooCodeEventName.Message, { action: "created", message: diffAsk })
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.agentActivities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						message: "Applying a diff to src/dashboard.tsx.",
+						ts: 2_200,
+					}),
+				]),
+			)
+		})
+
+		AgentBus.getInstance().reportProgress(
+			"dashboard-agent",
+			"Applying 3 diff blocks to src/dashboard.tsx.",
+			"file",
+			"src/dashboard.tsx",
+		)
+		AgentBus.getInstance().reportProgress(
+			"dashboard-agent",
+			"Waiting up to 3s for diagnostics after saving src/dashboard.tsx.",
+			"file",
+			"src/dashboard.tsx",
+		)
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			const activities = tool.agentActivities?.filter((activity) => activity.agentId === "dashboard-agent") ?? []
+			const statusUpdate = tool.agentStatusUpdates?.find((update) => update.agentId === "dashboard-agent")
+
+			expect(activities.at(-1)).toEqual(
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					kind: "file",
+					message: "Waiting up to 3s for diagnostics after saving src/dashboard.tsx.",
+				}),
+			)
+			expect(activities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						kind: "file",
+						message: "Applying 3 diff blocks to src/dashboard.tsx.",
+					}),
+				]),
+			)
+			expect(statusUpdate?.lastTouchedFile).toBe("src/dashboard.tsx")
+			expect(statusUpdate?.activities?.at(-1)?.message).toBe(
+				"Waiting up to 3s for diagnostics after saving src/dashboard.tsx.",
+			)
+		})
+	})
+
 	test("requestPlanApproval shows the plan preview and waits by default", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const plan = createExecutionPlan()

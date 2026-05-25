@@ -437,6 +437,16 @@ describe("DiffViewProvider", () => {
 			expect((diffViewProvider as any).relPath).toBe("test.ts")
 			expect((diffViewProvider as any).newContent).toBe("new content")
 		})
+
+		it("should report save and diagnostics progress", async () => {
+			const onProgress = vi.fn()
+
+			await diffViewProvider.saveDirectly("test.ts", "new content", true, true, 1000, onProgress)
+
+			expect(onProgress).toHaveBeenCalledWith({ phase: "saving", relPath: "test.ts" })
+			expect(onProgress).toHaveBeenCalledWith({ phase: "diagnostics-wait", relPath: "test.ts", delayMs: 1000 })
+			expect(onProgress).toHaveBeenCalledWith({ phase: "diagnostics-check", relPath: "test.ts" })
+		})
 	})
 
 	describe("saveChanges method with diagnostic settings", () => {
@@ -538,6 +548,17 @@ describe("DiffViewProvider", () => {
 			// Verify custom delay was used
 			expect(mockDelay).toHaveBeenCalledWith(5000)
 			expect(vscode.languages.getDiagnostics).toHaveBeenCalled()
+		})
+
+		it("should report save and diagnostics progress", async () => {
+			const onProgress = vi.fn()
+			;(diffViewProvider as any).closeAllDiffViews = vi.fn().mockResolvedValue(undefined)
+
+			await diffViewProvider.saveChanges(true, 1000, onProgress)
+
+			expect(onProgress).toHaveBeenCalledWith({ phase: "saving", relPath: "test.ts" })
+			expect(onProgress).toHaveBeenCalledWith({ phase: "diagnostics-wait", relPath: "test.ts", delayMs: 1000 })
+			expect(onProgress).toHaveBeenCalledWith({ phase: "diagnostics-check", relPath: "test.ts" })
 		})
 	})
 })

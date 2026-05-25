@@ -25,6 +25,7 @@ import {
 	type ToolUsage,
 	type ToolName,
 	type WritePermission,
+	type AgentActivityKind,
 	type ContextCondense,
 	type ContextTruncation,
 	type ClineMessage,
@@ -3871,6 +3872,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		this.agentBus.releaseWriteIntent(this.agentId, relPath)
+	}
+
+	public reportAgentProgress(message: string, kind: AgentActivityKind = "status", relPath?: string): void {
+		if (!this.background || !this.agentId || !this.agentBus) {
+			return
+		}
+
+		this.agentBus.reportProgress(this.agentId, message, kind, relPath)
 	}
 
 	private getCurrentProfileId(state: any): string {

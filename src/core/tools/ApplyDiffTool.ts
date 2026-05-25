@@ -14,6 +14,12 @@ import { computeDiffStats, sanitizeUnifiedDiff } from "../diff/stats"
 import type { ToolUse } from "../../shared/tools"
 
 import { BaseTool, ToolCallbacks } from "./BaseTool"
+import {
+	createDiffViewProgressReporter,
+	formatChangeSummary,
+	formatDiffBlockProgress,
+	reportFileProgress,
+} from "./fileProgress"
 
 interface ApplyDiffParams {
 	path: string
@@ -65,6 +71,7 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 				return
 			}
 			didAcquireWriteIntent = true
+			reportFileProgress(task, relPath, `Preparing diff for ${relPath}.`)
 
 			const fileExists = await fileExistsAtPath(absolutePath)
 
@@ -78,9 +85,11 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 				return
 			}
 
+			reportFileProgress(task, relPath, `Reading ${relPath} before applying diff.`)
 			const originalContent: string = await fs.readFile(absolutePath, "utf-8")
 
 			// Apply the diff to the original content
+			reportFileProgress(task, relPath, `Applying ${formatDiffBlockProgress(diffContent)} to ${relPath}.`)
 			const diffResult = (await task.diffStrategy?.applyDiff(
 				originalContent,
 				diffContent,
@@ -133,6 +142,8 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 			const unifiedPatchRaw = formatResponse.createPrettyPatch(relPath, originalContent, diffResult.content)
 			const unifiedPatch = sanitizeUnifiedDiff(unifiedPatchRaw)
 			const diffStats = computeDiffStats(unifiedPatch) || undefined
+			const changeSummary = formatChangeSummary(diffStats)
+			reportFileProgress(task, relPath, `Prepared diff preview for ${relPath}${changeSummary}.`)
 
 			// Check if preventFocusDisruption experiment is enabled
 			const provider = task.providerRef.deref()
@@ -176,6 +187,7 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 					toolProgressStatus = task.diffStrategy.getProgressStatus(block, diffResult)
 				}
 
+				reportFileProgress(task, relPath, `Waiting for diff approval for ${relPath}${changeSummary}.`)
 				const didApprove = await askApproval("tool", completeMessage, toolProgressStatus, isWriteProtected)
 
 				if (!didApprove) {
@@ -185,18 +197,24 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 				// Save directly without showing diff view or opening the file
 				task.diffViewProvider.editType = "modify"
 				task.diffViewProvider.originalContent = originalContent
+				reportFileProgress(task, relPath, `Saving diff changes to ${relPath}.`)
 				await task.diffViewProvider.saveDirectly(
 					relPath,
 					diffResult.content,
 					false,
 					diagnosticsEnabled,
 					writeDelayMs,
+					createDiffViewProgressReporter(task, relPath, {
+						saveMessage: `Saving diff changes to ${relPath}.`,
+					}),
 				)
 			} else {
 				// Original behavior with diff view
 				// Show diff view before asking for approval
 				task.diffViewProvider.editType = "modify"
+				reportFileProgress(task, relPath, `Opening diff preview for ${relPath}.`)
 				await task.diffViewProvider.open(relPath)
+				reportFileProgress(task, relPath, `Rendering diff preview for ${relPath}${changeSummary}.`)
 				await task.diffViewProvider.update(diffResult.content, true)
 				task.diffViewProvider.scrollToFirstDiff()
 
@@ -221,6 +239,7 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 					toolProgressStatus = task.diffStrategy.getProgressStatus(block, diffResult)
 				}
 
+				reportFileProgress(task, relPath, `Waiting for diff approval for ${relPath}${changeSummary}.`)
 				const didApprove = await askApproval("tool", completeMessage, toolProgressStatus, isWriteProtected)
 
 				if (!didApprove) {
@@ -230,9 +249,17 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 				}
 
 				// Call saveChanges to update the DiffViewProvider properties
-				await task.diffViewProvider.saveChanges(diagnosticsEnabled, writeDelayMs)
+				reportFileProgress(task, relPath, `Saving diff changes to ${relPath}.`)
+				await task.diffViewProvider.saveChanges(
+					diagnosticsEnabled,
+					writeDelayMs,
+					createDiffViewProgressReporter(task, relPath, {
+						saveMessage: `Saving diff changes to ${relPath}.`,
+					}),
+				)
 			}
 
+			reportFileProgress(task, relPath, `Finalizing diff result for ${relPath}.`)
 			// Track file edit operation
 			if (relPath) {
 				await task.fileContextTracker.trackFileContext(relPath, "roo_edited" as RecordSource)

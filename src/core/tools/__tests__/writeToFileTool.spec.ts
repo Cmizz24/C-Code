@@ -179,6 +179,7 @@ describe("writeToFileTool", () => {
 		mockCline.say = vi.fn().mockResolvedValue(undefined)
 		mockCline.ask = vi.fn().mockResolvedValue(undefined)
 		mockCline.recordToolError = vi.fn()
+		mockCline.reportAgentProgress = vi.fn()
 		mockCline.requestAgentWriteIntent = vi.fn().mockReturnValue({ approved: true })
 		mockCline.releaseAgentWriteIntent = vi.fn()
 		mockCline.sayAndCreateMissingParamError = vi.fn().mockResolvedValue("Missing param error")
@@ -369,6 +370,53 @@ describe("writeToFileTool", () => {
 			expect(mockCline.diffViewProvider.saveChanges).toHaveBeenCalled()
 			expect(mockCline.fileContextTracker.trackFileContext).toHaveBeenCalledWith(testFilePath, "roo_edited")
 			expect(mockCline.didEditFile).toBe(true)
+		})
+
+		it("reports compact progress while previewing, saving, and checking diagnostics", async () => {
+			mockCline.diffViewProvider.saveChanges.mockImplementation(
+				async (_diagnosticsEnabled: boolean, _writeDelayMs: number, onProgress?: (event: any) => void) => {
+					onProgress?.({ phase: "diagnostics-wait", relPath: testFilePath, delayMs: 1000 })
+					onProgress?.({ phase: "diagnostics-check", relPath: testFilePath })
+					return {
+						newProblemsMessage: "",
+						userEdits: null,
+						finalContent: "final content",
+					}
+				},
+			)
+
+			await executeWriteFileTool({}, { fileExists: true })
+
+			expect(mockCline.reportAgentProgress).toHaveBeenCalledWith(
+				"Preparing write for test/file.txt.",
+				"file",
+				testFilePath,
+			)
+			expect(mockCline.reportAgentProgress).toHaveBeenCalledWith(
+				"Opening write preview for test/file.txt.",
+				"file",
+				testFilePath,
+			)
+			expect(mockCline.reportAgentProgress).toHaveBeenCalledWith(
+				"Rendering write preview for test/file.txt.",
+				"file",
+				testFilePath,
+			)
+			expect(mockCline.reportAgentProgress).toHaveBeenCalledWith(
+				"Saving changes to test/file.txt.",
+				"file",
+				testFilePath,
+			)
+			expect(mockCline.reportAgentProgress).toHaveBeenCalledWith(
+				"Waiting up to 1s for diagnostics after saving test/file.txt.",
+				"file",
+				testFilePath,
+			)
+			expect(mockCline.reportAgentProgress).toHaveBeenCalledWith(
+				"Checking diagnostics for test/file.txt.",
+				"file",
+				testFilePath,
+			)
 		})
 
 		it("processes files outside workspace boundary", async () => {

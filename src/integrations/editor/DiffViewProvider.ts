@@ -18,6 +18,16 @@ import { DecorationController } from "./DecorationController"
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 export const DIFF_VIEW_LABEL_CHANGES = "Original ↔ Roo's Changes"
 
+export type DiffViewProgressPhase = "saving" | "diagnostics-wait" | "diagnostics-check"
+
+export interface DiffViewProgressEvent {
+	phase: DiffViewProgressPhase
+	relPath: string
+	delayMs?: number
+}
+
+export type DiffViewProgressCallback = (event: DiffViewProgressEvent) => void
+
 // TODO: https://github.com/cline/cline/pull/3354
 export class DiffViewProvider {
 	// Properties to store the results of saveChanges
@@ -42,6 +52,14 @@ export class DiffViewProvider {
 		task: Task,
 	) {
 		this.taskRef = new WeakRef(task)
+	}
+
+	private notifyProgress(onProgress: DiffViewProgressCallback | undefined, event: DiffViewProgressEvent): void {
+		try {
+			onProgress?.(event)
+		} catch (error) {
+			console.warn(`Failed to report diff progress: ${error}`)
+		}
 	}
 
 	async open(relPath: string): Promise<void> {
@@ -196,6 +214,7 @@ export class DiffViewProvider {
 	async saveChanges(
 		diagnosticsEnabled: boolean = true,
 		writeDelayMs: number = DEFAULT_WRITE_DELAY_MS,
+		onProgress?: DiffViewProgressCallback,
 	): Promise<{
 		newProblemsMessage: string | undefined
 		userEdits: string | undefined
@@ -208,6 +227,7 @@ export class DiffViewProvider {
 		const absolutePath = path.resolve(this.cwd, this.relPath)
 		const updatedDocument = this.activeDiffEditor.document
 		const editedContent = updatedDocument.getText()
+		this.notifyProgress(onProgress, { phase: "saving", relPath: this.relPath })
 
 		if (updatedDocument.isDirty) {
 			await updatedDocument.save()
@@ -239,6 +259,7 @@ export class DiffViewProvider {
 			// like unused imports (especially important for Go and other languages)
 			// Ensure delay is non-negative
 			const safeDelayMs = Math.max(0, writeDelayMs)
+			this.notifyProgress(onProgress, { phase: "diagnostics-wait", relPath: this.relPath, delayMs: safeDelayMs })
 
 			try {
 				await delay(safeDelayMs)
@@ -246,6 +267,7 @@ export class DiffViewProvider {
 				// Log error but continue - delay failure shouldn't break the save operation
 				console.warn(`Failed to apply write delay: ${error}`)
 			}
+			this.notifyProgress(onProgress, { phase: "diagnostics-check", relPath: this.relPath })
 
 			const postDiagnostics = vscode.languages.getDiagnostics()
 
@@ -645,6 +667,7 @@ export class DiffViewProvider {
 		openFile: boolean = true,
 		diagnosticsEnabled: boolean = true,
 		writeDelayMs: number = DEFAULT_WRITE_DELAY_MS,
+		onProgress?: DiffViewProgressCallback,
 	): Promise<{
 		newProblemsMessage: string | undefined
 		userEdits: string | undefined
@@ -656,6 +679,7 @@ export class DiffViewProvider {
 		this.preDiagnostics = vscode.languages.getDiagnostics()
 
 		// Write the content directly to the file
+		this.notifyProgress(onProgress, { phase: "saving", relPath })
 		await createDirectoriesForFile(absolutePath)
 		await fs.writeFile(absolutePath, content, "utf-8")
 
@@ -685,12 +709,14 @@ export class DiffViewProvider {
 		if (diagnosticsEnabled) {
 			// Add configurable delay to allow linters time to process
 			const safeDelayMs = Math.max(0, writeDelayMs)
+			this.notifyProgress(onProgress, { phase: "diagnostics-wait", relPath, delayMs: safeDelayMs })
 
 			try {
 				await delay(safeDelayMs)
 			} catch (error) {
 				console.warn(`Failed to apply write delay: ${error}`)
 			}
+			this.notifyProgress(onProgress, { phase: "diagnostics-check", relPath })
 
 			const postDiagnostics = vscode.languages.getDiagnostics()
 

@@ -210,6 +210,18 @@ export class ClineProvider
 					this.recordParallelAgentActivity(event.agentId, this.describeStatusActivity(event.status), "status")
 				}
 				break
+			case "PROGRESS":
+				if (event.path) {
+					const update = {
+						agentId: event.agentId,
+						status: this.getAgentStatus(event.agentId) ?? "running",
+						lastTouchedFile: event.path,
+					}
+					this.postAgentStatusUpdate(update)
+					this.recordParallelAgentStatus(update)
+				}
+				this.recordParallelAgentActivity(event.agentId, event.message, event.kind ?? "status")
+				break
 			case "INTENT_WRITE":
 				if (event.permission.approved) {
 					const update = {

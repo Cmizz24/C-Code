@@ -69,6 +69,13 @@ export type AgentEvent =
 			permission: WritePermission
 	  }
 	| {
+			type: "PROGRESS"
+			agentId: string
+			message: string
+			kind?: AgentActivityKind
+			path?: string
+	  }
+	| {
 			type: "INTENT_COMMAND"
 			agentId: string
 			command: string

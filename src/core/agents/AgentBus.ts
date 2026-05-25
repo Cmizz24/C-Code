@@ -1,6 +1,7 @@
 import EventEmitter from "events"
 
 import type {
+	AgentActivityKind,
 	AgentDependency,
 	AgentEvent,
 	AgentPlan,
@@ -137,6 +138,16 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			this.activeWrites.delete(normalizedPath)
 			this.emitEvent({ type: "INTENT_CLEARED", agentId, path: normalizedPath })
 		}
+	}
+
+	public reportProgress(
+		agentId: string,
+		message: string,
+		kind: AgentActivityKind = "status",
+		filePath?: string,
+	): void {
+		const normalizedPath = filePath ? normalizePath(filePath) : undefined
+		this.emitEvent({ type: "PROGRESS", agentId, message, kind, path: normalizedPath })
 	}
 
 	public emitSignal(agentId: string, signal: string, payload?: string): void {
