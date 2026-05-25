@@ -297,6 +297,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	apiConfiguration: ProviderSettings
 	api: ApiHandler
 	private static lastGlobalApiRequestTime?: number
+	private lastParallelAgentApiRequestTime?: number
 	private autoApprovalHandler: AutoApprovalHandler
 
 	/**
@@ -305,6 +306,27 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	 */
 	static resetGlobalApiRequestTime(): void {
 		Task.lastGlobalApiRequestTime = undefined
+	}
+
+	private usesTaskScopedProviderRateLimit(): boolean {
+		return this.background && Boolean(this.agentId)
+	}
+
+	private getProviderRateLimitRequestTime(): number | undefined {
+		return this.usesTaskScopedProviderRateLimit()
+			? this.lastParallelAgentApiRequestTime
+			: Task.lastGlobalApiRequestTime
+	}
+
+	private reserveProviderRateLimitSlot(): void {
+		const now = performance.now()
+
+		if (this.usesTaskScopedProviderRateLimit()) {
+			this.lastParallelAgentApiRequestTime = now
+			return
+		}
+
+		Task.lastGlobalApiRequestTime = now
 	}
 
 	toolRepetitionDetector: ToolRepetitionDetector
@@ -4025,13 +4047,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const state = await this.providerRef.deref()?.getState()
 		const rateLimitSeconds =
 			state?.apiConfiguration?.rateLimitSeconds ?? this.apiConfiguration?.rateLimitSeconds ?? 0
+		const lastRequestTime = this.getProviderRateLimitRequestTime()
 
-		if (rateLimitSeconds <= 0 || !Task.lastGlobalApiRequestTime) {
+		if (rateLimitSeconds <= 0 || !lastRequestTime) {
 			return
 		}
 
 		const now = performance.now()
-		const timeSinceLastRequest = now - Task.lastGlobalApiRequestTime
+		const timeSinceLastRequest = now - lastRequestTime
 		const rateLimitDelay = Math.ceil(
 			Math.min(rateLimitSeconds, Math.max(0, rateLimitSeconds * 1000 - timeSinceLastRequest) / 1000),
 		)
@@ -4075,12 +4098,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		// Update last request time right before making the request so that subsequent
 		// requests — even from new subtasks — will honour the provider's rate-limit.
+		// Background parallel agents reserve a task-scoped slot so they do not
+		// serialize independent agents that are supposed to run concurrently.
 		//
 		// NOTE: When recursivelyMakeClineRequests handles rate limiting, it sets the
 		// timestamp earlier to include the environment details build. We still set it
 		// here for direct callers (tests) and for the case where we didn't rate-limit
 		// in the caller.
-		Task.lastGlobalApiRequestTime = performance.now()
+		this.reserveProviderRateLimitSlot()
 
 		const systemPrompt = await this.getSystemPrompt()
 		const { contextTokens } = this.getTokenUsage()
@@ -4457,8 +4482,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// Respect provider rate limit window
 			let rateLimitDelay = 0
 			const rateLimit = (state?.apiConfiguration ?? this.apiConfiguration)?.rateLimitSeconds || 0
-			if (Task.lastGlobalApiRequestTime && rateLimit > 0) {
-				const elapsed = performance.now() - Task.lastGlobalApiRequestTime
+			const lastRequestTime = this.getProviderRateLimitRequestTime()
+			if (lastRequestTime && rateLimit > 0) {
+				const elapsed = performance.now() - lastRequestTime
 				rateLimitDelay = Math.ceil(Math.min(rateLimit, Math.max(0, rateLimit * 1000 - elapsed) / 1000))
 			}
 

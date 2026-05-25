@@ -729,6 +729,46 @@ describe("AgentStatusPanel", () => {
 		).toBeInTheDocument()
 	})
 
+	it("shows elapsed timing for live current activity without exposing hidden reasoning noise", () => {
+		vi.useFakeTimers()
+		vi.setSystemTime(new Date("2026-05-25T12:00:00.000Z"))
+
+		try {
+			const plan = createPlan()
+			const tool: ClineSayTool = {
+				tool: "parallelAgents",
+				executionPlan: plan,
+				parallelStatus: "running",
+				agentActivities: [
+					{
+						agentId: "ui-agent",
+						kind: "thinking",
+						message: "Reasoning through the next step.",
+						ts: Date.now() - 120_000,
+					},
+					{
+						agentId: "ui-agent",
+						kind: "wait",
+						message: "Waiting for the provider rate limit.",
+						ts: Date.now() - 90_000,
+					},
+				],
+			}
+
+			renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+			fireEvent.click(screen.getAllByTestId("agent-status-toggle")[0])
+
+			expect(screen.getByTestId("agent-activity")).toHaveTextContent("Waiting for the provider rate limit.")
+			expect(screen.getByTestId("agent-activity-elapsed")).toHaveTextContent("1m ago")
+
+			const details = screen.getByTestId("agent-details")
+			expect(within(details).queryByText("Reasoning through the next step.")).not.toBeInTheDocument()
+			expect(within(details).getByTestId("agent-activity-timestamp")).toHaveTextContent("1m ago")
+		} finally {
+			vi.useRealTimers()
+		}
+	})
+
 	it("uses terminal status instead of a stale tool-start label", () => {
 		const plan = createPlan()
 		const tool: ClineSayTool = {

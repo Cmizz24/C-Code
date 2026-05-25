@@ -944,6 +944,23 @@ describe("Cline", () => {
 			let mockApiConfig: any
 			let mockDelay: ReturnType<typeof vi.fn>
 
+			const createMockStream = (text = "response") =>
+				({
+					async *[Symbol.asyncIterator]() {
+						yield { type: "text", text }
+					},
+					async next() {
+						return { done: true, value: { type: "text", text } }
+					},
+					async return() {
+						return { done: true, value: undefined }
+					},
+					async throw(e: any) {
+						throw e
+					},
+					[Symbol.asyncDispose]: async () => {},
+				}) as AsyncGenerator<ApiStreamChunk>
+
 			beforeEach(() => {
 				vi.clearAllMocks()
 				// Reset the global timestamp before each test
@@ -1218,6 +1235,84 @@ describe("Cline", () => {
 				// Verify rate limiting was applied again
 				expect(mockDelay).toHaveBeenCalledTimes(mockApiConfig.rateLimitSeconds)
 			}, 15000) // Increase timeout to 15 seconds
+
+			it("should not serialize independent background parallel agents through the global rate limit", async () => {
+				const parent = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "parent task",
+					startTask: false,
+				})
+				vi.spyOn(parent as any, "getSystemPrompt").mockResolvedValue("mock system prompt")
+				vi.spyOn(parent.api, "createMessage").mockImplementation(() => createMockStream("parent response"))
+
+				const parentIterator = parent.attemptApiRequest(0)
+				await parentIterator.next()
+
+				expect(mockDelay).not.toHaveBeenCalled()
+				mockDelay.mockClear()
+
+				const originalPerformanceNow = performance.now
+				let currentTime = 10_000
+				performance.now = vi.fn(() => currentTime)
+
+				try {
+					const agentA = new Task({
+						provider: mockProvider,
+						apiConfiguration: mockApiConfig,
+						task: "parallel agent a",
+						parentTask: parent,
+						rootTask: parent,
+						background: true,
+						agentId: "agent-a",
+						startTask: false,
+					})
+					vi.spyOn(agentA as any, "getSystemPrompt").mockResolvedValue("mock system prompt")
+					vi.spyOn(agentA.api, "createMessage").mockImplementation(() => createMockStream("agent a response"))
+					const agentASaySpy = vi.spyOn(agentA, "say")
+
+					const agentB = new Task({
+						provider: mockProvider,
+						apiConfiguration: mockApiConfig,
+						task: "parallel agent b",
+						parentTask: parent,
+						rootTask: parent,
+						background: true,
+						agentId: "agent-b",
+						startTask: false,
+					})
+					vi.spyOn(agentB as any, "getSystemPrompt").mockResolvedValue("mock system prompt")
+					vi.spyOn(agentB.api, "createMessage").mockImplementation(() => createMockStream("agent b response"))
+					const agentBSaySpy = vi.spyOn(agentB, "say")
+
+					const agentAIterator = agentA.attemptApiRequest(0)
+					await agentAIterator.next()
+					const agentBIterator = agentB.attemptApiRequest(0)
+					await agentBIterator.next()
+
+					expect(mockDelay).not.toHaveBeenCalled()
+					expect(agentASaySpy).not.toHaveBeenCalledWith(
+						"api_req_rate_limit_wait",
+						expect.anything(),
+						undefined,
+						true,
+					)
+					expect(agentBSaySpy).not.toHaveBeenCalledWith(
+						"api_req_rate_limit_wait",
+						expect.anything(),
+						undefined,
+						true,
+					)
+
+					currentTime += 1
+					const agentASecondIterator = agentA.attemptApiRequest(0)
+					await agentASecondIterator.next()
+
+					expect(mockDelay).toHaveBeenCalledTimes(mockApiConfig.rateLimitSeconds)
+				} finally {
+					performance.now = originalPerformanceNow
+				}
+			}, 10000)
 
 			it("should handle rate limiting with zero rate limit", async () => {
 				// Update config to have zero rate limit

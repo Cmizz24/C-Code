@@ -45,6 +45,8 @@ type DisplayAgentActivity = AgentActivity & {
 
 const AGENT_ACTIVITY_TRANSCRIPT_LIMIT = 50
 const AGENT_ACTIVITY_DISPLAY_LIMIT = 12
+const ACTIVITY_AGE_UPDATE_INTERVAL_MS = 1_000
+const MIN_REAL_ACTIVITY_TS = 946_684_800_000
 
 const phaseLabels: Record<NonNullable<ClineSayTool["parallelStatus"]>, string> = {
 	running: "running",
@@ -106,6 +108,41 @@ const getActivityKind = (activity: AgentActivity): AgentActivityKind => activity
 
 const getActivityKey = (activity: AgentActivity, index: number): string =>
 	`${activity.agentId}:${activity.ts}:${getActivityKind(activity)}:${index}:${activity.message}`
+
+const isRealActivityTimestamp = (ts: number | undefined, now: number): ts is number =>
+	typeof ts === "number" && Number.isFinite(ts) && ts >= MIN_REAL_ACTIVITY_TS && ts <= now + 60_000
+
+const getActivityElapsedLabel = (activity: AgentActivity | undefined, now: number): string | undefined => {
+	if (!activity || !isRealActivityTimestamp(activity.ts, now)) {
+		return undefined
+	}
+
+	const elapsedSeconds = Math.max(0, Math.floor((now - activity.ts) / 1_000))
+
+	if (elapsedSeconds < 5) {
+		return "just now"
+	}
+
+	if (elapsedSeconds < 60) {
+		return `${elapsedSeconds}s ago`
+	}
+
+	const elapsedMinutes = Math.floor(elapsedSeconds / 60)
+	if (elapsedMinutes < 60) {
+		return `${elapsedMinutes}m ago`
+	}
+
+	const elapsedHours = Math.floor(elapsedMinutes / 60)
+	return `${elapsedHours}h ago`
+}
+
+const getActivityTimestampLabel = (activity: AgentActivity, now: number): string | undefined => {
+	if (!isRealActivityTimestamp(activity.ts, now)) {
+		return undefined
+	}
+
+	return new Date(activity.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+}
 
 const shouldShowExpandedActivity = (activity: AgentActivity): boolean => {
 	const kind = getActivityKind(activity)
@@ -347,6 +384,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 	const { t } = useAppTranslation()
 	const { activeExecutionPlan, customModes } = useExtensionState()
 	const executionPlan = tool?.executionPlan ?? activeExecutionPlan
+	const phase = tool?.parallelStatus
 	const agentIds = useMemo(() => new Set(executionPlan?.agents.map((agent) => agent.id) ?? []), [executionPlan])
 	const seededStatusUpdates = useMemo(
 		() => Object.fromEntries((tool?.agentStatusUpdates ?? []).map((update) => [update.agentId, update])),
@@ -370,6 +408,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 	const [expandedAgentIds, setExpandedAgentIds] = useState<Set<string>>(() => new Set())
 	const [isMergeReviewExpanded, setIsMergeReviewExpanded] = useState(false)
 	const [expandedMergeReviewDiffIds, setExpandedMergeReviewDiffIds] = useState<Set<string>>(() => new Set())
+	const [now, setNow] = useState(() => Date.now())
 	const mergeReviewEntries = useMemo(() => tool?.mergeReviewEntries ?? [], [tool?.mergeReviewEntries])
 
 	useEffect(() => {
@@ -383,6 +422,15 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 		setIsMergeReviewExpanded(false)
 		setExpandedMergeReviewDiffIds(new Set())
 	}, [executionPlan?.planId])
+
+	useEffect(() => {
+		if (!executionPlan || (phase && phaseTerminalStatuses.has(phase))) {
+			return
+		}
+
+		const timer = window.setInterval(() => setNow(Date.now()), ACTIVITY_AGE_UPDATE_INTERVAL_MS)
+		return () => window.clearInterval(timer)
+	}, [executionPlan, phase])
 
 	const toggleExpandedAgent = (agentId: string) => {
 		setExpandedAgentIds((prev) => {
@@ -486,7 +534,6 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 		return () => window.removeEventListener("message", handleMessage)
 	}, [agentIds])
 
-	const phase = tool?.parallelStatus
 	const agents = useMemo(() => {
 		if (!executionPlan) {
 			return []
@@ -810,6 +857,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 							const agentLabel = getAgentModeLabel(agent.mode, customModes)
 							const usage = getUsageSummary(agent.usage)
 							const activity = agent.activity?.message
+							const activityElapsed = getActivityElapsedLabel(agent.activity, now)
 							const activityEvents = agent.activities
 							const isExpanded = expandedAgentIds.has(agent.id)
 							const detailsId = `agent-details-${agent.id}`
@@ -872,9 +920,16 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 											{activity && (
 												<div
 													data-testid="agent-activity"
-													className="mt-0.5 truncate text-[11px] text-vscode-descriptionForeground">
+													className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-vscode-descriptionForeground">
 													<span className="codicon codicon-comment-discussion mr-1" />
-													{activity}
+													<span className="min-w-0 truncate">{activity}</span>
+													{activityElapsed && (
+														<span
+															data-testid="agent-activity-elapsed"
+															className="shrink-0 text-vscode-descriptionForeground/75">
+															{activityElapsed}
+														</span>
+													)}
 												</div>
 											)}
 										</div>
@@ -906,6 +961,14 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 																const kind = getActivityKind(activityEvent)
 																const repeatCount = activityEvent.count ?? 1
 																const activityKey = getActivityKey(activityEvent, index)
+																const timestampLabel = getActivityTimestampLabel(
+																	activityEvent,
+																	now,
+																)
+																const elapsedLabel = getActivityElapsedLabel(
+																	activityEvent,
+																	now,
+																)
 
 																return (
 																	<Fragment key={activityKey}>
@@ -927,11 +990,19 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 																				)}
 																			/>
 																			<div className="min-w-0 flex-1 rounded-sm bg-vscode-sideBar-background/40 px-2 py-1">
-																				<div className="mb-0.5 flex items-center gap-1.5 capitalize text-vscode-descriptionForeground/80">
+																				<div className="mb-0.5 flex min-w-0 flex-wrap items-center gap-1.5 capitalize text-vscode-descriptionForeground/80">
 																					<span>{kind}</span>
 																					{repeatCount > 1 && (
 																						<span data-testid="agent-activity-repeat-count">
 																							×{repeatCount}
+																						</span>
+																					)}
+																					{timestampLabel && elapsedLabel && (
+																						<span
+																							data-testid="agent-activity-timestamp"
+																							className="normal-case text-vscode-descriptionForeground/70">
+																							{timestampLabel} ·{" "}
+																							{elapsedLabel}
 																						</span>
 																					)}
 																				</div>

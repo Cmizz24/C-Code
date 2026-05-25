@@ -308,6 +308,38 @@ describe("OrchestratorEventLoop", () => {
 		])
 	})
 
+	it("starts every initially runnable agent before any child completes", async () => {
+		const startedAgents: string[] = []
+		const spawnedTasks = new Map<string, TestTask>()
+		const provider = createProvider({
+			createTask: vi.fn(async (_message, _images, _parentTask, options) => {
+				const agentId = options?.agentId ?? "unknown"
+				const task = createTask(`child-${agentId}`)
+				task.start = vi.fn(() => startedAgents.push(agentId))
+				spawnedTasks.set(agentId, task)
+				return task
+			}),
+		})
+
+		new OrchestratorEventLoop(provider, AgentBus.getInstance(), { maxConcurrentAgents: 3 }).start(
+			createMultiAgentPlan(3),
+		)
+
+		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(3))
+		expect(startedAgents).toEqual(["agent-1", "agent-2", "agent-3"])
+		expect(
+			AgentBus.getInstance()
+				.getExecutionPlan()
+				?.agents.map((agent) => agent.status),
+		).toEqual(["running", "running", "running"])
+
+		spawnedTasks.get("agent-1")?.emit(RooCodeEventName.TaskCompleted)
+
+		await vi.waitFor(() => expect(AgentBus.getInstance().getAgent("agent-1")?.status).toBe("complete"))
+		expect(AgentBus.getInstance().getAgent("agent-2")?.status).toBe("running")
+		expect(AgentBus.getInstance().getAgent("agent-3")?.status).toBe("running")
+	})
+
 	it("preserves dependency blocking while filling available concurrency slots", async () => {
 		const spawnedTasks = new Map<string, TestTask>()
 		const plan = createMultiAgentPlan(3)
