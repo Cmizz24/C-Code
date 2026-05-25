@@ -331,8 +331,7 @@ export const TOOL_GROUPS: Record<ToolGroup, ToolGroupConfig> = {
 		tools: ["read_file", "search_files", "list_files", "codebase_search"],
 	},
 	edit: {
-		tools: ["apply_diff", "write_to_file", "generate_image"],
-		customTools: ["edit", "search_replace", "edit_file", "apply_patch"],
+		tools: ["apply_diff", "write_to_file", "edit", "search_replace", "edit_file", "apply_patch", "generate_image"],
 	},
 	command: {
 		tools: ["execute_command", "read_command_output"],

@@ -29,7 +29,9 @@ import {
 	type ExtensionMessage,
 	type ExtensionState,
 	type AgentEvent,
+	type AgentDependency,
 	type AgentActivityEvent,
+	type AgentCoordinationEvent,
 	type AgentStatus,
 	type AgentStatusUpdate,
 	type WriteIntentConflict,
@@ -130,6 +132,7 @@ export type PlanApprovalResult =
 
 type ParallelAgentToolStatus = NonNullable<ClineSayTool["parallelStatus"]>
 type ParallelAgentActivity = AgentActivityEvent
+type ParallelAgentCoordinationEvent = AgentCoordinationEvent
 type ParallelAgentUsageSummary = NonNullable<ClineSayTool["parallelUsageSummary"]>
 type BackgroundAgentActivityDescription = Pick<ParallelAgentActivity, "kind" | "message">
 type BackgroundAgentActivityDescriptionOptions = {
@@ -157,6 +160,7 @@ type AutoMergeReviewDecision = {
 }
 
 const PARALLEL_AGENT_ACTIVITY_LIMIT = 50
+const PARALLEL_AGENT_COORDINATION_LIMIT = 24
 const PARALLEL_REVIEW_SUMMARY_PATH = ".roo/parallel-agent-review.md"
 
 export class ClineProvider
@@ -194,6 +198,7 @@ export class ClineProvider
 	private parallelMergeReviewEntries?: MergeReviewEntry[]
 	private readonly parallelAgentStatusUpdates = new Map<string, AgentStatusUpdate>()
 	private readonly parallelAgentActivities = new Map<string, ParallelAgentActivity[]>()
+	private parallelAgentCoordinationEvents: ParallelAgentCoordinationEvent[] = []
 	private readonly parallelWriteConflicts = new Map<string, WriteIntentConflict>()
 	private parallelUsageSummary?: ParallelAgentUsageSummary
 	private parallelReviewSummary?: ParallelAgentReviewSummary
@@ -232,12 +237,24 @@ export class ClineProvider
 					this.postAgentStatusUpdate(update)
 					this.recordParallelAgentStatus(update)
 					this.recordParallelAgentActivity(event.agentId, `Writing ${event.path}.`, "file")
+					this.recordParallelAgentCoordinationEvent({
+						agentId: event.agentId,
+						kind: "ownership",
+						message: `Agent ${event.agentId} is writing ${event.path}.`,
+					})
 				} else {
 					this.deniedWriteReasons.set(this.getConflictKey(event.agentId, event.path), event.permission.reason)
 				}
 				break
 			case "CONFLICT_QUERY":
 				this.postWriteIntentDenied(event.agentId, event.path, event.ownerAgentId)
+				this.recordParallelAgentCoordinationEvent({
+					agentId: event.agentId,
+					kind: "ownership",
+					message: event.ownerAgentId
+						? `Agent ${event.agentId} requested ${event.path}, currently owned by ${event.ownerAgentId}.`
+						: `Agent ${event.agentId} requested ${event.path}, which has no assigned owner.`,
+				})
 				break
 			case "INTENT_CLEARED":
 				this.postMessageToWebview({
@@ -246,6 +263,11 @@ export class ClineProvider
 				}).catch(() => {})
 				this.parallelWriteConflicts.delete(this.getConflictKey(event.agentId, event.path))
 				this.recordParallelAgentActivity(event.agentId, `Write access cleared for ${event.path}.`, "file")
+				this.recordParallelAgentCoordinationEvent({
+					agentId: event.agentId,
+					kind: "ownership",
+					message: `Agent ${event.agentId} released write access for ${event.path}.`,
+				})
 				break
 			case "BLOCKED":
 				{
@@ -258,6 +280,15 @@ export class ClineProvider
 					this.postAgentStatusUpdate(update)
 					this.recordParallelAgentStatus(update)
 					this.recordParallelAgentActivity(event.agentId, `Blocked: ${event.reason}`, "wait")
+					this.recordParallelAgentCoordinationEvent({
+						agentId: event.agentId,
+						kind: "dependency",
+						message: event.blockedOn?.length
+							? `Agent ${event.agentId} is waiting for ${event.blockedOn
+									.map((dependency) => this.describeAgentDependency(dependency))
+									.join(", ")}.`
+							: `Agent ${event.agentId} is blocked until coordination clears.`,
+					})
 				}
 				break
 			case "COMPLETE":
@@ -274,6 +305,11 @@ export class ClineProvider
 						event.result ? `Completed: ${event.result}` : "Completed.",
 						"completion",
 					)
+					this.recordParallelAgentCoordinationEvent({
+						agentId: event.agentId,
+						kind: "completion",
+						message: `Agent ${event.agentId} completed its assigned work.`,
+					})
 				}
 				break
 			case "FAILED":
@@ -290,6 +326,11 @@ export class ClineProvider
 				break
 			case "SIGNAL":
 				this.recordParallelAgentActivity(event.agentId, `Signaled ${event.signal}.`, "signal")
+				this.recordParallelAgentCoordinationEvent({
+					agentId: event.agentId,
+					kind: "signal",
+					message: `Agent ${event.agentId} signaled ${event.signal}.`,
+				})
 				break
 		}
 	}
@@ -2917,6 +2958,7 @@ export class ClineProvider
 		}
 
 		this.activeExecutionPlan = plan
+		this.recordInitialParallelAgentCoordination(plan)
 		await this.updateParallelAgentStatusMessage("running")
 		this.orchestratorEventLoop = new OrchestratorEventLoop(this, AgentBus.getInstance(), {
 			maxConcurrentAgents: maxParallelAgents,
@@ -3459,6 +3501,7 @@ export class ClineProvider
 		this.parallelReviewSummary = undefined
 		this.parallelAgentStatusUpdates.clear()
 		this.parallelAgentActivities.clear()
+		this.parallelAgentCoordinationEvents = []
 		this.parallelWriteConflicts.clear()
 	}
 
@@ -3577,6 +3620,7 @@ export class ClineProvider
 			agentStatusUpdates: Array.from(this.parallelAgentStatusUpdates.values()),
 			writeIntentConflicts: Array.from(this.parallelWriteConflicts.values()),
 			agentActivities: this.getParallelAgentActivities(),
+			agentCoordinationEvents: this.parallelAgentCoordinationEvents,
 			parallelUsageSummary: this.parallelUsageSummary,
 			parallelReviewSummary: this.parallelReviewSummary,
 			mergeReviewEntries,
@@ -3664,6 +3708,9 @@ export class ClineProvider
 				[...previous, activity].slice(-PARALLEL_AGENT_ACTIVITY_LIMIT),
 			)
 		}
+		this.parallelAgentCoordinationEvents = (reviewMessage.agentCoordinationEvents ?? []).slice(
+			-PARALLEL_AGENT_COORDINATION_LIMIT,
+		)
 		this.parallelWriteConflicts.clear()
 		for (const conflict of reviewMessage.writeIntentConflicts ?? []) {
 			this.parallelWriteConflicts.set(this.getConflictKey(conflict.agentId, conflict.filePath), conflict)
@@ -3919,6 +3966,78 @@ export class ClineProvider
 		this.scheduleParallelAgentStatusMessageUpdate()
 	}
 
+	private recordInitialParallelAgentCoordination(plan: ExecutionPlan): void {
+		const ts = Date.now()
+		const events: ParallelAgentCoordinationEvent[] = []
+		const addEvent = (event: Omit<ParallelAgentCoordinationEvent, "ts">) => {
+			events.push({ ...event, ts })
+		}
+
+		if (plan.sharedContext.trim()) {
+			addEvent({
+				kind: "shared-context",
+				message: "Shared context and contracts were provided to all agents.",
+			})
+		}
+
+		for (const agent of plan.agents) {
+			const writableOwnerships = agent.owns
+				.filter((ownership) => ownership.mode !== "read-only")
+				.map((ownership) => ownership.path)
+
+			if (writableOwnerships.length > 0) {
+				addEvent({
+					agentId: agent.id,
+					kind: "ownership",
+					message: `Agent ${agent.id} owns ${this.formatCoordinationPathList(writableOwnerships)}.`,
+				})
+			}
+
+			for (const dependency of agent.dependsOn) {
+				addEvent({
+					agentId: agent.id,
+					kind: "dependency",
+					message: `Agent ${agent.id} waits for ${this.describeAgentDependency(dependency)}.`,
+				})
+			}
+		}
+
+		this.parallelAgentCoordinationEvents = [...this.parallelAgentCoordinationEvents, ...events].slice(
+			-PARALLEL_AGENT_COORDINATION_LIMIT,
+		)
+	}
+
+	private recordParallelAgentCoordinationEvent(
+		event: Omit<ParallelAgentCoordinationEvent, "ts"> & { ts?: number },
+	): void {
+		if (!this.activeExecutionPlan) {
+			return
+		}
+
+		this.parallelAgentCoordinationEvents = [
+			...this.parallelAgentCoordinationEvents,
+			{ ...event, ts: event.ts ?? Date.now() },
+		].slice(-PARALLEL_AGENT_COORDINATION_LIMIT)
+		this.scheduleParallelAgentStatusMessageUpdate()
+	}
+
+	private describeAgentDependency(dependency: AgentDependency): string {
+		if (dependency.waitFor === "signal") {
+			return dependency.signal
+				? `${dependency.agentId} to signal ${dependency.signal}`
+				: `${dependency.agentId} to signal`
+		}
+
+		return `${dependency.agentId} to complete`
+	}
+
+	private formatCoordinationPathList(paths: string[]): string {
+		const visiblePaths = paths.slice(0, 3).join(", ")
+		const remainingCount = paths.length - 3
+
+		return remainingCount > 0 ? `${visiblePaths}, and ${remainingCount} more` : visiblePaths
+	}
+
 	private handleBackgroundAgentMessage(task: Task, action: "created" | "updated", message: ClineMessage): void {
 		if (!task.background || !task.agentId || !this.activeExecutionPlan) {
 			return
@@ -4029,11 +4148,6 @@ export class ClineProvider
 	}
 
 	private describeApiRequestActivity(agentId: string | undefined, options: { partial?: boolean } = {}): string {
-		const recentActivity = agentId ? this.getLastActionableParallelAgentActivity(agentId) : undefined
-		if (recentActivity) {
-			return `Requesting the next model action after ${recentActivity}`
-		}
-
 		const status = agentId ? this.getAgentStatus(agentId) : undefined
 		switch (status) {
 			case "pending":
@@ -4049,26 +4163,6 @@ export class ClineProvider
 			default:
 				return options.partial ? "Streaming the next model action." : "Requesting the next model action."
 		}
-	}
-
-	private getLastActionableParallelAgentActivity(agentId: string): string | undefined {
-		const activities = this.parallelAgentActivities.get(agentId)
-		if (!activities?.length) {
-			return undefined
-		}
-
-		for (const activity of [...activities].reverse()) {
-			if (activity.kind === "thinking" || activity.kind === "wait" || activity.kind === "status") {
-				continue
-			}
-
-			const normalized = activity.message.replace(/[.。]\s*$/, "").trim()
-			if (normalized) {
-				return normalized.charAt(0).toLowerCase() + normalized.slice(1)
-			}
-		}
-
-		return undefined
 	}
 
 	private withAgentActivities(update: AgentStatusUpdate): AgentStatusUpdate {

@@ -1,6 +1,6 @@
 import type OpenAI from "openai"
 
-const PLAN_PARALLEL_TASKS_DESCRIPTION = `Create an execution plan for independent agents only when the user explicitly asks for parallel agents or the work can be split across multiple agents that own non-conflicting files. Do not use this tool for simple single-file edits or ordinary sequential implementation. Use sharedContext and each agent task to document planned interface contracts so agents with non-conflicting ownership can start together. Add dependsOn only for true runtime blockers; prefer signal dependencies for a narrow handoff, and avoid waitFor=complete when another agent's planned contract is sufficient. After the user approves the plan, Roo starts the agents programmatically as normal single-scope specialist tasks; do not call new_task for these parallel agents. The tool validates file ownership conflicts and dependency cycles, then registers the plan for write coordination.`
+const PLAN_PARALLEL_TASKS_DESCRIPTION = `Create an execution plan for independent agents only when the user explicitly asks for parallel agents or the work can be split across multiple agents that own non-conflicting files. Do not use this tool for simple single-file edits or ordinary sequential implementation. Use sharedContext and each agent task to document planned interface, DOM, API, README, onboarding, and documentation contracts so agents with non-conflicting ownership can start together. Add dependsOn only for true runtime blockers; prefer signal dependencies for a narrow handoff, and avoid waitFor=complete when another agent's planned contract is sufficient. Do not make independent implementation agents depend on README, onboarding, or documentation agents; if that context is truly required, generate or verify it before creating the parallel plan. After the user approves the plan, Roo starts the agents programmatically as normal single-scope specialist tasks; do not call new_task for these parallel agents. The tool validates file ownership conflicts and dependency cycles, then registers the plan for write coordination.`
 
 export interface PlanParallelTasksToolOptions {
 	/** Maximum total agents allowed in a single plan. */
@@ -79,7 +79,7 @@ export function createPlanParallelTasksTool(
 								dependsOn: {
 									type: "array",
 									description:
-										"True blockers that must complete or signal before this agent runs. Leave empty when agents own non-conflicting files and can use sharedContext/task-level contracts instead. Prefer waitFor=signal for a narrow handoff; use waitFor=complete only when the dependent agent cannot safely start from the planned contract.",
+										"True blockers that must complete or signal before this agent runs. Leave empty when agents own non-conflicting files and can use sharedContext/task-level contracts instead. Prefer waitFor=signal for a narrow handoff; use waitFor=complete only when the dependent agent cannot safely start from the planned contract. Do not add README/onboarding/documentation agents as dependencies for independent implementation agents.",
 									items: {
 										type: "object",
 										properties: {

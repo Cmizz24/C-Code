@@ -35,6 +35,15 @@ export interface AgentActivityEvent {
 	kind?: AgentActivityKind
 }
 
+export type AgentCoordinationKind = "shared-context" | "ownership" | "dependency" | "signal" | "completion"
+
+export interface AgentCoordinationEvent {
+	agentId?: string
+	message: string
+	ts: number
+	kind: AgentCoordinationKind
+}
+
 export interface AgentPlan {
 	id: string
 	mode: string

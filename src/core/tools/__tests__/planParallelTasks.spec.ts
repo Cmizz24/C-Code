@@ -160,6 +160,46 @@ describe("handlePlanParallelTasks", () => {
 		}
 	})
 
+	it("removes README and onboarding dependencies from independent implementation agents", () => {
+		const result = handlePlanParallelTasks(
+			{
+				goal: "Implement the feature while documenting onboarding steps",
+				sharedContext:
+					"Implementation agents can use the API, DOM, README, and onboarding contracts described here without waiting for docs work to complete.",
+				agents: [
+					{
+						id: "readme-agent",
+						mode: "onboarding",
+						task: "Update README and contributor onboarding documentation.",
+						owns: [{ path: "README.md", mode: "exclusive" }],
+					},
+					{
+						id: "feature-agent",
+						mode: "code",
+						task: "Implement the feature using the shared README and onboarding contract.",
+						owns: [{ path: "src/feature.ts", mode: "exclusive" }],
+						dependsOn: [{ agentId: "readme-agent", waitFor: "complete" }],
+					},
+				],
+			},
+			"/repo",
+		)
+
+		expect(result.ok).toBe(true)
+		if (result.ok) {
+			expect(result.plan.agents.find((agent) => agent.id === "feature-agent")?.status).toBe("pending")
+			expect(result.plan.agents.find((agent) => agent.id === "feature-agent")?.dependsOn).toEqual([])
+			expect(result.plan.sharedContext).toContain("README")
+			expect(result.warnings).toEqual(
+				expect.arrayContaining([
+					expect.stringContaining(
+						"dependency on documentation/onboarding agent readme-agent was removed so independent implementation work can start in parallel",
+					),
+				]),
+			)
+		}
+	})
+
 	it("warns when a completion dependency blocks agents with non-conflicting ownership", () => {
 		const result = handlePlanParallelTasks(
 			{

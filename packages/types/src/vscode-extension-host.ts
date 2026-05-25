@@ -17,6 +17,7 @@ import type { SkillMetadata } from "./skills.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
 import type {
 	AgentActivityEvent,
+	AgentCoordinationEvent,
 	AgentStatusUpdate,
 	ExecutionPlan,
 	MergeReviewEntry,
@@ -751,6 +752,7 @@ export interface ClineSayTool {
 	agentStatusUpdates?: AgentStatusUpdate[]
 	writeIntentConflicts?: WriteIntentConflict[]
 	agentActivities?: AgentActivityEvent[]
+	agentCoordinationEvents?: AgentCoordinationEvent[]
 	parallelUsageSummary?: {
 		totalTokensIn: number
 		totalTokensOut: number

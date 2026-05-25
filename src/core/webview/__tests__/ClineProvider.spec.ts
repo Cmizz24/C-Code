@@ -1063,6 +1063,64 @@ describe("ClineProvider", () => {
 		)
 	})
 
+	test("parallel coordination events are serialized into the persisted parallelAgents tool message", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		const plan = createExecutionPlan()
+		plan.agents[1] = {
+			...plan.agents[1],
+			dependsOn: [{ agentId: "dashboard-agent", waitFor: "signal", signal: "dom-ready" }],
+			status: "blocked",
+		}
+
+		await provider.approveExecutionPlan(plan)
+
+		const bus = AgentBus.getInstance()
+		bus.requestWriteIntent("dashboard-agent", "src/dashboard.tsx")
+		bus.markBlocked("styles-agent", "Waiting for DOM contract", [
+			{ agentId: "dashboard-agent", waitFor: "signal", signal: "dom-ready" },
+		])
+		bus.markComplete("dashboard-agent", "Dashboard done")
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.agentCoordinationEvents).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						kind: "shared-context",
+						message: "Shared context and contracts were provided to all agents.",
+					}),
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "ownership",
+						message: "Agent dashboard-agent owns src/dashboard.tsx.",
+					}),
+					expect.objectContaining({
+						agentId: "styles-agent",
+						kind: "dependency",
+						message: "Agent styles-agent waits for dashboard-agent to signal dom-ready.",
+					}),
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "completion",
+						message: "Agent dashboard-agent completed its assigned work.",
+					}),
+				]),
+			)
+			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toContain("Dashboard done")
+		})
+	})
+
 	test("rapid AgentBus updates serialize persisted parallelAgents message saves without overlap", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const parentTask = new Task(defaultTaskOptions)
@@ -1258,8 +1316,7 @@ describe("ClineProvider", () => {
 					expect.objectContaining({
 						agentId: "dashboard-agent",
 						kind: "thinking",
-						message:
-							"Requesting the next model action after created isolated worktree at /tmp/dashboard-agent",
+						message: "Requesting the next model action.",
 						ts: 1_500,
 					}),
 					expect.objectContaining({

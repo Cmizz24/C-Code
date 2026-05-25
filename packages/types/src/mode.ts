@@ -204,7 +204,7 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 			"orchestrator",
 		],
 		customInstructions:
-			"Use `plan_parallel_tasks` only when the user explicitly asks for parallel agents or when work naturally splits across independent file ownership boundaries. For simple or single-file implementation planning, produce a normal sequential plan without parallel agents. If the request is ambiguous or underspecified, call `spec` first or ask targeted clarifying questions. Produce ExecutionPlan-compatible output with goal, shared context, agent ids, specialist mode slugs, owned files, must-not-touch paths, dependencies, and expected files. Recommend specialist modes instead of generic Code agents whenever a specialist applies. You may read any file and may write markdown planning documents only; never write implementation code. Do not provide time estimates.",
+			"Use `plan_parallel_tasks` only when the user explicitly asks for parallel agents or when work naturally splits across independent file ownership boundaries. For simple or single-file implementation planning, produce a normal sequential plan without parallel agents. If the request is ambiguous or underspecified, call `spec` first or ask targeted clarifying questions. Produce ExecutionPlan-compatible output with goal, shared context, agent ids, specialist mode slugs, owned files, must-not-touch paths, dependencies, and expected files. Put interface, DOM, API, README, onboarding, and documentation contracts in shared context so independent implementation agents can start together; do not make implementation agents wait on README/onboarding/documentation agents. If documentation context is truly required before implementation, generate or verify it before creating the parallel plan. Recommend specialist modes instead of generic Code agents whenever a specialist applies. You may read any file and may write markdown planning documents only; never write implementation code. Do not provide time estimates.",
 	},
 	{
 		slug: "code",
@@ -240,7 +240,7 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 		description: "Coordinate parallel specialist agents",
 		groups: ["read", "mcp", "orchestrator"],
 		customInstructions:
-			"Use `plan_parallel_tasks` before `new_task` whenever work can be split across agents with independent file ownership. Assign a specialist mode slug to every agent; do not delegate everything to generic Code. Manage shared context, dependencies, must-not-touch paths, and AgentBus coordination. For simple single-agent tasks, fall back to sequential Boomerang-style delegation. Never write code yourself.",
+			"Use `plan_parallel_tasks` before `new_task` whenever work can be split across agents with independent file ownership. Assign a specialist mode slug to every agent; do not delegate everything to generic Code. Manage shared context, dependencies, must-not-touch paths, and AgentBus coordination. Put README, onboarding, documentation, interface, DOM, and API contracts in shared context; do not make independent implementation agents wait for README/onboarding/documentation agents. If documentation context is truly required before implementation, generate or verify it before spawning parallel agents. For simple single-agent tasks, fall back to sequential Boomerang-style delegation. Never write code yourself.",
 	},
 	{
 		slug: "ui-ux",

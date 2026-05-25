@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react"
 import type {
 	AgentActivityEvent,
+	AgentCoordinationEvent,
 	AgentPlan,
 	AgentStatus,
 	AgentStatusUpdate,
@@ -38,6 +39,8 @@ interface AgentStatusPanelProps {
 
 type AgentActivity = NonNullable<ClineSayTool["agentActivities"]>[number]
 type AgentActivityKind = NonNullable<AgentActivityEvent["kind"]>
+type AgentCoordination = NonNullable<ClineSayTool["agentCoordinationEvents"]>[number]
+type AgentCoordinationKind = AgentCoordinationEvent["kind"]
 type DisplayAgentActivity = AgentActivity & {
 	count?: number
 	hiddenBefore?: number
@@ -45,6 +48,7 @@ type DisplayAgentActivity = AgentActivity & {
 
 const AGENT_ACTIVITY_TRANSCRIPT_LIMIT = 50
 const AGENT_ACTIVITY_DISPLAY_LIMIT = 12
+const AGENT_COORDINATION_DISPLAY_LIMIT = 8
 const ACTIVITY_AGE_UPDATE_INTERVAL_MS = 1_000
 const MIN_REAL_ACTIVITY_TS = 946_684_800_000
 
@@ -120,12 +124,33 @@ const activityKindLabels: Record<AgentActivityKind, string> = {
 	file: "file",
 }
 
+const coordinationIconClasses: Record<AgentCoordinationKind, string> = {
+	"shared-context": "codicon-references text-vscode-focusBorder",
+	ownership: "codicon-lock text-vscode-focusBorder",
+	dependency: "codicon-link text-vscode-editorWarning-foreground",
+	signal: "codicon-broadcast text-vscode-focusBorder",
+	completion: "codicon-check text-vscode-charts-green",
+}
+
+const coordinationKindLabels: Record<AgentCoordinationKind, string> = {
+	"shared-context": "contract",
+	ownership: "ownership",
+	dependency: "dependency",
+	signal: "signal",
+	completion: "completion",
+}
+
 const getActivityKind = (activity: AgentActivity): AgentActivityKind => activity.kind ?? "status"
 
 const getActivityKindLabel = (activity: AgentActivity): string => activityKindLabels[getActivityKind(activity)]
 
+const getCoordinationKindLabel = (event: AgentCoordination): string => coordinationKindLabels[event.kind]
+
 const getActivityKey = (activity: AgentActivity, index: number): string =>
 	`${activity.agentId}:${activity.ts}:${getActivityKind(activity)}:${index}:${activity.message}`
+
+const getCoordinationKey = (event: AgentCoordination, index: number): string =>
+	`${event.agentId ?? "plan"}:${event.ts}:${event.kind}:${index}:${event.message}`
 
 const isRealActivityTimestamp = (ts: number | undefined, now: number): ts is number =>
 	typeof ts === "number" && Number.isFinite(ts) && ts >= MIN_REAL_ACTIVITY_TS && ts <= now + 60_000
@@ -160,6 +185,14 @@ const getActivityTimestampLabel = (activity: AgentActivity, now: number): string
 	}
 
 	return new Date(activity.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+}
+
+const getCoordinationTimestampLabel = (event: AgentCoordination, now: number): string | undefined => {
+	if (!isRealActivityTimestamp(event.ts, now)) {
+		return undefined
+	}
+
+	return new Date(event.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
 }
 
 const shouldShowExpandedActivity = (activity: AgentActivity): boolean => {
@@ -240,6 +273,9 @@ const getDisplayAgentActivities = (activities: AgentActivity[] = []): DisplayAge
 
 const sortAgentActivities = (activities: AgentActivity[]): AgentActivity[] =>
 	[...activities].sort((a, b) => a.ts - b.ts).slice(-AGENT_ACTIVITY_TRANSCRIPT_LIMIT)
+
+const sortAgentCoordinationEvents = (events: AgentCoordination[] = []): AgentCoordination[] =>
+	[...events].sort((a, b) => a.ts - b.ts).slice(-AGENT_COORDINATION_DISPLAY_LIMIT)
 
 const mergeAgentActivityLists = (
 	previous: AgentActivity[],
@@ -348,7 +384,7 @@ const getStaleDiffCurrentActivityFallback = (
 	return {
 		...activity,
 		kind: "wait",
-		message: `Working on ${match[1]} after diff request...`,
+		message: "Continuing work after diff request.",
 	}
 }
 
@@ -420,9 +456,14 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 		() => groupAgentActivities(tool?.agentActivities ?? []),
 		[tool?.agentActivities],
 	)
+	const seededCoordinationEvents = useMemo<AgentCoordination[]>(
+		() => sortAgentCoordinationEvents(tool?.agentCoordinationEvents ?? []),
+		[tool?.agentCoordinationEvents],
+	)
 	const [statusUpdates, setStatusUpdates] = useState<Record<string, AgentStatusUpdate>>(seededStatusUpdates)
 	const [conflicts, setConflicts] = useState<ConflictBanner[]>(seededConflicts)
 	const [activities, setActivities] = useState<Record<string, AgentActivity[]>>(seededActivities)
+	const [coordinationEvents, setCoordinationEvents] = useState<AgentCoordination[]>(seededCoordinationEvents)
 	const [expandedAgentIds, setExpandedAgentIds] = useState<Set<string>>(() => new Set())
 	const [isMergeReviewExpanded, setIsMergeReviewExpanded] = useState(false)
 	const [expandedMergeReviewDiffIds, setExpandedMergeReviewDiffIds] = useState<Set<string>>(() => new Set())
@@ -433,7 +474,8 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 		setStatusUpdates(seededStatusUpdates)
 		setConflicts(seededConflicts)
 		setActivities(seededActivities)
-	}, [executionPlan?.planId, seededActivities, seededConflicts, seededStatusUpdates])
+		setCoordinationEvents(seededCoordinationEvents)
+	}, [executionPlan?.planId, seededActivities, seededConflicts, seededCoordinationEvents, seededStatusUpdates])
 
 	useEffect(() => {
 		setExpandedAgentIds(new Set())
@@ -604,6 +646,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 			: undefined
 	const phaseLabel = phase ? phaseLabels[phase] : overallStatus
 	const reviewSummaryMarkdown = tool?.parallelReviewSummary?.markdown?.trim()
+	const coordinationFeedEvents = sortAgentCoordinationEvents(coordinationEvents)
 
 	return (
 		<section
@@ -659,6 +702,51 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 							<pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px] text-vscode-foreground">
 								{reviewSummaryMarkdown}
 							</pre>
+						</div>
+					)}
+
+					{coordinationFeedEvents.length > 0 && (
+						<div
+							data-testid="agent-coordination-feed"
+							aria-label="Agent coordination"
+							className="mt-2 rounded border border-vscode-sideBar-background bg-vscode-sideBar-background/20 p-2 text-[11px] text-vscode-descriptionForeground">
+							<div className="mb-1 flex items-center gap-1.5 text-vscode-foreground">
+								<span className="codicon codicon-radio-tower shrink-0" />
+								<span className="font-medium">Coordination</span>
+								<span className="text-vscode-descriptionForeground">read-only</span>
+							</div>
+							<ol className="flex flex-col gap-1">
+								{coordinationFeedEvents.map((event, index) => {
+									const timestampLabel = getCoordinationTimestampLabel(event, now)
+
+									return (
+										<li
+											key={getCoordinationKey(event, index)}
+											className="flex min-w-0 flex-wrap items-start gap-x-1.5 gap-y-0.5 text-vscode-descriptionForeground">
+											<span
+												className={cn(
+													"codicon mt-0.5 shrink-0 text-[11px]",
+													coordinationIconClasses[event.kind],
+												)}
+											/>
+											<Badge className="shrink-0 border-vscode-descriptionForeground/30 bg-vscode-descriptionForeground/10 text-[10px] text-vscode-descriptionForeground">
+												{getCoordinationKindLabel(event)}
+											</Badge>
+											{event.agentId && (
+												<span className="shrink-0 text-vscode-foreground">
+													{labelByAgentId.get(event.agentId) ?? event.agentId}
+												</span>
+											)}
+											<span className="min-w-0 flex-1 whitespace-pre-wrap break-words text-vscode-foreground">
+												{event.message}
+											</span>
+											{timestampLabel && (
+												<span className="shrink-0 font-mono text-[10px]">{timestampLabel}</span>
+											)}
+										</li>
+									)
+								})}
+							</ol>
 						</div>
 					)}
 

@@ -318,6 +318,45 @@ describe("AgentStatusPanel", () => {
 		expect(screen.getByTestId("agent-usage-summary")).toHaveTextContent("2/2 reporting · ↑ 1.5K · ↓ 340 · $0.02")
 	})
 
+	it("renders a bounded read-only coordination feed from persisted parallel agent events", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "running",
+			agentCoordinationEvents: [
+				{
+					kind: "shared-context",
+					message: "Shared context and contracts were provided to all agents.",
+					ts: 1,
+				},
+				{
+					agentId: "ui-agent",
+					kind: "ownership",
+					message: "Agent ui-agent owns src/Dashboard.tsx.",
+					ts: 2,
+				},
+				{
+					agentId: "styles-agent",
+					kind: "dependency",
+					message: "Agent styles-agent waits for ui-agent to signal dom-ready.",
+					ts: 3,
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+
+		const feed = screen.getByTestId("agent-coordination-feed")
+		expect(feed).toHaveTextContent("Coordination")
+		expect(feed).toHaveTextContent("read-only")
+		expect(feed).toHaveTextContent("Shared context and contracts were provided to all agents.")
+		expect(feed).toHaveTextContent("Agent ui-agent owns src/Dashboard.tsx.")
+		expect(feed).toHaveTextContent("Agent styles-agent waits for ui-agent to signal dom-ready.")
+		expect(within(feed).queryByRole("button")).not.toBeInTheDocument()
+		expect(within(feed).queryByRole("textbox")).not.toBeInTheDocument()
+	})
+
 	it("renders the serialized parallel review summary inside the tool card", () => {
 		const plan = createPlan()
 		const tool: ClineSayTool = {
@@ -753,9 +792,8 @@ describe("AgentStatusPanel", () => {
 		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
 		fireEvent.click(screen.getAllByTestId("agent-status-toggle")[0])
 
-		expect(screen.getByTestId("agent-activity")).toHaveTextContent(
-			"Working on src/Dashboard.tsx after diff request...",
-		)
+		expect(screen.getByTestId("agent-activity")).toHaveTextContent("Continuing work after diff request.")
+		expect(screen.getByTestId("agent-activity")).not.toHaveTextContent("src/Dashboard.tsx")
 		expect(screen.getByTestId("agent-activity")).not.toHaveTextContent("Applying a diff")
 		expect(
 			within(screen.getByTestId("agent-details")).getByText("Applying a diff to src/Dashboard.tsx."),

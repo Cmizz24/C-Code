@@ -28,6 +28,11 @@ describe("mode-validator", () => {
 					expect(isToolAllowedForMode(tool, codeMode, [])).toBe(true)
 				})
 
+				expect(isToolAllowedForMode("edit", codeMode, [])).toBe(true)
+				expect(isToolAllowedForMode("search_replace", codeMode, [])).toBe(true)
+				expect(isToolAllowedForMode("edit_file", codeMode, [])).toBe(true)
+				expect(isToolAllowedForMode("apply_patch", codeMode, [])).toBe(true)
+
 				expect(isToolAllowedForMode("plan_parallel_tasks", codeMode, [])).toBe(false)
 			})
 
@@ -86,6 +91,10 @@ describe("mode-validator", () => {
 				expect(isToolAllowedForMode("read_file", codeMode, customModes)).toBe(true)
 				// Should not allow tools from other groups
 				expect(isToolAllowedForMode("write_to_file", codeMode, customModes)).toBe(false)
+				expect(isToolAllowedForMode("apply_patch", codeMode, customModes)).toBe(false)
+				expect(isToolAllowedForMode("edit", codeMode, customModes)).toBe(false)
+				expect(isToolAllowedForMode("search_replace", codeMode, customModes)).toBe(false)
+				expect(isToolAllowedForMode("edit_file", codeMode, customModes)).toBe(false)
 			})
 
 			it("respects tool requirements in custom modes", () => {

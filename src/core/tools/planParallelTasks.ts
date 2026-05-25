@@ -98,6 +98,49 @@ function hasWritableOwnershipConflict(left: PlanParallelTasksInputAgent, right: 
 	return false
 }
 
+const DOCUMENTATION_AGENT_TERMS = /(^|[^a-z0-9])(readme|docs?|documentation|onboarding|contributor|guide)([^a-z0-9]|$)/i
+
+function isDocumentationPath(filePath: string): boolean {
+	const normalized = normalizePlanPath(filePath).toLowerCase()
+	const baseName = normalized.split("/").pop() ?? normalized
+
+	if (baseName === "readme.md" || baseName === "readme.mdx") {
+		return true
+	}
+
+	if (!/\.(md|mdx)$/.test(baseName)) {
+		return false
+	}
+
+	return (
+		normalized.startsWith("docs/") ||
+		normalized.includes("/docs/") ||
+		normalized.includes("onboarding") ||
+		normalized.includes("contributor") ||
+		normalized.includes("guide")
+	)
+}
+
+function isDocumentationFocusedAgent(agent: PlanParallelTasksInputAgent): boolean {
+	if (agent.mode === "onboarding") {
+		return true
+	}
+
+	const writableOwnerships = (agent.owns ?? []).filter((ownership) => ownership.mode !== "read-only")
+	const ownsDocumentationOnly =
+		writableOwnerships.length > 0 && writableOwnerships.every((ownership) => isDocumentationPath(ownership.path))
+	const descriptor = `${agent.id} ${agent.mode} ${agent.task}`
+
+	return ownsDocumentationOnly && DOCUMENTATION_AGENT_TERMS.test(descriptor)
+}
+
+function shouldRemoveDocumentationDependency(
+	agent: PlanParallelTasksInputAgent,
+	dependencyAgent: PlanParallelTasksInputAgent,
+): boolean {
+	return !isDocumentationFocusedAgent(agent) && isDocumentationFocusedAgent(dependencyAgent)
+}
+
 function findDependencyCycle(agents: PlanParallelTasksInputAgent[]): string[] | undefined {
 	const graph = new Map(
 		agents.map((agent) => [agent.id, agent.dependsOn?.map((dependency) => dependency.agentId) ?? []]),
@@ -298,14 +341,33 @@ export function handlePlanParallelTasks(
 	}
 
 	for (const agent of agents) {
+		const retainedDependencies: AgentDependency[] = []
 		for (const dependency of agent.dependsOn ?? []) {
 			const dependencyAgent = agents.find((candidate) => candidate.id === dependency.agentId)
 			if (!agentIds.has(dependency.agentId)) {
 				errors.push(`Agent ${agent.id} depends on unknown agent ${dependency.agentId}.`)
+				retainedDependencies.push(dependency)
+				continue
 			}
 			if (dependency.waitFor === "signal" && !dependency.signal) {
 				errors.push(`Agent ${agent.id} has a signal dependency on ${dependency.agentId} without a signal.`)
 			}
+			if (dependencyAgent && shouldRemoveDocumentationDependency(agent, dependencyAgent)) {
+				warnings.push(
+					`Agent ${agent.id} dependency on documentation/onboarding agent ${dependencyAgent.id} was removed so independent implementation work can start in parallel. Move required README, documentation, or onboarding context into sharedContext, or generate it before creating the parallel plan.`,
+				)
+				continue
+			}
+
+			retainedDependencies.push(dependency)
+		}
+
+		agent.dependsOn = retainedDependencies
+	}
+
+	for (const agent of agents) {
+		for (const dependency of agent.dependsOn ?? []) {
+			const dependencyAgent = agents.find((candidate) => candidate.id === dependency.agentId)
 			if (
 				dependency.waitFor === "complete" &&
 				dependencyAgent &&
