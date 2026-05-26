@@ -1,7 +1,7 @@
 import path from "path"
 
 import type { AgentDependency, AgentPlan, ExecutionPlan, FileOwnership } from "@roo-code/types"
-import { normalizeModeSlug } from "../../shared/modes"
+import { getModeBySlug, normalizeModeSlug } from "../../shared/modes"
 
 type PlanParallelTasksInputAgent = {
 	id: string
@@ -96,6 +96,10 @@ function hasWritableOwnershipConflict(left: PlanParallelTasksInputAgent, right: 
 	}
 
 	return false
+}
+
+function modeAllowsWritableOwnership(mode: string): boolean {
+	return getModeBySlug(mode)?.groups.some((group) => (Array.isArray(group) ? group[0] : group) === "edit") ?? false
 }
 
 const DOCUMENTATION_AGENT_TERMS = /(^|[^a-z0-9])(readme|docs?|documentation|onboarding|contributor|guide)([^a-z0-9]|$)/i
@@ -341,6 +345,16 @@ export function handlePlanParallelTasks(
 	}
 
 	for (const agent of agents) {
+		if (
+			agent.mode.trim() &&
+			!modeAllowsWritableOwnership(agent.mode) &&
+			(agent.owns ?? []).some((ownership) => ownership.mode === "exclusive")
+		) {
+			errors.push(
+				`Agent ${agent.id} uses read-only mode ${agent.mode} but has exclusive writable ownership. Assign a write-capable mode such as onboarding for documentation or change ownership to read-only.`,
+			)
+		}
+
 		const retainedDependencies: AgentDependency[] = []
 		for (const dependency of agent.dependsOn ?? []) {
 			const dependencyAgent = agents.find((candidate) => candidate.id === dependency.agentId)

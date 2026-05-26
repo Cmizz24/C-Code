@@ -125,6 +125,30 @@ describe("handlePlanParallelTasks", () => {
 		}
 	})
 
+	it("rejects read-only modes with writable ownership", () => {
+		const result = handlePlanParallelTasks(
+			{
+				goal: "Review documentation updates",
+				agents: [
+					{
+						id: "docs-reviewer",
+						mode: "explain",
+						task: "Explain README improvements without editing files.",
+						owns: [{ path: "README.md", mode: "exclusive" }],
+					},
+				],
+			},
+			"/repo",
+		)
+
+		expect(result.ok).toBe(false)
+		if (!result.ok) {
+			expect(result.errors).toContain(
+				"Agent docs-reviewer uses read-only mode explain but has exclusive writable ownership. Assign a write-capable mode such as onboarding for documentation or change ownership to read-only.",
+			)
+		}
+	})
+
 	it("keeps independent agents pending when shared contracts avoid completion dependencies", () => {
 		const result = handlePlanParallelTasks(
 			{

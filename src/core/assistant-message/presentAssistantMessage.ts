@@ -76,6 +76,18 @@ function findCurrentParallelPlanningTodo(todos: TodoItem[] | undefined): TodoIte
 	)
 }
 
+async function getTaskLocalMode(cline: Task): Promise<string | undefined> {
+	if (typeof (cline as any).getTaskMode === "function") {
+		return (await (cline as any).getTaskMode()) || undefined
+	}
+
+	if (typeof (cline as any).taskMode === "string") {
+		return (cline as any).taskMode || undefined
+	}
+
+	return undefined
+}
+
 async function completeCurrentParallelPlanningTodo(cline: Task): Promise<boolean> {
 	const todo = findCurrentParallelPlanningTodo(cline.todoList)
 	if (!todo || !updateTodoStatusForTask(cline, todo.id, "completed")) {
@@ -392,15 +404,20 @@ export async function presentAssistantMessage(cline: Task) {
 				cline.didAlreadyUseTool = true
 			}
 
-			// Fetch state early so it's available for toolDescription and validation
+			// Fetch state early so it's available for toolDescription and validation.
+			// Tool execution gates must use the task-local mode. Background parallel
+			// children keep their own mode even while the provider/global state still
+			// reflects the parent/orchestrator mode.
+			const taskMode = await getTaskLocalMode(cline)
 			const state = await cline.providerRef.deref()?.getState()
 			const {
-				mode,
+				mode: providerMode,
 				customModes,
 				experiments: stateExperiments,
 				disabledTools,
 				maxConcurrentParallelTasks,
 			} = state ?? {}
+			const mode = taskMode ?? providerMode ?? defaultModeSlug
 			const maxParallelAgents = normalizeParallelTaskConcurrency(maxConcurrentParallelTasks)
 			const disabledToolsForTask = withBackgroundAgentDisabledTools(disabledTools, cline)
 

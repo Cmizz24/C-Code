@@ -1,6 +1,29 @@
 import { presentAssistantMessage } from "../presentAssistantMessage"
 
-function createBackgroundAgentTask(toolName: "new_task" | "plan_parallel_tasks") {
+const { writeToFileHandle } = vi.hoisted(() => ({
+	writeToFileHandle: vi.fn(async (_task: any, _block: any, callbacks: any) => {
+		callbacks.pushToolResult("wrote README")
+	}),
+}))
+
+vi.mock("../../tools/WriteToFileTool", () => ({
+	writeToFileTool: {
+		handle: writeToFileHandle,
+	},
+}))
+
+vi.mock("../../../../integrations/checkpoints/CheckpointTracker", () => ({
+	CheckpointTracker: {
+		markCheckpointSave: vi.fn(),
+	},
+}))
+
+function createBackgroundAgentTask(
+	toolName: "new_task" | "plan_parallel_tasks" | "write_to_file",
+	options: { taskMode?: string; providerMode?: string } = {},
+) {
+	const taskMode = options.taskMode ?? "code"
+	const providerMode = options.providerMode ?? "code"
 	const task: any = {
 		taskId: "background-agent-task",
 		instanceId: "instance-id",
@@ -20,11 +43,15 @@ function createBackgroundAgentTask(toolName: "new_task" | "plan_parallel_tasks")
 				params:
 					toolName === "new_task"
 						? { mode: "code", message: "Delegate this work" }
-						: { goal: "Split this work" },
+						: toolName === "write_to_file"
+							? { path: "README.md", content: "# Project\n" }
+							: { goal: "Split this work" },
 				nativeArgs:
 					toolName === "new_task"
 						? { mode: "code", message: "Delegate this work" }
-						: { goal: "Split this work", sharedContext: "", expectedFiles: [], agents: [] },
+						: toolName === "write_to_file"
+							? { path: "README.md", content: "# Project\n" }
+							: { goal: "Split this work", sharedContext: "", expectedFiles: [], agents: [] },
 				partial: false,
 			},
 		],
@@ -34,12 +61,15 @@ function createBackgroundAgentTask(toolName: "new_task" | "plan_parallel_tasks")
 		didAlreadyUseTool: false,
 		consecutiveMistakeCount: 0,
 		api: { getModel: () => ({ id: "test-model", info: {} }) },
+		getTaskMode: vi.fn().mockResolvedValue(taskMode),
+		checkpointSave: vi.fn().mockResolvedValue(undefined),
+		currentStreamingDidCheckpoint: false,
 		recordToolUsage: vi.fn(),
 		recordToolError: vi.fn(),
 		toolRepetitionDetector: { check: vi.fn().mockReturnValue({ allowExecution: true }) },
 		providerRef: {
 			deref: () => ({
-				getState: vi.fn().mockResolvedValue({ mode: "code", customModes: [], disabledTools: [] }),
+				getState: vi.fn().mockResolvedValue({ mode: providerMode, customModes: [], disabledTools: [] }),
 			}),
 		},
 		say: vi.fn().mockResolvedValue(undefined),
@@ -54,6 +84,33 @@ function createBackgroundAgentTask(toolName: "new_task" | "plan_parallel_tasks")
 }
 
 describe("presentAssistantMessage - background agents", () => {
+	beforeEach(() => {
+		writeToFileHandle.mockClear()
+	})
+
+	it("validates a background onboarding child with its task-local mode before writing README", async () => {
+		const task = createBackgroundAgentTask("write_to_file", { taskMode: "onboarding", providerMode: "explain" })
+
+		await presentAssistantMessage(task)
+
+		expect(writeToFileHandle).toHaveBeenCalledWith(
+			task,
+			expect.objectContaining({ name: "write_to_file", params: { path: "README.md", content: "# Project\n" } }),
+			expect.any(Object),
+		)
+		expect(task.pushToolResultToUserContent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tool_use_id: "tool-write_to_file",
+				content: "wrote README",
+			}),
+		)
+		expect(task.userMessageContent[0]).toEqual(
+			expect.objectContaining({ tool_use_id: "tool-write_to_file", content: "wrote README" }),
+		)
+		expect(task.consecutiveMistakeCount).toBe(0)
+		expect(task.userMessageContentReady).toBe(true)
+	})
+
 	it.each(["new_task", "plan_parallel_tasks"] as const)(
 		"blocks %s before a background agent can enter visible orchestration flows",
 		async (toolName) => {
