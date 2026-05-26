@@ -17,11 +17,13 @@ import type { SkillMetadata } from "./skills.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
 import type {
 	AgentActivityEvent,
+	AgentCompletionPacket,
 	AgentCoordinationEvent,
 	AgentStatusUpdate,
 	ExecutionPlan,
 	MergeReviewEntry,
 	ParallelAgentReviewSummary,
+	ParallelPlanCompletionPacket,
 	WriteIntentConflict,
 } from "./agents.js"
 
@@ -766,6 +768,8 @@ export interface ClineSayTool {
 	}
 	parallelReviewSummary?: ParallelAgentReviewSummary
 	mergeReviewEntries?: MergeReviewEntry[]
+	agentCompletionPackets?: AgentCompletionPacket[]
+	parallelPlanCompletionPacket?: ParallelPlanCompletionPacket
 	// For readCommandOutput
 	readStart?: number
 	readEnd?: number

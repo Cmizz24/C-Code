@@ -12,6 +12,8 @@ import {
 	type ExtensionMessage,
 	type ExtensionState,
 	type HistoryItem,
+	createAgentCompletionPacket,
+	buildParallelPlanCompletionPacket,
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 	RooCodeEventName,
@@ -644,6 +646,20 @@ describe("ClineProvider", () => {
 		ts,
 	})
 
+	const createWorktreeManagerMock = (overrides: Record<string, unknown> = {}) => ({
+		validateGitRepository: vi.fn().mockResolvedValue(undefined),
+		captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+		createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+		prepareMergeReview: vi.fn(
+			async ({ agentId }: { agentId: string }) => `diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
+		),
+		mergeBranch: vi.fn().mockResolvedValue(undefined),
+		removeWorktree: vi.fn().mockResolvedValue(undefined),
+		cleanup: vi.fn().mockResolvedValue(undefined),
+		cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		...overrides,
+	})
+
 	const seedPersistedTaskMessages = async (messages: ClineMessage[]) => {
 		const fsUtils = await import("../../../utils/fs")
 		const fsPromises = await import("fs/promises")
@@ -1115,6 +1131,47 @@ describe("ClineProvider", () => {
 				clineMessage: expect.objectContaining({ say: "tool" }),
 			}),
 		)
+	})
+
+	test("AgentBus completion packets persist structured per-agent and plan evidence", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = createWorktreeManagerMock()
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+
+		const bus = AgentBus.getInstance()
+		bus.requestWriteIntent("dashboard-agent", "src/dashboard.tsx")
+		bus.requestWriteIntent("dashboard-agent", "src/styles.css")
+		bus.markComplete("dashboard-agent", "Dashboard done")
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.agentCompletionPackets).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						planId: "plan-webview-provider",
+						agentId: "dashboard-agent",
+						status: "complete",
+						completionResult: "Dashboard done",
+						ownership: expect.objectContaining({
+							status: "violation",
+							conflicts: expect.arrayContaining([
+								expect.objectContaining({ path: "src/styles.css", ownerAgentId: "styles-agent" }),
+							]),
+						}),
+					}),
+				]),
+			)
+			expect(tool.parallelPlanCompletionPacket).toEqual(
+				expect.objectContaining({
+					planId: "plan-webview-provider",
+					packetCount: 2,
+					ownership: expect.objectContaining({ status: "violation" }),
+				}),
+			)
+		})
 	})
 
 	test("parallel coordination events are serialized into the persisted parallelAgents tool message", async () => {
@@ -1891,6 +1948,25 @@ describe("ClineProvider", () => {
 		expect(statusTool.parallelReviewSummary?.markdown).toContain(
 			"Full per-agent diffs are available in the persisted parallel agents card.",
 		)
+		expect(statusTool.agentCompletionPackets).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					artifactManifest: [
+						expect.objectContaining({ path: "src/dashboard.tsx", status: "modified", additions: 1 }),
+					],
+					merge: expect.objectContaining({ readiness: "ready", result: "pending", materialized: false }),
+				}),
+			]),
+		)
+		expect(statusTool.parallelPlanCompletionPacket).toEqual(
+			expect.objectContaining({
+				status: "awaiting-review",
+				aggregateArtifactManifest: [
+					expect.objectContaining({ path: "src/dashboard.tsx", agentId: "dashboard-agent" }),
+				],
+			}),
+		)
 	})
 
 	test("merge approval prepares and merges only selected agent branches after review", async () => {
@@ -2270,12 +2346,36 @@ describe("ClineProvider", () => {
 				}),
 			]),
 		)
+		expect(statusTool.agentCompletionPackets).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					merge: expect.objectContaining({
+						readiness: "not-ready",
+						result: "failed",
+						materialized: false,
+						conflictedFiles: ["index.html"],
+						mergeError: expect.stringContaining("CONFLICT (add/add)"),
+					}),
+				}),
+			]),
+		)
+		expect(statusTool.parallelPlanCompletionPacket).toEqual(
+			expect.objectContaining({
+				status: "failed",
+				merge: expect.objectContaining({ status: "failed", failedAgents: ["dashboard-agent"] }),
+			}),
+		)
 		const lastApiMessage = parentTask.apiConversationHistory.at(-1) as any
 		expect(lastApiMessage.content[0].text).toContain(
 			"[PARALLEL AGENT SUMMARY] Plan plan-webview-provider is failed.",
 		)
 		expect(lastApiMessage.content[0].text).toContain("dashboard-agent")
 		expect(lastApiMessage.content[0].text).toContain("CONFLICT (add/add)")
+		expect(lastApiMessage.content[0].text).toContain("Structured completion packet:")
+		expect(lastApiMessage.content[0].text).toContain('"parallelPlanCompletionPacket"')
+		expect(lastApiMessage.content[0].text).toContain('"agentCompletionPackets"')
+		expect(lastApiMessage.content[0].text).toContain('"artifactManifest"')
 		expect(lastApiMessage.content[0].text).toContain("Use the persisted parallel agents card")
 		expect(
 			parentTask.clineMessages.filter(
@@ -2302,6 +2402,33 @@ describe("ClineProvider", () => {
 			status: "complete",
 			worktreePath: `/tmp/${agent.id}`,
 		}))
+		const restoredPackets = plan.agents.map((agent) =>
+			createAgentCompletionPacket(plan, agent, {
+				status: "complete",
+				completionResult: `${agent.id} completed before reload`,
+				artifactManifest: [
+					{
+						path: `src/${agent.id}.ts`,
+						status: "modified",
+						additions: 1,
+						deletions: 0,
+						binary: false,
+						source: "merge-review",
+						agentId: agent.id,
+					},
+				],
+				merge: {
+					readiness: "ready",
+					result: "pending",
+					branch: `roo/parallel/plan-webview-provider/${agent.id}`,
+					worktreePath: `/tmp/${agent.id}`,
+					materialized: false,
+					notes: ["Restored review state."],
+					ts: 1_700_000_002,
+				},
+				ts: 1_700_000_002,
+			}),
+		)
 		parentTask.clineMessages = [
 			{
 				type: "say",
@@ -2320,6 +2447,11 @@ describe("ClineProvider", () => {
 						branch: `roo/parallel/plan-webview-provider/${agent.id}`,
 						mergeStatus: "pending",
 					})),
+					agentCompletionPackets: restoredPackets,
+					parallelPlanCompletionPacket: buildParallelPlanCompletionPacket(plan, restoredPackets, {
+						status: "awaiting-review",
+						ts: 1_700_000_003,
+					}),
 				} satisfies ClineSayTool),
 				ts: 101,
 			},
@@ -2356,6 +2488,28 @@ describe("ClineProvider", () => {
 		expect(statusTool.parallelStatus).toBe("merged")
 		expect(statusTool.mergeReviewEntries).toEqual(
 			expect.arrayContaining([expect.objectContaining({ agentId: "dashboard-agent", mergeStatus: "merged" })]),
+		)
+		expect(statusTool.agentCompletionPackets).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					completionResult: "dashboard-agent completed before reload",
+					merge: expect.objectContaining({ result: "merged", materialized: true }),
+				}),
+				expect.objectContaining({
+					agentId: "styles-agent",
+					completionResult: "styles-agent completed before reload",
+					merge: expect.objectContaining({ result: "pending", materialized: false }),
+				}),
+			]),
+		)
+		expect(statusTool.parallelPlanCompletionPacket).toEqual(
+			expect.objectContaining({
+				status: "merged",
+				aggregateArtifactManifest: expect.arrayContaining([
+					expect.objectContaining({ path: "src/dashboard-agent.ts", agentId: "dashboard-agent" }),
+				]),
+			}),
 		)
 		expect(mockPostMessage).toHaveBeenCalledWith({ type: "mergeComplete" })
 	})

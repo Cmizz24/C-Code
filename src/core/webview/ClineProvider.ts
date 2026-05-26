@@ -29,6 +29,7 @@ import {
 	type ExtensionMessage,
 	type ExtensionState,
 	type AgentEvent,
+	type AgentCompletionPacket,
 	type AgentDependency,
 	type AgentActivityEvent,
 	type AgentCoordinationEvent,
@@ -37,7 +38,13 @@ import {
 	type WriteIntentConflict,
 	type MergeReviewEntry,
 	type ParallelAgentReviewSummary,
+	type ParallelPlanCompletionPacket,
+	type ParallelPlanCompletionStatus,
+	type AgentMergeEvidence,
 	computeMergeReviewChangeStats,
+	computeArtifactManifestFromDiff,
+	createAgentCompletionPacket,
+	buildParallelPlanCompletionPacket,
 	RooCodeEventName,
 	requestyDefaultModelId,
 	openRouterDefaultModelId,
@@ -206,6 +213,8 @@ export class ClineProvider
 	private readonly parallelAgentActivities = new Map<string, ParallelAgentActivity[]>()
 	private parallelAgentCoordinationEvents: ParallelAgentCoordinationEvent[] = []
 	private readonly parallelWriteConflicts = new Map<string, WriteIntentConflict>()
+	private readonly parallelAgentCompletionPackets = new Map<string, AgentCompletionPacket>()
+	private parallelPlanCompletionPacket?: ParallelPlanCompletionPacket
 	private parallelUsageSummary?: ParallelAgentUsageSummary
 	private parallelReviewSummary?: ParallelAgentReviewSummary
 	private parallelStatusUpdateQueue: Promise<void> = Promise.resolve()
@@ -353,6 +362,13 @@ export class ClineProvider
 						"message",
 					)
 				}
+				break
+			case "COMPLETION_PACKET":
+				this.recordParallelAgentCompletionPacket(event.packet)
+				break
+			case "PLAN_COMPLETION_PACKET":
+				this.parallelPlanCompletionPacket = event.packet
+				this.scheduleParallelAgentStatusMessageUpdate()
 				break
 		}
 	}
@@ -3130,6 +3146,11 @@ export class ClineProvider
 		this.parallelStatusPlanId = tool.executionPlan.planId
 		this.parallelMergeReviewEntries = tool.mergeReviewEntries
 		this.parallelUsageSummary = tool.parallelUsageSummary
+		this.parallelAgentCompletionPackets.clear()
+		for (const packet of tool.agentCompletionPackets ?? []) {
+			this.parallelAgentCompletionPackets.set(packet.agentId, packet)
+		}
+		this.parallelPlanCompletionPacket = tool.parallelPlanCompletionPacket
 		this.parallelReviewSummary =
 			tool.parallelReviewSummary ??
 			(tool.parallelStatus === "review"
@@ -3151,9 +3172,11 @@ export class ClineProvider
 			-PARALLEL_AGENT_COORDINATION_LIMIT,
 		)
 		this.parallelWriteConflicts.clear()
+		this.deniedWriteReasons.clear()
 		this.worktreePathsByAgentId.clear()
 		for (const conflict of tool.writeIntentConflicts ?? []) {
 			this.parallelWriteConflicts.set(this.getConflictKey(conflict.agentId, conflict.filePath), conflict)
+			this.deniedWriteReasons.set(this.getConflictKey(conflict.agentId, conflict.filePath), conflict.reason)
 		}
 		for (const agent of tool.executionPlan.agents) {
 			if (agent.worktreePath) {
@@ -3293,6 +3316,9 @@ export class ClineProvider
 	public async showMergeReview(plan: ExecutionPlan): Promise<void> {
 		const entries = await Promise.all(plan.agents.map((agent) => this.buildMergeReviewEntry(plan, agent.id)))
 		this.parallelMergeReviewEntries = entries
+		for (const entry of entries) {
+			this.updateParallelAgentPacketFromMergeEntry(plan, entry)
+		}
 		const autoMergeDecision = await this.evaluateAutoMergeReview(plan, entries)
 
 		if (autoMergeDecision.enabled) {
@@ -3322,6 +3348,9 @@ export class ClineProvider
 
 		if (autoMergeDecision.enabled && autoMergeDecision.skipReasons.length > 0) {
 			this.applyAutoMergeSkipReasons(entries, autoMergeDecision.skipReasons)
+			for (const entry of entries) {
+				this.updateParallelAgentPacketFromMergeEntry(plan, entry)
+			}
 		}
 
 		this.recordParallelAgentReviewSummary(plan, entries)
@@ -3480,6 +3509,17 @@ export class ClineProvider
 					conflictedFiles: undefined,
 					autoMergeSkippedReason: undefined,
 				})
+				const mergedEntry = this.parallelMergeReviewEntries?.find((entry) => entry.agentId === agentId)
+				if (mergedEntry) {
+					this.updateParallelAgentPacketFromMergeEntry(plan, mergedEntry, {
+						readiness: "ready",
+						result: "merged",
+						clean: true,
+						materialized: true,
+						autoApproved: options.autoApproved === true,
+						notes: [options.autoApproved ? "Auto-merged cleanly." : "Merged cleanly."],
+					})
+				}
 
 				if (options.autoApproved) {
 					this.recordParallelAgentActivity(agentId, `Auto-merged branch ${branch}.`, "completion")
@@ -3494,6 +3534,19 @@ export class ClineProvider
 					mergeable: false,
 					conflictedFiles: error instanceof WorktreeMergeError ? error.conflictedFiles : undefined,
 				})
+				const failedEntry = this.parallelMergeReviewEntries?.find((entry) => entry.agentId === agentId)
+				if (failedEntry) {
+					this.updateParallelAgentPacketFromMergeEntry(plan, failedEntry, {
+						readiness: "not-ready",
+						result: "failed",
+						clean: false,
+						materialized: false,
+						autoApproved: options.autoApproved === true,
+						mergeError: gitOutput,
+						conflictedFiles: error instanceof WorktreeMergeError ? error.conflictedFiles : undefined,
+						notes: ["Merge failed during workspace materialization."],
+					})
+				}
 
 				if (options.autoApproved) {
 					this.recordParallelAgentActivity(agentId, `Auto-merge failed: ${gitOutput}`, "error")
@@ -3575,6 +3628,18 @@ export class ClineProvider
 				autoMergeSkippedReason: "Merge review was denied from chat.",
 			})
 			this.recordParallelAgentActivity(entry.agentId, "Merge review denied from chat.", "approval")
+			const skippedEntry = this.parallelMergeReviewEntries?.find(
+				(candidate) => candidate.agentId === entry.agentId,
+			)
+			if (skippedEntry) {
+				this.updateParallelAgentPacketFromMergeEntry(plan, skippedEntry, {
+					readiness: "not-ready",
+					result: "skipped",
+					clean: true,
+					materialized: false,
+					notes: ["Merge review was denied from chat."],
+				})
+			}
 		}
 
 		this.recordParallelAgentReviewSummary(plan, this.parallelMergeReviewEntries)
@@ -3740,6 +3805,8 @@ export class ClineProvider
 		this.parallelMergeReviewEntries = undefined
 		this.parallelUsageSummary = undefined
 		this.parallelReviewSummary = undefined
+		this.parallelAgentCompletionPackets.clear()
+		this.parallelPlanCompletionPacket = undefined
 		this.parallelAgentStatusUpdates.clear()
 		this.parallelAgentActivities.clear()
 		this.parallelAgentCoordinationEvents = []
@@ -3854,6 +3921,13 @@ export class ClineProvider
 	}
 
 	private buildParallelAgentToolPayload(plan: ExecutionPlan, mergeReviewEntries?: MergeReviewEntry[]): ClineSayTool {
+		const agentCompletionPackets = this.getParallelAgentCompletionPackets(plan)
+		const parallelPlanCompletionPacket = this.getParallelPlanCompletionPacket(
+			plan,
+			agentCompletionPackets,
+			this.getParallelPlanCompletionStatusOverride(agentCompletionPackets),
+		)
+
 		return {
 			tool: "parallelAgents",
 			executionPlan: plan,
@@ -3865,6 +3939,8 @@ export class ClineProvider
 			parallelUsageSummary: this.parallelUsageSummary,
 			parallelReviewSummary: this.parallelReviewSummary,
 			mergeReviewEntries,
+			agentCompletionPackets,
+			parallelPlanCompletionPacket,
 		}
 	}
 
@@ -3934,6 +4010,11 @@ export class ClineProvider
 		this.parallelStatusPlanId = reviewMessage.executionPlan.planId
 		this.parallelMergeReviewEntries = reviewMessage.mergeReviewEntries
 		this.parallelUsageSummary = reviewMessage.parallelUsageSummary
+		this.parallelAgentCompletionPackets.clear()
+		for (const packet of reviewMessage.agentCompletionPackets ?? []) {
+			this.parallelAgentCompletionPackets.set(packet.agentId, packet)
+		}
+		this.parallelPlanCompletionPacket = reviewMessage.parallelPlanCompletionPacket
 		this.parallelReviewSummary =
 			reviewMessage.parallelReviewSummary ??
 			this.buildParallelAgentReviewSummary(reviewMessage.executionPlan, reviewMessage.mergeReviewEntries ?? [])
@@ -3973,6 +4054,220 @@ export class ClineProvider
 
 		const tool = this.tryParseToolPayload(message.text)
 		return tool?.tool === "parallelAgents" ? tool : undefined
+	}
+
+	private recordParallelAgentCompletionPacket(packet: AgentCompletionPacket): void {
+		if (!this.activeExecutionPlan || packet.planId !== this.activeExecutionPlan.planId) {
+			return
+		}
+
+		this.parallelAgentCompletionPackets.set(packet.agentId, packet)
+		this.parallelPlanCompletionPacket = buildParallelPlanCompletionPacket(
+			this.activeExecutionPlan,
+			this.getParallelAgentCompletionPackets(this.activeExecutionPlan),
+			{
+				ts: Date.now(),
+				source: {
+					source: "provider",
+					sourceId: this.activeExecutionPlan.planId,
+					ts: Date.now(),
+					note: "Provider persisted AgentBus completion packet evidence.",
+				},
+			},
+		)
+		this.scheduleParallelAgentStatusMessageUpdate()
+	}
+
+	private getParallelAgentCompletionPackets(plan: ExecutionPlan): AgentCompletionPacket[] {
+		return plan.agents
+			.map((agent) => this.ensureParallelAgentCompletionPacket(plan, agent.id))
+			.filter((packet): packet is AgentCompletionPacket => Boolean(packet))
+	}
+
+	private ensureParallelAgentCompletionPacket(
+		plan: ExecutionPlan,
+		agentId: string,
+		options: { ts?: number } = {},
+	): AgentCompletionPacket | undefined {
+		const agent = plan.agents.find((candidate) => candidate.id === agentId)
+		if (!agent) {
+			return undefined
+		}
+
+		const existing = this.parallelAgentCompletionPackets.get(agentId)
+		if (existing) {
+			return existing
+		}
+
+		const ts = options.ts ?? Date.now()
+		const statusUpdate = this.parallelAgentStatusUpdates.get(agentId)
+		const packet = createAgentCompletionPacket(plan, agent, {
+			status: statusUpdate?.status ?? agent.status,
+			completionResult: statusUpdate?.reason,
+			evidence: {
+				source: "provider",
+				sourceId: agentId,
+				ts,
+				note: "Provider synthesized completion packet from persisted parallel-agent status state.",
+			},
+			ts,
+		})
+
+		this.parallelAgentCompletionPackets.set(agentId, packet)
+		return packet
+	}
+
+	private getParallelPlanCompletionPacket(
+		plan: ExecutionPlan,
+		agentCompletionPackets = this.getParallelAgentCompletionPackets(plan),
+		status?: ParallelPlanCompletionStatus,
+	): ParallelPlanCompletionPacket {
+		const existing = this.parallelPlanCompletionPacket
+		if (
+			existing?.planId === plan.planId &&
+			this.isParallelPlanCompletionPacketCurrent(existing, agentCompletionPackets, status)
+		) {
+			return existing
+		}
+
+		const packet = buildParallelPlanCompletionPacket(plan, agentCompletionPackets, {
+			status,
+			ts: Date.now(),
+			source: {
+				source: "provider",
+				sourceId: plan.planId,
+				ts: Date.now(),
+				note: "Provider aggregated persisted per-agent completion packets.",
+			},
+		})
+		this.parallelPlanCompletionPacket = packet
+		return packet
+	}
+
+	private getParallelPlanCompletionStatusOverride(
+		agentCompletionPackets: AgentCompletionPacket[],
+	): ParallelPlanCompletionStatus | undefined {
+		if (agentCompletionPackets.some((packet) => packet.merge.result === "failed")) {
+			return "failed"
+		}
+
+		switch (this.parallelStatusPhase) {
+			case "review":
+				return "awaiting-review"
+			case "merged":
+				return "merged"
+			case "cancelled":
+				return "cancelled"
+			case "failed":
+				return "failed"
+			case "running":
+				return undefined
+		}
+	}
+
+	private isParallelPlanCompletionPacketCurrent(
+		packet: ParallelPlanCompletionPacket,
+		agentCompletionPackets: AgentCompletionPacket[],
+		status?: ParallelPlanCompletionStatus,
+	): boolean {
+		if (packet.packetCount !== agentCompletionPackets.length) {
+			return false
+		}
+
+		if (status && packet.status !== status) {
+			return false
+		}
+
+		const packetRefsByAgentId = new Map(packet.agentPacketRefs.map((ref) => [ref.agentId, ref]))
+		return agentCompletionPackets.every((agentPacket) => {
+			const ref = packetRefsByAgentId.get(agentPacket.agentId)
+			return ref?.status === agentPacket.status && ref.packetUpdatedAt === agentPacket.evidence.updatedAt
+		})
+	}
+
+	private updateParallelAgentPacketFromMergeEntry(
+		plan: ExecutionPlan,
+		entry: MergeReviewEntry,
+		updates: Partial<AgentMergeEvidence> = {},
+	): AgentCompletionPacket | undefined {
+		const agent = plan.agents.find((candidate) => candidate.id === entry.agentId)
+		if (!agent) {
+			return undefined
+		}
+
+		const ts = Date.now()
+		const existing = this.ensureParallelAgentCompletionPacket(plan, entry.agentId, { ts })
+		const artifactManifest = computeArtifactManifestFromDiff(entry.diff).map((artifact) => ({
+			...artifact,
+			agentId: entry.agentId,
+		}))
+		const mergeStatus = entry.mergeStatus ?? "pending"
+		const notes = [
+			...(entry.noChangesReason ? [entry.noChangesReason] : []),
+			...(entry.autoMergeSkippedReason ? [entry.autoMergeSkippedReason] : []),
+		]
+		const packet = createAgentCompletionPacket(plan, agent, {
+			status: existing?.status ?? agent.status,
+			completionResult: existing?.completionResult,
+			artifactManifest,
+			validation: [
+				{
+					name: "merge-review",
+					status: entry.reviewError || entry.mergeError ? "failed" : "passed",
+					summary:
+						entry.reviewError ??
+						entry.mergeError ??
+						entry.noChangesReason ??
+						"Merge review evidence captured.",
+					ts,
+					source: "merge-review",
+				},
+			],
+			merge: {
+				readiness: entry.reviewError ? "not-ready" : mergeStatus === "pending" ? "ready" : "awaiting-review",
+				result: mergeStatus === "pending" ? "pending" : mergeStatus,
+				mergeable: entry.mergeable,
+				branch: entry.branch,
+				worktreePath: entry.worktreePath,
+				clean: !entry.reviewError && !entry.mergeError && (entry.conflictedFiles?.length ?? 0) === 0,
+				materialized: mergeStatus === "merged",
+				reviewError: entry.reviewError,
+				mergeError: entry.mergeError,
+				conflictedFiles: entry.conflictedFiles,
+				notes,
+				ts,
+				...updates,
+			},
+			evidence: {
+				source: "merge-review",
+				sourceId: entry.agentId,
+				ts,
+				note: "Provider updated packet from merge review entry.",
+			},
+			ts,
+		})
+
+		if (existing) {
+			packet.evidence.createdAt = existing.evidence.createdAt
+			packet.evidence.sources = [...existing.evidence.sources, ...packet.evidence.sources]
+			packet.ownership = existing.ownership
+		}
+
+		this.parallelAgentCompletionPackets.set(entry.agentId, packet)
+		this.parallelPlanCompletionPacket = buildParallelPlanCompletionPacket(
+			plan,
+			this.getParallelAgentCompletionPackets(plan),
+			{
+				ts,
+				source: {
+					source: "provider",
+					sourceId: plan.planId,
+					ts,
+					note: "Provider aggregated merge/review packet updates.",
+				},
+			},
+		)
+		return packet
 	}
 
 	private async appendParallelAgentOutcomeSummary(
@@ -4055,6 +4350,18 @@ export class ClineProvider
 		status: "review" | "merged" | "failed" | "cancelled",
 		entries: MergeReviewEntry[] | undefined,
 	): string {
+		const statusByOutcome: Record<typeof status, ParallelPlanCompletionStatus> = {
+			review: "awaiting-review",
+			merged: "merged",
+			failed: "failed",
+			cancelled: "cancelled",
+		}
+		const agentCompletionPackets = this.getParallelAgentCompletionPackets(plan)
+		const parallelPlanCompletionPacket = this.getParallelPlanCompletionPacket(
+			plan,
+			agentCompletionPackets,
+			statusByOutcome[status],
+		)
 		const entrySummaries = (entries ?? []).map((entry) => {
 			const stats = entry.changeStats
 			const statsText = stats
@@ -4071,6 +4378,15 @@ export class ClineProvider
 			`[PARALLEL AGENT SUMMARY] Plan ${plan.planId} is ${status}.`,
 			`Shared context: ${plan.sharedContext}`,
 			entrySummaries.length > 0 ? entrySummaries.join("\n") : "No merge review entries were recorded.",
+			"Structured completion packet:",
+			JSON.stringify(
+				{
+					parallelPlanCompletionPacket,
+					agentCompletionPackets,
+				},
+				null,
+				2,
+			),
 			"Use the persisted parallel agents card for approval/merge actions; do not rerun plan_parallel_tasks for this plan unless the user explicitly asks for a new plan.",
 		].join("\n")
 	}

@@ -2,15 +2,19 @@ import EventEmitter from "events"
 
 import type {
 	AgentActivityKind,
+	AgentCompletionPacket,
 	AgentCoordinationEvent,
 	AgentCoordinationKind,
 	AgentDependency,
 	AgentEvent,
 	AgentPlan,
 	AgentStatus,
+	AgentWriteIntentEvidence,
 	ExecutionPlan,
+	ParallelPlanCompletionPacket,
 	WritePermission,
 } from "@roo-code/types"
+import { buildParallelPlanCompletionPacket, createAgentCompletionPacket } from "@roo-code/types"
 
 export const AGENT_COORDINATION_EVENT_LIMIT = 50
 export const AGENT_COORDINATION_MESSAGE_MAX_LENGTH = 500
@@ -76,6 +80,9 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	private readonly blockedAgents = new Set<string>()
 	private readonly coordinationReadAgents = new Set<string>()
 	private readonly coordinationPublishedAgents = new Set<string>()
+	private readonly writeIntentEvidenceByAgent = new Map<string, AgentWriteIntentEvidence[]>()
+	private readonly completionPackets = new Map<string, AgentCompletionPacket>()
+	private planCompletionPacket?: ParallelPlanCompletionPacket
 	private coordinationEvents: AgentCoordinationEvent[] = []
 	private coordinationSequence = 0
 
@@ -97,6 +104,9 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		this.blockedAgents.clear()
 		this.coordinationReadAgents.clear()
 		this.coordinationPublishedAgents.clear()
+		this.writeIntentEvidenceByAgent.clear()
+		this.completionPackets.clear()
+		this.planCompletionPacket = undefined
 		this.coordinationEvents = []
 		this.coordinationSequence = 0
 
@@ -128,6 +138,18 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 
 	public getAgent(agentId: string): AgentPlan | undefined {
 		return this.executionPlan?.agents.find((agent) => agent.id === agentId)
+	}
+
+	public getAgentCompletionPackets(): AgentCompletionPacket[] {
+		return Array.from(this.completionPackets.values())
+	}
+
+	public getAgentCompletionPacket(agentId: string): AgentCompletionPacket | undefined {
+		return this.completionPackets.get(agentId)
+	}
+
+	public getPlanCompletionPacket(): ParallelPlanCompletionPacket | undefined {
+		return this.planCompletionPacket
 	}
 
 	public requestWriteIntent(agentId: string, filePath: string): WritePermission {
@@ -172,6 +194,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			this.activeWrites.set(normalizedPath, agentId)
 		}
 
+		this.recordWriteIntentEvidence(agentId, normalizedPath, permission, ownerAgentId)
 		this.emitEvent({ type: "INTENT_WRITE", agentId, path: normalizedPath, permission })
 		if (!permission.approved) {
 			this.emitEvent({ type: "CONFLICT_QUERY", agentId, path: normalizedPath, ownerAgentId })
@@ -342,6 +365,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			}
 		}
 		this.emitEvent({ type: "COMPLETE", agentId, result })
+		this.upsertCompletionPacket(agentId, { status: "complete", completionResult: result, note: "Agent completed." })
 		this.unblockReadyAgents()
 		this.emitTerminalEvents()
 	}
@@ -363,6 +387,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			}
 		}
 		this.emitEvent({ type: "FAILED", agentId, reason })
+		this.upsertCompletionPacket(agentId, { status: "failed", completionResult: reason, note: "Agent failed." })
 		this.failBlockedDependents(agentId, reason)
 		this.emitTerminalEvents()
 	}
@@ -404,8 +429,90 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 				agentId: agent.id,
 				reason: `Dependency ${failedAgentId} failed: ${reason}`,
 			})
+			this.upsertCompletionPacket(agent.id, {
+				status: "failed",
+				completionResult: `Dependency ${failedAgentId} failed: ${reason}`,
+				note: "Blocked dependency failed.",
+			})
 			this.failBlockedDependents(agent.id, reason)
 		}
+	}
+
+	private recordWriteIntentEvidence(
+		agentId: string,
+		filePath: string,
+		permission: WritePermission,
+		ownerAgentId?: string,
+	): void {
+		const previous = this.writeIntentEvidenceByAgent.get(agentId) ?? []
+		const evidence: AgentWriteIntentEvidence = {
+			path: filePath,
+			approved: permission.approved,
+			reason: permission.reason,
+			unownedWarning: permission.unownedWarning,
+			ownerAgentId,
+			ts: Date.now(),
+		}
+
+		this.writeIntentEvidenceByAgent.set(agentId, [...previous, evidence].slice(-100))
+	}
+
+	private upsertCompletionPacket(
+		agentId: string,
+		input: { status: AgentStatus; completionResult?: string; note: string },
+	): AgentCompletionPacket | undefined {
+		const plan = this.executionPlan
+		const agent = this.getAgent(agentId)
+		if (!plan || !agent) {
+			return undefined
+		}
+
+		const ts = Date.now()
+		const previous = this.completionPackets.get(agentId)
+		const packet = createAgentCompletionPacket(plan, agent, {
+			status: input.status,
+			completionResult: input.completionResult,
+			attemptedWrites: this.writeIntentEvidenceByAgent.get(agentId) ?? [],
+			artifactManifest: previous?.artifactManifest,
+			validation: previous?.validation.filter((validation) => validation.source !== "agent-bus"),
+			merge: previous?.merge,
+			evidence: {
+				source: "agent-bus",
+				sourceId: agentId,
+				ts,
+				note: input.note,
+			},
+			ts,
+		})
+
+		if (previous) {
+			packet.evidence.createdAt = previous.evidence.createdAt
+			packet.evidence.sources = [...previous.evidence.sources, ...packet.evidence.sources]
+		}
+
+		this.completionPackets.set(agentId, packet)
+		this.emitEvent({ type: "COMPLETION_PACKET", agentId, packet })
+		this.updatePlanCompletionPacket()
+		return packet
+	}
+
+	private updatePlanCompletionPacket(): void {
+		const plan = this.executionPlan
+		if (!plan) {
+			return
+		}
+
+		const packet = buildParallelPlanCompletionPacket(plan, this.getAgentCompletionPackets(), {
+			ts: Date.now(),
+			source: {
+				source: "agent-bus",
+				sourceId: plan.planId,
+				ts: Date.now(),
+				note: "AgentBus aggregated current agent completion packet evidence.",
+			},
+		})
+		this.planCompletionPacket = packet
+		this.emitEvent({ type: "PLAN_COMPLETION_PACKET", packet })
 	}
 
 	private emitEvent(event: AgentEvent): void {

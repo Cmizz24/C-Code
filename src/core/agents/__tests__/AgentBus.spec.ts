@@ -251,6 +251,71 @@ describe("AgentBus", () => {
 		expect(bus.requestWriteIntent("agent-b", "src/unowned.ts").approved).toBe(true)
 	})
 
+	it("emits per-agent completion packets with ownership evidence when an agent completes", () => {
+		const events = vi.fn()
+		bus.on("event", events)
+
+		expect(bus.requestWriteIntent("agent-a", "src/unowned.ts").approved).toBe(true)
+		expect(bus.requestWriteIntent("agent-a", "src/b.ts").approved).toBe(false)
+
+		bus.markComplete("agent-a", "A done")
+
+		const packet = bus.getAgentCompletionPacket("agent-a")
+		expect(packet).toEqual(
+			expect.objectContaining({
+				planId: "plan-test",
+				agentId: "agent-a",
+				mode: "component",
+				status: "complete",
+				completionResult: "A done",
+			}),
+		)
+		expect(packet?.ownership.status).toBe("violation")
+		expect(packet?.ownership.attemptedOutOfScopeWrites).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ path: "src/unowned.ts", approved: true }),
+				expect.objectContaining({ path: "src/b.ts", approved: false, ownerAgentId: "agent-b" }),
+			]),
+		)
+		expect(packet?.validation).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ name: "agent-terminal-status", status: "passed" }),
+				expect.objectContaining({ name: "ownership-compliance", status: "failed" }),
+			]),
+		)
+		expect(events).toHaveBeenCalledWith({ type: "COMPLETION_PACKET", agentId: "agent-a", packet })
+	})
+
+	it("aggregates plan-level completion packets across completed and failed agents", () => {
+		const events = vi.fn()
+		bus.on("event", events)
+
+		bus.markComplete("agent-a", "A done")
+		bus.markFailed("agent-b", "B failed")
+
+		const planPacket = bus.getPlanCompletionPacket()
+		expect(planPacket).toEqual(
+			expect.objectContaining({
+				planId: "plan-test",
+				status: "partially-complete",
+				agentCount: 3,
+				completedAgentCount: 1,
+				failedAgentCount: 1,
+				packetCount: 2,
+			}),
+		)
+		expect(planPacket?.agentPacketRefs).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ agentId: "agent-a", status: "complete" }),
+				expect.objectContaining({ agentId: "agent-b", status: "failed" }),
+			]),
+		)
+		expect(planPacket?.failedAgents).toEqual([
+			expect.objectContaining({ agentId: "agent-b", status: "failed", reason: "B failed" }),
+		])
+		expect(events).toHaveBeenCalledWith({ type: "PLAN_COMPLETION_PACKET", packet: planPacket })
+	})
+
 	it("emits allTerminal when all agents have either completed or failed", () => {
 		const allTerminal = vi.fn()
 		const allComplete = vi.fn()
