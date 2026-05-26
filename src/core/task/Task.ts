@@ -2536,6 +2536,27 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		await this.resumeAfterPausedToolFlow()
 	}
 
+	public async restoreClineMessagesFromHistory(): Promise<void> {
+		this.clineMessages = await this.getSavedClineMessages()
+		restoreTodoListForTask(this)
+	}
+
+	public async restoreParallelExecutionPause(): Promise<void> {
+		this.parallelExecutionPaused = true
+		this.parallelPlanPaused = false
+		this.idleAsk = undefined
+		this.resumableAsk = undefined
+		this.interactiveAsk = undefined
+		this.abort = false
+		this.abandoned = false
+		this.abortReason = undefined
+		this.didFinishAbortingStream = false
+		this.isStreaming = false
+		this.isWaitingForFirstChunk = false
+		this.isInitialized = true
+		this.emit(RooCodeEventName.TaskActive, this.taskId)
+	}
+
 	private async resumeAfterPausedToolFlow(): Promise<void> {
 		// Clear any ask states that might have been set during history load
 		this.idleAsk = undefined

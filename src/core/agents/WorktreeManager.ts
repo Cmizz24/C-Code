@@ -145,6 +145,27 @@ export class WorktreeManager {
 		}
 	}
 
+	public async restoreWorkspaceBaseline(planId: string): Promise<WorkspaceBaseline | undefined> {
+		const existing = this.workspaceBaselines.get(planId)
+		if (existing) {
+			return existing
+		}
+
+		const gitRoot = await this.validateGitRepository()
+		const safePlanId = sanitizeBranchComponent(planId) || "plan"
+		const ref = `refs/roo/parallel-baselines/${safePlanId}`
+
+		try {
+			const result = await execAsync(`git rev-parse --verify ${shellQuote(ref)}`, { cwd: gitRoot })
+			const commit = (typeof result === "string" ? result : result.stdout).trim()
+			const baseline = { planId, ref, commit }
+			this.workspaceBaselines.set(planId, baseline)
+			return baseline
+		} catch {
+			return undefined
+		}
+	}
+
 	public async createWorktree(agentId: string, planId: string): Promise<string> {
 		const gitRoot = await this.validateGitRepository()
 		const baseline = await this.captureWorkspaceBaseline(planId)
@@ -152,6 +173,8 @@ export class WorktreeManager {
 		const safeAgentId = sanitizeBranchComponent(agentId) || "agent"
 		const branchName = `roo/parallel/${safePlanId}/${safeAgentId}`
 		const worktreePath = path.join(this.repoRoot, ".roo", "parallel-worktrees", safePlanId, safeAgentId)
+
+		await this.removeExistingWorktreeAtPath(gitRoot, worktreePath)
 
 		await execAsync(
 			`git worktree add -B ${shellQuote(branchName)} ${shellQuote(worktreePath)} ${baseline.commit}`,
@@ -171,6 +194,22 @@ export class WorktreeManager {
 		} finally {
 			this.createdWorktrees.delete(worktreePath)
 		}
+	}
+
+	private async removeExistingWorktreeAtPath(gitRoot: string, worktreePath: string): Promise<void> {
+		try {
+			await fs.stat(worktreePath)
+		} catch {
+			return
+		}
+
+		try {
+			await execAsync(`git worktree remove --force ${shellQuote(worktreePath)}`, { cwd: gitRoot })
+		} catch {
+			await fs.rm(worktreePath, { recursive: true, force: true })
+		}
+
+		this.createdWorktrees.delete(worktreePath)
 	}
 
 	public async cleanup(): Promise<void> {

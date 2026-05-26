@@ -365,6 +365,24 @@ describe("ClineProvider", () => {
 	beforeAll(() => {
 		vi.mocked(Task).mockImplementation((options: any) => {
 			const listeners = new Map<string, Set<(...args: any[]) => unknown>>()
+			const loadSavedMessages = async () => {
+				const [{ readFile }, { fileExistsAtPath }] = await Promise.all([
+					import("fs/promises"),
+					import("../../../utils/fs"),
+				])
+
+				if (!(await fileExistsAtPath("/test/task/path/ui_messages.json"))) {
+					task.clineMessages = []
+					return
+				}
+
+				try {
+					const parsedMessages = JSON.parse(await readFile("/test/task/path/ui_messages.json", "utf8"))
+					task.clineMessages = Array.isArray(parsedMessages) ? parsedMessages : []
+				} catch {
+					task.clineMessages = []
+				}
+			}
 			const task: any = {
 				api: undefined,
 				apiConfiguration: options?.apiConfiguration,
@@ -390,6 +408,13 @@ describe("ClineProvider", () => {
 				}),
 				overwriteApiConversationHistory: vi.fn(),
 				resumeAfterParallelExecution: vi.fn(),
+				restoreClineMessagesFromHistory: vi.fn(async () => {
+					await loadSavedMessages()
+				}),
+				restoreParallelExecutionPause: vi.fn(async () => {
+					task.parallelExecutionPaused = true
+					return undefined
+				}),
 				dispose: vi.fn(),
 				getTaskNumber: vi.fn().mockReturnValue(0),
 				setTaskNumber: vi.fn(),
@@ -598,6 +623,35 @@ describe("ClineProvider", () => {
 
 	const parseParallelAgentToolMessage = (message: ClineMessage): ClineSayTool =>
 		JSON.parse(message.text ?? "{}") as ClineSayTool
+
+	const createHistoryItem = (overrides: Partial<HistoryItem> = {}): HistoryItem => ({
+		id: "history-task-id",
+		number: 1,
+		ts: 1_700_000_000,
+		task: "Resume interrupted parallel-agent work",
+		tokensIn: 0,
+		tokensOut: 0,
+		totalCost: 0,
+		workspace: "/test/workspace",
+		status: "active",
+		...overrides,
+	})
+
+	const createParallelAgentToolMessage = (tool: ClineSayTool, ts = 1_700_000_001): ClineMessage => ({
+		type: "say",
+		say: "tool",
+		text: JSON.stringify(tool),
+		ts,
+	})
+
+	const seedPersistedTaskMessages = async (messages: ClineMessage[]) => {
+		const fsUtils = await import("../../../utils/fs")
+		const fsPromises = await import("fs/promises")
+		vi.spyOn(fsUtils, "fileExistsAtPath").mockResolvedValueOnce(true).mockResolvedValueOnce(true)
+		;(vi.mocked(fsPromises.readFile) as any)
+			.mockResolvedValueOnce(JSON.stringify(messages))
+			.mockResolvedValueOnce(JSON.stringify(messages))
+	}
 
 	test("constructor initializes correctly", () => {
 		expect(provider).toBeInstanceOf(ClineProvider)
@@ -2369,6 +2423,163 @@ describe("ClineProvider", () => {
 				(message) => message.type === "say" && message.say === "user_feedback_diff",
 			),
 		).toHaveLength(0)
+	})
+
+	test("history restore resumes interrupted parallel agents instead of continuing the parent task", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const plan = createExecutionPlan()
+		plan.agents[0] = {
+			...plan.agents[0],
+			status: "complete",
+			worktreePath: "/tmp/dashboard-agent",
+		}
+		plan.agents[1] = {
+			...plan.agents[1],
+			status: "running",
+			worktreePath: "/tmp/styles-agent",
+		}
+		const persistedMessages = [
+			createParallelAgentToolMessage({
+				tool: "parallelAgents",
+				executionPlan: plan,
+				parallelStatus: "running",
+				agentStatusUpdates: [
+					{ agentId: "dashboard-agent", status: "complete", reason: "Dashboard finished" },
+					{ agentId: "styles-agent", status: "running", reason: "Styling in progress" },
+				],
+				agentActivities: [
+					{
+						agentId: "styles-agent",
+						kind: "tool",
+						message: "Editing src/styles.css.",
+						ts: 1_700_000_000,
+					},
+				],
+			} satisfies ClineSayTool),
+		]
+		await seedPersistedTaskMessages(persistedMessages)
+		const worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			restoreWorkspaceBaseline: vi.fn().mockResolvedValue({
+				planId: "plan-webview-provider",
+				commit: "baseline",
+				ref: "refs/roo/parallel-baselines/plan-webview-provider",
+			}),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/restored-${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+		;(provider as any).worktreeManager = worktreeManager
+
+		const task = await provider.createTaskWithHistoryItem(createHistoryItem())
+
+		expect(vi.mocked(Task).mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({ startTask: false }))
+		expect(task.start).not.toHaveBeenCalled()
+		expect(task.restoreClineMessagesFromHistory).toHaveBeenCalledTimes(1)
+		expect(task.restoreParallelExecutionPause).toHaveBeenCalledTimes(1)
+		expect(worktreeManager.restoreWorkspaceBaseline).toHaveBeenCalledWith("plan-webview-provider")
+
+		await vi.waitFor(() =>
+			expect(worktreeManager.createWorktree).toHaveBeenCalledWith("styles-agent", "plan-webview-provider"),
+		)
+		expect(worktreeManager.createWorktree).not.toHaveBeenCalledWith("dashboard-agent", "plan-webview-provider")
+		expect(task.resumeAfterParallelExecution).not.toHaveBeenCalled()
+		expect(
+			(provider as any).activeExecutionPlan.agents.find((agent: any) => agent.id === "dashboard-agent")?.status,
+		).toBe("complete")
+		expect((provider as any).backgroundTasks.size).toBe(1)
+		const restoredChild = Array.from((provider as any).backgroundTasks as Set<Task>)[0] as Task
+		expect(restoredChild.agentId).toBe("styles-agent")
+		expect(restoredChild.workspacePath).toBe("/tmp/restored-styles-agent")
+		expect(restoredChild.start).toHaveBeenCalledTimes(1)
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(task)[0])
+			expect(tool.parallelStatus).toBe("running")
+			expect(tool.agentStatusUpdates).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ agentId: "dashboard-agent", status: "complete" }),
+					expect.objectContaining({ agentId: "styles-agent", status: "running" }),
+				]),
+			)
+			expect(tool.agentActivities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "styles-agent",
+						message: "Rehydrating parallel agent after task resume.",
+					}),
+				]),
+			)
+		})
+	})
+
+	test("history restore reports a parallel-agent recovery message when the saved baseline is missing", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const plan = createExecutionPlan()
+		plan.agents[0] = {
+			...plan.agents[0],
+			status: "complete",
+			worktreePath: "/tmp/dashboard-agent",
+		}
+		plan.agents[1] = {
+			...plan.agents[1],
+			status: "running",
+			worktreePath: "/tmp/styles-agent",
+		}
+		await seedPersistedTaskMessages([
+			createParallelAgentToolMessage({
+				tool: "parallelAgents",
+				executionPlan: plan,
+				parallelStatus: "running",
+				agentStatusUpdates: [
+					{ agentId: "dashboard-agent", status: "complete" },
+					{ agentId: "styles-agent", status: "running" },
+				],
+			} satisfies ClineSayTool),
+		])
+		const worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			restoreWorkspaceBaseline: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+		;(provider as any).worktreeManager = worktreeManager
+
+		const task = await provider.createTaskWithHistoryItem(createHistoryItem({ id: "missing-baseline-task" }))
+
+		expect(vi.mocked(Task).mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({ startTask: false }))
+		expect(task.start).not.toHaveBeenCalled()
+		expect(task.restoreParallelExecutionPause).toHaveBeenCalledTimes(2)
+		expect(worktreeManager.restoreWorkspaceBaseline).toHaveBeenCalledWith("plan-webview-provider")
+		expect(worktreeManager.createWorktree).not.toHaveBeenCalled()
+		expect(task.resumeAfterParallelExecution).not.toHaveBeenCalled()
+		expect(task.say).toHaveBeenCalledWith(
+			"text",
+			expect.stringContaining("Roo found an interrupted parallel-agent run, but it cannot be resumed safely"),
+		)
+		expect(task.say).toHaveBeenCalledWith(
+			"text",
+			expect.stringContaining("The parent task has not been continued automatically"),
+		)
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(task)[0])
+			expect(tool.parallelStatus).toBe("failed")
+			expect(tool.agentActivities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "styles-agent",
+						kind: "error",
+						message: expect.stringContaining("Parallel-agent resume requires manual recovery"),
+					}),
+				]),
+			)
+		})
 	})
 
 	test("background agent streaming aborts clean up without visible task rehydration", async () => {

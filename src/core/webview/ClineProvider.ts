@@ -130,6 +130,12 @@ export type PlanApprovalResult =
 	| { approved: false }
 	| { approved: true; plan: ExecutionPlan; startResult: PlanStartResult }
 
+type ParallelResumeRestoreResult =
+	| { status: "none" }
+	| { status: "running"; agentIdsToRestart: string[] }
+	| { status: "review"; rebuildReview: boolean }
+	| { status: "failed"; reason: string }
+
 type ParallelAgentToolStatus = NonNullable<ClineSayTool["parallelStatus"]>
 type ParallelAgentActivity = AgentActivityEvent
 type ParallelAgentCoordinationEvent = AgentCoordinationEvent
@@ -1229,6 +1235,10 @@ export class ClineProvider
 		}
 
 		const { apiConfiguration, enableCheckpoints, checkpointTimeout, experiments } = await this.getState()
+		const shouldStartTask = options?.startTask ?? true
+		const parallelResumeState = shouldStartTask
+			? await this.restorePersistedParallelResumeState(historyItem.id)
+			: ({ status: "none" } satisfies ParallelResumeRestoreResult)
 
 		const task = new Task({
 			provider: this,
@@ -1243,7 +1253,7 @@ export class ClineProvider
 			taskNumber: historyItem.number,
 			workspacePath: historyItem.workspace,
 			onCreated: this.taskCreationCallback,
-			startTask: options?.startTask ?? true,
+			startTask: shouldStartTask && parallelResumeState.status === "none",
 			// Preserve the status from the history item to avoid overwriting it when the task saves messages
 			initialStatus: historyItem.status,
 		})
@@ -1287,6 +1297,23 @@ export class ClineProvider
 			this.log(
 				`[createTaskWithHistoryItem] ${task.parentTask ? "child" : "parent"} task ${task.taskId}.${task.instanceId} instantiated`,
 			)
+		}
+
+		if (parallelResumeState.status !== "none") {
+			await task.restoreClineMessagesFromHistory()
+
+			if (parallelResumeState.status === "running") {
+				await this.resumeRestoredParallelExecution(task, parallelResumeState.agentIdsToRestart)
+			} else if (parallelResumeState.status === "review") {
+				await task.restoreParallelExecutionPause()
+				if (parallelResumeState.rebuildReview && this.activeExecutionPlan) {
+					await this.showMergeReview(this.activeExecutionPlan)
+				} else {
+					await this.postStateToWebviewWithoutClineMessages()
+				}
+			} else {
+				await this.reportRestoredParallelResumeFailure(task, parallelResumeState.reason)
+			}
 		}
 
 		// Check if there's a pending edit after checkpoint restoration
@@ -2976,6 +3003,198 @@ export class ClineProvider
 		this.attachAgentBusForwarders(AgentBus.getInstance())
 		this.orchestratorEventLoop.start(plan)
 		return { ok: true }
+	}
+
+	private async resumeRestoredParallelExecution(task: Task, agentIdsToRestart: string[]): Promise<void> {
+		const plan = this.activeExecutionPlan
+		if (!plan) {
+			return
+		}
+
+		await task.restoreParallelExecutionPause()
+		const baselineError = await this.restorePersistedParallelBaseline(plan)
+		if (baselineError) {
+			await this.reportRestoredParallelResumeFailure(task, baselineError)
+			return
+		}
+
+		for (const agentId of agentIdsToRestart) {
+			this.recordParallelAgentActivity(agentId, "Rehydrating parallel agent after task resume.", "status")
+		}
+
+		const { maxConcurrentParallelTasks } = await this.getState()
+		const maxParallelAgents = normalizeParallelTaskConcurrency(maxConcurrentParallelTasks)
+		this.orchestratorEventLoop = new OrchestratorEventLoop(this, AgentBus.getInstance(), {
+			maxConcurrentAgents: maxParallelAgents,
+		})
+		this.attachAgentBusForwarders(AgentBus.getInstance())
+		this.orchestratorEventLoop.start(plan)
+		this.scheduleParallelAgentStatusMessageUpdate()
+		await this.postStateToWebviewWithoutClineMessages()
+	}
+
+	private async restorePersistedParallelBaseline(plan: ExecutionPlan): Promise<string | undefined> {
+		try {
+			const worktreeManager = this.ensureWorktreeManager()
+			await worktreeManager.validateGitRepository()
+			const baseline = await worktreeManager.restoreWorkspaceBaseline(plan.planId)
+			if (!baseline) {
+				return `the saved workspace baseline for parallel plan ${plan.planId} is no longer available.`
+			}
+			return undefined
+		} catch (error) {
+			return getWorktreeManagerErrorMessage(error)
+		}
+	}
+
+	private async reportRestoredParallelResumeFailure(task: Task, reason: string): Promise<void> {
+		await task.restoreParallelExecutionPause()
+		const plan = this.activeExecutionPlan
+		this.parallelStatusPhase = "failed"
+
+		const agentId = plan?.agents.find((agent) => agent.status !== "complete")?.id ?? plan?.agents[0]?.id
+		if (agentId) {
+			this.recordParallelAgentActivity(
+				agentId,
+				`Parallel-agent resume requires manual recovery: ${reason}`,
+				"error",
+			)
+		}
+
+		if (plan) {
+			await this.updateParallelAgentStatusMessage("failed")
+		}
+
+		await task.say(
+			"text",
+			`Roo found an interrupted parallel-agent run, but it cannot be resumed safely: ${reason}\n\nThe parent task has not been continued automatically. To recover safely, start a new parallel-agent plan from the same objective or cancel this parallel run and proceed manually.`,
+		)
+		await this.postStateToWebviewWithoutClineMessages()
+	}
+
+	private async restorePersistedParallelResumeState(taskId: string): Promise<ParallelResumeRestoreResult> {
+		try {
+			const globalStoragePath = this.context.globalStorageUri.fsPath
+			const savedMessages = await readTaskMessages({ taskId, globalStoragePath })
+			const parallelMessage = [...savedMessages]
+				.reverse()
+				.map((message) => this.tryParseParallelAgentToolMessage(message))
+				.find(
+					(tool) =>
+						Boolean(tool?.executionPlan) &&
+						(tool?.parallelStatus === "running" ||
+							tool?.parallelStatus === "review" ||
+							tool?.parallelStatus === "failed"),
+				)
+
+			if (!parallelMessage?.executionPlan) {
+				return { status: "none" }
+			}
+
+			this.restoreParallelAgentToolPayload(parallelMessage)
+
+			if (parallelMessage.parallelStatus === "review") {
+				return { status: "review", rebuildReview: false }
+			}
+
+			if (parallelMessage.parallelStatus === "failed") {
+				return {
+					status: "failed",
+					reason: "the saved parallel-agent run was already marked failed before it could be resumed.",
+				}
+			}
+
+			return this.prepareRestoredRunningParallelPlan(parallelMessage.executionPlan)
+		} catch (error) {
+			this.log(
+				`[parallel-agents] Failed to inspect persisted parallel state for resume: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			)
+			return { status: "none" }
+		}
+	}
+
+	private restoreParallelAgentToolPayload(tool: ClineSayTool): void {
+		if (!tool.executionPlan) {
+			return
+		}
+
+		this.activeExecutionPlan = tool.executionPlan
+		this.parallelStatusPhase = tool.parallelStatus ?? "running"
+		this.parallelStatusPlanId = tool.executionPlan.planId
+		this.parallelMergeReviewEntries = tool.mergeReviewEntries
+		this.parallelUsageSummary = tool.parallelUsageSummary
+		this.parallelReviewSummary =
+			tool.parallelReviewSummary ??
+			(tool.parallelStatus === "review"
+				? this.buildParallelAgentReviewSummary(tool.executionPlan, tool.mergeReviewEntries ?? [])
+				: undefined)
+		this.parallelAgentStatusUpdates.clear()
+		for (const update of tool.agentStatusUpdates ?? []) {
+			this.parallelAgentStatusUpdates.set(update.agentId, this.withAgentActivities(update))
+		}
+		this.parallelAgentActivities.clear()
+		for (const activity of tool.agentActivities ?? []) {
+			const previous = this.parallelAgentActivities.get(activity.agentId) ?? []
+			this.parallelAgentActivities.set(
+				activity.agentId,
+				[...previous, activity].slice(-PARALLEL_AGENT_ACTIVITY_LIMIT),
+			)
+		}
+		this.parallelAgentCoordinationEvents = (tool.agentCoordinationEvents ?? []).slice(
+			-PARALLEL_AGENT_COORDINATION_LIMIT,
+		)
+		this.parallelWriteConflicts.clear()
+		this.worktreePathsByAgentId.clear()
+		for (const conflict of tool.writeIntentConflicts ?? []) {
+			this.parallelWriteConflicts.set(this.getConflictKey(conflict.agentId, conflict.filePath), conflict)
+		}
+		for (const agent of tool.executionPlan.agents) {
+			if (agent.worktreePath) {
+				this.worktreePathsByAgentId.set(agent.id, agent.worktreePath)
+			}
+		}
+		for (const entry of tool.mergeReviewEntries ?? []) {
+			if (entry.worktreePath) {
+				this.worktreePathsByAgentId.set(entry.agentId, entry.worktreePath)
+			}
+		}
+	}
+
+	private prepareRestoredRunningParallelPlan(plan: ExecutionPlan): ParallelResumeRestoreResult {
+		const agentIdsToRestart: string[] = []
+		for (const agent of plan.agents) {
+			const persistedStatus = this.parallelAgentStatusUpdates.get(agent.id)?.status ?? agent.status
+			if (persistedStatus === "complete" || agent.status === "complete") {
+				agent.status = "complete"
+				continue
+			}
+
+			if (persistedStatus === "failed" || agent.status === "failed") {
+				agent.status = "failed"
+				continue
+			}
+
+			agent.status = "pending"
+			agentIdsToRestart.push(agent.id)
+		}
+
+		if (agentIdsToRestart.length === 0 && plan.agents.every((agent) => agent.status === "complete")) {
+			this.parallelStatusPhase = "review"
+			return { status: "review", rebuildReview: (this.parallelMergeReviewEntries?.length ?? 0) === 0 }
+		}
+
+		if (agentIdsToRestart.length === 0) {
+			this.parallelStatusPhase = "failed"
+			return {
+				status: "failed",
+				reason: "all incomplete parallel agents were already marked failed, so there is no safe agent to restart automatically.",
+			}
+		}
+
+		this.parallelStatusPhase = "running"
+		return { status: "running", agentIdsToRestart }
 	}
 
 	public async requestPlanApproval(plan: ExecutionPlan): Promise<PlanApprovalResult> {
