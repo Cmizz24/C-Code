@@ -831,33 +831,6 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 									No team chat messages yet.
 								</div>
 							)}
-							{coordinationContextEvents.length > 0 && (
-								<details
-									data-testid="agent-coordination-context"
-									className="mt-1.5 rounded border border-vscode-sideBar-background/50 bg-vscode-editor-background/10 px-2 py-1 text-[10px] text-vscode-descriptionForeground">
-									<summary className="cursor-pointer select-none text-vscode-descriptionForeground">
-										Plan context
-									</summary>
-									<ul className="mt-1 flex max-h-20 flex-col gap-1 overflow-y-auto pr-1">
-										{coordinationContextEvents.map((event, index) => {
-											const timestampLabel = getCoordinationTimestampLabel(event, now)
-											return (
-												<li
-													key={getCoordinationKey(event, index)}
-													data-testid="agent-coordination-context-message"
-													className="flex min-w-0 gap-1.5 text-vscode-descriptionForeground">
-													{timestampLabel && (
-														<span className="shrink-0 font-mono text-[10px]">
-															{timestampLabel}
-														</span>
-													)}
-													<span className="min-w-0 truncate">{event.message}</span>
-												</li>
-											)
-										})}
-									</ul>
-								</details>
-							)}
 						</div>
 					)}
 

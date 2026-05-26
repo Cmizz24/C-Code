@@ -322,7 +322,7 @@ describe("AgentStatusPanel", () => {
 		expect(screen.getByTestId("agent-usage-summary")).toHaveTextContent("2/2 reporting · ↑ 1.5K · ↓ 340 · $0.02")
 	})
 
-	it("renders persisted coordination as a read-only team chat with plan context de-emphasized", () => {
+	it("renders persisted coordination as a read-only team chat without the plan context dropdown", () => {
 		const plan = createPlan()
 		const tool: ClineSayTool = {
 			tool: "parallelAgents",
@@ -379,7 +379,9 @@ describe("AgentStatusPanel", () => {
 		expect(feed).toHaveTextContent("Coordination")
 		expect(feed).toHaveTextContent("Team chat · short messages · latest 8")
 		expect(screen.getAllByTestId("agent-coordination-message")).toHaveLength(2)
-		expect(screen.getByTestId("agent-coordination-context")).toHaveTextContent("Plan context")
+		expect(feed).not.toHaveTextContent("Plan context")
+		expect(screen.queryByTestId("agent-coordination-context")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("agent-coordination-context-message")).not.toBeInTheDocument()
 
 		const chatMessages = screen.getAllByTestId("agent-coordination-message")
 		const mainChat = chatMessages.map((message) => message.textContent ?? "").join(" ")
@@ -445,6 +447,8 @@ describe("AgentStatusPanel", () => {
 		expect(feed).not.toHaveTextContent("CSS variables")
 		expect(feed).not.toHaveTextContent("selectors")
 		expect(feed).not.toHaveTextContent("contract")
+		expect(feed).not.toHaveTextContent("Plan context")
+		expect(screen.queryByTestId("agent-coordination-context")).not.toBeInTheDocument()
 		expect(feed).toHaveTextContent("src/Dashboard.tsx")
 		expectNoEmoji(feed)
 	})
