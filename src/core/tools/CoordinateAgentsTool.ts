@@ -30,6 +30,19 @@ function formatCoordinationEvent(event: NonNullable<ReturnType<Task["publishAgen
 	return `- ${speaker}${target}${id}: ${event.message}${files}`
 }
 
+function formatTerminalPublishSuppression(
+	status: string | undefined,
+	recent: ReturnType<Task["getAgentCoordinationEvents"]>,
+): string {
+	const statusText = status ? ` (${status})` : ""
+	return [
+		`No team chat was posted because this agent is already terminal${statusText}.`,
+		"Use attempt_completion or structured completion status for final evidence instead of team chat.",
+		recent.length ? "Recent team chat:" : "No recent team chat messages.",
+		...recent.map(formatCoordinationEvent),
+	].join("\n")
+}
+
 export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 	readonly name = "coordinate_agents" as const
 
@@ -64,6 +77,13 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 			})
 
 			if (!event) {
+				if (task.isAgentTerminal()) {
+					task.consecutiveMistakeCount = 0
+					const recent = task.getAgentCoordinationEvents({ limit: params.limit })
+					pushToolResult(formatTerminalPublishSuppression(task.getAgentStatus(), recent))
+					return
+				}
+
 				pushToolResult(formatResponse.toolError("Unable to publish coordination message."))
 				return
 			}

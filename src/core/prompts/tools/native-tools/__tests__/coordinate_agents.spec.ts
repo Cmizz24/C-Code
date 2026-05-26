@@ -14,6 +14,8 @@ describe("coordinate_agents native tool", () => {
 		expect(description).toContain("only the key hook, selector, variable, file, or decision")
 		expect(description).toContain("Avoid manifest-style dumps")
 		expect(description).toContain("split them into multiple short messages")
+		expect(description).toContain("complete or otherwise terminal")
+		expect(description).toContain("structured completion status, not team chat")
 		expect(description).toContain("prefer under 140")
 		expect(description).toContain("Do not include emojis")
 		expect(description).toContain("chain-of-thought")

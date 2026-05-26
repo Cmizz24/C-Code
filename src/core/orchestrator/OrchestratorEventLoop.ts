@@ -270,6 +270,7 @@ export class OrchestratorEventLoop {
 			this.cleanupSpawnedTask(agentId)
 			this.bus.markComplete(agentId)
 			task.approveAsk()
+			Promise.resolve(task.abortTask()).catch(() => {})
 			Promise.resolve(this.provider.postStateToWebview()).catch(() => {})
 			return
 		}
@@ -341,6 +342,7 @@ export class OrchestratorEventLoop {
 			"Complete your assigned scope directly; do not delegate, spawn, or orchestrate additional tasks.",
 			"Before your first write, use coordinate_agents to read recent team chat, then publish one short chat message: what file you own or one question you need answered. Do not post a contract dump.",
 			"Use coordinate_agents like simple team chat: ask one relevant agent one short question at a time; answer with only the key hook, selector, variable, file, or decision needed. Split long details into separate short messages only when needed.",
+			"After you call attempt_completion or receive a terminal completion result, do not publish more team-chat messages; final evidence belongs in structured completion status.",
 			"Avoid manifest-style messages listing many selectors, classes, variables, hooks, files, or implementation details. Keep messages operational. Never include emojis, private reasoning, chain-of-thought, credentials, profile details, or user secrets.",
 		]
 			.filter(Boolean)
@@ -372,6 +374,7 @@ export class OrchestratorEventLoop {
 			"- Do not edit mustNotTouch paths or paths owned exclusively by another agent.",
 			"- Before your first write, call coordinate_agents with action=read, then publish one short team-chat message: your owned file or one missing detail.",
 			"- Use coordinate_agents as a concise team chat: ask one relevant agent one short question at a time, and answer with only the key hook, selector, variable, file, or decision needed.",
+			"- After attempt_completion or terminal completion, stop publishing team-chat messages; final evidence belongs in structured completion status.",
 			"- If many details are truly needed, split them into multiple short messages. Avoid manifest-style dumps listing many selectors, classes, variables, hooks, files, or implementation details.",
 			"- Coordinate when you choose or change shared filenames, selectors, classes, CSS variables, DOM hooks, IDs, data attributes, public functions, responsibilities, or file contracts; do not invent fake conversation.",
 			"- Never put emojis, private reasoning, chain-of-thought, credentials, profile details, or user secrets in coordinate_agents messages.",

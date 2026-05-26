@@ -27,6 +27,7 @@ import {
 	type WritePermission,
 	type AgentCoordinationEvent,
 	type AgentActivityKind,
+	type AgentStatus,
 	type ContextCondense,
 	type ContextTruncation,
 	type ClineMessage,
@@ -3955,6 +3956,22 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	public canCoordinateWithAgents(): boolean {
 		return this.shouldIncludeAgentCoordinationTool()
+	}
+
+	public getAgentStatus(): AgentStatus | undefined {
+		if (!this.agentId || !this.agentBus) {
+			return undefined
+		}
+
+		return this.agentBus.getAgentStatus(this.agentId)
+	}
+
+	public isAgentTerminal(): boolean {
+		if (!this.agentId || !this.agentBus) {
+			return false
+		}
+
+		return this.agentBus.isAgentTerminal(this.agentId)
 	}
 
 	public publishAgentCoordination(input: PublishAgentCoordinationInput): AgentCoordinationEvent | undefined {

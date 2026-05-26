@@ -384,6 +384,11 @@ describe("AgentBus", () => {
 			replyToId: "question-1",
 		})
 
+		expect(event).toBeDefined()
+		if (!event) {
+			throw new Error("Expected non-terminal publish to create a coordination event.")
+		}
+
 		expect(event).toEqual(
 			expect.objectContaining({
 				agentId: "agent-a",
@@ -411,6 +416,55 @@ describe("AgentBus", () => {
 		expect(events).toHaveBeenCalledWith({ type: "COORDINATION", event })
 	})
 
+	it("suppresses terminal-agent coordination publishes while preserving read access and completion packets", () => {
+		const inbound = bus.publishCoordination("agent-b", {
+			kind: "answer",
+			message: "Use data-testid=save-button.",
+			targetAgentId: "agent-a",
+		})
+		expect(inbound).toBeDefined()
+
+		bus.markComplete("agent-a", "A done")
+		const events = vi.fn()
+		bus.on("event", events)
+
+		const before = bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })
+		const suppressed = bus.publishCoordination("agent-a", {
+			kind: "note",
+			message: "Completion accepted; README.md is done.",
+		})
+		const after = bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })
+
+		expect(suppressed).toBeUndefined()
+		expect(after).toEqual(before)
+		expect(after).toEqual(
+			expect.arrayContaining([expect.objectContaining({ message: "Use data-testid=save-button." })]),
+		)
+		expect(bus.getAgentCompletionPacket("agent-a")).toEqual(
+			expect.objectContaining({ agentId: "agent-a", status: "complete", completionResult: "A done" }),
+		)
+		expect(events.mock.calls.some(([event]) => event.type === "COORDINATION")).toBe(false)
+		expect(bus.hasAgentPublishedCoordination("agent-a")).toBe(false)
+		expect(bus.hasAgentReadCoordination("agent-a")).toBe(true)
+	})
+
+	it("suppresses failed-agent coordination publishes without changing existing chat", () => {
+		bus.publishCoordination("agent-b", { kind: "note", message: "Broadcast before failure." })
+		bus.markFailed("agent-a", "Cancelled")
+		const before = bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })
+
+		const suppressed = bus.publishCoordination("agent-a", {
+			kind: "blocker",
+			message: "Interrupted after cancellation.",
+		})
+
+		expect(suppressed).toBeUndefined()
+		expect(bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })).toEqual(before)
+		expect(bus.getAgentCompletionPacket("agent-a")).toEqual(
+			expect.objectContaining({ agentId: "agent-a", status: "failed", completionResult: "Cancelled" }),
+		)
+	})
+
 	it("treats broadcast and no-reply coordination sentinels as absent", () => {
 		const event = bus.publishCoordination("agent-a", {
 			kind: "note",
@@ -418,6 +472,11 @@ describe("AgentBus", () => {
 			targetAgentId: "all",
 			replyToId: "none",
 		})
+
+		expect(event).toBeDefined()
+		if (!event) {
+			throw new Error("Expected non-terminal publish to create a coordination event.")
+		}
 
 		expect(event.targetAgentId).toBeUndefined()
 		expect(event.replyToId).toBeUndefined()
@@ -430,6 +489,11 @@ describe("AgentBus", () => {
 			message: "Question for B",
 			targetAgentId: "agent-b",
 		})
+		expect(broadcast).toBeDefined()
+		expect(targetedToB).toBeDefined()
+		if (!broadcast || !targetedToB) {
+			throw new Error("Expected non-terminal publishes to create coordination events.")
+		}
 		bus.publishCoordination("agent-b", {
 			kind: "answer",
 			message: "Answer for A",

@@ -140,6 +140,14 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		return this.executionPlan?.agents.find((agent) => agent.id === agentId)
 	}
 
+	public getAgentStatus(agentId: string): AgentStatus | undefined {
+		return this.getAgent(agentId)?.status
+	}
+
+	public isAgentTerminal(agentId: string): boolean {
+		return this.isTerminalStatus(this.getAgentStatus(agentId))
+	}
+
 	public getAgentCompletionPackets(): AgentCompletionPacket[] {
 		return Array.from(this.completionPackets.values())
 	}
@@ -221,7 +229,14 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		this.emitEvent({ type: "PROGRESS", agentId, message, kind, path: normalizedPath })
 	}
 
-	public publishCoordination(agentId: string, input: PublishAgentCoordinationInput): AgentCoordinationEvent {
+	public publishCoordination(
+		agentId: string,
+		input: PublishAgentCoordinationInput,
+	): AgentCoordinationEvent | undefined {
+		if (this.isAgentTerminal(agentId)) {
+			return undefined
+		}
+
 		const kind = this.sanitizeCoordinationKind(input.kind)
 		const targetAgentId = this.sanitizeAgentId(input.targetAgentId)
 		const relatedFiles = this.sanitizeRelatedFiles(input.relatedFiles)
@@ -392,8 +407,8 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		this.emitTerminalEvents()
 	}
 
-	private isTerminalStatus(status: AgentStatus | undefined): boolean {
-		return status === "complete" || status === "failed"
+	private isTerminalStatus(status: AgentStatus | string | undefined): boolean {
+		return status === "complete" || status === "failed" || status === "cancelled" || status === "merged"
 	}
 
 	private emitTerminalEvents(): void {

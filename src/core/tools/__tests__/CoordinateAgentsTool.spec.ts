@@ -7,6 +7,8 @@ describe("CoordinateAgentsTool", () => {
 			task: {
 				consecutiveMistakeCount: 0,
 				canCoordinateWithAgents: vi.fn(() => true),
+				getAgentStatus: vi.fn(() => "running"),
+				isAgentTerminal: vi.fn(() => false),
 				publishAgentCoordination: vi.fn(() => ({
 					id: "coord-1",
 					agentId: "agent-a",
@@ -76,6 +78,44 @@ describe("CoordinateAgentsTool", () => {
 		)
 		expect(callbacks.pushToolResult).not.toHaveBeenCalledWith(expect.stringContaining("answer -> agent-a"))
 		expect(task.consecutiveMistakeCount).toBe(0)
+	})
+
+	it("returns a non-fatal result when terminal agents try to publish", async () => {
+		const tool = new CoordinateAgentsTool()
+		const { task, callbacks } = createCallbacks()
+		;(task.publishAgentCoordination as any).mockImplementation(() => undefined)
+		task.getAgentStatus.mockReturnValue("complete")
+		task.isAgentTerminal.mockReturnValue(true)
+		task.consecutiveMistakeCount = 2
+
+		await tool.handle(
+			task as any,
+			{
+				type: "tool_use",
+				name: "coordinate_agents",
+				params: {},
+				nativeArgs: {
+					action: "publish",
+					kind: "note",
+					message: "Completion accepted; README.md is done.",
+					limit: 4,
+				},
+			} as ToolUse<"coordinate_agents">,
+			callbacks as any,
+		)
+
+		expect(task.recordToolError).not.toHaveBeenCalled()
+		expect(task.consecutiveMistakeCount).toBe(0)
+		expect(task.getAgentCoordinationEvents).toHaveBeenCalledWith({ limit: 4 })
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
+			expect.stringContaining("No team chat was posted because this agent is already terminal (complete)."),
+		)
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
+			expect.stringContaining("Use attempt_completion or structured completion status"),
+		)
+		expect(callbacks.pushToolResult).not.toHaveBeenCalledWith(
+			expect.stringContaining("Unable to publish coordination message."),
+		)
 	})
 
 	it("reads recent relevant messages without publishing", async () => {

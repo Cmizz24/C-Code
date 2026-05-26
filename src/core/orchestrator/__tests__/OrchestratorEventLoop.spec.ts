@@ -560,7 +560,7 @@ describe("OrchestratorEventLoop", () => {
 		expect(provider.postStateToWebview).toHaveBeenCalled()
 	})
 
-	it("approves completion_result asks and marks waiting background child tasks complete", async () => {
+	it("approves completion_result asks, marks waiting background child tasks complete, and stops them", async () => {
 		let spawnedTask: TestTask | undefined
 		const provider = createProvider({
 			createTask: vi.fn(async () => {
@@ -582,7 +582,7 @@ describe("OrchestratorEventLoop", () => {
 		await vi.waitFor(() => expect(AgentBus.getInstance().getAgent("ui")?.status).toBe("complete"))
 		expect(spawnedTask?.approveAsk).toHaveBeenCalled()
 		expect(spawnedTask?.denyAsk).not.toHaveBeenCalled()
-		expect(spawnedTask?.abortTask).not.toHaveBeenCalled()
+		expect(spawnedTask?.abortTask).toHaveBeenCalled()
 		expect(provider.postStateToWebview).toHaveBeenCalled()
 	})
 

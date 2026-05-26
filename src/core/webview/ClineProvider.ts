@@ -324,12 +324,6 @@ export class ClineProvider
 						event.result ? `Completed: ${event.result}` : "Completed.",
 						"completion",
 					)
-					this.recordParallelAgentCoordinationEvent({
-						agentId: event.agentId,
-						kind: "completion",
-						source: "system",
-						message: `Agent ${event.agentId} completed its assigned work.`,
-					})
 				}
 				break
 			case "FAILED":

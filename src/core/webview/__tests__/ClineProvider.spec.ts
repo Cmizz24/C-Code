@@ -1108,6 +1108,10 @@ describe("ClineProvider", () => {
 		const bus = AgentBus.getInstance()
 		bus.requestWriteIntent("dashboard-agent", "src/dashboard.tsx")
 		bus.markComplete("dashboard-agent", "Dashboard done")
+		bus.publishCoordination("dashboard-agent", {
+			kind: "note",
+			message: "Completion accepted; README.md is done.",
+		})
 
 		await vi.waitFor(() => {
 			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
@@ -1241,14 +1245,14 @@ describe("ClineProvider", () => {
 						message: "Agent dashboard-agent: I'm about to edit src/dashboard.tsx. Any hooks I need?",
 						relatedFiles: ["src/dashboard.tsx"],
 					}),
-					expect.objectContaining({
-						agentId: "dashboard-agent",
-						kind: "completion",
-						source: "system",
-						message: "Agent dashboard-agent completed its assigned work.",
-					}),
 				]),
 			)
+			expect(
+				tool.agentCoordinationEvents?.some(
+					(event) =>
+						event.agentId === "dashboard-agent" && event.kind === "completion" && event.source === "system",
+				),
+			).toBe(false)
 			expect(
 				tool.agentCoordinationEvents?.some(
 					(event) =>
@@ -1261,7 +1265,17 @@ describe("ClineProvider", () => {
 			)
 			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toMatch(/\p{Extended_Pictographic}/u)
 			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toContain("Dashboard done")
+			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toContain("Completion accepted")
 			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toContain("shared context")
+			expect(tool.agentCompletionPackets).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						status: "complete",
+						completionResult: "Dashboard done",
+					}),
+				]),
+			)
 		})
 	})
 
