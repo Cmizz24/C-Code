@@ -7,9 +7,11 @@ import { BaseTool, ToolCallbacks } from "./BaseTool"
 type CoordinateAgentsParams = NativeToolArgs["coordinate_agents"]
 
 function formatCoordinationEvent(event: NonNullable<ReturnType<Task["publishAgentCoordination"]>>): string {
-	const target = event.targetAgentId ? ` -> ${event.targetAgentId}` : ""
-	const files = event.relatedFiles?.length ? ` [${event.relatedFiles.join(", ")}]` : ""
-	return `- ${event.id ?? event.ts} ${event.kind}${target}: ${event.message}${files}`
+	const speaker = event.agentId ?? "team"
+	const target = event.targetAgentId ? ` to ${event.targetAgentId}` : ""
+	const id = event.id ? ` [${event.id}]` : ""
+	const files = event.relatedFiles?.length ? ` (${event.relatedFiles.join(", ")})` : ""
+	return `- ${speaker}${target}${id}: ${event.message}${files}`
 }
 
 export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
@@ -54,8 +56,8 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 			const recent = task.getAgentCoordinationEvents({ limit: params.limit })
 			pushToolResult(
 				[
-					`Published coordination message ${event.id ?? event.ts} (${event.kind}).`,
-					recent.length ? "Recent relevant coordination:" : "No other recent coordination messages.",
+					`Published team chat message ${event.id ?? event.ts}.`,
+					recent.length ? "Recent team chat:" : "No other recent team chat messages.",
 					...recent.map(formatCoordinationEvent),
 				].join("\n"),
 			)
@@ -67,8 +69,8 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 			const recent = task.getAgentCoordinationEvents({ limit: params.limit })
 			pushToolResult(
 				recent.length
-					? ["Recent relevant coordination:", ...recent.map(formatCoordinationEvent)].join("\n")
-					: "No recent relevant coordination messages.",
+					? ["Recent team chat:", ...recent.map(formatCoordinationEvent)].join("\n")
+					: "No recent team chat messages.",
 			)
 			return
 		}

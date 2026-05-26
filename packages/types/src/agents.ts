@@ -47,6 +47,8 @@ export type AgentCoordinationKind =
 	| "decision"
 	| "blocker"
 
+export type AgentCoordinationSource = "agent" | "system"
+
 export interface AgentCoordinationEvent {
 	id?: string
 	agentId?: string
@@ -54,6 +56,7 @@ export interface AgentCoordinationEvent {
 	message: string
 	ts: number
 	kind: AgentCoordinationKind
+	source?: AgentCoordinationSource
 	relatedFiles?: string[]
 	replyToId?: string
 }

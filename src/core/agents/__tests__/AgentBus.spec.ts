@@ -239,6 +239,7 @@ describe("AgentBus", () => {
 				agentId: "agent-a",
 				targetAgentId: "agent-b",
 				kind: "decision",
+				source: "agent",
 				replyToId: "question-1",
 			}),
 		)

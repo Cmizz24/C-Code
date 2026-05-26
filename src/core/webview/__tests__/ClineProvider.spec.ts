@@ -1152,26 +1152,31 @@ describe("ClineProvider", () => {
 				expect.arrayContaining([
 					expect.objectContaining({
 						kind: "shared-context",
-						message: "Shared context and contracts were provided to all agents.",
+						source: "system",
+						message: "Shared plan context was provided to all agents.",
 					}),
 					expect.objectContaining({
 						agentId: "dashboard-agent",
 						kind: "ownership",
+						source: "system",
 						message: "Agent dashboard-agent owns src/dashboard.tsx.",
 					}),
 					expect.objectContaining({
 						agentId: "styles-agent",
 						kind: "dependency",
+						source: "system",
 						message: "Agent styles-agent waits for dashboard-agent to signal dom-ready.",
 					}),
 					expect.objectContaining({
 						agentId: "dashboard-agent",
 						kind: "completion",
+						source: "system",
 						message: "Agent dashboard-agent completed its assigned work.",
 					}),
 				]),
 			)
 			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toContain("Dashboard done")
+			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toContain("contracts")
 		})
 	})
 

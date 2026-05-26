@@ -107,6 +107,10 @@ function renderWithExtensionState(ui: React.ReactElement, plan: ExecutionPlan | 
 	)
 }
 
+const expectNoEmoji = (element: HTMLElement) => {
+	expect(element.textContent ?? "").not.toMatch(/\p{Extended_Pictographic}/u)
+}
+
 describe("AgentStatusPanel", () => {
 	it("renders as a compact chat tool entry instead of bulky agent cards", () => {
 		const { container } = renderWithExtensionState(<AgentStatusPanel />)
@@ -318,7 +322,7 @@ describe("AgentStatusPanel", () => {
 		expect(screen.getByTestId("agent-usage-summary")).toHaveTextContent("2/2 reporting · ↑ 1.5K · ↓ 340 · $0.02")
 	})
 
-	it("renders a bounded read-only coordination feed from persisted parallel agent events", () => {
+	it("renders persisted coordination as a read-only team chat with plan context de-emphasized", () => {
 		const plan = createPlan()
 		const tool: ClineSayTool = {
 			tool: "parallelAgents",
@@ -327,20 +331,45 @@ describe("AgentStatusPanel", () => {
 			agentCoordinationEvents: [
 				{
 					kind: "shared-context",
-					message: "Shared context and contracts were provided to all agents.",
+					source: "system",
+					message: "Shared plan context was provided to all agents.",
 					ts: 1,
 				},
 				{
 					agentId: "ui-agent",
 					kind: "ownership",
+					source: "system",
 					message: "Agent ui-agent owns src/Dashboard.tsx.",
 					ts: 2,
 				},
 				{
 					agentId: "styles-agent",
 					kind: "dependency",
+					source: "system",
 					message: "Agent styles-agent waits for ui-agent to signal dom-ready.",
 					ts: 3,
+				},
+				{
+					id: "coord-1",
+					agentId: "ui-agent",
+					targetAgentId: "styles-agent",
+					kind: "question",
+					source: "agent",
+					message: "Do you need a wrapper class in src/Dashboard.tsx for the compact card styles?",
+					relatedFiles: ["src/Dashboard.tsx"],
+					ts: 1_700_000_000_000,
+				},
+				{
+					id: "coord-2",
+					agentId: "styles-agent",
+					targetAgentId: "ui-agent",
+					kind: "answer",
+					source: "agent",
+					message:
+						'Please add className="dashboard-card"; CSS will target .dashboard-card and --dashboard-gap.',
+					relatedFiles: ["src/dashboard.css"],
+					replyToId: "coord-1",
+					ts: 1_700_000_000_500,
 				},
 			],
 		}
@@ -349,18 +378,37 @@ describe("AgentStatusPanel", () => {
 
 		const feed = screen.getByTestId("agent-coordination-feed")
 		expect(feed).toHaveTextContent("Coordination")
-		expect(feed).toHaveTextContent("Team chat")
-		expect(feed).toHaveTextContent("read-only")
-		expect(feed).toHaveTextContent("Shared context and contracts were provided to all agents.")
-		expect(feed).toHaveTextContent("Agent ui-agent owns src/Dashboard.tsx.")
-		expect(feed).toHaveTextContent("Agent styles-agent waits for ui-agent to signal dom-ready.")
-		expect(screen.getAllByTestId("agent-coordination-setup-message")).toHaveLength(3)
-		expect(screen.queryByTestId("agent-coordination-message")).not.toBeInTheDocument()
+		expect(feed).toHaveTextContent("Team chat · read-only · latest 8")
+		expect(screen.getAllByTestId("agent-coordination-message")).toHaveLength(2)
+		expect(screen.getByTestId("agent-coordination-context")).toHaveTextContent("Plan context")
+
+		const chatMessages = screen.getAllByTestId("agent-coordination-message")
+		const mainChat = chatMessages.map((message) => message.textContent ?? "").join(" ")
+		expect(mainChat).toContain("UI/UX")
+		expect(mainChat).toContain("Code")
+		expect(mainChat).toContain("running")
+		expect(mainChat).toContain("pending")
+		expect(mainChat).toContain("Do you need a wrapper class")
+		expect(mainChat).toContain("dashboard-card")
+		expect(mainChat).toContain("--dashboard-gap")
+		expect(mainChat).toContain("src/Dashboard.tsx")
+		expect(mainChat).toContain("src/dashboard.css")
+		expect(mainChat).not.toContain("Shared plan context was provided")
+		expect(mainChat).not.toContain("owns")
+		expect(mainChat).not.toContain("waits for")
+		expect(mainChat).not.toContain("question")
+		expect(mainChat).not.toContain("answer")
+		expect(mainChat).not.toContain("to Code")
+		expect(mainChat).not.toContain("coord-1")
+		expect(mainChat).not.toContain("coord-2")
+		expect(feed).not.toHaveTextContent("contract")
+		expect(screen.getAllByTestId("agent-coordination-related-file")).toHaveLength(2)
+		expectNoEmoji(feed)
 		expect(within(feed).queryByRole("button")).not.toBeInTheDocument()
 		expect(within(feed).queryByRole("textbox")).not.toBeInTheDocument()
 	})
 
-	it("renders live coordination updates with compact metadata and keeps the feed bounded", () => {
+	it("renders live coordination updates as bounded chat messages without event-log labels", () => {
 		renderWithExtensionState(<AgentStatusPanel />)
 
 		for (let index = 0; index < 10; index++) {
@@ -371,6 +419,7 @@ describe("AgentStatusPanel", () => {
 					agentId: index === 9 ? "ui-agent" : "styles-agent",
 					targetAgentId: index === 9 ? "styles-agent" : undefined,
 					kind: index === 9 ? "question" : "note",
+					source: "agent",
 					message: index === 9 ? "Can you confirm the dashboard selector?" : `Coordination ${index}`,
 					relatedFiles: index === 9 ? ["src/Dashboard.tsx", "src/dashboard.css"] : undefined,
 					replyToId: index === 9 ? "coord-7" : undefined,
@@ -388,15 +437,21 @@ describe("AgentStatusPanel", () => {
 		expect(feed).not.toHaveTextContent("Coordination 0")
 		expect(feed).not.toHaveTextContent("Coordination 1")
 		expect(feed).toHaveTextContent("Can you confirm the dashboard selector?")
-		expect(feed).toHaveTextContent("question")
+		expect(feed).not.toHaveTextContent("question")
+		expect(feed).not.toHaveTextContent("note")
 		expect(feed).toHaveTextContent("UI/UX")
 		expect(feed).toHaveTextContent("running")
-		expect(feed).toHaveTextContent("to Code")
+		expect(feed).not.toHaveTextContent("to Code")
 		expect(feed).not.toHaveTextContent("reply coord-7")
+		expect(feed).not.toHaveTextContent("coord-7")
+		expect(feed).not.toHaveTextContent("ownership")
+		expect(feed).not.toHaveTextContent("dependency")
+		expect(feed).not.toHaveTextContent("contract")
 		expect(screen.getAllByTestId("agent-coordination-message")).toHaveLength(8)
 		expect(screen.getAllByTestId("agent-coordination-related-file")).toHaveLength(2)
 		expect(feed).toHaveTextContent("src/Dashboard.tsx")
 		expect(feed).toHaveTextContent("src/dashboard.css")
+		expectNoEmoji(feed)
 		expect(within(feed).queryByRole("button")).not.toBeInTheDocument()
 		expect(within(feed).queryByRole("textbox")).not.toBeInTheDocument()
 	})

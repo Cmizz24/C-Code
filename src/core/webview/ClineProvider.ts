@@ -246,6 +246,7 @@ export class ClineProvider
 					this.recordParallelAgentCoordinationEvent({
 						agentId: event.agentId,
 						kind: "ownership",
+						source: "system",
 						message: `Agent ${event.agentId} is writing ${event.path}.`,
 					})
 				} else {
@@ -257,6 +258,7 @@ export class ClineProvider
 				this.recordParallelAgentCoordinationEvent({
 					agentId: event.agentId,
 					kind: "ownership",
+					source: "system",
 					message: event.ownerAgentId
 						? `Agent ${event.agentId} requested ${event.path}, currently owned by ${event.ownerAgentId}.`
 						: `Agent ${event.agentId} requested ${event.path}, which has no assigned owner.`,
@@ -272,6 +274,7 @@ export class ClineProvider
 				this.recordParallelAgentCoordinationEvent({
 					agentId: event.agentId,
 					kind: "ownership",
+					source: "system",
 					message: `Agent ${event.agentId} released write access for ${event.path}.`,
 				})
 				break
@@ -289,6 +292,7 @@ export class ClineProvider
 					this.recordParallelAgentCoordinationEvent({
 						agentId: event.agentId,
 						kind: "dependency",
+						source: "system",
 						message: event.blockedOn?.length
 							? `Agent ${event.agentId} is waiting for ${event.blockedOn
 									.map((dependency) => this.describeAgentDependency(dependency))
@@ -314,6 +318,7 @@ export class ClineProvider
 					this.recordParallelAgentCoordinationEvent({
 						agentId: event.agentId,
 						kind: "completion",
+						source: "system",
 						message: `Agent ${event.agentId} completed its assigned work.`,
 					})
 				}
@@ -335,6 +340,7 @@ export class ClineProvider
 				this.recordParallelAgentCoordinationEvent({
 					agentId: event.agentId,
 					kind: "signal",
+					source: "system",
 					message: `Agent ${event.agentId} signaled ${event.signal}.`,
 				})
 				break
@@ -4212,7 +4218,8 @@ export class ClineProvider
 		if (plan.sharedContext.trim()) {
 			addEvent({
 				kind: "shared-context",
-				message: "Shared context and contracts were provided to all agents.",
+				source: "system",
+				message: "Shared plan context was provided to all agents.",
 			})
 		}
 
@@ -4225,6 +4232,7 @@ export class ClineProvider
 				addEvent({
 					agentId: agent.id,
 					kind: "ownership",
+					source: "system",
 					message: `Agent ${agent.id} owns ${this.formatCoordinationPathList(writableOwnerships)}.`,
 				})
 			}
@@ -4233,6 +4241,7 @@ export class ClineProvider
 				addEvent({
 					agentId: agent.id,
 					kind: "dependency",
+					source: "system",
 					message: `Agent ${agent.id} waits for ${this.describeAgentDependency(dependency)}.`,
 				})
 			}

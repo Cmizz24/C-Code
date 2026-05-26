@@ -48,6 +48,7 @@ type DisplayAgentActivity = AgentActivity & {
 
 const AGENT_ACTIVITY_TRANSCRIPT_LIMIT = 50
 const AGENT_ACTIVITY_DISPLAY_LIMIT = 12
+const AGENT_COORDINATION_STATE_LIMIT = 24
 const AGENT_COORDINATION_DISPLAY_LIMIT = 8
 const ACTIVITY_AGE_UPDATE_INTERVAL_MS = 1_000
 const MIN_REAL_ACTIVITY_TS = 946_684_800_000
@@ -124,45 +125,16 @@ const activityKindLabels: Record<AgentActivityKind, string> = {
 	file: "file",
 }
 
-const coordinationKindLabels: Record<AgentCoordinationKind, string> = {
-	"shared-context": "setup",
-	ownership: "ownership",
-	dependency: "dependency",
-	signal: "signal",
-	completion: "complete",
-	note: "note",
-	question: "question",
-	answer: "answer",
-	decision: "decision",
-	blocker: "blocker",
-}
-
-const coordinationStatusClasses: Record<AgentCoordinationKind, string> = {
-	"shared-context":
-		"border-vscode-descriptionForeground/20 bg-vscode-descriptionForeground/5 text-vscode-descriptionForeground",
-	ownership:
-		"border-vscode-descriptionForeground/20 bg-vscode-descriptionForeground/5 text-vscode-descriptionForeground",
-	dependency:
-		"border-vscode-descriptionForeground/20 bg-vscode-descriptionForeground/5 text-vscode-descriptionForeground",
-	signal: "border-vscode-focusBorder/40 bg-vscode-focusBorder/10 text-vscode-foreground",
-	completion: "border-vscode-charts-green/40 bg-vscode-charts-green/10 text-vscode-charts-green",
-	note: "border-vscode-focusBorder/30 bg-vscode-focusBorder/10 text-vscode-foreground",
-	question:
-		"border-vscode-editorWarning-foreground/40 bg-vscode-editorWarning-foreground/10 text-vscode-editorWarning-foreground",
-	answer: "border-vscode-focusBorder/40 bg-vscode-focusBorder/10 text-vscode-foreground",
-	decision: "border-vscode-charts-green/40 bg-vscode-charts-green/10 text-vscode-charts-green",
-	blocker: "border-vscode-errorForeground/40 bg-vscode-errorForeground/10 text-vscode-errorForeground",
-}
-
 const setupCoordinationKinds = new Set<AgentCoordinationKind>(["shared-context", "ownership", "dependency"])
 
 const getActivityKind = (activity: AgentActivity): AgentActivityKind => activity.kind ?? "status"
 
 const getActivityKindLabel = (activity: AgentActivity): string => activityKindLabels[getActivityKind(activity)]
 
-const getCoordinationKindLabel = (event: AgentCoordination): string => coordinationKindLabels[event.kind]
+const isContextCoordinationEvent = (event: AgentCoordination): boolean =>
+	event.source === "system" || setupCoordinationKinds.has(event.kind)
 
-const isSetupCoordinationEvent = (event: AgentCoordination): boolean => setupCoordinationKinds.has(event.kind)
+const isChatCoordinationEvent = (event: AgentCoordination): boolean => !isContextCoordinationEvent(event)
 
 const getActivityKey = (activity: AgentActivity, index: number): string =>
 	`${activity.agentId}:${activity.ts}:${getActivityKind(activity)}:${index}:${activity.message}`
@@ -312,7 +284,13 @@ const sortAgentActivities = (activities: AgentActivity[]): AgentActivity[] =>
 	[...activities].sort((a, b) => a.ts - b.ts).slice(-AGENT_ACTIVITY_TRANSCRIPT_LIMIT)
 
 const sortAgentCoordinationEvents = (events: AgentCoordination[] = []): AgentCoordination[] =>
-	[...events].sort((a, b) => a.ts - b.ts).slice(-AGENT_COORDINATION_DISPLAY_LIMIT)
+	[...events].sort((a, b) => a.ts - b.ts)
+
+const getStoredAgentCoordinationEvents = (events: AgentCoordination[] = []): AgentCoordination[] =>
+	sortAgentCoordinationEvents(events).slice(-AGENT_COORDINATION_STATE_LIMIT)
+
+const getDisplayAgentCoordinationEvents = (events: AgentCoordination[] = []): AgentCoordination[] =>
+	sortAgentCoordinationEvents(events).slice(-AGENT_COORDINATION_DISPLAY_LIMIT)
 
 const mergeAgentCoordinationEvents = (
 	previous: AgentCoordination[],
@@ -324,7 +302,7 @@ const mergeAgentCoordinationEvents = (
 		merged.set(getCoordinationIdentity(event), event)
 	}
 
-	return sortAgentCoordinationEvents(Array.from(merged.values()))
+	return getStoredAgentCoordinationEvents(Array.from(merged.values()))
 }
 
 const mergeAgentActivityLists = (
@@ -705,7 +683,11 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 			: undefined
 	const phaseLabel = phase ? phaseLabels[phase] : overallStatus
 	const reviewSummaryMarkdown = tool?.parallelReviewSummary?.markdown?.trim()
-	const coordinationFeedEvents = sortAgentCoordinationEvents(coordinationEvents)
+	const coordinationChatEvents = getDisplayAgentCoordinationEvents(coordinationEvents.filter(isChatCoordinationEvent))
+	const coordinationContextEvents = getDisplayAgentCoordinationEvents(
+		coordinationEvents.filter(isContextCoordinationEvent),
+	)
+	const hasCoordinationEvents = coordinationChatEvents.length > 0 || coordinationContextEvents.length > 0
 	const getAgentLabel = (agentId: string): string => labelByAgentId.get(agentId) ?? agentId
 	const getAgentStatus = (agentId: string | undefined): AgentStatus | undefined =>
 		agents.find((agent) => agent.id === agentId)?.status
@@ -767,7 +749,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 						</div>
 					)}
 
-					{coordinationFeedEvents.length > 0 && (
+					{hasCoordinationEvents && (
 						<div
 							data-testid="agent-coordination-feed"
 							aria-label="Agent coordination"
@@ -778,93 +760,91 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 									Team chat · read-only · latest {AGENT_COORDINATION_DISPLAY_LIMIT}
 								</span>
 							</div>
-							<ol className="flex max-h-48 flex-col gap-1.5 overflow-y-auto pr-1">
-								{coordinationFeedEvents.map((event, index) => {
-									const timestampLabel = getCoordinationTimestampLabel(event, now)
-									const isSetupEvent = isSetupCoordinationEvent(event)
-									const senderLabel = event.agentId ? getAgentLabel(event.agentId) : "Plan"
-									const senderStatus = getAgentStatus(event.agentId)
-									const targetLabel = event.targetAgentId
-										? getAgentLabel(event.targetAgentId)
-										: undefined
-									const relatedFiles = event.relatedFiles?.filter(Boolean) ?? []
+							{coordinationChatEvents.length > 0 ? (
+								<ol className="flex max-h-48 flex-col gap-1.5 overflow-y-auto pr-1">
+									{coordinationChatEvents.map((event, index) => {
+										const timestampLabel = getCoordinationTimestampLabel(event, now)
+										const senderLabel = event.agentId ? getAgentLabel(event.agentId) : "Team"
+										const senderStatus = getAgentStatus(event.agentId)
+										const relatedFiles = event.relatedFiles?.filter(Boolean) ?? []
 
-									return (
-										<li
-											key={getCoordinationKey(event, index)}
-											data-testid={
-												isSetupEvent
-													? "agent-coordination-setup-message"
-													: "agent-coordination-message"
-											}
-											className={cn(
-												"min-w-0 rounded border px-2 py-1.5",
-												isSetupEvent
-													? "border-vscode-sideBar-background/60 bg-vscode-editor-background/15 text-vscode-descriptionForeground opacity-75"
-													: "border-vscode-sideBar-background bg-vscode-editor-background/40 text-vscode-descriptionForeground",
-											)}>
-											<div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-												<span
-													className={cn(
-														"shrink-0 font-medium",
-														isSetupEvent
-															? "text-vscode-descriptionForeground"
-															: "text-vscode-foreground",
-													)}>
-													{senderLabel}
-												</span>
-												{senderStatus && (
-													<Badge
-														className={cn(
-															"shrink-0 border text-[10px] capitalize",
-															statusBadgeClasses[senderStatus],
-														)}>
-														{senderStatus}
-													</Badge>
-												)}
-												<Badge
-													className={cn(
-														"shrink-0 border text-[10px]",
-														coordinationStatusClasses[event.kind],
-													)}>
-													{getCoordinationKindLabel(event)}
-												</Badge>
-												{targetLabel && (
-													<span className="shrink-0 text-vscode-descriptionForeground">
-														to {targetLabel}
+										return (
+											<li
+												key={getCoordinationKey(event, index)}
+												data-testid="agent-coordination-message"
+												className="min-w-0 rounded border border-vscode-sideBar-background bg-vscode-editor-background/40 px-2 py-1.5 text-vscode-descriptionForeground">
+												<div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+													<span className="shrink-0 font-medium text-vscode-foreground">
+														{senderLabel}
 													</span>
-												)}
-												{timestampLabel && (
-													<span className="ml-auto shrink-0 font-mono text-[10px]">
-														{timestampLabel}
-													</span>
-												)}
-											</div>
-											<div
-												className={cn(
-													"mt-1 whitespace-pre-wrap break-words",
-													isSetupEvent
-														? "text-vscode-descriptionForeground"
-														: "text-vscode-foreground",
-												)}>
-												{event.message}
-											</div>
-											{relatedFiles.length > 0 && (
-												<div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 text-[10px] text-vscode-descriptionForeground">
-													{relatedFiles.map((file) => (
+													{senderStatus && (
 														<Badge
-															key={file}
-															data-testid="agent-coordination-related-file"
-															className="max-w-full border-vscode-descriptionForeground/20 bg-vscode-descriptionForeground/5 font-mono text-[10px] text-vscode-descriptionForeground">
-															<span className="truncate">{file}</span>
+															className={cn(
+																"shrink-0 border text-[10px] capitalize",
+																statusBadgeClasses[senderStatus],
+															)}>
+															{senderStatus}
 														</Badge>
-													))}
+													)}
+													{timestampLabel && (
+														<span className="ml-auto shrink-0 font-mono text-[10px]">
+															{timestampLabel}
+														</span>
+													)}
 												</div>
-											)}
-										</li>
-									)
-								})}
-							</ol>
+												<div className="mt-1 whitespace-pre-wrap break-words text-vscode-foreground">
+													{event.message}
+												</div>
+												{relatedFiles.length > 0 && (
+													<div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 text-[10px] text-vscode-descriptionForeground">
+														{relatedFiles.map((file) => (
+															<Badge
+																key={file}
+																data-testid="agent-coordination-related-file"
+																className="max-w-full border-vscode-descriptionForeground/20 bg-vscode-descriptionForeground/5 font-mono text-[10px] text-vscode-descriptionForeground">
+																<span className="truncate">{file}</span>
+															</Badge>
+														))}
+													</div>
+												)}
+											</li>
+										)
+									})}
+								</ol>
+							) : (
+								<div
+									data-testid="agent-coordination-empty"
+									className="rounded border border-vscode-sideBar-background/60 bg-vscode-editor-background/20 px-2 py-1.5 text-vscode-descriptionForeground">
+									No team chat messages yet.
+								</div>
+							)}
+							{coordinationContextEvents.length > 0 && (
+								<details
+									data-testid="agent-coordination-context"
+									className="mt-1.5 rounded border border-vscode-sideBar-background/50 bg-vscode-editor-background/10 px-2 py-1 text-[10px] text-vscode-descriptionForeground">
+									<summary className="cursor-pointer select-none text-vscode-descriptionForeground">
+										Plan context
+									</summary>
+									<ul className="mt-1 flex max-h-20 flex-col gap-1 overflow-y-auto pr-1">
+										{coordinationContextEvents.map((event, index) => {
+											const timestampLabel = getCoordinationTimestampLabel(event, now)
+											return (
+												<li
+													key={getCoordinationKey(event, index)}
+													data-testid="agent-coordination-context-message"
+													className="flex min-w-0 gap-1.5 text-vscode-descriptionForeground">
+													{timestampLabel && (
+														<span className="shrink-0 font-mono text-[10px]">
+															{timestampLabel}
+														</span>
+													)}
+													<span className="min-w-0 truncate">{event.message}</span>
+												</li>
+											)
+										})}
+									</ul>
+								</details>
+							)}
 						</div>
 					)}
 

@@ -196,6 +196,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			message,
 			ts: Date.now(),
 			kind,
+			source: "agent",
 			...(targetAgentId ? { targetAgentId } : {}),
 			...(relatedFiles.length > 0 ? { relatedFiles } : {}),
 			...(replyToId ? { replyToId } : {}),
