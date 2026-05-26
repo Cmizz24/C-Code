@@ -108,7 +108,7 @@ import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { REQUESTY_BASE_URL } from "../../shared/utils/requesty"
 import { validateAndFixToolResultIds } from "../task/validateToolResultIds"
-import { AgentBus } from "../agents/AgentBus"
+import { AgentBus, isGenericOwnershipCoordinationMessage } from "../agents/AgentBus"
 import { getWorktreeManagerErrorMessage, WorktreeManager, WorktreeMergeError } from "../agents/WorktreeManager"
 import { OrchestratorEventLoop } from "../orchestrator/OrchestratorEventLoop"
 
@@ -252,12 +252,6 @@ export class ClineProvider
 					this.postAgentStatusUpdate(update)
 					this.recordParallelAgentStatus(update)
 					this.recordParallelAgentActivity(event.agentId, `Writing ${event.path}.`, "file")
-					this.recordParallelAgentCoordinationEvent({
-						agentId: event.agentId,
-						kind: "ownership",
-						source: "system",
-						message: `Agent ${event.agentId} is writing ${event.path}.`,
-					})
 				} else {
 					this.deniedWriteReasons.set(this.getConflictKey(event.agentId, event.path), event.permission.reason)
 				}
@@ -280,12 +274,6 @@ export class ClineProvider
 				}).catch(() => {})
 				this.parallelWriteConflicts.delete(this.getConflictKey(event.agentId, event.path))
 				this.recordParallelAgentActivity(event.agentId, `Write access cleared for ${event.path}.`, "file")
-				this.recordParallelAgentCoordinationEvent({
-					agentId: event.agentId,
-					kind: "ownership",
-					source: "system",
-					message: `Agent ${event.agentId} released write access for ${event.path}.`,
-				})
 				break
 			case "BLOCKED":
 				{
@@ -340,12 +328,6 @@ export class ClineProvider
 				break
 			case "SIGNAL":
 				this.recordParallelAgentActivity(event.agentId, `Signaled ${event.signal}.`, "signal")
-				this.recordParallelAgentCoordinationEvent({
-					agentId: event.agentId,
-					kind: "signal",
-					source: "system",
-					message: `Agent ${event.agentId} signaled ${event.signal}.`,
-				})
 				break
 			case "COORDINATION":
 				this.recordParallelAgentCoordinationEvent(event.event)
@@ -4524,6 +4506,10 @@ export class ClineProvider
 			return undefined
 		}
 
+		if (this.shouldSuppressParallelAgentCoordinationEvent(event)) {
+			return undefined
+		}
+
 		const storedEvent = { ...event, ts: event.ts ?? Date.now() }
 		const previousEvents = storedEvent.id
 			? this.parallelAgentCoordinationEvents.filter((candidate) => candidate.id !== storedEvent.id)
@@ -4535,6 +4521,20 @@ export class ClineProvider
 		this.postAgentCoordinationUpdate(storedEvent)
 		this.scheduleParallelAgentStatusMessageUpdate()
 		return storedEvent
+	}
+
+	private shouldSuppressParallelAgentCoordinationEvent(
+		event: Omit<ParallelAgentCoordinationEvent, "ts"> & { ts?: number },
+	): boolean {
+		if (event.kind === "question" || event.kind === "answer") {
+			return false
+		}
+
+		if (event.kind === "shared-context" || event.kind === "ownership" || event.kind === "dependency") {
+			return true
+		}
+
+		return event.source === "system" && isGenericOwnershipCoordinationMessage(event.message)
 	}
 
 	private describeAgentDependency(dependency: AgentDependency): string {

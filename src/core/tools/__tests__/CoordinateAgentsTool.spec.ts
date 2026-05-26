@@ -31,6 +31,17 @@ describe("CoordinateAgentsTool", () => {
 						ts: 2,
 					},
 				]),
+				getOpenAgentCoordinationQuestions: vi.fn(() => [
+					{
+						id: "coord-open",
+						agentId: "agent-b",
+						kind: "question" as const,
+						source: "agent" as const,
+						message: "Which data-testid should the save button expose?",
+						targetAgentId: "agent-a",
+						ts: 3,
+					},
+				]),
 				recordToolError: vi.fn(),
 			},
 			callbacks: {
@@ -70,11 +81,15 @@ describe("CoordinateAgentsTool", () => {
 			replyToId: undefined,
 		})
 		expect(task.getAgentCoordinationEvents).toHaveBeenCalledWith({ limit: undefined })
+		expect(task.getOpenAgentCoordinationQuestions).toHaveBeenCalledWith({ limit: undefined })
 		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
 			expect.stringContaining("Published team chat message coord-1."),
 		)
 		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
-			expect.stringContaining("agent-b to agent-a [coord-2]: Use data-testid=save-button. (src/b.ts)"),
+			expect.stringContaining("answer agent-b to agent-a [coord-2]: Use data-testid=save-button. (src/b.ts)"),
+		)
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
+			expect.stringContaining("Reply with kind='answer' and replyToId='coord-open'"),
 		)
 		expect(callbacks.pushToolResult).not.toHaveBeenCalledWith(expect.stringContaining("answer -> agent-a"))
 		expect(task.consecutiveMistakeCount).toBe(0)
@@ -105,6 +120,7 @@ describe("CoordinateAgentsTool", () => {
 		)
 
 		expect(task.recordToolError).not.toHaveBeenCalled()
+		expect(task.publishAgentCoordination).not.toHaveBeenCalled()
 		expect(task.consecutiveMistakeCount).toBe(0)
 		expect(task.getAgentCoordinationEvents).toHaveBeenCalledWith({ limit: 4 })
 		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
@@ -135,6 +151,8 @@ describe("CoordinateAgentsTool", () => {
 
 		expect(task.publishAgentCoordination).not.toHaveBeenCalled()
 		expect(task.getAgentCoordinationEvents).toHaveBeenCalledWith({ limit: 3 })
+		expect(task.getOpenAgentCoordinationQuestions).toHaveBeenCalledWith({ limit: 3 })
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining("Open questions for you:"))
 		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining("Recent team chat:"))
 	})
 
@@ -163,6 +181,7 @@ describe("CoordinateAgentsTool", () => {
 
 		expect(task.publishAgentCoordination).not.toHaveBeenCalled()
 		expect(task.getAgentCoordinationEvents).toHaveBeenCalledWith({ limit: 8 })
+		expect(task.getOpenAgentCoordinationQuestions).toHaveBeenCalledWith({ limit: 8 })
 		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining("Recent team chat:"))
 	})
 
@@ -178,8 +197,8 @@ describe("CoordinateAgentsTool", () => {
 				params: {},
 				nativeArgs: {
 					action: "publish",
-					kind: "decision",
-					message: "Use styles.css for the shared layout classes.",
+					kind: "question",
+					message: "Do you need styles.css for the shared layout classes?",
 					targetAgentId: "all",
 					relatedFiles: ["styles.css"],
 					replyToId: "none",
@@ -190,13 +209,43 @@ describe("CoordinateAgentsTool", () => {
 		)
 
 		expect(task.publishAgentCoordination).toHaveBeenCalledWith({
-			kind: "decision",
-			message: "Use styles.css for the shared layout classes.",
+			kind: "question",
+			message: "Do you need styles.css for the shared layout classes?",
 			targetAgentId: undefined,
 			relatedFiles: ["styles.css"],
 			replyToId: undefined,
 		})
 		expect(task.getAgentCoordinationEvents).toHaveBeenCalledWith({ limit: 8 })
+	})
+
+	it("rejects ownership/status-only publish kinds before posting", async () => {
+		const tool = new CoordinateAgentsTool()
+		const { task, callbacks } = createCallbacks()
+
+		await tool.handle(
+			task as any,
+			{
+				type: "tool_use",
+				name: "coordinate_agents",
+				params: {},
+				nativeArgs: {
+					action: "publish",
+					kind: "note",
+					message: "I own src/a.ts.",
+				},
+			} as ToolUse<"coordinate_agents">,
+			callbacks as any,
+		)
+
+		expect(task.publishAgentCoordination).not.toHaveBeenCalled()
+		expect(task.recordToolError).toHaveBeenCalledWith(
+			"coordinate_agents",
+			"Publish requires kind='question' or kind='answer' for active team coordination.",
+		)
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
+			expect.stringContaining("Publish a real integration question or answer"),
+		)
+		expect(task.consecutiveMistakeCount).toBe(1)
 	})
 
 	it("denies foreground tasks", async () => {

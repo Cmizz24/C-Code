@@ -36,6 +36,26 @@ export type GetAgentCoordinationOptions = {
 	includeSelf?: boolean
 }
 
+const genericOwnershipCoordinationPatterns = [
+	/^\s*(?:agent\s+[\w.-]+:\s*)?i\s+(?:own|can read|am assigned to|will handle|will work on|am working on)\b/i,
+	/^\s*agent\s+[\w.-]+\s+(?:owns|can read|is assigned to|will handle|is working on|is writing|released write access|requested|waits for|is blocked|signaled)\b/i,
+	/^\s*team chat open for plan\b/i,
+	/^\s*shared context is in each agent task\b/i,
+	/^\s*[\w.-]+\s+waits for\s+[\w.-]+\s+to\s+(?:complete|signal)\b/i,
+]
+
+export function isGenericOwnershipCoordinationMessage(message: string): boolean {
+	const normalized = String(message ?? "")
+		.replace(/\s+/g, " ")
+		.trim()
+
+	if (!normalized) {
+		return false
+	}
+
+	return genericOwnershipCoordinationPatterns.some((pattern) => pattern.test(normalized))
+}
+
 type AppendCoordinationEventInput = Omit<AgentCoordinationEvent, "id" | "ts"> & {
 	id?: string
 	ts?: number
@@ -273,6 +293,14 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			.slice(-limit)
 	}
 
+	public getOpenCoordinationQuestions(
+		agentId: string,
+		options: GetAgentCoordinationOptions = {},
+	): AgentCoordinationEvent[] {
+		const limit = clampInteger(options.limit, AGENT_COORDINATION_READ_LIMIT, AGENT_COORDINATION_READ_LIMIT_MAX)
+		return this.getOpenQuestionsForAgent(agentId).slice(-limit)
+	}
+
 	public hasAgentReadCoordination(agentId: string): boolean {
 		return this.coordinationReadAgents.has(agentId)
 	}
@@ -299,11 +327,22 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			return undefined
 		}
 
+		if (this.hasOpenQuestionFromAgent(agentId)) {
+			this.coordinationPublishedAgents.add(agentId)
+			return undefined
+		}
+
+		const targetAgent = this.findCoordinationQuestionTarget(agent)
+		if (!targetAgent) {
+			return undefined
+		}
+
 		const event = this.publishSystemCoordination({
 			id: `${this.executionPlan.planId}:preflight:${agentId}`,
 			agentId,
-			kind: "note",
-			message: this.buildCoordinationPreflightMessage(agent, normalizedPath),
+			targetAgentId: targetAgent.id,
+			kind: "question",
+			message: this.buildCoordinationPreflightMessage(targetAgent, normalizedPath),
 			relatedFiles: [normalizedPath],
 		})
 
@@ -564,74 +603,157 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	private seedPlanCoordination(plan: ExecutionPlan): void {
 		const ts = Date.now()
 
-		if (plan.sharedContext.trim()) {
+		for (const agent of plan.agents) {
+			if (this.isTerminalStatus(agent.status) || !this.isWritableAgent(agent)) {
+				continue
+			}
+
+			const targetAgent = this.findCoordinationQuestionTarget(agent)
+			if (!targetAgent) {
+				continue
+			}
+
+			const primaryPath = this.getPrimaryCoordinationPath(agent)
+
 			this.publishSystemCoordination({
-				id: `${plan.planId}:shared-context`,
-				kind: "shared-context",
-				message: "Shared context is in each agent task.",
+				id: `${plan.planId}:seed-question:${agent.id}:${targetAgent.id}`,
+				agentId: agent.id,
+				targetAgentId: targetAgent.id,
+				kind: "question",
+				message: this.buildSeedQuestionMessage(agent, targetAgent, primaryPath),
+				...(primaryPath ? { relatedFiles: [primaryPath] } : {}),
 				ts,
 			})
 		}
+	}
 
-		this.publishSystemCoordination({
-			id: `${plan.planId}:team-kickoff`,
-			kind: "note",
-			message: `Team chat open for plan ${plan.planId}. Keep messages short.`,
-			ts,
-		})
+	private buildCoordinationPreflightMessage(targetAgent: AgentPlan, filePath: string): string {
+		return `${targetAgent.id}, any hook, selector, or export needed before I edit ${filePath}?`
+	}
 
-		for (const agent of plan.agents) {
-			const writableOwnerships = agent.owns
-				.filter((ownership) => ownership.mode !== "read-only")
-				.map((ownership) => ownership.path)
-			const readableOwnerships = agent.owns.map((ownership) => ownership.path)
-			const scopePaths = writableOwnerships.length > 0 ? writableOwnerships : readableOwnerships
-			const scopeVerb = writableOwnerships.length > 0 ? "own" : "can read"
+	private buildSeedQuestionMessage(
+		agent: AgentPlan,
+		targetAgent: AgentPlan,
+		primaryPath: string | undefined,
+	): string {
+		const sourcePath = primaryPath ?? "my file"
 
-			this.publishSystemCoordination({
-				id: `${plan.planId}:intro:${agent.id}`,
-				agentId: agent.id,
-				kind: "note",
-				message: `Agent ${agent.id}: I ${scopeVerb} ${this.formatCoordinationPathList(scopePaths)}.`,
-				relatedFiles: scopePaths,
-				ts,
-			})
+		if (this.isDocumentationAgent(agent)) {
+			return `${targetAgent.id}, what user-facing feature name should docs mention?`
+		}
 
-			for (const dependency of agent.dependsOn) {
-				this.publishSystemCoordination({
-					id: `${plan.planId}:dependency:${agent.id}:${dependency.agentId}:${dependency.waitFor}:${dependency.signal ?? "complete"}`,
-					agentId: agent.id,
-					kind: "dependency",
-					message: `${agent.id} waits for ${this.describeAgentDependency(dependency)}.`,
-					ts,
-				})
+		if (this.isStyleAgent(agent)) {
+			return `${targetAgent.id}, what stable wrapper or data attribute should styles target?`
+		}
+
+		if (this.isStyleAgent(targetAgent)) {
+			return `${targetAgent.id}, which class or CSS variable should ${sourcePath} expose?`
+		}
+
+		if (this.isDocumentationAgent(targetAgent)) {
+			return `${targetAgent.id}, what user-facing name should docs use for ${sourcePath}?`
+		}
+
+		return `${targetAgent.id}, do you need a hook, selector, or export from ${sourcePath}?`
+	}
+
+	private findCoordinationQuestionTarget(agent: AgentPlan): AgentPlan | undefined {
+		const plan = this.executionPlan
+		if (!plan) {
+			return undefined
+		}
+
+		const dependencyTarget = agent.dependsOn
+			.map((dependency) => plan.agents.find((candidate) => candidate.id === dependency.agentId))
+			.find(
+				(candidate): candidate is AgentPlan =>
+					candidate !== undefined && !this.isTerminalStatus(candidate.status),
+			)
+
+		if (dependencyTarget) {
+			return dependencyTarget
+		}
+
+		const runnablePeers = plan.agents.filter(
+			(candidate) => candidate.id !== agent.id && !this.isTerminalStatus(candidate.status),
+		)
+
+		if (this.isStyleAgent(agent)) {
+			const markupPeer = runnablePeers.find((candidate) => this.isMarkupOrBehaviorAgent(candidate))
+			if (markupPeer) {
+				return markupPeer
 			}
 		}
-	}
 
-	private buildCoordinationPreflightMessage(agent: AgentPlan, filePath: string): string {
-		return `Agent ${agent.id}: I'm about to edit ${filePath}. Any hooks I need?`
-	}
-
-	private describeAgentDependency(dependency: AgentDependency): string {
-		if (dependency.waitFor === "signal") {
-			return dependency.signal
-				? `${dependency.agentId} to signal ${dependency.signal}`
-				: `${dependency.agentId} to signal`
+		if (this.isDocumentationAgent(agent)) {
+			const implementationPeer = runnablePeers.find((candidate) => this.isImplementationAgent(candidate))
+			if (implementationPeer) {
+				return implementationPeer
+			}
 		}
 
-		return `${dependency.agentId} to complete`
-	}
-
-	private formatCoordinationPathList(paths: string[]): string {
-		if (paths.length === 0) {
-			return "none"
+		const stylePeer = runnablePeers.find((candidate) => this.isStyleAgent(candidate))
+		if (stylePeer) {
+			return stylePeer
 		}
 
-		const visiblePaths = paths.slice(0, 2).join(", ")
-		const remainingCount = paths.length - 2
+		return runnablePeers.find((candidate) => this.isImplementationAgent(candidate)) ?? runnablePeers[0]
+	}
 
-		return remainingCount > 0 ? `${visiblePaths}, and ${remainingCount} more` : visiblePaths
+	private hasOpenQuestionFromAgent(agentId: string): boolean {
+		return this.coordinationEvents.some(
+			(event) => event.agentId === agentId && event.kind === "question" && !this.isQuestionAnswered(event),
+		)
+	}
+
+	private getOpenQuestionsForAgent(agentId: string): AgentCoordinationEvent[] {
+		return this.coordinationEvents.filter(
+			(event) =>
+				event.kind === "question" &&
+				event.agentId !== agentId &&
+				(!event.targetAgentId || event.targetAgentId === agentId) &&
+				!this.isQuestionAnswered(event),
+		)
+	}
+
+	private isQuestionAnswered(question: AgentCoordinationEvent): boolean {
+		if (!question.id) {
+			return false
+		}
+
+		return this.coordinationEvents.some(
+			(event) =>
+				event.kind === "answer" &&
+				event.replyToId === question.id &&
+				event.agentId === question.targetAgentId &&
+				(!event.targetAgentId || event.targetAgentId === question.agentId),
+		)
+	}
+
+	private getPrimaryCoordinationPath(agent: AgentPlan): string | undefined {
+		return agent.owns.find((ownership) => ownership.mode !== "read-only")?.path ?? agent.owns[0]?.path
+	}
+
+	private isImplementationAgent(agent: AgentPlan): boolean {
+		return this.isWritableAgent(agent) && !this.isDocumentationAgent(agent)
+	}
+
+	private isWritableAgent(agent: AgentPlan): boolean {
+		return agent.owns.some((ownership) => ownership.mode !== "read-only")
+	}
+
+	private isMarkupOrBehaviorAgent(agent: AgentPlan): boolean {
+		return agent.owns.some((ownership) => /\.(?:html|tsx?|jsx?|vue|svelte)$/i.test(ownership.path))
+	}
+
+	private isStyleAgent(agent: AgentPlan): boolean {
+		return agent.owns.some((ownership) => /\.(?:css|scss|sass|less|pcss|styl)$/i.test(ownership.path))
+	}
+
+	private isDocumentationAgent(agent: AgentPlan): boolean {
+		return agent.owns.some((ownership) =>
+			/(?:^|\/)(?:readme|docs?|documentation)|\.(?:md|mdx|txt|rst)$/i.test(ownership.path),
+		)
 	}
 
 	private sanitizeCoordinationKind(kind: AgentCoordinationKind | undefined): AgentCoordinationKind {

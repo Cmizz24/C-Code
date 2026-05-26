@@ -126,16 +126,13 @@ const activityKindLabels: Record<AgentActivityKind, string> = {
 	file: "file",
 }
 
-const setupCoordinationKinds = new Set<AgentCoordinationKind>(["shared-context", "ownership", "dependency"])
+const chatCoordinationKinds = new Set<AgentCoordinationKind>(["question", "answer"])
 
 const getActivityKind = (activity: AgentActivity): AgentActivityKind => activity.kind ?? "status"
 
 const getActivityKindLabel = (activity: AgentActivity): string => activityKindLabels[getActivityKind(activity)]
 
-const isContextCoordinationEvent = (event: AgentCoordination): boolean =>
-	event.source === "system" || setupCoordinationKinds.has(event.kind)
-
-const isChatCoordinationEvent = (event: AgentCoordination): boolean => !isContextCoordinationEvent(event)
+const isChatCoordinationEvent = (event: AgentCoordination): boolean => chatCoordinationKinds.has(event.kind)
 
 const getActivityKey = (activity: AgentActivity, index: number): string =>
 	`${activity.agentId}:${activity.ts}:${getActivityKind(activity)}:${index}:${activity.message}`
@@ -695,12 +692,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 	const phaseLabel = phase ? phaseLabels[phase] : overallStatus
 	const reviewSummaryMarkdown = tool?.parallelReviewSummary?.markdown?.trim()
 	const coordinationChatEvents = getDisplayAgentCoordinationEvents(coordinationEvents.filter(isChatCoordinationEvent))
-	const coordinationContextEvents = getDisplayAgentCoordinationEvents(
-		coordinationEvents.filter(isContextCoordinationEvent),
-	)
-	const displayCoordinationChatEvents =
-		coordinationChatEvents.length > 0 ? coordinationChatEvents : coordinationContextEvents
-	const hasCoordinationEvents = coordinationChatEvents.length > 0 || coordinationContextEvents.length > 0
+	const hasCoordinationEvents = coordinationEvents.length > 0
 	const getAgentLabel = (agentId: string): string => labelByAgentId.get(agentId) ?? agentId
 	const getAgentStatus = (agentId: string | undefined): AgentStatus | undefined =>
 		agents.find((agent) => agent.id === agentId)?.status
@@ -773,9 +765,9 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 									Team chat · short messages · latest {AGENT_COORDINATION_DISPLAY_LIMIT}
 								</span>
 							</div>
-							{displayCoordinationChatEvents.length > 0 ? (
+							{coordinationChatEvents.length > 0 ? (
 								<ol className="flex max-h-48 flex-col gap-1.5 overflow-y-auto pr-1">
-									{displayCoordinationChatEvents.map((event, index) => {
+									{coordinationChatEvents.map((event, index) => {
 										const timestampLabel = getCoordinationTimestampLabel(event, now)
 										const senderLabel = event.agentId ? getAgentLabel(event.agentId) : "Team"
 										const senderStatus = getAgentStatus(event.agentId)
@@ -799,6 +791,9 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 															{senderStatus}
 														</Badge>
 													)}
+													<Badge className="shrink-0 border border-vscode-focusBorder/40 bg-vscode-focusBorder/10 text-[10px] capitalize text-vscode-foreground">
+														{event.kind}
+													</Badge>
 													{timestampLabel && (
 														<span className="ml-auto shrink-0 font-mono text-[10px]">
 															{timestampLabel}

@@ -185,15 +185,22 @@ describe("OrchestratorEventLoop", () => {
 		expect(options?.systemPromptSuffix).toContain("Never concatenate multiple tool argument JSON objects")
 		expect(message).toContain("Before your first write")
 		expect(message).toContain("read recent team chat")
-		expect(message).toContain("publish one short chat message")
+		expect(message).toContain("If there is an open question for you, answer it before writing")
+		expect(message).toContain("Otherwise ask one relevant agent one short integration question")
+		expect(message).toContain("Do not post ownership or introduction messages")
+		expect(message).toContain("real question/answer coordination only")
 		expect(message).toContain("one short question at a time")
 		expect(message).toContain("only the key hook, selector, variable, file, or decision")
 		expect(message).toContain("Avoid manifest-style messages")
 		expect(message).toContain("Never include emojis")
 		expect(message).not.toContain("publish one concise operational update")
+		expect(message).not.toContain("what file you own")
 		expect(message).not.toMatch(/\p{Extended_Pictographic}/u)
 		expect(options?.systemPromptSuffix).toContain("Before your first write")
-		expect(options?.systemPromptSuffix).toContain("one short team-chat message")
+		expect(options?.systemPromptSuffix).toContain("If there is an open question for you, answer it before writing")
+		expect(options?.systemPromptSuffix).toContain("otherwise ask one relevant agent one short integration question")
+		expect(options?.systemPromptSuffix).toContain("Do not post ownership or introduction messages")
+		expect(options?.systemPromptSuffix).toContain("real question/answer coordination only")
 		expect(options?.systemPromptSuffix).toContain("one short question at a time")
 		expect(options?.systemPromptSuffix).toContain(
 			"answer with only the key hook, selector, variable, file, or decision",
@@ -238,7 +245,11 @@ describe("OrchestratorEventLoop", () => {
 			expect(options?.systemPromptSuffix).toContain(
 				"each native tool call must have exactly one JSON argument object",
 			)
-			expect(options?.systemPromptSuffix).toContain("action=read, then publish one short team-chat message")
+			expect(options?.systemPromptSuffix).toContain("call coordinate_agents with action=read")
+			expect(options?.systemPromptSuffix).toContain(
+				"If there is an open question for you, answer it before writing",
+			)
+			expect(options?.systemPromptSuffix).toContain("Do not post ownership or introduction messages")
 			expect(options?.systemPromptSuffix).toContain("one short question at a time")
 			expect(options?.systemPromptSuffix).toContain("Avoid manifest-style dumps")
 		}

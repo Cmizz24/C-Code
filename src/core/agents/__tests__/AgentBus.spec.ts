@@ -77,38 +77,56 @@ describe("AgentBus", () => {
 		expect(bus.requestWriteIntent("agent-a", "src/a.ts")).toEqual({ approved: true })
 	})
 
-	it("seeds operational plan coordination messages when a plan starts", () => {
+	it("seeds targeted coordination questions when a plan starts", () => {
 		const messages = bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })
 
 		expect(messages).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					id: "plan-test:shared-context",
-					kind: "shared-context",
-					source: "system",
-					message: "Shared context is in each agent task.",
-				}),
-				expect.objectContaining({
-					id: "plan-test:team-kickoff",
-					kind: "note",
-					source: "system",
-					message: "Team chat open for plan plan-test. Keep messages short.",
-				}),
-				expect.objectContaining({
-					id: "plan-test:intro:agent-a",
+					id: "plan-test:seed-question:agent-a:agent-b",
 					agentId: "agent-a",
-					kind: "note",
+					targetAgentId: "agent-b",
+					kind: "question",
 					source: "system",
-					message: "Agent agent-a: I own src/a.ts.",
+					message: "agent-b, do you need a hook, selector, or export from src/a.ts?",
+					relatedFiles: ["src/a.ts"],
 				}),
 			]),
 		)
+		expect(messages.every((message) => message.kind === "question")).toBe(true)
+		expect(messages.find((message) => message.id === "plan-test:shared-context")).toBeUndefined()
+		expect(messages.find((message) => message.id === "plan-test:team-kickoff")).toBeUndefined()
+		expect(messages.find((message) => message.id === "plan-test:intro:agent-a")).toBeUndefined()
 		expect(messages.find((message) => message.id === "plan-test:ownership:agent-a")).toBeUndefined()
 		expect(messages.every((message) => message.message.length <= 90)).toBe(true)
+		expect(messages.map((message) => message.message).join(" ")).not.toMatch(
+			/\bI own\b|Team chat open|Shared context/i,
+		)
 		expect(messages.map((message) => message.message).join(" ")).not.toMatch(
 			/selectors, classes, CSS variables|DOM hooks, IDs|public functions|file contracts/,
 		)
 		expect(messages.map((message) => message.message).join(" ")).not.toMatch(/\p{Extended_Pictographic}/u)
+
+		const openForA = bus.getOpenCoordinationQuestions("agent-a", { limit: 20 })
+		expect(openForA).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "plan-test:seed-question:agent-b:agent-a",
+					agentId: "agent-b",
+					targetAgentId: "agent-a",
+					kind: "question",
+				}),
+			]),
+		)
+
+		bus.publishCoordination("agent-a", {
+			kind: "answer",
+			message: "Expose useDashboardState from src/a.ts.",
+			targetAgentId: "agent-b",
+			replyToId: "plan-test:seed-question:agent-b:agent-a",
+		})
+
+		expect(bus.getOpenCoordinationQuestions("agent-a", { limit: 20 })).toEqual([])
 	})
 
 	it("tracks read and publish coordination state per agent", () => {
@@ -128,9 +146,10 @@ describe("AgentBus", () => {
 		expect(bus.hasAgentCoordinated("agent-a")).toBe(true)
 	})
 
-	it("performs safe coordination preflight before an agent's first write", () => {
+	it("uses the seeded targeted question as safe coordination preflight before an agent's first write", () => {
 		const events = vi.fn()
 		bus.on("event", events)
+		const before = bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })
 
 		expect(bus.hasAgentCoordinated("agent-a")).toBe(false)
 
@@ -138,22 +157,10 @@ describe("AgentBus", () => {
 
 		expect(permission).toEqual({ approved: true })
 		expect(bus.hasAgentCoordinated("agent-a")).toBe(true)
-		const coordinationCall = events.mock.calls.find(([event]) => event.type === "COORDINATION")
-		expect(coordinationCall?.[0]).toEqual(
-			expect.objectContaining({
-				type: "COORDINATION",
-				event: expect.objectContaining({
-					id: "plan-test:preflight:agent-a",
-					agentId: "agent-a",
-					kind: "note",
-					source: "system",
-					message: "Agent agent-a: I'm about to edit src/a.ts. Any hooks I need?",
-					relatedFiles: ["src/a.ts"],
-				}),
-			}),
-		)
-		expect(coordinationCall?.[0].event.message.length).toBeLessThanOrEqual(80)
-		expect(coordinationCall?.[0].event.message).not.toMatch(/\p{Extended_Pictographic}/u)
+		expect(events.mock.calls.some(([event]) => event.type === "COORDINATION")).toBe(false)
+		expect(bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })).toEqual(before)
+		expect(JSON.stringify(before)).toContain("plan-test:seed-question:agent-a:agent-b")
+		expect(JSON.stringify(before)).not.toMatch(/I own|I'm about to edit|Team chat open/i)
 		expect(events.mock.calls.at(-1)?.[0]).toEqual({
 			type: "INTENT_WRITE",
 			agentId: "agent-a",
@@ -544,8 +551,15 @@ describe("AgentBus", () => {
 
 		const resetEvents = bus.getCoordinationEvents("agent-b", { includeSelf: true, limit: 20 })
 		expect(resetEvents).toEqual(
-			expect.arrayContaining([expect.objectContaining({ id: "plan-test:team-kickoff", source: "system" })]),
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "plan-test:seed-question:agent-a:agent-b",
+					kind: "question",
+					source: "system",
+				}),
+			]),
 		)
 		expect(resetEvents.map((event) => event.message).join(" ")).not.toContain("Message")
+		expect(resetEvents.map((event) => event.message).join(" ")).not.toMatch(/I own|Team chat open/i)
 	})
 })

@@ -9,9 +9,9 @@ import {
 } from "../../../agents/AgentBus"
 
 const COORDINATE_AGENTS_DESCRIPTION =
-	'Background parallel-agent team chat. Use only to read or publish short operational messages for sibling agents. For reads, use the minimal payload {"action":"read","limit":8}; do not include kind, message, targetAgentId, replyToId, or relatedFiles when reading. For publishing, use {"action":"publish","kind":"question","message":"..."} or {"action":"publish","kind":"answer","message":"..."}. Prefer one short question or one short answer per message, like a simple team chat. Ask the specific relevant agent for one missing detail at a time. Answers should include only the key hook, selector, variable, file, or decision needed. Avoid manifest-style dumps that list many selectors, classes, variables, hooks, files, or implementation details in one message. If many details are truly needed, split them into multiple short messages. Include targetAgentId, relatedFiles, or replyToId only when needed. Omit targetAgentId, or use "" or "all", to broadcast. Omit replyToId, or use "" or "none", when not replying. After your agent is complete or otherwise terminal, publish attempts are ignored; put final evidence in attempt_completion and structured completion status, not team chat. Keep messages operational and safe. Do not include emojis, raw reasoning, chain-of-thought, private analysis, credentials, profile details, or user secrets. This tool cannot edit files, run commands, spawn tasks, or change modes.'
+	'Background parallel-agent team chat for real question/answer coordination only. Use action=read before your first write to see recent team chat plus any open questions for you. For reads, use the minimal payload {"action":"read","limit":8}; do not include kind, message, targetAgentId, replyToId, or relatedFiles when reading. For publishing, use {"action":"publish","kind":"question","message":"..."} to ask one targeted integration question, or {"action":"publish","kind":"answer","message":"...","replyToId":"..."} to answer an open question. Do not publish ownership introductions, status notes, kickoff messages, or statements such as "I own <file>", "Agent <id> owns <file>", "I can read <file>", or "I am working on <file>". Publish only a real question or answer. Ask the specific relevant agent for one missing hook, selector, variable, data attribute, public function, file contract, or user-facing name at a time. Answers should include only the key hook, selector, variable, data attribute, file, or decision needed. Avoid manifest-style dumps that list many selectors, classes, variables, hooks, files, or implementation details in one message. If many details are truly needed, split them into multiple short messages. Include targetAgentId when asking a specific sibling. Include replyToId when answering an open question. Omit targetAgentId, or use "" or "all", only when a broadcast question is truly needed. Omit replyToId, or use "" or "none", when not replying. After your agent is complete or otherwise terminal, publish attempts are ignored; put final evidence in attempt_completion and structured completion status, not team chat. Keep messages operational and safe. Do not include emojis, raw reasoning, chain-of-thought, private analysis, credentials, profile details, or user secrets. This tool cannot edit files, run commands, spawn tasks, or change modes.'
 
-const coordinationKindValues = ["note", "question", "answer", "decision", "blocker"] as const
+const coordinationKindValues = ["question", "answer"] as const
 
 const coordinateAgentsTool: OpenAI.Chat.ChatCompletionTool = {
 	type: "function",
@@ -32,12 +32,12 @@ const coordinateAgentsTool: OpenAI.Chat.ChatCompletionTool = {
 					type: "string",
 					enum: coordinationKindValues,
 					description:
-						"Message kind for publish only. Use note for short updates, question/answer for direct team chat, decision for settled choices, and blocker for actionable impediments. Omit on read.",
+						"Message kind for publish only. Use question to ask one targeted integration question, or answer to reply to an open question. Ownership/status notes are not allowed. Omit on read.",
 				},
 				message: {
 					type: "string",
 					maxLength: AGENT_COORDINATION_MESSAGE_MAX_LENGTH,
-					description: `Short team-chat message to publish. Required for action='publish'. Keep at most ${AGENT_COORDINATION_MESSAGE_MAX_LENGTH} characters, and prefer under 140. Send one short question or one short answer. Include only the key hook, selector, variable, file, or decision needed. Split long details into multiple short messages. Do not include emojis, private reasoning, or chain-of-thought. Omit on read.`,
+					description: `Short team-chat question or answer to publish. Required for action='publish'. Keep at most ${AGENT_COORDINATION_MESSAGE_MAX_LENGTH} characters, and prefer under 140. Ask or answer one practical integration detail: hook, selector, variable, data attribute, public function, file contract, user-facing name, or decision. Do not post ownership introductions like 'I own <file>' or status-only updates. Split long details into multiple short messages. Do not include emojis, private reasoning, or chain-of-thought. Omit on read.`,
 				},
 				targetAgentId: {
 					type: "string",

@@ -1201,6 +1201,21 @@ describe("ClineProvider", () => {
 		await provider.approveExecutionPlan(plan)
 
 		const bus = AgentBus.getInstance()
+		const openForStyles = bus.getOpenCoordinationQuestions("styles-agent", { limit: 20 })
+		expect(openForStyles).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "plan-webview-provider:seed-question:dashboard-agent:styles-agent",
+					kind: "question",
+				}),
+			]),
+		)
+		bus.publishCoordination("styles-agent", {
+			kind: "answer",
+			message: "Expose data-dashboard-root for compact styles.",
+			targetAgentId: "dashboard-agent",
+			replyToId: "plan-webview-provider:seed-question:dashboard-agent:styles-agent",
+		})
 		bus.requestWriteIntent("dashboard-agent", "src/dashboard.tsx")
 		bus.markBlocked("styles-agent", "Waiting for DOM contract", [
 			{ agentId: "dashboard-agent", waitFor: "signal", signal: "dom-ready" },
@@ -1212,40 +1227,29 @@ describe("ClineProvider", () => {
 			expect(tool.agentCoordinationEvents).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
-						id: "plan-webview-provider:shared-context",
-						kind: "shared-context",
-						source: "system",
-						message: "Shared context is in each agent task.",
-					}),
-					expect.objectContaining({
-						id: "plan-webview-provider:team-kickoff",
-						kind: "note",
-						source: "system",
-						message: "Team chat open for plan plan-webview-provider. Keep messages short.",
-					}),
-					expect.objectContaining({
-						id: "plan-webview-provider:intro:dashboard-agent",
+						id: "plan-webview-provider:seed-question:dashboard-agent:styles-agent",
 						agentId: "dashboard-agent",
-						kind: "note",
+						targetAgentId: "styles-agent",
+						kind: "question",
 						source: "system",
-						message: "Agent dashboard-agent: I own src/dashboard.tsx.",
+						message: "styles-agent, which class or CSS variable should src/dashboard.tsx expose?",
 						relatedFiles: ["src/dashboard.tsx"],
 					}),
 					expect.objectContaining({
 						agentId: "styles-agent",
-						kind: "dependency",
-						source: "system",
-						message: "styles-agent waits for dashboard-agent to signal dom-ready.",
-					}),
-					expect.objectContaining({
-						id: "plan-webview-provider:preflight:dashboard-agent",
-						agentId: "dashboard-agent",
-						kind: "note",
-						source: "system",
-						message: "Agent dashboard-agent: I'm about to edit src/dashboard.tsx. Any hooks I need?",
-						relatedFiles: ["src/dashboard.tsx"],
+						targetAgentId: "dashboard-agent",
+						kind: "answer",
+						source: "agent",
+						message: "Expose data-dashboard-root for compact styles.",
+						replyToId: "plan-webview-provider:seed-question:dashboard-agent:styles-agent",
 					}),
 				]),
+			)
+			expect(
+				tool.agentCoordinationEvents?.every((event) => event.kind === "question" || event.kind === "answer"),
+			).toBe(true)
+			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toMatch(
+				/I own|Team chat open|Shared context is in each agent task|waits for|I'm about to edit/i,
 			)
 			expect(
 				tool.agentCoordinationEvents?.some(

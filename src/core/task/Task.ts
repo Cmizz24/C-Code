@@ -3990,6 +3990,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		return this.agentBus.getCoordinationEvents(this.agentId, options)
 	}
 
+	public getOpenAgentCoordinationQuestions(options?: GetAgentCoordinationOptions): AgentCoordinationEvent[] {
+		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
+			return []
+		}
+
+		return this.agentBus.getOpenCoordinationQuestions(this.agentId, options)
+	}
+
 	private getCurrentProfileId(state: any): string {
 		return (
 			state?.listApiConfigMeta?.find((profile: any) => profile.name === state?.currentApiConfigName)?.id ??

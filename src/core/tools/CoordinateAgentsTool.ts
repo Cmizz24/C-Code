@@ -27,7 +27,33 @@ function formatCoordinationEvent(event: NonNullable<ReturnType<Task["publishAgen
 	const target = event.targetAgentId ? ` to ${event.targetAgentId}` : ""
 	const id = event.id ? ` [${event.id}]` : ""
 	const files = event.relatedFiles?.length ? ` (${event.relatedFiles.join(", ")})` : ""
-	return `- ${speaker}${target}${id}: ${event.message}${files}`
+	return `- ${event.kind} ${speaker}${target}${id}: ${event.message}${files}`
+}
+
+function formatOpenQuestions(openQuestions: ReturnType<Task["getAgentCoordinationEvents"]>): string[] {
+	if (openQuestions.length === 0) {
+		return []
+	}
+
+	return [
+		"Open questions for you:",
+		...openQuestions.map(
+			(event) => `- Reply with kind='answer' and replyToId='${event.id ?? ""}': ${event.message}`,
+		),
+	]
+}
+
+function formatCoordinationReadResult(
+	recent: ReturnType<Task["getAgentCoordinationEvents"]>,
+	openQuestions: ReturnType<Task["getAgentCoordinationEvents"]>,
+): string {
+	return [
+		...formatOpenQuestions(openQuestions),
+		recent.length ? "Recent team chat:" : "No recent team chat messages.",
+		...recent.map(formatCoordinationEvent),
+	]
+		.filter(Boolean)
+		.join("\n")
 }
 
 function formatTerminalPublishSuppression(
@@ -68,6 +94,27 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 				return
 			}
 
+			if (task.isAgentTerminal()) {
+				task.consecutiveMistakeCount = 0
+				const recent = task.getAgentCoordinationEvents({ limit: params.limit })
+				pushToolResult(formatTerminalPublishSuppression(task.getAgentStatus(), recent))
+				return
+			}
+
+			if (params.kind !== "question" && params.kind !== "answer") {
+				task.consecutiveMistakeCount++
+				task.recordToolError(
+					"coordinate_agents",
+					"Publish requires kind='question' or kind='answer' for active team coordination.",
+				)
+				pushToolResult(
+					formatResponse.toolError(
+						"Publish a real integration question or answer. Do not post ownership/status-only team chat.",
+					),
+				)
+				return
+			}
+
 			const event = task.publishAgentCoordination({
 				kind: params.kind,
 				message: params.message,
@@ -77,22 +124,17 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 			})
 
 			if (!event) {
-				if (task.isAgentTerminal()) {
-					task.consecutiveMistakeCount = 0
-					const recent = task.getAgentCoordinationEvents({ limit: params.limit })
-					pushToolResult(formatTerminalPublishSuppression(task.getAgentStatus(), recent))
-					return
-				}
-
 				pushToolResult(formatResponse.toolError("Unable to publish coordination message."))
 				return
 			}
 
 			task.consecutiveMistakeCount = 0
 			const recent = task.getAgentCoordinationEvents({ limit: params.limit })
+			const openQuestions = task.getOpenAgentCoordinationQuestions({ limit: params.limit })
 			pushToolResult(
 				[
 					`Published team chat message ${event.id ?? event.ts}.`,
+					...formatOpenQuestions(openQuestions),
 					recent.length ? "Recent team chat:" : "No other recent team chat messages.",
 					...recent.map(formatCoordinationEvent),
 				].join("\n"),
@@ -103,11 +145,8 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 		if (params.action === "read") {
 			task.consecutiveMistakeCount = 0
 			const recent = task.getAgentCoordinationEvents({ limit: params.limit })
-			pushToolResult(
-				recent.length
-					? ["Recent team chat:", ...recent.map(formatCoordinationEvent)].join("\n")
-					: "No recent team chat messages.",
-			)
+			const openQuestions = task.getOpenAgentCoordinationQuestions({ limit: params.limit })
+			pushToolResult(formatCoordinationReadResult(recent, openQuestions))
 			return
 		}
 
