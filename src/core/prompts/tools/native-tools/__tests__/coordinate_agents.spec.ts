@@ -6,6 +6,8 @@ describe("coordinate_agents native tool", () => {
 		const description = `${tool.description ?? ""} ${tool.parameters ? JSON.stringify(tool.parameters) : ""}`
 
 		expect(description).toContain("team chat")
+		expect(description).toContain('{"action":"read","limit":8}')
+		expect(description).toContain('{"action":"publish","kind":"note","message":"..."}')
 		expect(description).toContain("ask direct questions")
 		expect(description).toContain("answer another agent")
 		expect(description).toContain("selectors/classes/hooks/filenames/variables")
@@ -13,5 +15,17 @@ describe("coordinate_agents native tool", () => {
 		expect(description).toContain("chain-of-thought")
 		expect(description).not.toContain("contract")
 		expect(description).not.toMatch(/\p{Extended_Pictographic}/u)
+	})
+
+	it("keeps schema bounds strict while documenting clean read and publish shapes", () => {
+		const parameters = (coordinateAgentsTool as any).function.parameters
+
+		expect(parameters.properties.kind.enum).toEqual(["note", "question", "answer", "decision", "blocker"])
+		expect(parameters.properties.message.maxLength).toBe(500)
+		expect(parameters.properties.relatedFiles.maxItems).toBe(8)
+		expect(parameters.properties.relatedFiles.items.maxLength).toBe(200)
+		expect(parameters.properties.limit.minimum).toBe(1)
+		expect(parameters.properties.limit.maximum).toBe(20)
+		expect(parameters.additionalProperties).toBe(false)
 	})
 })

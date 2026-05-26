@@ -374,6 +374,97 @@ describe("NativeToolCallParser", () => {
 				errorSpy.mockRestore()
 			})
 		})
+
+		describe("coordinate_agents tool", () => {
+			it("accepts reported read payloads with harmless publish-style fields and sanitizes to read args", () => {
+				const payloads = [
+					{
+						action: "read",
+						kind: "note",
+						message: "",
+						targetAgentId: "",
+						relatedFiles: [],
+						replyToId: "",
+						limit: 8,
+					},
+					{
+						action: "read",
+						kind: "note",
+						message: "Reading recent coordination messages before creating index.html structure.",
+						targetAgentId: "",
+						relatedFiles: ["index.html"],
+						replyToId: "",
+						limit: 8,
+					},
+				]
+
+				for (const [index, payload] of payloads.entries()) {
+					const result = NativeToolCallParser.parseToolCall({
+						id: `toolu_coordinate_read_${index}`,
+						name: "coordinate_agents" as const,
+						arguments: JSON.stringify(payload),
+					})
+
+					expect(result).not.toBeNull()
+					expect(result?.type).toBe("tool_use")
+					if (result?.type === "tool_use") {
+						expect(result.nativeArgs).toEqual({ action: "read", limit: 8 })
+					}
+				}
+			})
+
+			it("accepts reported publish payloads and normalizes broadcast/no-reply sentinels", () => {
+				const result = NativeToolCallParser.parseToolCall({
+					id: "toolu_coordinate_publish",
+					name: "coordinate_agents" as const,
+					arguments: JSON.stringify({
+						action: "publish",
+						kind: "decision",
+						message: "Use styles.css for shared layout classes.",
+						targetAgentId: "all",
+						relatedFiles: ["styles.css"],
+						replyToId: "",
+						limit: 8,
+					}),
+				})
+
+				expect(result).not.toBeNull()
+				expect(result?.type).toBe("tool_use")
+				if (result?.type === "tool_use") {
+					expect(result.nativeArgs).toEqual({
+						action: "publish",
+						kind: "decision",
+						message: "Use styles.css for shared layout classes.",
+						relatedFiles: ["styles.css"],
+						limit: 8,
+					})
+				}
+			})
+
+			it("keeps invalid coordinate_agents values strict", () => {
+				const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+				const invalidKind = NativeToolCallParser.parseToolCall({
+					id: "toolu_coordinate_invalid_kind",
+					name: "coordinate_agents" as const,
+					arguments: JSON.stringify({ action: "publish", kind: "status", message: "Invalid kind." }),
+				})
+				const invalidLimit = NativeToolCallParser.parseToolCall({
+					id: "toolu_coordinate_invalid_limit",
+					name: "coordinate_agents" as const,
+					arguments: JSON.stringify({ action: "read", limit: 21 }),
+				})
+
+				expect(invalidKind).toBeNull()
+				expect(invalidLimit).toBeNull()
+				expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("coordinate_agents kind must be one of"))
+				expect(errorSpy).toHaveBeenCalledWith(
+					expect.stringContaining("coordinate_agents limit must be between"),
+				)
+
+				errorSpy.mockRestore()
+			})
+		})
 	})
 
 	describe("processRawChunk", () => {

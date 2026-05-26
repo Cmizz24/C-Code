@@ -98,6 +98,67 @@ describe("CoordinateAgentsTool", () => {
 		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining("Recent team chat:"))
 	})
 
+	it("ignores harmless publish-style fields on read calls", async () => {
+		const tool = new CoordinateAgentsTool()
+		const { task, callbacks } = createCallbacks()
+
+		await tool.handle(
+			task as any,
+			{
+				type: "tool_use",
+				name: "coordinate_agents",
+				params: {},
+				nativeArgs: {
+					action: "read",
+					kind: "note",
+					message: "Reading recent coordination messages before creating index.html structure.",
+					targetAgentId: "",
+					relatedFiles: ["index.html"],
+					replyToId: "",
+					limit: 8,
+				},
+			} as ToolUse<"coordinate_agents">,
+			callbacks as any,
+		)
+
+		expect(task.publishAgentCoordination).not.toHaveBeenCalled()
+		expect(task.getAgentCoordinationEvents).toHaveBeenCalledWith({ limit: 8 })
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining("Recent team chat:"))
+	})
+
+	it("normalizes broadcast and no-reply sentinels before publishing", async () => {
+		const tool = new CoordinateAgentsTool()
+		const { task, callbacks } = createCallbacks()
+
+		await tool.handle(
+			task as any,
+			{
+				type: "tool_use",
+				name: "coordinate_agents",
+				params: {},
+				nativeArgs: {
+					action: "publish",
+					kind: "decision",
+					message: "Use styles.css for the shared layout classes.",
+					targetAgentId: "all",
+					relatedFiles: ["styles.css"],
+					replyToId: "none",
+					limit: 8,
+				},
+			} as ToolUse<"coordinate_agents">,
+			callbacks as any,
+		)
+
+		expect(task.publishAgentCoordination).toHaveBeenCalledWith({
+			kind: "decision",
+			message: "Use styles.css for the shared layout classes.",
+			targetAgentId: undefined,
+			relatedFiles: ["styles.css"],
+			replyToId: undefined,
+		})
+		expect(task.getAgentCoordinationEvents).toHaveBeenCalledWith({ limit: 8 })
+	})
+
 	it("denies foreground tasks", async () => {
 		const tool = new CoordinateAgentsTool()
 		const { task, callbacks } = createCallbacks()

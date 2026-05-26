@@ -259,6 +259,18 @@ describe("AgentBus", () => {
 		expect(events).toHaveBeenCalledWith({ type: "COORDINATION", event })
 	})
 
+	it("treats broadcast and no-reply coordination sentinels as absent", () => {
+		const event = bus.publishCoordination("agent-a", {
+			kind: "note",
+			message: "Broadcast update.",
+			targetAgentId: "all",
+			replyToId: "none",
+		})
+
+		expect(event.targetAgentId).toBeUndefined()
+		expect(event.replyToId).toBeUndefined()
+	})
+
 	it("returns only recent relevant coordination messages for each agent", () => {
 		const broadcast = bus.publishCoordination("agent-a", { kind: "note", message: "Broadcast note" })
 		const targetedToB = bus.publishCoordination("agent-a", {

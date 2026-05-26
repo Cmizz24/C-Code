@@ -14,10 +14,10 @@ import type {
 
 export const AGENT_COORDINATION_EVENT_LIMIT = 50
 export const AGENT_COORDINATION_MESSAGE_MAX_LENGTH = 500
-const AGENT_COORDINATION_RELATED_FILES_LIMIT = 8
-const AGENT_COORDINATION_PATH_MAX_LENGTH = 200
-const AGENT_COORDINATION_READ_LIMIT = 8
-const AGENT_COORDINATION_READ_LIMIT_MAX = 20
+export const AGENT_COORDINATION_RELATED_FILES_LIMIT = 8
+export const AGENT_COORDINATION_PATH_MAX_LENGTH = 200
+export const AGENT_COORDINATION_READ_LIMIT = 8
+export const AGENT_COORDINATION_READ_LIMIT_MAX = 20
 
 export type PublishAgentCoordinationInput = {
 	kind?: AgentCoordinationKind
@@ -189,7 +189,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		const kind = this.sanitizeCoordinationKind(input.kind)
 		const targetAgentId = this.sanitizeAgentId(input.targetAgentId)
 		const relatedFiles = this.sanitizeRelatedFiles(input.relatedFiles)
-		const replyToId = this.sanitizeIdentifier(input.replyToId)
+		const replyToId = this.sanitizeReplyToId(input.replyToId)
 		const event: AgentCoordinationEvent = {
 			id: `${Date.now()}-${++this.coordinationSequence}`,
 			agentId,
@@ -399,11 +399,31 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	private sanitizeAgentId(agentId: string | undefined): string | undefined {
 		const normalized = this.sanitizeIdentifier(agentId)
 
-		if (!normalized || !this.executionPlan?.agents.some((agent) => agent.id === normalized)) {
+		if (
+			!normalized ||
+			this.isBroadcastTargetSentinel(normalized) ||
+			!this.executionPlan?.agents.some((agent) => agent.id === normalized)
+		) {
 			return undefined
 		}
 
 		return normalized
+	}
+
+	private sanitizeReplyToId(replyToId: string | undefined): string | undefined {
+		const normalized = this.sanitizeIdentifier(replyToId)
+
+		if (!normalized || normalized.toLowerCase() === "none") {
+			return undefined
+		}
+
+		return normalized
+	}
+
+	private isBroadcastTargetSentinel(value: string): boolean {
+		const normalized = value.toLowerCase()
+
+		return normalized === "all" || normalized === "none"
 	}
 
 	private sanitizeIdentifier(value: string | undefined): string | undefined {

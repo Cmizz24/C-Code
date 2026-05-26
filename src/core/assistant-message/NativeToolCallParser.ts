@@ -10,6 +10,12 @@ import {
 	type NativeToolArgs,
 	toolParamNames,
 } from "../../shared/tools"
+import {
+	AGENT_COORDINATION_MESSAGE_MAX_LENGTH,
+	AGENT_COORDINATION_PATH_MAX_LENGTH,
+	AGENT_COORDINATION_READ_LIMIT_MAX,
+	AGENT_COORDINATION_RELATED_FILES_LIMIT,
+} from "../agents/AgentBus"
 import { resolveToolAlias } from "../prompts/tools/filter-tools-for-mode"
 import type {
 	ApiStreamToolCallStartChunk,
@@ -487,6 +493,243 @@ export class NativeToolCallParser {
 		return undefined
 	}
 
+	private static readonly coordinateAgentKindValues = new Set(["note", "question", "answer", "decision", "blocker"])
+	private static readonly coordinateAgentAllowedKeys = new Set([
+		"action",
+		"kind",
+		"message",
+		"targetAgentId",
+		"relatedFiles",
+		"replyToId",
+		"limit",
+	])
+
+	private static buildCoordinateAgentsNativeArgs(
+		args: Record<string, any>,
+	): NativeToolArgs["coordinate_agents"] | undefined {
+		this.assertCoordinateAgentsAllowedKeys(args)
+
+		if (args.action === undefined) {
+			return undefined
+		}
+
+		if (typeof args.action !== "string") {
+			throw new Error("coordinate_agents action must be 'publish' or 'read'.")
+		}
+
+		const action = args.action.trim()
+		if (action !== "publish" && action !== "read") {
+			throw new Error("coordinate_agents action must be 'publish' or 'read'.")
+		}
+
+		const limit = this.normalizeCoordinateAgentsLimit(args.limit)
+
+		if (action === "read") {
+			this.normalizeCoordinateAgentsKind(args.kind)
+			this.normalizeCoordinateAgentsMessage(args.message)
+			this.normalizeCoordinateAgentsTargetAgentId(args.targetAgentId)
+			this.normalizeCoordinateAgentsReplyToId(args.replyToId)
+			this.normalizeCoordinateAgentsRelatedFiles(args.relatedFiles)
+
+			const nativeArgs: NativeToolArgs["coordinate_agents"] = { action }
+			if (limit !== undefined) {
+				nativeArgs.limit = limit
+			}
+
+			return nativeArgs
+		}
+
+		const nativeArgs: NativeToolArgs["coordinate_agents"] = { action }
+		const kind = this.normalizeCoordinateAgentsKind(args.kind)
+		const message = this.normalizeCoordinateAgentsMessage(args.message)
+		const targetAgentId = this.normalizeCoordinateAgentsTargetAgentId(args.targetAgentId)
+		const relatedFiles = this.normalizeCoordinateAgentsRelatedFiles(args.relatedFiles)
+		const replyToId = this.normalizeCoordinateAgentsReplyToId(args.replyToId)
+
+		if (kind !== undefined) {
+			nativeArgs.kind = kind
+		}
+		if (message !== undefined) {
+			nativeArgs.message = message
+		}
+		if (targetAgentId !== undefined) {
+			nativeArgs.targetAgentId = targetAgentId
+		}
+		if (relatedFiles !== undefined) {
+			nativeArgs.relatedFiles = relatedFiles
+		}
+		if (replyToId !== undefined) {
+			nativeArgs.replyToId = replyToId
+		}
+		if (limit !== undefined) {
+			nativeArgs.limit = limit
+		}
+
+		return nativeArgs
+	}
+
+	private static assertCoordinateAgentsAllowedKeys(args: Record<string, any>): void {
+		for (const key of Object.keys(args)) {
+			if (!this.coordinateAgentAllowedKeys.has(key)) {
+				throw new Error(`Unknown argument '${key}' for coordinate_agents.`)
+			}
+		}
+	}
+
+	private static normalizeCoordinateAgentsKind(value: unknown): NativeToolArgs["coordinate_agents"]["kind"] {
+		if (value === undefined) {
+			return undefined
+		}
+
+		if (typeof value !== "string") {
+			throw new Error("coordinate_agents kind must be a string when provided.")
+		}
+
+		const normalized = value.trim()
+		if (!normalized) {
+			return undefined
+		}
+
+		if (!this.coordinateAgentKindValues.has(normalized)) {
+			throw new Error("coordinate_agents kind must be one of note, question, answer, decision, or blocker.")
+		}
+
+		return normalized as NativeToolArgs["coordinate_agents"]["kind"]
+	}
+
+	private static normalizeCoordinateAgentsMessage(value: unknown): string | undefined {
+		if (value === undefined) {
+			return undefined
+		}
+
+		if (typeof value !== "string") {
+			throw new Error("coordinate_agents message must be a string when provided.")
+		}
+
+		if (value.length > AGENT_COORDINATION_MESSAGE_MAX_LENGTH) {
+			throw new Error(
+				`coordinate_agents message must be at most ${AGENT_COORDINATION_MESSAGE_MAX_LENGTH} characters.`,
+			)
+		}
+
+		return value
+	}
+
+	private static normalizeCoordinateAgentsTargetAgentId(value: unknown): string | undefined {
+		const normalized = this.normalizeCoordinateAgentsIdentifier(value, "targetAgentId")
+		const lower = normalized?.toLowerCase()
+
+		if (!normalized || lower === "all" || lower === "none") {
+			return undefined
+		}
+
+		return normalized
+	}
+
+	private static normalizeCoordinateAgentsReplyToId(value: unknown): string | undefined {
+		const normalized = this.normalizeCoordinateAgentsIdentifier(value, "replyToId")
+
+		if (!normalized || normalized.toLowerCase() === "none") {
+			return undefined
+		}
+
+		return normalized
+	}
+
+	private static normalizeCoordinateAgentsIdentifier(value: unknown, fieldName: string): string | undefined {
+		if (value === undefined) {
+			return undefined
+		}
+
+		if (typeof value !== "string") {
+			throw new Error(`coordinate_agents ${fieldName} must be a string when provided.`)
+		}
+
+		const normalized = value
+			.split("")
+			.filter((char) => !this.isControlCharacter(char))
+			.join("")
+			.trim()
+
+		if (!normalized) {
+			return undefined
+		}
+
+		if (normalized.length > 120) {
+			throw new Error(`coordinate_agents ${fieldName} must be at most 120 characters.`)
+		}
+
+		return normalized
+	}
+
+	private static normalizeCoordinateAgentsRelatedFiles(value: unknown): string[] | undefined {
+		if (value === undefined) {
+			return undefined
+		}
+
+		if (!Array.isArray(value)) {
+			throw new Error("coordinate_agents relatedFiles must be an array of strings when provided.")
+		}
+
+		if (value.length > AGENT_COORDINATION_RELATED_FILES_LIMIT) {
+			throw new Error(
+				`coordinate_agents relatedFiles must include at most ${AGENT_COORDINATION_RELATED_FILES_LIMIT} entries.`,
+			)
+		}
+
+		const relatedFiles: string[] = []
+		const seen = new Set<string>()
+
+		for (const filePath of value) {
+			if (typeof filePath !== "string") {
+				throw new Error("coordinate_agents relatedFiles entries must be strings.")
+			}
+
+			const normalizedPath = filePath.replace(/\\/g, "/").replace(/^\.\//, "").trim()
+			if (!normalizedPath) {
+				continue
+			}
+
+			if (normalizedPath.length > AGENT_COORDINATION_PATH_MAX_LENGTH) {
+				throw new Error(
+					`coordinate_agents relatedFiles entries must be at most ${AGENT_COORDINATION_PATH_MAX_LENGTH} characters.`,
+				)
+			}
+
+			if (!seen.has(normalizedPath)) {
+				seen.add(normalizedPath)
+				relatedFiles.push(normalizedPath)
+			}
+		}
+
+		return relatedFiles.length ? relatedFiles : undefined
+	}
+
+	private static normalizeCoordinateAgentsLimit(value: unknown): number | undefined {
+		if (value === undefined) {
+			return undefined
+		}
+
+		const numericValue =
+			typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN
+
+		if (!Number.isInteger(numericValue)) {
+			throw new Error("coordinate_agents limit must be an integer when provided.")
+		}
+
+		if (numericValue < 1 || numericValue > AGENT_COORDINATION_READ_LIMIT_MAX) {
+			throw new Error(`coordinate_agents limit must be between 1 and ${AGENT_COORDINATION_READ_LIMIT_MAX}.`)
+		}
+
+		return numericValue
+	}
+
+	private static isControlCharacter(char: string): boolean {
+		const code = char.charCodeAt(0)
+
+		return code <= 31 || code === 127
+	}
+
 	/**
 	 * Convert raw file entries from API (with line_ranges) to FileEntry objects
 	 * (with lineRanges). Handles multiple formats for backward compatibility:
@@ -809,6 +1052,10 @@ export class NativeToolCallParser {
 						agents: Array.isArray(partialArgs.agents) ? partialArgs.agents : [],
 					}
 				}
+				break
+
+			case "coordinate_agents":
+				nativeArgs = this.buildCoordinateAgentsNativeArgs(partialArgs)
 				break
 
 			default:
@@ -1169,6 +1416,10 @@ export class NativeToolCallParser {
 							agents: args.agents,
 						} as NativeArgsFor<TName>
 					}
+					break
+
+				case "coordinate_agents":
+					nativeArgs = this.buildCoordinateAgentsNativeArgs(args) as NativeArgsFor<TName>
 					break
 
 				default:

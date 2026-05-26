@@ -6,6 +6,22 @@ import { BaseTool, ToolCallbacks } from "./BaseTool"
 
 type CoordinateAgentsParams = NativeToolArgs["coordinate_agents"]
 
+const BROADCAST_TARGET_SENTINELS = new Set(["all", "none"])
+const NO_REPLY_SENTINELS = new Set(["none"])
+
+function normalizeOptionalCoordinationString(
+	value: string | undefined,
+	sentinels: ReadonlySet<string>,
+): string | undefined {
+	const normalized = value?.trim()
+
+	if (!normalized || sentinels.has(normalized.toLowerCase())) {
+		return undefined
+	}
+
+	return normalized
+}
+
 function formatCoordinationEvent(event: NonNullable<ReturnType<Task["publishAgentCoordination"]>>): string {
 	const speaker = event.agentId ?? "team"
 	const target = event.targetAgentId ? ` to ${event.targetAgentId}` : ""
@@ -42,9 +58,9 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 			const event = task.publishAgentCoordination({
 				kind: params.kind,
 				message: params.message,
-				targetAgentId: params.targetAgentId,
+				targetAgentId: normalizeOptionalCoordinationString(params.targetAgentId, BROADCAST_TARGET_SENTINELS),
 				relatedFiles: params.relatedFiles,
-				replyToId: params.replyToId,
+				replyToId: normalizeOptionalCoordinationString(params.replyToId, NO_REPLY_SENTINELS),
 			})
 
 			if (!event) {
