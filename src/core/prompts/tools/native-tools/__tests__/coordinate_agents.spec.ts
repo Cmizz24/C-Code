@@ -7,14 +7,14 @@ describe("coordinate_agents native tool", () => {
 
 		expect(description).toContain("team chat")
 		expect(description).toContain('{"action":"read","limit":8}')
-		expect(description).toContain('{"action":"publish","kind":"note","message":"..."}')
-		expect(description).toContain("Before your first write")
-		expect(description).toContain("ask direct questions")
-		expect(description).toContain("answer another agent")
-		expect(description).toContain(
-			"selectors/classes/hooks/filenames/CSS variables/DOM hooks/IDs/data attributes/public functions",
-		)
-		expect(description).toContain("file contracts")
+		expect(description).toContain('{"action":"publish","kind":"question","message":"..."}')
+		expect(description).toContain('{"action":"publish","kind":"answer","message":"..."}')
+		expect(description).toContain("one short question or one short answer")
+		expect(description).toContain("Ask the specific relevant agent")
+		expect(description).toContain("only the key hook, selector, variable, file, or decision")
+		expect(description).toContain("Avoid manifest-style dumps")
+		expect(description).toContain("split them into multiple short messages")
+		expect(description).toContain("prefer under 140")
 		expect(description).toContain("Do not include emojis")
 		expect(description).toContain("chain-of-thought")
 		expect(description).not.toMatch(/\p{Extended_Pictographic}/u)
@@ -24,7 +24,7 @@ describe("coordinate_agents native tool", () => {
 		const parameters = (coordinateAgentsTool as any).function.parameters
 
 		expect(parameters.properties.kind.enum).toEqual(["note", "question", "answer", "decision", "blocker"])
-		expect(parameters.properties.message.maxLength).toBe(500)
+		expect(parameters.properties.message.maxLength).toBe(240)
 		expect(parameters.properties.relatedFiles.maxItems).toBe(8)
 		expect(parameters.properties.relatedFiles.items.maxLength).toBe(200)
 		expect(parameters.properties.limit.minimum).toBe(1)

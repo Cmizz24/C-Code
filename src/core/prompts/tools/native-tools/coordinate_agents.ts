@@ -9,7 +9,7 @@ import {
 } from "../../../agents/AgentBus"
 
 const COORDINATE_AGENTS_DESCRIPTION =
-	'Background parallel-agent team chat. Use only to publish or read short plain-language coordination messages for sibling agents. Before your first write, read recent team chat and publish one concise operational update with your owned files plus any filenames, selectors, classes, CSS variables, DOM hooks, IDs, data attributes, public functions, responsibilities, or file contracts others may need. For reads, use the minimal payload {"action":"read","limit":8}; do not include kind, message, targetAgentId, replyToId, or relatedFiles when reading. For publishing, use {"action":"publish","kind":"note","message":"..."} and include targetAgentId, relatedFiles, or replyToId only when needed. Omit targetAgentId, or use "" or "all", to broadcast. Omit replyToId, or use "" or "none", when not replying. Write like a basic read-only team chat: ask direct questions, answer another agent, share selectors/classes/hooks/filenames/CSS variables/DOM hooks/IDs/data attributes/public functions you are using, and confirm practical decisions. Do not include emojis, raw reasoning, chain-of-thought, private analysis, credentials, profile details, or user secrets. This tool cannot edit files, run commands, spawn tasks, or change modes.'
+	'Background parallel-agent team chat. Use only to read or publish short operational messages for sibling agents. For reads, use the minimal payload {"action":"read","limit":8}; do not include kind, message, targetAgentId, replyToId, or relatedFiles when reading. For publishing, use {"action":"publish","kind":"question","message":"..."} or {"action":"publish","kind":"answer","message":"..."}. Prefer one short question or one short answer per message, like a simple team chat. Ask the specific relevant agent for one missing detail at a time. Answers should include only the key hook, selector, variable, file, or decision needed. Avoid manifest-style dumps that list many selectors, classes, variables, hooks, files, or implementation details in one message. If many details are truly needed, split them into multiple short messages. Include targetAgentId, relatedFiles, or replyToId only when needed. Omit targetAgentId, or use "" or "all", to broadcast. Omit replyToId, or use "" or "none", when not replying. Keep messages operational and safe. Do not include emojis, raw reasoning, chain-of-thought, private analysis, credentials, profile details, or user secrets. This tool cannot edit files, run commands, spawn tasks, or change modes.'
 
 const coordinationKindValues = ["note", "question", "answer", "decision", "blocker"] as const
 
@@ -37,7 +37,7 @@ const coordinateAgentsTool: OpenAI.Chat.ChatCompletionTool = {
 				message: {
 					type: "string",
 					maxLength: AGENT_COORDINATION_MESSAGE_MAX_LENGTH,
-					description: `Concise team-chat message to publish. Required for action='publish'. Keep at most ${AGENT_COORDINATION_MESSAGE_MAX_LENGTH} characters. Ask, answer, share selectors/classes/hooks/filenames/CSS variables/DOM hooks/IDs/data attributes/public functions, or confirm a decision. Do not include emojis, private reasoning, or chain-of-thought. Omit on read.`,
+					description: `Short team-chat message to publish. Required for action='publish'. Keep at most ${AGENT_COORDINATION_MESSAGE_MAX_LENGTH} characters, and prefer under 140. Send one short question or one short answer. Include only the key hook, selector, variable, file, or decision needed. Split long details into multiple short messages. Do not include emojis, private reasoning, or chain-of-thought. Omit on read.`,
 				},
 				targetAgentId: {
 					type: "string",
@@ -48,7 +48,7 @@ const coordinateAgentsTool: OpenAI.Chat.ChatCompletionTool = {
 					type: "array",
 					maxItems: AGENT_COORDINATION_RELATED_FILES_LIMIT,
 					items: { type: "string", maxLength: AGENT_COORDINATION_PATH_MAX_LENGTH },
-					description: `Optional relevant workspace-relative file paths, hooks, selectors, or identifiers for publish. Include at most ${AGENT_COORDINATION_RELATED_FILES_LIMIT} entries and keep each at most ${AGENT_COORDINATION_PATH_MAX_LENGTH} characters. Omit on read.`,
+					description: `Optional relevant workspace-relative file paths, hooks, selectors, or identifiers for publish. Keep this secondary and include only the few items needed for the short message. Include at most ${AGENT_COORDINATION_RELATED_FILES_LIMIT} entries and keep each at most ${AGENT_COORDINATION_PATH_MAX_LENGTH} characters. Omit on read.`,
 				},
 				replyToId: {
 					type: "string",

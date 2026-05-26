@@ -17,7 +17,7 @@ import type {
 import { buildParallelPlanCompletionPacket, createAgentCompletionPacket } from "@roo-code/types"
 
 export const AGENT_COORDINATION_EVENT_LIMIT = 50
-export const AGENT_COORDINATION_MESSAGE_MAX_LENGTH = 500
+export const AGENT_COORDINATION_MESSAGE_MAX_LENGTH = 240
 export const AGENT_COORDINATION_RELATED_FILES_LIMIT = 8
 export const AGENT_COORDINATION_PATH_MAX_LENGTH = 200
 export const AGENT_COORDINATION_READ_LIMIT = 8
@@ -553,7 +553,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			this.publishSystemCoordination({
 				id: `${plan.planId}:shared-context`,
 				kind: "shared-context",
-				message: "Shared plan context was provided to all agents.",
+				message: "Shared context is in each agent task.",
 				ts,
 			})
 		}
@@ -561,7 +561,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		this.publishSystemCoordination({
 			id: `${plan.planId}:team-kickoff`,
 			kind: "note",
-			message: `Team coordination started for plan ${plan.planId}: align filenames, selectors, classes, CSS variables, DOM hooks, IDs, data attributes, public functions, and responsibilities before writing shared integration points.`,
+			message: `Team chat open for plan ${plan.planId}. Keep messages short.`,
 			ts,
 		})
 
@@ -570,24 +570,15 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 				.filter((ownership) => ownership.mode !== "read-only")
 				.map((ownership) => ownership.path)
 			const readableOwnerships = agent.owns.map((ownership) => ownership.path)
-
-			if (writableOwnerships.length > 0) {
-				this.publishSystemCoordination({
-					id: `${plan.planId}:ownership:${agent.id}`,
-					agentId: agent.id,
-					kind: "ownership",
-					message: `Agent ${agent.id} owns ${this.formatCoordinationPathList(writableOwnerships)}.`,
-					relatedFiles: writableOwnerships,
-					ts,
-				})
-			}
+			const scopePaths = writableOwnerships.length > 0 ? writableOwnerships : readableOwnerships
+			const scopeVerb = writableOwnerships.length > 0 ? "own" : "can read"
 
 			this.publishSystemCoordination({
 				id: `${plan.planId}:intro:${agent.id}`,
 				agentId: agent.id,
 				kind: "note",
-				message: `Agent ${agent.id} starts ${agent.mode} scope: ${this.summarizeCoordinationText(agent.task)} Scope paths: ${this.formatCoordinationPathList(writableOwnerships.length > 0 ? writableOwnerships : readableOwnerships)}.`,
-				relatedFiles: writableOwnerships.length > 0 ? writableOwnerships : readableOwnerships,
+				message: `Agent ${agent.id}: I ${scopeVerb} ${this.formatCoordinationPathList(scopePaths)}.`,
+				relatedFiles: scopePaths,
 				ts,
 			})
 
@@ -596,7 +587,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 					id: `${plan.planId}:dependency:${agent.id}:${dependency.agentId}:${dependency.waitFor}:${dependency.signal ?? "complete"}`,
 					agentId: agent.id,
 					kind: "dependency",
-					message: `Agent ${agent.id} waits for ${this.describeAgentDependency(dependency)}.`,
+					message: `${agent.id} waits for ${this.describeAgentDependency(dependency)}.`,
 					ts,
 				})
 			}
@@ -604,14 +595,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	}
 
 	private buildCoordinationPreflightMessage(agent: AgentPlan, filePath: string): string {
-		const writableOwnerships = agent.owns
-			.filter((ownership) => ownership.mode !== "read-only")
-			.map((ownership) => ownership.path)
-		const ownershipSummary = writableOwnerships.length
-			? this.formatCoordinationPathList(writableOwnerships)
-			: "no writable files declared"
-
-		return `Coordination preflight for ${agent.id}: read recent team chat before writing ${filePath}; owned scope ${ownershipSummary}. Share any selectors, classes, CSS variables, DOM hooks, IDs, data attributes, public functions, or file contracts that affect other agents.`
+		return `Agent ${agent.id}: I'm about to edit ${filePath}. Any hooks I need?`
 	}
 
 	private describeAgentDependency(dependency: AgentDependency): string {
@@ -629,15 +613,10 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			return "none"
 		}
 
-		const visiblePaths = paths.slice(0, 3).join(", ")
-		const remainingCount = paths.length - 3
+		const visiblePaths = paths.slice(0, 2).join(", ")
+		const remainingCount = paths.length - 2
 
 		return remainingCount > 0 ? `${visiblePaths}, and ${remainingCount} more` : visiblePaths
-	}
-
-	private summarizeCoordinationText(text: string): string {
-		const normalized = this.sanitizeCoordinationMessage(text)
-		return normalized.length > 160 ? `${normalized.slice(0, 157)}...` : normalized
 	}
 
 	private sanitizeCoordinationKind(kind: AgentCoordinationKind | undefined): AgentCoordinationKind {
@@ -660,6 +639,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 				"[redacted private reasoning]",
 			)
 			.replace(/\b(chain[-\s]?of[-\s]?thought|private reasoning|internal reasoning)\b/gi, "private reasoning")
+			.replace(/\p{Extended_Pictographic}/gu, "")
 		const normalized = withoutReasoningBlocks
 			.split("")
 			.map((char) => (this.isControlCharacter(char) ? " " : char))

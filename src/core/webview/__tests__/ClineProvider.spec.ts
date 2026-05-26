@@ -1211,40 +1211,34 @@ describe("ClineProvider", () => {
 						id: "plan-webview-provider:shared-context",
 						kind: "shared-context",
 						source: "system",
-						message: "Shared plan context was provided to all agents.",
+						message: "Shared context is in each agent task.",
 					}),
 					expect.objectContaining({
 						id: "plan-webview-provider:team-kickoff",
 						kind: "note",
 						source: "system",
-						message: expect.stringContaining("align filenames, selectors, classes, CSS variables"),
+						message: "Team chat open for plan plan-webview-provider. Keep messages short.",
 					}),
 					expect.objectContaining({
 						id: "plan-webview-provider:intro:dashboard-agent",
 						agentId: "dashboard-agent",
 						kind: "note",
 						source: "system",
-						message: expect.stringContaining("Agent dashboard-agent starts code scope"),
+						message: "Agent dashboard-agent: I own src/dashboard.tsx.",
 						relatedFiles: ["src/dashboard.tsx"],
-					}),
-					expect.objectContaining({
-						agentId: "dashboard-agent",
-						kind: "ownership",
-						source: "system",
-						message: "Agent dashboard-agent owns src/dashboard.tsx.",
 					}),
 					expect.objectContaining({
 						agentId: "styles-agent",
 						kind: "dependency",
 						source: "system",
-						message: "Agent styles-agent waits for dashboard-agent to signal dom-ready.",
+						message: "styles-agent waits for dashboard-agent to signal dom-ready.",
 					}),
 					expect.objectContaining({
 						id: "plan-webview-provider:preflight:dashboard-agent",
 						agentId: "dashboard-agent",
 						kind: "note",
 						source: "system",
-						message: expect.stringContaining("read recent team chat before writing src/dashboard.tsx"),
+						message: "Agent dashboard-agent: I'm about to edit src/dashboard.tsx. Any hooks I need?",
 						relatedFiles: ["src/dashboard.tsx"],
 					}),
 					expect.objectContaining({
@@ -1255,6 +1249,17 @@ describe("ClineProvider", () => {
 					}),
 				]),
 			)
+			expect(
+				tool.agentCoordinationEvents?.some(
+					(event) =>
+						event.source === "system" && event.id?.includes(":ownership:") && event.kind === "ownership",
+				),
+			).toBe(false)
+			expect(tool.agentCoordinationEvents?.every((event) => event.message.length <= 90)).toBe(true)
+			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toMatch(
+				/selectors, classes, CSS variables|DOM hooks, IDs|public functions|file contracts/,
+			)
+			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toMatch(/\p{Extended_Pictographic}/u)
 			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toContain("Dashboard done")
 			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toContain("shared context")
 		})

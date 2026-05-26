@@ -339,8 +339,9 @@ export class OrchestratorEventLoop {
 			"Use normal sequential tool calls: call one tool, wait for its result, then decide the next step. Never combine multiple tool argument JSON objects into one tool call.",
 			"Only edit files allowed by your ownership scope. Use attempt_completion when finished.",
 			"Complete your assigned scope directly; do not delegate, spawn, or orchestrate additional tasks.",
-			"Before your first write, use coordinate_agents to read recent team chat, then publish one concise operational update naming your owned files and any filenames, selectors, classes, CSS variables, DOM hooks, IDs, data attributes, public functions, or responsibilities that may affect another agent. If you do not know integration details yet, say what you own and what you will report when discovered; do not invent decisions.",
-			"Use coordinate_agents again whenever you choose or change selectors, classes, CSS variables, DOM hooks, IDs, data attributes, public functions, shared filenames, or file contracts. Answer direct questions when relevant. Never include emojis, private reasoning, chain-of-thought, credentials, profile details, or user secrets.",
+			"Before your first write, use coordinate_agents to read recent team chat, then publish one short chat message: what file you own or one question you need answered. Do not post a contract dump.",
+			"Use coordinate_agents like simple team chat: ask one relevant agent one short question at a time; answer with only the key hook, selector, variable, file, or decision needed. Split long details into separate short messages only when needed.",
+			"Avoid manifest-style messages listing many selectors, classes, variables, hooks, files, or implementation details. Keep messages operational. Never include emojis, private reasoning, chain-of-thought, credentials, profile details, or user secrets.",
 		]
 			.filter(Boolean)
 			.join("\n\n")
@@ -369,9 +370,10 @@ export class OrchestratorEventLoop {
 			"- Complete your assigned scope directly; do not delegate, spawn, or orchestrate additional tasks.",
 			"- Write access is coordinated automatically; denied writes mean the path is outside your ownership scope or currently unavailable.",
 			"- Do not edit mustNotTouch paths or paths owned exclusively by another agent.",
-			"- Before your first write, call coordinate_agents with action=read to inspect recent team chat, then publish one concise operational update with your owned files and any integration points you know.",
-			"- Use coordinate_agents as a short plain-language team chat with sibling agents: ask direct questions, answer direct questions, share selectors/classes/hooks/filenames/CSS variables/DOM hooks/IDs/data attributes/public functions, and confirm practical decisions.",
-			"- Publish a coordination update whenever you choose or change shared filenames, selectors, classes, CSS variables, DOM hooks, IDs, data attributes, public functions, responsibilities, or file contracts; do not invent fake conversation.",
+			"- Before your first write, call coordinate_agents with action=read, then publish one short team-chat message: your owned file or one missing detail.",
+			"- Use coordinate_agents as a concise team chat: ask one relevant agent one short question at a time, and answer with only the key hook, selector, variable, file, or decision needed.",
+			"- If many details are truly needed, split them into multiple short messages. Avoid manifest-style dumps listing many selectors, classes, variables, hooks, files, or implementation details.",
+			"- Coordinate when you choose or change shared filenames, selectors, classes, CSS variables, DOM hooks, IDs, data attributes, public functions, responsibilities, or file contracts; do not invent fake conversation.",
 			"- Never put emojis, private reasoning, chain-of-thought, credentials, profile details, or user secrets in coordinate_agents messages.",
 		]
 			.filter(Boolean)

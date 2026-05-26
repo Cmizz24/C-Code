@@ -86,23 +86,29 @@ describe("AgentBus", () => {
 					id: "plan-test:shared-context",
 					kind: "shared-context",
 					source: "system",
-					message: "Shared plan context was provided to all agents.",
+					message: "Shared context is in each agent task.",
 				}),
 				expect.objectContaining({
 					id: "plan-test:team-kickoff",
 					kind: "note",
 					source: "system",
-					message: expect.stringContaining("align filenames, selectors, classes, CSS variables"),
+					message: "Team chat open for plan plan-test. Keep messages short.",
 				}),
 				expect.objectContaining({
 					id: "plan-test:intro:agent-a",
 					agentId: "agent-a",
 					kind: "note",
 					source: "system",
-					message: expect.stringContaining("Agent agent-a starts component scope"),
+					message: "Agent agent-a: I own src/a.ts.",
 				}),
 			]),
 		)
+		expect(messages.find((message) => message.id === "plan-test:ownership:agent-a")).toBeUndefined()
+		expect(messages.every((message) => message.message.length <= 90)).toBe(true)
+		expect(messages.map((message) => message.message).join(" ")).not.toMatch(
+			/selectors, classes, CSS variables|DOM hooks, IDs|public functions|file contracts/,
+		)
+		expect(messages.map((message) => message.message).join(" ")).not.toMatch(/\p{Extended_Pictographic}/u)
 	})
 
 	it("tracks read and publish coordination state per agent", () => {
@@ -141,11 +147,13 @@ describe("AgentBus", () => {
 					agentId: "agent-a",
 					kind: "note",
 					source: "system",
-					message: expect.stringContaining("read recent team chat before writing src/a.ts"),
+					message: "Agent agent-a: I'm about to edit src/a.ts. Any hooks I need?",
 					relatedFiles: ["src/a.ts"],
 				}),
 			}),
 		)
+		expect(coordinationCall?.[0].event.message.length).toBeLessThanOrEqual(80)
+		expect(coordinationCall?.[0].event.message).not.toMatch(/\p{Extended_Pictographic}/u)
 		expect(events.mock.calls.at(-1)?.[0]).toEqual({
 			type: "INTENT_WRITE",
 			agentId: "agent-a",
@@ -356,7 +364,7 @@ describe("AgentBus", () => {
 		const event = bus.publishCoordination("agent-a", {
 			kind: "decision",
 			message: [
-				"Decision: use selector data-testid=save-button.",
+				"Decision: use selector data-testid=save-button. 🚀",
 				"<thinking>private chain-of-thought should not leak</thinking>",
 				"Next: styles-agent can wire styles.",
 			].join("\n"),
@@ -387,6 +395,8 @@ describe("AgentBus", () => {
 		)
 		expect(event.message).toContain("Decision: use selector")
 		expect(event.message).toContain("[redacted private reasoning]")
+		expect(event.message).not.toContain("🚀")
+		expect(event.message).not.toMatch(/\p{Extended_Pictographic}/u)
 		expect(event.message).not.toContain("private chain-of-thought should not leak")
 		expect(event.relatedFiles).toEqual([
 			"src/a.ts",

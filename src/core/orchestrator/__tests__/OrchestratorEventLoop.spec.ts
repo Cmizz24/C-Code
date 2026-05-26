@@ -185,13 +185,21 @@ describe("OrchestratorEventLoop", () => {
 		expect(options?.systemPromptSuffix).toContain("Never concatenate multiple tool argument JSON objects")
 		expect(message).toContain("Before your first write")
 		expect(message).toContain("read recent team chat")
-		expect(message).toContain("publish one concise operational update")
-		expect(message).toContain("selectors, classes, CSS variables, DOM hooks, IDs, data attributes")
+		expect(message).toContain("publish one short chat message")
+		expect(message).toContain("one short question at a time")
+		expect(message).toContain("only the key hook, selector, variable, file, or decision")
+		expect(message).toContain("Avoid manifest-style messages")
 		expect(message).toContain("Never include emojis")
+		expect(message).not.toContain("publish one concise operational update")
 		expect(message).not.toMatch(/\p{Extended_Pictographic}/u)
 		expect(options?.systemPromptSuffix).toContain("Before your first write")
-		expect(options?.systemPromptSuffix).toContain("ask direct questions")
-		expect(options?.systemPromptSuffix).toContain("CSS variables/DOM hooks/IDs/data attributes/public functions")
+		expect(options?.systemPromptSuffix).toContain("one short team-chat message")
+		expect(options?.systemPromptSuffix).toContain("one short question at a time")
+		expect(options?.systemPromptSuffix).toContain(
+			"answer with only the key hook, selector, variable, file, or decision",
+		)
+		expect(options?.systemPromptSuffix).toContain("Avoid manifest-style dumps")
+		expect(options?.systemPromptSuffix).toContain("CSS variables")
 		expect(options?.systemPromptSuffix).toContain("do not invent fake conversation")
 		expect(options?.systemPromptSuffix).toContain("Never put emojis")
 		expect(options?.systemPromptSuffix).not.toMatch(/\p{Extended_Pictographic}/u)
@@ -230,10 +238,9 @@ describe("OrchestratorEventLoop", () => {
 			expect(options?.systemPromptSuffix).toContain(
 				"each native tool call must have exactly one JSON argument object",
 			)
-			expect(options?.systemPromptSuffix).toContain("action=read to inspect recent team chat")
-			expect(options?.systemPromptSuffix).toContain(
-				"share selectors/classes/hooks/filenames/CSS variables/DOM hooks/IDs/data attributes/public functions",
-			)
+			expect(options?.systemPromptSuffix).toContain("action=read, then publish one short team-chat message")
+			expect(options?.systemPromptSuffix).toContain("one short question at a time")
+			expect(options?.systemPromptSuffix).toContain("Avoid manifest-style dumps")
 		}
 	})
 

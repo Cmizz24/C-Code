@@ -50,6 +50,7 @@ const AGENT_ACTIVITY_TRANSCRIPT_LIMIT = 50
 const AGENT_ACTIVITY_DISPLAY_LIMIT = 12
 const AGENT_COORDINATION_STATE_LIMIT = 24
 const AGENT_COORDINATION_DISPLAY_LIMIT = 8
+const AGENT_COORDINATION_MESSAGE_PREVIEW_LENGTH = 180
 const ACTIVITY_AGE_UPDATE_INTERVAL_MS = 1_000
 const MIN_REAL_ACTIVITY_TS = 946_684_800_000
 
@@ -202,6 +203,16 @@ const getCoordinationTimestampLabel = (event: AgentCoordination, now: number): s
 	}
 
 	return new Date(event.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+}
+
+const getCoordinationMessagePreview = (message: string): string => {
+	const normalized = message.replace(/\s+/g, " ").trim()
+
+	if (normalized.length <= AGENT_COORDINATION_MESSAGE_PREVIEW_LENGTH) {
+		return normalized
+	}
+
+	return `${normalized.slice(0, AGENT_COORDINATION_MESSAGE_PREVIEW_LENGTH - 1)}…`
 }
 
 const shouldShowExpandedActivity = (activity: AgentActivity): boolean => {
@@ -759,7 +770,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 							<div className="mb-1 flex items-center gap-1.5 text-vscode-foreground">
 								<span className="font-medium">Coordination</span>
 								<span className="text-vscode-descriptionForeground">
-									Team chat · read-only · latest {AGENT_COORDINATION_DISPLAY_LIMIT}
+									Team chat · short messages · latest {AGENT_COORDINATION_DISPLAY_LIMIT}
 								</span>
 							</div>
 							{displayCoordinationChatEvents.length > 0 ? (
@@ -774,7 +785,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 											<li
 												key={getCoordinationKey(event, index)}
 												data-testid="agent-coordination-message"
-												className="min-w-0 rounded border border-vscode-sideBar-background bg-vscode-editor-background/40 px-2 py-1.5 text-vscode-descriptionForeground">
+												className="min-w-0 rounded bg-vscode-editor-background/40 px-2 py-1.5 text-vscode-descriptionForeground">
 												<div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
 													<span className="shrink-0 font-medium text-vscode-foreground">
 														{senderLabel}
@@ -794,19 +805,19 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 														</span>
 													)}
 												</div>
-												<div className="mt-1 whitespace-pre-wrap break-words text-vscode-foreground">
-													{event.message}
+												<div
+													className="mt-1 whitespace-pre-wrap break-words text-vscode-foreground"
+													title={event.message}>
+													{getCoordinationMessagePreview(event.message)}
 												</div>
 												{relatedFiles.length > 0 && (
-													<div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 text-[10px] text-vscode-descriptionForeground">
-														{relatedFiles.map((file) => (
-															<Badge
-																key={file}
-																data-testid="agent-coordination-related-file"
-																className="max-w-full border-vscode-descriptionForeground/20 bg-vscode-descriptionForeground/5 font-mono text-[10px] text-vscode-descriptionForeground">
-																<span className="truncate">{file}</span>
-															</Badge>
-														))}
+													<div
+														data-testid="agent-coordination-related-files-summary"
+														className="mt-1 truncate font-mono text-[10px] text-vscode-descriptionForeground/75"
+														title={relatedFiles.join(", ")}>
+														{relatedFiles.length === 1
+															? relatedFiles[0]
+															: `${relatedFiles[0]} +${relatedFiles.length - 1}`}
 													</div>
 												)}
 											</li>

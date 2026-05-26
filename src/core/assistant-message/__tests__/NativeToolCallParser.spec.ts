@@ -454,12 +454,21 @@ describe("NativeToolCallParser", () => {
 					name: "coordinate_agents" as const,
 					arguments: JSON.stringify({ action: "read", limit: 21 }),
 				})
+				const invalidLongMessage = NativeToolCallParser.parseToolCall({
+					id: "toolu_coordinate_invalid_message",
+					name: "coordinate_agents" as const,
+					arguments: JSON.stringify({ action: "publish", message: "x".repeat(241) }),
+				})
 
 				expect(invalidKind).toBeNull()
 				expect(invalidLimit).toBeNull()
+				expect(invalidLongMessage).toBeNull()
 				expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("coordinate_agents kind must be one of"))
 				expect(errorSpy).toHaveBeenCalledWith(
 					expect.stringContaining("coordinate_agents limit must be between"),
+				)
+				expect(errorSpy).toHaveBeenCalledWith(
+					expect.stringContaining("coordinate_agents message must be at most 240 characters."),
 				)
 
 				errorSpy.mockRestore()

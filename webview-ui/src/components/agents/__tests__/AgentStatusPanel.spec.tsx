@@ -332,14 +332,14 @@ describe("AgentStatusPanel", () => {
 				{
 					kind: "shared-context",
 					source: "system",
-					message: "Shared plan context was provided to all agents.",
+					message: "Shared context is in each agent task.",
 					ts: 1,
 				},
 				{
 					agentId: "ui-agent",
 					kind: "ownership",
 					source: "system",
-					message: "Agent ui-agent owns src/Dashboard.tsx.",
+					message: "Agent ui-agent: I own src/Dashboard.tsx.",
 					ts: 2,
 				},
 				{
@@ -365,8 +365,7 @@ describe("AgentStatusPanel", () => {
 					targetAgentId: "ui-agent",
 					kind: "answer",
 					source: "agent",
-					message:
-						'Please add className="dashboard-card"; CSS will target .dashboard-card and --dashboard-gap.',
+					message: "Use .dashboard-card and --dashboard-gap.",
 					relatedFiles: ["src/dashboard.css"],
 					replyToId: "coord-1",
 					ts: 1_700_000_000_500,
@@ -378,7 +377,7 @@ describe("AgentStatusPanel", () => {
 
 		const feed = screen.getByTestId("agent-coordination-feed")
 		expect(feed).toHaveTextContent("Coordination")
-		expect(feed).toHaveTextContent("Team chat · read-only · latest 8")
+		expect(feed).toHaveTextContent("Team chat · short messages · latest 8")
 		expect(screen.getAllByTestId("agent-coordination-message")).toHaveLength(2)
 		expect(screen.getByTestId("agent-coordination-context")).toHaveTextContent("Plan context")
 
@@ -393,7 +392,8 @@ describe("AgentStatusPanel", () => {
 		expect(mainChat).toContain("--dashboard-gap")
 		expect(mainChat).toContain("src/Dashboard.tsx")
 		expect(mainChat).toContain("src/dashboard.css")
-		expect(mainChat).not.toContain("Shared plan context was provided")
+		expect(mainChat).not.toContain('className="dashboard-card"')
+		expect(mainChat).not.toContain("Shared context is in each agent task")
 		expect(mainChat).not.toContain("owns")
 		expect(mainChat).not.toContain("waits for")
 		expect(mainChat).not.toContain("question")
@@ -402,7 +402,8 @@ describe("AgentStatusPanel", () => {
 		expect(mainChat).not.toContain("coord-1")
 		expect(mainChat).not.toContain("coord-2")
 		expect(feed).not.toHaveTextContent("contract")
-		expect(screen.getAllByTestId("agent-coordination-related-file")).toHaveLength(2)
+		expect(screen.queryByTestId("agent-coordination-related-file")).not.toBeInTheDocument()
+		expect(screen.getAllByTestId("agent-coordination-related-files-summary")).toHaveLength(2)
 		expectNoEmoji(feed)
 		expect(within(feed).queryByRole("button")).not.toBeInTheDocument()
 		expect(within(feed).queryByRole("textbox")).not.toBeInTheDocument()
@@ -419,8 +420,7 @@ describe("AgentStatusPanel", () => {
 					id: "plan-test:team-kickoff",
 					kind: "note",
 					source: "system",
-					message:
-						"Team coordination started for plan plan-test: align filenames, selectors, classes, CSS variables, DOM hooks, IDs, data attributes, public functions, and responsibilities before writing shared integration points.",
+					message: "Team chat open for plan plan-test. Keep messages short.",
 					ts: 1,
 				},
 				{
@@ -428,7 +428,7 @@ describe("AgentStatusPanel", () => {
 					agentId: "ui-agent",
 					kind: "note",
 					source: "system",
-					message: "Agent ui-agent starts ui-ux scope: Build dashboard UI Scope paths: src/Dashboard.tsx.",
+					message: "Agent ui-agent: I own src/Dashboard.tsx.",
 					relatedFiles: ["src/Dashboard.tsx"],
 					ts: 2,
 				},
@@ -440,11 +440,48 @@ describe("AgentStatusPanel", () => {
 		const feed = screen.getByTestId("agent-coordination-feed")
 		expect(screen.queryByTestId("agent-coordination-empty")).not.toBeInTheDocument()
 		expect(screen.getAllByTestId("agent-coordination-message")).toHaveLength(2)
-		expect(feed).toHaveTextContent("Team coordination started for plan plan-test")
-		expect(feed).toHaveTextContent("Agent ui-agent starts ui-ux scope")
-		expect(feed).toHaveTextContent("CSS variables")
+		expect(feed).toHaveTextContent("Team chat open for plan plan-test")
+		expect(feed).toHaveTextContent("Agent ui-agent: I own src/Dashboard.tsx")
+		expect(feed).not.toHaveTextContent("CSS variables")
+		expect(feed).not.toHaveTextContent("selectors")
+		expect(feed).not.toHaveTextContent("contract")
 		expect(feed).toHaveTextContent("src/Dashboard.tsx")
 		expectNoEmoji(feed)
+	})
+
+	it("truncates long team chat messages and keeps file metadata secondary", () => {
+		const plan = createPlan()
+		const longMessage = [
+			"Here is a long coordination dump with selectors .dashboard-card, .dashboard-grid, #root, data-testid dashboard-save, --dashboard-gap, --dashboard-color, hook useDashboardState, helper buildDashboardRows, file src/Dashboard.tsx, file src/dashboard.css, and more details.",
+			"Please do not show all of this in the main chat feed.",
+		].join(" ")
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "running",
+			agentCoordinationEvents: [
+				{
+					id: "coord-long",
+					agentId: "ui-agent",
+					kind: "note",
+					source: "agent",
+					message: longMessage,
+					relatedFiles: ["src/Dashboard.tsx", "src/dashboard.css", "src/shared/theme.ts"],
+					ts: 1_700_000_000_000,
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+
+		const message = screen.getByTestId("agent-coordination-message")
+		const mainText = message.textContent ?? ""
+		expect(mainText).toContain("Here is a long coordination dump")
+		expect(mainText).toContain("…")
+		expect(mainText).not.toContain("Please do not show all of this")
+		expect(message.querySelector("[title]")).toHaveAttribute("title", longMessage)
+		expect(screen.queryByTestId("agent-coordination-related-file")).not.toBeInTheDocument()
+		expect(screen.getByTestId("agent-coordination-related-files-summary")).toHaveTextContent("src/Dashboard.tsx +2")
 	})
 
 	it("renders live coordination updates as bounded chat messages without event-log labels", () => {
@@ -472,7 +509,7 @@ describe("AgentStatusPanel", () => {
 		}
 
 		const feed = screen.getByTestId("agent-coordination-feed")
-		expect(feed).toHaveTextContent("Team chat · read-only · latest 8")
+		expect(feed).toHaveTextContent("Team chat · short messages · latest 8")
 		expect(feed).not.toHaveTextContent("Coordination 0")
 		expect(feed).not.toHaveTextContent("Coordination 1")
 		expect(feed).toHaveTextContent("Can you confirm the dashboard selector?")
@@ -487,9 +524,10 @@ describe("AgentStatusPanel", () => {
 		expect(feed).not.toHaveTextContent("dependency")
 		expect(feed).not.toHaveTextContent("contract")
 		expect(screen.getAllByTestId("agent-coordination-message")).toHaveLength(8)
-		expect(screen.getAllByTestId("agent-coordination-related-file")).toHaveLength(2)
+		expect(screen.queryByTestId("agent-coordination-related-file")).not.toBeInTheDocument()
+		expect(screen.getByTestId("agent-coordination-related-files-summary")).toHaveTextContent("src/Dashboard.tsx +1")
 		expect(feed).toHaveTextContent("src/Dashboard.tsx")
-		expect(feed).toHaveTextContent("src/dashboard.css")
+		expect(feed).not.toHaveTextContent("src/dashboard.css")
 		expectNoEmoji(feed)
 		expect(within(feed).queryByRole("button")).not.toBeInTheDocument()
 		expect(within(feed).queryByRole("textbox")).not.toBeInTheDocument()
