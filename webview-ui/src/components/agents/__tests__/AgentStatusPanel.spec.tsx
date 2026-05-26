@@ -392,7 +392,8 @@ describe("AgentStatusPanel", () => {
 		expect(mainChat).toContain("question")
 		expect(mainChat).toContain("answer")
 		expect(mainChat).toContain("answered")
-		expect(mainChat).toContain("reply")
+		expect(mainChat).toContain("to Code")
+		expect(mainChat).toContain("reply to UI/UX")
 		expect(mainChat).toContain("Do you need a wrapper class")
 		expect(mainChat).toContain("dashboard-card")
 		expect(mainChat).toContain("--dashboard-gap")
@@ -402,14 +403,16 @@ describe("AgentStatusPanel", () => {
 		expect(mainChat).not.toContain("Shared context is in each agent task")
 		expect(mainChat).not.toContain("owns")
 		expect(mainChat).not.toContain("waits for")
-		expect(mainChat).not.toContain("to Code")
 		expect(mainChat).not.toContain("coord-1")
 		expect(mainChat).not.toContain("coord-2")
 		expect(feed).not.toHaveTextContent("contract")
 		expect(screen.queryByTestId("agent-coordination-related-file")).not.toBeInTheDocument()
 		expect(screen.getAllByTestId("agent-coordination-related-files-summary")).toHaveLength(2)
 		expect(screen.getByTestId("agent-coordination-answer-state")).toHaveTextContent("answered")
-		expect(screen.getByTestId("agent-coordination-reply-badge")).toHaveTextContent("reply")
+		expect(screen.getAllByTestId("agent-coordination-address").map((element) => element.textContent)).toEqual(
+			expect.arrayContaining(["to Code", "reply to UI/UX"]),
+		)
+		expect(screen.queryByTestId("agent-coordination-reply-badge")).not.toBeInTheDocument()
 		expectNoEmoji(feed)
 		expect(within(feed).queryByRole("button")).not.toBeInTheDocument()
 		expect(within(feed).queryByRole("textbox")).not.toBeInTheDocument()
@@ -516,6 +519,7 @@ describe("AgentStatusPanel", () => {
 
 		const message = screen.getByTestId("agent-coordination-message")
 		expect(message).toHaveTextContent("question")
+		expect(message).toHaveTextContent("to Code")
 		expect(message).toHaveTextContent("pending answer")
 		expect(message).toHaveTextContent("Which wrapper class should styles target?")
 		expect(screen.getByTestId("agent-coordination-answer-state")).toHaveTextContent("pending answer")
@@ -556,7 +560,8 @@ describe("AgentStatusPanel", () => {
 		expect(feed).not.toHaveTextContent("note")
 		expect(feed).toHaveTextContent("UI/UX")
 		expect(feed).toHaveTextContent("running")
-		expect(feed).not.toHaveTextContent("to Code")
+		expect(feed).toHaveTextContent("to Code")
+		expect(feed).toHaveTextContent("reply to Code")
 		expect(feed).not.toHaveTextContent("reply coord-7")
 		expect(feed).not.toHaveTextContent("coord-7")
 		expect(feed).not.toHaveTextContent("ownership")
@@ -594,7 +599,7 @@ describe("AgentStatusPanel", () => {
 		expect(screen.queryByTestId("agent-coordination-feed")).not.toBeInTheDocument()
 	})
 
-	it("renders the serialized parallel review summary inside the tool card", () => {
+	it("keeps serialized parallel review summary hidden from the completed tool card", () => {
 		const plan = createPlan()
 		const tool: ClineSayTool = {
 			tool: "parallelAgents",
@@ -613,11 +618,13 @@ describe("AgentStatusPanel", () => {
 
 		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
 
-		const summary = screen.getByTestId("parallel-agent-review-summary")
-		expect(summary).toHaveTextContent("Parallel agent review summary")
-		expect(summary).toHaveTextContent("Full per-agent diffs are available in the persisted parallel agents card.")
-		expect(summary).not.toHaveTextContent("User Edits")
-		expect(summary).not.toHaveTextContent("User Edit")
+		expect(screen.queryByTestId("parallel-agent-review-summary")).not.toBeInTheDocument()
+		expect(screen.queryByText("Parallel agent review summary")).not.toBeInTheDocument()
+		expect(
+			screen.queryByText("Full per-agent diffs are available in the persisted parallel agents card."),
+		).not.toBeInTheDocument()
+		expect(screen.queryByText("User Edits")).not.toBeInTheDocument()
+		expect(screen.queryByText("User Edit")).not.toBeInTheDocument()
 	})
 
 	it("reopens persisted merge review entries from a saved parallelAgents row", () => {

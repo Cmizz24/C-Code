@@ -97,7 +97,17 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 				return
 			}
 
-			if (task.isAgentTerminal()) {
+			const normalizedReplyToId = normalizeOptionalCoordinationString(params.replyToId, NO_REPLY_SENTINELS)
+			const normalizedTargetAgentId = normalizeOptionalCoordinationString(
+				params.targetAgentId,
+				BROADCAST_TARGET_SENTINELS,
+			)
+			const isPotentialTargetedAnswer = Boolean(
+				params.kind === "answer" &&
+					(normalizedReplyToId || normalizedTargetAgentId || params.relatedFiles?.length),
+			)
+
+			if (task.isAgentTerminal() && !isPotentialTargetedAnswer) {
 				task.consecutiveMistakeCount = 0
 				const recent = task.getAgentCoordinationEvents({ limit: params.limit })
 				pushToolResult(formatTerminalPublishSuppression(task.getAgentStatus(), recent))
@@ -117,12 +127,6 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 				)
 				return
 			}
-
-			const normalizedReplyToId = normalizeOptionalCoordinationString(params.replyToId, NO_REPLY_SENTINELS)
-			const normalizedTargetAgentId = normalizeOptionalCoordinationString(
-				params.targetAgentId,
-				BROADCAST_TARGET_SENTINELS,
-			)
 
 			if (
 				params.kind === "answer" &&

@@ -134,6 +134,54 @@ describe("CoordinateAgentsTool", () => {
 		)
 	})
 
+	it("allows terminal agents to publish targeted answers for open questions", async () => {
+		const tool = new CoordinateAgentsTool()
+		const { task, callbacks } = createCallbacks()
+		task.getAgentStatus.mockReturnValue("complete")
+		task.isAgentTerminal.mockReturnValue(true)
+		;(task.publishAgentCoordination as any).mockReturnValue({
+			id: "coord-answer",
+			agentId: "agent-a",
+			kind: "answer",
+			source: "agent",
+			message: "Import useDashboardState from src/a.ts.",
+			targetAgentId: "agent-b",
+			replyToId: "coord-open",
+			ts: 4,
+		})
+
+		await tool.handle(
+			task as any,
+			{
+				type: "tool_use",
+				name: "coordinate_agents",
+				params: {},
+				nativeArgs: {
+					action: "publish",
+					kind: "answer",
+					message: "Import useDashboardState from src/a.ts.",
+					targetAgentId: "agent-b",
+					replyToId: "coord-open",
+				},
+			} as ToolUse<"coordinate_agents">,
+			callbacks as any,
+		)
+
+		expect(task.publishAgentCoordination).toHaveBeenCalledWith({
+			kind: "answer",
+			message: "Import useDashboardState from src/a.ts.",
+			targetAgentId: "agent-b",
+			relatedFiles: undefined,
+			replyToId: "coord-open",
+		})
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
+			expect.stringContaining("Published team chat message coord-answer."),
+		)
+		expect(callbacks.pushToolResult).not.toHaveBeenCalledWith(
+			expect.stringContaining("No team chat was posted because this agent is already terminal"),
+		)
+	})
+
 	it("reads recent relevant messages without publishing", async () => {
 		const tool = new CoordinateAgentsTool()
 		const { task, callbacks } = createCallbacks()

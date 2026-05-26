@@ -2094,6 +2094,15 @@ describe("ClineProvider", () => {
 	test("auto-approves and merges the final review when both auto-approval settings are enabled", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const parentTask = new Task(defaultTaskOptions)
+		parentTask.apiConversationHistory = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "Run parallel dashboard work" }],
+			},
+		] as any
+		parentTask.overwriteApiConversationHistory = vi.fn(async (history) => {
+			parentTask.apiConversationHistory = history as any
+		})
 		await provider.addClineToStack(parentTask)
 		await provider.setValues({ autoApprovalEnabled: true, alwaysAllowParallelTasks: true })
 		const plan = createExecutionPlan()
@@ -2175,6 +2184,23 @@ describe("ClineProvider", () => {
 		)
 		expect(statusTool.parallelReviewSummary?.markdown).toContain("dashboard-agent: merged; 1 files, +1/-0")
 		expect(statusTool.parallelReviewSummary?.markdown).not.toContain("diff --git a/src/dashboard-agent.ts")
+
+		const lastApiMessage = parentTask.apiConversationHistory.at(-1) as any
+		const summaryText = lastApiMessage.content[0].text as string
+		expect(summaryText).toContain("[PARALLEL AGENT SUMMARY] Plan plan-webview-provider is merged.")
+		expect(summaryText).toContain('"parentVerificationDirective"')
+		expect(summaryText).toContain('"sourceOfTruth": "structured_completion_packet"')
+		expect(summaryText).toContain('"evidenceStatus": "clean-merged"')
+		expect(summaryText).toContain('"noReverification": true')
+		expect(summaryText).toContain("Parent resume guidance:")
+		expect(summaryText).toContain(
+			"Treat the structured completion packet and parentVerificationDirective as the verification source of truth",
+		)
+		expect(summaryText).toContain(
+			"Do not perform broad file reads/searches over already-merged parallel deliverables solely to verify them.",
+		)
+		expect(summaryText).toContain("mark any redundant verify assembled deliverable todo step complete")
+		expect(summaryText).toContain("Only inspect files when the user explicitly asks for deeper verification")
 	})
 
 	test.each([
@@ -2398,7 +2424,16 @@ describe("ClineProvider", () => {
 		expect(lastApiMessage.content[0].text).toContain("Structured completion packet:")
 		expect(lastApiMessage.content[0].text).toContain('"parallelPlanCompletionPacket"')
 		expect(lastApiMessage.content[0].text).toContain('"agentCompletionPackets"')
+		expect(lastApiMessage.content[0].text).toContain('"parentVerificationDirective"')
+		expect(lastApiMessage.content[0].text).toContain('"evidenceStatus": "requires-attention"')
+		expect(lastApiMessage.content[0].text).toContain('"noReverification": false')
 		expect(lastApiMessage.content[0].text).toContain('"artifactManifest"')
+		expect(lastApiMessage.content[0].text).toContain(
+			"The plan-level packet requires attention; do not mark redundant verification complete",
+		)
+		expect(lastApiMessage.content[0].text).toContain(
+			"Only inspect files when the packet is missing, failed, incomplete, or inconclusive",
+		)
 		expect(lastApiMessage.content[0].text).toContain("Use the persisted parallel agents card")
 		expect(
 			parentTask.clineMessages.filter(

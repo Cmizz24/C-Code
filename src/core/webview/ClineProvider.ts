@@ -154,6 +154,26 @@ type BackgroundAgentActivityDescriptionOptions = {
 }
 type MergeApprovedAgentsOptions = { autoApproved?: boolean }
 type AutoMergeReviewSkipReason = { agentId?: string; reason: string }
+type ParallelParentVerificationDirective = {
+	sourceOfTruth: "structured_completion_packet"
+	evidenceStatus: "clean-merged" | "requires-attention"
+	noReverification: boolean
+	summary: string
+	todoGuidance: string
+	allowedInspectionReasons: string[]
+	evidence: {
+		planStatus: ParallelPlanCompletionStatus
+		mergeStatus: ParallelPlanCompletionPacket["merge"]["status"]
+		mergeClean: boolean
+		packetCount: number
+		agentCount: number
+		failedAgentCount: number
+		mergeFailedAgents: string[]
+		conflictedFiles: string[]
+		validationFailed: number
+		validationUnknown: number
+	}
+}
 type ActivityToolPayload = Omit<ClineSayTool, "tool"> & {
 	tool?: string
 	filePath?: string
@@ -4338,6 +4358,10 @@ export class ClineProvider
 			agentCompletionPackets,
 			statusByOutcome[status],
 		)
+		const parentVerificationDirective = this.buildParallelParentVerificationDirective(
+			parallelPlanCompletionPacket,
+			agentCompletionPackets,
+		)
 		const entrySummaries = (entries ?? []).map((entry) => {
 			const stats = entry.changeStats
 			const statsText = stats
@@ -4359,12 +4383,91 @@ export class ClineProvider
 				{
 					parallelPlanCompletionPacket,
 					agentCompletionPackets,
+					parentVerificationDirective,
 				},
 				null,
 				2,
 			),
+			this.buildParallelParentVerificationGuidance(parentVerificationDirective),
 			"Use the persisted parallel agents card for approval/merge actions; do not rerun plan_parallel_tasks for this plan unless the user explicitly asks for a new plan.",
 		].join("\n")
+	}
+
+	private buildParallelParentVerificationDirective(
+		parallelPlanCompletionPacket: ParallelPlanCompletionPacket,
+		agentCompletionPackets: AgentCompletionPacket[],
+	): ParallelParentVerificationDirective {
+		const packetCountMatchesPlan =
+			parallelPlanCompletionPacket.packetCount === parallelPlanCompletionPacket.agentCount &&
+			agentCompletionPackets.length === parallelPlanCompletionPacket.agentCount
+		const hasNoFailedAgents =
+			parallelPlanCompletionPacket.failedAgentCount === 0 &&
+			parallelPlanCompletionPacket.failedAgents.length === 0 &&
+			parallelPlanCompletionPacket.merge.failedAgents.length === 0
+		const hasCleanValidation =
+			parallelPlanCompletionPacket.validationSummary.failed === 0 &&
+			parallelPlanCompletionPacket.validationSummary.unknown === 0
+		const hasCleanMerge =
+			parallelPlanCompletionPacket.status === "merged" &&
+			parallelPlanCompletionPacket.merge.status === "merged" &&
+			parallelPlanCompletionPacket.merge.clean &&
+			parallelPlanCompletionPacket.merge.conflictedFiles.length === 0
+		const cleanMergedEvidence = packetCountMatchesPlan && hasNoFailedAgents && hasCleanValidation && hasCleanMerge
+
+		return {
+			sourceOfTruth: "structured_completion_packet",
+			evidenceStatus: cleanMergedEvidence ? "clean-merged" : "requires-attention",
+			noReverification: cleanMergedEvidence,
+			summary: cleanMergedEvidence
+				? "Plan-level structured packet reports clean merged evidence with complete agent packets, clean merge materialization, and no failed or unknown validation results."
+				: "Plan-level structured packet is missing clean merged evidence or reports failed, incomplete, or inconclusive evidence; targeted inspection remains available for the specific evidence gap.",
+			todoGuidance: cleanMergedEvidence
+				? "Mark any redundant verify assembled deliverable step complete from the structured packet and continue with the next non-verification step."
+				: "Do not mark verification complete from this packet alone; resolve the failed, incomplete, or inconclusive evidence first.",
+			allowedInspectionReasons: cleanMergedEvidence
+				? [
+						"the user explicitly asks for deeper verification",
+						"new evidence contradicts the structured completion packet",
+					]
+				: [
+						"the packet is missing, failed, incomplete, or inconclusive",
+						"merge evidence reports conflicts, failed agents, failed or unknown validation, or an unclean merge",
+						"the user explicitly asks for deeper verification",
+					],
+			evidence: {
+				planStatus: parallelPlanCompletionPacket.status,
+				mergeStatus: parallelPlanCompletionPacket.merge.status,
+				mergeClean: parallelPlanCompletionPacket.merge.clean,
+				packetCount: parallelPlanCompletionPacket.packetCount,
+				agentCount: parallelPlanCompletionPacket.agentCount,
+				failedAgentCount: parallelPlanCompletionPacket.failedAgentCount,
+				mergeFailedAgents: parallelPlanCompletionPacket.merge.failedAgents,
+				conflictedFiles: parallelPlanCompletionPacket.merge.conflictedFiles,
+				validationFailed: parallelPlanCompletionPacket.validationSummary.failed,
+				validationUnknown: parallelPlanCompletionPacket.validationSummary.unknown,
+			},
+		}
+	}
+
+	private buildParallelParentVerificationGuidance(directive: ParallelParentVerificationDirective): string {
+		const lines = [
+			"Parent resume guidance:",
+			"- Treat the structured completion packet and parentVerificationDirective as the verification source of truth for this parallel plan before considering manual inspection.",
+			"- Do not perform broad file reads/searches over already-merged parallel deliverables solely to verify them.",
+		]
+
+		if (directive.evidenceStatus === "clean-merged") {
+			lines.push(
+				"- The plan-level packet reports clean merged evidence; mark any redundant verify assembled deliverable todo step complete from this evidence and continue with the next non-verification step.",
+			)
+		} else {
+			lines.push(
+				"- The plan-level packet requires attention; do not mark redundant verification complete until the failed, incomplete, or inconclusive evidence is resolved.",
+			)
+		}
+
+		lines.push(`- Only inspect files when ${directive.allowedInspectionReasons.join("; ")}.`)
+		return lines.join("\n")
 	}
 
 	private getApiMessageText(message: unknown): string | undefined {

@@ -554,6 +554,43 @@ describe("AgentBus", () => {
 		expect(bus.hasAgentReadCoordination("agent-a")).toBe(true)
 	})
 
+	it("allows complete agents to answer targeted questions from unfinished agents", () => {
+		bus.markRunning("agent-b")
+		bus.markComplete("agent-a", "A done")
+
+		const question = bus.publishCoordination("agent-b", {
+			kind: "question",
+			message: "Which export should I import from src/a.ts?",
+			targetAgentId: "agent-a",
+			relatedFiles: ["src/a.ts"],
+		})
+		expect(question).toBeDefined()
+		expect(bus.getAgentCompletionCoordinationGate("agent-b", { recordAttempt: true }).approved).toBe(false)
+
+		const answer = bus.publishCoordination("agent-a", {
+			kind: "answer",
+			message: "Import useDashboardState from src/a.ts.",
+			targetAgentId: "agent-b",
+			replyToId: question?.id,
+		})
+
+		expect(answer).toEqual(
+			expect.objectContaining({
+				agentId: "agent-a",
+				targetAgentId: "agent-b",
+				kind: "answer",
+				replyToId: question?.id,
+				message: "Import useDashboardState from src/a.ts.",
+			}),
+		)
+		expect(bus.getCoordinationEvents("agent-b", { includeSelf: true, limit: 20 })).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: question?.id, answerState: "answered", answerEventId: answer?.id }),
+				expect.objectContaining({ id: answer?.id, message: "Import useDashboardState from src/a.ts." }),
+			]),
+		)
+	})
+
 	it("suppresses failed-agent coordination publishes without changing existing chat", () => {
 		bus.publishCoordination("agent-b", { kind: "note", message: "Broadcast before failure." })
 		bus.markFailed("agent-a", "Cancelled")

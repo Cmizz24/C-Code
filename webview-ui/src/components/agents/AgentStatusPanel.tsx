@@ -259,6 +259,50 @@ const getCoordinationQuestionStateClass = (state: AgentCoordinationEvent["answer
 	}
 }
 
+const findCoordinationQuestionForAnswer = (
+	answer: AgentCoordination,
+	events: AgentCoordination[],
+): AgentCoordination | undefined => {
+	if (answer.kind !== "answer") {
+		return undefined
+	}
+
+	if (answer.replyToId) {
+		const question = events.find((candidate) => candidate.id === answer.replyToId && candidate.kind === "question")
+		if (question) {
+			return question
+		}
+	}
+
+	return events
+		.filter(
+			(candidate) =>
+				candidate.kind === "question" &&
+				(candidate.answerEventId === answer.id ||
+					(candidate.agentId && candidate.agentId === answer.targetAgentId) ||
+					(!answer.targetAgentId && candidate.targetAgentId === answer.agentId)),
+		)
+		.sort((a, b) => b.ts - a.ts)[0]
+}
+
+const getCoordinationAddressLabel = (
+	event: AgentCoordination,
+	events: AgentCoordination[],
+	getAgentLabel: (agentId: string) => string,
+): string | undefined => {
+	if (event.kind === "answer") {
+		const question = findCoordinationQuestionForAnswer(event, events)
+		const replyTarget = question?.agentId ?? event.targetAgentId
+		return replyTarget ? `reply to ${getAgentLabel(replyTarget)}` : "reply"
+	}
+
+	if (event.targetAgentId) {
+		return `to ${getAgentLabel(event.targetAgentId)}`
+	}
+
+	return undefined
+}
+
 const shouldShowExpandedActivity = (activity: AgentActivity): boolean => {
 	const kind = getActivityKind(activity)
 
@@ -737,7 +781,6 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 			? `${usageCount}/${agents.length} reporting usage`
 			: undefined
 	const phaseLabel = phase ? phaseLabels[phase] : overallStatus
-	const reviewSummaryMarkdown = tool?.parallelReviewSummary?.markdown?.trim()
 	const coordinationChatEvents = getDisplayAgentCoordinationEvents(coordinationEvents.filter(isChatCoordinationEvent))
 	const hasCoordinationEvents = coordinationEvents.length > 0
 	const getAgentLabel = (agentId: string): string => labelByAgentId.get(agentId) ?? agentId
@@ -787,20 +830,6 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 						)}
 					</ToolUseBlockHeader>
 
-					{reviewSummaryMarkdown && (
-						<div
-							data-testid="parallel-agent-review-summary"
-							className="mt-2 rounded border border-vscode-sideBar-background bg-vscode-sideBar-background/30 p-2 text-[11px] text-vscode-descriptionForeground">
-							<div className="mb-1 flex items-center gap-1.5 text-vscode-foreground">
-								<span className="codicon codicon-git-merge shrink-0" />
-								<span className="font-medium">Parallel agent review summary</span>
-							</div>
-							<pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px] text-vscode-foreground">
-								{reviewSummaryMarkdown}
-							</pre>
-						</div>
-					)}
-
 					{hasCoordinationEvents && (
 						<div
 							data-testid="agent-coordination-feed"
@@ -819,6 +848,11 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 										const senderLabel = event.agentId ? getAgentLabel(event.agentId) : "Team"
 										const senderStatus = getAgentStatus(event.agentId)
 										const relatedFiles = event.relatedFiles?.filter(Boolean) ?? []
+										const addressLabel = getCoordinationAddressLabel(
+											event,
+											coordinationChatEvents,
+											getAgentLabel,
+										)
 										const questionState = getCoordinationQuestionState(
 											event,
 											coordinationChatEvents,
@@ -845,6 +879,13 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 													<Badge className="shrink-0 border border-vscode-focusBorder/40 bg-vscode-focusBorder/10 text-[10px] capitalize text-vscode-foreground">
 														{event.kind}
 													</Badge>
+													{addressLabel && (
+														<span
+															data-testid="agent-coordination-address"
+															className="shrink-0 text-[10px] text-vscode-descriptionForeground">
+															{addressLabel}
+														</span>
+													)}
 													{questionState && (
 														<Badge
 															data-testid="agent-coordination-answer-state"
@@ -853,13 +894,6 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 																getCoordinationQuestionStateClass(questionState),
 															)}>
 															{getCoordinationQuestionStateLabel(questionState)}
-														</Badge>
-													)}
-													{event.kind === "answer" && event.replyToId && (
-														<Badge
-															data-testid="agent-coordination-reply-badge"
-															className="shrink-0 border border-vscode-focusBorder/40 bg-vscode-focusBorder/10 text-[10px] text-vscode-foreground">
-															reply
 														</Badge>
 													)}
 													{timestampLabel && (

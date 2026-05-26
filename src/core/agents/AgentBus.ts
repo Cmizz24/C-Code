@@ -291,10 +291,6 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		agentId: string,
 		input: PublishAgentCoordinationInput,
 	): AgentCoordinationEvent | undefined {
-		if (this.isAgentTerminal(agentId)) {
-			return undefined
-		}
-
 		const kind = this.sanitizeCoordinationKind(input.kind)
 		const targetAgentId = this.sanitizeAgentId(input.targetAgentId)
 		const relatedFiles = this.sanitizeRelatedFiles(input.relatedFiles)
@@ -303,6 +299,14 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			kind === "answer"
 				? (explicitReplyToId ?? this.findImplicitAnswerQuestionId(agentId, targetAgentId, relatedFiles))
 				: explicitReplyToId
+
+		if (
+			this.isAgentTerminal(agentId) &&
+			!this.canTerminalAgentPublishCoordinationAnswer(agentId, { kind, targetAgentId, relatedFiles, replyToId })
+		) {
+			return undefined
+		}
+
 		const event = this.appendCoordinationEvent({
 			agentId,
 			message: input.message,
@@ -957,6 +961,35 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		return true
 	}
 
+	private canTerminalAgentPublishCoordinationAnswer(
+		agentId: string,
+		input: Pick<AgentCoordinationEvent, "kind" | "targetAgentId" | "relatedFiles" | "replyToId">,
+	): boolean {
+		if (this.getAgentStatus(agentId) !== "complete" || input.kind !== "answer") {
+			return false
+		}
+
+		const question = input.replyToId
+			? this.coordinationQuestions.get(input.replyToId)?.question
+			: this.findImplicitAnswerQuestion(agentId, input.targetAgentId, input.relatedFiles)
+
+		if (!question || (question.agentId && this.isAgentTerminal(question.agentId))) {
+			return false
+		}
+
+		return this.canAnswerQuestion(
+			{
+				agentId,
+				targetAgentId: input.targetAgentId,
+				relatedFiles: input.relatedFiles,
+				kind: "answer",
+				message: "",
+				ts: 0,
+			},
+			question,
+		)
+	}
+
 	private scoreImplicitAnswerQuestion(
 		question: AgentCoordinationEvent,
 		answerAgentId: string,
@@ -1012,11 +1045,17 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			return `Target ${question.targetAgentId} is unavailable.`
 		}
 
+		const retryCount = question.agentId ? this.getCompletionGateRetryCount(question.agentId, question.id) : 0
+		if (target.status === "complete") {
+			return retryCount >= AGENT_COORDINATION_COMPLETION_RETRY_LIMIT
+				? `Target ${question.targetAgentId} is already complete and did not answer after bounded completion retries.`
+				: undefined
+		}
+
 		if (this.isTerminalStatus(target.status)) {
 			return `Target ${question.targetAgentId} is already ${target.status}.`
 		}
 
-		const retryCount = question.agentId ? this.getCompletionGateRetryCount(question.agentId, question.id) : 0
 		if (retryCount >= AGENT_COORDINATION_COMPLETION_RETRY_LIMIT && target.status !== "running") {
 			return `Target ${question.targetAgentId} is not currently running after bounded completion retries.`
 		}
@@ -1045,14 +1084,19 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		this.refreshUnanswerableQuestions()
 		return this.getQuestionStates()
 			.map((state) => state.question)
-			.filter(
-				(question) =>
-					this.isQuestionOpen(question) &&
-					question.agentId === agentId &&
-					Boolean(question.targetAgentId) &&
-					question.targetAgentId !== agentId &&
-					!this.isTerminalStatus(this.getAgentStatus(question.targetAgentId!)),
-			)
+			.filter((question) => {
+				if (
+					!this.isQuestionOpen(question) ||
+					question.agentId !== agentId ||
+					!question.targetAgentId ||
+					question.targetAgentId === agentId
+				) {
+					return false
+				}
+
+				const targetStatus = this.getAgentStatus(question.targetAgentId)
+				return targetStatus === "complete" || !this.isTerminalStatus(targetStatus)
+			})
 	}
 
 	private getUnreadAnswersForAgent(
