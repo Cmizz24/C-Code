@@ -59,6 +59,10 @@ export interface AgentCoordinationEvent {
 	source?: AgentCoordinationSource
 	relatedFiles?: string[]
 	replyToId?: string
+	answerState?: "open" | "answered" | "unanswerable"
+	answerEventId?: string
+	answeredAt?: number
+	unanswerableReason?: string
 }
 
 export interface AgentPlan {

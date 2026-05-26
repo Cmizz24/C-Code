@@ -212,6 +212,53 @@ const getCoordinationMessagePreview = (message: string): string => {
 	return `${normalized.slice(0, AGENT_COORDINATION_MESSAGE_PREVIEW_LENGTH - 1)}…`
 }
 
+const getCoordinationQuestionState = (
+	event: AgentCoordination,
+	events: AgentCoordination[],
+): AgentCoordinationEvent["answerState"] | undefined => {
+	if (event.kind !== "question") {
+		return undefined
+	}
+
+	if (event.answerState === "answered" || event.answerState === "unanswerable") {
+		return event.answerState
+	}
+
+	if (
+		event.answerEventId ||
+		(event.id && events.some((candidate) => candidate.kind === "answer" && candidate.replyToId === event.id))
+	) {
+		return "answered"
+	}
+
+	return "open"
+}
+
+const getCoordinationQuestionStateLabel = (state: AgentCoordinationEvent["answerState"] | undefined): string => {
+	switch (state) {
+		case "answered":
+			return "answered"
+		case "unanswerable":
+			return "unanswerable"
+		case "open":
+			return "pending answer"
+		default:
+			return "pending answer"
+	}
+}
+
+const getCoordinationQuestionStateClass = (state: AgentCoordinationEvent["answerState"] | undefined): string => {
+	switch (state) {
+		case "answered":
+			return "border-vscode-charts-green/50 bg-vscode-charts-green/10 text-vscode-charts-green"
+		case "unanswerable":
+			return "border-vscode-editorWarning-foreground/50 bg-vscode-editorWarning-foreground/10 text-vscode-editorWarning-foreground"
+		case "open":
+		default:
+			return "border-vscode-editorWarning-foreground/50 bg-vscode-editorWarning-foreground/10 text-vscode-editorWarning-foreground"
+	}
+}
+
 const shouldShowExpandedActivity = (activity: AgentActivity): boolean => {
 	const kind = getActivityKind(activity)
 
@@ -772,6 +819,10 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 										const senderLabel = event.agentId ? getAgentLabel(event.agentId) : "Team"
 										const senderStatus = getAgentStatus(event.agentId)
 										const relatedFiles = event.relatedFiles?.filter(Boolean) ?? []
+										const questionState = getCoordinationQuestionState(
+											event,
+											coordinationChatEvents,
+										)
 
 										return (
 											<li
@@ -794,6 +845,23 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 													<Badge className="shrink-0 border border-vscode-focusBorder/40 bg-vscode-focusBorder/10 text-[10px] capitalize text-vscode-foreground">
 														{event.kind}
 													</Badge>
+													{questionState && (
+														<Badge
+															data-testid="agent-coordination-answer-state"
+															className={cn(
+																"shrink-0 border text-[10px]",
+																getCoordinationQuestionStateClass(questionState),
+															)}>
+															{getCoordinationQuestionStateLabel(questionState)}
+														</Badge>
+													)}
+													{event.kind === "answer" && event.replyToId && (
+														<Badge
+															data-testid="agent-coordination-reply-badge"
+															className="shrink-0 border border-vscode-focusBorder/40 bg-vscode-focusBorder/10 text-[10px] text-vscode-foreground">
+															reply
+														</Badge>
+													)}
 													{timestampLabel && (
 														<span className="ml-auto shrink-0 font-mono text-[10px]">
 															{timestampLabel}

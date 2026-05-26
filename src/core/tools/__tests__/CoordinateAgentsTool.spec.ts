@@ -248,6 +248,36 @@ describe("CoordinateAgentsTool", () => {
 		expect(task.consecutiveMistakeCount).toBe(1)
 	})
 
+	it("rejects answers that cannot be matched to an open question", async () => {
+		const tool = new CoordinateAgentsTool()
+		const { task, callbacks } = createCallbacks()
+
+		await tool.handle(
+			task as any,
+			{
+				type: "tool_use",
+				name: "coordinate_agents",
+				params: {},
+				nativeArgs: {
+					action: "publish",
+					kind: "answer",
+					message: "Use data-testid=save-button.",
+				},
+			} as ToolUse<"coordinate_agents">,
+			callbacks as any,
+		)
+
+		expect(task.publishAgentCoordination).not.toHaveBeenCalled()
+		expect(task.recordToolError).toHaveBeenCalledWith(
+			"coordinate_agents",
+			"Answers must reply to an open question with replyToId, or include targetAgentId/relatedFiles for matching.",
+		)
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
+			expect.stringContaining("Answer an open question by including replyToId"),
+		)
+		expect(task.consecutiveMistakeCount).toBe(1)
+	})
+
 	it("denies foreground tasks", async () => {
 		const tool = new CoordinateAgentsTool()
 		const { task, callbacks } = createCallbacks()

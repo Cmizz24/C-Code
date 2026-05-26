@@ -391,6 +391,8 @@ describe("AgentStatusPanel", () => {
 		expect(mainChat).toContain("pending")
 		expect(mainChat).toContain("question")
 		expect(mainChat).toContain("answer")
+		expect(mainChat).toContain("answered")
+		expect(mainChat).toContain("reply")
 		expect(mainChat).toContain("Do you need a wrapper class")
 		expect(mainChat).toContain("dashboard-card")
 		expect(mainChat).toContain("--dashboard-gap")
@@ -406,6 +408,8 @@ describe("AgentStatusPanel", () => {
 		expect(feed).not.toHaveTextContent("contract")
 		expect(screen.queryByTestId("agent-coordination-related-file")).not.toBeInTheDocument()
 		expect(screen.getAllByTestId("agent-coordination-related-files-summary")).toHaveLength(2)
+		expect(screen.getByTestId("agent-coordination-answer-state")).toHaveTextContent("answered")
+		expect(screen.getByTestId("agent-coordination-reply-badge")).toHaveTextContent("reply")
 		expectNoEmoji(feed)
 		expect(within(feed).queryByRole("button")).not.toBeInTheDocument()
 		expect(within(feed).queryByRole("textbox")).not.toBeInTheDocument()
@@ -486,6 +490,36 @@ describe("AgentStatusPanel", () => {
 		expect(message.querySelector("[title]")).toHaveAttribute("title", longMessage)
 		expect(screen.queryByTestId("agent-coordination-related-file")).not.toBeInTheDocument()
 		expect(screen.getByTestId("agent-coordination-related-files-summary")).toHaveTextContent("src/Dashboard.tsx +2")
+	})
+
+	it("renders open coordination questions as pending until a reply arrives", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "running",
+			agentCoordinationEvents: [
+				{
+					id: "coord-open",
+					agentId: "ui-agent",
+					targetAgentId: "styles-agent",
+					kind: "question",
+					source: "agent",
+					message: "Which wrapper class should styles target?",
+					answerState: "open",
+					ts: 1_700_000_000_000,
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+
+		const message = screen.getByTestId("agent-coordination-message")
+		expect(message).toHaveTextContent("question")
+		expect(message).toHaveTextContent("pending answer")
+		expect(message).toHaveTextContent("Which wrapper class should styles target?")
+		expect(screen.getByTestId("agent-coordination-answer-state")).toHaveTextContent("pending answer")
+		expect(screen.queryByTestId("agent-coordination-reply-badge")).not.toBeInTheDocument()
 	})
 
 	it("renders live coordination updates as bounded chat messages without event-log labels", () => {

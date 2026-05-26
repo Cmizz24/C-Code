@@ -134,7 +134,12 @@ import { AutoApprovalHandler, checkAutoApproval } from "../auto-approval"
 import { MessageManager } from "../message-manager"
 import { validateAndFixToolResultIds } from "./validateToolResultIds"
 import { mergeConsecutiveApiMessages } from "./mergeConsecutiveApiMessages"
-import { AgentBus, type GetAgentCoordinationOptions, type PublishAgentCoordinationInput } from "../agents/AgentBus"
+import {
+	AgentBus,
+	type AgentCompletionCoordinationGate,
+	type GetAgentCoordinationOptions,
+	type PublishAgentCoordinationInput,
+} from "../agents/AgentBus"
 import { isBackgroundAgentToolRestrictedTask, withBackgroundAgentDisabledTools } from "../agents/backgroundAgentTools"
 
 const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
@@ -3996,6 +4001,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		return this.agentBus.getOpenCoordinationQuestions(this.agentId, options)
+	}
+
+	public getAgentCompletionCoordinationGate(options?: { recordAttempt?: boolean }): AgentCompletionCoordinationGate {
+		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
+			return { approved: true, blockers: [], unanswerableQuestions: [] }
+		}
+
+		return this.agentBus.getAgentCompletionCoordinationGate(this.agentId, options)
 	}
 
 	private getCurrentProfileId(state: any): string {

@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 
-import { RooCodeEventName, type HistoryItem } from "@roo-code/types"
+import { RooCodeEventName, type AgentCoordinationEvent, type HistoryItem } from "@roo-code/types"
 
 import { Task } from "../task/Task"
 import { formatResponse } from "../prompts/responses"
@@ -43,6 +43,42 @@ function isAbortedTaskSayError(task: Task, error: unknown): boolean {
 
 function isParallelAgentTask(task: Task): boolean {
 	return Boolean(task.agentId || task.agentBus)
+}
+
+function formatQuestionReference(question: AgentCoordinationEvent): string {
+	const from = question.agentId ? ` from ${question.agentId}` : ""
+	const to = question.targetAgentId ? ` to ${question.targetAgentId}` : ""
+	const files = question.relatedFiles?.length ? ` (${question.relatedFiles.join(", ")})` : ""
+	return `${question.id ?? "unknown"}${from}${to}: ${question.message}${files}`
+}
+
+function formatCompletionCoordinationGate(task: Task): string | undefined {
+	const gate = task.getAgentCompletionCoordinationGate({ recordAttempt: true })
+	if (gate.approved) {
+		return undefined
+	}
+
+	const incoming = gate.blockers.filter((blocker) => blocker.type === "incoming-question")
+	const outgoing = gate.blockers.filter((blocker) => blocker.type === "outgoing-question")
+	const unreadAnswers = gate.blockers.filter((blocker) => blocker.type === "unread-answer")
+	const lines = [
+		"Cannot complete yet because live parallel-agent coordination is unresolved.",
+		incoming.length ? "Open questions for you to answer before completion:" : undefined,
+		...incoming.map(
+			(blocker) =>
+				`- Reply with kind='answer' and replyToId='${blocker.question.id ?? ""}': ${formatQuestionReference(blocker.question)}`,
+		),
+		outgoing.length ? "Targeted questions you asked that are still waiting on running agents:" : undefined,
+		...outgoing.map((blocker) => `- ${formatQuestionReference(blocker.question)}`),
+		unreadAnswers.length ? "Answers to your questions arrived after your last team-chat read:" : undefined,
+		...unreadAnswers.map(
+			(blocker) =>
+				`- Read and adapt to answer ${blocker.answer?.id ?? "unknown"} for question ${blocker.question.id ?? "unknown"}: ${blocker.answer?.message ?? ""}`,
+		),
+		"Call coordinate_agents with action='read', answer relevant open questions, incorporate any answers into your files or final result, then attempt completion again.",
+	]
+
+	return lines.filter(Boolean).join("\n")
 }
 
 export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
@@ -98,6 +134,19 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 				task.recordToolError("attempt_completion")
 				pushToolResult(await task.sayAndCreateMissingParamError("attempt_completion", "result"))
 				return
+			}
+
+			if (isParallelAgentTask(task)) {
+				const coordinationGateMessage = formatCompletionCoordinationGate(task)
+				if (coordinationGateMessage) {
+					task.consecutiveMistakeCount++
+					task.recordToolError(
+						"attempt_completion",
+						"Open parallel-agent coordination questions are unresolved.",
+					)
+					pushToolResult(formatResponse.toolError(coordinationGateMessage))
+					return
+				}
 			}
 
 			task.consecutiveMistakeCount = 0

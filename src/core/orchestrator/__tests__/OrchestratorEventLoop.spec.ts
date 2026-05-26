@@ -186,7 +186,9 @@ describe("OrchestratorEventLoop", () => {
 		expect(message).toContain("Before your first write")
 		expect(message).toContain("read recent team chat")
 		expect(message).toContain("If there is an open question for you, answer it before writing")
-		expect(message).toContain("Otherwise ask one relevant agent one short integration question")
+		expect(message).toContain("Otherwise ask one specific relevant agent one short integration question")
+		expect(message).toContain("Before attempt_completion, read team chat again")
+		expect(message).toContain("adapt your files or final result")
 		expect(message).toContain("Do not post ownership or introduction messages")
 		expect(message).toContain("real question/answer coordination only")
 		expect(message).toContain("one short question at a time")
@@ -198,7 +200,11 @@ describe("OrchestratorEventLoop", () => {
 		expect(message).not.toMatch(/\p{Extended_Pictographic}/u)
 		expect(options?.systemPromptSuffix).toContain("Before your first write")
 		expect(options?.systemPromptSuffix).toContain("If there is an open question for you, answer it before writing")
-		expect(options?.systemPromptSuffix).toContain("otherwise ask one relevant agent one short integration question")
+		expect(options?.systemPromptSuffix).toContain(
+			"otherwise ask one specific relevant agent one short integration question",
+		)
+		expect(options?.systemPromptSuffix).toContain("Before attempt_completion")
+		expect(options?.systemPromptSuffix).toContain("adapt your files or final result")
 		expect(options?.systemPromptSuffix).toContain("Do not post ownership or introduction messages")
 		expect(options?.systemPromptSuffix).toContain("real question/answer coordination only")
 		expect(options?.systemPromptSuffix).toContain("one short question at a time")

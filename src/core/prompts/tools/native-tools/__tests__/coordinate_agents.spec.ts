@@ -8,10 +8,17 @@ describe("coordinate_agents native tool", () => {
 		expect(description).toContain("team chat")
 		expect(description).toContain("real question/answer coordination only")
 		expect(description).toContain("Use action=read before your first write")
+		expect(description).toContain("again before completion")
 		expect(description).toContain('{"action":"read","limit":8}')
-		expect(description).toContain('{"action":"publish","kind":"question","message":"..."}')
-		expect(description).toContain('{"action":"publish","kind":"answer","message":"...","replyToId":"..."}')
+		expect(description).toContain(
+			'{"action":"publish","kind":"question","message":"...","targetAgentId":"agent-id"}',
+		)
+		expect(description).toContain(
+			'{"action":"publish","kind":"answer","message":"...","replyToId":"...","targetAgentId":"agent-id"}',
+		)
 		expect(description).toContain("replyToId")
+		expect(description).toContain("Answers must reply to a question")
+		expect(description).toContain("adapt your files")
 		expect(description).toContain("Do not publish ownership introductions")
 		expect(description).toContain("I own <file>")
 		expect(description).toContain("Agent <id> owns <file>")

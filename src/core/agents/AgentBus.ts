@@ -22,6 +22,7 @@ export const AGENT_COORDINATION_RELATED_FILES_LIMIT = 8
 export const AGENT_COORDINATION_PATH_MAX_LENGTH = 200
 export const AGENT_COORDINATION_READ_LIMIT = 8
 export const AGENT_COORDINATION_READ_LIMIT_MAX = 20
+export const AGENT_COORDINATION_COMPLETION_RETRY_LIMIT = 2
 
 export type PublishAgentCoordinationInput = {
 	kind?: AgentCoordinationKind
@@ -34,6 +35,26 @@ export type PublishAgentCoordinationInput = {
 export type GetAgentCoordinationOptions = {
 	limit?: number
 	includeSelf?: boolean
+}
+
+type CoordinationQuestionState = {
+	question: AgentCoordinationEvent
+	answerEventId?: string
+	answeredAt?: number
+	unanswerableReason?: string
+}
+
+export type AgentCompletionCoordinationBlocker = {
+	type: "incoming-question" | "outgoing-question" | "unread-answer"
+	question: AgentCoordinationEvent
+	answer?: AgentCoordinationEvent
+	retryCount?: number
+}
+
+export type AgentCompletionCoordinationGate = {
+	approved: boolean
+	blockers: AgentCompletionCoordinationBlocker[]
+	unanswerableQuestions: AgentCoordinationEvent[]
 }
 
 const genericOwnershipCoordinationPatterns = [
@@ -102,6 +123,10 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	private readonly coordinationPublishedAgents = new Set<string>()
 	private readonly writeIntentEvidenceByAgent = new Map<string, AgentWriteIntentEvidence[]>()
 	private readonly completionPackets = new Map<string, AgentCompletionPacket>()
+	private readonly coordinationQuestions = new Map<string, CoordinationQuestionState>()
+	private readonly coordinationEventSequenceById = new Map<string, number>()
+	private readonly coordinationLastReadSequenceByAgent = new Map<string, number>()
+	private readonly completionGateRetriesByAgent = new Map<string, Map<string, number>>()
 	private planCompletionPacket?: ParallelPlanCompletionPacket
 	private coordinationEvents: AgentCoordinationEvent[] = []
 	private coordinationSequence = 0
@@ -126,6 +151,10 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		this.coordinationPublishedAgents.clear()
 		this.writeIntentEvidenceByAgent.clear()
 		this.completionPackets.clear()
+		this.coordinationQuestions.clear()
+		this.coordinationEventSequenceById.clear()
+		this.coordinationLastReadSequenceByAgent.clear()
+		this.completionGateRetriesByAgent.clear()
 		this.planCompletionPacket = undefined
 		this.coordinationEvents = []
 		this.coordinationSequence = 0
@@ -185,6 +214,9 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		const agent = this.getAgent(agentId)
 		const ownerAgentId = this.findOwnerAgentId(normalizedPath)
 		const activeWriter = this.activeWrites.get(normalizedPath)
+		const incomingQuestionBlockers = this.getBlockingIncomingQuestions(agentId).filter((question) =>
+			this.isQuestionRelevantToPath(question, normalizedPath),
+		)
 		let permission: WritePermission
 
 		if (!this.executionPlan || !agent) {
@@ -209,6 +241,12 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			)
 		) {
 			permission = { approved: false, reason: `${normalizedPath} is read-only for ${agentId}.` }
+		} else if (incomingQuestionBlockers.length > 0) {
+			permission = {
+				approved: false,
+				reason: this.buildIncomingQuestionWriteBlockReason(incomingQuestionBlockers),
+				suggestWait: true,
+			}
 		} else if (!ownerAgentId) {
 			permission = { approved: true, unownedWarning: `${normalizedPath} is not declared in the execution plan.` }
 		} else {
@@ -224,7 +262,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 
 		this.recordWriteIntentEvidence(agentId, normalizedPath, permission, ownerAgentId)
 		this.emitEvent({ type: "INTENT_WRITE", agentId, path: normalizedPath, permission })
-		if (!permission.approved) {
+		if (!permission.approved && incomingQuestionBlockers.length === 0) {
 			this.emitEvent({ type: "CONFLICT_QUERY", agentId, path: normalizedPath, ownerAgentId })
 		}
 
@@ -260,7 +298,11 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		const kind = this.sanitizeCoordinationKind(input.kind)
 		const targetAgentId = this.sanitizeAgentId(input.targetAgentId)
 		const relatedFiles = this.sanitizeRelatedFiles(input.relatedFiles)
-		const replyToId = this.sanitizeReplyToId(input.replyToId)
+		const explicitReplyToId = this.sanitizeReplyToId(input.replyToId)
+		const replyToId =
+			kind === "answer"
+				? (explicitReplyToId ?? this.findImplicitAnswerQuestionId(agentId, targetAgentId, relatedFiles))
+				: explicitReplyToId
 		const event = this.appendCoordinationEvent({
 			agentId,
 			message: input.message,
@@ -278,6 +320,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 
 	public getCoordinationEvents(agentId: string, options: GetAgentCoordinationOptions = {}): AgentCoordinationEvent[] {
 		this.coordinationReadAgents.add(agentId)
+		this.coordinationLastReadSequenceByAgent.set(agentId, this.coordinationSequence)
 
 		const limit = clampInteger(options.limit, AGENT_COORDINATION_READ_LIMIT, AGENT_COORDINATION_READ_LIMIT_MAX)
 		const includeSelf = options.includeSelf ?? false
@@ -299,6 +342,37 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	): AgentCoordinationEvent[] {
 		const limit = clampInteger(options.limit, AGENT_COORDINATION_READ_LIMIT, AGENT_COORDINATION_READ_LIMIT_MAX)
 		return this.getOpenQuestionsForAgent(agentId).slice(-limit)
+	}
+
+	public getAgentCompletionCoordinationGate(
+		agentId: string,
+		options: { recordAttempt?: boolean } = {},
+	): AgentCompletionCoordinationGate {
+		this.refreshUnanswerableQuestions()
+
+		if (options.recordAttempt) {
+			this.recordCompletionGateAttempt(agentId)
+			this.refreshUnanswerableQuestions()
+		}
+
+		const incoming = this.getBlockingIncomingQuestions(agentId).map((question) => ({
+			type: "incoming-question" as const,
+			question,
+		}))
+		const outgoing = this.getBlockingOutgoingQuestions(agentId).map((question) => ({
+			type: "outgoing-question" as const,
+			question,
+			retryCount: this.getCompletionGateRetryCount(agentId, question.id),
+		}))
+		const unreadAnswers = this.getUnreadAnswersForAgent(agentId).map(({ question, answer }) => ({
+			type: "unread-answer" as const,
+			question,
+			answer,
+		}))
+		const unanswerableQuestions = this.getUnanswerableQuestionsForAgent(agentId)
+
+		const blockers = [...incoming, ...outgoing, ...unreadAnswers]
+		return { approved: blockers.length === 0, blockers, unanswerableQuestions }
 	}
 
 	public hasAgentReadCoordination(agentId: string): boolean {
@@ -420,6 +494,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		}
 		this.emitEvent({ type: "COMPLETE", agentId, result })
 		this.upsertCompletionPacket(agentId, { status: "complete", completionResult: result, note: "Agent completed." })
+		this.refreshUnanswerableQuestions()
 		this.unblockReadyAgents()
 		this.emitTerminalEvents()
 	}
@@ -442,6 +517,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		}
 		this.emitEvent({ type: "FAILED", agentId, reason })
 		this.upsertCompletionPacket(agentId, { status: "failed", completionResult: reason, note: "Agent failed." })
+		this.refreshUnanswerableQuestions()
 		this.failBlockedDependents(agentId, reason)
 		this.emitTerminalEvents()
 	}
@@ -575,8 +651,9 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 
 	private appendCoordinationEvent(input: AppendCoordinationEventInput): AgentCoordinationEvent {
 		const relatedFiles = this.sanitizeRelatedFiles(input.relatedFiles)
+		const sequence = ++this.coordinationSequence
 		const event: AgentCoordinationEvent = {
-			id: input.id ?? `${Date.now()}-${++this.coordinationSequence}`,
+			id: input.id ?? `${Date.now()}-${sequence}`,
 			message: this.sanitizeCoordinationMessage(input.message),
 			ts: input.ts ?? Date.now(),
 			kind: input.kind,
@@ -591,9 +668,95 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			? this.coordinationEvents.filter((candidate) => candidate.id !== event.id)
 			: this.coordinationEvents
 		this.coordinationEvents = [...existingEvents, event].slice(-AGENT_COORDINATION_EVENT_LIMIT)
+		if (event.id) {
+			this.coordinationEventSequenceById.set(event.id, sequence)
+		}
+		this.trackCoordinationQuestionOrAnswer(event)
 		this.emitEvent({ type: "COORDINATION", event })
 
 		return event
+	}
+
+	private trackCoordinationQuestionOrAnswer(event: AgentCoordinationEvent): void {
+		if (!event.id) {
+			return
+		}
+
+		if (event.kind === "question") {
+			const question = event.answerState ? event : { ...event, answerState: "open" as const }
+			this.updateStoredCoordinationEvent(event.id, question)
+			this.coordinationQuestions.set(event.id, { question })
+			this.refreshUnanswerableQuestions()
+			return
+		}
+
+		if (event.kind === "answer") {
+			const question = this.findQuestionAnsweredBy(event)
+			if (question?.id) {
+				this.markQuestionAnswered(question.id, event)
+			}
+		}
+	}
+
+	private updateStoredCoordinationEvent(eventId: string, updatedEvent: AgentCoordinationEvent): void {
+		this.coordinationEvents = this.coordinationEvents.map((event) => (event.id === eventId ? updatedEvent : event))
+	}
+
+	private updateQuestionState(
+		questionId: string,
+		patch: Partial<AgentCoordinationEvent>,
+		options: { emit?: boolean } = {},
+	): AgentCoordinationEvent | undefined {
+		const state = this.coordinationQuestions.get(questionId)
+		if (!state) {
+			return undefined
+		}
+
+		const updatedQuestion = { ...state.question, ...patch }
+		state.question = updatedQuestion
+		if (updatedQuestion.answerEventId) {
+			state.answerEventId = updatedQuestion.answerEventId
+		}
+		if (updatedQuestion.answeredAt) {
+			state.answeredAt = updatedQuestion.answeredAt
+		}
+		if (updatedQuestion.unanswerableReason) {
+			state.unanswerableReason = updatedQuestion.unanswerableReason
+		}
+		this.updateStoredCoordinationEvent(questionId, updatedQuestion)
+		if (options.emit) {
+			this.emitEvent({ type: "COORDINATION", event: updatedQuestion })
+		}
+		return updatedQuestion
+	}
+
+	private markQuestionAnswered(questionId: string, answer: AgentCoordinationEvent): void {
+		this.updateQuestionState(
+			questionId,
+			{
+				answerState: "answered",
+				answerEventId: answer.id,
+				answeredAt: answer.ts,
+				unanswerableReason: undefined,
+			},
+			{ emit: true },
+		)
+	}
+
+	private markQuestionUnanswerable(questionId: string, reason: string): void {
+		const state = this.coordinationQuestions.get(questionId)
+		if (!state || state.question.answerState === "answered" || state.question.answerState === "unanswerable") {
+			return
+		}
+
+		this.updateQuestionState(
+			questionId,
+			{
+				answerState: "unanswerable",
+				unanswerableReason: reason,
+			},
+			{ emit: true },
+		)
 	}
 
 	private publishSystemCoordination(input: Omit<AppendCoordinationEventInput, "source">): AgentCoordinationEvent {
@@ -701,33 +864,282 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	}
 
 	private hasOpenQuestionFromAgent(agentId: string): boolean {
-		return this.coordinationEvents.some(
-			(event) => event.agentId === agentId && event.kind === "question" && !this.isQuestionAnswered(event),
+		return this.getQuestionStates().some(
+			(state) => state.question.agentId === agentId && this.isQuestionOpen(state.question),
 		)
 	}
 
 	private getOpenQuestionsForAgent(agentId: string): AgentCoordinationEvent[] {
-		return this.coordinationEvents.filter(
-			(event) =>
-				event.kind === "question" &&
-				event.agentId !== agentId &&
-				(!event.targetAgentId || event.targetAgentId === agentId) &&
-				!this.isQuestionAnswered(event),
-		)
+		this.refreshUnanswerableQuestions()
+		return this.getQuestionStates()
+			.map((state) => state.question)
+			.filter(
+				(question) =>
+					this.isQuestionOpen(question) &&
+					question.agentId !== agentId &&
+					this.isQuestionRelevantToAgent(question, agentId),
+			)
 	}
 
-	private isQuestionAnswered(question: AgentCoordinationEvent): boolean {
-		if (!question.id) {
+	private getQuestionStates(): CoordinationQuestionState[] {
+		return Array.from(this.coordinationQuestions.values()).sort((a, b) => a.question.ts - b.question.ts)
+	}
+
+	private isQuestionOpen(question: AgentCoordinationEvent): boolean {
+		return question.kind === "question" && (question.answerState ?? "open") === "open"
+	}
+
+	private findQuestionAnsweredBy(answer: AgentCoordinationEvent): AgentCoordinationEvent | undefined {
+		if (answer.replyToId) {
+			const question = this.coordinationQuestions.get(answer.replyToId)?.question
+			if (question && this.canAnswerQuestion(answer, question)) {
+				return question
+			}
+		}
+
+		return this.findImplicitAnswerQuestion(answer.agentId, answer.targetAgentId, answer.relatedFiles)
+	}
+
+	private findImplicitAnswerQuestionId(
+		answerAgentId: string,
+		answerTargetAgentId: string | undefined,
+		relatedFiles: string[],
+	): string | undefined {
+		return this.findImplicitAnswerQuestion(answerAgentId, answerTargetAgentId, relatedFiles)?.id
+	}
+
+	private findImplicitAnswerQuestion(
+		answerAgentId: string | undefined,
+		answerTargetAgentId: string | undefined,
+		relatedFiles: string[] | undefined,
+	): AgentCoordinationEvent | undefined {
+		if (!answerAgentId) {
+			return undefined
+		}
+
+		const answerCandidate = {
+			agentId: answerAgentId,
+			targetAgentId: answerTargetAgentId,
+			relatedFiles,
+			kind: "answer" as const,
+			message: "",
+			ts: 0,
+		}
+		const candidates = this.getQuestionStates()
+			.map((state) => state.question)
+			.filter((question) => this.canAnswerQuestion(answerCandidate, question))
+			.map((question) => ({
+				question,
+				score: this.scoreImplicitAnswerQuestion(question, answerAgentId, answerTargetAgentId, relatedFiles),
+			}))
+			.filter(({ score }) => score > 0)
+			.sort((a, b) => b.score - a.score || b.question.ts - a.question.ts)
+
+		return candidates[0]?.question
+	}
+
+	private canAnswerQuestion(
+		answer: Pick<AgentCoordinationEvent, "agentId" | "targetAgentId" | "relatedFiles" | "kind" | "message" | "ts">,
+		question: AgentCoordinationEvent,
+	): boolean {
+		if (!answer.agentId || !question.id || !this.isQuestionOpen(question) || answer.agentId === question.agentId) {
 			return false
 		}
 
-		return this.coordinationEvents.some(
-			(event) =>
-				event.kind === "answer" &&
-				event.replyToId === question.id &&
-				event.agentId === question.targetAgentId &&
-				(!event.targetAgentId || event.targetAgentId === question.agentId),
+		if (question.targetAgentId && answer.agentId !== question.targetAgentId) {
+			return false
+		}
+
+		if (answer.targetAgentId && question.agentId && answer.targetAgentId !== question.agentId) {
+			return false
+		}
+
+		return true
+	}
+
+	private scoreImplicitAnswerQuestion(
+		question: AgentCoordinationEvent,
+		answerAgentId: string,
+		answerTargetAgentId: string | undefined,
+		relatedFiles: string[] | undefined,
+	): number {
+		let score = 0
+		if (question.targetAgentId === answerAgentId) {
+			score += 5
+		}
+		if (answerTargetAgentId && question.agentId === answerTargetAgentId) {
+			score += 4
+		}
+		if (this.relatedFilesOverlap(question.relatedFiles, relatedFiles)) {
+			score += 3
+		}
+		return score
+	}
+
+	private relatedFilesOverlap(left: string[] | undefined, right: string[] | undefined): boolean {
+		const leftFiles = (left ?? []).map(normalizePath)
+		const rightFiles = (right ?? []).map(normalizePath)
+		return leftFiles.some((leftPath) =>
+			rightFiles.some((rightPath) => pathMatches(leftPath, rightPath) || pathMatches(rightPath, leftPath)),
 		)
+	}
+
+	private refreshUnanswerableQuestions(): void {
+		for (const state of this.getQuestionStates()) {
+			const question = state.question
+			if (!question.id || !this.isQuestionOpen(question)) {
+				continue
+			}
+
+			const reason = this.getUnanswerableQuestionReason(question)
+			if (reason) {
+				this.markQuestionUnanswerable(question.id, reason)
+			}
+		}
+	}
+
+	private getUnanswerableQuestionReason(question: AgentCoordinationEvent): string | undefined {
+		if (question.agentId && this.isAgentTerminal(question.agentId)) {
+			return `Asker ${question.agentId} is already ${this.getAgentStatus(question.agentId) ?? "terminal"}.`
+		}
+
+		if (!question.targetAgentId) {
+			return undefined
+		}
+
+		const target = this.getAgent(question.targetAgentId)
+		if (!target) {
+			return `Target ${question.targetAgentId} is unavailable.`
+		}
+
+		if (this.isTerminalStatus(target.status)) {
+			return `Target ${question.targetAgentId} is already ${target.status}.`
+		}
+
+		const retryCount = question.agentId ? this.getCompletionGateRetryCount(question.agentId, question.id) : 0
+		if (retryCount >= AGENT_COORDINATION_COMPLETION_RETRY_LIMIT && target.status !== "running") {
+			return `Target ${question.targetAgentId} is not currently running after bounded completion retries.`
+		}
+
+		if (retryCount >= AGENT_COORDINATION_COMPLETION_RETRY_LIMIT && target.status === "running") {
+			return `Target ${question.targetAgentId} did not answer after bounded completion retries.`
+		}
+
+		return undefined
+	}
+
+	private getBlockingIncomingQuestions(agentId: string): AgentCoordinationEvent[] {
+		this.refreshUnanswerableQuestions()
+		return this.getQuestionStates()
+			.map((state) => state.question)
+			.filter(
+				(question) =>
+					this.isQuestionOpen(question) &&
+					question.agentId !== agentId &&
+					question.targetAgentId === agentId &&
+					(!question.agentId || !this.isAgentTerminal(question.agentId)),
+			)
+	}
+
+	private getBlockingOutgoingQuestions(agentId: string): AgentCoordinationEvent[] {
+		this.refreshUnanswerableQuestions()
+		return this.getQuestionStates()
+			.map((state) => state.question)
+			.filter(
+				(question) =>
+					this.isQuestionOpen(question) &&
+					question.agentId === agentId &&
+					Boolean(question.targetAgentId) &&
+					question.targetAgentId !== agentId &&
+					!this.isTerminalStatus(this.getAgentStatus(question.targetAgentId!)),
+			)
+	}
+
+	private getUnreadAnswersForAgent(
+		agentId: string,
+	): Array<{ question: AgentCoordinationEvent; answer: AgentCoordinationEvent }> {
+		const lastReadSequence = this.coordinationLastReadSequenceByAgent.get(agentId) ?? 0
+		return this.getQuestionStates()
+			.map((state) => state.question)
+			.filter(
+				(question) =>
+					question.agentId === agentId && question.answerState === "answered" && question.answerEventId,
+			)
+			.map((question) => {
+				const answer = this.coordinationEvents.find((event) => event.id === question.answerEventId)
+				return answer ? { question, answer } : undefined
+			})
+			.filter((entry): entry is { question: AgentCoordinationEvent; answer: AgentCoordinationEvent } => {
+				if (!entry?.answer.id) {
+					return false
+				}
+				return (this.coordinationEventSequenceById.get(entry.answer.id) ?? 0) > lastReadSequence
+			})
+	}
+
+	private getUnanswerableQuestionsForAgent(agentId: string): AgentCoordinationEvent[] {
+		return this.getQuestionStates()
+			.map((state) => state.question)
+			.filter(
+				(question) =>
+					question.answerState === "unanswerable" &&
+					(question.agentId === agentId || question.targetAgentId === agentId),
+			)
+	}
+
+	private recordCompletionGateAttempt(agentId: string): void {
+		const retryCounts = this.completionGateRetriesByAgent.get(agentId) ?? new Map<string, number>()
+		for (const question of this.getBlockingOutgoingQuestions(agentId)) {
+			if (!question.id) {
+				continue
+			}
+			retryCounts.set(question.id, (retryCounts.get(question.id) ?? 0) + 1)
+		}
+		this.completionGateRetriesByAgent.set(agentId, retryCounts)
+	}
+
+	private getCompletionGateRetryCount(agentId: string, questionId: string | undefined): number {
+		if (!questionId) {
+			return 0
+		}
+		return this.completionGateRetriesByAgent.get(agentId)?.get(questionId) ?? 0
+	}
+
+	private isQuestionRelevantToAgent(question: AgentCoordinationEvent, agentId: string): boolean {
+		if (question.targetAgentId) {
+			return question.targetAgentId === agentId
+		}
+
+		const relatedFiles = question.relatedFiles ?? []
+		if (relatedFiles.length === 0) {
+			return true
+		}
+
+		const agent = this.getAgent(agentId)
+		return Boolean(
+			agent?.owns.some((ownership) =>
+				relatedFiles.some(
+					(filePath) => pathMatches(ownership.path, filePath) || pathMatches(filePath, ownership.path),
+				),
+			),
+		)
+	}
+
+	private isQuestionRelevantToPath(question: AgentCoordinationEvent, filePath: string): boolean {
+		const relatedFiles = question.relatedFiles ?? []
+		if (relatedFiles.length === 0) {
+			return true
+		}
+
+		return relatedFiles.some(
+			(relatedFile) => pathMatches(relatedFile, filePath) || pathMatches(filePath, relatedFile),
+		)
+	}
+
+	private buildIncomingQuestionWriteBlockReason(questions: AgentCoordinationEvent[]): string {
+		const question = questions[0]
+		const suffix = questions.length > 1 ? ` and ${questions.length - 1} more` : ""
+		return `Open coordination question${questions.length > 1 ? "s" : ""} must be answered before writing: ${question?.id ?? "unknown"}${suffix}.`
 	}
 
 	private getPrimaryCoordinationPath(agent: AgentPlan): string | undefined {

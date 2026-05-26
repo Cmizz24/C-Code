@@ -71,6 +71,11 @@ describe("attemptCompletionTool", () => {
 			taskId: "task_1",
 			apiConfiguration: { apiProvider: "test" } as any,
 			api: { getModel: vi.fn().mockReturnValue({ id: "test-model", info: {} }) } as any,
+			getAgentCompletionCoordinationGate: vi.fn(() => ({
+				approved: true,
+				blockers: [],
+				unanswerableQuestions: [],
+			})),
 		}
 	})
 
@@ -529,6 +534,65 @@ describe("attemptCompletionTool", () => {
 					"task_1",
 					expect.anything(),
 					expect.anything(),
+				)
+			})
+
+			it("blocks parallel agent completion while live coordination questions are unresolved", async () => {
+				const block: AttemptCompletionToolUse = {
+					type: "tool_use",
+					name: "attempt_completion",
+					params: { result: "Agent finished" },
+					nativeArgs: { result: "Agent finished" },
+					partial: false,
+				}
+				const parallelTask = mockTask as any
+				parallelTask.parentTaskId = "parent-task"
+				parallelTask.agentId = "ui-agent"
+				parallelTask.agentBus = {} as any
+				parallelTask.getAgentCompletionCoordinationGate = vi.fn(() => ({
+					approved: false,
+					blockers: [
+						{
+							type: "incoming-question",
+							question: {
+								id: "coord-open",
+								agentId: "styles-agent",
+								targetAgentId: "ui-agent",
+								kind: "question",
+								message: "Which selector should styles target?",
+								ts: 1,
+							},
+						},
+					],
+					unanswerableQuestions: [],
+				}))
+
+				const callbacks: AttemptCompletionCallbacks = {
+					askApproval: mockAskApproval,
+					handleError: mockHandleError,
+					pushToolResult: mockPushToolResult,
+					askFinishSubTaskApproval: mockAskFinishSubTaskApproval,
+					toolDescription: mockToolDescription,
+				}
+
+				await attemptCompletionTool.handle(mockTask as Task, block, callbacks)
+
+				expect(parallelTask.getAgentCompletionCoordinationGate).toHaveBeenCalledWith({ recordAttempt: true })
+				expect(mockTask.say).not.toHaveBeenCalledWith("completion_result", expect.anything(), undefined, false)
+				expect(mockTask.emit).not.toHaveBeenCalledWith(
+					RooCodeEventName.TaskCompleted,
+					expect.anything(),
+					expect.anything(),
+					expect.anything(),
+				)
+				expect(mockTask.recordToolError).toHaveBeenCalledWith(
+					"attempt_completion",
+					"Open parallel-agent coordination questions are unresolved.",
+				)
+				expect(mockPushToolResult).toHaveBeenCalledWith(
+					expect.stringContaining(
+						"Cannot complete yet because live parallel-agent coordination is unresolved.",
+					),
 				)
 			})
 

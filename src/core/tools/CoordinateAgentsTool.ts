@@ -27,7 +27,9 @@ function formatCoordinationEvent(event: NonNullable<ReturnType<Task["publishAgen
 	const target = event.targetAgentId ? ` to ${event.targetAgentId}` : ""
 	const id = event.id ? ` [${event.id}]` : ""
 	const files = event.relatedFiles?.length ? ` (${event.relatedFiles.join(", ")})` : ""
-	return `- ${event.kind} ${speaker}${target}${id}: ${event.message}${files}`
+	const reply = event.replyToId ? ` replyTo ${event.replyToId}` : ""
+	const state = event.kind === "question" && event.answerState ? ` ${event.answerState}` : ""
+	return `- ${event.kind}${state} ${speaker}${target}${id}${reply}: ${event.message}${files}`
 }
 
 function formatOpenQuestions(openQuestions: ReturnType<Task["getAgentCoordinationEvents"]>): string[] {
@@ -38,7 +40,8 @@ function formatOpenQuestions(openQuestions: ReturnType<Task["getAgentCoordinatio
 	return [
 		"Open questions for you:",
 		...openQuestions.map(
-			(event) => `- Reply with kind='answer' and replyToId='${event.id ?? ""}': ${event.message}`,
+			(event) =>
+				`- Reply with kind='answer' and replyToId='${event.id ?? ""}'${event.agentId ? ` to ${event.agentId}` : ""}: ${event.message}`,
 		),
 	]
 }
@@ -115,12 +118,37 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 				return
 			}
 
+			const normalizedReplyToId = normalizeOptionalCoordinationString(params.replyToId, NO_REPLY_SENTINELS)
+			const normalizedTargetAgentId = normalizeOptionalCoordinationString(
+				params.targetAgentId,
+				BROADCAST_TARGET_SENTINELS,
+			)
+
+			if (
+				params.kind === "answer" &&
+				!normalizedReplyToId &&
+				!normalizedTargetAgentId &&
+				!params.relatedFiles?.length
+			) {
+				task.consecutiveMistakeCount++
+				task.recordToolError(
+					"coordinate_agents",
+					"Answers must reply to an open question with replyToId, or include targetAgentId/relatedFiles for matching.",
+				)
+				pushToolResult(
+					formatResponse.toolError(
+						"Answer an open question by including replyToId from coordinate_agents read. If replyToId is unavailable, include targetAgentId and relatedFiles so the answer can be matched.",
+					),
+				)
+				return
+			}
+
 			const event = task.publishAgentCoordination({
 				kind: params.kind,
 				message: params.message,
-				targetAgentId: normalizeOptionalCoordinationString(params.targetAgentId, BROADCAST_TARGET_SENTINELS),
+				targetAgentId: normalizedTargetAgentId,
 				relatedFiles: params.relatedFiles,
-				replyToId: normalizeOptionalCoordinationString(params.replyToId, NO_REPLY_SENTINELS),
+				replyToId: normalizedReplyToId,
 			})
 
 			if (!event) {

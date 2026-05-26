@@ -1,6 +1,11 @@
 import type { ExecutionPlan } from "@roo-code/types"
 
-import { AGENT_COORDINATION_EVENT_LIMIT, AGENT_COORDINATION_MESSAGE_MAX_LENGTH, AgentBus } from "../AgentBus"
+import {
+	AGENT_COORDINATION_COMPLETION_RETRY_LIMIT,
+	AGENT_COORDINATION_EVENT_LIMIT,
+	AGENT_COORDINATION_MESSAGE_MAX_LENGTH,
+	AgentBus,
+} from "../AgentBus"
 
 function createPlan(): ExecutionPlan {
 	return {
@@ -167,6 +172,100 @@ describe("AgentBus", () => {
 			path: "src/a.ts",
 			permission: { approved: true },
 		})
+	})
+
+	it("blocks background completion on answerable questions until answers are read", () => {
+		bus.markRunning("agent-a")
+		bus.markRunning("agent-b")
+		bus.publishCoordination("agent-a", {
+			kind: "answer",
+			message: "No additional hook needed from src/b.ts.",
+			targetAgentId: "agent-b",
+			replyToId: "plan-test:seed-question:agent-b:agent-a",
+		})
+
+		const waitingGate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
+		expect(waitingGate.approved).toBe(false)
+		expect(waitingGate.blockers).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "outgoing-question",
+					question: expect.objectContaining({ id: "plan-test:seed-question:agent-a:agent-b" }),
+				}),
+			]),
+		)
+
+		const answer = bus.publishCoordination("agent-b", {
+			kind: "answer",
+			message: "Use data-testid=save-button.",
+			targetAgentId: "agent-a",
+			replyToId: "plan-test:seed-question:agent-a:agent-b",
+		})
+		expect(answer?.replyToId).toBe("plan-test:seed-question:agent-a:agent-b")
+
+		const unreadGate = bus.getAgentCompletionCoordinationGate("agent-a")
+		expect(unreadGate.approved).toBe(false)
+		expect(unreadGate.blockers).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "unread-answer",
+					answer: expect.objectContaining({ message: "Use data-testid=save-button." }),
+				}),
+			]),
+		)
+
+		bus.getCoordinationEvents("agent-a", { limit: 20 })
+		expect(bus.getAgentCompletionCoordinationGate("agent-a").approved).toBe(true)
+	})
+
+	it("uses bounded completion retries before converting unavailable outgoing answers to unanswerable", () => {
+		bus.publishCoordination("agent-a", {
+			kind: "answer",
+			message: "No additional hook needed from src/b.ts.",
+			targetAgentId: "agent-b",
+			replyToId: "plan-test:seed-question:agent-b:agent-a",
+		})
+
+		for (let attempt = 1; attempt < AGENT_COORDINATION_COMPLETION_RETRY_LIMIT; attempt++) {
+			const gate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
+			expect(gate.approved).toBe(false)
+			expect(gate.blockers).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						type: "outgoing-question",
+						question: expect.objectContaining({ id: "plan-test:seed-question:agent-a:agent-b" }),
+					}),
+				]),
+			)
+		}
+
+		const allowedGate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
+		expect(allowedGate.approved).toBe(true)
+		expect(allowedGate.unanswerableQuestions).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "plan-test:seed-question:agent-a:agent-b",
+					answerState: "unanswerable",
+					unanswerableReason: expect.stringContaining("not currently running"),
+				}),
+			]),
+		)
+	})
+
+	it("allows completion when a targeted question becomes unanswerable because the target is terminal", () => {
+		bus.markFailed("agent-b", "Agent failed")
+
+		const gate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
+		expect(gate.approved).toBe(true)
+		expect(gate.unanswerableQuestions).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "plan-test:seed-question:agent-a:agent-b",
+					answerState: "unanswerable",
+					unanswerableReason: expect.stringContaining("already failed"),
+				}),
+			]),
+		)
 	})
 
 	it("denies a write while another agent holds the active write lock", () => {
