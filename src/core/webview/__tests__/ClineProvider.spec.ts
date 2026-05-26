@@ -1151,9 +1151,24 @@ describe("ClineProvider", () => {
 			expect(tool.agentCoordinationEvents).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
+						id: "plan-webview-provider:shared-context",
 						kind: "shared-context",
 						source: "system",
 						message: "Shared plan context was provided to all agents.",
+					}),
+					expect.objectContaining({
+						id: "plan-webview-provider:team-kickoff",
+						kind: "note",
+						source: "system",
+						message: expect.stringContaining("align filenames, selectors, classes, CSS variables"),
+					}),
+					expect.objectContaining({
+						id: "plan-webview-provider:intro:dashboard-agent",
+						agentId: "dashboard-agent",
+						kind: "note",
+						source: "system",
+						message: expect.stringContaining("Agent dashboard-agent starts code scope"),
+						relatedFiles: ["src/dashboard.tsx"],
 					}),
 					expect.objectContaining({
 						agentId: "dashboard-agent",
@@ -1168,6 +1183,14 @@ describe("ClineProvider", () => {
 						message: "Agent styles-agent waits for dashboard-agent to signal dom-ready.",
 					}),
 					expect.objectContaining({
+						id: "plan-webview-provider:preflight:dashboard-agent",
+						agentId: "dashboard-agent",
+						kind: "note",
+						source: "system",
+						message: expect.stringContaining("read recent team chat before writing src/dashboard.tsx"),
+						relatedFiles: ["src/dashboard.tsx"],
+					}),
+					expect.objectContaining({
 						agentId: "dashboard-agent",
 						kind: "completion",
 						source: "system",
@@ -1176,7 +1199,7 @@ describe("ClineProvider", () => {
 				]),
 			)
 			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toContain("Dashboard done")
-			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toContain("contracts")
+			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toContain("shared context")
 		})
 	})
 

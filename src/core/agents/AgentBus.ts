@@ -32,6 +32,11 @@ export type GetAgentCoordinationOptions = {
 	includeSelf?: boolean
 }
 
+type AppendCoordinationEventInput = Omit<AgentCoordinationEvent, "id" | "ts"> & {
+	id?: string
+	ts?: number
+}
+
 type AgentBusEvents = {
 	event: [AgentEvent]
 	plan: [ExecutionPlan]
@@ -69,6 +74,8 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	private readonly completedAgents = new Set<string>()
 	private readonly signalsByAgent = new Map<string, Set<string>>()
 	private readonly blockedAgents = new Set<string>()
+	private readonly coordinationReadAgents = new Set<string>()
+	private readonly coordinationPublishedAgents = new Set<string>()
 	private coordinationEvents: AgentCoordinationEvent[] = []
 	private coordinationSequence = 0
 
@@ -88,6 +95,8 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		this.completedAgents.clear()
 		this.signalsByAgent.clear()
 		this.blockedAgents.clear()
+		this.coordinationReadAgents.clear()
+		this.coordinationPublishedAgents.clear()
 		this.coordinationEvents = []
 		this.coordinationSequence = 0
 
@@ -107,6 +116,8 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 				this.blockedAgents.add(agent.id)
 			}
 		}
+
+		this.seedPlanCoordination(plan)
 		this.emit("plan", plan)
 		this.emitTerminalEvents()
 	}
@@ -155,6 +166,9 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		}
 
 		if (permission.approved) {
+			if (this.executionPlan && agent) {
+				this.ensureCoordinationPreflight(agentId, normalizedPath)
+			}
 			this.activeWrites.set(normalizedPath, agentId)
 		}
 
@@ -185,42 +199,78 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	}
 
 	public publishCoordination(agentId: string, input: PublishAgentCoordinationInput): AgentCoordinationEvent {
-		const message = this.sanitizeCoordinationMessage(input.message)
 		const kind = this.sanitizeCoordinationKind(input.kind)
 		const targetAgentId = this.sanitizeAgentId(input.targetAgentId)
 		const relatedFiles = this.sanitizeRelatedFiles(input.relatedFiles)
 		const replyToId = this.sanitizeReplyToId(input.replyToId)
-		const event: AgentCoordinationEvent = {
-			id: `${Date.now()}-${++this.coordinationSequence}`,
+		const event = this.appendCoordinationEvent({
 			agentId,
-			message,
-			ts: Date.now(),
+			message: input.message,
 			kind,
 			source: "agent",
 			...(targetAgentId ? { targetAgentId } : {}),
 			...(relatedFiles.length > 0 ? { relatedFiles } : {}),
 			...(replyToId ? { replyToId } : {}),
-		}
+		})
 
-		this.coordinationEvents = [...this.coordinationEvents, event].slice(-AGENT_COORDINATION_EVENT_LIMIT)
-		this.emitEvent({ type: "COORDINATION", event })
+		this.coordinationPublishedAgents.add(agentId)
 
 		return event
 	}
 
 	public getCoordinationEvents(agentId: string, options: GetAgentCoordinationOptions = {}): AgentCoordinationEvent[] {
+		this.coordinationReadAgents.add(agentId)
+
 		const limit = clampInteger(options.limit, AGENT_COORDINATION_READ_LIMIT, AGENT_COORDINATION_READ_LIMIT_MAX)
 		const includeSelf = options.includeSelf ?? false
 
 		return this.coordinationEvents
 			.filter((event) => {
-				if (!includeSelf && event.agentId === agentId) {
+				if (!includeSelf && event.source !== "system" && event.agentId === agentId) {
 					return false
 				}
 
 				return !event.targetAgentId || event.targetAgentId === agentId || event.agentId === agentId
 			})
 			.slice(-limit)
+	}
+
+	public hasAgentReadCoordination(agentId: string): boolean {
+		return this.coordinationReadAgents.has(agentId)
+	}
+
+	public hasAgentPublishedCoordination(agentId: string): boolean {
+		return this.coordinationPublishedAgents.has(agentId)
+	}
+
+	public hasAgentCoordinated(agentId: string): boolean {
+		return this.hasAgentReadCoordination(agentId) && this.hasAgentPublishedCoordination(agentId)
+	}
+
+	public ensureCoordinationPreflight(agentId: string, filePath: string): AgentCoordinationEvent | undefined {
+		const normalizedPath = normalizePath(filePath)
+		const agent = this.getAgent(agentId)
+
+		if (!this.executionPlan || !agent || this.hasAgentCoordinated(agentId)) {
+			return undefined
+		}
+
+		this.coordinationReadAgents.add(agentId)
+
+		if (this.coordinationPublishedAgents.has(agentId)) {
+			return undefined
+		}
+
+		const event = this.publishSystemCoordination({
+			id: `${this.executionPlan.planId}:preflight:${agentId}`,
+			agentId,
+			kind: "note",
+			message: this.buildCoordinationPreflightMessage(agent, normalizedPath),
+			relatedFiles: [normalizedPath],
+		})
+
+		this.coordinationPublishedAgents.add(agentId)
+		return event
 	}
 
 	public emitSignal(agentId: string, signal: string, payload?: string): void {
@@ -360,6 +410,127 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 
 	private emitEvent(event: AgentEvent): void {
 		this.emit("event", event)
+	}
+
+	private appendCoordinationEvent(input: AppendCoordinationEventInput): AgentCoordinationEvent {
+		const relatedFiles = this.sanitizeRelatedFiles(input.relatedFiles)
+		const event: AgentCoordinationEvent = {
+			id: input.id ?? `${Date.now()}-${++this.coordinationSequence}`,
+			message: this.sanitizeCoordinationMessage(input.message),
+			ts: input.ts ?? Date.now(),
+			kind: input.kind,
+			source: input.source,
+			...(input.agentId ? { agentId: input.agentId } : {}),
+			...(input.targetAgentId ? { targetAgentId: input.targetAgentId } : {}),
+			...(relatedFiles.length > 0 ? { relatedFiles } : {}),
+			...(input.replyToId ? { replyToId: input.replyToId } : {}),
+		}
+
+		const existingEvents = event.id
+			? this.coordinationEvents.filter((candidate) => candidate.id !== event.id)
+			: this.coordinationEvents
+		this.coordinationEvents = [...existingEvents, event].slice(-AGENT_COORDINATION_EVENT_LIMIT)
+		this.emitEvent({ type: "COORDINATION", event })
+
+		return event
+	}
+
+	private publishSystemCoordination(input: Omit<AppendCoordinationEventInput, "source">): AgentCoordinationEvent {
+		return this.appendCoordinationEvent({ ...input, source: "system" })
+	}
+
+	private seedPlanCoordination(plan: ExecutionPlan): void {
+		const ts = Date.now()
+
+		if (plan.sharedContext.trim()) {
+			this.publishSystemCoordination({
+				id: `${plan.planId}:shared-context`,
+				kind: "shared-context",
+				message: "Shared plan context was provided to all agents.",
+				ts,
+			})
+		}
+
+		this.publishSystemCoordination({
+			id: `${plan.planId}:team-kickoff`,
+			kind: "note",
+			message: `Team coordination started for plan ${plan.planId}: align filenames, selectors, classes, CSS variables, DOM hooks, IDs, data attributes, public functions, and responsibilities before writing shared integration points.`,
+			ts,
+		})
+
+		for (const agent of plan.agents) {
+			const writableOwnerships = agent.owns
+				.filter((ownership) => ownership.mode !== "read-only")
+				.map((ownership) => ownership.path)
+			const readableOwnerships = agent.owns.map((ownership) => ownership.path)
+
+			if (writableOwnerships.length > 0) {
+				this.publishSystemCoordination({
+					id: `${plan.planId}:ownership:${agent.id}`,
+					agentId: agent.id,
+					kind: "ownership",
+					message: `Agent ${agent.id} owns ${this.formatCoordinationPathList(writableOwnerships)}.`,
+					relatedFiles: writableOwnerships,
+					ts,
+				})
+			}
+
+			this.publishSystemCoordination({
+				id: `${plan.planId}:intro:${agent.id}`,
+				agentId: agent.id,
+				kind: "note",
+				message: `Agent ${agent.id} starts ${agent.mode} scope: ${this.summarizeCoordinationText(agent.task)} Scope paths: ${this.formatCoordinationPathList(writableOwnerships.length > 0 ? writableOwnerships : readableOwnerships)}.`,
+				relatedFiles: writableOwnerships.length > 0 ? writableOwnerships : readableOwnerships,
+				ts,
+			})
+
+			for (const dependency of agent.dependsOn) {
+				this.publishSystemCoordination({
+					id: `${plan.planId}:dependency:${agent.id}:${dependency.agentId}:${dependency.waitFor}:${dependency.signal ?? "complete"}`,
+					agentId: agent.id,
+					kind: "dependency",
+					message: `Agent ${agent.id} waits for ${this.describeAgentDependency(dependency)}.`,
+					ts,
+				})
+			}
+		}
+	}
+
+	private buildCoordinationPreflightMessage(agent: AgentPlan, filePath: string): string {
+		const writableOwnerships = agent.owns
+			.filter((ownership) => ownership.mode !== "read-only")
+			.map((ownership) => ownership.path)
+		const ownershipSummary = writableOwnerships.length
+			? this.formatCoordinationPathList(writableOwnerships)
+			: "no writable files declared"
+
+		return `Coordination preflight for ${agent.id}: read recent team chat before writing ${filePath}; owned scope ${ownershipSummary}. Share any selectors, classes, CSS variables, DOM hooks, IDs, data attributes, public functions, or file contracts that affect other agents.`
+	}
+
+	private describeAgentDependency(dependency: AgentDependency): string {
+		if (dependency.waitFor === "signal") {
+			return dependency.signal
+				? `${dependency.agentId} to signal ${dependency.signal}`
+				: `${dependency.agentId} to signal`
+		}
+
+		return `${dependency.agentId} to complete`
+	}
+
+	private formatCoordinationPathList(paths: string[]): string {
+		if (paths.length === 0) {
+			return "none"
+		}
+
+		const visiblePaths = paths.slice(0, 3).join(", ")
+		const remainingCount = paths.length - 3
+
+		return remainingCount > 0 ? `${visiblePaths}, and ${remainingCount} more` : visiblePaths
+	}
+
+	private summarizeCoordinationText(text: string): string {
+		const normalized = this.sanitizeCoordinationMessage(text)
+		return normalized.length > 160 ? `${normalized.slice(0, 157)}...` : normalized
 	}
 
 	private sanitizeCoordinationKind(kind: AgentCoordinationKind | undefined): AgentCoordinationKind {

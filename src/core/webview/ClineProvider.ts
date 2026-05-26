@@ -3001,7 +3001,6 @@ export class ClineProvider
 		}
 
 		this.activeExecutionPlan = plan
-		this.recordInitialParallelAgentCoordination(plan)
 		await this.updateParallelAgentStatusMessage("running")
 		this.orchestratorEventLoop = new OrchestratorEventLoop(this, AgentBus.getInstance(), {
 			maxConcurrentAgents: maxParallelAgents,
@@ -4208,50 +4207,6 @@ export class ClineProvider
 		this.scheduleParallelAgentStatusMessageUpdate()
 	}
 
-	private recordInitialParallelAgentCoordination(plan: ExecutionPlan): void {
-		const ts = Date.now()
-		const events: ParallelAgentCoordinationEvent[] = []
-		const addEvent = (event: Omit<ParallelAgentCoordinationEvent, "ts">) => {
-			events.push({ ...event, ts })
-		}
-
-		if (plan.sharedContext.trim()) {
-			addEvent({
-				kind: "shared-context",
-				source: "system",
-				message: "Shared plan context was provided to all agents.",
-			})
-		}
-
-		for (const agent of plan.agents) {
-			const writableOwnerships = agent.owns
-				.filter((ownership) => ownership.mode !== "read-only")
-				.map((ownership) => ownership.path)
-
-			if (writableOwnerships.length > 0) {
-				addEvent({
-					agentId: agent.id,
-					kind: "ownership",
-					source: "system",
-					message: `Agent ${agent.id} owns ${this.formatCoordinationPathList(writableOwnerships)}.`,
-				})
-			}
-
-			for (const dependency of agent.dependsOn) {
-				addEvent({
-					agentId: agent.id,
-					kind: "dependency",
-					source: "system",
-					message: `Agent ${agent.id} waits for ${this.describeAgentDependency(dependency)}.`,
-				})
-			}
-		}
-
-		this.parallelAgentCoordinationEvents = [...this.parallelAgentCoordinationEvents, ...events].slice(
-			-PARALLEL_AGENT_COORDINATION_LIMIT,
-		)
-	}
-
 	private recordParallelAgentCoordinationEvent(
 		event: Omit<ParallelAgentCoordinationEvent, "ts"> & { ts?: number },
 	): ParallelAgentCoordinationEvent | undefined {
@@ -4260,8 +4215,11 @@ export class ClineProvider
 		}
 
 		const storedEvent = { ...event, ts: event.ts ?? Date.now() }
+		const previousEvents = storedEvent.id
+			? this.parallelAgentCoordinationEvents.filter((candidate) => candidate.id !== storedEvent.id)
+			: this.parallelAgentCoordinationEvents
 
-		this.parallelAgentCoordinationEvents = [...this.parallelAgentCoordinationEvents, storedEvent].slice(
+		this.parallelAgentCoordinationEvents = [...previousEvents, storedEvent].slice(
 			-PARALLEL_AGENT_COORDINATION_LIMIT,
 		)
 		this.postAgentCoordinationUpdate(storedEvent)
@@ -4277,13 +4235,6 @@ export class ClineProvider
 		}
 
 		return `${dependency.agentId} to complete`
-	}
-
-	private formatCoordinationPathList(paths: string[]): string {
-		const visiblePaths = paths.slice(0, 3).join(", ")
-		const remainingCount = paths.length - 3
-
-		return remainingCount > 0 ? `${visiblePaths}, and ${remainingCount} more` : visiblePaths
 	}
 
 	private handleBackgroundAgentMessage(task: Task, action: "created" | "updated", message: ClineMessage): void {

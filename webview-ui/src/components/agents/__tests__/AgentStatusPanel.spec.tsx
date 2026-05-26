@@ -408,6 +408,45 @@ describe("AgentStatusPanel", () => {
 		expect(within(feed).queryByRole("textbox")).not.toBeInTheDocument()
 	})
 
+	it("shows setup coordination in the team chat when no agent-authored messages exist", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "running",
+			agentCoordinationEvents: [
+				{
+					id: "plan-test:team-kickoff",
+					kind: "note",
+					source: "system",
+					message:
+						"Team coordination started for plan plan-test: align filenames, selectors, classes, CSS variables, DOM hooks, IDs, data attributes, public functions, and responsibilities before writing shared integration points.",
+					ts: 1,
+				},
+				{
+					id: "plan-test:intro:ui-agent",
+					agentId: "ui-agent",
+					kind: "note",
+					source: "system",
+					message: "Agent ui-agent starts ui-ux scope: Build dashboard UI Scope paths: src/Dashboard.tsx.",
+					relatedFiles: ["src/Dashboard.tsx"],
+					ts: 2,
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+
+		const feed = screen.getByTestId("agent-coordination-feed")
+		expect(screen.queryByTestId("agent-coordination-empty")).not.toBeInTheDocument()
+		expect(screen.getAllByTestId("agent-coordination-message")).toHaveLength(2)
+		expect(feed).toHaveTextContent("Team coordination started for plan plan-test")
+		expect(feed).toHaveTextContent("Agent ui-agent starts ui-ux scope")
+		expect(feed).toHaveTextContent("CSS variables")
+		expect(feed).toHaveTextContent("src/Dashboard.tsx")
+		expectNoEmoji(feed)
+	})
+
 	it("renders live coordination updates as bounded chat messages without event-log labels", () => {
 		renderWithExtensionState(<AgentStatusPanel />)
 

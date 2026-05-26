@@ -183,12 +183,15 @@ describe("OrchestratorEventLoop", () => {
 		expect(options?.systemPromptSuffix).toContain("- Execution plan: plan-test")
 		expect(options?.systemPromptSuffix).toContain("Use normal sequential tool calls")
 		expect(options?.systemPromptSuffix).toContain("Never concatenate multiple tool argument JSON objects")
-		expect(message).toContain("short plain-language team chat")
-		expect(message).toContain("publish one useful update")
-		expect(message).toContain("Read recent messages")
+		expect(message).toContain("Before your first write")
+		expect(message).toContain("read recent team chat")
+		expect(message).toContain("publish one concise operational update")
+		expect(message).toContain("selectors, classes, CSS variables, DOM hooks, IDs, data attributes")
 		expect(message).toContain("Never include emojis")
 		expect(message).not.toMatch(/\p{Extended_Pictographic}/u)
+		expect(options?.systemPromptSuffix).toContain("Before your first write")
 		expect(options?.systemPromptSuffix).toContain("ask direct questions")
+		expect(options?.systemPromptSuffix).toContain("CSS variables/DOM hooks/IDs/data attributes/public functions")
 		expect(options?.systemPromptSuffix).toContain("do not invent fake conversation")
 		expect(options?.systemPromptSuffix).toContain("Never put emojis")
 		expect(options?.systemPromptSuffix).not.toMatch(/\p{Extended_Pictographic}/u)
@@ -227,8 +230,10 @@ describe("OrchestratorEventLoop", () => {
 			expect(options?.systemPromptSuffix).toContain(
 				"each native tool call must have exactly one JSON argument object",
 			)
-			expect(options?.systemPromptSuffix).toContain("share selectors/classes/hooks/filenames/variables")
-			expect(options?.systemPromptSuffix).toContain("read recent messages before making assumptions")
+			expect(options?.systemPromptSuffix).toContain("action=read to inspect recent team chat")
+			expect(options?.systemPromptSuffix).toContain(
+				"share selectors/classes/hooks/filenames/CSS variables/DOM hooks/IDs/data attributes/public functions",
+			)
 		}
 	})
 

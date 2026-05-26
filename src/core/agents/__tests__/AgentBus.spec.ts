@@ -77,6 +77,83 @@ describe("AgentBus", () => {
 		expect(bus.requestWriteIntent("agent-a", "src/a.ts")).toEqual({ approved: true })
 	})
 
+	it("seeds operational plan coordination messages when a plan starts", () => {
+		const messages = bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })
+
+		expect(messages).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "plan-test:shared-context",
+					kind: "shared-context",
+					source: "system",
+					message: "Shared plan context was provided to all agents.",
+				}),
+				expect.objectContaining({
+					id: "plan-test:team-kickoff",
+					kind: "note",
+					source: "system",
+					message: expect.stringContaining("align filenames, selectors, classes, CSS variables"),
+				}),
+				expect.objectContaining({
+					id: "plan-test:intro:agent-a",
+					agentId: "agent-a",
+					kind: "note",
+					source: "system",
+					message: expect.stringContaining("Agent agent-a starts component scope"),
+				}),
+			]),
+		)
+	})
+
+	it("tracks read and publish coordination state per agent", () => {
+		expect(bus.hasAgentReadCoordination("agent-a")).toBe(false)
+		expect(bus.hasAgentPublishedCoordination("agent-a")).toBe(false)
+		expect(bus.hasAgentCoordinated("agent-a")).toBe(false)
+
+		bus.getCoordinationEvents("agent-a")
+
+		expect(bus.hasAgentReadCoordination("agent-a")).toBe(true)
+		expect(bus.hasAgentPublishedCoordination("agent-a")).toBe(false)
+		expect(bus.hasAgentCoordinated("agent-a")).toBe(false)
+
+		bus.publishCoordination("agent-a", { kind: "note", message: "Using src/a.ts for the exported hook." })
+
+		expect(bus.hasAgentPublishedCoordination("agent-a")).toBe(true)
+		expect(bus.hasAgentCoordinated("agent-a")).toBe(true)
+	})
+
+	it("performs safe coordination preflight before an agent's first write", () => {
+		const events = vi.fn()
+		bus.on("event", events)
+
+		expect(bus.hasAgentCoordinated("agent-a")).toBe(false)
+
+		const permission = bus.requestWriteIntent("agent-a", "src/a.ts")
+
+		expect(permission).toEqual({ approved: true })
+		expect(bus.hasAgentCoordinated("agent-a")).toBe(true)
+		const coordinationCall = events.mock.calls.find(([event]) => event.type === "COORDINATION")
+		expect(coordinationCall?.[0]).toEqual(
+			expect.objectContaining({
+				type: "COORDINATION",
+				event: expect.objectContaining({
+					id: "plan-test:preflight:agent-a",
+					agentId: "agent-a",
+					kind: "note",
+					source: "system",
+					message: expect.stringContaining("read recent team chat before writing src/a.ts"),
+					relatedFiles: ["src/a.ts"],
+				}),
+			}),
+		)
+		expect(events.mock.calls.at(-1)?.[0]).toEqual({
+			type: "INTENT_WRITE",
+			agentId: "agent-a",
+			path: "src/a.ts",
+			permission: { approved: true },
+		})
+	})
+
 	it("denies a write while another agent holds the active write lock", () => {
 		expect(bus.requestWriteIntent("agent-a", "src/unowned.ts").approved).toBe(true)
 
@@ -290,16 +367,24 @@ describe("AgentBus", () => {
 			targetAgentId: "agent-c",
 		})
 
-		expect(bus.getCoordinationEvents("agent-b").map((event) => event.message)).toEqual([
-			broadcast.message,
-			targetedToB.message,
-		])
-		expect(bus.getCoordinationEvents("agent-a").map((event) => event.message)).toEqual(["Answer for A"])
-		expect(bus.getCoordinationEvents("agent-a", { includeSelf: true }).map((event) => event.message)).toEqual([
-			"Broadcast note",
-			"Question for B",
-			"Answer for A",
-		])
+		expect(
+			bus
+				.getCoordinationEvents("agent-b")
+				.filter((event) => event.source === "agent")
+				.map((event) => event.message),
+		).toEqual([broadcast.message, targetedToB.message])
+		expect(
+			bus
+				.getCoordinationEvents("agent-a")
+				.filter((event) => event.source === "agent")
+				.map((event) => event.message),
+		).toEqual(["Answer for A"])
+		expect(
+			bus
+				.getCoordinationEvents("agent-a", { includeSelf: true })
+				.filter((event) => event.source === "agent")
+				.map((event) => event.message),
+		).toEqual(["Broadcast note", "Question for B", "Answer for A"])
 	})
 
 	it("bounds stored and read coordination messages and resets them with a new plan", () => {
@@ -318,6 +403,10 @@ describe("AgentBus", () => {
 
 		bus.setExecutionPlan(createPlan())
 
-		expect(bus.getCoordinationEvents("agent-b", { includeSelf: true })).toEqual([])
+		const resetEvents = bus.getCoordinationEvents("agent-b", { includeSelf: true, limit: 20 })
+		expect(resetEvents).toEqual(
+			expect.arrayContaining([expect.objectContaining({ id: "plan-test:team-kickoff", source: "system" })]),
+		)
+		expect(resetEvents.map((event) => event.message).join(" ")).not.toContain("Message")
 	})
 })

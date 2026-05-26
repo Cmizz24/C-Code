@@ -687,6 +687,8 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 	const coordinationContextEvents = getDisplayAgentCoordinationEvents(
 		coordinationEvents.filter(isContextCoordinationEvent),
 	)
+	const displayCoordinationChatEvents =
+		coordinationChatEvents.length > 0 ? coordinationChatEvents : coordinationContextEvents
 	const hasCoordinationEvents = coordinationChatEvents.length > 0 || coordinationContextEvents.length > 0
 	const getAgentLabel = (agentId: string): string => labelByAgentId.get(agentId) ?? agentId
 	const getAgentStatus = (agentId: string | undefined): AgentStatus | undefined =>
@@ -760,9 +762,9 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 									Team chat · read-only · latest {AGENT_COORDINATION_DISPLAY_LIMIT}
 								</span>
 							</div>
-							{coordinationChatEvents.length > 0 ? (
+							{displayCoordinationChatEvents.length > 0 ? (
 								<ol className="flex max-h-48 flex-col gap-1.5 overflow-y-auto pr-1">
-									{coordinationChatEvents.map((event, index) => {
+									{displayCoordinationChatEvents.map((event, index) => {
 										const timestampLabel = getCoordinationTimestampLabel(event, now)
 										const senderLabel = event.agentId ? getAgentLabel(event.agentId) : "Team"
 										const senderStatus = getAgentStatus(event.agentId)

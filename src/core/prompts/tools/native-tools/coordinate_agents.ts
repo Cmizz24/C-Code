@@ -9,7 +9,7 @@ import {
 } from "../../../agents/AgentBus"
 
 const COORDINATE_AGENTS_DESCRIPTION =
-	'Background parallel-agent team chat. Use only to publish or read short plain-language coordination messages for sibling agents. For reads, use the minimal payload {"action":"read","limit":8}; do not include kind, message, targetAgentId, replyToId, or relatedFiles when reading. For publishing, use {"action":"publish","kind":"note","message":"..."} and include targetAgentId, relatedFiles, or replyToId only when needed. Omit targetAgentId, or use "" or "all", to broadcast. Omit replyToId, or use "" or "none", when not replying. Write like a basic read-only team chat: ask direct questions, answer another agent, share selectors/classes/hooks/filenames/variables you are using, and confirm practical decisions. Do not include emojis, raw reasoning, chain-of-thought, private analysis, credentials, profile details, or user secrets. This tool cannot edit files, run commands, spawn tasks, or change modes.'
+	'Background parallel-agent team chat. Use only to publish or read short plain-language coordination messages for sibling agents. Before your first write, read recent team chat and publish one concise operational update with your owned files plus any filenames, selectors, classes, CSS variables, DOM hooks, IDs, data attributes, public functions, responsibilities, or file contracts others may need. For reads, use the minimal payload {"action":"read","limit":8}; do not include kind, message, targetAgentId, replyToId, or relatedFiles when reading. For publishing, use {"action":"publish","kind":"note","message":"..."} and include targetAgentId, relatedFiles, or replyToId only when needed. Omit targetAgentId, or use "" or "all", to broadcast. Omit replyToId, or use "" or "none", when not replying. Write like a basic read-only team chat: ask direct questions, answer another agent, share selectors/classes/hooks/filenames/CSS variables/DOM hooks/IDs/data attributes/public functions you are using, and confirm practical decisions. Do not include emojis, raw reasoning, chain-of-thought, private analysis, credentials, profile details, or user secrets. This tool cannot edit files, run commands, spawn tasks, or change modes.'
 
 const coordinationKindValues = ["note", "question", "answer", "decision", "blocker"] as const
 
@@ -37,7 +37,7 @@ const coordinateAgentsTool: OpenAI.Chat.ChatCompletionTool = {
 				message: {
 					type: "string",
 					maxLength: AGENT_COORDINATION_MESSAGE_MAX_LENGTH,
-					description: `Concise team-chat message to publish. Required for action='publish'. Keep at most ${AGENT_COORDINATION_MESSAGE_MAX_LENGTH} characters. Ask, answer, share selectors/classes/hooks/filenames/variables, or confirm a decision. Do not include emojis, private reasoning, or chain-of-thought. Omit on read.`,
+					description: `Concise team-chat message to publish. Required for action='publish'. Keep at most ${AGENT_COORDINATION_MESSAGE_MAX_LENGTH} characters. Ask, answer, share selectors/classes/hooks/filenames/CSS variables/DOM hooks/IDs/data attributes/public functions, or confirm a decision. Do not include emojis, private reasoning, or chain-of-thought. Omit on read.`,
 				},
 				targetAgentId: {
 					type: "string",
