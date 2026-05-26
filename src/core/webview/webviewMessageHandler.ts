@@ -1704,7 +1704,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			const payload = message.payload as { todos?: any[] }
 			const todos = payload?.todos
 			if (Array.isArray(todos)) {
-				await setPendingTodoList(todos)
+				setPendingTodoList(todos, provider.getCurrentTask())
 			}
 			break
 		}

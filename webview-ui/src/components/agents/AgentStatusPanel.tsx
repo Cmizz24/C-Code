@@ -124,25 +124,12 @@ const activityKindLabels: Record<AgentActivityKind, string> = {
 	file: "file",
 }
 
-const coordinationIconClasses: Record<AgentCoordinationKind, string> = {
-	"shared-context": "codicon-references text-vscode-focusBorder",
-	ownership: "codicon-lock text-vscode-focusBorder",
-	dependency: "codicon-link text-vscode-editorWarning-foreground",
-	signal: "codicon-broadcast text-vscode-focusBorder",
-	completion: "codicon-check text-vscode-charts-green",
-	note: "codicon-note text-vscode-descriptionForeground",
-	question: "codicon-question text-vscode-editorWarning-foreground",
-	answer: "codicon-comment-discussion text-vscode-focusBorder",
-	decision: "codicon-pass-filled text-vscode-charts-green",
-	blocker: "codicon-error text-vscode-errorForeground",
-}
-
 const coordinationKindLabels: Record<AgentCoordinationKind, string> = {
-	"shared-context": "contract",
+	"shared-context": "setup",
 	ownership: "ownership",
 	dependency: "dependency",
 	signal: "signal",
-	completion: "completion",
+	completion: "complete",
 	note: "note",
 	question: "question",
 	answer: "answer",
@@ -150,11 +137,32 @@ const coordinationKindLabels: Record<AgentCoordinationKind, string> = {
 	blocker: "blocker",
 }
 
+const coordinationStatusClasses: Record<AgentCoordinationKind, string> = {
+	"shared-context":
+		"border-vscode-descriptionForeground/20 bg-vscode-descriptionForeground/5 text-vscode-descriptionForeground",
+	ownership:
+		"border-vscode-descriptionForeground/20 bg-vscode-descriptionForeground/5 text-vscode-descriptionForeground",
+	dependency:
+		"border-vscode-descriptionForeground/20 bg-vscode-descriptionForeground/5 text-vscode-descriptionForeground",
+	signal: "border-vscode-focusBorder/40 bg-vscode-focusBorder/10 text-vscode-foreground",
+	completion: "border-vscode-charts-green/40 bg-vscode-charts-green/10 text-vscode-charts-green",
+	note: "border-vscode-focusBorder/30 bg-vscode-focusBorder/10 text-vscode-foreground",
+	question:
+		"border-vscode-editorWarning-foreground/40 bg-vscode-editorWarning-foreground/10 text-vscode-editorWarning-foreground",
+	answer: "border-vscode-focusBorder/40 bg-vscode-focusBorder/10 text-vscode-foreground",
+	decision: "border-vscode-charts-green/40 bg-vscode-charts-green/10 text-vscode-charts-green",
+	blocker: "border-vscode-errorForeground/40 bg-vscode-errorForeground/10 text-vscode-errorForeground",
+}
+
+const setupCoordinationKinds = new Set<AgentCoordinationKind>(["shared-context", "ownership", "dependency"])
+
 const getActivityKind = (activity: AgentActivity): AgentActivityKind => activity.kind ?? "status"
 
 const getActivityKindLabel = (activity: AgentActivity): string => activityKindLabels[getActivityKind(activity)]
 
 const getCoordinationKindLabel = (event: AgentCoordination): string => coordinationKindLabels[event.kind]
+
+const isSetupCoordinationEvent = (event: AgentCoordination): boolean => setupCoordinationKinds.has(event.kind)
 
 const getActivityKey = (activity: AgentActivity, index: number): string =>
 	`${activity.agentId}:${activity.ts}:${getActivityKind(activity)}:${index}:${activity.message}`
@@ -699,6 +707,8 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 	const reviewSummaryMarkdown = tool?.parallelReviewSummary?.markdown?.trim()
 	const coordinationFeedEvents = sortAgentCoordinationEvents(coordinationEvents)
 	const getAgentLabel = (agentId: string): string => labelByAgentId.get(agentId) ?? agentId
+	const getAgentStatus = (agentId: string | undefined): AgentStatus | undefined =>
+		agents.find((agent) => agent.id === agentId)?.status
 
 	return (
 		<section
@@ -763,53 +773,84 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 							aria-label="Agent coordination"
 							className="mt-2 rounded border border-vscode-sideBar-background bg-vscode-sideBar-background/20 p-2 text-[11px] text-vscode-descriptionForeground">
 							<div className="mb-1 flex items-center gap-1.5 text-vscode-foreground">
-								<span className="codicon codicon-radio-tower shrink-0" />
 								<span className="font-medium">Coordination</span>
-								<span className="text-vscode-descriptionForeground">read-only · latest 8</span>
+								<span className="text-vscode-descriptionForeground">
+									Team chat · read-only · latest {AGENT_COORDINATION_DISPLAY_LIMIT}
+								</span>
 							</div>
-							<ol className="flex max-h-48 flex-col gap-1 overflow-y-auto pr-1">
+							<ol className="flex max-h-48 flex-col gap-1.5 overflow-y-auto pr-1">
 								{coordinationFeedEvents.map((event, index) => {
 									const timestampLabel = getCoordinationTimestampLabel(event, now)
+									const isSetupEvent = isSetupCoordinationEvent(event)
 									const senderLabel = event.agentId ? getAgentLabel(event.agentId) : "Plan"
+									const senderStatus = getAgentStatus(event.agentId)
 									const targetLabel = event.targetAgentId
 										? getAgentLabel(event.targetAgentId)
-										: "all agents"
+										: undefined
 									const relatedFiles = event.relatedFiles?.filter(Boolean) ?? []
-									const hasMetadata =
-										event.targetAgentId || event.replyToId || relatedFiles.length > 0
 
 									return (
 										<li
 											key={getCoordinationKey(event, index)}
-											className="min-w-0 rounded bg-vscode-editor-background/30 px-1.5 py-1 text-vscode-descriptionForeground">
+											data-testid={
+												isSetupEvent
+													? "agent-coordination-setup-message"
+													: "agent-coordination-message"
+											}
+											className={cn(
+												"min-w-0 rounded border px-2 py-1.5",
+												isSetupEvent
+													? "border-vscode-sideBar-background/60 bg-vscode-editor-background/15 text-vscode-descriptionForeground opacity-75"
+													: "border-vscode-sideBar-background bg-vscode-editor-background/40 text-vscode-descriptionForeground",
+											)}>
 											<div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
 												<span
 													className={cn(
-														"codicon shrink-0 text-[11px]",
-														coordinationIconClasses[event.kind],
-													)}
-												/>
-												<Badge className="shrink-0 border-vscode-descriptionForeground/30 bg-vscode-descriptionForeground/10 text-[10px] text-vscode-descriptionForeground">
+														"shrink-0 font-medium",
+														isSetupEvent
+															? "text-vscode-descriptionForeground"
+															: "text-vscode-foreground",
+													)}>
+													{senderLabel}
+												</span>
+												{senderStatus && (
+													<Badge
+														className={cn(
+															"shrink-0 border text-[10px] capitalize",
+															statusBadgeClasses[senderStatus],
+														)}>
+														{senderStatus}
+													</Badge>
+												)}
+												<Badge
+													className={cn(
+														"shrink-0 border text-[10px]",
+														coordinationStatusClasses[event.kind],
+													)}>
 													{getCoordinationKindLabel(event)}
 												</Badge>
-												<span className="shrink-0 text-vscode-foreground">{senderLabel}</span>
-												<span className="shrink-0 text-vscode-descriptionForeground">
-													→ {targetLabel}
-												</span>
+												{targetLabel && (
+													<span className="shrink-0 text-vscode-descriptionForeground">
+														to {targetLabel}
+													</span>
+												)}
 												{timestampLabel && (
 													<span className="ml-auto shrink-0 font-mono text-[10px]">
 														{timestampLabel}
 													</span>
 												)}
 											</div>
-											<div className="mt-0.5 whitespace-pre-wrap break-words text-vscode-foreground">
+											<div
+												className={cn(
+													"mt-1 whitespace-pre-wrap break-words",
+													isSetupEvent
+														? "text-vscode-descriptionForeground"
+														: "text-vscode-foreground",
+												)}>
 												{event.message}
 											</div>
-											{hasMetadata && (
+											{relatedFiles.length > 0 && (
 												<div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 text-[10px] text-vscode-descriptionForeground">
-													{event.replyToId && (
-														<span className="font-mono">reply {event.replyToId}</span>
-													)}
 													{relatedFiles.map((file) => (
 														<Badge
 															key={file}

@@ -1,6 +1,85 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
-import { parseMarkdownChecklist } from "../UpdateTodoListTool"
+import { parseMarkdownChecklist, setPendingTodoList, UpdateTodoListTool } from "../UpdateTodoListTool"
 import { TodoItem } from "@roo-code/types"
+
+function createTask(taskId: string) {
+	return {
+		taskId,
+		consecutiveMistakeCount: 0,
+		didToolFailInCurrentTurn: false,
+		recordToolError: vi.fn(),
+		say: vi.fn().mockResolvedValue(undefined),
+		todoList: [],
+		clineMessages: [],
+	} as any
+}
+
+function createCallbacks(askApproval: ReturnType<typeof vi.fn>) {
+	return {
+		askApproval,
+		handleError: vi.fn(),
+		pushToolResult: vi.fn(),
+	}
+}
+
+function createDeferredApproval() {
+	let resolve!: (approved: boolean) => void
+	const promise = new Promise<boolean>((promiseResolve) => {
+		resolve = promiseResolve
+	})
+
+	return { promise, resolve }
+}
+
+describe("UpdateTodoListTool", () => {
+	it("does not emit a user edit row when overlapping approvals belong to different tasks", async () => {
+		const tool = new UpdateTodoListTool()
+		const firstTask = createTask("task-a")
+		const secondTask = createTask("task-b")
+		const firstApproval = createDeferredApproval()
+		const firstCallbacks = createCallbacks(vi.fn(() => firstApproval.promise))
+		const secondCallbacks = createCallbacks(vi.fn().mockResolvedValue(true))
+
+		const firstExecute = tool.execute({ todos: "[ ] First task todo" }, firstTask, firstCallbacks)
+		await vi.waitFor(() => expect(firstCallbacks.askApproval).toHaveBeenCalled())
+
+		await tool.execute({ todos: "[ ] Second task todo" }, secondTask, secondCallbacks)
+
+		firstApproval.resolve(true)
+		await firstExecute
+
+		expect(firstTask.say).not.toHaveBeenCalledWith("user_edit_todos", expect.anything())
+		expect(secondTask.say).not.toHaveBeenCalledWith("user_edit_todos", expect.anything())
+		expect(firstTask.todoList.map((todo: TodoItem) => todo.content)).toEqual(["First task todo"])
+		expect(secondTask.todoList.map((todo: TodoItem) => todo.content)).toEqual(["Second task todo"])
+	})
+
+	it("records a visible todo edit only for pending edits on the same task", async () => {
+		const tool = new UpdateTodoListTool()
+		const task = createTask("task-edit")
+		const callbacks = createCallbacks(
+			vi.fn(async (_type, text: string) => {
+				const payload = JSON.parse(text)
+				setPendingTodoList(
+					[
+						{
+							...payload.todos[0],
+							content: "Edited todo",
+						},
+					],
+					task,
+				)
+				return true
+			}),
+		)
+
+		await tool.execute({ todos: "[ ] Original todo" }, task, callbacks)
+
+		expect(task.say).toHaveBeenCalledWith("user_edit_todos", expect.stringContaining("Edited todo"))
+		expect(task.todoList.map((todo: TodoItem) => todo.content)).toEqual(["Edited todo"])
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining("User edits todo"))
+	})
+})
 
 describe("parseMarkdownChecklist", () => {
 	describe("standard checkbox format (without dash prefix)", () => {

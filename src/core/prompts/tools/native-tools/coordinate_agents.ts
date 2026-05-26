@@ -1,7 +1,7 @@
 import type OpenAI from "openai"
 
 const COORDINATE_AGENTS_DESCRIPTION =
-	"Background parallel-agent coordination bridge. Use only to publish or read concise operational coordination messages for sibling agents. Do not include raw reasoning, chain-of-thought, private analysis, credentials, profile details, or user secrets. Allowed content: contracts, decisions, questions, answers, blockers, file paths, hooks, selectors, and handoff notes. This tool cannot edit files, run commands, spawn tasks, or change modes."
+	"Background parallel-agent coordination bridge. Use only to publish or read concise operational coordination messages for sibling agents. Write publish messages like short read-only team chat updates, not formal logs. Do not include raw reasoning, chain-of-thought, private analysis, credentials, profile details, or user secrets. Allowed content: contracts, decisions, questions, answers, blockers, file paths, hooks, selectors, and handoff notes. This tool cannot edit files, run commands, spawn tasks, or change modes."
 
 const coordinationKindValues = ["note", "question", "answer", "decision", "blocker"] as const
 
@@ -29,7 +29,7 @@ const coordinateAgentsTool: OpenAI.Chat.ChatCompletionTool = {
 				message: {
 					type: "string",
 					description:
-						"Concise operational message to publish. Required for action='publish'. Do not include private reasoning or chain-of-thought.",
+						"Concise operational message to publish. Required for action='publish'. Use a short team-chat style update. Do not include private reasoning or chain-of-thought.",
 				},
 				targetAgentId: {
 					type: "string",
