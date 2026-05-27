@@ -17,6 +17,7 @@ import { DecorationController } from "./DecorationController"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 export const DIFF_VIEW_LABEL_CHANGES = "Original ↔ Roo's Changes"
+export const DIFF_VIEW_LABEL_NEW_FILE = "New File"
 
 export type DiffViewProgressPhase = "saving" | "diagnostics-wait" | "diagnostics-check"
 
@@ -449,10 +450,14 @@ export class DiffViewProvider {
 					return true
 				}
 
-				// Also check by tab label for our specific diff views
-				// This catches cases where the diff view might be created differently
-				// when files are pre-opened as text documents
-				if (tab.label.includes(DIFF_VIEW_LABEL_CHANGES) && !tab.isDirty) {
+				// Also check by tab label for our specific diff views. This catches
+				// cases where VS Code exposes the tab input differently, including
+				// background-agent new-file previews labeled "New File (Editable)".
+				const isRooDiffLabel =
+					tab.label.includes(DIFF_VIEW_LABEL_CHANGES) ||
+					tab.label.includes(`${DIFF_VIEW_LABEL_NEW_FILE} (Editable)`)
+
+				if (isRooDiffLabel && !tab.isDirty) {
 					return true
 				}
 
@@ -572,7 +577,7 @@ export class DiffViewProvider {
 							query: Buffer.from(this.originalContent ?? "").toString("base64"),
 						}),
 						uri,
-						`${fileName}: ${fileExists ? `${DIFF_VIEW_LABEL_CHANGES}` : "New File"} (Editable)`,
+						`${fileName}: ${fileExists ? `${DIFF_VIEW_LABEL_CHANGES}` : DIFF_VIEW_LABEL_NEW_FILE} (Editable)`,
 						{ preserveFocus: true },
 					)
 				})

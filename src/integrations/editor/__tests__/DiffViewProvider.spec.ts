@@ -1,4 +1,9 @@
-import { DiffViewProvider, DIFF_VIEW_URI_SCHEME, DIFF_VIEW_LABEL_CHANGES } from "../DiffViewProvider"
+import {
+	DiffViewProvider,
+	DIFF_VIEW_URI_SCHEME,
+	DIFF_VIEW_LABEL_CHANGES,
+	DIFF_VIEW_LABEL_NEW_FILE,
+} from "../DiffViewProvider"
 import * as vscode from "vscode"
 import * as path from "path"
 import delay from "delay"
@@ -297,6 +302,15 @@ describe("DiffViewProvider", () => {
 					label: `file2.md: ${DIFF_VIEW_LABEL_CHANGES} (Editable)`,
 					isDirty: false,
 				},
+				// New file tab identified by label even when VS Code exposes it as a plain text tab
+				{
+					input: {
+						constructor: { name: "TabInputText" },
+						uri: { fsPath: "/test/file-new.ts" },
+					},
+					label: `file-new.ts: ${DIFF_VIEW_LABEL_NEW_FILE} (Editable)`,
+					isDirty: false,
+				},
 				// Regular file tab (should not be closed)
 				{
 					input: {
@@ -345,9 +359,10 @@ describe("DiffViewProvider", () => {
 			await (diffViewProvider as any).closeAllDiffViews()
 
 			// Verify that only the appropriate tabs were closed
-			expect(closedTabs).toHaveLength(2)
+			expect(closedTabs).toHaveLength(3)
 			expect(closedTabs[0].label).toBe(`file1.ts: ${DIFF_VIEW_LABEL_CHANGES} (Editable)`)
 			expect(closedTabs[1].label).toBe(`file2.md: ${DIFF_VIEW_LABEL_CHANGES} (Editable)`)
+			expect(closedTabs[2].label).toBe(`file-new.ts: ${DIFF_VIEW_LABEL_NEW_FILE} (Editable)`)
 
 			// Verify that the regular file and dirty diff were not closed
 			expect(closedTabs.find((t) => t.label === "file3.js")).toBeUndefined()

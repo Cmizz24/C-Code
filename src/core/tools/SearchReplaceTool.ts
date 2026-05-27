@@ -180,6 +180,7 @@ export class SearchReplaceTool extends BaseTool<"search_replace"> {
 				state?.experiments ?? {},
 				EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
 			)
+			const shouldSaveDirectly = isPreventFocusDisruptionEnabled || task.background
 
 			const sanitizedDiff = sanitizeUnifiedDiff(diff)
 			const diffStats = computeDiffStats(sanitizedDiff) || undefined
@@ -200,7 +201,7 @@ export class SearchReplaceTool extends BaseTool<"search_replace"> {
 			} satisfies ClineSayTool)
 
 			// Show diff view if focus disruption prevention is disabled
-			if (!isPreventFocusDisruptionEnabled) {
+			if (!shouldSaveDirectly) {
 				await task.diffViewProvider.open(relPath)
 				await task.diffViewProvider.update(newContent, true)
 				task.diffViewProvider.scrollToFirstDiff()
@@ -210,7 +211,7 @@ export class SearchReplaceTool extends BaseTool<"search_replace"> {
 
 			if (!didApprove) {
 				// Revert changes if diff view was shown
-				if (!isPreventFocusDisruptionEnabled) {
+				if (!shouldSaveDirectly) {
 					await task.diffViewProvider.revertChanges()
 				}
 				pushToolResult("Changes were rejected by the user.")
@@ -219,7 +220,7 @@ export class SearchReplaceTool extends BaseTool<"search_replace"> {
 			}
 
 			// Save the changes
-			if (isPreventFocusDisruptionEnabled) {
+			if (shouldSaveDirectly) {
 				// Direct file write without diff view or opening the file
 				await task.diffViewProvider.saveDirectly(relPath, newContent, false, diagnosticsEnabled, writeDelayMs)
 			} else {

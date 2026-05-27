@@ -103,6 +103,7 @@ describe("searchReplaceTool", () => {
 		mockedIsPathOutsideWorkspace.mockReturnValue(false)
 		mockedGetReadablePath.mockReturnValue("test/path.txt")
 
+		mockCline.background = false
 		mockCline.cwd = "/"
 		mockCline.consecutiveMistakeCount = 0
 		mockCline.didEditFile = false
@@ -134,7 +135,11 @@ describe("searchReplaceTool", () => {
 				userEdits: null,
 				finalContent: "final content",
 			}),
-			saveDirectly: vi.fn().mockResolvedValue(undefined),
+			saveDirectly: vi.fn().mockResolvedValue({
+				newProblemsMessage: "",
+				userEdits: undefined,
+				finalContent: "final content",
+			}),
 			scrollToFirstDiff: vi.fn(),
 			pushToolWriteResult: vi.fn().mockResolvedValue("Tool result message"),
 		}
@@ -317,6 +322,27 @@ describe("searchReplaceTool", () => {
 			expect(mockCline.recordToolUsage).toHaveBeenCalledWith("search_replace")
 			expect(mockCline.requestAgentWriteIntent).toHaveBeenCalledWith(testFilePath)
 			expect(mockCline.releaseAgentWriteIntent).toHaveBeenCalledWith(testFilePath)
+		})
+
+		it("saves background replacements directly without opening editable preview", async () => {
+			mockCline.background = true
+
+			await executeSearchReplaceTool()
+
+			expect(mockAskApproval).toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.open).not.toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.update).not.toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.scrollToFirstDiff).not.toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.saveChanges).not.toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.saveDirectly).toHaveBeenCalledWith(
+				testFilePath,
+				"Line 1\nModified Line 2\nLine 3\nLine 4",
+				false,
+				true,
+				1000,
+			)
+			expect(mockCline.didEditFile).toBe(true)
+			expect(mockCline.recordToolUsage).toHaveBeenCalledWith("search_replace")
 		})
 
 		it("denies replacements when agent write intent is rejected", async () => {

@@ -57,6 +57,7 @@ describe("applyDiffTool", () => {
 		vi.mocked(fs.readFile).mockResolvedValue("old content\nextra\n")
 
 		mockTask = {
+			background: false,
 			cwd: "/workspace",
 			api: {
 				getModel: vi.fn().mockReturnValue({ id: "claude-3" }),
@@ -179,6 +180,27 @@ describe("applyDiffTool", () => {
 			relPath,
 		)
 		expect(mockTask.diffViewProvider.saveChanges).toHaveBeenCalledWith(true, 1000, expect.any(Function))
+		expect(toolResult).toContain("Tool result message")
+	})
+
+	it("saves background diffs directly without opening editable preview", async () => {
+		mockTask.background = true
+
+		await executeApplyDiffTool()
+
+		expect(mockAskApproval).toHaveBeenCalled()
+		expect(mockTask.diffViewProvider.open).not.toHaveBeenCalled()
+		expect(mockTask.diffViewProvider.update).not.toHaveBeenCalled()
+		expect(mockTask.diffViewProvider.scrollToFirstDiff).not.toHaveBeenCalled()
+		expect(mockTask.diffViewProvider.saveChanges).not.toHaveBeenCalled()
+		expect(mockTask.diffViewProvider.saveDirectly).toHaveBeenCalledWith(
+			relPath,
+			"new content\nextra updated\n",
+			false,
+			true,
+			1000,
+			expect.any(Function),
+		)
 		expect(toolResult).toContain("Tool result message")
 	})
 })

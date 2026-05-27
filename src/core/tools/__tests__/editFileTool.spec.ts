@@ -103,6 +103,7 @@ describe("editFileTool", () => {
 		mockedIsPathOutsideWorkspace.mockReturnValue(false)
 		mockedGetReadablePath.mockReturnValue("test/path.txt")
 
+		mockTask.background = false
 		mockTask.cwd = "/"
 		mockTask.consecutiveMistakeCount = 0
 		mockTask.consecutiveMistakeCountForEditFile = new Map()
@@ -136,7 +137,11 @@ describe("editFileTool", () => {
 				userEdits: null,
 				finalContent: "final content",
 			}),
-			saveDirectly: vi.fn().mockResolvedValue(undefined),
+			saveDirectly: vi.fn().mockResolvedValue({
+				newProblemsMessage: "",
+				userEdits: undefined,
+				finalContent: "final content",
+			}),
 			scrollToFirstDiff: vi.fn(),
 			pushToolWriteResult: vi.fn().mockResolvedValue("Tool result message"),
 		}
@@ -563,6 +568,44 @@ describe("editFileTool", () => {
 			expect(mockTask.recordToolUsage).toHaveBeenCalledWith("edit_file")
 			expect(mockTask.requestAgentWriteIntent).toHaveBeenCalledWith(testFilePath)
 			expect(mockTask.releaseAgentWriteIntent).toHaveBeenCalledWith(testFilePath)
+		})
+
+		it("saves background edits directly without opening editable preview", async () => {
+			mockTask.background = true
+
+			await executeEditFileTool()
+
+			expect(mockAskApproval).toHaveBeenCalled()
+			expect(mockTask.diffViewProvider.open).not.toHaveBeenCalled()
+			expect(mockTask.diffViewProvider.update).not.toHaveBeenCalled()
+			expect(mockTask.diffViewProvider.scrollToFirstDiff).not.toHaveBeenCalled()
+			expect(mockTask.diffViewProvider.saveChanges).not.toHaveBeenCalled()
+			expect(mockTask.diffViewProvider.saveDirectly).toHaveBeenCalledWith(
+				testFilePath,
+				"Line 1\nModified Line 2\nLine 3\nLine 4",
+				false,
+				true,
+				1000,
+			)
+			expect(mockTask.didEditFile).toBe(true)
+			expect(mockTask.recordToolUsage).toHaveBeenCalledWith("edit_file")
+		})
+
+		it("saves background file creations directly without opening the new file", async () => {
+			mockTask.background = true
+
+			await executeEditFileTool({ old_string: "", new_string: "New file content" }, { fileExists: false })
+
+			expect(mockTask.diffViewProvider.open).not.toHaveBeenCalled()
+			expect(mockTask.diffViewProvider.update).not.toHaveBeenCalled()
+			expect(mockTask.diffViewProvider.saveChanges).not.toHaveBeenCalled()
+			expect(mockTask.diffViewProvider.saveDirectly).toHaveBeenCalledWith(
+				testFilePath,
+				"New file content",
+				false,
+				true,
+				1000,
+			)
 		})
 
 		it("denies edits when agent write intent is rejected", async () => {

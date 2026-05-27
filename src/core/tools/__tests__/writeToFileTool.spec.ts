@@ -121,6 +121,7 @@ describe("writeToFileTool", () => {
 		mockedStripLineNumbers.mockImplementation((content) => content)
 
 		mockCline.cwd = "/"
+		mockCline.background = false
 		mockCline.consecutiveMistakeCount = 0
 		mockCline.didEditFile = false
 		mockCline.diffStrategy = undefined
@@ -146,6 +147,11 @@ describe("writeToFileTool", () => {
 			saveChanges: vi.fn().mockResolvedValue({
 				newProblemsMessage: "",
 				userEdits: null,
+				finalContent: "final content",
+			}),
+			saveDirectly: vi.fn().mockResolvedValue({
+				newProblemsMessage: "",
+				userEdits: undefined,
 				finalContent: "final content",
 			}),
 			scrollToFirstDiff: vi.fn(),
@@ -372,6 +378,27 @@ describe("writeToFileTool", () => {
 			expect(mockCline.didEditFile).toBe(true)
 		})
 
+		it("saves background writes directly without opening editable preview", async () => {
+			mockCline.background = true
+
+			await executeWriteFileTool({}, { fileExists: false })
+
+			expect(mockAskApproval).toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.open).not.toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.update).not.toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.saveChanges).not.toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.saveDirectly).toHaveBeenCalledWith(
+				testFilePath,
+				testContent,
+				false,
+				true,
+				1000,
+				expect.any(Function),
+			)
+			expect(mockCline.fileContextTracker.trackFileContext).toHaveBeenCalledWith(testFilePath, "roo_edited")
+			expect(mockCline.didEditFile).toBe(true)
+		})
+
 		it("reports compact progress while previewing, saving, and checking diagnostics", async () => {
 			mockCline.diffViewProvider.saveChanges.mockImplementation(
 				async (_diagnosticsEnabled: boolean, _writeDelayMs: number, onProgress?: (event: any) => void) => {
@@ -460,6 +487,17 @@ describe("writeToFileTool", () => {
 			expect(mockCline.ask).toHaveBeenCalled()
 			expect(mockCline.diffViewProvider.open).toHaveBeenCalledWith(testFilePath)
 			expect(mockCline.diffViewProvider.update).toHaveBeenCalledWith(testContent, false)
+		})
+
+		it("does not open editable previews for background partial writes", async () => {
+			mockCline.background = true
+
+			await executeWriteFileTool({}, { isPartial: true })
+			await executeWriteFileTool({}, { isPartial: true })
+
+			expect(mockCline.ask).not.toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.open).not.toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.update).not.toHaveBeenCalled()
 		})
 	})
 

@@ -222,6 +222,7 @@ export class ApplyPatchTool extends BaseTool<"apply_patch"> {
 			state?.experiments ?? {},
 			EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
 		)
+		const shouldSaveDirectly = isPreventFocusDisruptionEnabled || task.background
 
 		const sanitizedDiff = sanitizeUnifiedDiff(diff || "")
 		const diffStats = computeDiffStats(sanitizedDiff) || undefined
@@ -241,7 +242,7 @@ export class ApplyPatchTool extends BaseTool<"apply_patch"> {
 		} satisfies ClineSayTool)
 
 		// Show diff view if focus disruption prevention is disabled
-		if (!isPreventFocusDisruptionEnabled) {
+		if (!shouldSaveDirectly) {
 			await task.diffViewProvider.open(relPath)
 			await task.diffViewProvider.update(newContent, true)
 			task.diffViewProvider.scrollToFirstDiff()
@@ -250,7 +251,7 @@ export class ApplyPatchTool extends BaseTool<"apply_patch"> {
 		const didApprove = await askApproval("tool", completeMessage, undefined, isWriteProtected)
 
 		if (!didApprove) {
-			if (!isPreventFocusDisruptionEnabled) {
+			if (!shouldSaveDirectly) {
 				await task.diffViewProvider.revertChanges()
 			}
 			pushToolResult("Changes were rejected by the user.")
@@ -259,8 +260,14 @@ export class ApplyPatchTool extends BaseTool<"apply_patch"> {
 		}
 
 		// Save the changes
-		if (isPreventFocusDisruptionEnabled) {
-			await task.diffViewProvider.saveDirectly(relPath, newContent, true, diagnosticsEnabled, writeDelayMs)
+		if (shouldSaveDirectly) {
+			await task.diffViewProvider.saveDirectly(
+				relPath,
+				newContent,
+				task.background ? false : true,
+				diagnosticsEnabled,
+				writeDelayMs,
+			)
 		} else {
 			await task.diffViewProvider.saveChanges(diagnosticsEnabled, writeDelayMs)
 		}
@@ -378,6 +385,7 @@ export class ApplyPatchTool extends BaseTool<"apply_patch"> {
 			state?.experiments ?? {},
 			EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
 		)
+		const shouldSaveDirectly = isPreventFocusDisruptionEnabled || task.background
 
 		const sanitizedDiff = sanitizeUnifiedDiff(diff)
 		const diffStats = computeDiffStats(sanitizedDiff) || undefined
@@ -398,7 +406,7 @@ export class ApplyPatchTool extends BaseTool<"apply_patch"> {
 		} satisfies ClineSayTool)
 
 		// Show diff view if focus disruption prevention is disabled
-		if (!isPreventFocusDisruptionEnabled) {
+		if (!shouldSaveDirectly) {
 			await task.diffViewProvider.open(relPath)
 			await task.diffViewProvider.update(newContent, true)
 			task.diffViewProvider.scrollToFirstDiff()
@@ -407,7 +415,7 @@ export class ApplyPatchTool extends BaseTool<"apply_patch"> {
 		const didApprove = await askApproval("tool", completeMessage, undefined, isWriteProtected)
 
 		if (!didApprove) {
-			if (!isPreventFocusDisruptionEnabled) {
+			if (!shouldSaveDirectly) {
 				await task.diffViewProvider.revertChanges()
 			}
 			pushToolResult("Changes were rejected by the user.")
@@ -453,7 +461,7 @@ export class ApplyPatchTool extends BaseTool<"apply_patch"> {
 			}
 
 			// Save new content to the new path
-			if (isPreventFocusDisruptionEnabled) {
+			if (shouldSaveDirectly) {
 				await task.diffViewProvider.saveDirectly(
 					change.movePath,
 					newContent,
@@ -478,7 +486,7 @@ export class ApplyPatchTool extends BaseTool<"apply_patch"> {
 			await task.fileContextTracker.trackFileContext(change.movePath, "roo_edited" as RecordSource)
 		} else {
 			// Save changes to the same file
-			if (isPreventFocusDisruptionEnabled) {
+			if (shouldSaveDirectly) {
 				await task.diffViewProvider.saveDirectly(relPath, newContent, false, diagnosticsEnabled, writeDelayMs)
 			} else {
 				await task.diffViewProvider.saveChanges(diagnosticsEnabled, writeDelayMs)

@@ -120,9 +120,10 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 				state?.experiments ?? {},
 				EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
 			)
+			const shouldSaveDirectly = isPreventFocusDisruptionEnabled || task.background
 			const saveMessage = fileExists ? `Saving changes to ${relPath}.` : `Saving new file ${relPath}.`
 
-			if (isPreventFocusDisruptionEnabled) {
+			if (shouldSaveDirectly) {
 				task.diffViewProvider.editType = fileExists ? "modify" : "create"
 				if (fileExists) {
 					const absolutePath = path.resolve(task.cwd, relPath)
@@ -250,7 +251,7 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 			EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
 		)
 
-		if (isPreventFocusDisruptionEnabled) {
+		if (isPreventFocusDisruptionEnabled || task.background) {
 			return
 		}
 

@@ -52,6 +52,7 @@ describe("ApplyPatchTool ownership coordination", () => {
 		})
 
 		task = {
+			background: false,
 			cwd: "/workspace",
 			consecutiveMistakeCount: 0,
 			didEditFile: false,
@@ -78,7 +79,11 @@ describe("ApplyPatchTool ownership coordination", () => {
 				saveChanges: vi
 					.fn()
 					.mockResolvedValue({ newProblemsMessage: "", userEdits: null, finalContent: "new\n" }),
-				saveDirectly: vi.fn().mockResolvedValue(undefined),
+				saveDirectly: vi.fn().mockResolvedValue({
+					newProblemsMessage: "",
+					userEdits: undefined,
+					finalContent: "new\n",
+				}),
 				pushToolWriteResult: vi.fn().mockResolvedValue("Tool result message"),
 				reset: vi.fn().mockResolvedValue(undefined),
 			},
@@ -124,6 +129,40 @@ describe("ApplyPatchTool ownership coordination", () => {
 		expect(task.diffViewProvider.saveChanges).toHaveBeenCalled()
 		expect(task.releaseAgentWriteIntent).toHaveBeenCalledWith("src/owned.ts")
 		expect(task.recordToolUsage).toHaveBeenCalledWith("apply_patch")
+	})
+
+	it("saves background patch updates directly without opening editable preview", async () => {
+		task.background = true
+
+		await executePatch(`*** Begin Patch
+*** Update File: src/owned.ts
+@@
+-old
++new
+*** End Patch`)
+
+		expect(askApproval).toHaveBeenCalled()
+		expect(task.diffViewProvider.open).not.toHaveBeenCalled()
+		expect(task.diffViewProvider.update).not.toHaveBeenCalled()
+		expect(task.diffViewProvider.scrollToFirstDiff).not.toHaveBeenCalled()
+		expect(task.diffViewProvider.saveChanges).not.toHaveBeenCalled()
+		expect(task.diffViewProvider.saveDirectly).toHaveBeenCalledWith("src/owned.ts", "new\n", false, true, 1000)
+		expect(task.recordToolUsage).toHaveBeenCalledWith("apply_patch")
+	})
+
+	it("saves background patch additions directly without opening the new file", async () => {
+		task.background = true
+		vi.mocked(fileExistsAtPath).mockResolvedValue(false)
+
+		await executePatch(`*** Begin Patch
+*** Add File: src/new.ts
++new
+*** End Patch`)
+
+		expect(task.diffViewProvider.open).not.toHaveBeenCalled()
+		expect(task.diffViewProvider.update).not.toHaveBeenCalled()
+		expect(task.diffViewProvider.saveChanges).not.toHaveBeenCalled()
+		expect(task.diffViewProvider.saveDirectly).toHaveBeenCalledWith("src/new.ts", "new\n", false, true, 1000)
 	})
 
 	it("denies patch writes when ownership rejects the path", async () => {
