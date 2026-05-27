@@ -874,6 +874,13 @@ describe("useSelectedModel", () => {
 			expect(result.current.provider).toBe("xiaomi-mimo")
 			expect(result.current.id).toBe(xiaomiMiMoDefaultModelId)
 			expect(result.current.info).toEqual(xiaomiMiMoModels[xiaomiMiMoDefaultModelId])
+			expect(result.current.info).toMatchObject({
+				inputPrice: 0.435,
+				outputPrice: 0.87,
+				cacheWritesPrice: 0,
+				cacheReadsPrice: 0.0036,
+				supportsPromptCache: true,
+			})
 		})
 
 		it("should use static Xiaomi MiMo model metadata when configured model exists", () => {
@@ -888,6 +895,13 @@ describe("useSelectedModel", () => {
 			expect(result.current.provider).toBe("xiaomi-mimo")
 			expect(result.current.id).toBe("mimo-v2-omni")
 			expect(result.current.info).toEqual(xiaomiMiMoModels["mimo-v2-omni"])
+			expect(result.current.info).toMatchObject({
+				inputPrice: 0.4,
+				outputPrice: 2,
+				cacheWritesPrice: 0,
+				cacheReadsPrice: 0.08,
+				supportsPromptCache: true,
+			})
 		})
 
 		it("should preserve unknown Xiaomi MiMo model IDs without router fallback metadata", () => {

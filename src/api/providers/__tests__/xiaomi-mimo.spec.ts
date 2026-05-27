@@ -186,8 +186,56 @@ describe("XiaomiMiMoHandler", () => {
 			expect(model.info.contextWindow).toBe(1_000_000)
 			expect(model.info.maxTokens).toBe(128_000)
 			expect(model.info.supportsImages).toBe(false)
-			expect(model.info.supportsPromptCache).toBe(false)
+			expect(model.info.supportsPromptCache).toBe(true)
 			expect(model.info.supportsReasoningBinary).toBe(true)
+			expect(model.info.inputPrice).toBe(0.435)
+			expect(model.info.outputPrice).toBe(0.87)
+			expect(model.info.cacheWritesPrice).toBe(0)
+			expect(model.info.cacheReadsPrice).toBe(0.0036)
+		})
+
+		it("should expose official Xiaomi MiMo pricing metadata", () => {
+			expect(xiaomiMiMoModels["mimo-v2.5-pro"]).toMatchObject({
+				inputPrice: 0.435,
+				outputPrice: 0.87,
+				cacheWritesPrice: 0,
+				cacheReadsPrice: 0.0036,
+				supportsPromptCache: true,
+			})
+			expect(xiaomiMiMoModels["mimo-v2.5"]).toMatchObject({
+				inputPrice: 0.14,
+				outputPrice: 0.28,
+				cacheWritesPrice: 0,
+				cacheReadsPrice: 0.0028,
+				supportsPromptCache: true,
+			})
+			expect(xiaomiMiMoModels["mimo-v2-pro"]).toMatchObject({
+				inputPrice: 1,
+				outputPrice: 3,
+				cacheWritesPrice: 0,
+				cacheReadsPrice: 0.2,
+				supportsPromptCache: true,
+				longContextPricing: {
+					thresholdTokens: 256_000,
+					inputPriceMultiplier: 2,
+					outputPriceMultiplier: 2,
+					cacheReadsPriceMultiplier: 2,
+				},
+			})
+			expect(xiaomiMiMoModels["mimo-v2-omni"]).toMatchObject({
+				inputPrice: 0.4,
+				outputPrice: 2,
+				cacheWritesPrice: 0,
+				cacheReadsPrice: 0.08,
+				supportsPromptCache: true,
+			})
+			expect(xiaomiMiMoModels["mimo-v2-flash"]).toMatchObject({
+				inputPrice: 0.1,
+				outputPrice: 0.3,
+				cacheWritesPrice: 0,
+				cacheReadsPrice: 0.01,
+				supportsPromptCache: true,
+			})
 		})
 
 		it("should return 256K context metadata for the Omni model", () => {

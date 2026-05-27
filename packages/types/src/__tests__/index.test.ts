@@ -93,12 +93,30 @@ describe("Xiaomi MiMo provider settings", () => {
 		expect(getApiProtocol("xiaomi-mimo")).toBe("openai")
 	})
 
-	it("should not invent pricing metadata", () => {
-		for (const model of Object.values(xiaomiMiMoModels) as ModelInfo[]) {
-			expect(model.inputPrice).toBeUndefined()
-			expect(model.outputPrice).toBeUndefined()
-			expect(model.cacheWritesPrice).toBeUndefined()
-			expect(model.cacheReadsPrice).toBeUndefined()
+	it("should expose official Xiaomi MiMo pay-as-you-go pricing metadata", () => {
+		const expectedPricing = {
+			"mimo-v2.5-pro": { inputPrice: 0.435, outputPrice: 0.87, cacheReadsPrice: 0.0036 },
+			"mimo-v2-pro": { inputPrice: 1, outputPrice: 3, cacheReadsPrice: 0.2 },
+			"mimo-v2.5": { inputPrice: 0.14, outputPrice: 0.28, cacheReadsPrice: 0.0028 },
+			"mimo-v2-omni": { inputPrice: 0.4, outputPrice: 2, cacheReadsPrice: 0.08 },
+			"mimo-v2-flash": { inputPrice: 0.1, outputPrice: 0.3, cacheReadsPrice: 0.01 },
+		} as const
+
+		for (const [modelId, pricing] of Object.entries(expectedPricing)) {
+			const model = xiaomiMiMoModels[modelId as keyof typeof xiaomiMiMoModels] as ModelInfo
+
+			expect(model).toMatchObject({
+				...pricing,
+				cacheWritesPrice: 0,
+				supportsPromptCache: true,
+			})
 		}
+
+		expect(xiaomiMiMoModels["mimo-v2-pro"].longContextPricing).toEqual({
+			thresholdTokens: 256_000,
+			inputPriceMultiplier: 2,
+			outputPriceMultiplier: 2,
+			cacheReadsPriceMultiplier: 2,
+		})
 	})
 })
