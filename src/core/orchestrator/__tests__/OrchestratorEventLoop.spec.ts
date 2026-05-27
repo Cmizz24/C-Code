@@ -168,6 +168,9 @@ describe("OrchestratorEventLoop", () => {
 		expect(message).toContain("Your single ownership scope")
 		expect(message).toContain("Use normal sequential tool calls")
 		expect(message).toContain("Never combine multiple tool argument JSON objects into one tool call")
+		expect(message).toContain("prefer the normal write/edit tools available in this mode")
+		expect(message).toContain("instead of execute_command shell here-strings, heredocs, or echo chains")
+		expect(message).toContain("not for embedding large file contents")
 		expect(message).not.toContain("new_task")
 		expect(images).toBeUndefined()
 		expect(parentTask).toBeUndefined()
@@ -183,6 +186,11 @@ describe("OrchestratorEventLoop", () => {
 		expect(options?.systemPromptSuffix).toContain("- Execution plan: plan-test")
 		expect(options?.systemPromptSuffix).toContain("Use normal sequential tool calls")
 		expect(options?.systemPromptSuffix).toContain("Never concatenate multiple tool argument JSON objects")
+		expect(options?.systemPromptSuffix).toContain("prefer the normal write/edit tools available in this mode")
+		expect(options?.systemPromptSuffix).toContain(
+			"instead of execute_command shell here-strings, heredocs, or echo chains",
+		)
+		expect(options?.systemPromptSuffix).toContain("not for embedding large file contents")
 		expect(message).toContain("Use coordinate_agents only for genuine live coordination")
 		expect(message).toContain("read team chat when you need current coordination state")
 		expect(message).toContain(
@@ -252,6 +260,8 @@ describe("OrchestratorEventLoop", () => {
 			expect(options?.background).toBe(true)
 			expect(options?.systemPromptSuffix).toContain("Treat this as one normal specialist task")
 			expect(options?.systemPromptSuffix).toContain("use one tool call at a time")
+			expect(options?.systemPromptSuffix).toContain("prefer the normal write/edit tools available in this mode")
+			expect(options?.systemPromptSuffix).toContain("instead of execute_command shell here-strings")
 			expect(options?.systemPromptSuffix).toContain(
 				"each native tool call must have exactly one JSON argument object",
 			)

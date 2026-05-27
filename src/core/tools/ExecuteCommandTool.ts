@@ -468,10 +468,22 @@ export async function executeCommandInTerminal(
 		]
 	} else if (completed || exitDetails) {
 		const currentWorkingDir = terminal.getCurrentWorkingDirectory().toPosix()
+		const shellWriteRecoveryGuidance = getShellWriteRecoveryGuidance(task, command, result, exitDetails)
 
 		// Use persisted output format when output was truncated and spilled to disk
 		if (persistedResult?.truncated) {
-			return [false, formatPersistedOutput(persistedResult, exitDetails, currentWorkingDir)]
+			const persistedShellWriteRecoveryGuidance =
+				shellWriteRecoveryGuidance ||
+				getShellWriteRecoveryGuidance(task, command, persistedResult.preview, exitDetails)
+			return [
+				false,
+				formatPersistedOutput(
+					persistedResult,
+					exitDetails,
+					currentWorkingDir,
+					persistedShellWriteRecoveryGuidance,
+				),
+			]
 		}
 
 		// Use inline format for small outputs (original behavior with exit status)
@@ -499,9 +511,11 @@ export async function executeCommandInTerminal(
 			exitStatus = `Exit code: <undefined, notify user>`
 		}
 
+		const statusWithGuidance = [exitStatus, shellWriteRecoveryGuidance].filter(Boolean).join("\n")
+
 		return [
 			false,
-			`Command executed in terminal within working directory '${currentWorkingDir}'. ${exitStatus}\nOutput:\n${result}`,
+			`Command executed in terminal within working directory '${currentWorkingDir}'. ${statusWithGuidance}\nOutput:\n${result}`,
 		]
 	} else {
 		return [
@@ -543,6 +557,38 @@ function formatExitStatus(exitDetails: ExitCodeDetails | undefined): string {
 	return status
 }
 
+const SHELL_WRITE_RECOVERY_GUIDANCE =
+	"If this command was attempting to create or edit file contents, retry with the normal write/edit tools available to this mode (for example write_to_file, apply_patch, apply_diff, edit, edit_file, or search_replace) instead of shell here-strings, heredocs, or echo chains. Use execute_command for commands, tests, builds, package managers, scripts, or shell operations, not for embedding file contents."
+
+function getShellWriteRecoveryGuidance(
+	task: Pick<Task, "background" | "agentId">,
+	command: string,
+	output: string,
+	exitDetails: ExitCodeDetails | undefined,
+): string {
+	if (task.background !== true || !task.agentId || exitDetails?.exitCode === 0) {
+		return ""
+	}
+
+	const commandAndOutput = `${command}\n${output}`
+
+	return looksLikeShellFileWrite(commandAndOutput) ? SHELL_WRITE_RECOVERY_GUIDANCE : ""
+}
+
+function looksLikeShellFileWrite(commandAndOutput: string): boolean {
+	const text = commandAndOutput.toLowerCase()
+
+	return (
+		/\b(out-file|set-content|add-content|new-item|tee)\b/i.test(commandAndOutput) ||
+		/(^|\s)(@'|@"|'@|"@)(\s|$)/.test(commandAndOutput) ||
+		/<<\s*['"]?[a-z0-9_-]+/i.test(commandAndOutput) ||
+		/\b(echo|printf)\b[\s\S]*(?:>|>>)/i.test(commandAndOutput) ||
+		text.includes("missing the terminator") ||
+		text.includes("here-string") ||
+		text.includes("no characters are allowed after a here-string header")
+	)
+}
+
 /**
  * Format persisted output result for tool response when output was truncated
  */
@@ -550,13 +596,15 @@ function formatPersistedOutput(
 	result: PersistedCommandOutput,
 	exitDetails: ExitCodeDetails | undefined,
 	workingDir: string,
+	shellWriteRecoveryGuidance = "",
 ): string {
 	const exitStatus = formatExitStatus(exitDetails)
 	const sizeStr = formatBytes(result.totalBytes)
 	const artifactId = result.artifactPath ? path.basename(result.artifactPath) : ""
+	const statusWithGuidance = [exitStatus, shellWriteRecoveryGuidance].filter(Boolean).join("\n")
 
 	return [
-		`Command executed in '${workingDir}'. ${exitStatus}`,
+		`Command executed in '${workingDir}'. ${statusWithGuidance}`,
 		"",
 		`Output (${sizeStr}) persisted. Artifact ID: ${artifactId}`,
 		"",

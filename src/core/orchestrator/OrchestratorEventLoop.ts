@@ -11,6 +11,10 @@ import {
 import { AgentBus } from "../agents/AgentBus"
 
 type SpawnedTask = Awaited<ReturnType<TaskProviderLike["createTask"]>>
+
+const BACKGROUND_AGENT_FILE_WRITE_GUIDANCE =
+	"When creating or editing file contents, prefer the normal write/edit tools available in this mode (write_to_file, apply_patch, apply_diff, edit, edit_file, search_replace) instead of execute_command shell here-strings, heredocs, or echo chains. Use execute_command for commands, tests, builds, package managers, scripts, or shell operations, not for embedding large file contents."
+
 type SpawnedTaskRecord = {
 	task: SpawnedTask
 	onCompleted: () => void
@@ -338,6 +342,7 @@ export class OrchestratorEventLoop {
 			`Your single ownership scope (the only files or directories you may edit):\n${agent.owns.map((ownership) => `- ${ownership.path} (${ownership.mode})`).join("\n") || "- none"}`,
 			`Must not touch:\n${agent.mustNotTouch.map((filePath) => `- ${filePath}`).join("\n") || "- none"}`,
 			"Use normal sequential tool calls: call one tool, wait for its result, then decide the next step. Never combine multiple tool argument JSON objects into one tool call.",
+			BACKGROUND_AGENT_FILE_WRITE_GUIDANCE,
 			"Only edit files allowed by your ownership scope. Use attempt_completion when finished.",
 			"Complete your assigned scope directly; do not delegate, spawn, or orchestrate additional tasks.",
 			"Use coordinate_agents only for genuine live coordination: read team chat when you need current coordination state, need to answer an open targeted question, or need to check whether an answer to your own question arrived.",
@@ -372,6 +377,7 @@ export class OrchestratorEventLoop {
 			"- Use normal sequential tool calls: call one tool, wait for its result, then decide the next step.",
 			"- If another prompt mentions batching or parallelizing tools, this child task overrides it: use one tool call at a time unless the platform emits separate native tool calls.",
 			"- Never concatenate multiple tool argument JSON objects into one tool call; each native tool call must have exactly one JSON argument object.",
+			`- ${BACKGROUND_AGENT_FILE_WRITE_GUIDANCE}`,
 			"- Complete your assigned scope directly; do not delegate, spawn, or orchestrate additional tasks.",
 			"- Write access is coordinated automatically; denied writes mean the path is outside your ownership scope or currently unavailable.",
 			"- Do not edit mustNotTouch paths or paths owned exclusively by another agent.",

@@ -568,6 +568,10 @@ describe("SYSTEM_PROMPT", () => {
 
 		// Should contain Tool Use Guidelines section
 		expect(prompt).toContain("Tool Use Guidelines")
+		expect(prompt).toContain("prefer the normal write/edit tools available to your mode")
+		expect(prompt).toContain("execute_command shell here-strings, heredocs, or echo chains")
+		expect(prompt).toContain("Use execute_command for running commands, tests, builds")
+		expect(prompt).toContain("instead of embedding file contents in shell here-strings")
 
 		// Should NOT contain a tool catalog / XML examples
 		expect(prompt).not.toContain("# Tools")

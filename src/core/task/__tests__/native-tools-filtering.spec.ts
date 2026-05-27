@@ -138,5 +138,21 @@ describe("Native Tools Filtering by Mode", () => {
 			expect(defaultToolNames).not.toContain("coordinate_agents")
 			expect(backgroundToolNames).toContain("coordinate_agents")
 		})
+
+		it("guides execute_command toward command execution instead of shell file writes", async () => {
+			const { getNativeTools } = await import("../../prompts/tools/native-tools")
+
+			const executeCommandTool = getNativeTools().find(
+				(tool: any) => tool.function.name === "execute_command",
+			) as any
+			const description = executeCommandTool.function.description
+
+			expect(description).toContain("running tests, builds, package managers, scripts")
+			expect(description).toContain("prefer the normal write/edit tools available to the current mode")
+			expect(description).toContain("shell here-strings, heredocs, or echo chains")
+			expect(description).toContain("Use execute_command for shell operations")
+			expect(description).not.toContain("Prefer to execute complex CLI commands over creating executable scripts")
+			expect(description).not.toContain("touch ./testdata/example.file")
+		})
 	})
 })

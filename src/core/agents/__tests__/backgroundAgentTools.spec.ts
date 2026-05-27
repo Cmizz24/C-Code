@@ -19,7 +19,17 @@ describe("backgroundAgentTools", () => {
 		).toEqual(["read_file", ...BACKGROUND_AGENT_DISABLED_TOOLS])
 		expect(BACKGROUND_AGENT_DISABLED_TOOLS).toEqual(["new_task", "plan_parallel_tasks"])
 		expect(BACKGROUND_AGENT_DISABLED_TOOLS).not.toEqual(
-			expect.arrayContaining(["execute_command", "switch_mode", "run_slash_command"]),
+			expect.arrayContaining([
+				"execute_command",
+				"write_to_file",
+				"apply_diff",
+				"apply_patch",
+				"edit",
+				"edit_file",
+				"search_replace",
+				"switch_mode",
+				"run_slash_command",
+			]),
 		)
 	})
 

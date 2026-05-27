@@ -362,6 +362,33 @@ describe("executeCommand", () => {
 			expect(result).toContain("within working directory '/test/project'")
 		})
 
+		it("nudges background agents to retry failed shell file writes with write/edit tools", async () => {
+			mockTask.background = true
+			mockTask.agentId = "api-agent"
+			mockTerminal.getCurrentWorkingDirectory.mockReturnValue("/test/project")
+			mockTerminal.runCommand.mockImplementation((command: string, callbacks: RooTerminalCallbacks) => {
+				setTimeout(() => {
+					callbacks.onCompleted("The string is missing the terminator: '@.", mockProcess)
+					callbacks.onShellExecutionComplete({ exitCode: 1 }, mockProcess)
+				}, 0)
+				return mockProcess
+			})
+
+			const options: ExecuteCommandOptions = {
+				executionId: "test-123",
+				command: "powershell -Command \"@'`n{}'@ | Out-File server\\package.json\"",
+				terminalShellIntegrationDisabled: false,
+			}
+
+			const [rejected, result] = await executeCommandInTerminal(mockTask, options)
+
+			expect(rejected).toBe(false)
+			expect(result).toContain("Exit code: 1")
+			expect(result).toContain("retry with the normal write/edit tools")
+			expect(result).toContain("instead of shell here-strings, heredocs, or echo chains")
+			expect(result).toContain("not for embedding file contents")
+		})
+
 		it("should handle command terminated by signal", async () => {
 			mockTerminal.getCurrentWorkingDirectory.mockReturnValue("/test/project")
 			mockTerminal.runCommand.mockImplementation((command: string, callbacks: RooTerminalCallbacks) => {
