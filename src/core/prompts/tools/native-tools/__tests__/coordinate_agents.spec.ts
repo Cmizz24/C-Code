@@ -6,9 +6,9 @@ describe("coordinate_agents native tool", () => {
 		const description = `${tool.description ?? ""} ${tool.parameters ? JSON.stringify(tool.parameters) : ""}`
 
 		expect(description).toContain("team chat")
-		expect(description).toContain("real question/answer coordination only")
-		expect(description).toContain("Use action=read before your first write")
-		expect(description).toContain("again before completion")
+		expect(description).toContain("real model-published question/answer coordination only")
+		expect(description).toContain("Use action=read when you need recent team chat")
+		expect(description).toContain("blocking or unclear shared contract cannot be inferred")
 		expect(description).toContain('{"action":"read","limit":8}')
 		expect(description).toContain(
 			'{"action":"publish","kind":"question","message":"...","targetAgentId":"agent-id"}',
@@ -22,7 +22,8 @@ describe("coordinate_agents native tool", () => {
 		expect(description).toContain("Do not publish ownership introductions")
 		expect(description).toContain("I own <file>")
 		expect(description).toContain("Agent <id> owns <file>")
-		expect(description).toContain("Publish only a real question or answer")
+		expect(description).toContain("Publish only a genuine question or answer")
+		expect(description).toContain("pre-planned/basic questions")
 		expect(description).toContain("Ask the specific relevant agent")
 		expect(description).toContain(
 			"one missing hook, selector, variable, data attribute, public function, file contract",
@@ -35,6 +36,8 @@ describe("coordinate_agents native tool", () => {
 		expect(description).toContain("prefer under 140")
 		expect(description).toContain("Do not include emojis")
 		expect(description).toContain("chain-of-thought")
+		expect(description).not.toContain("Use action=read before your first write")
+		expect(description).not.toContain("again before completion")
 		expect(description).not.toMatch(/\p{Extended_Pictographic}/u)
 	})
 

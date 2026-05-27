@@ -1491,9 +1491,8 @@ describe("Cline", () => {
 				expect(await child.getTaskMode()).toBe("code")
 				expect(toolNames).toEqual(expect.arrayContaining(["write_to_file", "apply_diff"]))
 				expect(toolNames).toEqual(expect.arrayContaining(["execute_command", "read_command_output"]))
-				expect(toolNames).not.toEqual(
-					expect.arrayContaining(["plan_parallel_tasks", "new_task", "switch_mode", "run_slash_command"]),
-				)
+				expect(toolNames).toEqual(expect.arrayContaining(["switch_mode"]))
+				expect(toolNames).not.toEqual(expect.arrayContaining(["plan_parallel_tasks", "new_task"]))
 			})
 		})
 

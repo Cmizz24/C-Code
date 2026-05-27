@@ -176,7 +176,6 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			}
 		}
 
-		this.seedPlanCoordination(plan)
 		this.emit("plan", plan)
 		this.emitTerminalEvents()
 	}
@@ -254,9 +253,6 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		}
 
 		if (permission.approved) {
-			if (this.executionPlan && agent) {
-				this.ensureCoordinationPreflight(agentId, normalizedPath)
-			}
 			this.activeWrites.set(normalizedPath, agentId)
 		}
 
@@ -389,43 +385,6 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 
 	public hasAgentCoordinated(agentId: string): boolean {
 		return this.hasAgentReadCoordination(agentId) && this.hasAgentPublishedCoordination(agentId)
-	}
-
-	public ensureCoordinationPreflight(agentId: string, filePath: string): AgentCoordinationEvent | undefined {
-		const normalizedPath = normalizePath(filePath)
-		const agent = this.getAgent(agentId)
-
-		if (!this.executionPlan || !agent || this.hasAgentCoordinated(agentId)) {
-			return undefined
-		}
-
-		this.coordinationReadAgents.add(agentId)
-
-		if (this.coordinationPublishedAgents.has(agentId)) {
-			return undefined
-		}
-
-		if (this.hasOpenQuestionFromAgent(agentId)) {
-			this.coordinationPublishedAgents.add(agentId)
-			return undefined
-		}
-
-		const targetAgent = this.findCoordinationQuestionTarget(agent)
-		if (!targetAgent) {
-			return undefined
-		}
-
-		const event = this.publishSystemCoordination({
-			id: `${this.executionPlan.planId}:preflight:${agentId}`,
-			agentId,
-			targetAgentId: targetAgent.id,
-			kind: "question",
-			message: this.buildCoordinationPreflightMessage(targetAgent, normalizedPath),
-			relatedFiles: [normalizedPath],
-		})
-
-		this.coordinationPublishedAgents.add(agentId)
-		return event
 	}
 
 	public emitSignal(agentId: string, signal: string, payload?: string): void {
@@ -763,116 +722,6 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		)
 	}
 
-	private publishSystemCoordination(input: Omit<AppendCoordinationEventInput, "source">): AgentCoordinationEvent {
-		return this.appendCoordinationEvent({ ...input, source: "system" })
-	}
-
-	private seedPlanCoordination(plan: ExecutionPlan): void {
-		const ts = Date.now()
-
-		for (const agent of plan.agents) {
-			if (this.isTerminalStatus(agent.status) || !this.isWritableAgent(agent)) {
-				continue
-			}
-
-			const targetAgent = this.findCoordinationQuestionTarget(agent)
-			if (!targetAgent) {
-				continue
-			}
-
-			const primaryPath = this.getPrimaryCoordinationPath(agent)
-
-			this.publishSystemCoordination({
-				id: `${plan.planId}:seed-question:${agent.id}:${targetAgent.id}`,
-				agentId: agent.id,
-				targetAgentId: targetAgent.id,
-				kind: "question",
-				message: this.buildSeedQuestionMessage(agent, targetAgent, primaryPath),
-				...(primaryPath ? { relatedFiles: [primaryPath] } : {}),
-				ts,
-			})
-		}
-	}
-
-	private buildCoordinationPreflightMessage(targetAgent: AgentPlan, filePath: string): string {
-		return `${targetAgent.id}, any hook, selector, or export needed before I edit ${filePath}?`
-	}
-
-	private buildSeedQuestionMessage(
-		agent: AgentPlan,
-		targetAgent: AgentPlan,
-		primaryPath: string | undefined,
-	): string {
-		const sourcePath = primaryPath ?? "my file"
-
-		if (this.isDocumentationAgent(agent)) {
-			return `${targetAgent.id}, what user-facing feature name should docs mention?`
-		}
-
-		if (this.isStyleAgent(agent)) {
-			return `${targetAgent.id}, what stable wrapper or data attribute should styles target?`
-		}
-
-		if (this.isStyleAgent(targetAgent)) {
-			return `${targetAgent.id}, which class or CSS variable should ${sourcePath} expose?`
-		}
-
-		if (this.isDocumentationAgent(targetAgent)) {
-			return `${targetAgent.id}, what user-facing name should docs use for ${sourcePath}?`
-		}
-
-		return `${targetAgent.id}, do you need a hook, selector, or export from ${sourcePath}?`
-	}
-
-	private findCoordinationQuestionTarget(agent: AgentPlan): AgentPlan | undefined {
-		const plan = this.executionPlan
-		if (!plan) {
-			return undefined
-		}
-
-		const dependencyTarget = agent.dependsOn
-			.map((dependency) => plan.agents.find((candidate) => candidate.id === dependency.agentId))
-			.find(
-				(candidate): candidate is AgentPlan =>
-					candidate !== undefined && !this.isTerminalStatus(candidate.status),
-			)
-
-		if (dependencyTarget) {
-			return dependencyTarget
-		}
-
-		const runnablePeers = plan.agents.filter(
-			(candidate) => candidate.id !== agent.id && !this.isTerminalStatus(candidate.status),
-		)
-
-		if (this.isStyleAgent(agent)) {
-			const markupPeer = runnablePeers.find((candidate) => this.isMarkupOrBehaviorAgent(candidate))
-			if (markupPeer) {
-				return markupPeer
-			}
-		}
-
-		if (this.isDocumentationAgent(agent)) {
-			const implementationPeer = runnablePeers.find((candidate) => this.isImplementationAgent(candidate))
-			if (implementationPeer) {
-				return implementationPeer
-			}
-		}
-
-		const stylePeer = runnablePeers.find((candidate) => this.isStyleAgent(candidate))
-		if (stylePeer) {
-			return stylePeer
-		}
-
-		return runnablePeers.find((candidate) => this.isImplementationAgent(candidate)) ?? runnablePeers[0]
-	}
-
-	private hasOpenQuestionFromAgent(agentId: string): boolean {
-		return this.getQuestionStates().some(
-			(state) => state.question.agentId === agentId && this.isQuestionOpen(state.question),
-		)
-	}
-
 	private getOpenQuestionsForAgent(agentId: string): AgentCoordinationEvent[] {
 		this.refreshUnanswerableQuestions()
 		return this.getQuestionStates()
@@ -1184,32 +1033,6 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		const question = questions[0]
 		const suffix = questions.length > 1 ? ` and ${questions.length - 1} more` : ""
 		return `Open coordination question${questions.length > 1 ? "s" : ""} must be answered before writing: ${question?.id ?? "unknown"}${suffix}.`
-	}
-
-	private getPrimaryCoordinationPath(agent: AgentPlan): string | undefined {
-		return agent.owns.find((ownership) => ownership.mode !== "read-only")?.path ?? agent.owns[0]?.path
-	}
-
-	private isImplementationAgent(agent: AgentPlan): boolean {
-		return this.isWritableAgent(agent) && !this.isDocumentationAgent(agent)
-	}
-
-	private isWritableAgent(agent: AgentPlan): boolean {
-		return agent.owns.some((ownership) => ownership.mode !== "read-only")
-	}
-
-	private isMarkupOrBehaviorAgent(agent: AgentPlan): boolean {
-		return agent.owns.some((ownership) => /\.(?:html|tsx?|jsx?|vue|svelte)$/i.test(ownership.path))
-	}
-
-	private isStyleAgent(agent: AgentPlan): boolean {
-		return agent.owns.some((ownership) => /\.(?:css|scss|sass|less|pcss|styl)$/i.test(ownership.path))
-	}
-
-	private isDocumentationAgent(agent: AgentPlan): boolean {
-		return agent.owns.some((ownership) =>
-			/(?:^|\/)(?:readme|docs?|documentation)|\.(?:md|mdx|txt|rst)$/i.test(ownership.path),
-		)
 	}
 
 	private sanitizeCoordinationKind(kind: AgentCoordinationKind | undefined): AgentCoordinationKind {

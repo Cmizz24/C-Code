@@ -82,56 +82,12 @@ describe("AgentBus", () => {
 		expect(bus.requestWriteIntent("agent-a", "src/a.ts")).toEqual({ approved: true })
 	})
 
-	it("seeds targeted coordination questions when a plan starts", () => {
-		const messages = bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })
-
-		expect(messages).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					id: "plan-test:seed-question:agent-a:agent-b",
-					agentId: "agent-a",
-					targetAgentId: "agent-b",
-					kind: "question",
-					source: "system",
-					message: "agent-b, do you need a hook, selector, or export from src/a.ts?",
-					relatedFiles: ["src/a.ts"],
-				}),
-			]),
-		)
-		expect(messages.every((message) => message.kind === "question")).toBe(true)
-		expect(messages.find((message) => message.id === "plan-test:shared-context")).toBeUndefined()
-		expect(messages.find((message) => message.id === "plan-test:team-kickoff")).toBeUndefined()
-		expect(messages.find((message) => message.id === "plan-test:intro:agent-a")).toBeUndefined()
-		expect(messages.find((message) => message.id === "plan-test:ownership:agent-a")).toBeUndefined()
-		expect(messages.every((message) => message.message.length <= 90)).toBe(true)
-		expect(messages.map((message) => message.message).join(" ")).not.toMatch(
-			/\bI own\b|Team chat open|Shared context/i,
-		)
-		expect(messages.map((message) => message.message).join(" ")).not.toMatch(
-			/selectors, classes, CSS variables|DOM hooks, IDs|public functions|file contracts/,
-		)
-		expect(messages.map((message) => message.message).join(" ")).not.toMatch(/\p{Extended_Pictographic}/u)
-
-		const openForA = bus.getOpenCoordinationQuestions("agent-a", { limit: 20 })
-		expect(openForA).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					id: "plan-test:seed-question:agent-b:agent-a",
-					agentId: "agent-b",
-					targetAgentId: "agent-a",
-					kind: "question",
-				}),
-			]),
-		)
-
-		bus.publishCoordination("agent-a", {
-			kind: "answer",
-			message: "Expose useDashboardState from src/a.ts.",
-			targetAgentId: "agent-b",
-			replyToId: "plan-test:seed-question:agent-b:agent-a",
-		})
-
+	it("does not seed synthetic coordination questions when a plan starts", () => {
+		expect(bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })).toEqual([])
 		expect(bus.getOpenCoordinationQuestions("agent-a", { limit: 20 })).toEqual([])
+		expect(bus.getOpenCoordinationQuestions("agent-b", { limit: 20 })).toEqual([])
+		expect(bus.hasAgentPublishedCoordination("agent-a")).toBe(false)
+		expect(bus.hasAgentCoordinated("agent-a")).toBe(false)
 	})
 
 	it("tracks read and publish coordination state per agent", () => {
@@ -151,21 +107,19 @@ describe("AgentBus", () => {
 		expect(bus.hasAgentCoordinated("agent-a")).toBe(true)
 	})
 
-	it("uses the seeded targeted question as safe coordination preflight before an agent's first write", () => {
+	it("does not publish coordination preflight before an agent's first write", () => {
 		const events = vi.fn()
 		bus.on("event", events)
-		const before = bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })
 
 		expect(bus.hasAgentCoordinated("agent-a")).toBe(false)
 
 		const permission = bus.requestWriteIntent("agent-a", "src/a.ts")
 
 		expect(permission).toEqual({ approved: true })
-		expect(bus.hasAgentCoordinated("agent-a")).toBe(true)
 		expect(events.mock.calls.some(([event]) => event.type === "COORDINATION")).toBe(false)
-		expect(bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })).toEqual(before)
-		expect(JSON.stringify(before)).toContain("plan-test:seed-question:agent-a:agent-b")
-		expect(JSON.stringify(before)).not.toMatch(/I own|I'm about to edit|Team chat open/i)
+		expect(bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })).toEqual([])
+		expect(bus.hasAgentPublishedCoordination("agent-a")).toBe(false)
+		expect(bus.hasAgentCoordinated("agent-a")).toBe(false)
 		expect(events.mock.calls.at(-1)?.[0]).toEqual({
 			type: "INTENT_WRITE",
 			agentId: "agent-a",
@@ -177,11 +131,30 @@ describe("AgentBus", () => {
 	it("blocks background completion on answerable questions until answers are read", () => {
 		bus.markRunning("agent-a")
 		bus.markRunning("agent-b")
+
+		const incomingQuestion = bus.publishCoordination("agent-b", {
+			kind: "question",
+			message: "Which export should I import from src/a.ts?",
+			targetAgentId: "agent-a",
+			relatedFiles: ["src/a.ts"],
+		})
+		const outgoingQuestion = bus.publishCoordination("agent-a", {
+			kind: "question",
+			message: "Which selector should src/a.ts use from src/b.ts?",
+			targetAgentId: "agent-b",
+			relatedFiles: ["src/b.ts"],
+		})
+		expect(incomingQuestion).toBeDefined()
+		expect(outgoingQuestion).toBeDefined()
+		if (!incomingQuestion || !outgoingQuestion) {
+			throw new Error("Expected model-published coordination questions to be created.")
+		}
+
 		bus.publishCoordination("agent-a", {
 			kind: "answer",
-			message: "No additional hook needed from src/b.ts.",
+			message: "Import useDashboardState from src/a.ts.",
 			targetAgentId: "agent-b",
-			replyToId: "plan-test:seed-question:agent-b:agent-a",
+			replyToId: incomingQuestion.id,
 		})
 
 		const waitingGate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
@@ -190,7 +163,7 @@ describe("AgentBus", () => {
 			expect.arrayContaining([
 				expect.objectContaining({
 					type: "outgoing-question",
-					question: expect.objectContaining({ id: "plan-test:seed-question:agent-a:agent-b" }),
+					question: expect.objectContaining({ id: outgoingQuestion.id }),
 				}),
 			]),
 		)
@@ -199,9 +172,9 @@ describe("AgentBus", () => {
 			kind: "answer",
 			message: "Use data-testid=save-button.",
 			targetAgentId: "agent-a",
-			replyToId: "plan-test:seed-question:agent-a:agent-b",
+			replyToId: outgoingQuestion.id,
 		})
-		expect(answer?.replyToId).toBe("plan-test:seed-question:agent-a:agent-b")
+		expect(answer?.replyToId).toBe(outgoingQuestion.id)
 
 		const unreadGate = bus.getAgentCompletionCoordinationGate("agent-a")
 		expect(unreadGate.approved).toBe(false)
@@ -219,12 +192,16 @@ describe("AgentBus", () => {
 	})
 
 	it("uses bounded completion retries before converting unavailable outgoing answers to unanswerable", () => {
-		bus.publishCoordination("agent-a", {
-			kind: "answer",
-			message: "No additional hook needed from src/b.ts.",
+		const question = bus.publishCoordination("agent-a", {
+			kind: "question",
+			message: "Which selector should src/a.ts use from src/b.ts?",
 			targetAgentId: "agent-b",
-			replyToId: "plan-test:seed-question:agent-b:agent-a",
+			relatedFiles: ["src/b.ts"],
 		})
+		expect(question).toBeDefined()
+		if (!question) {
+			throw new Error("Expected model-published coordination question to be created.")
+		}
 
 		for (let attempt = 1; attempt < AGENT_COORDINATION_COMPLETION_RETRY_LIMIT; attempt++) {
 			const gate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
@@ -233,7 +210,7 @@ describe("AgentBus", () => {
 				expect.arrayContaining([
 					expect.objectContaining({
 						type: "outgoing-question",
-						question: expect.objectContaining({ id: "plan-test:seed-question:agent-a:agent-b" }),
+						question: expect.objectContaining({ id: question.id }),
 					}),
 				]),
 			)
@@ -244,7 +221,7 @@ describe("AgentBus", () => {
 		expect(allowedGate.unanswerableQuestions).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					id: "plan-test:seed-question:agent-a:agent-b",
+					id: question.id,
 					answerState: "unanswerable",
 					unanswerableReason: expect.stringContaining("not currently running"),
 				}),
@@ -253,6 +230,17 @@ describe("AgentBus", () => {
 	})
 
 	it("allows completion when a targeted question becomes unanswerable because the target is terminal", () => {
+		const question = bus.publishCoordination("agent-a", {
+			kind: "question",
+			message: "Which selector should src/a.ts use from src/b.ts?",
+			targetAgentId: "agent-b",
+			relatedFiles: ["src/b.ts"],
+		})
+		expect(question).toBeDefined()
+		if (!question) {
+			throw new Error("Expected model-published coordination question to be created.")
+		}
+
 		bus.markFailed("agent-b", "Agent failed")
 
 		const gate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
@@ -260,7 +248,7 @@ describe("AgentBus", () => {
 		expect(gate.unanswerableQuestions).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					id: "plan-test:seed-question:agent-a:agent-b",
+					id: question.id,
 					answerState: "unanswerable",
 					unanswerableReason: expect.stringContaining("already failed"),
 				}),
@@ -686,15 +674,7 @@ describe("AgentBus", () => {
 		bus.setExecutionPlan(createPlan())
 
 		const resetEvents = bus.getCoordinationEvents("agent-b", { includeSelf: true, limit: 20 })
-		expect(resetEvents).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					id: "plan-test:seed-question:agent-a:agent-b",
-					kind: "question",
-					source: "system",
-				}),
-			]),
-		)
+		expect(resetEvents).toEqual([])
 		expect(resetEvents.map((event) => event.message).join(" ")).not.toContain("Message")
 		expect(resetEvents.map((event) => event.message).join(" ")).not.toMatch(/I own|Team chat open/i)
 	})

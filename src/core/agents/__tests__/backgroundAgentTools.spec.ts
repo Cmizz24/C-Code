@@ -13,12 +13,13 @@ describe("backgroundAgentTools", () => {
 		expect(withBackgroundAgentDisabledTools(undefined, { background: true })).toBeUndefined()
 	})
 
-	it("disables visible orchestration tools for background agent tasks", () => {
+	it("disables only structural nested orchestration tools for background agent tasks", () => {
 		expect(
 			withBackgroundAgentDisabledTools(["read_file", "new_task"], { background: true, agentId: "ui" }),
 		).toEqual(["read_file", ...BACKGROUND_AGENT_DISABLED_TOOLS])
-		expect(BACKGROUND_AGENT_DISABLED_TOOLS).toEqual(
-			expect.arrayContaining(["new_task", "plan_parallel_tasks", "switch_mode", "run_slash_command"]),
+		expect(BACKGROUND_AGENT_DISABLED_TOOLS).toEqual(["new_task", "plan_parallel_tasks"])
+		expect(BACKGROUND_AGENT_DISABLED_TOOLS).not.toEqual(
+			expect.arrayContaining(["execute_command", "switch_mode", "run_slash_command"]),
 		)
 	})
 

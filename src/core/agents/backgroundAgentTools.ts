@@ -1,10 +1,11 @@
 import type { ToolName } from "@roo-code/types"
 
+// Background children run their assigned specialist task directly. Only nested
+// delegation/orchestration tools are structurally withheld; ordinary mode tools
+// remain governed by the selected mode, experiments, and user disabled-tools settings.
 export const BACKGROUND_AGENT_DISABLED_TOOLS = [
 	"new_task",
 	"plan_parallel_tasks",
-	"switch_mode",
-	"run_slash_command",
 ] as const satisfies readonly ToolName[]
 
 export const BACKGROUND_AGENT_ONLY_TOOLS = ["coordinate_agents"] as const satisfies readonly ToolName[]

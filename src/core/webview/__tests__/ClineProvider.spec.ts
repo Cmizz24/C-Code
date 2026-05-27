@@ -1201,20 +1201,22 @@ describe("ClineProvider", () => {
 		await provider.approveExecutionPlan(plan)
 
 		const bus = AgentBus.getInstance()
-		const openForStyles = bus.getOpenCoordinationQuestions("styles-agent", { limit: 20 })
-		expect(openForStyles).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					id: "plan-webview-provider:seed-question:dashboard-agent:styles-agent",
-					kind: "question",
-				}),
-			]),
-		)
+		expect(bus.getOpenCoordinationQuestions("styles-agent", { limit: 20 })).toEqual([])
+		const question = bus.publishCoordination("dashboard-agent", {
+			kind: "question",
+			message: "Which class should src/dashboard.tsx expose?",
+			targetAgentId: "styles-agent",
+			relatedFiles: ["src/dashboard.tsx"],
+		})
+		expect(question).toBeDefined()
+		if (!question) {
+			throw new Error("Expected model-published coordination question to be created.")
+		}
 		bus.publishCoordination("styles-agent", {
 			kind: "answer",
 			message: "Expose data-dashboard-root for compact styles.",
 			targetAgentId: "dashboard-agent",
-			replyToId: "plan-webview-provider:seed-question:dashboard-agent:styles-agent",
+			replyToId: question.id,
 		})
 		bus.requestWriteIntent("dashboard-agent", "src/dashboard.tsx")
 		bus.markBlocked("styles-agent", "Waiting for DOM contract", [
@@ -1227,12 +1229,12 @@ describe("ClineProvider", () => {
 			expect(tool.agentCoordinationEvents).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
-						id: "plan-webview-provider:seed-question:dashboard-agent:styles-agent",
+						id: question.id,
 						agentId: "dashboard-agent",
 						targetAgentId: "styles-agent",
 						kind: "question",
-						source: "system",
-						message: "styles-agent, which class or CSS variable should src/dashboard.tsx expose?",
+						source: "agent",
+						message: "Which class should src/dashboard.tsx expose?",
 						relatedFiles: ["src/dashboard.tsx"],
 					}),
 					expect.objectContaining({
@@ -1241,7 +1243,7 @@ describe("ClineProvider", () => {
 						kind: "answer",
 						source: "agent",
 						message: "Expose data-dashboard-root for compact styles.",
-						replyToId: "plan-webview-provider:seed-question:dashboard-agent:styles-agent",
+						replyToId: question.id,
 					}),
 				]),
 			)

@@ -4,7 +4,7 @@
 import * as path from "path"
 import * as fs from "fs/promises"
 
-import { ExecuteCommandOptions, ExecuteCommandTool, isRiskyBackgroundFileWriteCommand } from "../ExecuteCommandTool"
+import { ExecuteCommandOptions, ExecuteCommandTool } from "../ExecuteCommandTool"
 import { TerminalRegistry } from "../../../integrations/terminal/TerminalRegistry"
 import { Terminal } from "../../../integrations/terminal/Terminal"
 import { ExecaTerminal } from "../../../integrations/terminal/ExecaTerminal"
@@ -440,28 +440,10 @@ describe("executeCommand", () => {
 	})
 })
 
-describe("ExecuteCommandTool background file-write guard", () => {
-	it.each([
-		"powershell -Command \"Set-Content -Path src/app.ts -Value 'content'\"",
-		"pwsh -Command \"Add-Content file.txt 'more'\"",
-		"powershell -Command \"@'\nlarge content\n'@ | Out-File src/app.ts\"",
-		"echo hello > src/app.ts",
-		"cat > src/app.ts <<'EOF'\nhello\nEOF",
-	])("detects risky shell file write command: %s", (command) => {
-		expect(isRiskyBackgroundFileWriteCommand(command)).toBe(true)
-	})
-
-	it.each([
-		"npm test",
-		"pnpm build",
-		"npx vitest run src/core/tools/__tests__/executeCommand.spec.ts",
-		"git status --short",
-	])("allows normal background build/test command: %s", (command) => {
-		expect(isRiskyBackgroundFileWriteCommand(command)).toBe(false)
-	})
-
-	it("blocks risky shell writes before approval for background parallel agents", async () => {
+describe("ExecuteCommandTool background agents", () => {
+	it("uses the normal command approval path for background parallel agents", async () => {
 		const tool = new ExecuteCommandTool()
+		const command = "powershell -Command \"Set-Content -Path src/app.ts -Value 'content'\""
 		const task: any = {
 			background: true,
 			agentId: "ui-agent",
@@ -470,21 +452,14 @@ describe("ExecuteCommandTool background file-write guard", () => {
 		}
 		const callbacks: any = {
 			pushToolResult: vitest.fn(),
-			askApproval: vitest.fn(),
+			askApproval: vitest.fn().mockResolvedValue(false),
 			handleError: vitest.fn(),
 		}
 
-		await tool.execute(
-			{ command: "powershell -Command \"Set-Content -Path src/app.ts -Value 'content'\"" },
-			task,
-			callbacks,
-		)
+		await tool.execute({ command }, task, callbacks)
 
-		expect(callbacks.askApproval).not.toHaveBeenCalled()
-		expect(task.recordToolError).toHaveBeenCalledWith(
-			"execute_command",
-			"Background agent shell file-write command blocked.",
-		)
-		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining("write_to_file"))
+		expect(callbacks.askApproval).toHaveBeenCalledWith("command", command)
+		expect(task.recordToolError).not.toHaveBeenCalled()
+		expect(callbacks.pushToolResult).not.toHaveBeenCalled()
 	})
 })
