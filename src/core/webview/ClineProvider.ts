@@ -4422,7 +4422,7 @@ export class ClineProvider
 				? "Plan-level structured packet reports clean merged evidence with complete agent packets, clean merge materialization, and no failed or unknown validation results."
 				: "Plan-level structured packet is missing clean merged evidence or reports failed, incomplete, or inconclusive evidence; targeted inspection remains available for the specific evidence gap.",
 			todoGuidance: cleanMergedEvidence
-				? "Mark any redundant verify assembled deliverable step complete from the structured packet and continue with the next non-verification step."
+				? "Mark any redundant review/verify result or assembled deliverable step complete from the structured packet and continue with the next non-verification step."
 				: "Do not mark verification complete from this packet alone; resolve the failed, incomplete, or inconclusive evidence first.",
 			allowedInspectionReasons: cleanMergedEvidence
 				? [
@@ -4458,7 +4458,7 @@ export class ClineProvider
 
 		if (directive.evidenceStatus === "clean-merged") {
 			lines.push(
-				"- The plan-level packet reports clean merged evidence; mark any redundant verify assembled deliverable todo step complete from this evidence and continue with the next non-verification step.",
+				"- The plan-level packet reports clean merged evidence; mark any redundant review/verify result or assembled deliverable todo step complete from this evidence and continue with the next non-verification step.",
 			)
 		} else {
 			lines.push(

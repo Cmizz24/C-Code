@@ -129,6 +129,26 @@ describe("RooProtectedController", () => {
 				{ path: "package.json", isProtected: false },
 			])
 		})
+
+		it("should handle empty path entries without logging protection errors", () => {
+			const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+			const files = ["", "   ", ".roo/config.json", "src/index.ts"]
+
+			const result = controller.annotatePathsWithProtection(files)
+
+			expect(result).toEqual([
+				{ path: "", isProtected: false },
+				{ path: "   ", isProtected: false },
+				{ path: ".roo/config.json", isProtected: true },
+				{ path: "src/index.ts", isProtected: false },
+			])
+			expect(errorSpy).not.toHaveBeenCalledWith(
+				expect.stringContaining("path must not be empty"),
+				expect.anything(),
+			)
+
+			errorSpy.mockRestore()
+		})
 	})
 
 	describe("getProtectionMessage", () => {

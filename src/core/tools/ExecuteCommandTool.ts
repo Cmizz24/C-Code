@@ -22,6 +22,9 @@ import { BaseTool, ToolCallbacks } from "./BaseTool"
 
 class ShellIntegrationError extends Error {}
 
+const BACKGROUND_AGENT_FILE_WRITE_COMMAND_MESSAGE =
+	"Background parallel agents must use write_to_file, apply_diff, or edit tools for file edits instead of fragile shell file-writing commands. Run build/test/read-only commands through execute_command, but do not use Set-Content, Add-Content, here-strings, Out-File, echo/cat redirection, or other command-based file writes for large or structured content."
+
 interface ExecuteCommandParams {
 	command: string
 	cwd?: string
@@ -35,6 +38,34 @@ export function resolveAgentTimeoutMs(timeoutSeconds: number | null | undefined)
 	// solely by commandExecutionTimeout (user setting), not model-provided
 	// background timeouts.
 	return process.env.ROO_CLI_RUNTIME === "1" ? 0 : requestedAgentTimeout
+}
+
+export function isRiskyBackgroundFileWriteCommand(command: string): boolean {
+	const normalized = command.replace(/\r\n/g, "\n")
+	const compact = normalized.replace(/\s+/g, " ").trim()
+	const lowerCompact = compact.toLowerCase()
+
+	if (!compact) {
+		return false
+	}
+
+	const powershellFileWritePattern =
+		/\b(?:set-content|add-content|out-file|new-item\s+[^\n;&|]*\s+-itemtype\s+file)\b/i
+	const shellRedirectionPattern = /(^|[\s;&|()])(?:echo|printf|cat|type)\b[\s\S]*?(?:>>?|\|\s*(?:tee|cat)\b)/i
+	const hereDocPattern = /(^|\s)(?:cat|tee)\s+[^\n;&|]*?(?:>>?)\s*[^\n]+<<\s*['"]?\w+['"]?/i
+	const hereStringPattern = /@['"][\s\S]*?['"]@|\b(?:powershell|pwsh)(?:\.exe)?\b[\s\S]*?-command\b[\s\S]*?@['"]/i
+	const encodedPowerShellWriterPattern = /\b(?:powershell|pwsh)(?:\.exe)?\b[\s\S]*?-(?:encodedcommand|enc)\b/i
+
+	if (
+		powershellFileWritePattern.test(compact) ||
+		shellRedirectionPattern.test(normalized) ||
+		hereDocPattern.test(normalized) ||
+		hereStringPattern.test(normalized)
+	) {
+		return true
+	}
+
+	return encodedPowerShellWriterPattern.test(lowerCompact) && compact.length > 500
 }
 
 export class ExecuteCommandTool extends BaseTool<"execute_command"> {
@@ -53,6 +84,13 @@ export class ExecuteCommandTool extends BaseTool<"execute_command"> {
 			}
 
 			const canonicalCommand = unescapeHtmlEntities(command)
+
+			if (task.background && task.agentId && isRiskyBackgroundFileWriteCommand(canonicalCommand)) {
+				task.consecutiveMistakeCount++
+				task.recordToolError("execute_command", "Background agent shell file-write command blocked.")
+				pushToolResult(formatResponse.toolError(BACKGROUND_AGENT_FILE_WRITE_COMMAND_MESSAGE))
+				return
+			}
 
 			const ignoredFileAttemptedToAccess = task.rooIgnoreController?.validateCommand(canonicalCommand)
 

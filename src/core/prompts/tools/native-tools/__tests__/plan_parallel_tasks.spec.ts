@@ -30,4 +30,14 @@ describe("createPlanParallelTasksTool", () => {
 		expect(agentProperties.dependsOn.description).toContain("True blockers")
 		expect(agentProperties.dependsOn.description).toContain("planned contract")
 	})
+
+	it("treats clean structured parallel evidence as sufficient verification", () => {
+		const tool = createPlanParallelTasksTool() as any
+
+		expect(tool.function.description).toContain(
+			'Do not create or preserve a separate manual "Review and verify the result" todo',
+		)
+		expect(tool.function.description).toContain("clean structured plan-level completion/merge/validation evidence")
+		expect(tool.function.description).toContain("Perform manual verification only when evidence is missing")
+	})
 })

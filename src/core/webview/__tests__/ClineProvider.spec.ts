@@ -2199,7 +2199,9 @@ describe("ClineProvider", () => {
 		expect(summaryText).toContain(
 			"Do not perform broad file reads/searches over already-merged parallel deliverables solely to verify them.",
 		)
-		expect(summaryText).toContain("mark any redundant verify assembled deliverable todo step complete")
+		expect(summaryText).toContain(
+			"mark any redundant review/verify result or assembled deliverable todo step complete",
+		)
 		expect(summaryText).toContain("Only inspect files when the user explicitly asks for deeper verification")
 	})
 

@@ -97,7 +97,7 @@ async function generatePrompt(
 			? ` Limit every ExecutionPlan to at most ${settings.maxParallelAgents} total agents; if the work appears to require more, combine compatible scopes or plan sequential follow-up work because the backend rejects oversized plans.`
 			: ""
 		const todoSequencingInstruction = settings?.todoListEnabled
-			? " Complete the active planning todo before requesting plan approval or delegating execution so the todo list never shows planning as incomplete while delegation is already active."
+			? " Complete the active planning todo before requesting plan approval or delegating execution so the todo list never shows planning as incomplete while delegation is already active. Do not add a separate manual 'Review and verify the result' todo solely for an approved parallel plan; clean structured plan-level completion/merge/validation evidence satisfies redundant review or verification todos, and manual verification is only for missing, failed, inconclusive, contradicted, or user-requested evidence."
 			: ""
 
 		if (mode === "architect") {

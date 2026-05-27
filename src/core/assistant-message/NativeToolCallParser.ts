@@ -606,13 +606,28 @@ export class NativeToolCallParser {
 			throw new Error("coordinate_agents message must be a string when provided.")
 		}
 
-		if (value.length > AGENT_COORDINATION_MESSAGE_MAX_LENGTH) {
-			throw new Error(
-				`coordinate_agents message must be at most ${AGENT_COORDINATION_MESSAGE_MAX_LENGTH} characters.`,
-			)
+		const normalized = value
+			.split("")
+			.filter((char) => !this.isControlCharacter(char))
+			.join("")
+			.replace(/\s+/g, " ")
+			.trim()
+
+		if (!normalized) {
+			return undefined
 		}
 
-		return value
+		if (normalized.length > AGENT_COORDINATION_MESSAGE_MAX_LENGTH) {
+			return this.truncateCoordinateAgentsMessage(normalized)
+		}
+
+		return normalized
+	}
+
+	private static truncateCoordinateAgentsMessage(value: string): string {
+		const suffix = "…"
+		const availableLength = Math.max(0, AGENT_COORDINATION_MESSAGE_MAX_LENGTH - suffix.length)
+		return `${value.slice(0, availableLength).trimEnd()}${suffix}`
 	}
 
 	private static normalizeCoordinateAgentsTargetAgentId(value: unknown): string | undefined {

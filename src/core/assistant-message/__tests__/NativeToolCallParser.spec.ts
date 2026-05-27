@@ -454,22 +454,36 @@ describe("NativeToolCallParser", () => {
 					name: "coordinate_agents" as const,
 					arguments: JSON.stringify({ action: "read", limit: 21 }),
 				})
-				const invalidLongMessage = NativeToolCallParser.parseToolCall({
-					id: "toolu_coordinate_invalid_message",
-					name: "coordinate_agents" as const,
-					arguments: JSON.stringify({ action: "publish", message: "x".repeat(241) }),
-				})
-
 				expect(invalidKind).toBeNull()
 				expect(invalidLimit).toBeNull()
-				expect(invalidLongMessage).toBeNull()
 				expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("coordinate_agents kind must be one of"))
 				expect(errorSpy).toHaveBeenCalledWith(
 					expect.stringContaining("coordinate_agents limit must be between"),
 				)
-				expect(errorSpy).toHaveBeenCalledWith(
-					expect.stringContaining("coordinate_agents message must be at most 240 characters."),
-				)
+
+				errorSpy.mockRestore()
+			})
+
+			it("normalizes overlong coordinate_agents messages before validation", () => {
+				const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+				const message = ` ${"Use concise integration evidence. ".repeat(20)}\n\nFinal sentence. `
+
+				const result = NativeToolCallParser.parseToolCall({
+					id: "toolu_coordinate_overlong_message",
+					name: "coordinate_agents" as const,
+					arguments: JSON.stringify({ action: "publish", kind: "question", message }),
+				})
+
+				expect(result).not.toBeNull()
+				expect(result?.type).toBe("tool_use")
+				if (result?.type === "tool_use") {
+					const nativeArgs = result.nativeArgs as { message?: string }
+					expect(nativeArgs.message).toBeDefined()
+					expect(nativeArgs.message?.length).toBeLessThanOrEqual(240)
+					expect(nativeArgs.message).toMatch(/…$/)
+					expect(nativeArgs.message).not.toContain("\n")
+				}
+				expect(errorSpy).not.toHaveBeenCalled()
 
 				errorSpy.mockRestore()
 			})

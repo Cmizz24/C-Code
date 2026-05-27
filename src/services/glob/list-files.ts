@@ -690,7 +690,13 @@ async function execRipgrep(rgPath: string, args: string[], limit: number): Promi
 			const didSuppressExpectedMissingPathError = handleRipgrepStderr(stderrOutput, searchDir)
 
 			// Log non-zero exit codes but don't fail
-			if (code !== 0 && code !== null && code !== 143 /* SIGTERM */ && !didSuppressExpectedMissingPathError) {
+			if (
+				code !== 0 &&
+				code !== null &&
+				code !== 1 /* no files matched */ &&
+				code !== 143 /* SIGTERM */ &&
+				!didSuppressExpectedMissingPathError
+			) {
 				console.warn(`ripgrep process exited with code ${code}, returning partial results`)
 			}
 

@@ -613,6 +613,8 @@ describe("SYSTEM_PROMPT", () => {
 
 			expect(prompt).toContain("Limit every ExecutionPlan to at most 5 total agents")
 			expect(prompt).toContain("Complete the active planning todo before requesting plan approval")
+			expect(prompt).toContain("Do not add a separate manual 'Review and verify the result' todo")
+			expect(prompt).toContain("clean structured plan-level completion/merge/validation evidence")
 		}
 	})
 

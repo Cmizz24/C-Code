@@ -318,6 +318,33 @@ describe("list-files symlink support", () => {
 		errorSpy.mockRestore()
 		warnSpy.mockRestore()
 	})
+
+	it("should not warn for ripgrep code 1 no-match results", async () => {
+		const mockSpawn = vi.mocked(childProcess.spawn)
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+		const mockProcess = {
+			stdout: {
+				on: vi.fn(),
+			},
+			stderr: {
+				on: vi.fn(),
+			},
+			on: vi.fn((event, callback) => {
+				if (event === "close") {
+					setTimeout(() => callback(1), 20)
+				}
+			}),
+			kill: vi.fn(),
+		}
+
+		mockSpawn.mockReturnValue(mockProcess as any)
+
+		await listFiles("/test/empty", true, 100)
+
+		expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("ripgrep process exited with code 1"))
+
+		warnSpy.mockRestore()
+	})
 })
 
 describe("hidden directory exclusion", () => {

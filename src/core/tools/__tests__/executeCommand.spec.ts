@@ -4,7 +4,7 @@
 import * as path from "path"
 import * as fs from "fs/promises"
 
-import { ExecuteCommandOptions } from "../ExecuteCommandTool"
+import { ExecuteCommandOptions, ExecuteCommandTool, isRiskyBackgroundFileWriteCommand } from "../ExecuteCommandTool"
 import { TerminalRegistry } from "../../../integrations/terminal/TerminalRegistry"
 import { Terminal } from "../../../integrations/terminal/Terminal"
 import { ExecaTerminal } from "../../../integrations/terminal/ExecaTerminal"
@@ -437,5 +437,54 @@ describe("executeCommand", () => {
 			// Verify the terminal's getCurrentWorkingDirectory was called
 			expect(mockTerminalInstance.getCurrentWorkingDirectory).toHaveBeenCalled()
 		})
+	})
+})
+
+describe("ExecuteCommandTool background file-write guard", () => {
+	it.each([
+		"powershell -Command \"Set-Content -Path src/app.ts -Value 'content'\"",
+		"pwsh -Command \"Add-Content file.txt 'more'\"",
+		"powershell -Command \"@'\nlarge content\n'@ | Out-File src/app.ts\"",
+		"echo hello > src/app.ts",
+		"cat > src/app.ts <<'EOF'\nhello\nEOF",
+	])("detects risky shell file write command: %s", (command) => {
+		expect(isRiskyBackgroundFileWriteCommand(command)).toBe(true)
+	})
+
+	it.each([
+		"npm test",
+		"pnpm build",
+		"npx vitest run src/core/tools/__tests__/executeCommand.spec.ts",
+		"git status --short",
+	])("allows normal background build/test command: %s", (command) => {
+		expect(isRiskyBackgroundFileWriteCommand(command)).toBe(false)
+	})
+
+	it("blocks risky shell writes before approval for background parallel agents", async () => {
+		const tool = new ExecuteCommandTool()
+		const task: any = {
+			background: true,
+			agentId: "ui-agent",
+			consecutiveMistakeCount: 0,
+			recordToolError: vitest.fn(),
+		}
+		const callbacks: any = {
+			pushToolResult: vitest.fn(),
+			askApproval: vitest.fn(),
+			handleError: vitest.fn(),
+		}
+
+		await tool.execute(
+			{ command: "powershell -Command \"Set-Content -Path src/app.ts -Value 'content'\"" },
+			task,
+			callbacks,
+		)
+
+		expect(callbacks.askApproval).not.toHaveBeenCalled()
+		expect(task.recordToolError).toHaveBeenCalledWith(
+			"execute_command",
+			"Background agent shell file-write command blocked.",
+		)
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining("write_to_file"))
 	})
 })
