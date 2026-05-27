@@ -282,6 +282,71 @@ describe("list-files symlink support", () => {
 		warnSpy.mockRestore()
 	})
 
+	it("should not warn when a deleted parallel worktree directory disappears during directory scanning", async () => {
+		const mockSpawn = vi.mocked(childProcess.spawn)
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+		const missingWorktreePath = String.raw`c:\Users\clayton\Documents\C-Code\.roo\parallel-worktrees\plan-mpimvjgi\agent-css\css`
+		const mockProcess = {
+			stdout: {
+				on: vi.fn(),
+			},
+			stderr: {
+				on: vi.fn(),
+			},
+			on: vi.fn((event, callback) => {
+				if (event === "close") {
+					setTimeout(() => callback(0), 20)
+				}
+			}),
+			kill: vi.fn(),
+		}
+
+		mockSpawn.mockReturnValue(mockProcess as any)
+		vi.mocked(fs.promises.access).mockRejectedValue(new Error("File not found"))
+		vi.mocked(fs.promises.readdir).mockRejectedValueOnce(
+			Object.assign(new Error(`ENOENT: no such file or directory, scandir '${missingWorktreePath}'`), {
+				code: "ENOENT",
+			}),
+		)
+
+		await listFiles(missingWorktreePath, true, 100)
+
+		expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("Could not read directory"))
+
+		warnSpy.mockRestore()
+	})
+
+	it("should preserve unexpected directory read warnings outside deleted parallel worktrees", async () => {
+		const mockSpawn = vi.mocked(childProcess.spawn)
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+		const mockProcess = {
+			stdout: {
+				on: vi.fn(),
+			},
+			stderr: {
+				on: vi.fn(),
+			},
+			on: vi.fn((event, callback) => {
+				if (event === "close") {
+					setTimeout(() => callback(0), 20)
+				}
+			}),
+			kill: vi.fn(),
+		}
+
+		mockSpawn.mockReturnValue(mockProcess as any)
+		vi.mocked(fs.promises.access).mockRejectedValue(new Error("File not found"))
+		vi.mocked(fs.promises.readdir).mockRejectedValueOnce(
+			Object.assign(new Error("EACCES: permission denied, scandir '/test/dir'"), { code: "EACCES" }),
+		)
+
+		await listFiles("/test/dir", true, 100)
+
+		expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Could not read directory"))
+
+		warnSpy.mockRestore()
+	})
+
 	it("should preserve unexpected ripgrep stderr visibility without using console.error", async () => {
 		const mockSpawn = vi.mocked(childProcess.spawn)
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)

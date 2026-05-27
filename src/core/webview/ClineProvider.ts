@@ -3563,6 +3563,17 @@ export class ClineProvider
 
 		for (const task of Array.from(this.backgroundTasks)) {
 			this.finalizeBackgroundAgentTask(task, "complete")
+
+			try {
+				await task.abortTask(true)
+			} catch (error) {
+				this.log(
+					`[parallel-agents] Failed to abort completed background task ${task.taskId}.${task.instanceId}: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			}
+
 			this.removeBackgroundTask(task)
 		}
 

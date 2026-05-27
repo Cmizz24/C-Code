@@ -101,7 +101,9 @@ async function getFirstLevelDirectories(dirPath: string, ignoreInstance: ReturnT
 			}
 		}
 	} catch (err) {
-		console.warn(`Could not read directory ${absolutePath}: ${err}`)
+		if (!isExpectedMissingParallelWorktreeDirectoryReadError(err, absolutePath)) {
+			console.warn(`Could not read directory ${absolutePath}: ${err}`)
+		}
 	}
 
 	return directories
@@ -493,7 +495,9 @@ async function listFilteredDirectories(
 			}
 		} catch (err) {
 			// Continue if we can't read a directory
-			console.warn(`Could not read directory ${currentPath}: ${err}`)
+			if (!isExpectedMissingParallelWorktreeDirectoryReadError(err, currentPath)) {
+				console.warn(`Could not read directory ${currentPath}: ${err}`)
+			}
 		}
 
 		return false // Limit not reached
@@ -763,6 +767,23 @@ function isExpectedRipgrepMissingPathError(stderr: string, searchDir: string): b
 	const normalizedSearchDir = normalizePathForRipgrepLogMatch(searchDir)
 
 	return normalizedStderr.includes(normalizedSearchDir) || isParallelWorktreePath(normalizedStderr)
+}
+
+function isExpectedMissingParallelWorktreeDirectoryReadError(error: unknown, directoryPath: string): boolean {
+	const message = error instanceof Error ? error.message : String(error)
+	const code =
+		typeof error === "object" && error !== null && "code" in error
+			? String((error as NodeJS.ErrnoException).code ?? "")
+			: ""
+	const hasMissingPathError =
+		code === "ENOENT" ||
+		code === "ENOTDIR" ||
+		/\(os error\s*[23]\)/i.test(message) ||
+		/the system cannot find the (?:file|path) specified/i.test(message) ||
+		/no such file or directory/i.test(message) ||
+		/not a directory/i.test(message)
+
+	return hasMissingPathError && isParallelWorktreePath(normalizePathForRipgrepLogMatch(directoryPath))
 }
 
 function normalizePathForRipgrepLogMatch(value: string): string {

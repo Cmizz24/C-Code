@@ -585,7 +585,8 @@ function looksLikeShellFileWrite(commandAndOutput: string): boolean {
 		/\b(echo|printf)\b[\s\S]*(?:>|>>)/i.test(commandAndOutput) ||
 		text.includes("missing the terminator") ||
 		text.includes("here-string") ||
-		text.includes("no characters are allowed after a here-string header")
+		text.includes("no characters are allowed after a here-string header") ||
+		text.includes("command line is too long")
 	)
 }
 

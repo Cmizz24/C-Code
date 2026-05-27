@@ -73,6 +73,7 @@ describe("executeCommand", () => {
 
 		// Mock TerminalRegistry.getOrCreateTerminal
 		;(TerminalRegistry.getOrCreateTerminal as any).mockResolvedValue(mockTerminal)
+		;(Terminal.compressTerminalOutput as any).mockImplementation((output: string) => output)
 	})
 
 	describe("Working Directory Behavior", () => {
@@ -386,6 +387,39 @@ describe("executeCommand", () => {
 			expect(result).toContain("Exit code: 1")
 			expect(result).toContain("retry with the normal write/edit tools")
 			expect(result).toContain("instead of shell here-strings, heredocs, or echo chains")
+			expect(result).toContain("not for embedding file contents")
+		})
+
+		it("nudges background agents when an oversized command line fails", async () => {
+			mockTask.background = true
+			mockTask.agentId = "js-agent"
+			mockTerminal.getCurrentWorkingDirectory.mockReturnValue("/test/project")
+			mockTerminal.runCommand.mockImplementation((_command: string, callbacks: RooTerminalCallbacks) => {
+				let resolveProcess: (() => void) | undefined
+				const process = new Promise<void>((resolve) => {
+					resolveProcess = resolve
+				}) as any
+				process.continue = vitest.fn()
+				setTimeout(async () => {
+					callbacks.onShellExecutionComplete({ exitCode: 1 }, process)
+					await callbacks.onCompleted("The command line is too long.", process)
+					resolveProcess?.()
+				}, 0)
+				return process
+			})
+
+			const options: ExecuteCommandOptions = {
+				executionId: "test-123",
+				command: "powershell -Command \"@'`n$largeGeneratedFileContent`n'@ | Set-Content app.js\"",
+				terminalShellIntegrationDisabled: false,
+			}
+
+			const [rejected, result] = await executeCommandInTerminal(mockTask, options)
+
+			expect(rejected).toBe(false)
+			expect(result).toContain("Exit code: 1")
+			expect(result).toContain("The command line is too long.")
+			expect(result).toContain("retry with the normal write/edit tools")
 			expect(result).toContain("not for embedding file contents")
 		})
 

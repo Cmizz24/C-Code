@@ -2044,7 +2044,7 @@ describe("ClineProvider", () => {
 		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
 	})
 
-	test("merge approval disposes completed background agents before deleting worktrees", async () => {
+	test("merge approval aborts and disposes completed background agents before deleting worktrees", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const parentTask = new Task(defaultTaskOptions)
 		await provider.addClineToStack(parentTask)
@@ -2078,6 +2078,9 @@ describe("ClineProvider", () => {
 			startTask: false,
 		})
 		const disposeOrder: string[] = []
+		backgroundTask.abortTask = vi.fn(async () => {
+			disposeOrder.push("abort")
+		}) as any
 		backgroundTask.dispose = vi.fn(() => {
 			disposeOrder.push("dispose")
 		})
@@ -2087,9 +2090,12 @@ describe("ClineProvider", () => {
 
 		await expect(provider.mergeApprovedAgents(["dashboard-agent", "styles-agent"])).resolves.toBe(true)
 
+		expect(backgroundTask.abortTask).toHaveBeenCalledWith(true)
 		expect(backgroundTask.dispose).toHaveBeenCalledTimes(1)
-		expect(disposeOrder[0]).toBe("dispose")
+		expect(disposeOrder[0]).toBe("abort")
+		expect(disposeOrder[1]).toBe("dispose")
 		expect(disposeOrder).toContain("removeWorktree")
+		expect(disposeOrder.indexOf("removeWorktree")).toBeGreaterThan(disposeOrder.indexOf("dispose"))
 		expect((provider as any).backgroundTasks.size).toBe(0)
 	})
 
