@@ -20,6 +20,7 @@ import {
 	xaiModels,
 	internationalZAiModels,
 	minimaxModels,
+	xiaomiMiMoModels,
 } from "./providers/index.js"
 
 /**
@@ -112,6 +113,7 @@ export const providerNames = [
 	"mistral",
 	"moonshot",
 	"minimax",
+	"xiaomi-mimo",
 	"openai-codex",
 	"openai-native",
 	"qwen-code",
@@ -325,6 +327,13 @@ const minimaxSchema = apiModelIdProviderModelSchema.extend({
 	minimaxApiKey: z.string().optional(),
 })
 
+const xiaomiMiMoSchema = apiModelIdProviderModelSchema.extend({
+	xiaomiMiMoBaseUrl: z
+		.union([z.literal("https://api.xiaomimimo.com/v1"), z.literal("https://token-plan-cn.xiaomimimo.com/v1")])
+		.optional(),
+	xiaomiMiMoApiKey: z.string().optional(),
+})
+
 const requestySchema = baseProviderSettingsSchema.extend({
 	requestyBaseUrl: z.string().optional(),
 	requestyApiKey: z.string().optional(),
@@ -403,6 +412,7 @@ export const providerSettingsSchemaDiscriminated = z.discriminatedUnion("apiProv
 	poeSchema.merge(z.object({ apiProvider: z.literal("poe") })),
 	moonshotSchema.merge(z.object({ apiProvider: z.literal("moonshot") })),
 	minimaxSchema.merge(z.object({ apiProvider: z.literal("minimax") })),
+	xiaomiMiMoSchema.merge(z.object({ apiProvider: z.literal("xiaomi-mimo") })),
 	requestySchema.merge(z.object({ apiProvider: z.literal("requesty") })),
 	unboundSchema.merge(z.object({ apiProvider: z.literal("unbound") })),
 	fakeAiSchema.merge(z.object({ apiProvider: z.literal("fake-ai") })),
@@ -436,6 +446,7 @@ export const providerSettingsSchema = z.object({
 	...poeSchema.shape,
 	...moonshotSchema.shape,
 	...minimaxSchema.shape,
+	...xiaomiMiMoSchema.shape,
 	...requestySchema.shape,
 	...unboundSchema.shape,
 	...fakeAiSchema.shape,
@@ -509,6 +520,7 @@ export const modelIdKeysByProvider: Record<TypicalProvider, ModelIdKey> = {
 	mistral: "apiModelId",
 	moonshot: "apiModelId",
 	minimax: "apiModelId",
+	"xiaomi-mimo": "apiModelId",
 	deepseek: "apiModelId",
 	poe: "apiModelId",
 	"qwen-code": "apiModelId",
@@ -594,6 +606,11 @@ export const MODELS_BY_PROVIDER: Record<
 		id: "minimax",
 		label: "MiniMax",
 		models: Object.keys(minimaxModels),
+	},
+	"xiaomi-mimo": {
+		id: "xiaomi-mimo",
+		label: "Xiaomi MiMo",
+		models: Object.keys(xiaomiMiMoModels),
 	},
 	"openai-codex": {
 		id: "openai-codex",

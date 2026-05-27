@@ -32,6 +32,7 @@ vi.mock("fs", () => ({
 vi.mock("../litellm")
 vi.mock("../openrouter")
 vi.mock("../requesty")
+vi.mock("../static-provider-models")
 
 // Mock ContextProxy with a simple static instance
 vi.mock("../../../core/config/ContextProxy", () => ({
@@ -52,10 +53,34 @@ import { getModels, getModelsFromCache } from "../modelCache"
 import { getLiteLLMModels } from "../litellm"
 import { getOpenRouterModels } from "../openrouter"
 import { getRequestyModels } from "../requesty"
+import {
+	getAnthropicModels,
+	getBasetenModels,
+	getDeepSeekModels,
+	getFireworksModels,
+	getGeminiModels,
+	getMiniMaxModels,
+	getMistralModels,
+	getMoonshotModels,
+	getOpenAiNativeModels,
+	getSambaNovaModels,
+	getXAIModels,
+} from "../static-provider-models"
 
 const mockGetLiteLLMModels = getLiteLLMModels as Mock<typeof getLiteLLMModels>
 const mockGetOpenRouterModels = getOpenRouterModels as Mock<typeof getOpenRouterModels>
 const mockGetRequestyModels = getRequestyModels as Mock<typeof getRequestyModels>
+const mockGetAnthropicModels = getAnthropicModels as Mock<typeof getAnthropicModels>
+const mockGetXAIModels = getXAIModels as Mock<typeof getXAIModels>
+const mockGetOpenAiNativeModels = getOpenAiNativeModels as Mock<typeof getOpenAiNativeModels>
+const mockGetMistralModels = getMistralModels as Mock<typeof getMistralModels>
+const mockGetDeepSeekModels = getDeepSeekModels as Mock<typeof getDeepSeekModels>
+const mockGetGeminiModels = getGeminiModels as Mock<typeof getGeminiModels>
+const mockGetMoonshotModels = getMoonshotModels as Mock<typeof getMoonshotModels>
+const mockGetFireworksModels = getFireworksModels as Mock<typeof getFireworksModels>
+const mockGetBasetenModels = getBasetenModels as Mock<typeof getBasetenModels>
+const mockGetSambaNovaModels = getSambaNovaModels as Mock<typeof getSambaNovaModels>
+const mockGetMiniMaxModels = getMiniMaxModels as Mock<typeof getMiniMaxModels>
 
 const DUMMY_REQUESTY_KEY = "requesty-key-for-testing"
 
@@ -117,6 +142,90 @@ describe("getModels with new GetModelsOptions", () => {
 
 		expect(mockGetRequestyModels).toHaveBeenCalledWith(undefined, DUMMY_REQUESTY_KEY)
 		expect(result).toEqual(mockModels)
+	})
+
+	it("routes credentialed static providers through their official model-list fetchers", async () => {
+		const mockModels = {
+			"provider/model": {
+				maxTokens: 8192,
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Provider model",
+			},
+		}
+
+		mockGetAnthropicModels.mockResolvedValue(mockModels)
+		mockGetXAIModels.mockResolvedValue(mockModels)
+		mockGetOpenAiNativeModels.mockResolvedValue(mockModels)
+		mockGetMistralModels.mockResolvedValue(mockModels)
+		mockGetDeepSeekModels.mockResolvedValue(mockModels)
+		mockGetGeminiModels.mockResolvedValue(mockModels)
+		mockGetMoonshotModels.mockResolvedValue(mockModels)
+		mockGetFireworksModels.mockResolvedValue(mockModels)
+		mockGetBasetenModels.mockResolvedValue(mockModels)
+		mockGetSambaNovaModels.mockResolvedValue(mockModels)
+		mockGetMiniMaxModels.mockResolvedValue(mockModels)
+
+		await expect(
+			getModels({ provider: "anthropic", apiKey: "anthropic-key", baseUrl: "https://api.anthropic.com" }),
+		).resolves.toEqual(mockModels)
+		await expect(getModels({ provider: "xai", apiKey: "xai-key" })).resolves.toEqual(mockModels)
+		await expect(
+			getModels({ provider: "openai-native", apiKey: "openai-key", baseUrl: "https://api.openai.com/v1" }),
+		).resolves.toEqual(mockModels)
+		await expect(
+			getModels({ provider: "mistral", apiKey: "mistral-key", baseUrl: "https://api.mistral.ai/v1" }),
+		).resolves.toEqual(mockModels)
+		await expect(
+			getModels({ provider: "deepseek", apiKey: "deepseek-key", baseUrl: "https://api.deepseek.com" }),
+		).resolves.toEqual(mockModels)
+		await expect(
+			getModels({
+				provider: "gemini",
+				apiKey: "gemini-key",
+				baseUrl: "https://generativelanguage.googleapis.com",
+			}),
+		).resolves.toEqual(mockModels)
+		await expect(
+			getModels({ provider: "moonshot", apiKey: "moonshot-key", baseUrl: "https://api.moonshot.ai/v1" }),
+		).resolves.toEqual(mockModels)
+		await expect(getModels({ provider: "fireworks", apiKey: "fireworks-key" })).resolves.toEqual(mockModels)
+		await expect(getModels({ provider: "baseten", apiKey: "baseten-key" })).resolves.toEqual(mockModels)
+		await expect(getModels({ provider: "sambanova", apiKey: "sambanova-key" })).resolves.toEqual(mockModels)
+		await expect(
+			getModels({ provider: "minimax", apiKey: "minimax-key", baseUrl: "https://api.minimax.io/v1" }),
+		).resolves.toEqual(mockModels)
+
+		expect(mockGetAnthropicModels).toHaveBeenCalledWith("anthropic-key", "https://api.anthropic.com")
+		expect(mockGetXAIModels).toHaveBeenCalledWith("xai-key")
+		expect(mockGetOpenAiNativeModels).toHaveBeenCalledWith("openai-key", "https://api.openai.com/v1")
+		expect(mockGetMistralModels).toHaveBeenCalledWith("mistral-key", "https://api.mistral.ai/v1")
+		expect(mockGetDeepSeekModels).toHaveBeenCalledWith("deepseek-key", "https://api.deepseek.com")
+		expect(mockGetGeminiModels).toHaveBeenCalledWith("gemini-key", "https://generativelanguage.googleapis.com")
+		expect(mockGetMoonshotModels).toHaveBeenCalledWith("moonshot-key", "https://api.moonshot.ai/v1")
+		expect(mockGetFireworksModels).toHaveBeenCalledWith("fireworks-key")
+		expect(mockGetBasetenModels).toHaveBeenCalledWith("baseten-key")
+		expect(mockGetSambaNovaModels).toHaveBeenCalledWith("sambanova-key")
+		expect(mockGetMiniMaxModels).toHaveBeenCalledWith("minimax-key", "https://api.minimax.io/v1")
+	})
+
+	it("routes DeepSeek through the official model-list fetcher with API key and base URL", async () => {
+		const deepSeekModels = {
+			"deepseek-v4-pro": {
+				maxTokens: 384_000,
+				contextWindow: 1_000_000,
+				supportsPromptCache: true,
+				description: "DeepSeek V4 Pro",
+			},
+		}
+		mockGetDeepSeekModels.mockResolvedValue(deepSeekModels)
+
+		await expect(
+			getModels({ provider: "deepseek", apiKey: "deepseek-key", baseUrl: "https://api.deepseek.com" }),
+		).resolves.toEqual(deepSeekModels)
+
+		expect(mockGetDeepSeekModels).toHaveBeenCalledTimes(1)
+		expect(mockGetDeepSeekModels).toHaveBeenCalledWith("deepseek-key", "https://api.deepseek.com")
 	})
 
 	it("handles errors and re-throws them", async () => {

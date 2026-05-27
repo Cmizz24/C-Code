@@ -9,11 +9,14 @@ import {
 	ProviderSettings,
 	ModelInfo,
 	BEDROCK_1M_CONTEXT_MODEL_IDS,
+	deepSeekDefaultModelId,
 	litellmDefaultModelInfo,
 	openAiModelInfoSaneDefaults,
 	minimaxDefaultModelId,
 	minimaxModels,
 	openRouterDefaultModelId,
+	xiaomiMiMoDefaultModelId,
+	xiaomiMiMoModels,
 } from "@roo-code/types"
 
 import { useSelectedModel } from "../useSelectedModel"
@@ -417,11 +420,11 @@ describe("useSelectedModel", () => {
 			} as any)
 		})
 
-		it("should apply 1M pricing tier for Claude Sonnet 4.6 when enabled", () => {
+		it("should use GA 1M context and standard pricing for Claude Sonnet 4.6", () => {
 			const apiConfiguration: ProviderSettings = {
 				apiProvider: "anthropic",
 				apiModelId: "claude-sonnet-4-6",
-				anthropicBeta1MContext: true,
+				anthropicBeta1MContext: false,
 			}
 
 			const wrapper = createWrapper()
@@ -429,8 +432,8 @@ describe("useSelectedModel", () => {
 
 			expect(result.current.id).toBe("claude-sonnet-4-6")
 			expect(result.current.info?.contextWindow).toBe(1_000_000)
-			expect(result.current.info?.inputPrice).toBe(6.0)
-			expect(result.current.info?.outputPrice).toBe(22.5)
+			expect(result.current.info?.inputPrice).toBe(3.0)
+			expect(result.current.info?.outputPrice).toBe(15.0)
 		})
 	})
 
@@ -645,6 +648,73 @@ describe("useSelectedModel", () => {
 		})
 	})
 
+	describe("deepseek provider", () => {
+		beforeEach(() => {
+			mockUseOpenRouterModelProviders.mockReturnValue({
+				data: {},
+				isLoading: false,
+				isError: false,
+			} as any)
+		})
+
+		it("should return the current DeepSeek default model when no custom model is specified", () => {
+			mockUseRouterModels.mockReturnValue({
+				data: undefined,
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "deepseek",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.id).toBe(deepSeekDefaultModelId)
+			expect(result.current.info).toMatchObject({
+				contextWindow: 1_000_000,
+				maxTokens: 384_000,
+				supportsPromptCache: true,
+				supportsReasoningEffort: ["disable", "high", "xhigh"],
+				reasoningEffort: "high",
+			})
+		})
+
+		it("should merge dynamic DeepSeek router metadata with static fallback metadata", () => {
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					deepseek: {
+						"deepseek-v4-pro": {
+							description: "Dynamic DeepSeek V4 Pro",
+							supportsPromptCache: false,
+						} as ModelInfo,
+					},
+				},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "deepseek",
+				apiModelId: "deepseek-v4-pro",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.id).toBe("deepseek-v4-pro")
+			expect(result.current.info).toMatchObject({
+				contextWindow: 1_000_000,
+				maxTokens: 384_000,
+				description: "Dynamic DeepSeek V4 Pro",
+				supportsPromptCache: false,
+				supportsReasoningEffort: ["disable", "high", "xhigh"],
+				reasoningEffort: "high",
+			})
+		})
+	})
+
 	describe("openai provider", () => {
 		beforeEach(() => {
 			mockUseRouterModels.mockReturnValue({
@@ -770,6 +840,81 @@ describe("useSelectedModel", () => {
 			expect(result.current.provider).toBe("minimax")
 			expect(result.current.id).toBe("MiniMax-M2.7")
 			expect(result.current.info).toEqual(minimaxModels["MiniMax-M2.7"])
+		})
+	})
+
+	describe("xiaomi-mimo provider", () => {
+		beforeEach(() => {
+			vi.clearAllMocks()
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					openrouter: {},
+					requesty: {},
+					litellm: {},
+				},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			mockUseOpenRouterModelProviders.mockReturnValue({
+				data: {},
+				isLoading: false,
+				isError: false,
+			} as any)
+		})
+
+		it("should return default Xiaomi MiMo model when no custom model is specified", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "xiaomi-mimo",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("xiaomi-mimo")
+			expect(result.current.id).toBe(xiaomiMiMoDefaultModelId)
+			expect(result.current.info).toEqual(xiaomiMiMoModels[xiaomiMiMoDefaultModelId])
+		})
+
+		it("should use static Xiaomi MiMo model metadata when configured model exists", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "xiaomi-mimo",
+				apiModelId: "mimo-v2-omni",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("xiaomi-mimo")
+			expect(result.current.id).toBe("mimo-v2-omni")
+			expect(result.current.info).toEqual(xiaomiMiMoModels["mimo-v2-omni"])
+		})
+
+		it("should preserve unknown Xiaomi MiMo model IDs without router fallback metadata", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "xiaomi-mimo",
+				apiModelId: "unlisted-mimo-model",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("xiaomi-mimo")
+			expect(result.current.id).toBe("unlisted-mimo-model")
+			expect(result.current.info).toBeUndefined()
+		})
+
+		it("should not request router models for Xiaomi MiMo", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "xiaomi-mimo",
+				xiaomiMiMoApiKey: "test-api-key",
+				xiaomiMiMoBaseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+			}
+
+			const wrapper = createWrapper()
+			renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(mockUseRouterModels).toHaveBeenCalledWith({ provider: undefined, enabled: false })
 		})
 	})
 })

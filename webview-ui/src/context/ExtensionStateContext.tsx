@@ -380,7 +380,10 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 					break
 				}
 				case "routerModels": {
-					setExtensionRouterModels(message.routerModels)
+					setExtensionRouterModels((prevModels) => ({
+						...(prevModels ?? {}),
+						...message.routerModels,
+					}))
 					break
 				}
 				case "taskHistoryUpdated": {

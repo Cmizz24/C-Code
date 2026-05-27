@@ -253,6 +253,30 @@ describe("OpenAiNativeHandler", () => {
 			expect(modelInfo.info.reasoningEffort).toBe("none")
 		})
 
+		it("should return OpenAI API GPT-5.5 model info with 1M context when selected", () => {
+			const gpt55Handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "gpt-5.5",
+			})
+
+			const modelInfo = gpt55Handler.getModel()
+			expect(modelInfo.id).toBe("gpt-5.5")
+			expect(modelInfo.info.maxTokens).toBe(128000)
+			expect(modelInfo.info.contextWindow).toBe(1_050_000)
+			expect(modelInfo.info.inputPrice).toBe(5.0)
+			expect(modelInfo.info.outputPrice).toBe(30.0)
+			expect(modelInfo.info.supportsVerbosity).toBe(true)
+			expect(modelInfo.info.supportsReasoningEffort).toEqual(["none", "low", "medium", "high", "xhigh"])
+			expect(modelInfo.info.reasoningEffort).toBe("medium")
+			expect(modelInfo.info.longContextPricing).toEqual(
+				expect.objectContaining({
+					thresholdTokens: 272_000,
+					inputPriceMultiplier: 2,
+					outputPriceMultiplier: 1.5,
+				}),
+			)
+		})
+
 		it("should return GPT-5.4 Mini model info when selected", () => {
 			const gpt54MiniHandler = new OpenAiNativeHandler({
 				...mockOptions,

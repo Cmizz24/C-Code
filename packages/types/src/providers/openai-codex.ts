@@ -16,7 +16,7 @@ import type { ModelInfo } from "../model.js"
 
 export type OpenAiCodexModelId = keyof typeof openAiCodexModels
 
-export const openAiCodexDefaultModelId: OpenAiCodexModelId = "gpt-5.3-codex"
+export const openAiCodexDefaultModelId: OpenAiCodexModelId = "gpt-5.5"
 
 /**
  * Models available through the Codex OAuth flow.
@@ -174,13 +174,13 @@ export const openAiCodexModels = {
 	},
 	"gpt-5.5": {
 		maxTokens: 128000,
-		contextWindow: 1_050_000,
+		contextWindow: 256_000,
 		includedTools: ["apply_patch"],
 		excludedTools: ["apply_diff", "write_to_file"],
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsReasoningEffort: ["none", "low", "medium", "high", "xhigh"],
-		reasoningEffort: "none",
+		reasoningEffort: "medium",
 		inputPrice: 0,
 		outputPrice: 0,
 		supportsVerbosity: true,
