@@ -67,6 +67,8 @@ describe("attemptCompletionTool", () => {
 			emitFinalTokenUsageUpdate: vi.fn(),
 			emit: vi.fn(),
 			getTokenUsage: vi.fn().mockReturnValue({}),
+			markAgentTerminal: vi.fn(),
+			cancelCurrentRequest: vi.fn(),
 			toolUsage: {},
 			taskId: "task_1",
 			apiConfiguration: { apiProvider: "test" } as any,
@@ -636,6 +638,8 @@ describe("attemptCompletionTool", () => {
 				expect(mockAskFinishSubTaskApproval).not.toHaveBeenCalled()
 				expect(provider.reopenParentFromDelegation).not.toHaveBeenCalled()
 				expect(consoleError).not.toHaveBeenCalled()
+				expect(parallelTask.markAgentTerminal).toHaveBeenCalledTimes(1)
+				expect(parallelTask.cancelCurrentRequest).toHaveBeenCalledTimes(1)
 				expect(mockTask.emit).toHaveBeenCalledWith(
 					RooCodeEventName.TaskCompleted,
 					"task_1",

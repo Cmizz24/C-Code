@@ -251,7 +251,7 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 			EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
 		)
 
-		if (isPreventFocusDisruptionEnabled || task.background) {
+		if (isPreventFocusDisruptionEnabled && !task.background) {
 			return
 		}
 
@@ -266,12 +266,6 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 			task.diffViewProvider.editType = fileExists ? "modify" : "create"
 		}
 
-		// Create parent directories early for new files to prevent ENOENT errors
-		// in subsequent operations (e.g., diffViewProvider.open)
-		if (!fileExists) {
-			await createDirectoriesForFile(absolutePath)
-		}
-
 		const isWriteProtected = task.rooProtectedController?.isWriteProtected(relPath!) || false
 		const isOutsideWorkspace = isPathOutsideWorkspace(absolutePath)
 
@@ -281,6 +275,40 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 			content: newContent || "",
 			isOutsideWorkspace,
 			isProtected: isWriteProtected,
+		}
+
+		if (task.background) {
+			const normalizedContent = newContent
+				? everyLineHasLineNumbers(newContent)
+					? stripLineNumbers(newContent)
+					: newContent
+				: ""
+			let originalContent = task.diffViewProvider.originalContent ?? ""
+
+			if (fileExists && !originalContent) {
+				originalContent = await fs.readFile(absolutePath, "utf-8")
+				task.diffViewProvider.originalContent = originalContent
+			}
+
+			let unified = fileExists
+				? formatResponse.createPrettyPatch(relPath!, originalContent, normalizedContent)
+				: convertNewFileToUnifiedDiff(normalizedContent, relPath!)
+			unified = sanitizeUnifiedDiff(unified)
+			const diffStats = computeDiffStats(unified) || undefined
+
+			const partialMessage = JSON.stringify({
+				...sharedMessageProps,
+				content: unified,
+				diffStats,
+			} satisfies ClineSayTool)
+			await task.ask("tool", partialMessage, block.partial).catch(() => {})
+			return
+		}
+
+		// Create parent directories early for new files to prevent ENOENT errors
+		// in subsequent operations (e.g., diffViewProvider.open)
+		if (!fileExists) {
+			await createDirectoriesForFile(absolutePath)
 		}
 
 		const partialMessage = JSON.stringify(sharedMessageProps)

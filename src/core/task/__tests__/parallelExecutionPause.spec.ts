@@ -23,6 +23,25 @@ describe("Task parallel execution pause", () => {
 		expect(task.say).not.toHaveBeenCalledWith("api_req_started", expect.anything())
 	})
 
+	it("ends a terminal background agent loop before another model request", async () => {
+		const task = {
+			abort: false,
+			taskId: "agent-task",
+			instanceId: "instance-id",
+			parallelExecutionPaused: false,
+			consecutiveMistakeLimit: 0,
+			isAgentTerminal: vi.fn(() => true),
+			flushPendingToolResultsToHistory: vi.fn(),
+			say: vi.fn(),
+		}
+
+		const didEndLoop = await Task.prototype.recursivelyMakeClineRequests.call(task as any, [], false)
+
+		expect(didEndLoop).toBe(true)
+		expect(task.say).not.toHaveBeenCalledWith("api_req_started", expect.anything())
+		expect(task.flushPendingToolResultsToHistory).not.toHaveBeenCalled()
+	})
+
 	it("resumes the parent loop after merged parallel execution", async () => {
 		const task = Object.create(Task.prototype) as any
 		task.parallelExecutionPaused = true

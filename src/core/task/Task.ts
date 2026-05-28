@@ -190,6 +190,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	readonly agentId?: string
 	readonly agentBus?: AgentBus
 	readonly background: boolean
+	private agentTerminal = false
 	private readonly systemPromptSuffix?: string
 
 	private getDisabledToolsForNativeRequests(disabledTools: readonly string[] | undefined): string[] | undefined {
@@ -2630,6 +2631,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	// Task Loop
 
 	private async initiateTaskLoop(userContent: Anthropic.Messages.ContentBlockParam[]): Promise<void> {
+		if (this.isAgentTerminal?.() === true) {
+			this.userMessageContentReady = true
+			return
+		}
+
 		// Kicks off the checkpoints initialization process in the background.
 		getCheckpointService(this)
 
@@ -2638,7 +2644,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		this.emit(RooCodeEventName.TaskStarted)
 
-		while (!this.abort) {
+		while (!this.abort && this.isAgentTerminal?.() !== true) {
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // We only need file details the first time.
 
@@ -2683,6 +2689,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			if (this.abort) {
 				throw new Error(`[RooCode#recursivelyMakeRooRequests] task ${this.taskId}.${this.instanceId} aborted`)
+			}
+
+			if (this.isAgentTerminal?.() === true) {
+				this.userMessageContentReady = true
+				return true
 			}
 
 			if (this.parallelExecutionPaused) {
@@ -2732,6 +2743,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// This ensures subsequent requests (including subtasks) still honour the
 			// provider rate-limit window.
 			await this.maybeWaitForProviderRateLimit(currentItem.retryAttempt ?? 0)
+
+			if (this.isAgentTerminal?.() === true) {
+				this.userMessageContentReady = true
+				return true
+			}
+
 			Task.lastGlobalApiRequestTime = performance.now()
 
 			await this.say(
@@ -2974,6 +2991,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 					let item = await nextChunkWithAbort()
 					while (!item.done) {
+						if (this.isAgentTerminal?.() === true) {
+							this.userMessageContentReady = true
+							break
+						}
+
 						const chunk = item.value
 						item = await nextChunkWithAbort()
 						if (!chunk) {
@@ -3192,6 +3214,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							}
 						}
 
+						if (this.isAgentTerminal?.() === true) {
+							this.userMessageContentReady = true
+							break
+						}
+
 						if (this.abort) {
 							console.log(`aborting stream, this.abandoned = ${this.abandoned}`)
 
@@ -3284,7 +3311,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							let chunkCount = 0
 
 							// Use the same iterator that the main loop was using
-							while (!item.done) {
+							while (!item.done && this.isAgentTerminal?.() !== true) {
 								// Check for timeout
 								if (performance.now() - startTime > timeoutMs) {
 									console.warn(
@@ -3357,10 +3384,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						}
 					}
 
-					// Start the background task and handle any errors
-					drainStreamInBackgroundToFindAllUsage(lastApiReqIndex).catch((error) => {
-						console.error("Background usage collection failed:", error)
-					})
+					// Start the background task and handle any errors, unless a parallel agent
+					// already reached a terminal state and the provider request has been cancelled.
+					if (this.isAgentTerminal?.() !== true) {
+						drainStreamInBackgroundToFindAllUsage(lastApiReqIndex).catch((error) => {
+							console.error("Background usage collection failed:", error)
+						})
+					}
 				} catch (error) {
 					// Abandoned happens when extension is no longer waiting for the
 					// Cline instance to finish aborting (error is thrown here when
@@ -3430,6 +3460,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				}
 
 				this.didCompleteReadingStream = true
+
+				if (this.isAgentTerminal?.() === true) {
+					this.userMessageContentReady = true
+					return true
+				}
 
 				// Set any blocks to be complete to allow `presentAssistantMessage`
 				// to finish and set `userMessageContentReady` to true.
@@ -3694,6 +3729,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					// }
 
 					await pWaitFor(() => this.userMessageContentReady)
+
+					if (this.isAgentTerminal?.() === true) {
+						this.userMessageContentReady = true
+						return true
+					}
 
 					if (this.parallelExecutionPaused) {
 						await this.flushPendingToolResultsToHistory()
@@ -3972,11 +4012,20 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	public isAgentTerminal(): boolean {
+		if (this.agentTerminal) {
+			return true
+		}
+
 		if (!this.agentId || !this.agentBus) {
 			return false
 		}
 
 		return this.agentBus.isAgentTerminal(this.agentId)
+	}
+
+	public markAgentTerminal(): void {
+		this.agentTerminal = true
+		this.userMessageContentReady = true
 	}
 
 	public publishAgentCoordination(input: PublishAgentCoordinationInput): AgentCoordinationEvent | undefined {

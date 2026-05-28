@@ -140,6 +140,11 @@ export async function presentAssistantMessage(cline: Task) {
 		throw new Error(`[Task#presentAssistantMessage] task ${cline.taskId}.${cline.instanceId} aborted`)
 	}
 
+	if (cline.isAgentTerminal?.()) {
+		cline.userMessageContentReady = true
+		return
+	}
+
 	if (cline.parallelPlanPaused) {
 		return
 	}
@@ -1067,6 +1072,11 @@ export async function presentAssistantMessage(cline: Task) {
 	// cline.presentAssistantMessage below would fail (sometimes) since it's
 	// locked.
 	cline.presentAssistantMessageLocked = false
+
+	if (cline.isAgentTerminal?.()) {
+		cline.userMessageContentReady = true
+		return
+	}
 
 	// NOTE: When tool is rejected, iterator stream is interrupted and it waits
 	// for `userMessageContentReady` to be true. Future calls to present will

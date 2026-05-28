@@ -93,7 +93,7 @@ describe("WorktreeManager", () => {
 			throw new Error(`Unexpected command: ${command}`)
 		})
 
-		await manager.createWorktree("ui-ux", "plan-test")
+		const worktreePath = await manager.createWorktree("ui-ux", "plan-test")
 
 		expect(execMock).toHaveBeenNthCalledWith(
 			1,
@@ -132,11 +132,19 @@ describe("WorktreeManager", () => {
 			}),
 			expect.any(Function),
 		)
-		expect(execMock).toHaveBeenCalledWith(
-			expect.stringMatching(/^git worktree add -B "roo\/parallel\/plan-test\/ui-ux" .+ baseline123$/),
-			expect.objectContaining({ cwd: "C:/repo" }),
-			expect.any(Function),
+		const worktreeAddCall = execMock.mock.calls.find(([command]) =>
+			String(command).startsWith('git worktree add -B "roo/parallel/plan-test/ui-ux" '),
 		)
+		expect(worktreeAddCall).toBeDefined()
+		const worktreeAddCommand = String(worktreeAddCall?.[0]).replace(/\\/g, "/")
+		const normalizedWorktreePath = worktreePath.replace(/\\/g, "/")
+		expect(worktreeAddCommand).toMatch(/^git worktree add -B "roo\/parallel\/plan-test\/ui-ux" .+ baseline123$/)
+		expect(worktreeAddCommand).toContain(normalizedWorktreePath)
+		expect(normalizedWorktreePath).toContain("/.roo/parallel-worktrees/")
+		expect(normalizedWorktreePath).toContain("/plan-test/ui-ux")
+		expect(normalizedWorktreePath).not.toContain("C:/repo/.roo/parallel-worktrees")
+		expect(manager.getCreatedWorktrees()).toEqual([worktreePath])
+		expect(worktreeAddCall?.[1]).toEqual(expect.objectContaining({ cwd: "C:/repo" }))
 		expect(fsMock.rm).toHaveBeenCalledWith("C:/tmp/roo-parallel-baseline-1", { recursive: true, force: true })
 	})
 

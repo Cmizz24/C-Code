@@ -489,15 +489,27 @@ describe("writeToFileTool", () => {
 			expect(mockCline.diffViewProvider.update).toHaveBeenCalledWith(testContent, false)
 		})
 
-		it("does not open editable previews for background partial writes", async () => {
+		it("streams live diff rows for background partial writes without opening editable previews", async () => {
 			mockCline.background = true
 
 			await executeWriteFileTool({}, { isPartial: true })
+			expect(mockCline.ask).not.toHaveBeenCalled()
+
 			await executeWriteFileTool({}, { isPartial: true })
 
-			expect(mockCline.ask).not.toHaveBeenCalled()
+			expect(mockCline.ask).toHaveBeenCalledTimes(1)
+			const payload = JSON.parse(mockCline.ask.mock.calls[0][1])
+			expect(payload).toEqual(
+				expect.objectContaining({
+					tool: "newFileCreated",
+					path: "test/path.txt",
+					content: expect.stringContaining("+Line 1"),
+				}),
+			)
+			expect(payload.content).not.toBe(testContent)
 			expect(mockCline.diffViewProvider.open).not.toHaveBeenCalled()
 			expect(mockCline.diffViewProvider.update).not.toHaveBeenCalled()
+			expect(mockedCreateDirectoriesForFile).not.toHaveBeenCalled()
 		})
 	})
 

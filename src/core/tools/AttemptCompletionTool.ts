@@ -154,7 +154,7 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 			await task.say("completion_result", result, undefined, false)
 
 			if (isParallelAgentTask(task)) {
-				this.emitTaskCompleted(task)
+				this.completeParallelAgentTask(task)
 				return
 			}
 
@@ -281,6 +281,12 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 		} else {
 			await task.say("completion_result", result ?? "", undefined, block.partial)
 		}
+	}
+
+	private completeParallelAgentTask(task: Task): void {
+		task.markAgentTerminal()
+		task.cancelCurrentRequest()
+		this.emitTaskCompleted(task)
 	}
 
 	private emitTaskCompleted(task: Task): void {

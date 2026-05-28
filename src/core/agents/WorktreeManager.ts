@@ -1,5 +1,6 @@
 import path from "path"
 import { exec } from "child_process"
+import { createHash } from "crypto"
 import fs from "fs/promises"
 import os from "os"
 import { promisify } from "util"
@@ -58,6 +59,12 @@ function sanitizeBranchComponent(value: string): string {
 		.replace(/[^a-zA-Z0-9._/-]+/g, "-")
 		.replace(/^-+|-+$/g, "")
 		.slice(0, 80)
+}
+
+function sanitizePathComponent(value: string): string {
+	return sanitizeBranchComponent(value)
+		.replace(/[\\/]+/g, "-")
+		.replace(/^-+|-+$/g, "")
 }
 
 function normalizeGitPath(filePath: string): string {
@@ -172,7 +179,7 @@ export class WorktreeManager {
 		const safePlanId = sanitizeBranchComponent(planId) || "plan"
 		const safeAgentId = sanitizeBranchComponent(agentId) || "agent"
 		const branchName = `roo/parallel/${safePlanId}/${safeAgentId}`
-		const worktreePath = path.join(this.repoRoot, ".roo", "parallel-worktrees", safePlanId, safeAgentId)
+		const worktreePath = this.getParallelWorktreePath(gitRoot, safePlanId, safeAgentId)
 
 		await this.removeExistingWorktreeAtPath(gitRoot, worktreePath)
 
@@ -185,6 +192,21 @@ export class WorktreeManager {
 
 		this.createdWorktrees.add(worktreePath)
 		return worktreePath
+	}
+
+	private getParallelWorktreePath(gitRoot: string, safePlanId: string, safeAgentId: string): string {
+		const resolvedGitRoot = path.resolve(gitRoot)
+		const repoName = sanitizePathComponent(path.basename(resolvedGitRoot)) || "repo"
+		const repoHash = createHash("sha1").update(resolvedGitRoot.toLowerCase()).digest("hex").slice(0, 12)
+
+		return path.join(
+			os.homedir(),
+			".roo",
+			"parallel-worktrees",
+			`${repoName}-${repoHash}`,
+			sanitizePathComponent(safePlanId) || "plan",
+			sanitizePathComponent(safeAgentId) || "agent",
+		)
 	}
 
 	public async removeWorktree(worktreePath: string): Promise<void> {

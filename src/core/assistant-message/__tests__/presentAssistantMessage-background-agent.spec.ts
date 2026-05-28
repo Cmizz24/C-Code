@@ -19,11 +19,35 @@ vi.mock("../../../../integrations/checkpoints/CheckpointTracker", () => ({
 }))
 
 function createBackgroundAgentTask(
-	toolName: "new_task" | "plan_parallel_tasks" | "write_to_file",
-	options: { taskMode?: string; providerMode?: string } = {},
+	toolName: "new_task" | "plan_parallel_tasks" | "write_to_file" | "attempt_completion",
+	options: { taskMode?: string; providerMode?: string; assistantMessageContent?: any[] } = {},
 ) {
 	const taskMode = options.taskMode ?? "code"
 	const providerMode = options.providerMode ?? "code"
+	const assistantMessageContent = options.assistantMessageContent ?? [
+		{
+			type: "tool_use",
+			id: `tool-${toolName}`,
+			name: toolName,
+			params:
+				toolName === "new_task"
+					? { mode: "code", message: "Delegate this work" }
+					: toolName === "write_to_file"
+						? { path: "README.md", content: "# Project\n" }
+						: toolName === "attempt_completion"
+							? { result: "Agent finished" }
+							: { goal: "Split this work" },
+			nativeArgs:
+				toolName === "new_task"
+					? { mode: "code", message: "Delegate this work" }
+					: toolName === "write_to_file"
+						? { path: "README.md", content: "# Project\n" }
+						: toolName === "attempt_completion"
+							? { result: "Agent finished" }
+							: { goal: "Split this work", sharedContext: "", expectedFiles: [], agents: [] },
+			partial: false,
+		},
+	]
 	const task: any = {
 		taskId: "background-agent-task",
 		instanceId: "instance-id",
@@ -35,26 +59,7 @@ function createBackgroundAgentTask(
 		parallelPlanPaused: false,
 		parallelExecutionPaused: false,
 		currentStreamingContentIndex: 0,
-		assistantMessageContent: [
-			{
-				type: "tool_use",
-				id: `tool-${toolName}`,
-				name: toolName,
-				params:
-					toolName === "new_task"
-						? { mode: "code", message: "Delegate this work" }
-						: toolName === "write_to_file"
-							? { path: "README.md", content: "# Project\n" }
-							: { goal: "Split this work" },
-				nativeArgs:
-					toolName === "new_task"
-						? { mode: "code", message: "Delegate this work" }
-						: toolName === "write_to_file"
-							? { path: "README.md", content: "# Project\n" }
-							: { goal: "Split this work", sharedContext: "", expectedFiles: [], agents: [] },
-				partial: false,
-			},
-		],
+		assistantMessageContent,
 		userMessageContent: [],
 		didCompleteReadingStream: true,
 		didRejectTool: false,
@@ -66,6 +71,18 @@ function createBackgroundAgentTask(
 		currentStreamingDidCheckpoint: false,
 		recordToolUsage: vi.fn(),
 		recordToolError: vi.fn(),
+		markAgentTerminal: vi.fn(),
+		cancelCurrentRequest: vi.fn(),
+		emitFinalTokenUsageUpdate: vi.fn(),
+		emit: vi.fn(),
+		getTokenUsage: vi.fn().mockReturnValue({}),
+		toolUsage: {},
+		getAgentCompletionCoordinationGate: vi.fn(() => ({
+			approved: true,
+			blockers: [],
+			unanswerableQuestions: [],
+		})),
+		isAgentTerminal: vi.fn(() => false),
 		toolRepetitionDetector: { check: vi.fn().mockReturnValue({ allowExecution: true }) },
 		providerRef: {
 			deref: () => ({
@@ -132,4 +149,39 @@ describe("presentAssistantMessage - background agents", () => {
 			expect(task.didAlreadyUseTool).toBe(false)
 		},
 	)
+
+	it("does not execute later file tools after a background agent reports terminal completion", async () => {
+		let terminal = false
+		const task = createBackgroundAgentTask("attempt_completion", {
+			assistantMessageContent: [
+				{
+					type: "tool_use",
+					id: "tool-complete",
+					name: "attempt_completion",
+					params: { result: "Agent finished" },
+					nativeArgs: { result: "Agent finished" },
+					partial: false,
+				},
+				{
+					type: "tool_use",
+					id: "tool-write-after-complete",
+					name: "write_to_file",
+					params: { path: "README.md", content: "# Late write\n" },
+					nativeArgs: { path: "README.md", content: "# Late write\n" },
+					partial: false,
+				},
+			],
+		})
+		task.markAgentTerminal = vi.fn(() => {
+			terminal = true
+		})
+		task.isAgentTerminal = vi.fn(() => terminal)
+
+		await presentAssistantMessage(task)
+
+		expect(task.markAgentTerminal).toHaveBeenCalledTimes(1)
+		expect(task.cancelCurrentRequest).toHaveBeenCalledTimes(1)
+		expect(writeToFileHandle).not.toHaveBeenCalled()
+		expect(task.userMessageContentReady).toBe(true)
+	})
 })
