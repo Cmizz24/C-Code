@@ -27,6 +27,8 @@ export class SearchReplaceTool extends BaseTool<"search_replace"> {
 	async execute(params: SearchReplaceParams, task: Task, callbacks: ToolCallbacks): Promise<void> {
 		const { file_path, old_string, new_string } = params
 		const { askApproval, handleError, pushToolResult } = callbacks
+		let writeIntentRelPath: string | undefined
+		let didAcquireWriteIntent = false
 
 		try {
 			// Validate required parameters
@@ -79,6 +81,17 @@ export class SearchReplaceTool extends BaseTool<"search_replace"> {
 
 			// Check if file is write-protected
 			const isWriteProtected = task.rooProtectedController?.isWriteProtected(relPath) || false
+			const writePermission = task.requestAgentWriteIntent(relPath)
+
+			if (!writePermission.approved) {
+				const reason = writePermission.reason ?? `Write denied for ${relPath}`
+				await task.say("error", reason)
+				pushToolResult(formatResponse.toolError(reason))
+				return
+			}
+
+			writeIntentRelPath = relPath
+			didAcquireWriteIntent = true
 
 			const absolutePath = path.resolve(task.cwd, relPath)
 
@@ -167,6 +180,7 @@ export class SearchReplaceTool extends BaseTool<"search_replace"> {
 				state?.experiments ?? {},
 				EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
 			)
+			const shouldSaveDirectly = isPreventFocusDisruptionEnabled
 
 			const sanitizedDiff = sanitizeUnifiedDiff(diff)
 			const diffStats = computeDiffStats(sanitizedDiff) || undefined
@@ -187,7 +201,7 @@ export class SearchReplaceTool extends BaseTool<"search_replace"> {
 			} satisfies ClineSayTool)
 
 			// Show diff view if focus disruption prevention is disabled
-			if (!isPreventFocusDisruptionEnabled) {
+			if (!shouldSaveDirectly) {
 				await task.diffViewProvider.open(relPath)
 				await task.diffViewProvider.update(newContent, true)
 				task.diffViewProvider.scrollToFirstDiff()
@@ -197,7 +211,7 @@ export class SearchReplaceTool extends BaseTool<"search_replace"> {
 
 			if (!didApprove) {
 				// Revert changes if diff view was shown
-				if (!isPreventFocusDisruptionEnabled) {
+				if (!shouldSaveDirectly) {
 					await task.diffViewProvider.revertChanges()
 				}
 				pushToolResult("Changes were rejected by the user.")
@@ -206,7 +220,7 @@ export class SearchReplaceTool extends BaseTool<"search_replace"> {
 			}
 
 			// Save the changes
-			if (isPreventFocusDisruptionEnabled) {
+			if (shouldSaveDirectly) {
 				// Direct file write without diff view or opening the file
 				await task.diffViewProvider.saveDirectly(relPath, newContent, false, diagnosticsEnabled, writeDelayMs)
 			} else {
@@ -236,6 +250,10 @@ export class SearchReplaceTool extends BaseTool<"search_replace"> {
 			await handleError("search and replace", error as Error)
 			await task.diffViewProvider.reset()
 			this.resetPartialState()
+		} finally {
+			if (didAcquireWriteIntent && writeIntentRelPath) {
+				task.releaseAgentWriteIntent(writeIntentRelPath)
+			}
 		}
 	}
 

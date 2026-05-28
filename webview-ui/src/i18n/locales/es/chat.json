@@ -261,6 +261,48 @@
 		"completionInstructions": "¡Subtarea completada! Puedes revisar los resultados y sugerir correcciones o próximos pasos. Si todo se ve bien, confirma para devolver el resultado a la tarea principal.",
 		"goToSubtask": "Ver tarea"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "Tarea",
+			"ownedFiles": "Archivos asignados",
+			"mustNotTouch": "No tocar",
+			"status": "Estado",
+			"waiting": "Esperando",
+			"lastTouched": "Último tocado",
+			"usage": "Uso",
+			"worktree": "Worktree",
+			"activity": "Actividad",
+			"conflicts": "Conflictos",
+			"none": "Ninguno",
+			"ready": "Listo",
+			"waitingOn": "Esperando a {{agents}}",
+			"noFileWrites": "Aún no hay escrituras de archivos",
+			"noUsage": "Aún no se ha informado uso",
+			"noActivity": "Aún no se ha informado actividad",
+			"noConflicts": "Sin conflictos"
+		},
+		"mergeReview": {
+			"title": "Revisar cambios de agentes",
+			"description": "Aprueba ramas de agentes para fusionarlas de vuelta en el repositorio, o descarta worktrees no aprobados.",
+			"approved": "Aprobado",
+			"approveAndMerge": "Aprobar y fusionar",
+			"discard": "Descartar",
+			"showDiff": "Mostrar diff",
+			"hideDiff": "Ocultar diff",
+			"noChanges": "No se detectaron cambios en este worktree del agente.",
+			"noChangesReported": "No se informaron cambios.",
+			"close": "Cerrar",
+			"mergeAllApproved": "Fusionar todos los aprobados",
+			"stats": {
+				"files_one": "{{count}} archivo",
+				"files_other": "{{count}} archivos",
+				"lines_one": "{{count}} línea",
+				"lines_other": "{{count}} líneas",
+				"binaryFiles_one": "{{count}} archivo binario",
+				"binaryFiles_other": "{{count}} archivos binarios"
+			}
+		}
+	},
 	"questions": {
 		"hasQuestion": "Roo tiene una pregunta"
 	},

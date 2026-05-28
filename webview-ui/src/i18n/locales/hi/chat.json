@@ -261,6 +261,48 @@
 		"completionInstructions": "उपकार्य पूर्ण! आप परिणामों की समीक्षा कर सकते हैं और सुधार या अगले चरण सुझा सकते हैं। यदि सब कुछ ठीक लगता है, तो मुख्य कार्य को परिणाम वापस करने के लिए पुष्टि करें।",
 		"goToSubtask": "कार्य देखें"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "कार्य",
+			"ownedFiles": "स्वामित्व वाली फ़ाइलें",
+			"mustNotTouch": "नहीं छूना है",
+			"status": "स्थिति",
+			"waiting": "प्रतीक्षा",
+			"lastTouched": "आखिरी बार छुआ गया",
+			"usage": "उपयोग",
+			"worktree": "Worktree",
+			"activity": "गतिविधि",
+			"conflicts": "टकराव",
+			"none": "कोई नहीं",
+			"ready": "तैयार",
+			"waitingOn": "{{agents}} की प्रतीक्षा में",
+			"noFileWrites": "अभी तक कोई फ़ाइल लिखी नहीं गई",
+			"noUsage": "अभी तक कोई उपयोग रिपोर्ट नहीं हुआ",
+			"noActivity": "अभी तक कोई गतिविधि रिपोर्ट नहीं हुई",
+			"noConflicts": "कोई टकराव नहीं"
+		},
+		"mergeReview": {
+			"title": "एजेंट बदलावों की समीक्षा करें",
+			"description": "एजेंट शाखाओं को रिपॉज़िटरी में वापस मर्ज करने के लिए स्वीकृत करें, या अस्वीकृत worktrees को छोड़ दें।",
+			"approved": "स्वीकृत",
+			"approveAndMerge": "स्वीकृत करें और मर्ज करें",
+			"discard": "छोड़ दें",
+			"showDiff": "diff दिखाएँ",
+			"hideDiff": "diff छिपाएँ",
+			"noChanges": "इस एजेंट worktree में कोई बदलाव नहीं मिला।",
+			"noChangesReported": "कोई बदलाव रिपोर्ट नहीं हुआ।",
+			"close": "बंद करें",
+			"mergeAllApproved": "सभी स्वीकृत को मर्ज करें",
+			"stats": {
+				"files_one": "{{count}} फ़ाइल",
+				"files_other": "{{count}} फ़ाइलें",
+				"lines_one": "{{count}} लाइन",
+				"lines_other": "{{count}} लाइनें",
+				"binaryFiles_one": "{{count}} बाइनरी फ़ाइल",
+				"binaryFiles_other": "{{count}} बाइनरी फ़ाइलें"
+			}
+		}
+	},
 	"questions": {
 		"hasQuestion": "Roo का एक प्रश्न है"
 	},

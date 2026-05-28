@@ -239,6 +239,212 @@ describe("list-files symlink support", () => {
 		expect(hasBDir).toBe(true)
 		expect(hasCDir).toBe(true)
 	})
+
+	it("should not log deleted parallel worktree ripgrep stderr as an error", async () => {
+		const mockSpawn = vi.mocked(childProcess.spawn)
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+		const missingWorktreePath = String.raw`c:\Users\clayton\Documents\C-Code\.roo\parallel-worktrees\plan-mpimvjgi\dashboard-agent`
+		const mockProcess = {
+			stdout: {
+				on: vi.fn(),
+			},
+			stderr: {
+				on: vi.fn((event, callback) => {
+					if (event === "data") {
+						setTimeout(
+							() =>
+								callback(
+									`rg: ${missingWorktreePath}: IO error for operation on ${missingWorktreePath}: The system cannot find the path specified. (os error 3)\n`,
+								),
+							10,
+						)
+					}
+				}),
+			},
+			on: vi.fn((event, callback) => {
+				if (event === "close") {
+					setTimeout(() => callback(2), 20)
+				}
+			}),
+			kill: vi.fn(),
+		}
+
+		mockSpawn.mockReturnValue(mockProcess as any)
+
+		await listFiles(missingWorktreePath, true, 100)
+
+		expect(errorSpy).not.toHaveBeenCalled()
+		expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("ripgrep stderr"))
+		expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("ripgrep process exited with code 2"))
+
+		errorSpy.mockRestore()
+		warnSpy.mockRestore()
+	})
+
+	it("should not warn when a deleted parallel worktree directory disappears during directory scanning", async () => {
+		const mockSpawn = vi.mocked(childProcess.spawn)
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+		const missingWorktreePath = String.raw`c:\Users\clayton\Documents\C-Code\.roo\parallel-worktrees\plan-mpimvjgi\agent-css\css`
+		const mockProcess = {
+			stdout: {
+				on: vi.fn(),
+			},
+			stderr: {
+				on: vi.fn(),
+			},
+			on: vi.fn((event, callback) => {
+				if (event === "close") {
+					setTimeout(() => callback(0), 20)
+				}
+			}),
+			kill: vi.fn(),
+		}
+
+		mockSpawn.mockReturnValue(mockProcess as any)
+		vi.mocked(fs.promises.access).mockRejectedValue(new Error("File not found"))
+		vi.mocked(fs.promises.readdir).mockRejectedValueOnce(
+			Object.assign(new Error(`ENOENT: no such file or directory, scandir '${missingWorktreePath}'`), {
+				code: "ENOENT",
+			}),
+		)
+
+		await listFiles(missingWorktreePath, true, 100)
+
+		expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("Could not read directory"))
+
+		warnSpy.mockRestore()
+	})
+
+	it("should not warn when a not-yet-created project root directory returns ENOENT during directory scanning (Issue 4)", async () => {
+		const mockSpawn = vi.mocked(childProcess.spawn)
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+		const projectRootPath = "/test/trading212-dashboard"
+		const mockProcess = {
+			stdout: {
+				on: vi.fn(),
+			},
+			stderr: {
+				on: vi.fn(),
+			},
+			on: vi.fn((event, callback) => {
+				if (event === "close") {
+					setTimeout(() => callback(0), 20)
+				}
+			}),
+			kill: vi.fn(),
+		}
+
+		mockSpawn.mockReturnValue(mockProcess as any)
+		vi.mocked(fs.promises.access).mockRejectedValue(new Error("File not found"))
+		// Root directory does not exist yet (background agent pre-creation)
+		vi.mocked(fs.promises.readdir).mockRejectedValueOnce(
+			Object.assign(new Error(`ENOENT: no such file or directory, scandir '${projectRootPath}'`), {
+				code: "ENOENT",
+			}),
+		)
+
+		await listFiles(projectRootPath, true, 100)
+
+		expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("Could not read directory"))
+
+		warnSpy.mockRestore()
+	})
+
+	it("should preserve unexpected directory read warnings outside deleted parallel worktrees", async () => {
+		const mockSpawn = vi.mocked(childProcess.spawn)
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+		const mockProcess = {
+			stdout: {
+				on: vi.fn(),
+			},
+			stderr: {
+				on: vi.fn(),
+			},
+			on: vi.fn((event, callback) => {
+				if (event === "close") {
+					setTimeout(() => callback(0), 20)
+				}
+			}),
+			kill: vi.fn(),
+		}
+
+		mockSpawn.mockReturnValue(mockProcess as any)
+		vi.mocked(fs.promises.access).mockRejectedValue(new Error("File not found"))
+		vi.mocked(fs.promises.readdir).mockRejectedValueOnce(
+			Object.assign(new Error("EACCES: permission denied, scandir '/test/dir'"), { code: "EACCES" }),
+		)
+
+		await listFiles("/test/dir", true, 100)
+
+		expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Could not read directory"))
+
+		warnSpy.mockRestore()
+	})
+
+	it("should preserve unexpected ripgrep stderr visibility without using console.error", async () => {
+		const mockSpawn = vi.mocked(childProcess.spawn)
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+		const mockProcess = {
+			stdout: {
+				on: vi.fn(),
+			},
+			stderr: {
+				on: vi.fn((event, callback) => {
+					if (event === "data") {
+						setTimeout(() => callback("rg: unexpected permission failure\n"), 10)
+					}
+				}),
+			},
+			on: vi.fn((event, callback) => {
+				if (event === "close") {
+					setTimeout(() => callback(2), 20)
+				}
+			}),
+			kill: vi.fn(),
+		}
+
+		mockSpawn.mockReturnValue(mockProcess as any)
+
+		await listFiles("/test/dir", true, 100)
+
+		expect(errorSpy).not.toHaveBeenCalled()
+		expect(warnSpy).toHaveBeenCalledWith(
+			expect.stringContaining("ripgrep stderr: rg: unexpected permission failure"),
+		)
+		expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("ripgrep process exited with code 2"))
+
+		errorSpy.mockRestore()
+		warnSpy.mockRestore()
+	})
+
+	it("should not warn for ripgrep code 1 no-match results", async () => {
+		const mockSpawn = vi.mocked(childProcess.spawn)
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+		const mockProcess = {
+			stdout: {
+				on: vi.fn(),
+			},
+			stderr: {
+				on: vi.fn(),
+			},
+			on: vi.fn((event, callback) => {
+				if (event === "close") {
+					setTimeout(() => callback(1), 20)
+				}
+			}),
+			kill: vi.fn(),
+		}
+
+		mockSpawn.mockReturnValue(mockProcess as any)
+
+		await listFiles("/test/empty", true, 100)
+
+		expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("ripgrep process exited with code 1"))
+
+		warnSpy.mockRestore()
+	})
 })
 
 describe("hidden directory exclusion", () => {

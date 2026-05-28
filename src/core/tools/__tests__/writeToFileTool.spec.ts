@@ -121,6 +121,7 @@ describe("writeToFileTool", () => {
 		mockedStripLineNumbers.mockImplementation((content) => content)
 
 		mockCline.cwd = "/"
+		mockCline.background = false
 		mockCline.consecutiveMistakeCount = 0
 		mockCline.didEditFile = false
 		mockCline.diffStrategy = undefined
@@ -146,6 +147,11 @@ describe("writeToFileTool", () => {
 			saveChanges: vi.fn().mockResolvedValue({
 				newProblemsMessage: "",
 				userEdits: null,
+				finalContent: "final content",
+			}),
+			saveDirectly: vi.fn().mockResolvedValue({
+				newProblemsMessage: "",
+				userEdits: undefined,
 				finalContent: "final content",
 			}),
 			scrollToFirstDiff: vi.fn(),
@@ -179,6 +185,9 @@ describe("writeToFileTool", () => {
 		mockCline.say = vi.fn().mockResolvedValue(undefined)
 		mockCline.ask = vi.fn().mockResolvedValue(undefined)
 		mockCline.recordToolError = vi.fn()
+		mockCline.reportAgentProgress = vi.fn()
+		mockCline.requestAgentWriteIntent = vi.fn().mockReturnValue({ approved: true })
+		mockCline.releaseAgentWriteIntent = vi.fn()
 		mockCline.sayAndCreateMissingParamError = vi.fn().mockResolvedValue("Missing param error")
 
 		mockAskApproval = vi.fn().mockResolvedValue(true)
@@ -369,6 +378,67 @@ describe("writeToFileTool", () => {
 			expect(mockCline.didEditFile).toBe(true)
 		})
 
+		it("shows and saves live previews for background writes", async () => {
+			mockCline.background = true
+
+			await executeWriteFileTool({}, { fileExists: false })
+
+			expect(mockAskApproval).toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.open).toHaveBeenCalledWith(testFilePath)
+			expect(mockCline.diffViewProvider.update).toHaveBeenCalledWith(testContent, true)
+			expect(mockCline.diffViewProvider.saveChanges).toHaveBeenCalledWith(true, 1000, expect.any(Function))
+			expect(mockCline.diffViewProvider.saveDirectly).not.toHaveBeenCalled()
+			expect(mockCline.fileContextTracker.trackFileContext).toHaveBeenCalledWith(testFilePath, "roo_edited")
+			expect(mockCline.didEditFile).toBe(true)
+		})
+
+		it("reports compact progress while previewing, saving, and checking diagnostics", async () => {
+			mockCline.diffViewProvider.saveChanges.mockImplementation(
+				async (_diagnosticsEnabled: boolean, _writeDelayMs: number, onProgress?: (event: any) => void) => {
+					onProgress?.({ phase: "diagnostics-wait", relPath: testFilePath, delayMs: 1000 })
+					onProgress?.({ phase: "diagnostics-check", relPath: testFilePath })
+					return {
+						newProblemsMessage: "",
+						userEdits: null,
+						finalContent: "final content",
+					}
+				},
+			)
+
+			await executeWriteFileTool({}, { fileExists: true })
+
+			expect(mockCline.reportAgentProgress).toHaveBeenCalledWith(
+				"Preparing write for test/file.txt.",
+				"file",
+				testFilePath,
+			)
+			expect(mockCline.reportAgentProgress).toHaveBeenCalledWith(
+				"Opening write preview for test/file.txt.",
+				"file",
+				testFilePath,
+			)
+			expect(mockCline.reportAgentProgress).toHaveBeenCalledWith(
+				"Rendering write preview for test/file.txt.",
+				"file",
+				testFilePath,
+			)
+			expect(mockCline.reportAgentProgress).toHaveBeenCalledWith(
+				"Saving changes to test/file.txt.",
+				"file",
+				testFilePath,
+			)
+			expect(mockCline.reportAgentProgress).toHaveBeenCalledWith(
+				"Waiting up to 1s for diagnostics after saving test/file.txt.",
+				"file",
+				testFilePath,
+			)
+			expect(mockCline.reportAgentProgress).toHaveBeenCalledWith(
+				"Checking diagnostics for test/file.txt.",
+				"file",
+				testFilePath,
+			)
+		})
+
 		it("processes files outside workspace boundary", async () => {
 			mockedIsPathOutsideWorkspace.mockReturnValue(true)
 
@@ -408,6 +478,19 @@ describe("writeToFileTool", () => {
 			// Second call with same path - path is now stabilized, file operations proceed
 			await executeWriteFileTool({}, { isPartial: true })
 			expect(mockCline.ask).toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.open).toHaveBeenCalledWith(testFilePath)
+			expect(mockCline.diffViewProvider.update).toHaveBeenCalledWith(testContent, false)
+		})
+
+		it("streams background partial writes through the live editable preview", async () => {
+			mockCline.background = true
+
+			await executeWriteFileTool({}, { isPartial: true })
+			expect(mockCline.ask).not.toHaveBeenCalled()
+
+			await executeWriteFileTool({}, { isPartial: true })
+
+			expect(mockCline.ask).toHaveBeenCalledTimes(1)
 			expect(mockCline.diffViewProvider.open).toHaveBeenCalledWith(testFilePath)
 			expect(mockCline.diffViewProvider.update).toHaveBeenCalledWith(testContent, false)
 		})

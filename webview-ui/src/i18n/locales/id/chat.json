@@ -312,6 +312,48 @@
 		"completionInstructions": "Subtugas selesai! Kamu bisa meninjau hasilnya dan menyarankan koreksi atau langkah selanjutnya. Jika semuanya terlihat baik, konfirmasi untuk mengembalikan hasil ke tugas induk.",
 		"goToSubtask": "Lihat tugas"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "Tugas",
+			"ownedFiles": "File yang dimiliki",
+			"mustNotTouch": "Jangan disentuh",
+			"status": "Status",
+			"waiting": "Menunggu",
+			"lastTouched": "Terakhir disentuh",
+			"usage": "Penggunaan",
+			"worktree": "Worktree",
+			"activity": "Aktivitas",
+			"conflicts": "Konflik",
+			"none": "Tidak ada",
+			"ready": "Siap",
+			"waitingOn": "Menunggu {{agents}}",
+			"noFileWrites": "Belum ada penulisan file",
+			"noUsage": "Belum ada penggunaan yang dilaporkan",
+			"noActivity": "Belum ada aktivitas yang dilaporkan",
+			"noConflicts": "Tidak ada konflik"
+		},
+		"mergeReview": {
+			"title": "Tinjau perubahan agen",
+			"description": "Setujui branch agen untuk digabungkan kembali ke repositori, atau buang worktree yang tidak disetujui.",
+			"approved": "Disetujui",
+			"approveAndMerge": "Setujui & gabungkan",
+			"discard": "Buang",
+			"showDiff": "Tampilkan diff",
+			"hideDiff": "Sembunyikan diff",
+			"noChanges": "Tidak ada perubahan yang terdeteksi di worktree agen ini.",
+			"noChangesReported": "Tidak ada perubahan yang dilaporkan.",
+			"close": "Tutup",
+			"mergeAllApproved": "Gabungkan semua yang disetujui",
+			"stats": {
+				"files_one": "{{count}} file",
+				"files_other": "{{count}} file",
+				"lines_one": "{{count}} baris",
+				"lines_other": "{{count}} baris",
+				"binaryFiles_one": "{{count}} file biner",
+				"binaryFiles_other": "{{count}} file biner"
+			}
+		}
+	},
 	"questions": {
 		"hasQuestion": "Roo punya pertanyaan"
 	},

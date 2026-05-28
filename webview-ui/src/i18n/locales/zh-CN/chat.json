@@ -262,6 +262,48 @@
 		"completionInstructions": "子任务已完成！您可以查看结果并提出修改或下一步建议。如果一切正常，请确认以将结果返回给主任务。",
 		"goToSubtask": "查看任务"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "任务",
+			"ownedFiles": "归属文件",
+			"mustNotTouch": "不得触碰",
+			"status": "状态",
+			"waiting": "等待",
+			"lastTouched": "最后触碰",
+			"usage": "用量",
+			"worktree": "Worktree",
+			"activity": "活动",
+			"conflicts": "冲突",
+			"none": "无",
+			"ready": "就绪",
+			"waitingOn": "正在等待 {{agents}}",
+			"noFileWrites": "尚无文件写入",
+			"noUsage": "尚未报告用量",
+			"noActivity": "尚未报告活动",
+			"noConflicts": "无冲突"
+		},
+		"mergeReview": {
+			"title": "审查代理更改",
+			"description": "批准代理分支以合并回仓库，或丢弃未批准的 worktree。",
+			"approved": "已批准",
+			"approveAndMerge": "批准并合并",
+			"discard": "丢弃",
+			"showDiff": "显示 diff",
+			"hideDiff": "隐藏 diff",
+			"noChanges": "此代理 worktree 中未检测到更改。",
+			"noChangesReported": "未报告任何更改。",
+			"close": "关闭",
+			"mergeAllApproved": "合并所有已批准项",
+			"stats": {
+				"files_one": "{{count}} 个文件",
+				"files_other": "{{count}} 个文件",
+				"lines_one": "{{count}} 行",
+				"lines_other": "{{count}} 行",
+				"binaryFiles_one": "{{count}} 个二进制文件",
+				"binaryFiles_other": "{{count}} 个二进制文件"
+			}
+		}
+	},
 	"questions": {
 		"hasQuestion": "Roo有一个问题"
 	},

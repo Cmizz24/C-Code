@@ -1,6 +1,13 @@
-// npx vitest run src/services/ripgrep/__tests__/index.spec.ts
+// npx vitest run services/ripgrep/__tests__/index.spec.ts
 
-import { truncateLine } from "../index"
+import * as path from "path"
+
+import { getBinPath, truncateLine } from "../index"
+import { fileExistsAtPath } from "../../../utils/fs"
+
+vi.mock("../../../utils/fs", () => ({
+	fileExistsAtPath: vi.fn(),
+}))
 
 describe("Ripgrep line truncation", () => {
 	// The default MAX_LINE_LENGTH is 500 in the implementation
@@ -46,5 +53,40 @@ describe("Ripgrep line truncation", () => {
 
 		expect(truncated.length).toEqual(customLength + " [truncated...]".length)
 		expect(truncated).toContain("[truncated...]")
+	})
+})
+
+describe("getBinPath", () => {
+	const appRoot = path.join("mock", "vscode", "resources", "app")
+	const binName = process.platform.startsWith("win") ? "rg.exe" : "rg"
+	const platformArch = `${process.platform}-${process.arch}`
+
+	beforeEach(() => {
+		vi.resetAllMocks()
+	})
+
+	it("resolves the VS Code ripgrep-universal platform-specific binary layout", async () => {
+		const expectedPath = path.join(appRoot, `node_modules/@vscode/ripgrep-universal/bin/${platformArch}/`, binName)
+
+		vi.mocked(fileExistsAtPath).mockImplementation(async (filePath) => filePath === expectedPath)
+
+		await expect(getBinPath(appRoot)).resolves.toBe(expectedPath)
+		expect(fileExistsAtPath).toHaveBeenCalledWith(expectedPath)
+	})
+
+	it("falls back to the legacy VS Code ripgrep binary layout", async () => {
+		const expectedPath = path.join(appRoot, "node_modules/@vscode/ripgrep/bin/", binName)
+
+		vi.mocked(fileExistsAtPath).mockImplementation(async (filePath) => filePath === expectedPath)
+
+		await expect(getBinPath(appRoot)).resolves.toBe(expectedPath)
+		expect(fileExistsAtPath).toHaveBeenCalledWith(expectedPath)
+	})
+
+	it("returns undefined when no bundled ripgrep binary exists", async () => {
+		vi.mocked(fileExistsAtPath).mockResolvedValue(false)
+
+		await expect(getBinPath(appRoot)).resolves.toBeUndefined()
+		expect(fileExistsAtPath).toHaveBeenCalled()
 	})
 })

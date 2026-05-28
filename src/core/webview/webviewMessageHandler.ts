@@ -16,8 +16,10 @@ import {
 	type EditQueuedMessagePayload,
 	RooCodeSettings,
 	ExperimentId,
+	normalizeParallelTaskConcurrency,
 	checkoutDiffPayloadSchema,
 	checkoutRestorePayloadSchema,
+	type RouterModels,
 } from "@roo-code/types"
 import { customToolRegistry } from "@roo-code/core"
 
@@ -642,7 +644,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			break
 
 		case "cancelPlan":
-			provider.cancelExecutionPlan()
+			await provider.cancelExecutionPlan()
 			break
 
 		case "agentWaitOnConflict":
@@ -657,6 +659,10 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			await provider.mergeApprovedAgents(message.ids)
 			break
 
+		case "mergeDeniedAgents":
+			await provider.denyMergeReview()
+			break
+
 		case "updateSettings":
 			if (message.updatedSettings) {
 				for (const [key, value] of Object.entries(message.updatedSettings)) {
@@ -665,6 +671,8 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					if (key === "language") {
 						newValue = value ?? "en"
 						changeLanguage(newValue as Language)
+					} else if (key === "maxConcurrentParallelTasks") {
+						newValue = normalizeParallelTaskConcurrency(value)
 					} else if (key === "allowedCommands") {
 						const commands = value ?? []
 
@@ -904,8 +912,8 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			// Optional refresh flag to flush cache before fetching (useful for providers requiring credentials)
 			const shouldRefresh = message?.values?.refresh === true
 
-			const routerModels: Record<RouterName, ModelRecord> = providerFilter
-				? ({} as Record<RouterName, ModelRecord>)
+			const routerModels: RouterModels = providerFilter
+				? {}
 				: {
 						openrouter: {},
 						"vercel-ai-gateway": {},
@@ -930,6 +938,21 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				}
 			}
 
+			const getProviderValue = (
+				providerName: RouterName,
+				configValue: string | undefined,
+				messageKey: string,
+			): string | undefined => {
+				if (
+					providerFilter === providerName &&
+					Object.prototype.hasOwnProperty.call(message?.values ?? {}, messageKey)
+				) {
+					return message?.values?.[messageKey]
+				}
+
+				return configValue
+			}
+
 			// Base candidates (only those handled by this aggregate fetcher)
 			const candidates: { key: RouterName; options: GetModelsOptions }[] = [
 				{ key: "openrouter", options: { provider: "openrouter" } },
@@ -937,19 +960,92 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					key: "requesty",
 					options: {
 						provider: "requesty",
-						apiKey: apiConfiguration.requestyApiKey,
-						baseUrl: apiConfiguration.requestyBaseUrl,
+						apiKey: getProviderValue("requesty", apiConfiguration.requestyApiKey, "requestyApiKey"),
+						baseUrl: getProviderValue("requesty", apiConfiguration.requestyBaseUrl, "requestyBaseUrl"),
 					},
 				},
 				{
 					key: "unbound",
 					options: {
 						provider: "unbound",
-						apiKey: apiConfiguration.unboundApiKey,
+						apiKey: getProviderValue("unbound", apiConfiguration.unboundApiKey, "unboundApiKey"),
 					},
 				},
 				{ key: "vercel-ai-gateway", options: { provider: "vercel-ai-gateway" } },
 			]
+
+			const addCandidateIf = (condition: unknown, key: RouterName, options: GetModelsOptions) => {
+				if (condition) {
+					candidates.push({ key, options })
+				}
+			}
+
+			const anthropicApiKey = getProviderValue("anthropic", apiConfiguration.apiKey, "apiKey")
+			const xaiApiKey = getProviderValue("xai", apiConfiguration.xaiApiKey, "xaiApiKey")
+			const openAiNativeApiKey = getProviderValue(
+				"openai-native",
+				apiConfiguration.openAiNativeApiKey,
+				"openAiNativeApiKey",
+			)
+			const mistralApiKey = getProviderValue("mistral", apiConfiguration.mistralApiKey, "mistralApiKey")
+			const deepSeekApiKey = getProviderValue("deepseek", apiConfiguration.deepSeekApiKey, "deepSeekApiKey")
+			const geminiApiKey = getProviderValue("gemini", apiConfiguration.geminiApiKey, "geminiApiKey")
+			const moonshotApiKey = getProviderValue("moonshot", apiConfiguration.moonshotApiKey, "moonshotApiKey")
+			const fireworksApiKey = getProviderValue("fireworks", apiConfiguration.fireworksApiKey, "fireworksApiKey")
+			const basetenApiKey = getProviderValue("baseten", apiConfiguration.basetenApiKey, "basetenApiKey")
+			const sambaNovaApiKey = getProviderValue("sambanova", apiConfiguration.sambaNovaApiKey, "sambaNovaApiKey")
+			const minimaxApiKey = getProviderValue("minimax", apiConfiguration.minimaxApiKey, "minimaxApiKey")
+
+			addCandidateIf(anthropicApiKey, "anthropic", {
+				provider: "anthropic",
+				apiKey: anthropicApiKey,
+				baseUrl: getProviderValue("anthropic", apiConfiguration.anthropicBaseUrl, "anthropicBaseUrl"),
+			})
+			addCandidateIf(xaiApiKey, "xai", {
+				provider: "xai",
+				apiKey: xaiApiKey,
+			})
+			addCandidateIf(openAiNativeApiKey, "openai-native", {
+				provider: "openai-native",
+				apiKey: openAiNativeApiKey,
+				baseUrl: getProviderValue("openai-native", apiConfiguration.openAiNativeBaseUrl, "openAiNativeBaseUrl"),
+			})
+			addCandidateIf(mistralApiKey, "mistral", {
+				provider: "mistral",
+				apiKey: mistralApiKey,
+			})
+			addCandidateIf(deepSeekApiKey, "deepseek", {
+				provider: "deepseek",
+				apiKey: deepSeekApiKey,
+				baseUrl: getProviderValue("deepseek", apiConfiguration.deepSeekBaseUrl, "deepSeekBaseUrl"),
+			})
+			addCandidateIf(geminiApiKey, "gemini", {
+				provider: "gemini",
+				apiKey: geminiApiKey,
+				baseUrl: getProviderValue("gemini", apiConfiguration.googleGeminiBaseUrl, "googleGeminiBaseUrl"),
+			})
+			addCandidateIf(moonshotApiKey, "moonshot", {
+				provider: "moonshot",
+				apiKey: moonshotApiKey,
+				baseUrl: getProviderValue("moonshot", apiConfiguration.moonshotBaseUrl, "moonshotBaseUrl"),
+			})
+			addCandidateIf(fireworksApiKey, "fireworks", {
+				provider: "fireworks",
+				apiKey: fireworksApiKey,
+			})
+			addCandidateIf(basetenApiKey, "baseten", {
+				provider: "baseten",
+				apiKey: basetenApiKey,
+			})
+			addCandidateIf(sambaNovaApiKey, "sambanova", {
+				provider: "sambanova",
+				apiKey: sambaNovaApiKey,
+			})
+			addCandidateIf(minimaxApiKey, "minimax", {
+				provider: "minimax",
+				apiKey: minimaxApiKey,
+				baseUrl: getProviderValue("minimax", apiConfiguration.minimaxBaseUrl, "minimaxBaseUrl"),
+			})
 
 			// LiteLLM is conditional on baseUrl+apiKey
 			const litellmApiKey = apiConfiguration.litellmApiKey || message?.values?.litellmApiKey
@@ -1697,7 +1793,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			const payload = message.payload as { todos?: any[] }
 			const todos = payload?.todos
 			if (Array.isArray(todos)) {
-				await setPendingTodoList(todos)
+				setPendingTodoList(todos, provider.getCurrentTask())
 			}
 			break
 		}

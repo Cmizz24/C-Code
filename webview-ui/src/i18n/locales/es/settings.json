@@ -249,6 +249,12 @@
 			"label": "Subtareas",
 			"description": "Permitir la creación y finalización de subtareas sin requerir aprobación"
 		},
+		"parallelTasks": {
+			"label": "Tareas paralelas",
+			"maxConcurrentLabel": "Máximo de agentes paralelos",
+			"maxConcurrentDescription": "Elige cuántos agentes pueden ejecutarse a la vez para un plan de tareas paralelas aprobado ({{min}}–{{max}}). Los agentes pendientes se inician cuando terminan los que están en ejecución.",
+			"description": "Aprobar automáticamente los planes de tareas paralelas válidos e iniciar agentes sin mostrar el modal de vista previa del plan"
+		},
 		"followupQuestions": {
 			"label": "Pregunta",
 			"description": "Seleccionar automáticamente la primera respuesta sugerida para preguntas de seguimiento después del tiempo de espera configurado",
@@ -389,6 +395,9 @@
 		"minimaxApiKey": "Clave API de MiniMax",
 		"getMiniMaxApiKey": "Obtener clave API de MiniMax",
 		"minimaxBaseUrl": "Punto de entrada de MiniMax",
+		"xiaomiMiMoApiKey": "Clave API de Xiaomi MiMo",
+		"getXiaomiMiMoApiKey": "Obtener clave API de Xiaomi MiMo",
+		"xiaomiMiMoBaseUrl": "Punto de entrada de Xiaomi MiMo",
 		"geminiApiKey": "Clave API de Gemini",
 		"getSambaNovaApiKey": "Obtener clave API de SambaNova",
 		"sambaNovaApiKey": "Clave API de SambaNova",

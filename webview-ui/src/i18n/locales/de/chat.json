@@ -261,6 +261,48 @@
 		"completionInstructions": "Teilaufgabe abgeschlossen! Du kannst die Ergebnisse überprüfen und Korrekturen oder nächste Schritte vorschlagen. Wenn alles gut aussieht, bestätige, um das Ergebnis an die übergeordnete Aufgabe zurückzugeben.",
 		"goToSubtask": "Aufgabe anzeigen"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "Aufgabe",
+			"ownedFiles": "Zugewiesene Dateien",
+			"mustNotTouch": "Nicht anfassen",
+			"status": "Status",
+			"waiting": "Wartet",
+			"lastTouched": "Zuletzt berührt",
+			"usage": "Nutzung",
+			"worktree": "Worktree",
+			"activity": "Aktivität",
+			"conflicts": "Konflikte",
+			"none": "Keine",
+			"ready": "Bereit",
+			"waitingOn": "Wartet auf {{agents}}",
+			"noFileWrites": "Noch keine Dateiänderungen",
+			"noUsage": "Noch keine Nutzung gemeldet",
+			"noActivity": "Noch keine Aktivität gemeldet",
+			"noConflicts": "Keine Konflikte"
+		},
+		"mergeReview": {
+			"title": "Agent-Änderungen prüfen",
+			"description": "Genehmige Agent-Branches, um sie zurück ins Repository zu mergen, oder verwirf nicht genehmigte Worktrees.",
+			"approved": "Genehmigt",
+			"approveAndMerge": "Genehmigen & mergen",
+			"discard": "Verwerfen",
+			"showDiff": "Diff anzeigen",
+			"hideDiff": "Diff ausblenden",
+			"noChanges": "Keine Änderungen in diesem Agent-Worktree erkannt.",
+			"noChangesReported": "Keine Änderungen gemeldet.",
+			"close": "Schließen",
+			"mergeAllApproved": "Alle genehmigten mergen",
+			"stats": {
+				"files_one": "{{count}} Datei",
+				"files_other": "{{count}} Dateien",
+				"lines_one": "{{count}} Zeile",
+				"lines_other": "{{count}} Zeilen",
+				"binaryFiles_one": "{{count}} Binärdatei",
+				"binaryFiles_other": "{{count}} Binärdateien"
+			}
+		}
+	},
 	"questions": {
 		"hasQuestion": "Roo hat eine Frage"
 	},

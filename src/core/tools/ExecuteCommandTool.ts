@@ -64,6 +64,12 @@ export class ExecuteCommandTool extends BaseTool<"execute_command"> {
 
 			task.consecutiveMistakeCount = 0
 
+			const preExecutionRecoveryGuidance = getPreExecutionShellWriteRecoveryGuidance(task, canonicalCommand)
+			if (preExecutionRecoveryGuidance) {
+				pushToolResult(preExecutionRecoveryGuidance)
+				return
+			}
+
 			const didApprove = await askApproval("command", canonicalCommand)
 
 			if (!didApprove) {
@@ -468,10 +474,22 @@ export async function executeCommandInTerminal(
 		]
 	} else if (completed || exitDetails) {
 		const currentWorkingDir = terminal.getCurrentWorkingDirectory().toPosix()
+		const shellWriteRecoveryGuidance = getShellWriteRecoveryGuidance(task, command, result, exitDetails)
 
 		// Use persisted output format when output was truncated and spilled to disk
 		if (persistedResult?.truncated) {
-			return [false, formatPersistedOutput(persistedResult, exitDetails, currentWorkingDir)]
+			const persistedShellWriteRecoveryGuidance =
+				shellWriteRecoveryGuidance ||
+				getShellWriteRecoveryGuidance(task, command, persistedResult.preview, exitDetails)
+			return [
+				false,
+				formatPersistedOutput(
+					persistedResult,
+					exitDetails,
+					currentWorkingDir,
+					persistedShellWriteRecoveryGuidance,
+				),
+			]
 		}
 
 		// Use inline format for small outputs (original behavior with exit status)
@@ -499,9 +517,11 @@ export async function executeCommandInTerminal(
 			exitStatus = `Exit code: <undefined, notify user>`
 		}
 
+		const statusWithGuidance = [exitStatus, shellWriteRecoveryGuidance].filter(Boolean).join("\n")
+
 		return [
 			false,
-			`Command executed in terminal within working directory '${currentWorkingDir}'. ${exitStatus}\nOutput:\n${result}`,
+			`Command executed in terminal within working directory '${currentWorkingDir}'. ${statusWithGuidance}\nOutput:\n${result}`,
 		]
 	} else {
 		return [
@@ -543,6 +563,159 @@ function formatExitStatus(exitDetails: ExitCodeDetails | undefined): string {
 	return status
 }
 
+const SHELL_WRITE_RECOVERY_GUIDANCE =
+	"If this command was attempting to create or edit file contents, retry with the normal write/edit tools available to this mode (for example write_to_file, apply_patch, apply_diff, edit, edit_file, or search_replace) instead of shell here-strings, heredocs, or echo chains. Use execute_command for commands, tests, builds, package managers, scripts, or shell operations, not for embedding file contents."
+
+const WINDOWS_SHELL_COMMAND_LENGTH_SOFT_LIMIT = 8_000
+
+function getPreExecutionShellWriteRecoveryGuidance(
+	task: Pick<Task, "background" | "agentId">,
+	command: string,
+): string {
+	if (task.background !== true || !task.agentId) {
+		return ""
+	}
+
+	// Block background-agent commands with malformed here-string headers regardless
+	// of command length.  A malformed here-string has `@'` or `@"` with non-newline
+	// content immediately after the opening sequence on the same line, which causes
+	// PowerShell parser errors even for short commands that pass the length gate.
+	// Note: looksLikeEmbeddedShellFileWrite requires well-formed here-string syntax
+	// (whitespace around the delimiters), so for the malformed check we only require
+	// the presence of any known PowerShell write command alongside the bad header.
+	if (hasMalformedHereStringHeader(command) && looksLikePowerShellWriteCommand(command)) {
+		return [
+			`Command not executed: this background-agent command contains a malformed PowerShell here-string header (the opening @' or @" delimiter must be followed immediately by a newline) and would produce a PowerShell parser error.`,
+			SHELL_WRITE_RECOVERY_GUIDANCE,
+		].join("\n")
+	}
+
+	const commandLengthLimit = getShellCommandLengthSoftLimit(process.platform)
+
+	if (
+		commandLengthLimit !== undefined &&
+		command.length > commandLengthLimit &&
+		looksLikeEmbeddedShellFileWrite(command)
+	) {
+		return [
+			`Command not executed: this background-agent command is ${command.length} characters, which exceeds the Windows shell command-length safety limit of ${commandLengthLimit} characters and would likely fail before it can run.`,
+			SHELL_WRITE_RECOVERY_GUIDANCE,
+		].join("\n")
+	}
+
+	if (hasMalformedHereStringTerminator(command) && looksLikePowerShellWriteCommand(command)) {
+		return [
+			`Command not executed: this background-agent command contains a malformed PowerShell here-string terminator (the closing '@ or "@ delimiter must be on its own line) and would produce a PowerShell parser error.`,
+			SHELL_WRITE_RECOVERY_GUIDANCE,
+		].join("\n")
+	}
+
+	if (looksLikeDirectPowerShellHereStringFileWrite(command)) {
+		return [
+			`Command not executed: this background-agent command appears to embed multiline file contents in a PowerShell file-write command using a direct here-string value, which is fragile and may produce a PowerShell parser error.`,
+			SHELL_WRITE_RECOVERY_GUIDANCE,
+		].join("\n")
+	}
+
+	return ""
+}
+
+/**
+ * Returns true when a command contains any PowerShell write-file command keyword.
+ * Used as a lightweight companion to hasMalformedHereStringHeader when we cannot
+ * rely on well-formed here-string syntax detection.
+ */
+function looksLikePowerShellWriteCommand(command: string): boolean {
+	return /\b(out-file|set-content|add-content|tee-object)\b/i.test(command)
+}
+
+/**
+ * Returns true when a command contains a PowerShell here-string whose opening
+ * delimiter (`@'` or `@"`) is not immediately followed by a newline character.
+ * Such commands cause a PowerShell "The string is missing the terminator"
+ * parser error regardless of overall command length.
+ */
+function hasMalformedHereStringHeader(command: string): boolean {
+	// A valid here-string header must look like: @'\n or @"\n (newline right after).
+	// An invalid one looks like: @'<any non-newline chars> on the same line.
+	return /@['"][^\n]/.test(command)
+}
+
+/**
+ * Returns true when a PowerShell here-string closing delimiter is followed by
+ * other tokens on the same line. PowerShell only recognizes '@ or "@ as the
+ * terminator when the delimiter is on its own line, so forms like
+ * `Set-Content -Value @'\n...\n'@ -Encoding UTF8` keep parsing as an
+ * unterminated string.
+ */
+function hasMalformedHereStringTerminator(command: string): boolean {
+	return /(?:^|\r?\n)['"]@[^\r\n]+/.test(command)
+}
+
+/**
+ * Returns true for background-agent PowerShell file writes that embed file
+ * contents directly as here-strings instead of using the normal write/edit
+ * tools. This is intentionally narrow: it requires both here-string syntax and
+ * a direct PowerShell file-write command shape.
+ */
+function looksLikeDirectPowerShellHereStringFileWrite(command: string): boolean {
+	const hasSetContentDirectValue = /\b(?:set-content|add-content)\b[\s\S]*-value\b\s*@['"]/i.test(command)
+	const hasOutFileDirectInputObject = /\bout-file\b[\s\S]*-(?:inputobject|input-object)\b\s*@['"]/i.test(command)
+	const hasHereStringPipedToOutFile = /@['"][\s\S]*['"]@[\s\S]*\|\s*\bout-file\b/i.test(command)
+
+	return hasSetContentDirectValue || hasOutFileDirectInputObject || hasHereStringPipedToOutFile
+}
+
+function getShellCommandLengthSoftLimit(platform: NodeJS.Platform): number | undefined {
+	// Windows shell execution commonly goes through cmd.exe, whose command line limit is
+	// lower than CreateProcess. Stay slightly below the 8191-character cmd.exe ceiling so
+	// clearly oversized generated file writes do not reach the OS-level failure path.
+	return platform === "win32" ? WINDOWS_SHELL_COMMAND_LENGTH_SOFT_LIMIT : undefined
+}
+
+function looksLikeEmbeddedShellFileWrite(command: string): boolean {
+	const hasHereStringOrHeredoc = /(^|\s)(@'|@"|'@|"@)(\s|$)/.test(command) || /<<\s*['"]?[a-z0-9_-]+/i.test(command)
+	const hasPowerShellWriteCommand = /\b(out-file|set-content|add-content|tee-object)\b/i.test(command)
+	const hasShellRedirectionWrite = /\b(echo|printf|cat)\b[\s\S]*(?:>|>>)/i.test(command)
+	const hasPowerShellInlineValueWrite = /\b(set-content|add-content)\b[\s\S]*\b-value\b/i.test(command)
+
+	return (
+		(hasHereStringOrHeredoc && hasPowerShellWriteCommand) ||
+		hasShellRedirectionWrite ||
+		hasPowerShellInlineValueWrite
+	)
+}
+
+function getShellWriteRecoveryGuidance(
+	task: Pick<Task, "background" | "agentId">,
+	command: string,
+	output: string,
+	exitDetails: ExitCodeDetails | undefined,
+): string {
+	if (task.background !== true || !task.agentId || exitDetails?.exitCode === 0) {
+		return ""
+	}
+
+	const commandAndOutput = `${command}\n${output}`
+
+	return looksLikeShellFileWrite(commandAndOutput) ? SHELL_WRITE_RECOVERY_GUIDANCE : ""
+}
+
+function looksLikeShellFileWrite(commandAndOutput: string): boolean {
+	const text = commandAndOutput.toLowerCase()
+
+	return (
+		/\b(out-file|set-content|add-content|new-item|tee)\b/i.test(commandAndOutput) ||
+		/(^|\s)(@'|@"|'@|"@)(\s|$)/.test(commandAndOutput) ||
+		/<<\s*['"]?[a-z0-9_-]+/i.test(commandAndOutput) ||
+		/\b(echo|printf)\b[\s\S]*(?:>|>>)/i.test(commandAndOutput) ||
+		text.includes("missing the terminator") ||
+		text.includes("here-string") ||
+		text.includes("no characters are allowed after a here-string header") ||
+		text.includes("command line is too long")
+	)
+}
+
 /**
  * Format persisted output result for tool response when output was truncated
  */
@@ -550,13 +723,15 @@ function formatPersistedOutput(
 	result: PersistedCommandOutput,
 	exitDetails: ExitCodeDetails | undefined,
 	workingDir: string,
+	shellWriteRecoveryGuidance = "",
 ): string {
 	const exitStatus = formatExitStatus(exitDetails)
 	const sizeStr = formatBytes(result.totalBytes)
 	const artifactId = result.artifactPath ? path.basename(result.artifactPath) : ""
+	const statusWithGuidance = [exitStatus, shellWriteRecoveryGuidance].filter(Boolean).join("\n")
 
 	return [
-		`Command executed in '${workingDir}'. ${exitStatus}`,
+		`Command executed in '${workingDir}'. ${statusWithGuidance}`,
 		"",
 		`Output (${sizeStr}) persisted. Artifact ID: ${artifactId}`,
 		"",

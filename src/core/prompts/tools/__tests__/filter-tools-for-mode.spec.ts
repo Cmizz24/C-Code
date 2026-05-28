@@ -22,6 +22,9 @@ describe("filterNativeToolsForMode - disabledTools", () => {
 		makeTool("write_to_file"),
 		makeTool("apply_diff"),
 		makeTool("edit"),
+		makeTool("search_replace"),
+		makeTool("edit_file"),
+		makeTool("apply_patch"),
 	]
 
 	it("removes tools listed in settings.disabledTools", () => {
@@ -36,6 +39,7 @@ describe("filterNativeToolsForMode - disabledTools", () => {
 		expect(resultNames).toContain("read_file")
 		expect(resultNames).toContain("write_to_file")
 		expect(resultNames).toContain("apply_diff")
+		expect(resultNames).toContain("apply_patch")
 	})
 
 	it("does not remove any tools when disabledTools is empty", () => {
@@ -50,6 +54,10 @@ describe("filterNativeToolsForMode - disabledTools", () => {
 		expect(resultNames).toContain("read_file")
 		expect(resultNames).toContain("write_to_file")
 		expect(resultNames).toContain("apply_diff")
+		expect(resultNames).toContain("edit")
+		expect(resultNames).toContain("search_replace")
+		expect(resultNames).toContain("edit_file")
+		expect(resultNames).toContain("apply_patch")
 	})
 
 	it("does not remove any tools when disabledTools is undefined", () => {
@@ -60,6 +68,7 @@ describe("filterNativeToolsForMode - disabledTools", () => {
 		const resultNames = result.map((t) => (t as any).function.name)
 		expect(resultNames).toContain("execute_command")
 		expect(resultNames).toContain("read_file")
+		expect(resultNames).toContain("apply_patch")
 	})
 
 	it("combines disabledTools with other setting-based exclusions", () => {

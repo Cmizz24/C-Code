@@ -249,6 +249,12 @@
 			"label": "Alt Görevler",
 			"description": "Onay gerektirmeden alt görevlerin oluşturulmasına ve tamamlanmasına izin ver"
 		},
+		"parallelTasks": {
+			"label": "Paralel görevler",
+			"maxConcurrentLabel": "Maksimum paralel ajan",
+			"maxConcurrentDescription": "Onaylanmış bir paralel görev planı için aynı anda kaç ajanın çalışabileceğini seç ({{min}}–{{max}}). Bekleyen ajanlar, çalışan ajanlar tamamlandığında başlar.",
+			"description": "Geçerli paralel görev planlarını otomatik olarak onayla ve plan önizleme penceresini göstermeden ajanları başlat"
+		},
 		"followupQuestions": {
 			"label": "Soru",
 			"description": "Yapılandırılan zaman aşımından sonra takip sorularına ilişkin ilk önerilen yanıtı otomatik olarak seç",
@@ -389,6 +395,9 @@
 		"minimaxApiKey": "MiniMax API Anahtarı",
 		"getMiniMaxApiKey": "MiniMax API Anahtarı Al",
 		"minimaxBaseUrl": "MiniMax Giriş Noktası",
+		"xiaomiMiMoApiKey": "Xiaomi MiMo API Anahtarı",
+		"getXiaomiMiMoApiKey": "Xiaomi MiMo API Anahtarı Al",
+		"xiaomiMiMoBaseUrl": "Xiaomi MiMo Giriş Noktası",
 		"geminiApiKey": "Gemini API Anahtarı",
 		"getSambaNovaApiKey": "SambaNova API Anahtarı Al",
 		"sambaNovaApiKey": "SambaNova API Anahtarı",

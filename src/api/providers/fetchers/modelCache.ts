@@ -24,6 +24,19 @@ import { GetModelsOptions } from "../../../shared/api"
 import { getOllamaModels } from "./ollama"
 import { getLMStudioModels } from "./lmstudio"
 import { getPoeModels } from "./poe"
+import {
+	getAnthropicModels,
+	getBasetenModels,
+	getDeepSeekModels,
+	getFireworksModels,
+	getGeminiModels,
+	getMiniMaxModels,
+	getMistralModels,
+	getMoonshotModels,
+	getOpenAiNativeModels,
+	getSambaNovaModels,
+	getXAIModels,
+} from "./static-provider-models"
 
 const memoryCache = new NodeCache({ stdTTL: 5 * 60, checkperiod: 5 * 60 })
 
@@ -86,6 +99,39 @@ async function fetchModelsFromProvider(options: GetModelsOptions): Promise<Model
 			break
 		case "poe":
 			models = await getPoeModels(options.apiKey, options.baseUrl)
+			break
+		case "anthropic":
+			models = await getAnthropicModels(options.apiKey, options.baseUrl)
+			break
+		case "xai":
+			models = await getXAIModels(options.apiKey)
+			break
+		case "openai-native":
+			models = await getOpenAiNativeModels(options.apiKey, options.baseUrl)
+			break
+		case "mistral":
+			models = await getMistralModels(options.apiKey, options.baseUrl)
+			break
+		case "deepseek":
+			models = await getDeepSeekModels(options.apiKey, options.baseUrl)
+			break
+		case "gemini":
+			models = await getGeminiModels(options.apiKey, options.baseUrl)
+			break
+		case "moonshot":
+			models = await getMoonshotModels(options.apiKey, options.baseUrl)
+			break
+		case "fireworks":
+			models = await getFireworksModels(options.apiKey)
+			break
+		case "baseten":
+			models = await getBasetenModels(options.apiKey)
+			break
+		case "sambanova":
+			models = await getSambaNovaModels(options.apiKey)
+			break
+		case "minimax":
+			models = await getMiniMaxModels(options.apiKey, options.baseUrl)
 			break
 		default: {
 			// Ensures router is exhaustively checked if RouterName is a strict union.

@@ -103,6 +103,7 @@ describe("searchReplaceTool", () => {
 		mockedIsPathOutsideWorkspace.mockReturnValue(false)
 		mockedGetReadablePath.mockReturnValue("test/path.txt")
 
+		mockCline.background = false
 		mockCline.cwd = "/"
 		mockCline.consecutiveMistakeCount = 0
 		mockCline.didEditFile = false
@@ -134,7 +135,11 @@ describe("searchReplaceTool", () => {
 				userEdits: null,
 				finalContent: "final content",
 			}),
-			saveDirectly: vi.fn().mockResolvedValue(undefined),
+			saveDirectly: vi.fn().mockResolvedValue({
+				newProblemsMessage: "",
+				userEdits: undefined,
+				finalContent: "final content",
+			}),
 			scrollToFirstDiff: vi.fn(),
 			pushToolWriteResult: vi.fn().mockResolvedValue("Tool result message"),
 		}
@@ -147,6 +152,8 @@ describe("searchReplaceTool", () => {
 		mockCline.recordToolUsage = vi.fn()
 		mockCline.processQueuedMessages = vi.fn()
 		mockCline.sayAndCreateMissingParamError = vi.fn().mockResolvedValue("Missing param error")
+		mockCline.requestAgentWriteIntent = vi.fn().mockReturnValue({ approved: true })
+		mockCline.releaseAgentWriteIntent = vi.fn()
 
 		mockAskApproval = vi.fn().mockResolvedValue(true)
 		mockHandleError = vi.fn().mockResolvedValue(undefined)
@@ -313,6 +320,64 @@ describe("searchReplaceTool", () => {
 			expect(mockCline.diffViewProvider.saveChanges).toHaveBeenCalled()
 			expect(mockCline.didEditFile).toBe(true)
 			expect(mockCline.recordToolUsage).toHaveBeenCalledWith("search_replace")
+			expect(mockCline.requestAgentWriteIntent).toHaveBeenCalledWith(testFilePath)
+			expect(mockCline.releaseAgentWriteIntent).toHaveBeenCalledWith(testFilePath)
+		})
+
+		it("shows and saves live previews for background replacements", async () => {
+			mockCline.background = true
+
+			await executeSearchReplaceTool()
+
+			expect(mockAskApproval).toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.open).toHaveBeenCalledWith(testFilePath)
+			expect(mockCline.diffViewProvider.update).toHaveBeenCalledWith(
+				"Line 1\nModified Line 2\nLine 3\nLine 4",
+				true,
+			)
+			expect(mockCline.diffViewProvider.scrollToFirstDiff).toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.saveChanges).toHaveBeenCalledWith(true, 1000)
+			expect(mockCline.diffViewProvider.saveDirectly).not.toHaveBeenCalled()
+			expect(mockCline.didEditFile).toBe(true)
+			expect(mockCline.recordToolUsage).toHaveBeenCalledWith("search_replace")
+		})
+
+		it("uses direct save only when focus disruption prevention is enabled", async () => {
+			mockCline.background = true
+			mockCline.providerRef.deref.mockReturnValue({
+				getState: vi.fn().mockResolvedValue({
+					diagnosticsEnabled: true,
+					writeDelayMs: 1000,
+					experiments: { preventFocusDisruption: true },
+				}),
+			})
+
+			await executeSearchReplaceTool()
+
+			expect(mockCline.diffViewProvider.open).not.toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.saveChanges).not.toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.saveDirectly).toHaveBeenCalledWith(
+				testFilePath,
+				"Line 1\nModified Line 2\nLine 3\nLine 4",
+				false,
+				true,
+				1000,
+			)
+		})
+
+		it("denies replacements when agent write intent is rejected", async () => {
+			mockCline.requestAgentWriteIntent.mockReturnValue({
+				approved: false,
+				reason: "test/file.txt is owned by another agent.",
+			})
+
+			const result = await executeSearchReplaceTool()
+
+			expect(result).toContain("owned by another agent")
+			expect(mockCline.say).toHaveBeenCalledWith("error", "test/file.txt is owned by another agent.")
+			expect(mockAskApproval).not.toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.saveChanges).not.toHaveBeenCalled()
+			expect(mockCline.releaseAgentWriteIntent).not.toHaveBeenCalled()
 		})
 
 		it("reverts changes when user rejects", async () => {

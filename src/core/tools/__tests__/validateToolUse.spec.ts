@@ -28,6 +28,11 @@ describe("mode-validator", () => {
 					expect(isToolAllowedForMode(tool, codeMode, [])).toBe(true)
 				})
 
+				expect(isToolAllowedForMode("edit", codeMode, [])).toBe(true)
+				expect(isToolAllowedForMode("search_replace", codeMode, [])).toBe(true)
+				expect(isToolAllowedForMode("edit_file", codeMode, [])).toBe(true)
+				expect(isToolAllowedForMode("apply_patch", codeMode, [])).toBe(true)
+
 				expect(isToolAllowedForMode("plan_parallel_tasks", codeMode, [])).toBe(false)
 			})
 
@@ -86,6 +91,10 @@ describe("mode-validator", () => {
 				expect(isToolAllowedForMode("read_file", codeMode, customModes)).toBe(true)
 				// Should not allow tools from other groups
 				expect(isToolAllowedForMode("write_to_file", codeMode, customModes)).toBe(false)
+				expect(isToolAllowedForMode("apply_patch", codeMode, customModes)).toBe(false)
+				expect(isToolAllowedForMode("edit", codeMode, customModes)).toBe(false)
+				expect(isToolAllowedForMode("search_replace", codeMode, customModes)).toBe(false)
+				expect(isToolAllowedForMode("edit_file", codeMode, customModes)).toBe(false)
 			})
 
 			it("respects tool requirements in custom modes", () => {
@@ -208,6 +217,13 @@ describe("mode-validator", () => {
 		it("does not throw when tool requirement is met", () => {
 			const requirements = { apply_diff: true }
 			expect(() => validateToolUse("apply_diff", codeMode, [], requirements)).not.toThrow()
+		})
+
+		it("denies background-only coordination tool unless the runtime requirement is met", () => {
+			expect(() => validateToolUse("coordinate_agents", codeMode, [], { coordinate_agents: false })).toThrow(
+				'Tool "coordinate_agents" is not allowed in code mode.',
+			)
+			expect(() => validateToolUse("coordinate_agents", codeMode, [], { coordinate_agents: true })).not.toThrow()
 		})
 
 		it("handles undefined requirements gracefully", () => {

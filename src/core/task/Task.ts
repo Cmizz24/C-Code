@@ -25,9 +25,13 @@ import {
 	type ToolUsage,
 	type ToolName,
 	type WritePermission,
+	type AgentCoordinationEvent,
+	type AgentActivityKind,
+	type AgentStatus,
 	type ContextCondense,
 	type ContextTruncation,
 	type ClineMessage,
+	type ClineSayTool,
 	type ClineSay,
 	type ClineAsk,
 	type ToolProgressStatus,
@@ -52,6 +56,7 @@ import {
 	MIN_CHECKPOINT_TIMEOUT_SECONDS,
 	MAX_MCP_TOOLS_THRESHOLD,
 	countEnabledMcpTools,
+	normalizeParallelTaskConcurrency,
 } from "@roo-code/types"
 
 // api
@@ -129,7 +134,13 @@ import { AutoApprovalHandler, checkAutoApproval } from "../auto-approval"
 import { MessageManager } from "../message-manager"
 import { validateAndFixToolResultIds } from "./validateToolResultIds"
 import { mergeConsecutiveApiMessages } from "./mergeConsecutiveApiMessages"
-import { AgentBus } from "../agents/AgentBus"
+import {
+	AgentBus,
+	type AgentCompletionCoordinationGate,
+	type GetAgentCoordinationOptions,
+	type PublishAgentCoordinationInput,
+} from "../agents/AgentBus"
+import { isBackgroundAgentToolRestrictedTask, withBackgroundAgentDisabledTools } from "../agents/backgroundAgentTools"
 
 const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
 const DEFAULT_USAGE_COLLECTION_TIMEOUT_MS = 5000 // 5 seconds
@@ -178,7 +189,17 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	readonly workspacePath: string
 	readonly agentId?: string
 	readonly agentBus?: AgentBus
+	readonly background: boolean
+	private agentTerminal = false
 	private readonly systemPromptSuffix?: string
+
+	private getDisabledToolsForNativeRequests(disabledTools: readonly string[] | undefined): string[] | undefined {
+		return withBackgroundAgentDisabledTools(disabledTools, this)
+	}
+
+	private shouldIncludeAgentCoordinationTool(): boolean {
+		return isBackgroundAgentToolRestrictedTask(this) && Boolean(this.agentBus)
+	}
 
 	/**
 	 * The mode associated with this task. Persisted across sessions
@@ -288,6 +309,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	apiConfiguration: ProviderSettings
 	api: ApiHandler
 	private static lastGlobalApiRequestTime?: number
+	private lastParallelAgentApiRequestTime?: number
 	private autoApprovalHandler: AutoApprovalHandler
 
 	/**
@@ -296,6 +318,27 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	 */
 	static resetGlobalApiRequestTime(): void {
 		Task.lastGlobalApiRequestTime = undefined
+	}
+
+	private usesTaskScopedProviderRateLimit(): boolean {
+		return this.background && Boolean(this.agentId)
+	}
+
+	private getProviderRateLimitRequestTime(): number | undefined {
+		return this.usesTaskScopedProviderRateLimit()
+			? this.lastParallelAgentApiRequestTime
+			: Task.lastGlobalApiRequestTime
+	}
+
+	private reserveProviderRateLimitSlot(): void {
+		const now = performance.now()
+
+		if (this.usesTaskScopedProviderRateLimit()) {
+			this.lastParallelAgentApiRequestTime = now
+			return
+		}
+
+		Task.lastGlobalApiRequestTime = now
 	}
 
 	toolRepetitionDetector: ToolRepetitionDetector
@@ -312,6 +355,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	// LLM Messages & Chat Messages
 	apiConversationHistory: ApiMessage[] = []
 	clineMessages: ClineMessage[] = []
+	private clineMessagesSaveQueue: Promise<void> = Promise.resolve()
 
 	// Ask
 	private askResponse?: ClineAskResponse
@@ -348,6 +392,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	presentAssistantMessageLocked = false
 	presentAssistantMessageHasPendingUpdates = false
 	parallelPlanPaused = false
+	parallelExecutionPaused = false
 	userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolResultBlockParam)[] = []
 	userMessageContentReady = false
 
@@ -378,7 +423,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				block.type === "tool_result" && block.tool_use_id === toolResult.tool_use_id,
 		)
 		if (existingResult) {
-			console.warn(
+			console.debug(
 				`[Task#pushToolResultToUserContent] Skipping duplicate tool_result for tool_use_id: ${toolResult.tool_use_id}`,
 			)
 			return false
@@ -441,6 +486,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		workspacePath,
 		agentId,
 		agentBus,
+		background = false,
 		systemPromptSuffix,
 		initialStatus,
 		mode,
@@ -481,6 +527,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			(parentTask ? parentTask.workspacePath : getWorkspacePath(path.join(os.homedir(), "Desktop")))
 		this.agentId = agentId
 		this.agentBus = agentBus
+		this.background = background
 		this.systemPromptSuffix = systemPromptSuffix
 
 		this.instanceId = crypto.randomUUID().slice(0, 8)
@@ -516,7 +563,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.messageQueueStateChangedHandler = () => {
 			this.emit(RooCodeEventName.TaskUserMessage, this.taskId)
 			this.emit(RooCodeEventName.QueuedMessagesUpdated, this.taskId, this.messageQueueService.messages)
-			this.providerRef.deref()?.postStateToWebviewWithoutTaskHistory()
+			if (!this.background) {
+				this.providerRef.deref()?.postStateToWebviewWithoutTaskHistory()
+			}
 		}
 
 		this.messageQueueService.on("stateChanged", this.messageQueueStateChangedHandler)
@@ -565,7 +614,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			this._taskMode = normalizeModeSlug(mode)
 			this._taskApiConfigName = undefined
 			this.taskModeReady = Promise.resolve()
-			this.taskApiConfigReady = this.initializeTaskApiConfigName(provider)
+			this.taskApiConfigReady = background ? Promise.resolve() : this.initializeTaskApiConfigName(provider)
 		} else {
 			this._taskMode = undefined
 			this._taskApiConfigName = undefined
@@ -669,6 +718,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	 * @param provider - The ClineProvider instance to listen to
 	 */
 	private setupProviderProfileChangeListener(provider: ClineProvider): void {
+		if (this.background) {
+			return
+		}
+
 		// Only set up listener if provider has the on method (may not exist in test mocks)
 		if (typeof provider.on !== "function") {
 			return
@@ -846,6 +899,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	 */
 	public setTaskApiConfigName(apiConfigName: string | undefined): void {
 		this._taskApiConfigName = apiConfigName
+	}
+
+	public setTaskMode(mode: string | undefined): void {
+		this._taskMode = normalizeModeSlug(mode || defaultModeSlug)
 	}
 
 	static create(options: TaskOptions): [Task, Promise<void>] {
@@ -1163,12 +1220,84 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		return readTaskMessages({ taskId: this.taskId, globalStoragePath: this.globalStoragePath })
 	}
 
+	private markInterruptedParallelAgentMessages(messages: ClineMessage[]): boolean {
+		const interruptionReason = "Parallel execution was interrupted before it could be resumed."
+		const interruptedAt = Date.now()
+		let didUpdate = false
+
+		for (const message of messages) {
+			if (message.type !== "say" || message.say !== "tool" || !message.text) {
+				continue
+			}
+
+			let tool: ClineSayTool
+			try {
+				tool = JSON.parse(message.text) as ClineSayTool
+			} catch {
+				continue
+			}
+
+			if (tool.tool !== "parallelAgents" || tool.parallelStatus !== "running" || !tool.executionPlan) {
+				continue
+			}
+
+			const planAgentIds = new Set(tool.executionPlan.agents.map((agent) => agent.id))
+			const previousUpdates = new Map((tool.agentStatusUpdates ?? []).map((update) => [update.agentId, update]))
+			const existingActivities = tool.agentActivities ?? []
+			const nextActivities: NonNullable<ClineSayTool["agentActivities"]> = [...existingActivities]
+			const nextUpdates: NonNullable<ClineSayTool["agentStatusUpdates"]> = []
+
+			for (const agent of tool.executionPlan.agents) {
+				const previous = previousUpdates.get(agent.id)
+
+				if (previous?.status === "complete") {
+					nextUpdates.push(previous)
+					continue
+				}
+
+				const previousAgentActivities =
+					previous?.activities ?? existingActivities.filter((activity) => activity.agentId === agent.id)
+				const interruptionActivity = {
+					agentId: agent.id,
+					kind: "error",
+					message: interruptionReason,
+					ts: interruptedAt,
+				} satisfies NonNullable<ClineSayTool["agentActivities"]>[number]
+
+				nextActivities.push(interruptionActivity)
+				nextUpdates.push({
+					...previous,
+					agentId: agent.id,
+					status: "failed",
+					reason: previous?.reason ?? interruptionReason,
+					activities: [...previousAgentActivities, interruptionActivity],
+				})
+			}
+
+			for (const update of previousUpdates.values()) {
+				if (!planAgentIds.has(update.agentId)) {
+					nextUpdates.push(update)
+				}
+			}
+
+			tool.parallelStatus = "failed"
+			tool.agentStatusUpdates = nextUpdates
+			tool.agentActivities = nextActivities
+			message.text = JSON.stringify(tool)
+			didUpdate = true
+		}
+
+		return didUpdate
+	}
+
 	private async addToClineMessages(message: ClineMessage) {
 		this.clineMessages.push(message)
 		const provider = this.providerRef.deref()
 		// Avoid resending large, mostly-static fields (notably taskHistory) on every chat message update.
 		// taskHistory is maintained in-memory in the webview and updated via taskHistoryItemUpdated.
-		await provider?.postStateToWebviewWithoutTaskHistory()
+		if (!this.background) {
+			await provider?.postStateToWebviewWithoutTaskHistory()
+		}
 		this.emit(RooCodeEventName.Message, { action: "created", message })
 		await this.saveClineMessages()
 	}
@@ -1180,15 +1309,31 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	private async updateClineMessage(message: ClineMessage) {
+		if (this.background) {
+			this.emit(RooCodeEventName.Message, { action: "updated", message })
+			return
+		}
+
 		const provider = this.providerRef.deref()
 		await provider?.postMessageToWebview({ type: "messageUpdated", clineMessage: message })
 		this.emit(RooCodeEventName.Message, { action: "updated", message })
 	}
 
 	private async saveClineMessages(): Promise<boolean> {
+		const queuedSave = this.clineMessagesSaveQueue.then(() => this.persistClineMessagesSnapshot())
+		this.clineMessagesSaveQueue = queuedSave.then(
+			() => undefined,
+			() => undefined,
+		)
+		return queuedSave
+	}
+
+	private async persistClineMessagesSnapshot(): Promise<boolean> {
 		try {
+			const messagesSnapshot = structuredClone(this.clineMessages)
+
 			await saveTaskMessages({
-				messages: structuredClone(this.clineMessages),
+				messages: messagesSnapshot,
 				taskId: this.taskId,
 				globalStoragePath: this.globalStoragePath,
 			})
@@ -1202,7 +1347,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				rootTaskId: this.rootTaskId,
 				parentTaskId: this.parentTaskId,
 				taskNumber: this.taskNumber,
-				messages: this.clineMessages,
+				messages: messagesSnapshot,
 				globalStoragePath: this.globalStoragePath,
 				workspace: this.cwd,
 				mode: this._taskMode || defaultModeSlug, // Use the task's own mode, not the current provider mode.
@@ -1632,7 +1777,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		// Get condensing configuration
 		const state = await this.providerRef.deref()?.getState()
 		const customCondensingPrompt = state?.customSupportPrompts?.CONDENSE
-		const { mode, apiConfiguration } = state ?? {}
+		const { apiConfiguration, maxConcurrentParallelTasks } = state ?? {}
+		const taskMode = await this.getTaskMode()
 
 		const { contextTokens: prevContextTokens } = this.getTokenUsage()
 
@@ -1644,12 +1790,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			const toolsResult = await buildNativeToolsArrayWithRestrictions({
 				provider,
 				cwd: this.cwd,
-				mode,
+				mode: taskMode,
 				customModes: state?.customModes,
 				experiments: state?.experiments,
 				apiConfiguration,
-				disabledTools: state?.disabledTools,
+				disabledTools: this.getDisabledToolsForNativeRequests(state?.disabledTools),
 				modelInfo,
+				maxParallelAgents: normalizeParallelTaskConcurrency(maxConcurrentParallelTasks),
+				includeAgentCoordinationTool: this.shouldIncludeAgentCoordinationTool(),
 				includeAllToolsWithRestrictions: false,
 			})
 			allTools = toolsResult.tools
@@ -1657,7 +1805,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		// Build metadata with tools and taskId for the condensing API call
 		const metadata: ApiHandlerCreateMessageMetadata = {
-			mode,
+			mode: taskMode,
 			taskId: this.taskId,
 			...(allTools.length > 0
 				? {
@@ -1925,7 +2073,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// The todo list is already set in the constructor if initialTodos were provided
 			// No need to add any messages - the todoList property is already set
 
-			await this.providerRef.deref()?.postStateToWebviewWithoutTaskHistory()
+			if (!this.background) {
+				await this.providerRef.deref()?.postStateToWebviewWithoutTaskHistory()
+			}
 
 			await this.say("text", task, images)
 
@@ -2015,6 +2165,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				if (cost === undefined && cancelReason === undefined) {
 					modifiedClineMessages.splice(lastApiReqStartedIndex, 1)
 				}
+			}
+
+			if (!this.providerRef.deref()?.activeExecutionPlan) {
+				this.markInterruptedParallelAgentMessages(modifiedClineMessages)
 			}
 
 			await this.overwriteClineMessages(modifiedClineMessages)
@@ -2381,6 +2535,36 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	 * - Immediately continues task loop without user interaction
 	 */
 	public async resumeAfterDelegation(): Promise<void> {
+		await this.resumeAfterPausedToolFlow()
+	}
+
+	public async resumeAfterParallelExecution(): Promise<void> {
+		this.parallelExecutionPaused = false
+		await this.resumeAfterPausedToolFlow()
+	}
+
+	public async restoreClineMessagesFromHistory(): Promise<void> {
+		this.clineMessages = await this.getSavedClineMessages()
+		restoreTodoListForTask(this)
+	}
+
+	public async restoreParallelExecutionPause(): Promise<void> {
+		this.parallelExecutionPaused = true
+		this.parallelPlanPaused = false
+		this.idleAsk = undefined
+		this.resumableAsk = undefined
+		this.interactiveAsk = undefined
+		this.abort = false
+		this.abandoned = false
+		this.abortReason = undefined
+		this.didFinishAbortingStream = false
+		this.isStreaming = false
+		this.isWaitingForFirstChunk = false
+		this.isInitialized = true
+		this.emit(RooCodeEventName.TaskActive, this.taskId)
+	}
+
+	private async resumeAfterPausedToolFlow(): Promise<void> {
 		// Clear any ask states that might have been set during history load
 		this.idleAsk = undefined
 		this.resumableAsk = undefined
@@ -2447,6 +2631,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	// Task Loop
 
 	private async initiateTaskLoop(userContent: Anthropic.Messages.ContentBlockParam[]): Promise<void> {
+		if (this.isAgentTerminal?.() === true) {
+			this.userMessageContentReady = true
+			return
+		}
+
 		// Kicks off the checkpoints initialization process in the background.
 		getCheckpointService(this)
 
@@ -2455,7 +2644,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		this.emit(RooCodeEventName.TaskStarted)
 
-		while (!this.abort) {
+		while (!this.abort && this.isAgentTerminal?.() !== true) {
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // We only need file details the first time.
 
@@ -2502,6 +2691,16 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				throw new Error(`[RooCode#recursivelyMakeRooRequests] task ${this.taskId}.${this.instanceId} aborted`)
 			}
 
+			if (this.isAgentTerminal?.() === true) {
+				this.userMessageContentReady = true
+				return true
+			}
+
+			if (this.parallelExecutionPaused) {
+				await this.flushPendingToolResultsToHistory()
+				return true
+			}
+
 			if (this.consecutiveMistakeLimit > 0 && this.consecutiveMistakeCount >= this.consecutiveMistakeLimit) {
 				const { response, text, images } = await this.ask(
 					"mistake_limit_reached",
@@ -2544,6 +2743,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// This ensures subsequent requests (including subtasks) still honour the
 			// provider rate-limit window.
 			await this.maybeWaitForProviderRateLimit(currentItem.retryAttempt ?? 0)
+
+			if (this.isAgentTerminal?.() === true) {
+				this.userMessageContentReady = true
+				return true
+			}
+
 			Task.lastGlobalApiRequestTime = performance.now()
 
 			await this.say(
@@ -2559,7 +2764,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			const showRooIgnoredFiles = state?.showRooIgnoredFiles ?? false
 			const includeDiagnosticMessages = state?.includeDiagnosticMessages ?? true
 			const maxDiagnosticMessages = state?.maxDiagnosticMessages ?? 50
-			const currentMode = state?.mode ?? defaultModeSlug
+			const currentMode = this.background ? await this.getTaskMode() : (state?.mode ?? defaultModeSlug)
 
 			const { content: parsedUserContent, mode: slashCommandMode } = await processUserContentMentions({
 				userContent: currentUserContent,
@@ -2580,7 +2785,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					const state = await provider.getState()
 					const targetMode = getModeBySlug(slashCommandMode, state?.customModes)
 					if (targetMode) {
-						await provider.handleModeSwitch(slashCommandMode)
+						if (this.background) {
+							this.setTaskMode(slashCommandMode)
+						} else {
+							await provider.handleModeSwitch(slashCommandMode)
+						}
 					}
 				}
 			}
@@ -2782,6 +2991,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 					let item = await nextChunkWithAbort()
 					while (!item.done) {
+						if (this.isAgentTerminal?.() === true) {
+							this.userMessageContentReady = true
+							break
+						}
+
 						const chunk = item.value
 						item = await nextChunkWithAbort()
 						if (!chunk) {
@@ -3000,6 +3214,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							}
 						}
 
+						if (this.isAgentTerminal?.() === true) {
+							this.userMessageContentReady = true
+							break
+						}
+
 						if (this.abort) {
 							console.log(`aborting stream, this.abandoned = ${this.abandoned}`)
 
@@ -3092,7 +3311,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							let chunkCount = 0
 
 							// Use the same iterator that the main loop was using
-							while (!item.done) {
+							while (!item.done && this.isAgentTerminal?.() !== true) {
 								// Check for timeout
 								if (performance.now() - startTime > timeoutMs) {
 									console.warn(
@@ -3165,10 +3384,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						}
 					}
 
-					// Start the background task and handle any errors
-					drainStreamInBackgroundToFindAllUsage(lastApiReqIndex).catch((error) => {
-						console.error("Background usage collection failed:", error)
-					})
+					// Start the background task and handle any errors, unless a parallel agent
+					// already reached a terminal state and the provider request has been cancelled.
+					if (this.isAgentTerminal?.() !== true) {
+						drainStreamInBackgroundToFindAllUsage(lastApiReqIndex).catch((error) => {
+							console.error("Background usage collection failed:", error)
+						})
+					}
 				} catch (error) {
 					// Abandoned happens when extension is no longer waiting for the
 					// Cline instance to finish aborting (error is thrown here when
@@ -3238,6 +3460,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				}
 
 				this.didCompleteReadingStream = true
+
+				if (this.isAgentTerminal?.() === true) {
+					this.userMessageContentReady = true
+					return true
+				}
 
 				// Set any blocks to be complete to allow `presentAssistantMessage`
 				// to finish and set `userMessageContentReady` to true.
@@ -3503,6 +3730,16 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 					await pWaitFor(() => this.userMessageContentReady)
 
+					if (this.isAgentTerminal?.() === true) {
+						this.userMessageContentReady = true
+						return true
+					}
+
+					if (this.parallelExecutionPaused) {
+						await this.flushPendingToolResultsToHistory()
+						return true
+					}
+
 					// If the model did not tool use, then we need to tell it to
 					// either use a tool or attempt_completion.
 					const didToolUse = this.assistantMessageContent.some(
@@ -3685,15 +3922,16 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const state = await this.providerRef.deref()?.getState()
 
 		const {
-			mode,
 			customModes,
 			customModePrompts,
 			customInstructions,
 			experiments,
 			language,
-			apiConfiguration,
 			enableSubfolderRules,
+			maxConcurrentParallelTasks,
 		} = state ?? {}
+		const taskMode = await this.getTaskMode()
+		const taskApiConfiguration = this.apiConfiguration
 
 		return await (async () => {
 			const provider = this.providerRef.deref()
@@ -3710,7 +3948,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				false,
 				mcpHub,
 				this.diffStrategy,
-				mode ?? defaultModeSlug,
+				taskMode,
 				customModePrompts,
 				customModes,
 				customInstructions,
@@ -3718,7 +3956,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				language,
 				rooIgnoreInstructions,
 				{
-					todoListEnabled: apiConfiguration?.todoListEnabled ?? true,
+					todoListEnabled: taskApiConfiguration?.todoListEnabled ?? true,
 					useAgentRules:
 						vscode.workspace.getConfiguration(Package.name).get<boolean>("useAgentRules") ?? true,
 					enableSubfolderRules: enableSubfolderRules ?? false,
@@ -3726,6 +3964,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						.getConfiguration(Package.name)
 						.get<boolean>("newTaskRequireTodos", false),
 					isStealthModel: modelInfo?.isStealthModel,
+					maxParallelAgents: normalizeParallelTaskConcurrency(maxConcurrentParallelTasks),
 				},
 				undefined, // todoList
 				this.api.getModel().id,
@@ -3752,6 +3991,75 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.agentBus.releaseWriteIntent(this.agentId, relPath)
 	}
 
+	public reportAgentProgress(message: string, kind: AgentActivityKind = "status", relPath?: string): void {
+		if (!this.background || !this.agentId || !this.agentBus) {
+			return
+		}
+
+		this.agentBus.reportProgress(this.agentId, message, kind, relPath)
+	}
+
+	public canCoordinateWithAgents(): boolean {
+		return this.shouldIncludeAgentCoordinationTool()
+	}
+
+	public getAgentStatus(): AgentStatus | undefined {
+		if (!this.agentId || !this.agentBus) {
+			return undefined
+		}
+
+		return this.agentBus.getAgentStatus(this.agentId)
+	}
+
+	public isAgentTerminal(): boolean {
+		if (this.agentTerminal) {
+			return true
+		}
+
+		if (!this.agentId || !this.agentBus) {
+			return false
+		}
+
+		return this.agentBus.isAgentTerminal(this.agentId)
+	}
+
+	public markAgentTerminal(): void {
+		this.agentTerminal = true
+		this.userMessageContentReady = true
+	}
+
+	public publishAgentCoordination(input: PublishAgentCoordinationInput): AgentCoordinationEvent | undefined {
+		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
+			return undefined
+		}
+
+		return this.agentBus.publishCoordination(this.agentId, input)
+	}
+
+	public getAgentCoordinationEvents(options?: GetAgentCoordinationOptions): AgentCoordinationEvent[] {
+		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
+			return []
+		}
+
+		return this.agentBus.getCoordinationEvents(this.agentId, options)
+	}
+
+	public getOpenAgentCoordinationQuestions(options?: GetAgentCoordinationOptions): AgentCoordinationEvent[] {
+		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
+			return []
+		}
+
+		return this.agentBus.getOpenCoordinationQuestions(this.agentId, options)
+	}
+
+	public getAgentCompletionCoordinationGate(options?: { recordAttempt?: boolean }): AgentCompletionCoordinationGate {
+		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
+			return { approved: true, blockers: [], unanswerableQuestions: [] }
+		}
+
+		return this.agentBus.getAgentCompletionCoordinationGate(this.agentId, options)
+	}
+
 	private getCurrentProfileId(state: any): string {
 		return (
 			state?.listApiConfigMeta?.find((profile: any) => profile.name === state?.currentApiConfigName)?.id ??
@@ -3761,7 +4069,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	private async handleContextWindowExceededError(): Promise<void> {
 		const state = await this.providerRef.deref()?.getState()
-		const { profileThresholds = {}, mode, apiConfiguration } = state ?? {}
+		const { profileThresholds = {}, apiConfiguration, maxConcurrentParallelTasks } = state ?? {}
+		const taskMode = await this.getTaskMode()
 
 		const { contextTokens } = this.getTokenUsage()
 		const modelInfo = this.api.getModel().info
@@ -3793,12 +4102,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			const toolsResult = await buildNativeToolsArrayWithRestrictions({
 				provider,
 				cwd: this.cwd,
-				mode,
+				mode: taskMode,
 				customModes: state?.customModes,
 				experiments: state?.experiments,
 				apiConfiguration,
-				disabledTools: state?.disabledTools,
+				disabledTools: this.getDisabledToolsForNativeRequests(state?.disabledTools),
 				modelInfo,
+				maxParallelAgents: normalizeParallelTaskConcurrency(maxConcurrentParallelTasks),
+				includeAgentCoordinationTool: this.shouldIncludeAgentCoordinationTool(),
 				includeAllToolsWithRestrictions: false,
 			})
 			allTools = toolsResult.tools
@@ -3806,7 +4117,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		// Build metadata with tools and taskId for the condensing API call
 		const metadata: ApiHandlerCreateMessageMetadata = {
-			mode,
+			mode: taskMode,
 			taskId: this.taskId,
 			...(allTools.length > 0
 				? {
@@ -3894,13 +4205,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const state = await this.providerRef.deref()?.getState()
 		const rateLimitSeconds =
 			state?.apiConfiguration?.rateLimitSeconds ?? this.apiConfiguration?.rateLimitSeconds ?? 0
+		const lastRequestTime = this.getProviderRateLimitRequestTime()
 
-		if (rateLimitSeconds <= 0 || !Task.lastGlobalApiRequestTime) {
+		if (rateLimitSeconds <= 0 || !lastRequestTime) {
 			return
 		}
 
 		const now = performance.now()
-		const timeSinceLastRequest = now - Task.lastGlobalApiRequestTime
+		const timeSinceLastRequest = now - lastRequestTime
 		const rateLimitDelay = Math.ceil(
 			Math.min(rateLimitSeconds, Math.max(0, rateLimitSeconds * 1000 - timeSinceLastRequest) / 1000),
 		)
@@ -3928,11 +4240,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			apiConfiguration,
 			autoApprovalEnabled,
 			requestDelaySeconds,
-			mode,
 			autoCondenseContext = true,
 			autoCondenseContextPercent = 100,
 			profileThresholds = {},
+			maxConcurrentParallelTasks,
 		} = state ?? {}
+		const taskMode = await this.getTaskMode()
 
 		// Get condensing configuration for automatic triggers.
 		const customCondensingPrompt = state?.customSupportPrompts?.CONDENSE
@@ -3943,12 +4256,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		// Update last request time right before making the request so that subsequent
 		// requests — even from new subtasks — will honour the provider's rate-limit.
+		// Background parallel agents reserve a task-scoped slot so they do not
+		// serialize independent agents that are supposed to run concurrently.
 		//
 		// NOTE: When recursivelyMakeClineRequests handles rate limiting, it sets the
 		// timestamp earlier to include the environment details build. We still set it
 		// here for direct callers (tests) and for the case where we didn't rate-limit
 		// in the caller.
-		Task.lastGlobalApiRequestTime = performance.now()
+		this.reserveProviderRateLimitSlot()
 
 		const systemPrompt = await this.getSystemPrompt()
 		const { contextTokens } = this.getTokenUsage()
@@ -4007,12 +4322,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					const toolsResult = await buildNativeToolsArrayWithRestrictions({
 						provider,
 						cwd: this.cwd,
-						mode,
+						mode: taskMode,
 						customModes: state?.customModes,
 						experiments: state?.experiments,
 						apiConfiguration,
-						disabledTools: state?.disabledTools,
+						disabledTools: this.getDisabledToolsForNativeRequests(state?.disabledTools),
 						modelInfo,
+						maxParallelAgents: normalizeParallelTaskConcurrency(maxConcurrentParallelTasks),
+						includeAgentCoordinationTool: this.shouldIncludeAgentCoordinationTool(),
 						includeAllToolsWithRestrictions: false,
 					})
 					contextMgmtTools = toolsResult.tools
@@ -4021,7 +4338,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			// Build metadata with tools and taskId for the condensing API call
 			const contextMgmtMetadata: ApiHandlerCreateMessageMetadata = {
-				mode,
+				mode: taskMode,
 				taskId: this.taskId,
 				...(contextMgmtTools.length > 0
 					? {
@@ -4171,12 +4488,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			const toolsResult = await buildNativeToolsArrayWithRestrictions({
 				provider,
 				cwd: this.cwd,
-				mode,
+				mode: taskMode,
 				customModes: state?.customModes,
 				experiments: state?.experiments,
 				apiConfiguration,
-				disabledTools: state?.disabledTools,
+				disabledTools: this.getDisabledToolsForNativeRequests(state?.disabledTools),
 				modelInfo,
+				maxParallelAgents: normalizeParallelTaskConcurrency(state?.maxConcurrentParallelTasks),
+				includeAgentCoordinationTool: this.shouldIncludeAgentCoordinationTool(),
 				includeAllToolsWithRestrictions: supportsAllowedFunctionNames,
 			})
 			allTools = toolsResult.tools
@@ -4186,7 +4505,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const shouldIncludeTools = allTools.length > 0
 
 		const metadata: ApiHandlerCreateMessageMetadata = {
-			mode: mode,
+			mode: taskMode,
 			taskId: this.taskId,
 			suppressPreviousResponseId: this.skipPrevResponseIdOnce,
 			// Include tools whenever they are present.
@@ -4323,8 +4642,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// Respect provider rate limit window
 			let rateLimitDelay = 0
 			const rateLimit = (state?.apiConfiguration ?? this.apiConfiguration)?.rateLimitSeconds || 0
-			if (Task.lastGlobalApiRequestTime && rateLimit > 0) {
-				const elapsed = performance.now() - Task.lastGlobalApiRequestTime
+			const lastRequestTime = this.getProviderRateLimitRequestTime()
+			if (lastRequestTime && rateLimit > 0) {
+				const elapsed = performance.now() - lastRequestTime
 				rateLimitDelay = Math.ceil(Math.min(rateLimit, Math.max(0, rateLimit * 1000 - elapsed) / 1000))
 			}
 

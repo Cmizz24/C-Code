@@ -1,7 +1,13 @@
 import { serializeError } from "serialize-error"
 import { Anthropic } from "@anthropic-ai/sdk"
 
-import type { ToolName, ClineAsk, ToolProgressStatus } from "@roo-code/types"
+import {
+	normalizeParallelTaskConcurrency,
+	type ToolName,
+	type ClineAsk,
+	type ToolProgressStatus,
+	type TodoItem,
+} from "@roo-code/types"
 import { customToolRegistry } from "@roo-code/core"
 
 import { t } from "../../i18n"
@@ -28,17 +34,23 @@ import { askFollowupQuestionTool } from "../tools/AskFollowupQuestionTool"
 import { switchModeTool } from "../tools/SwitchModeTool"
 import { attemptCompletionTool, AttemptCompletionCallbacks } from "../tools/AttemptCompletionTool"
 import { newTaskTool } from "../tools/NewTaskTool"
-import { updateTodoListTool } from "../tools/UpdateTodoListTool"
+import { updateTodoListTool, updateTodoStatusForTask } from "../tools/UpdateTodoListTool"
 import { runSlashCommandTool } from "../tools/RunSlashCommandTool"
 import { skillTool } from "../tools/SkillTool"
 import { generateImageTool } from "../tools/GenerateImageTool"
 import { applyDiffTool as applyDiffToolClass } from "../tools/ApplyDiffTool"
 import { isValidToolName, validateToolUse } from "../tools/validateToolUse"
 import { codebaseSearchTool } from "../tools/CodebaseSearchTool"
+import { coordinateAgentsTool } from "../tools/CoordinateAgentsTool"
 import { handlePlanParallelTasks } from "../tools/planParallelTasks"
 
 import { formatResponse } from "../prompts/responses"
 import { sanitizeToolUseId } from "../../utils/tool-id"
+import {
+	getBackgroundAgentToolRequirements,
+	isBackgroundAgentToolRestrictedTask,
+	withBackgroundAgentDisabledTools,
+} from "../agents/backgroundAgentTools"
 
 function isTaskAbortError(cline: Task, error: unknown): boolean {
 	return (
@@ -47,6 +59,46 @@ function isTaskAbortError(cline: Task, error: unknown): boolean {
 		error.message.includes("aborted") &&
 		error.message.includes(`${cline.taskId}.${cline.instanceId}`)
 	)
+}
+
+function findCurrentParallelPlanningTodo(todos: TodoItem[] | undefined): TodoItem | undefined {
+	if (!todos?.length) {
+		return undefined
+	}
+
+	return (
+		todos.find(
+			(todo) =>
+				todo.status === "in_progress" &&
+				/\b(parallel|agent|execution)\b/i.test(todo.content) &&
+				/\b(plan|planning)\b/i.test(todo.content),
+		) ?? todos.find((todo) => todo.status === "in_progress")
+	)
+}
+
+async function getTaskLocalMode(cline: Task): Promise<string | undefined> {
+	if (typeof (cline as any).getTaskMode === "function") {
+		return (await (cline as any).getTaskMode()) || undefined
+	}
+
+	if (typeof (cline as any).taskMode === "string") {
+		return (cline as any).taskMode || undefined
+	}
+
+	return undefined
+}
+
+async function completeCurrentParallelPlanningTodo(cline: Task): Promise<boolean> {
+	const todo = findCurrentParallelPlanningTodo(cline.todoList)
+	if (!todo || !updateTodoStatusForTask(cline, todo.id, "completed")) {
+		return false
+	}
+
+	// This is an internal bookkeeping update for the current task state, not a
+	// user-authored todo edit. Emitting user_edit_todos here creates a visible
+	// "User Edit/User Edits" chat row before the parallel agents card.
+	await (cline.providerRef.deref()?.postStateToWebviewWithoutTaskHistory?.() ?? Promise.resolve()).catch(() => {})
+	return true
 }
 
 async function sayToolError(cline: Task, action: string, error: Error): Promise<void> {
@@ -86,6 +138,11 @@ async function sayToolError(cline: Task, action: string, error: Error): Promise<
 export async function presentAssistantMessage(cline: Task) {
 	if (cline.abort) {
 		throw new Error(`[Task#presentAssistantMessage] task ${cline.taskId}.${cline.instanceId} aborted`)
+	}
+
+	if (cline.isAgentTerminal?.()) {
+		cline.userMessageContentReady = true
+		return
 	}
 
 	if (cline.parallelPlanPaused) {
@@ -164,7 +221,7 @@ export async function presentAssistantMessage(cline: Task) {
 
 			const pushToolResult = (content: ToolResponse, feedbackImages?: string[]) => {
 				if (hasToolResult) {
-					console.warn(
+					console.debug(
 						`[presentAssistantMessage] Skipping duplicate tool_result for mcp_tool_use: ${toolCallId}`,
 					)
 					return
@@ -345,14 +402,29 @@ export async function presentAssistantMessage(cline: Task) {
 				break
 			}
 
-			const isCompleteParallelPlanTool = block.name === "plan_parallel_tasks" && !block.partial
+			const isBackgroundAgentTask = isBackgroundAgentToolRestrictedTask(cline)
+			const isCompleteParallelPlanTool =
+				block.name === "plan_parallel_tasks" && !block.partial && !isBackgroundAgentTask
 			if (isCompleteParallelPlanTool) {
 				cline.didAlreadyUseTool = true
 			}
 
-			// Fetch state early so it's available for toolDescription and validation
+			// Fetch state early so it's available for toolDescription and validation.
+			// Tool execution gates must use the task-local mode. Background parallel
+			// children keep their own mode even while the provider/global state still
+			// reflects the parent/orchestrator mode.
+			const taskMode = await getTaskLocalMode(cline)
 			const state = await cline.providerRef.deref()?.getState()
-			const { mode, customModes, experiments: stateExperiments, disabledTools } = state ?? {}
+			const {
+				mode: providerMode,
+				customModes,
+				experiments: stateExperiments,
+				disabledTools,
+				maxConcurrentParallelTasks,
+			} = state ?? {}
+			const mode = taskMode ?? providerMode ?? defaultModeSlug
+			const maxParallelAgents = normalizeParallelTaskConcurrency(maxConcurrentParallelTasks)
+			const disabledToolsForTask = withBackgroundAgentDisabledTools(disabledTools, cline)
 
 			const toolDescription = (): string => {
 				switch (block.name) {
@@ -409,6 +481,8 @@ export async function presentAssistantMessage(cline: Task) {
 					}
 					case "plan_parallel_tasks":
 						return `[${block.name} for '${block.params.goal}']`
+					case "coordinate_agents":
+						return `[${block.name} ${block.params.action ?? ""}]`
 					case "run_slash_command":
 						return `[${block.name} for '${block.params.command}'${block.params.args ? ` with args: ${block.params.args}` : ""}]`
 					case "skill":
@@ -481,7 +555,7 @@ export async function presentAssistantMessage(cline: Task) {
 			const pushToolResult = (content: ToolResponse) => {
 				// Native tool calling: only allow ONE tool_result per tool call
 				if (hasToolResult) {
-					console.warn(
+					console.debug(
 						`[presentAssistantMessage] Skipping duplicate tool_result for tool_use_id: ${toolCallId}`,
 					)
 					return
@@ -603,15 +677,12 @@ export async function presentAssistantMessage(cline: Task) {
 
 				try {
 					const toolRequirements =
-						disabledTools?.reduce(
-							(acc: Record<string, boolean>, tool: string) => {
-								acc[tool] = false
-								const resolvedToolName = resolveToolAlias(tool)
-								acc[resolvedToolName] = false
-								return acc
-							},
-							{} as Record<string, boolean>,
-						) ?? {}
+						disabledToolsForTask?.reduce((acc: Record<string, boolean>, tool: string) => {
+							acc[tool] = false
+							const resolvedToolName = resolveToolAlias(tool)
+							acc[resolvedToolName] = false
+							return acc
+						}, getBackgroundAgentToolRequirements(cline)) ?? getBackgroundAgentToolRequirements(cline)
 
 					validateToolUse(
 						block.name as ToolName,
@@ -827,8 +898,10 @@ export async function presentAssistantMessage(cline: Task) {
 						const result = handlePlanParallelTasks(
 							(block as ToolUse<"plan_parallel_tasks">).nativeArgs,
 							cline.cwd,
+							{ maxAgents: maxParallelAgents },
 						)
 						if (result.ok) {
+							await completeCurrentParallelPlanningTodo(cline)
 							const provider = cline.providerRef.deref()
 							const approvalResult = await provider?.requestPlanApproval(result.plan)
 
@@ -843,6 +916,7 @@ export async function presentAssistantMessage(cline: Task) {
 							} else if (approvalResult.startResult.ok === false) {
 								pushToolResult(formatResponse.toolError(approvalResult.startResult.error))
 							} else {
+								cline.parallelExecutionPaused = true
 								pushToolResult(
 									`Approved execution plan ${approvalResult.plan.planId} with ${approvalResult.plan.agents.length} agents. Roo is creating worktrees and starting agent tasks programmatically. Do not call new_task for these parallel agents.\n${
 										result.warnings.length > 0
@@ -872,6 +946,13 @@ export async function presentAssistantMessage(cline: Task) {
 					}
 					break
 				}
+				case "coordinate_agents":
+					await coordinateAgentsTool.handle(cline, block as ToolUse<"coordinate_agents">, {
+						askApproval,
+						handleError,
+						pushToolResult,
+					})
+					break
 				case "attempt_completion": {
 					const completionCallbacks: AttemptCompletionCallbacks = {
 						askApproval,
@@ -991,6 +1072,11 @@ export async function presentAssistantMessage(cline: Task) {
 	// cline.presentAssistantMessage below would fail (sometimes) since it's
 	// locked.
 	cline.presentAssistantMessageLocked = false
+
+	if (cline.isAgentTerminal?.()) {
+		cline.userMessageContentReady = true
+		return
+	}
 
 	// NOTE: When tool is rejected, iterator stream is interrupted and it waits
 	// for `userMessageContentReady` to be true. Future calls to present will

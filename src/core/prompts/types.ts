@@ -9,4 +9,6 @@ export interface SystemPromptSettings {
 	newTaskRequireTodos: boolean
 	/** When true, model should hide vendor/company identity in responses */
 	isStealthModel?: boolean
+	/** Maximum total agents allowed in a single parallel execution plan. */
+	maxParallelAgents?: number
 }

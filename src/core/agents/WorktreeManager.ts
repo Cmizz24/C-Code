@@ -1,13 +1,39 @@
 import path from "path"
 import { exec } from "child_process"
+import { createHash } from "crypto"
+import fs from "fs/promises"
+import os from "os"
 import { promisify } from "util"
+import ignore, { type Ignore } from "ignore"
 
 const execAsync = promisify(exec)
+
+export type WorkspaceBaseline = {
+	planId: string
+	ref: string
+	commit: string
+}
 
 export class WorktreeManagerError extends Error {
 	constructor(message: string) {
 		super(message)
 		this.name = "WorktreeManagerError"
+	}
+}
+
+export type WorktreeMergeFailureStage = "rebase" | "merge" | "apply"
+
+export class WorktreeMergeError extends WorktreeManagerError {
+	constructor(
+		readonly stage: WorktreeMergeFailureStage,
+		readonly branch: string,
+		readonly cwd: string,
+		readonly conflictedFiles: string[],
+		readonly abortError: string | undefined,
+		readonly originalError: string,
+	) {
+		super(formatMergeFailureMessage(stage, branch, conflictedFiles, abortError, originalError))
+		this.name = "WorktreeMergeError"
 	}
 }
 
@@ -35,8 +61,59 @@ function sanitizeBranchComponent(value: string): string {
 		.slice(0, 80)
 }
 
+function sanitizePathComponent(value: string): string {
+	return sanitizeBranchComponent(value)
+		.replace(/[\\/]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+}
+
+function normalizeGitPath(filePath: string): string {
+	return filePath.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/$/, "")
+}
+
+function formatGitFailure(error: unknown): string {
+	if (error && typeof error === "object") {
+		const maybeOutput = error as { stdout?: string; stderr?: string; message?: string }
+		return [maybeOutput.stdout, maybeOutput.stderr, maybeOutput.message].filter(Boolean).join("\n")
+	}
+
+	return String(error)
+}
+
+function formatMergeFailureMessage(
+	stage: WorktreeMergeFailureStage,
+	branch: string,
+	conflictedFiles: string[],
+	abortError: string | undefined,
+	originalError: string,
+): string {
+	const action = stage === "rebase" ? "rebase" : stage === "apply" ? "apply" : "merge"
+	const target =
+		stage === "rebase"
+			? "onto the current workspace HEAD"
+			: stage === "apply"
+				? "to the workspace"
+				: "into the workspace"
+	const cleanupMessage =
+		stage === "apply"
+			? abortError
+				? `Roo attempted to clean up the failed patch application, but Git returned:\n${abortError}`
+				: "Roo stopped before applying unsafe patch changes so the workspace is ready for manual review."
+			: abortError
+				? `Roo attempted to abort the in-progress ${action}, but Git returned:\n${abortError}`
+				: `Roo aborted the in-progress ${action} so the repository/worktree is ready for manual review.`
+	const conflictMessage = conflictedFiles.length > 0 ? `\nConflicted files:\n- ${conflictedFiles.join("\n- ")}` : ""
+	const gitMessage = originalError ? `\n\nGit output:\n${originalError}` : ""
+
+	return `Failed to ${action} parallel agent branch ${branch} ${target}.${conflictMessage}\n${cleanupMessage}${gitMessage}`
+}
+
 export class WorktreeManager {
 	private readonly createdWorktrees = new Set<string>()
+	private readonly workspaceBaselines = new Map<string, WorkspaceBaseline>()
+	private readonly workspaceBaselineCaptures = new Map<string, Promise<WorkspaceBaseline>>()
+	private rooIgnoreMatcher: Ignore | undefined
+	private hasLoadedRooIgnoreMatcher = false
 	private gitRoot: string | undefined
 	private hasValidatedHead = false
 
@@ -52,32 +129,676 @@ export class WorktreeManager {
 		return gitRoot
 	}
 
+	public async captureWorkspaceBaseline(planId: string): Promise<WorkspaceBaseline> {
+		const existing = this.workspaceBaselines.get(planId)
+		if (existing) {
+			return existing
+		}
+
+		const pending = this.workspaceBaselineCaptures.get(planId)
+		if (pending) {
+			return pending
+		}
+
+		const capture = this.createWorkspaceBaseline(planId)
+		this.workspaceBaselineCaptures.set(planId, capture)
+
+		try {
+			const baseline = await capture
+			this.workspaceBaselines.set(planId, baseline)
+			return baseline
+		} finally {
+			this.workspaceBaselineCaptures.delete(planId)
+		}
+	}
+
+	public async restoreWorkspaceBaseline(planId: string): Promise<WorkspaceBaseline | undefined> {
+		const existing = this.workspaceBaselines.get(planId)
+		if (existing) {
+			return existing
+		}
+
+		const gitRoot = await this.validateGitRepository()
+		const safePlanId = sanitizeBranchComponent(planId) || "plan"
+		const ref = `refs/roo/parallel-baselines/${safePlanId}`
+
+		try {
+			const result = await execAsync(`git rev-parse --verify ${shellQuote(ref)}`, { cwd: gitRoot })
+			const commit = (typeof result === "string" ? result : result.stdout).trim()
+			const baseline = { planId, ref, commit }
+			this.workspaceBaselines.set(planId, baseline)
+			return baseline
+		} catch {
+			return undefined
+		}
+	}
+
 	public async createWorktree(agentId: string, planId: string): Promise<string> {
 		const gitRoot = await this.validateGitRepository()
+		const baseline = await this.captureWorkspaceBaseline(planId)
 		const safePlanId = sanitizeBranchComponent(planId) || "plan"
 		const safeAgentId = sanitizeBranchComponent(agentId) || "agent"
 		const branchName = `roo/parallel/${safePlanId}/${safeAgentId}`
-		const worktreePath = path.join(this.repoRoot, ".roo", "parallel-worktrees", safePlanId, safeAgentId)
+		const worktreePath = this.getParallelWorktreePath(gitRoot, safePlanId, safeAgentId)
 
-		await execAsync(`git worktree add -B ${shellQuote(branchName)} ${shellQuote(worktreePath)} HEAD`, {
-			cwd: gitRoot,
-		})
+		await this.removeExistingWorktreeAtPath(gitRoot, worktreePath)
+
+		await execAsync(
+			`git worktree add -B ${shellQuote(branchName)} ${shellQuote(worktreePath)} ${baseline.commit}`,
+			{
+				cwd: gitRoot,
+			},
+		)
 
 		this.createdWorktrees.add(worktreePath)
 		return worktreePath
 	}
 
+	private getParallelWorktreePath(gitRoot: string, safePlanId: string, safeAgentId: string): string {
+		const resolvedGitRoot = path.resolve(gitRoot)
+		const repoName = sanitizePathComponent(path.basename(resolvedGitRoot)) || "repo"
+		const repoHash = createHash("sha1").update(resolvedGitRoot.toLowerCase()).digest("hex").slice(0, 12)
+
+		return path.join(
+			os.homedir(),
+			".roo",
+			"parallel-worktrees",
+			`${repoName}-${repoHash}`,
+			sanitizePathComponent(safePlanId) || "plan",
+			sanitizePathComponent(safeAgentId) || "agent",
+		)
+	}
+
 	public async removeWorktree(worktreePath: string): Promise<void> {
 		try {
-			await execAsync(`git worktree remove --force ${shellQuote(worktreePath)}`, { cwd: this.repoRoot })
+			const gitRoot = await this.resolveGitRoot()
+			await execAsync(`git worktree remove --force ${shellQuote(worktreePath)}`, { cwd: gitRoot })
 		} finally {
 			this.createdWorktrees.delete(worktreePath)
 		}
 	}
 
+	private async removeExistingWorktreeAtPath(gitRoot: string, worktreePath: string): Promise<void> {
+		try {
+			await fs.stat(worktreePath)
+		} catch {
+			return
+		}
+
+		try {
+			await execAsync(`git worktree remove --force ${shellQuote(worktreePath)}`, { cwd: gitRoot })
+		} catch {
+			await fs.rm(worktreePath, { recursive: true, force: true })
+		}
+
+		this.createdWorktrees.delete(worktreePath)
+	}
+
 	public async cleanup(): Promise<void> {
 		const worktrees = this.getCreatedWorktrees()
 		await Promise.allSettled(worktrees.map((worktreePath) => this.removeWorktree(worktreePath)))
+		await Promise.allSettled(
+			Array.from(this.workspaceBaselines.values()).map((baseline) => this.deleteBaselineRef(baseline.ref)),
+		)
+		this.workspaceBaselines.clear()
+		this.workspaceBaselineCaptures.clear()
+	}
+
+	public async cleanupPlanBaseline(planId: string): Promise<void> {
+		const baseline = this.workspaceBaselines.get(planId)
+		if (!baseline) {
+			return
+		}
+
+		try {
+			await this.deleteBaselineRef(baseline.ref).catch(() => undefined)
+		} finally {
+			this.workspaceBaselines.delete(planId)
+			this.workspaceBaselineCaptures.delete(planId)
+		}
+	}
+
+	public async prepareMergeReview(params: {
+		agentId: string
+		planId: string
+		worktreePath: string
+		branch: string
+		ownedPaths?: string[]
+	}): Promise<string> {
+		const ownedPaths = params.ownedPaths?.map(normalizeGitPath).filter(Boolean)
+
+		if (params.ownedPaths && ownedPaths?.length === 0) {
+			return ""
+		}
+
+		await this.commitPendingWorktreeChanges({ ...params, ownedPaths })
+		return this.getBranchDiff(params.branch, ownedPaths, this.workspaceBaselines.get(params.planId)?.commit)
+	}
+
+	public async mergeBranch(
+		branch: string,
+		params: { planId?: string; worktreePath?: string; ownedPaths?: string[]; autoApproved?: boolean } = {},
+	): Promise<void> {
+		const gitRoot = await this.resolveGitRoot()
+		const baseline = params.planId ? this.workspaceBaselines.get(params.planId) : undefined
+		const ownedPaths = params.ownedPaths?.map(normalizeGitPath).filter(Boolean)
+
+		if (baseline && ownedPaths?.length) {
+			if (params.autoApproved) {
+				await this.materializeOwnedBranchChanges(branch, {
+					gitRoot,
+					baselineCommit: baseline.commit,
+					ownedPaths,
+				})
+			} else {
+				await this.applyOwnedBranchDiff(branch, {
+					gitRoot,
+					baselineCommit: baseline.commit,
+					ownedPaths,
+				})
+			}
+
+			return
+		}
+
+		if (baseline && params.worktreePath) {
+			const currentHead = await this.getCurrentHead(gitRoot)
+			const branchCommitCount = await this.getCommitCount(params.worktreePath, `${baseline.commit}..${branch}`)
+
+			if (branchCommitCount === 0) {
+				await execAsync(`git reset --hard ${currentHead}`, { cwd: params.worktreePath })
+			} else {
+				try {
+					await execAsync(`git rebase --onto ${currentHead} ${baseline.commit}`, { cwd: params.worktreePath })
+				} catch (error) {
+					const conflictedFiles = await this.getConflictedFiles(params.worktreePath)
+					const abortError = await this.abortGitOperation(params.worktreePath, "rebase")
+					throw new WorktreeMergeError(
+						"rebase",
+						branch,
+						params.worktreePath,
+						conflictedFiles,
+						abortError,
+						formatGitFailure(error),
+					)
+				}
+			}
+		}
+
+		try {
+			await execAsync(`git merge --no-edit ${shellQuote(branch)}`, { cwd: gitRoot })
+		} catch (error) {
+			const conflictedFiles = await this.getConflictedFiles(gitRoot)
+			const abortError = await this.abortGitOperation(gitRoot, "merge")
+			throw new WorktreeMergeError("merge", branch, gitRoot, conflictedFiles, abortError, formatGitFailure(error))
+		}
+	}
+
+	private async materializeOwnedBranchChanges(
+		branch: string,
+		params: { gitRoot: string; baselineCommit: string; ownedPaths: string[] },
+	): Promise<void> {
+		let changedPaths = params.ownedPaths
+
+		try {
+			changedPaths = await this.getOwnedBranchChangedPaths(
+				params.gitRoot,
+				branch,
+				params.baselineCommit,
+				params.ownedPaths,
+			)
+
+			if (changedPaths.length === 0) {
+				return
+			}
+
+			const pathsToCheckout: string[] = []
+			const pathsToRemove: string[] = []
+
+			for (const filePath of changedPaths) {
+				if (await this.branchPathExists(params.gitRoot, branch, filePath)) {
+					pathsToCheckout.push(filePath)
+				} else {
+					pathsToRemove.push(filePath)
+				}
+			}
+
+			await this.checkoutOwnedPathsFromBranch(params.gitRoot, branch, pathsToCheckout)
+			await this.removeOwnedPaths(params.gitRoot, pathsToRemove)
+		} catch (error) {
+			throw new WorktreeMergeError(
+				"apply",
+				branch,
+				params.gitRoot,
+				changedPaths.length > 0 ? changedPaths : params.ownedPaths,
+				undefined,
+				formatGitFailure(error),
+			)
+		}
+	}
+
+	private async getOwnedBranchChangedPaths(
+		gitRoot: string,
+		branch: string,
+		baselineCommit: string,
+		ownedPaths: string[],
+	): Promise<string[]> {
+		const pathspec = this.formatPathspec(ownedPaths)
+		const pathspecArgs = pathspec ? ` -- ${pathspec}` : ""
+		const changedPaths = await this.getNullSeparatedGitOutput(
+			`git diff --name-only -z --no-renames ${baselineCommit}...${shellQuote(branch)}${pathspecArgs}`,
+			gitRoot,
+		)
+		const uniqueChangedPaths = new Set<string>()
+
+		for (const changedPath of changedPaths) {
+			if (this.isPathWithinOwnedPaths(changedPath, ownedPaths)) {
+				uniqueChangedPaths.add(changedPath)
+			}
+		}
+
+		return Array.from(uniqueChangedPaths)
+	}
+
+	private isPathWithinOwnedPaths(filePath: string, ownedPaths: string[]): boolean {
+		const normalizedFilePath = normalizeGitPath(filePath)
+
+		return ownedPaths.some((ownedPath) => {
+			const normalizedOwnedPath = normalizeGitPath(ownedPath)
+			return (
+				normalizedOwnedPath === "." ||
+				normalizedFilePath === normalizedOwnedPath ||
+				normalizedFilePath.startsWith(`${normalizedOwnedPath}/`)
+			)
+		})
+	}
+
+	private async branchPathExists(gitRoot: string, branch: string, filePath: string): Promise<boolean> {
+		try {
+			await execAsync(`git cat-file -e ${shellQuote(`${branch}:${filePath}`)}`, { cwd: gitRoot })
+			return true
+		} catch {
+			return false
+		}
+	}
+
+	private async checkoutOwnedPathsFromBranch(gitRoot: string, branch: string, filePaths: string[]): Promise<void> {
+		for (const chunk of this.chunkPathspecs(filePaths)) {
+			const checkoutCommand = `git checkout -f ${shellQuote(branch)} -- ${this.formatPathspec(chunk)}`
+
+			try {
+				await execAsync(checkoutCommand, { cwd: gitRoot, maxBuffer: 50 * 1024 * 1024 })
+			} catch {
+				await Promise.all(
+					chunk.map((filePath) => fs.rm(path.join(gitRoot, filePath), { recursive: true, force: true })),
+				)
+				await execAsync(checkoutCommand, { cwd: gitRoot, maxBuffer: 50 * 1024 * 1024 })
+			}
+		}
+	}
+
+	private async removeOwnedPaths(gitRoot: string, filePaths: string[]): Promise<void> {
+		for (const chunk of this.chunkPathspecs(filePaths)) {
+			await execAsync(`git rm -f --ignore-unmatch -- ${this.formatPathspec(chunk)}`, {
+				cwd: gitRoot,
+				maxBuffer: 50 * 1024 * 1024,
+			})
+			await Promise.all(
+				chunk.map((filePath) => fs.rm(path.join(gitRoot, filePath), { recursive: true, force: true })),
+			)
+		}
+	}
+
+	private async applyOwnedBranchDiff(
+		branch: string,
+		params: { gitRoot: string; baselineCommit: string; ownedPaths: string[] },
+	): Promise<void> {
+		const diff = await this.getBranchDiff(branch, params.ownedPaths, params.baselineCommit)
+		if (!diff.trim()) {
+			return
+		}
+
+		const changedPaths = await this.getWorkspaceChangesSinceBaseline(
+			params.gitRoot,
+			params.baselineCommit,
+			params.ownedPaths,
+		)
+		if (changedPaths.length > 0) {
+			throw new WorktreeMergeError(
+				"apply",
+				branch,
+				params.gitRoot,
+				changedPaths,
+				undefined,
+				`Current workspace content changed since the parallel baseline for owned paths:\n- ${changedPaths.join("\n- ")}`,
+			)
+		}
+
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "roo-parallel-merge-patch-"))
+		const patchPath = path.join(tempDir, "agent.diff")
+
+		try {
+			await fs.writeFile(patchPath, diff, "utf8")
+			await execAsync(`git apply --binary --3way --check ${shellQuote(patchPath)}`, {
+				cwd: params.gitRoot,
+				maxBuffer: 50 * 1024 * 1024,
+			})
+			await execAsync(`git apply --binary --3way ${shellQuote(patchPath)}`, {
+				cwd: params.gitRoot,
+				maxBuffer: 50 * 1024 * 1024,
+			})
+		} catch (error) {
+			const conflictedFiles = await this.getConflictedFiles(params.gitRoot)
+			throw new WorktreeMergeError(
+				"apply",
+				branch,
+				params.gitRoot,
+				conflictedFiles.length > 0 ? conflictedFiles : params.ownedPaths,
+				undefined,
+				formatGitFailure(error),
+			)
+		} finally {
+			await fs.rm(tempDir, { recursive: true, force: true })
+		}
+	}
+
+	private async getWorkspaceChangesSinceBaseline(
+		gitRoot: string,
+		baselineCommit: string,
+		ownedPaths: string[],
+	): Promise<string[]> {
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "roo-parallel-current-snapshot-"))
+		const tempIndexPath = path.join(tempDir, "index")
+		const tempIndexEnv = { ...process.env, GIT_INDEX_FILE: tempIndexPath }
+
+		try {
+			await execAsync(`git read-tree ${baselineCommit}`, { cwd: gitRoot, env: tempIndexEnv })
+			const currentSnapshotPaths = await this.getCurrentSnapshotPaths(gitRoot, ownedPaths, tempIndexEnv)
+
+			for (const chunk of this.chunkPathspecs(currentSnapshotPaths)) {
+				await execAsync(`git add -A -- ${this.formatPathspec(chunk)}`, { cwd: gitRoot, env: tempIndexEnv })
+			}
+
+			const pathspec = this.formatPathspec(ownedPaths)
+			const pathspecArgs = pathspec ? ` -- ${pathspec}` : ""
+			return await this.getNullSeparatedGitOutput(
+				`git diff --cached --name-only -z ${baselineCommit}${pathspecArgs}`,
+				gitRoot,
+				tempIndexEnv,
+			)
+		} finally {
+			await fs.rm(tempDir, { recursive: true, force: true })
+		}
+	}
+
+	private async getCurrentSnapshotPaths(
+		gitRoot: string,
+		ownedPaths: string[],
+		env: NodeJS.ProcessEnv,
+	): Promise<string[]> {
+		const currentSnapshotPaths = new Set<string>()
+
+		for (const chunk of this.chunkPathspecs(ownedPaths)) {
+			const pathspec = this.formatPathspec(chunk)
+			const baselinePaths = await this.getNullSeparatedGitOutput(`git ls-files -z -- ${pathspec}`, gitRoot, env)
+			const untrackedPaths = await this.getNullSeparatedGitOutput(
+				`git ls-files --others --exclude-standard -z -- ${pathspec}`,
+				gitRoot,
+				env,
+			)
+
+			for (const filePath of [...baselinePaths, ...untrackedPaths]) {
+				currentSnapshotPaths.add(filePath)
+			}
+		}
+
+		return Array.from(currentSnapshotPaths)
+	}
+
+	private async abortGitOperation(cwd: string, operation: WorktreeMergeFailureStage): Promise<string | undefined> {
+		try {
+			await execAsync(`git ${operation} --abort`, { cwd })
+			return undefined
+		} catch (error) {
+			return formatGitFailure(error)
+		}
+	}
+
+	private async createWorkspaceBaseline(planId: string): Promise<WorkspaceBaseline> {
+		const gitRoot = await this.validateGitRepository()
+		const safePlanId = sanitizeBranchComponent(planId) || "plan"
+		const ref = `refs/roo/parallel-baselines/${safePlanId}`
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "roo-parallel-baseline-"))
+		const tempIndexPath = path.join(tempDir, "index")
+		const tempIndexEnv = { ...process.env, GIT_INDEX_FILE: tempIndexPath }
+
+		try {
+			await execAsync("git read-tree HEAD", { cwd: gitRoot, env: tempIndexEnv })
+
+			const candidatePaths = await this.getBaselineCandidatePaths(gitRoot)
+			const allowedPaths = await this.filterAllowedBaselinePaths(gitRoot, candidatePaths)
+			await this.stageBaselinePaths(gitRoot, allowedPaths, tempIndexEnv)
+
+			const trackedPaths = await this.getNullSeparatedGitOutput("git ls-files -z", gitRoot, tempIndexEnv)
+			const excludedTrackedPaths = await this.filterExcludedBaselinePaths(gitRoot, trackedPaths)
+			await this.removeBaselinePaths(gitRoot, excludedTrackedPaths, tempIndexEnv)
+
+			const treeResult = await execAsync("git write-tree", { cwd: gitRoot, env: tempIndexEnv })
+			const tree = (typeof treeResult === "string" ? treeResult : treeResult.stdout).trim()
+			const commitMessage = `Roo parallel workspace baseline for ${planId}`
+			const commitResult = await execAsync(
+				`git -c user.name="Roo Parallel Agent" -c user.email="roo-parallel-agent@localhost" commit-tree ${tree} -p HEAD -m ${shellQuote(commitMessage)}`,
+				{ cwd: gitRoot },
+			)
+			const commit = (typeof commitResult === "string" ? commitResult : commitResult.stdout).trim()
+
+			await execAsync(`git update-ref ${shellQuote(ref)} ${commit}`, { cwd: gitRoot })
+
+			return { planId, ref, commit }
+		} finally {
+			await fs.rm(tempDir, { recursive: true, force: true })
+		}
+	}
+
+	private async getBaselineCandidatePaths(gitRoot: string): Promise<string[]> {
+		const trackedChanges = await this.getNullSeparatedGitOutput("git diff --name-only -z HEAD --", gitRoot)
+		const untrackedFiles = await this.getNullSeparatedGitOutput(
+			"git ls-files --others --exclude-standard -z",
+			gitRoot,
+		)
+		const uniquePaths = new Set<string>()
+
+		for (const filePath of [...trackedChanges, ...untrackedFiles]) {
+			const normalizedPath = normalizeGitPath(filePath)
+			if (normalizedPath) {
+				uniquePaths.add(normalizedPath)
+			}
+		}
+
+		return Array.from(uniquePaths)
+	}
+
+	private async filterAllowedBaselinePaths(gitRoot: string, filePaths: string[]): Promise<string[]> {
+		const allowedPaths: string[] = []
+
+		for (const filePath of filePaths) {
+			if (!(await this.shouldExcludeFromBaseline(gitRoot, filePath))) {
+				allowedPaths.push(filePath)
+			}
+		}
+
+		return allowedPaths
+	}
+
+	private async filterExcludedBaselinePaths(gitRoot: string, filePaths: string[]): Promise<string[]> {
+		const excludedPaths: string[] = []
+
+		for (const filePath of filePaths) {
+			if (await this.shouldExcludeFromBaseline(gitRoot, filePath)) {
+				excludedPaths.push(filePath)
+			}
+		}
+
+		return excludedPaths
+	}
+
+	private async shouldExcludeFromBaseline(gitRoot: string, filePath: string): Promise<boolean> {
+		const normalizedPath = normalizeGitPath(filePath)
+		if (!normalizedPath) {
+			return true
+		}
+
+		if (
+			normalizedPath === ".roo/parallel-worktrees" ||
+			normalizedPath.startsWith(".roo/parallel-worktrees/") ||
+			normalizedPath.includes("/.roo/parallel-worktrees/")
+		) {
+			return true
+		}
+
+		const basename = path.posix.basename(normalizedPath)
+		if (normalizedPath === ".rooignore" || basename === ".rooignore") {
+			return true
+		}
+
+		if (
+			normalizedPath === ".env" ||
+			normalizedPath.startsWith(".env/") ||
+			normalizedPath.includes("/.env/") ||
+			basename.startsWith(".env")
+		) {
+			return true
+		}
+
+		const rooIgnoreMatcher = await this.loadRooIgnoreMatcher(gitRoot)
+		return rooIgnoreMatcher?.ignores(normalizedPath) ?? false
+	}
+
+	private async loadRooIgnoreMatcher(gitRoot: string): Promise<Ignore | undefined> {
+		if (this.hasLoadedRooIgnoreMatcher) {
+			return this.rooIgnoreMatcher
+		}
+
+		this.hasLoadedRooIgnoreMatcher = true
+
+		try {
+			const content = await fs.readFile(path.join(gitRoot, ".rooignore"), "utf8")
+			this.rooIgnoreMatcher = ignore().add(content)
+		} catch (error) {
+			if (error && typeof error === "object" && (error as { code?: string }).code !== "ENOENT") {
+				throw error
+			}
+		}
+
+		return this.rooIgnoreMatcher
+	}
+
+	private async stageBaselinePaths(gitRoot: string, filePaths: string[], env: NodeJS.ProcessEnv): Promise<void> {
+		for (const chunk of this.chunkPathspecs(filePaths)) {
+			await execAsync(`git add -A -- ${this.formatPathspec(chunk)}`, { cwd: gitRoot, env })
+		}
+	}
+
+	private async removeBaselinePaths(gitRoot: string, filePaths: string[], env: NodeJS.ProcessEnv): Promise<void> {
+		for (const chunk of this.chunkPathspecs(filePaths)) {
+			await execAsync(`git rm --cached --ignore-unmatch -- ${this.formatPathspec(chunk)}`, { cwd: gitRoot, env })
+		}
+	}
+
+	private chunkPathspecs(filePaths: string[]): string[][] {
+		const chunkSize = 100
+		const chunks: string[][] = []
+
+		for (let index = 0; index < filePaths.length; index += chunkSize) {
+			chunks.push(filePaths.slice(index, index + chunkSize))
+		}
+
+		return chunks
+	}
+
+	private async getNullSeparatedGitOutput(command: string, cwd: string, env?: NodeJS.ProcessEnv): Promise<string[]> {
+		const result = await execAsync(command, { cwd, env, maxBuffer: 50 * 1024 * 1024 })
+		const stdout = typeof result === "string" ? result : result.stdout
+		return stdout
+			.split("\0")
+			.map((value) => normalizeGitPath(value))
+			.filter(Boolean)
+	}
+
+	private async getCommitCount(cwd: string, revisionRange: string): Promise<number> {
+		const result = await execAsync(`git rev-list --count ${revisionRange}`, { cwd })
+		const stdout = typeof result === "string" ? result : result.stdout
+		return Number(stdout.trim()) || 0
+	}
+
+	private async getConflictedFiles(cwd: string): Promise<string[]> {
+		try {
+			return await this.getNullSeparatedGitOutput("git diff --name-only --diff-filter=U -z", cwd)
+		} catch {
+			return []
+		}
+	}
+
+	private async getCurrentHead(gitRoot: string): Promise<string> {
+		const result = await execAsync("git rev-parse HEAD", { cwd: gitRoot })
+		const stdout = typeof result === "string" ? result : result.stdout
+		return stdout.trim()
+	}
+
+	private async deleteBaselineRef(ref: string): Promise<void> {
+		const gitRoot = await this.resolveGitRoot()
+		await execAsync(`git update-ref -d ${shellQuote(ref)}`, { cwd: gitRoot })
+	}
+
+	private async commitPendingWorktreeChanges(params: {
+		agentId: string
+		planId: string
+		worktreePath: string
+		branch: string
+		ownedPaths?: string[]
+	}): Promise<void> {
+		const pathspec = this.formatPathspec(params.ownedPaths)
+		const addCommand = pathspec ? `git add -A -- ${pathspec}` : "git add -A -- ."
+		await execAsync(addCommand, { cwd: params.worktreePath })
+
+		if (!(await this.hasStagedChanges(params.worktreePath))) {
+			return
+		}
+
+		const commitMessage = `Parallel agent ${params.agentId} changes for ${params.planId}`
+		await execAsync(
+			`git -c user.name="Roo Parallel Agent" -c user.email="roo-parallel-agent@localhost" commit --no-verify -m ${shellQuote(commitMessage)}`,
+			{ cwd: params.worktreePath },
+		)
+	}
+
+	private async hasStagedChanges(worktreePath: string): Promise<boolean> {
+		try {
+			await execAsync("git diff --cached --quiet --exit-code", { cwd: worktreePath })
+			return false
+		} catch (error) {
+			if (error && typeof error === "object" && (error as { code?: number }).code === 1) {
+				return true
+			}
+
+			throw error
+		}
+	}
+
+	private async getBranchDiff(branch: string, ownedPaths?: string[], baseRef = "HEAD"): Promise<string> {
+		const gitRoot = await this.resolveGitRoot()
+		const pathspec = this.formatPathspec(ownedPaths)
+		const pathspecArgs = pathspec ? ` -- ${pathspec}` : ""
+		const result = await execAsync(`git diff --binary ${baseRef}...${shellQuote(branch)}${pathspecArgs}`, {
+			cwd: gitRoot,
+			maxBuffer: 50 * 1024 * 1024,
+		})
+		const stdout = typeof result === "string" ? result : result.stdout
+		return stdout
+	}
+
+	private formatPathspec(paths: string[] | undefined): string {
+		return paths?.map(shellQuote).join(" ") ?? ""
 	}
 
 	private async resolveGitRoot(): Promise<string> {

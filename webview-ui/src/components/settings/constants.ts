@@ -17,6 +17,7 @@ import {
 	fireworksModels,
 	minimaxModels,
 	basetenModels,
+	xiaomiMiMoModels,
 } from "@roo-code/types"
 
 export const MODELS_BY_PROVIDER: Partial<Record<ProviderName, Record<string, ModelInfo>>> = {
@@ -36,6 +37,7 @@ export const MODELS_BY_PROVIDER: Partial<Record<ProviderName, Record<string, Mod
 	fireworks: fireworksModels,
 	minimax: minimaxModels,
 	baseten: basetenModels,
+	"xiaomi-mimo": xiaomiMiMoModels,
 }
 
 export const PROVIDERS = [
@@ -44,6 +46,7 @@ export const PROVIDERS = [
 	{ value: "gemini", label: "Google Gemini", proxy: false },
 	{ value: "deepseek", label: "DeepSeek", proxy: false },
 	{ value: "moonshot", label: "Moonshot", proxy: false },
+	{ value: "xiaomi-mimo", label: "Xiaomi MiMo", proxy: false },
 	{ value: "openai-native", label: "OpenAI", proxy: false },
 	{ value: "openai-codex", label: "OpenAI - ChatGPT Plus/Pro", proxy: false },
 	{ value: "openai", label: "OpenAI Compatible", proxy: true },

@@ -47,6 +47,12 @@ const ApiConfigTestComponent = () => {
 	)
 }
 
+const RouterModelsTestComponent = () => {
+	const { routerModels } = useExtensionState()
+
+	return <div data-testid="router-models">{JSON.stringify(routerModels)}</div>
+}
+
 describe("ExtensionStateContext", () => {
 	it("initializes with empty allowedCommands array", () => {
 		render(
@@ -180,6 +186,53 @@ describe("ExtensionStateContext", () => {
 				modelTemperature: 0.7, // Should add this from partial update
 			}),
 		)
+	})
+
+	it("merges routerModels messages across providers", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<RouterModelsTestComponent />
+			</ExtensionStateContextProvider>,
+		)
+
+		act(() => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "routerModels",
+						routerModels: {
+							openrouter: {
+								"openrouter-model": { contextWindow: 128_000, supportsPromptCache: false },
+							},
+						},
+					},
+				}),
+			)
+		})
+
+		act(() => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "routerModels",
+						routerModels: {
+							anthropic: {
+								"claude-model": { contextWindow: 200_000, supportsPromptCache: true },
+							},
+						},
+					},
+				}),
+			)
+		})
+
+		expect(JSON.parse(screen.getByTestId("router-models").textContent || "{}")).toEqual({
+			openrouter: {
+				"openrouter-model": { contextWindow: 128_000, supportsPromptCache: false },
+			},
+			anthropic: {
+				"claude-model": { contextWindow: 200_000, supportsPromptCache: true },
+			},
+		})
 	})
 })
 

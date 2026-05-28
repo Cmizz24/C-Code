@@ -6,6 +6,8 @@ import {
 	deepSeekDefaultModelId,
 	DEEP_SEEK_DEFAULT_TEMPERATURE,
 	OPENAI_AZURE_AI_INFERENCE_PATH,
+	type ModelInfo,
+	type ReasoningEffortExtended,
 } from "@roo-code/types"
 
 import type { ApiHandlerOptions } from "../../shared/api"
@@ -17,9 +19,38 @@ import { convertToR1Format } from "../transform/r1-format"
 import { OpenAiHandler } from "./openai"
 import type { ApiHandlerCreateMessageMetadata } from "../index"
 
-// Custom interface for DeepSeek params to support thinking mode
-type DeepSeekChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParamsStreaming & {
+// Custom interface for DeepSeek params to support thinking mode and native effort values.
+type DeepSeekChatCompletionParams = Omit<OpenAI.Chat.ChatCompletionCreateParamsStreaming, "reasoning_effort"> & {
 	thinking?: { type: "enabled" | "disabled" }
+	reasoning_effort?: "high" | "max"
+}
+
+const CURRENT_DEEP_SEEK_MODEL_IDS = new Set(["deepseek-v4-flash", "deepseek-v4-pro"])
+
+function isCurrentDeepSeekModel(modelId: string): boolean {
+	return CURRENT_DEEP_SEEK_MODEL_IDS.has(modelId)
+}
+
+function isLegacyDeepSeekReasoner(modelId: string): boolean {
+	return modelId === "deepseek-reasoner"
+}
+
+function isLegacyDeepSeekChat(modelId: string): boolean {
+	return modelId === "deepseek-chat"
+}
+
+function toDeepSeekReasoningEffort(effort?: ReasoningEffortExtended | "disable" | "max"): "high" | "max" | undefined {
+	switch (effort) {
+		case "high":
+		case "low":
+		case "medium":
+			return "high"
+		case "xhigh":
+		case "max":
+			return "max"
+		default:
+			return undefined
+	}
 }
 
 export class DeepSeekHandler extends OpenAiHandler {
@@ -53,14 +84,21 @@ export class DeepSeekHandler extends OpenAiHandler {
 		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
 		const modelId = this.options.apiModelId ?? deepSeekDefaultModelId
-		const { info: modelInfo } = this.getModel()
+		const { info: modelInfo, temperature, reasoningEffort } = this.getModel()
 
-		// Check if this is a thinking-enabled model (deepseek-reasoner)
-		const isThinkingModel = modelId.includes("deepseek-reasoner")
+		const supportsThinkingToggle = isCurrentDeepSeekModel(modelId)
+		const isThinkingModel = this.shouldUseThinkingMode(modelId, modelInfo)
+		const deepSeekReasoningEffort = isThinkingModel
+			? toDeepSeekReasoningEffort(
+					(this.options.reasoningEffort as ReasoningEffortExtended | "disable" | undefined) ??
+						reasoningEffort ??
+						modelInfo.reasoningEffort,
+				)
+			: undefined
 
 		// Convert messages to R1 format (merges consecutive same-role messages)
 		// This is required for DeepSeek which does not support successive messages with the same role
-		// For thinking models (deepseek-reasoner), enable mergeToolResultText to preserve reasoning_content
+		// For thinking models, enable mergeToolResultText to preserve reasoning_content
 		// during tool call sequences. Without this, environment_details text after tool_results would
 		// create user messages that cause DeepSeek to drop all previous reasoning_content.
 		// See: https://api-docs.deepseek.com/guides/thinking_mode
@@ -70,19 +108,20 @@ export class DeepSeekHandler extends OpenAiHandler {
 
 		const requestOptions: DeepSeekChatCompletionParams = {
 			model: modelId,
-			temperature: this.options.modelTemperature ?? DEEP_SEEK_DEFAULT_TEMPERATURE,
+			...(isThinkingModel ? {} : { temperature }),
 			messages: convertedMessages,
 			stream: true as const,
 			stream_options: { include_usage: true },
-			// Enable thinking mode for deepseek-reasoner or when tools are used with thinking model
-			...(isThinkingModel && { thinking: { type: "enabled" } }),
+			...(supportsThinkingToggle || isLegacyDeepSeekReasoner(modelId)
+				? { thinking: { type: isThinkingModel ? "enabled" : "disabled" } }
+				: {}),
+			...(deepSeekReasoningEffort ? { reasoning_effort: deepSeekReasoningEffort } : {}),
 			tools: this.convertToolsForOpenAI(metadata?.tools),
 			tool_choice: metadata?.tool_choice,
 			parallel_tool_calls: metadata?.parallelToolCalls ?? true,
 		}
 
-		// Add max_tokens if needed
-		this.addMaxTokensIfNeeded(requestOptions, modelInfo)
+		this.addDeepSeekMaxTokensIfNeeded(requestOptions, modelInfo)
 
 		// Check if base URL is Azure AI Inference (for DeepSeek via Azure)
 		const isAzureAiInference = this._isAzureAiInference(this.options.deepSeekBaseUrl)
@@ -90,7 +129,7 @@ export class DeepSeekHandler extends OpenAiHandler {
 		let stream
 		try {
 			stream = await this.client.chat.completions.create(
-				requestOptions,
+				requestOptions as unknown as OpenAI.Chat.ChatCompletionCreateParamsStreaming,
 				isAzureAiInference ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {},
 			)
 		} catch (error) {
@@ -143,14 +182,45 @@ export class DeepSeekHandler extends OpenAiHandler {
 		}
 	}
 
+	private shouldUseThinkingMode(modelId: string, modelInfo: ModelInfo): boolean {
+		if (isLegacyDeepSeekReasoner(modelId)) {
+			return true
+		}
+
+		if (isLegacyDeepSeekChat(modelId)) {
+			return false
+		}
+
+		if (!isCurrentDeepSeekModel(modelId)) {
+			return false
+		}
+
+		if (this.options.enableReasoningEffort === false) {
+			return false
+		}
+
+		if (["disable", "none", "minimal"].includes(this.options.reasoningEffort ?? "")) {
+			return false
+		}
+
+		return !!modelInfo.supportsReasoningEffort
+	}
+
+	private addDeepSeekMaxTokensIfNeeded(requestOptions: DeepSeekChatCompletionParams, modelInfo: ModelInfo): void {
+		if (this.options.includeMaxTokens === true) {
+			requestOptions.max_tokens = this.options.modelMaxTokens || modelInfo.maxTokens || undefined
+		}
+	}
+
 	// Override to handle DeepSeek's usage metrics, including caching.
 	protected override processUsageMetrics(usage: any, _modelInfo?: any): ApiStreamUsageChunk {
 		return {
 			type: "usage",
 			inputTokens: usage?.prompt_tokens || 0,
 			outputTokens: usage?.completion_tokens || 0,
-			cacheWriteTokens: usage?.prompt_tokens_details?.cache_miss_tokens,
-			cacheReadTokens: usage?.prompt_tokens_details?.cached_tokens,
+			cacheWriteTokens: usage?.prompt_cache_miss_tokens ?? usage?.prompt_tokens_details?.cache_miss_tokens,
+			cacheReadTokens: usage?.prompt_cache_hit_tokens ?? usage?.prompt_tokens_details?.cached_tokens,
+			reasoningTokens: usage?.completion_tokens_details?.reasoning_tokens,
 		}
 	}
 }

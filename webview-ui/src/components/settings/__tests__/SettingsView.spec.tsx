@@ -170,8 +170,15 @@ vi.mock("@/components/ui", () => ({
 		</button>
 	),
 	StandardTooltip: ({ children, content }: any) => <div title={content}>{children}</div>,
-	Input: ({ value, onChange, placeholder, "data-testid": dataTestId }: any) => (
-		<input type="text" value={value} onChange={onChange} placeholder={placeholder} data-testid={dataTestId} />
+	Input: ({ value, onChange, placeholder, type, "data-testid": dataTestId, ...props }: any) => (
+		<input
+			type={type ?? "text"}
+			value={value}
+			onChange={onChange}
+			placeholder={placeholder}
+			data-testid={dataTestId}
+			{...props}
+		/>
 	),
 	Select: ({ children, value, onValueChange }: any) => (
 		<div data-testid="select" data-value={value}>
@@ -520,6 +527,84 @@ describe("SettingsView - API Configuration", () => {
 		renderSettingsView()
 
 		expect(screen.getByTestId("api-config-management")).toBeInTheDocument()
+	})
+})
+
+describe("SettingsView - Auto Approve Parallel Tasks", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("saves the parallel tasks auto-approval toggle from cached state", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView()
+
+		activateTab("autoApprove")
+
+		const content = getSettingsContent()
+		const parallelTasksToggle = within(content).getByTestId("always-allow-parallel-tasks-toggle")
+		fireEvent.click(parallelTasksToggle)
+
+		const saveButton = screen.getByTestId("save-button")
+		fireEvent.click(saveButton)
+
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					alwaysAllowParallelTasks: true,
+				}),
+			}),
+		)
+	})
+
+	it("hides max concurrent parallel tasks while parallel tasks auto-approval is disabled", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView()
+
+		activateTab("autoApprove")
+
+		const content = getSettingsContent()
+		expect(within(content).queryByTestId("parallel-tasks-settings-section")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("max-concurrent-parallel-tasks-input")).not.toBeInTheDocument()
+	})
+
+	it("shows max concurrent parallel tasks nested in the parallel tasks section when enabled", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView()
+
+		activateTab("autoApprove")
+
+		const content = getSettingsContent()
+		const parallelTasksToggle = within(content).getByTestId("always-allow-parallel-tasks-toggle")
+		fireEvent.click(parallelTasksToggle)
+
+		const parallelTasksSection = within(content).getByTestId("parallel-tasks-settings-section")
+		expect(parallelTasksSection).toHaveClass("pl-3", "border-l-2", "border-vscode-button-background")
+		expect(within(parallelTasksSection).getByTestId("max-concurrent-parallel-tasks-input")).toBeInTheDocument()
+	})
+
+	it("saves max concurrent parallel tasks from cached state", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView()
+
+		activateTab("autoApprove")
+
+		const content = getSettingsContent()
+		const parallelTasksToggle = within(content).getByTestId("always-allow-parallel-tasks-toggle")
+		fireEvent.click(parallelTasksToggle)
+
+		const parallelTasksSection = within(content).getByTestId("parallel-tasks-settings-section")
+		const maxConcurrentInput = within(parallelTasksSection).getByTestId("max-concurrent-parallel-tasks-input")
+		fireEvent.change(maxConcurrentInput, { target: { value: "5" } })
+
+		const saveButton = screen.getByTestId("save-button")
+		fireEvent.click(saveButton)
+
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					maxConcurrentParallelTasks: 5,
+				}),
+			}),
+		)
 	})
 })
 

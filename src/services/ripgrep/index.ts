@@ -51,6 +51,25 @@ rel/path/to/helper.ts
 const isWindows = process.platform.startsWith("win")
 const binName = isWindows ? "rg.exe" : "rg"
 
+function getPlatformSpecificRipgrepFolders(): string[] {
+	const platformArch = `${process.platform}-${process.arch}`
+
+	return [
+		`node_modules/@vscode/ripgrep-universal/bin/${platformArch}/`,
+		`node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/${platformArch}/`,
+	]
+}
+
+function getRipgrepCandidateFolders(): string[] {
+	return [
+		...getPlatformSpecificRipgrepFolders(),
+		"node_modules/@vscode/ripgrep/bin/",
+		"node_modules/vscode-ripgrep/bin",
+		"node_modules.asar.unpacked/vscode-ripgrep/bin/",
+		"node_modules.asar.unpacked/@vscode/ripgrep/bin/",
+	]
+}
+
 interface SearchFileResult {
 	file: string
 	searchResults: SearchResult[]
@@ -88,12 +107,15 @@ export async function getBinPath(vscodeAppRoot: string): Promise<string | undefi
 		return (await fileExistsAtPath(fullPath)) ? fullPath : undefined
 	}
 
-	return (
-		(await checkPath("node_modules/@vscode/ripgrep/bin/")) ||
-		(await checkPath("node_modules/vscode-ripgrep/bin")) ||
-		(await checkPath("node_modules.asar.unpacked/vscode-ripgrep/bin/")) ||
-		(await checkPath("node_modules.asar.unpacked/@vscode/ripgrep/bin/"))
-	)
+	for (const pkgFolder of getRipgrepCandidateFolders()) {
+		const rgPath = await checkPath(pkgFolder)
+
+		if (rgPath) {
+			return rgPath
+		}
+	}
+
+	return undefined
 }
 
 async function execRipgrep(bin: string, args: string[]): Promise<string> {

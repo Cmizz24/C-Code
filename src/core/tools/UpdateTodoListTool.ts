@@ -11,13 +11,24 @@ interface UpdateTodoListParams {
 	todos: string
 }
 
-let approvedTodoList: TodoItem[] | undefined = undefined
+interface PendingTodoListApproval {
+	taskId: string
+	todos: TodoItem[]
+}
+
+const pendingTodoListApprovals = new Map<string, PendingTodoListApproval>()
+
+function getPendingTodoListKey(task: Task): string {
+	return task.taskId
+}
 
 export class UpdateTodoListTool extends BaseTool<"update_todo_list"> {
 	readonly name = "update_todo_list" as const
 
 	async execute(params: UpdateTodoListParams, task: Task, callbacks: ToolCallbacks): Promise<void> {
 		const { pushToolResult, handleError, askApproval } = callbacks
+
+		const pendingTodoListKey = getPendingTodoListKey(task)
 
 		try {
 			const todosRaw = params.todos
@@ -53,18 +64,22 @@ export class UpdateTodoListTool extends BaseTool<"update_todo_list"> {
 				todos: normalizedTodos,
 			})
 
-			approvedTodoList = cloneDeep(normalizedTodos)
+			pendingTodoListApprovals.set(pendingTodoListKey, {
+				taskId: task.taskId,
+				todos: cloneDeep(normalizedTodos),
+			})
 			const didApprove = await askApproval("tool", approvalMsg)
 			if (!didApprove) {
 				pushToolResult("User declined to update the todoList.")
 				return
 			}
 
+			const approvedTodoList = pendingTodoListApprovals.get(pendingTodoListKey)?.todos
 			const isTodoListChanged =
 				approvedTodoList !== undefined && JSON.stringify(normalizedTodos) !== JSON.stringify(approvedTodoList)
 			if (isTodoListChanged) {
 				normalizedTodos = approvedTodoList ?? []
-				task.say(
+				await task.say(
 					"user_edit_todos",
 					JSON.stringify({
 						tool: "updateTodoList",
@@ -83,6 +98,8 @@ export class UpdateTodoListTool extends BaseTool<"update_todo_list"> {
 			}
 		} catch (error) {
 			await handleError("update todo list", error as Error)
+		} finally {
+			pendingTodoListApprovals.delete(pendingTodoListKey)
 		}
 	}
 
@@ -201,8 +218,15 @@ export function parseMarkdownChecklist(md: string): TodoItem[] {
 	return todos
 }
 
-export function setPendingTodoList(todos: TodoItem[]) {
-	approvedTodoList = todos
+export function setPendingTodoList(todos: TodoItem[], task?: Task) {
+	if (!task) {
+		return
+	}
+
+	pendingTodoListApprovals.set(getPendingTodoListKey(task), {
+		taskId: task.taskId,
+		todos: cloneDeep(todos),
+	})
 }
 
 function validateTodos(todos: any[]): { valid: boolean; error?: string } {

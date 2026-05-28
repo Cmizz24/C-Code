@@ -655,6 +655,57 @@ describe("ClineProvider Task History Synchronization", () => {
 		})
 	})
 
+	describe("getTaskWithAggregatedCosts", () => {
+		it("includes background child costs linked only by parentTaskId", async () => {
+			const parent = createHistoryItem({
+				id: "parent-task",
+				task: "Parent task",
+				totalCost: 1.0,
+				childIds: [],
+			})
+			const backgroundChild = createHistoryItem({
+				id: "background-child",
+				task: "Background child",
+				parentTaskId: "parent-task",
+				totalCost: 0.25,
+			})
+
+			await provider.updateTaskHistory(parent, { broadcast: false })
+			await provider.updateTaskHistory(backgroundChild, { broadcast: false })
+
+			const result = await provider.getTaskWithAggregatedCosts("parent-task")
+
+			expect(result.aggregatedCosts.ownCost).toBe(1.0)
+			expect(result.aggregatedCosts.childrenCost).toBe(0.25)
+			expect(result.aggregatedCosts.totalCost).toBe(1.25)
+			expect(result.aggregatedCosts.childBreakdown).toHaveProperty("background-child")
+		})
+
+		it("does not double count children linked by both childIds and parentTaskId", async () => {
+			const parent = createHistoryItem({
+				id: "parent-task",
+				task: "Parent task",
+				totalCost: 1.0,
+				childIds: ["child-task"],
+			})
+			const child = createHistoryItem({
+				id: "child-task",
+				task: "Child task",
+				parentTaskId: "parent-task",
+				totalCost: 0.25,
+			})
+
+			await provider.updateTaskHistory(parent, { broadcast: false })
+			await provider.updateTaskHistory(child, { broadcast: false })
+
+			const result = await provider.getTaskWithAggregatedCosts("parent-task")
+
+			expect(result.aggregatedCosts.childrenCost).toBe(0.25)
+			expect(result.aggregatedCosts.totalCost).toBe(1.25)
+			expect(Object.keys(result.aggregatedCosts.childBreakdown || {})).toEqual(["child-task"])
+		})
+	})
+
 	describe("taskHistory write lock (mutex)", () => {
 		it("serializes concurrent updateTaskHistory calls so no entries are lost", async () => {
 			await provider.resolveWebviewView(mockWebviewView)

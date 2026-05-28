@@ -179,7 +179,7 @@ describe("AnthropicHandler", () => {
 			expect(mockCreate).toHaveBeenCalled()
 		})
 
-		it("should include 1M context beta header for Claude Sonnet 4.6 when enabled", async () => {
+		it("should not include 1M context beta header for GA Claude Sonnet 4.6", async () => {
 			const sonnet46Handler = new AnthropicHandler({
 				apiKey: "test-api-key",
 				apiModelId: "claude-sonnet-4-6",
@@ -198,7 +198,7 @@ describe("AnthropicHandler", () => {
 			}
 
 			const requestOptions = mockCreate.mock.calls[mockCreate.mock.calls.length - 1]?.[1]
-			expect(requestOptions?.headers?.["anthropic-beta"]).toContain("context-1m-2025-08-07")
+			expect(requestOptions?.headers?.["anthropic-beta"]).not.toContain("context-1m-2025-08-07")
 		})
 	})
 
@@ -299,7 +299,7 @@ describe("AnthropicHandler", () => {
 			expect(model.info.supportsReasoningBudget).toBe(true)
 		})
 
-		it("should handle Claude 4.6 Sonnet model correctly", () => {
+		it("should handle Claude 4.6 Sonnet as GA 1M context", () => {
 			const handler = new AnthropicHandler({
 				apiKey: "test-api-key",
 				apiModelId: "claude-sonnet-4-6",
@@ -307,7 +307,9 @@ describe("AnthropicHandler", () => {
 			const model = handler.getModel()
 			expect(model.id).toBe("claude-sonnet-4-6")
 			expect(model.info.maxTokens).toBe(64000)
-			expect(model.info.contextWindow).toBe(200000)
+			expect(model.info.contextWindow).toBe(1_000_000)
+			expect(model.info.inputPrice).toBe(3.0)
+			expect(model.info.outputPrice).toBe(15.0)
 			expect(model.info.supportsReasoningBudget).toBe(true)
 		})
 
@@ -323,7 +325,7 @@ describe("AnthropicHandler", () => {
 			expect(model.info.outputPrice).toBe(22.5)
 		})
 
-		it("should enable 1M context for Claude 4.6 Sonnet when beta flag is set", () => {
+		it("should keep standard pricing for GA Claude 4.6 Sonnet when beta flag is set", () => {
 			const handler = new AnthropicHandler({
 				apiKey: "test-api-key",
 				apiModelId: "claude-sonnet-4-6",
@@ -331,8 +333,8 @@ describe("AnthropicHandler", () => {
 			})
 			const model = handler.getModel()
 			expect(model.info.contextWindow).toBe(1000000)
-			expect(model.info.inputPrice).toBe(6.0)
-			expect(model.info.outputPrice).toBe(22.5)
+			expect(model.info.inputPrice).toBe(3.0)
+			expect(model.info.outputPrice).toBe(15.0)
 		})
 	})
 

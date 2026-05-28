@@ -323,4 +323,63 @@ describe("aggregateTaskCostsRecursive", () => {
 		// Total: 1.0 + 0.6 + 0.4 = 2.0
 		expect(result.totalCost).toBe(2.0)
 	})
+
+	it("should aggregate children discovered by parentTaskId", async () => {
+		const mockHistory: Record<string, HistoryItem> = {
+			parent: {
+				id: "parent",
+				totalCost: 1.0,
+				childIds: [],
+			} as unknown as HistoryItem,
+			"background-agent": {
+				id: "background-agent",
+				parentTaskId: "parent",
+				totalCost: 0.75,
+				childIds: [],
+			} as unknown as HistoryItem,
+		}
+
+		const getTaskHistory = vi.fn(async (id: string) => mockHistory[id])
+		const getChildTaskIds = vi.fn(async (parentId: string) =>
+			Object.values(mockHistory)
+				.filter((item) => item.parentTaskId === parentId)
+				.map((item) => item.id),
+		)
+
+		const result = await aggregateTaskCostsRecursive("parent", getTaskHistory, { getChildTaskIds })
+
+		expect(result.ownCost).toBe(1.0)
+		expect(result.childrenCost).toBe(0.75)
+		expect(result.totalCost).toBe(1.75)
+		expect(result.childBreakdown).toHaveProperty("background-agent")
+	})
+
+	it("should not double count a child discovered through childIds and parentTaskId", async () => {
+		const mockHistory: Record<string, HistoryItem> = {
+			parent: {
+				id: "parent",
+				totalCost: 1.0,
+				childIds: ["child"],
+			} as unknown as HistoryItem,
+			child: {
+				id: "child",
+				parentTaskId: "parent",
+				totalCost: 0.5,
+				childIds: [],
+			} as unknown as HistoryItem,
+		}
+
+		const getTaskHistory = vi.fn(async (id: string) => mockHistory[id])
+		const getChildTaskIds = vi.fn(async (parentId: string) =>
+			Object.values(mockHistory)
+				.filter((item) => item.parentTaskId === parentId)
+				.map((item) => item.id),
+		)
+
+		const result = await aggregateTaskCostsRecursive("parent", getTaskHistory, { getChildTaskIds })
+
+		expect(result.childrenCost).toBe(0.5)
+		expect(result.totalCost).toBe(1.5)
+		expect(Object.keys(result.childBreakdown || {})).toEqual(["child"])
+	})
 })

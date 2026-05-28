@@ -249,6 +249,12 @@
 			"label": "Podzadania",
 			"description": "Zezwalaj na tworzenie i ukończenie podzadań bez konieczności zatwierdzania"
 		},
+		"parallelTasks": {
+			"label": "Zadania równoległe",
+			"maxConcurrentLabel": "Maksymalna liczba równoległych agentów",
+			"maxConcurrentDescription": "Wybierz, ilu agentów może działać jednocześnie dla zatwierdzonego planu zadań równoległych ({{min}}–{{max}}). Oczekujący agenci startują, gdy działający agenci zakończą pracę.",
+			"description": "Automatycznie zatwierdzaj prawidłowe plany zadań równoległych i uruchamiaj agentów bez wyświetlania modala podglądu planu"
+		},
 		"followupQuestions": {
 			"label": "Pytanie",
 			"description": "Automatycznie wybierz pierwszą sugerowaną odpowiedź na pytania uzupełniające po skonfigurowanym limicie czasu",
@@ -389,6 +395,9 @@
 		"minimaxApiKey": "Klucz API MiniMax",
 		"getMiniMaxApiKey": "Uzyskaj klucz API MiniMax",
 		"minimaxBaseUrl": "Punkt wejścia MiniMax",
+		"xiaomiMiMoApiKey": "Klucz API Xiaomi MiMo",
+		"getXiaomiMiMoApiKey": "Uzyskaj klucz API Xiaomi MiMo",
+		"xiaomiMiMoBaseUrl": "Punkt wejścia Xiaomi MiMo",
 		"geminiApiKey": "Klucz API Gemini",
 		"getSambaNovaApiKey": "Uzyskaj klucz API SambaNova",
 		"sambaNovaApiKey": "Klucz API SambaNova",

@@ -133,6 +133,11 @@ describe("TaskHeader", () => {
 		expect(screen.queryByText(/\$/)).not.toBeInTheDocument()
 	})
 
+	it("should display aggregated child-only cost when totalCost is 0", () => {
+		renderTaskHeader({ totalCost: 0, aggregatedCost: 0.05, hasSubtasks: true })
+		expect(screen.getByText("$0.05")).toBeInTheDocument()
+	})
+
 	it("should render the condense context button when expanded", () => {
 		renderTaskHeader()
 		// First click to expand the task header

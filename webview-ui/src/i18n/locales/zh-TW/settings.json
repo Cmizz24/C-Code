@@ -257,6 +257,12 @@
 			"label": "子任務",
 			"description": "無需核准即可建立與完成子任務"
 		},
+		"parallelTasks": {
+			"label": "並行任務",
+			"maxConcurrentLabel": "最大並行代理數",
+			"maxConcurrentDescription": "選擇已核准的並行任務計畫可同時執行多少個代理（{{min}}–{{max}}）。等待中的代理會在執行中的代理完成後啟動。",
+			"description": "自動核准有效的並行任務計畫並啟動代理，而不顯示計畫預覽對話框"
+		},
 		"followupQuestions": {
 			"label": "後續提問",
 			"description": "在設定的逾時時間過後，自動選擇後續問題的第一個建議答案",
@@ -395,6 +401,9 @@
 		"minimaxApiKey": "MiniMax API 金鑰",
 		"getMiniMaxApiKey": "取得 MiniMax API 金鑰",
 		"minimaxBaseUrl": "MiniMax 服務端點",
+		"xiaomiMiMoApiKey": "Xiaomi MiMo API 金鑰",
+		"getXiaomiMiMoApiKey": "取得 Xiaomi MiMo API 金鑰",
+		"xiaomiMiMoBaseUrl": "Xiaomi MiMo 服務端點",
 		"zaiApiKey": "Z AI API 金鑰",
 		"getZaiApiKey": "取得 Z AI API 金鑰",
 		"zaiEntrypoint": "Z AI 服務端點",

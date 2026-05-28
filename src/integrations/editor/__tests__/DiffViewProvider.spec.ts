@@ -1,4 +1,9 @@
-import { DiffViewProvider, DIFF_VIEW_URI_SCHEME, DIFF_VIEW_LABEL_CHANGES } from "../DiffViewProvider"
+import {
+	DiffViewProvider,
+	DIFF_VIEW_URI_SCHEME,
+	DIFF_VIEW_LABEL_CHANGES,
+	DIFF_VIEW_LABEL_NEW_FILE,
+} from "../DiffViewProvider"
 import * as vscode from "vscode"
 import * as path from "path"
 import delay from "delay"
@@ -297,6 +302,15 @@ describe("DiffViewProvider", () => {
 					label: `file2.md: ${DIFF_VIEW_LABEL_CHANGES} (Editable)`,
 					isDirty: false,
 				},
+				// New file tab identified by label even when VS Code exposes it as a plain text tab
+				{
+					input: {
+						constructor: { name: "TabInputText" },
+						uri: { fsPath: "/test/file-new.ts" },
+					},
+					label: `file-new.ts: ${DIFF_VIEW_LABEL_NEW_FILE} (Editable)`,
+					isDirty: false,
+				},
 				// Regular file tab (should not be closed)
 				{
 					input: {
@@ -345,9 +359,10 @@ describe("DiffViewProvider", () => {
 			await (diffViewProvider as any).closeAllDiffViews()
 
 			// Verify that only the appropriate tabs were closed
-			expect(closedTabs).toHaveLength(2)
+			expect(closedTabs).toHaveLength(3)
 			expect(closedTabs[0].label).toBe(`file1.ts: ${DIFF_VIEW_LABEL_CHANGES} (Editable)`)
 			expect(closedTabs[1].label).toBe(`file2.md: ${DIFF_VIEW_LABEL_CHANGES} (Editable)`)
+			expect(closedTabs[2].label).toBe(`file-new.ts: ${DIFF_VIEW_LABEL_NEW_FILE} (Editable)`)
 
 			// Verify that the regular file and dirty diff were not closed
 			expect(closedTabs.find((t) => t.label === "file3.js")).toBeUndefined()
@@ -437,6 +452,16 @@ describe("DiffViewProvider", () => {
 			expect((diffViewProvider as any).relPath).toBe("test.ts")
 			expect((diffViewProvider as any).newContent).toBe("new content")
 		})
+
+		it("should report save and diagnostics progress", async () => {
+			const onProgress = vi.fn()
+
+			await diffViewProvider.saveDirectly("test.ts", "new content", true, true, 1000, onProgress)
+
+			expect(onProgress).toHaveBeenCalledWith({ phase: "saving", relPath: "test.ts" })
+			expect(onProgress).toHaveBeenCalledWith({ phase: "diagnostics-wait", relPath: "test.ts", delayMs: 1000 })
+			expect(onProgress).toHaveBeenCalledWith({ phase: "diagnostics-check", relPath: "test.ts" })
+		})
 	})
 
 	describe("saveChanges method with diagnostic settings", () => {
@@ -488,6 +513,29 @@ describe("DiffViewProvider", () => {
 			expect(result.newProblemsMessage).toBe("")
 		})
 
+		it("should save an approved empty-content edit", async () => {
+			const save = vi.fn().mockResolvedValue(undefined)
+			;(diffViewProvider as any).newContent = ""
+			;(diffViewProvider as any).activeDiffEditor = {
+				document: {
+					getText: vi.fn().mockReturnValue(""),
+					isDirty: true,
+					save,
+				},
+			}
+			;(diffViewProvider as any).closeAllDiffViews = vi.fn().mockResolvedValue(undefined)
+
+			const result = await diffViewProvider.saveChanges(false, 0)
+
+			expect(save).toHaveBeenCalled()
+			expect(vscode.window.showTextDocument).toHaveBeenCalledWith(
+				expect.objectContaining({ fsPath: `${mockCwd}/test.ts` }),
+				{ preview: false, preserveFocus: true },
+			)
+			expect((diffViewProvider as any).closeAllDiffViews).toHaveBeenCalled()
+			expect(result).toEqual({ newProblemsMessage: "", userEdits: undefined, finalContent: "" })
+		})
+
 		it("should use default values when no parameters provided", async () => {
 			const mockDelay = vi.mocked(delay)
 			mockDelay.mockClear()
@@ -515,6 +563,17 @@ describe("DiffViewProvider", () => {
 			// Verify custom delay was used
 			expect(mockDelay).toHaveBeenCalledWith(5000)
 			expect(vscode.languages.getDiagnostics).toHaveBeenCalled()
+		})
+
+		it("should report save and diagnostics progress", async () => {
+			const onProgress = vi.fn()
+			;(diffViewProvider as any).closeAllDiffViews = vi.fn().mockResolvedValue(undefined)
+
+			await diffViewProvider.saveChanges(true, 1000, onProgress)
+
+			expect(onProgress).toHaveBeenCalledWith({ phase: "saving", relPath: "test.ts" })
+			expect(onProgress).toHaveBeenCalledWith({ phase: "diagnostics-wait", relPath: "test.ts", delayMs: 1000 })
+			expect(onProgress).toHaveBeenCalledWith({ phase: "diagnostics-check", relPath: "test.ts" })
 		})
 	})
 })

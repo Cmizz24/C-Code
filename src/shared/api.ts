@@ -1,12 +1,4 @@
-import {
-	type ModelInfo,
-	type ProviderSettings,
-	type DynamicProvider,
-	type LocalProvider,
-	ANTHROPIC_DEFAULT_MAX_TOKENS,
-	isDynamicProvider,
-	isLocalProvider,
-} from "@roo-code/types"
+import { type ModelInfo, type ProviderSettings, type ProviderName, ANTHROPIC_DEFAULT_MAX_TOKENS } from "@roo-code/types"
 
 // ApiHandlerOptions
 // Extend ProviderSettings (minus apiProvider) with handler-specific toggles.
@@ -27,9 +19,33 @@ export type ApiHandlerOptions = Omit<ProviderSettings, "apiProvider"> & {
 
 // RouterName
 
-export type RouterName = DynamicProvider | LocalProvider
+export const dynamicModelProviders = [
+	"openrouter",
+	"vercel-ai-gateway",
+	"litellm",
+	"requesty",
+	"unbound",
+	"poe",
+	"ollama",
+	"lmstudio",
+	"anthropic",
+	"xai",
+	"openai-native",
+	"mistral",
+	"deepseek",
+	"gemini",
+	"moonshot",
+	"fireworks",
+	"baseten",
+	"sambanova",
+	"minimax",
+] as const satisfies readonly ProviderName[]
 
-export const isRouterName = (value: string): value is RouterName => isDynamicProvider(value) || isLocalProvider(value)
+export type RouterName = (typeof dynamicModelProviders)[number]
+
+const dynamicModelProviderSet = new Set<string>(dynamicModelProviders)
+
+export const isRouterName = (value: string): value is RouterName => dynamicModelProviderSet.has(value)
 
 export function toRouterName(value?: string): RouterName {
 	if (value && isRouterName(value)) {
@@ -67,6 +83,7 @@ export const shouldUseReasoningEffort = ({
 		| "low"
 		| "medium"
 		| "high"
+		| "xhigh"
 		| undefined
 
 	// "disable" explicitly omits reasoning
@@ -92,6 +109,7 @@ export const shouldUseReasoningEffort = ({
 		| "low"
 		| "medium"
 		| "high"
+		| "xhigh"
 		| undefined
 	return !!modelDefaultEffort
 }
@@ -163,6 +181,7 @@ export const getModelMaxOutputTokens = ({
 type CommonFetchParams = {
 	apiKey?: string
 	baseUrl?: string
+	openAiHeaders?: Record<string, string>
 }
 
 // Exhaustive, value-level map for all dynamic providers.
@@ -177,6 +196,17 @@ const dynamicProviderExtras = {
 	ollama: {} as {}, // eslint-disable-line @typescript-eslint/no-empty-object-type
 	lmstudio: {} as {}, // eslint-disable-line @typescript-eslint/no-empty-object-type
 	poe: {} as { apiKey?: string; baseUrl?: string },
+	anthropic: {} as { apiKey?: string; baseUrl?: string },
+	xai: {} as { apiKey?: string },
+	"openai-native": {} as { apiKey?: string; baseUrl?: string },
+	mistral: {} as { apiKey?: string; baseUrl?: string },
+	deepseek: {} as { apiKey?: string; baseUrl?: string },
+	gemini: {} as { apiKey?: string; baseUrl?: string },
+	moonshot: {} as { apiKey?: string; baseUrl?: string },
+	fireworks: {} as { apiKey?: string },
+	baseten: {} as { apiKey?: string },
+	sambanova: {} as { apiKey?: string },
+	minimax: {} as { apiKey?: string; baseUrl?: string },
 } as const satisfies Record<RouterName, object>
 
 // Build the dynamic options union from the map, intersected with CommonFetchParams

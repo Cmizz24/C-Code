@@ -1,4 +1,5 @@
 import * as vscode from "vscode"
+import { normalizeParallelTaskConcurrency } from "@roo-code/types"
 import { WebviewMessage } from "../../shared/WebviewMessage"
 import { defaultModeSlug } from "../../shared/modes"
 import { buildApiHandler } from "../../api"
@@ -18,6 +19,7 @@ export const generateSystemPrompt = async (provider: ClineProvider, message: Web
 		experiments,
 		language,
 		enableSubfolderRules,
+		maxConcurrentParallelTasks,
 	} = await provider.getState()
 
 	const diffStrategy = new MultiSearchReplaceDiffStrategy()
@@ -60,6 +62,7 @@ export const generateSystemPrompt = async (provider: ClineProvider, message: Web
 				.getConfiguration(Package.name)
 				.get<boolean>("newTaskRequireTodos", false),
 			isStealthModel: modelInfo?.isStealthModel,
+			maxParallelAgents: normalizeParallelTaskConcurrency(maxConcurrentParallelTasks),
 		},
 		undefined, // todoList
 		undefined, // modelId

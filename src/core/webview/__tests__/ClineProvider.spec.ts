@@ -7,10 +7,16 @@ import axios from "axios"
 import {
 	type ProviderSettingsEntry,
 	type ClineMessage,
+	type ClineSayTool,
+	type ExecutionPlan,
 	type ExtensionMessage,
 	type ExtensionState,
+	type HistoryItem,
+	createAgentCompletionPacket,
+	buildParallelPlanCompletionPacket,
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
+	RooCodeEventName,
 } from "@roo-code/types"
 
 import { defaultModeSlug } from "../../../shared/modes"
@@ -22,6 +28,8 @@ import { safeWriteJson } from "../../../utils/safeWriteJson"
 
 import { ClineProvider } from "../ClineProvider"
 import { MessageManager } from "../../message-manager"
+import { AgentBus } from "../../agents/AgentBus"
+import { WorktreeMergeError } from "../../agents/WorktreeManager"
 
 // Mock setup must come before imports.
 vi.mock("../../prompts/sections/custom-instructions")
@@ -181,21 +189,61 @@ vi.mock("../../../integrations/workspace/WorkspaceTracker", () => {
 })
 
 vi.mock("../../task/Task", () => ({
-	Task: vi.fn().mockImplementation((options: any) => ({
-		api: undefined,
-		abortTask: vi.fn(),
-		handleWebviewAskResponse: vi.fn(),
-		clineMessages: [],
-		apiConversationHistory: [],
-		overwriteClineMessages: vi.fn(),
-		overwriteApiConversationHistory: vi.fn(),
-		getTaskNumber: vi.fn().mockReturnValue(0),
-		setTaskNumber: vi.fn(),
-		setParentTask: vi.fn(),
-		setRootTask: vi.fn(),
-		taskId: options?.historyItem?.id || "test-task-id",
-		emit: vi.fn(),
-	})),
+	Task: vi.fn().mockImplementation((options: any) => {
+		const listeners = new Map<string, Set<(...args: any[]) => unknown>>()
+		const task: any = {
+			api: undefined,
+			apiConfiguration: options?.apiConfiguration,
+			abortTask: vi.fn(),
+			cancelCurrentRequest: vi.fn(),
+			handleWebviewAskResponse: vi.fn(),
+			clineMessages: [],
+			apiConversationHistory: [],
+			overwriteClineMessages: vi.fn(),
+			overwriteApiConversationHistory: vi.fn(),
+			resumeAfterParallelExecution: vi.fn(),
+			dispose: vi.fn(),
+			getTaskNumber: vi.fn().mockReturnValue(0),
+			setTaskNumber: vi.fn(),
+			setParentTask: vi.fn(),
+			setRootTask: vi.fn(),
+			start: vi.fn(),
+			taskId: options?.historyItem?.id || options?.taskId || "test-task-id",
+			instanceId: `test-instance-${options?.historyItem?.id || options?.taskId || options?.taskNumber || "new"}`,
+			rootTask: options?.rootTask,
+			parentTask: options?.parentTask,
+			rootTaskId: options?.historyItem?.rootTaskId ?? options?.rootTask?.taskId,
+			parentTaskId: options?.historyItem?.parentTaskId ?? options?.parentTask?.taskId,
+			background: options?.background ?? false,
+			abortReason: undefined,
+			abandoned: false,
+			abort: false,
+			isStreaming: false,
+			didFinishAbortingStream: false,
+			isWaitingForFirstChunk: false,
+			on: vi.fn((event: string, listener: (...args: any[]) => unknown) => {
+				const key = String(event)
+				const eventListeners = listeners.get(key) ?? new Set<(...args: any[]) => unknown>()
+				eventListeners.add(listener)
+				listeners.set(key, eventListeners)
+				return task
+			}),
+			off: vi.fn((event: string, listener: (...args: any[]) => unknown) => {
+				listeners.get(String(event))?.delete(listener)
+				return task
+			}),
+			emit: vi.fn((event: string, ...args: any[]) => {
+				for (const listener of listeners.get(String(event)) ?? []) {
+					void listener(...args)
+				}
+				return true
+			}),
+		}
+
+		options?.onCreated?.(task)
+
+		return task
+	}),
 }))
 
 vi.mock("../../../integrations/misc/extract-text", () => ({
@@ -318,25 +366,103 @@ afterAll(() => {
 describe("ClineProvider", () => {
 	beforeAll(() => {
 		vi.mocked(Task).mockImplementation((options: any) => {
+			const listeners = new Map<string, Set<(...args: any[]) => unknown>>()
+			const loadSavedMessages = async () => {
+				const [{ readFile }, { fileExistsAtPath }] = await Promise.all([
+					import("fs/promises"),
+					import("../../../utils/fs"),
+				])
+
+				if (!(await fileExistsAtPath("/test/task/path/ui_messages.json"))) {
+					task.clineMessages = []
+					return
+				}
+
+				try {
+					const parsedMessages = JSON.parse(await readFile("/test/task/path/ui_messages.json", "utf8"))
+					task.clineMessages = Array.isArray(parsedMessages) ? parsedMessages : []
+				} catch {
+					task.clineMessages = []
+				}
+			}
 			const task: any = {
 				api: undefined,
+				apiConfiguration: options?.apiConfiguration,
 				abortTask: vi.fn(),
+				cancelCurrentRequest: vi.fn(),
 				handleWebviewAskResponse: vi.fn(),
 				clineMessages: [],
 				apiConversationHistory: [],
-				overwriteClineMessages: vi.fn(),
+				say: vi.fn(async (type: ClineMessage["say"], text?: string, images?: string[], partial?: boolean) => {
+					const message = {
+						type: "say",
+						say: type,
+						text,
+						images,
+						partial,
+						ts: Date.now(),
+					} satisfies ClineMessage
+					task.clineMessages.push(message)
+					task.emit(RooCodeEventName.Message, { action: "created", message })
+				}),
+				overwriteClineMessages: vi.fn(async (messages: ClineMessage[]) => {
+					task.clineMessages = messages
+				}),
 				overwriteApiConversationHistory: vi.fn(),
+				resumeAfterParallelExecution: vi.fn(),
+				restoreClineMessagesFromHistory: vi.fn(async () => {
+					await loadSavedMessages()
+				}),
+				restoreParallelExecutionPause: vi.fn(async () => {
+					task.parallelExecutionPaused = true
+					return undefined
+				}),
+				dispose: vi.fn(),
 				getTaskNumber: vi.fn().mockReturnValue(0),
 				setTaskNumber: vi.fn(),
 				setParentTask: vi.fn(),
 				setRootTask: vi.fn(),
-				taskId: options?.historyItem?.id || "test-task-id",
-				emit: vi.fn(),
+				start: vi.fn(),
+				taskId: options?.historyItem?.id || options?.taskId || "test-task-id",
+				instanceId: `test-instance-${options?.historyItem?.id || options?.taskId || options?.taskNumber || "new"}`,
+				rootTask: options?.rootTask,
+				parentTask: options?.parentTask,
+				rootTaskId: options?.historyItem?.rootTaskId ?? options?.rootTask?.taskId,
+				parentTaskId: options?.historyItem?.parentTaskId ?? options?.parentTask?.taskId,
+				agentId: options?.agentId,
+				background: options?.background ?? false,
+				enableCheckpoints: options?.enableCheckpoints,
+				workspacePath: options?.workspacePath,
+				abortReason: undefined,
+				abandoned: false,
+				abort: false,
+				isStreaming: false,
+				didFinishAbortingStream: false,
+				isWaitingForFirstChunk: false,
+				on: vi.fn((event: string, listener: (...args: any[]) => unknown) => {
+					const key = String(event)
+					const eventListeners = listeners.get(key) ?? new Set<(...args: any[]) => unknown>()
+					eventListeners.add(listener)
+					listeners.set(key, eventListeners)
+					return task
+				}),
+				off: vi.fn((event: string, listener: (...args: any[]) => unknown) => {
+					listeners.get(String(event))?.delete(listener)
+					return task
+				}),
+				emit: vi.fn((event: string, ...args: any[]) => {
+					for (const listener of listeners.get(String(event)) ?? []) {
+						void listener(...args)
+					}
+					return true
+				}),
 			}
 
 			Object.defineProperty(task, "messageManager", {
 				get: () => new MessageManager(task),
 			})
+
+			options?.onCreated?.(task)
 
 			return task
 		})
@@ -353,6 +479,7 @@ describe("ClineProvider", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
+		AgentBus.reset()
 
 		const globalState: Record<string, string | undefined> = {
 			mode: "architect",
@@ -448,6 +575,99 @@ describe("ClineProvider", () => {
 			getAllServers: vi.fn().mockReturnValue([]),
 		})
 	})
+
+	const createExecutionPlan = (): ExecutionPlan => ({
+		planId: "plan-webview-provider",
+		sharedContext: "shared context",
+		fileOwnershipMap: {
+			"src/dashboard.tsx": "dashboard-agent",
+			"src/styles.css": "styles-agent",
+		},
+		createdAt: 12345,
+		agents: [
+			{
+				id: "dashboard-agent",
+				mode: "code",
+				task: "Build dashboard",
+				owns: [{ path: "src/dashboard.tsx", mode: "exclusive" }],
+				mustNotTouch: [],
+				dependsOn: [],
+				worktreePath: "",
+				status: "pending",
+				signals: [],
+			},
+			{
+				id: "styles-agent",
+				mode: "code",
+				task: "Style dashboard",
+				owns: [{ path: "src/styles.css", mode: "exclusive" }],
+				mustNotTouch: [],
+				dependsOn: [],
+				worktreePath: "",
+				status: "pending",
+				signals: [],
+			},
+		],
+	})
+
+	const getParallelAgentToolMessages = (task: Task): ClineMessage[] =>
+		task.clineMessages.filter((message) => {
+			if (message.type !== "say" || message.say !== "tool" || !message.text) {
+				return false
+			}
+
+			try {
+				return (JSON.parse(message.text) as ClineSayTool).tool === "parallelAgents"
+			} catch {
+				return false
+			}
+		})
+
+	const parseParallelAgentToolMessage = (message: ClineMessage): ClineSayTool =>
+		JSON.parse(message.text ?? "{}") as ClineSayTool
+
+	const createHistoryItem = (overrides: Partial<HistoryItem> = {}): HistoryItem => ({
+		id: "history-task-id",
+		number: 1,
+		ts: 1_700_000_000,
+		task: "Resume interrupted parallel-agent work",
+		tokensIn: 0,
+		tokensOut: 0,
+		totalCost: 0,
+		workspace: "/test/workspace",
+		status: "active",
+		...overrides,
+	})
+
+	const createParallelAgentToolMessage = (tool: ClineSayTool, ts = 1_700_000_001): ClineMessage => ({
+		type: "say",
+		say: "tool",
+		text: JSON.stringify(tool),
+		ts,
+	})
+
+	const createWorktreeManagerMock = (overrides: Record<string, unknown> = {}) => ({
+		validateGitRepository: vi.fn().mockResolvedValue(undefined),
+		captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+		createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+		prepareMergeReview: vi.fn(
+			async ({ agentId }: { agentId: string }) => `diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
+		),
+		mergeBranch: vi.fn().mockResolvedValue(undefined),
+		removeWorktree: vi.fn().mockResolvedValue(undefined),
+		cleanup: vi.fn().mockResolvedValue(undefined),
+		cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		...overrides,
+	})
+
+	const seedPersistedTaskMessages = async (messages: ClineMessage[]) => {
+		const fsUtils = await import("../../../utils/fs")
+		const fsPromises = await import("fs/promises")
+		vi.spyOn(fsUtils, "fileExistsAtPath").mockResolvedValueOnce(true).mockResolvedValueOnce(true)
+		;(vi.mocked(fsPromises.readFile) as any)
+			.mockResolvedValueOnce(JSON.stringify(messages))
+			.mockResolvedValueOnce(JSON.stringify(messages))
+	}
 
 	test("constructor initializes correctly", () => {
 		expect(provider).toBeInstanceOf(ClineProvider)
@@ -751,6 +971,2114 @@ describe("ClineProvider", () => {
 		expect(provider.getCurrentTask()).toBe(mockCline2)
 	})
 
+	test("createTask starts background agents without changing the visible task stack", async () => {
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		vi.mocked(parentTask.emit).mockClear()
+
+		const removeClineFromStackSpy = vi.spyOn(provider, "removeClineFromStack")
+		const focusedTaskIds: string[] = []
+		provider.on(RooCodeEventName.TaskFocused, (taskId) => {
+			focusedTaskIds.push(taskId)
+		})
+
+		const backgroundTask = await provider.createTask("Run a specialist agent task", undefined, parentTask, {
+			agentId: "dashboard-js-animation",
+			background: true,
+			mode: "code",
+		})
+
+		expect(backgroundTask.background).toBe(true)
+		expect((backgroundTask as any).enableCheckpoints).toBe(false)
+		expect(backgroundTask.parentTask).toBe(parentTask)
+		expect(backgroundTask.start).toHaveBeenCalledTimes(1)
+		expect(provider.getTaskStackSize()).toBe(1)
+		expect(provider.getCurrentTask()).toBe(parentTask)
+		expect(removeClineFromStackSpy).not.toHaveBeenCalled()
+		expect(backgroundTask.emit).not.toHaveBeenCalledWith(RooCodeEventName.TaskFocused)
+		expect(focusedTaskIds).toEqual([])
+		expect((provider as any).backgroundTasks.has(backgroundTask)).toBe(true)
+	})
+
+	test("createTask can delay background agent start until lifecycle listeners are attached", async () => {
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+
+		const backgroundTask = await provider.createTask("Run a specialist agent task", undefined, parentTask, {
+			agentId: "dashboard-js-animation",
+			background: true,
+			mode: "code",
+			startTask: false,
+		})
+
+		expect(backgroundTask.background).toBe(true)
+		expect(backgroundTask.parentTask).toBe(parentTask)
+		expect(backgroundTask.start).not.toHaveBeenCalled()
+		expect((provider as any).backgroundTasks.has(backgroundTask)).toBe(true)
+	})
+
+	test("background agent token usage is forwarded to the parallel status message", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+
+		const backgroundTask = await provider.createTask("Run a specialist agent task", undefined, parentTask, {
+			agentId: "dashboard-js-animation",
+			background: true,
+			mode: "code",
+		})
+
+		backgroundTask.emit(
+			RooCodeEventName.TaskTokenUsageUpdated,
+			backgroundTask.taskId,
+			{
+				totalTokensIn: 100,
+				totalTokensOut: 50,
+				totalCacheWrites: 0,
+				totalCacheReads: 0,
+				totalCost: 0.01,
+				contextTokens: 150,
+			},
+			{},
+		)
+
+		expect(mockPostMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "agentStatusUpdate",
+				agentStatusUpdate: expect.objectContaining({
+					agentId: "dashboard-js-animation",
+					status: "running",
+					usage: expect.objectContaining({
+						totalTokensIn: 100,
+						totalTokensOut: 50,
+						totalCost: 0.01,
+					}),
+				}),
+			}),
+		)
+	})
+
+	test("approved execution plans create one persisted native parallelAgents tool message", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+
+		await vi.waitFor(() => expect(getParallelAgentToolMessages(parentTask)).toHaveLength(1))
+		const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+
+		expect(tool.tool).toBe("parallelAgents")
+		expect(tool.parallelStatus).toBe("running")
+		expect(tool.executionPlan?.planId).toBe("plan-webview-provider")
+		expect(parentTask.say).toHaveBeenCalledWith(
+			"tool",
+			expect.any(String),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			{ isNonInteractive: true },
+		)
+	})
+
+	test("AgentBus updates coalesce into the persisted parallelAgents tool message", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+
+		const bus = AgentBus.getInstance()
+		bus.requestWriteIntent("dashboard-agent", "src/dashboard.tsx")
+		bus.markComplete("dashboard-agent", "Dashboard done")
+		bus.publishCoordination("dashboard-agent", {
+			kind: "note",
+			message: "Completion accepted; README.md is done.",
+		})
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.agentStatusUpdates).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						status: "complete",
+						lastTouchedFile: "src/dashboard.tsx",
+						reason: "Dashboard done",
+					}),
+				]),
+			)
+		})
+
+		expect(getParallelAgentToolMessages(parentTask)).toHaveLength(1)
+		expect(parentTask.overwriteClineMessages).toHaveBeenCalled()
+		expect(mockPostMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "messageUpdated",
+				clineMessage: expect.objectContaining({ say: "tool" }),
+			}),
+		)
+	})
+
+	test("AgentBus completion packets persist structured per-agent and plan evidence", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = createWorktreeManagerMock()
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+
+		const bus = AgentBus.getInstance()
+		bus.requestWriteIntent("dashboard-agent", "src/dashboard.tsx")
+		bus.requestWriteIntent("dashboard-agent", "src/styles.css")
+		bus.markComplete("dashboard-agent", "Dashboard done")
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.agentCompletionPackets).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						planId: "plan-webview-provider",
+						agentId: "dashboard-agent",
+						status: "complete",
+						completionResult: "Dashboard done",
+						ownership: expect.objectContaining({
+							status: "violation",
+							conflicts: expect.arrayContaining([
+								expect.objectContaining({ path: "src/styles.css", ownerAgentId: "styles-agent" }),
+							]),
+						}),
+					}),
+				]),
+			)
+			expect(tool.parallelPlanCompletionPacket).toEqual(
+				expect.objectContaining({
+					planId: "plan-webview-provider",
+					packetCount: 2,
+					ownership: expect.objectContaining({ status: "violation" }),
+				}),
+			)
+		})
+	})
+
+	test("parallel coordination events are serialized into the persisted parallelAgents tool message", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		const plan = createExecutionPlan()
+		plan.agents[1] = {
+			...plan.agents[1],
+			dependsOn: [{ agentId: "dashboard-agent", waitFor: "signal", signal: "dom-ready" }],
+			status: "blocked",
+		}
+
+		await provider.approveExecutionPlan(plan)
+
+		const bus = AgentBus.getInstance()
+		expect(bus.getOpenCoordinationQuestions("styles-agent", { limit: 20 })).toEqual([])
+		const question = bus.publishCoordination("dashboard-agent", {
+			kind: "question",
+			message: "Which class should src/dashboard.tsx expose?",
+			targetAgentId: "styles-agent",
+			relatedFiles: ["src/dashboard.tsx"],
+		})
+		expect(question).toBeDefined()
+		if (!question) {
+			throw new Error("Expected model-published coordination question to be created.")
+		}
+		bus.publishCoordination("styles-agent", {
+			kind: "answer",
+			message: "Expose data-dashboard-root for compact styles.",
+			targetAgentId: "dashboard-agent",
+			replyToId: question.id,
+		})
+		bus.requestWriteIntent("dashboard-agent", "src/dashboard.tsx")
+		bus.markBlocked("styles-agent", "Waiting for DOM contract", [
+			{ agentId: "dashboard-agent", waitFor: "signal", signal: "dom-ready" },
+		])
+		bus.markComplete("dashboard-agent", "Dashboard done")
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.agentCoordinationEvents).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						id: question.id,
+						agentId: "dashboard-agent",
+						targetAgentId: "styles-agent",
+						kind: "question",
+						source: "agent",
+						message: "Which class should src/dashboard.tsx expose?",
+						relatedFiles: ["src/dashboard.tsx"],
+					}),
+					expect.objectContaining({
+						agentId: "styles-agent",
+						targetAgentId: "dashboard-agent",
+						kind: "answer",
+						source: "agent",
+						message: "Expose data-dashboard-root for compact styles.",
+						replyToId: question.id,
+					}),
+				]),
+			)
+			expect(
+				tool.agentCoordinationEvents?.every((event) => event.kind === "question" || event.kind === "answer"),
+			).toBe(true)
+			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toMatch(
+				/I own|Team chat open|Shared context is in each agent task|waits for|I'm about to edit/i,
+			)
+			expect(
+				tool.agentCoordinationEvents?.some(
+					(event) =>
+						event.agentId === "dashboard-agent" && event.kind === "completion" && event.source === "system",
+				),
+			).toBe(false)
+			expect(
+				tool.agentCoordinationEvents?.some(
+					(event) =>
+						event.source === "system" && event.id?.includes(":ownership:") && event.kind === "ownership",
+				),
+			).toBe(false)
+			expect(tool.agentCoordinationEvents?.every((event) => event.message.length <= 90)).toBe(true)
+			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toMatch(
+				/selectors, classes, CSS variables|DOM hooks, IDs|public functions|file contracts/,
+			)
+			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toMatch(/\p{Extended_Pictographic}/u)
+			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toContain("Dashboard done")
+			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toContain("Completion accepted")
+			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toContain("shared context")
+			expect(tool.agentCompletionPackets).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						status: "complete",
+						completionResult: "Dashboard done",
+					}),
+				]),
+			)
+		})
+	})
+
+	test("rapid AgentBus updates serialize persisted parallelAgents message saves without overlap", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		vi.mocked(parentTask.overwriteClineMessages).mockClear()
+
+		let inFlight = 0
+		let maxInFlight = 0
+		let releaseFirstOverwrite!: () => void
+		const firstOverwriteBlocked = new Promise<void>((resolve) => {
+			releaseFirstOverwrite = resolve
+		})
+		parentTask.overwriteClineMessages = vi.fn(async (messages: ClineMessage[]) => {
+			inFlight += 1
+			maxInFlight = Math.max(maxInFlight, inFlight)
+			parentTask.clineMessages = messages
+
+			try {
+				if (vi.mocked(parentTask.overwriteClineMessages).mock.calls.length === 1) {
+					await firstOverwriteBlocked
+				}
+			} finally {
+				inFlight -= 1
+			}
+		}) as typeof parentTask.overwriteClineMessages
+
+		const bus = AgentBus.getInstance()
+		bus.markRunning("dashboard-agent")
+		bus.requestWriteIntent("dashboard-agent", "src/dashboard.tsx")
+		bus.markBlocked("dashboard-agent", "Waiting for styles")
+		bus.markComplete("dashboard-agent", "Dashboard done")
+		bus.markRunning("styles-agent")
+
+		await vi.waitFor(() => expect(parentTask.overwriteClineMessages).toHaveBeenCalledTimes(1))
+		expect(maxInFlight).toBe(1)
+		bus.markBlocked("styles-agent", "Paused while the parent row save is in flight")
+
+		releaseFirstOverwrite()
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.agentStatusUpdates).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						status: "complete",
+						lastTouchedFile: "src/dashboard.tsx",
+						reason: "Dashboard done",
+					}),
+					expect.objectContaining({
+						agentId: "styles-agent",
+						status: "blocked",
+						reason: "Paused while the parent row save is in flight",
+					}),
+				]),
+			)
+		})
+
+		expect(maxInFlight).toBe(1)
+		expect(parentTask.overwriteClineMessages).toHaveBeenCalledTimes(2)
+	})
+
+	test("background agent messages persist concise activity summaries without raw child transcript text", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+		const backgroundTask = backgroundTasks.find((task) => task.agentId === "dashboard-agent") as Task
+		const childMessage: ClineMessage = {
+			type: "say",
+			say: "reasoning",
+			ts: Date.now(),
+			text: "raw child chain-of-thought should never be copied to the parent row",
+		}
+
+		backgroundTask.emit(RooCodeEventName.Message, { action: "created", message: childMessage })
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.agentActivities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "thinking",
+						message: "Reasoning through the next step.",
+					}),
+				]),
+			)
+			expect(tool.agentStatusUpdates).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						activities: expect.arrayContaining([
+							expect.objectContaining({
+								kind: "thinking",
+								message: "Reasoning through the next step.",
+							}),
+						]),
+					}),
+				]),
+			)
+			expect(JSON.stringify(tool)).not.toContain("raw child chain-of-thought")
+		})
+	})
+
+	test("background agent partial messages replace generic thinking with sanitized live progress", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+		const backgroundTask = backgroundTasks.find((task) => task.agentId === "dashboard-agent") as Task
+		const apiRequestStarted: ClineMessage = {
+			type: "say",
+			say: "api_req_started",
+			ts: 1_500,
+			text: JSON.stringify({ apiProtocol: "anthropic" }),
+		}
+		const partialReasoning: ClineMessage = {
+			type: "say",
+			say: "reasoning",
+			ts: 1_501,
+			text: "raw streamed child reasoning should not be copied",
+			partial: true,
+		}
+		const partialTool: ClineMessage = {
+			type: "ask",
+			ask: "tool",
+			ts: 1_501,
+			text: JSON.stringify({ tool: "write_to_file", path: "src/dashboard.tsx" }),
+			partial: true,
+		}
+
+		backgroundTask.emit(RooCodeEventName.Message, { action: "created", message: apiRequestStarted })
+		backgroundTask.emit(RooCodeEventName.Message, { action: "created", message: partialReasoning })
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			const activities = tool.agentActivities?.filter((activity) => activity.agentId === "dashboard-agent") ?? []
+			expect(activities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "thinking",
+						message: "Reasoning through the next step.",
+						ts: 1_501,
+					}),
+				]),
+			)
+			expect(JSON.stringify(tool)).not.toContain("raw streamed child reasoning")
+		})
+
+		backgroundTask.emit(RooCodeEventName.Message, { action: "updated", message: partialTool })
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			const activities = tool.agentActivities?.filter((activity) => activity.agentId === "dashboard-agent") ?? []
+			expect(activities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "thinking",
+						message: "Requesting the next model action.",
+						ts: 1_500,
+					}),
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "tool",
+						message: "Writing src/dashboard.tsx.",
+						ts: 1_501,
+					}),
+				]),
+			)
+			expect(activities.filter((activity) => activity.ts === 1_501)).toHaveLength(1)
+			expect(activities.map((activity) => activity.message)).not.toContain("Thinking…")
+			expect(JSON.stringify(tool)).not.toContain("raw streamed child reasoning")
+		})
+	})
+
+	test("background agent activity transcripts are bounded per agent", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+		const backgroundTask = backgroundTasks.find((task) => task.agentId === "dashboard-agent") as Task
+		for (let index = 0; index < 55; index++) {
+			const childMessage: ClineMessage = {
+				type: "say",
+				say: "tool",
+				ts: 1_000 + index,
+				text: JSON.stringify({ tool: "readFile", path: `src/file-${index}.ts` }),
+			}
+
+			backgroundTask.emit(RooCodeEventName.Message, { action: "created", message: childMessage })
+		}
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			const activities = tool.agentActivities?.filter((activity) => activity.agentId === "dashboard-agent") ?? []
+			expect(activities).toHaveLength(50)
+			expect(activities[0]).toEqual(
+				expect.objectContaining({
+					message: "Reading src/file-5.ts.",
+					ts: 1_005,
+				}),
+			)
+			expect(activities.at(-1)).toEqual(
+				expect.objectContaining({
+					message: "Reading src/file-54.ts.",
+					ts: 1_054,
+				}),
+			)
+			const statusUpdate = tool.agentStatusUpdates?.find((update) => update.agentId === "dashboard-agent")
+			expect(statusUpdate?.activities).toHaveLength(50)
+		})
+	})
+
+	test("background agent tool activity labels use concrete tool states before falling back", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+		const backgroundTask = backgroundTasks.find((task) => task.agentId === "dashboard-agent") as Task
+		const messages: ClineMessage[] = [
+			{
+				type: "say",
+				say: "tool",
+				ts: 2_000,
+				text: JSON.stringify({ tool: "write_to_file", path: "src/dashboard.tsx" }),
+			},
+			{
+				type: "say",
+				say: "tool",
+				ts: 2_001,
+				text: JSON.stringify({ tool: "apply_diff", path: "src/dashboard.tsx" }),
+			},
+			{
+				type: "say",
+				say: "tool",
+				ts: 2_002,
+				text: JSON.stringify({ tool: "execute_command", command: "npm test" }),
+			},
+			{
+				type: "ask",
+				ask: "tool",
+				ts: 2_003,
+				text: JSON.stringify({ tool: "ask_followup_question", question: "Which behavior should I use?" }),
+			},
+		]
+
+		for (const message of messages) {
+			backgroundTask.emit(RooCodeEventName.Message, { action: "created", message })
+		}
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.agentActivities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "tool",
+						message: "Writing src/dashboard.tsx.",
+					}),
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "tool",
+						message: "Applying a diff to src/dashboard.tsx.",
+					}),
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "tool",
+						message: "Running command: npm test.",
+					}),
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "approval",
+						message: "Waiting for a follow-up answer.",
+					}),
+				]),
+			)
+			expect(tool.agentActivities?.map((activity) => activity.message)).not.toContain("Thinking…")
+		})
+	})
+
+	test("pending diff tool asks supersede stale diff-start activity labels", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+		const backgroundTask = backgroundTasks.find((task) => task.agentId === "dashboard-agent") as Task
+		const diffAsk: ClineMessage = {
+			type: "ask",
+			ask: "tool",
+			ts: 2_050,
+			text: JSON.stringify({ tool: "appliedDiff", path: "src/dashboard.css" }),
+			partial: true,
+		}
+
+		backgroundTask.emit(RooCodeEventName.Message, { action: "created", message: diffAsk })
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.agentActivities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "tool",
+						message: "Applying a diff to src/dashboard.css.",
+						ts: 2_050,
+					}),
+				]),
+			)
+		})
+
+		backgroundTask.emit(RooCodeEventName.Message, {
+			action: "updated",
+			message: { ...diffAsk, partial: false },
+		})
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			const activities = tool.agentActivities?.filter((activity) => activity.agentId === "dashboard-agent") ?? []
+			const statusUpdate = tool.agentStatusUpdates?.find((update) => update.agentId === "dashboard-agent")
+
+			expect(activities.filter((activity) => activity.ts === 2_050)).toEqual([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					kind: "approval",
+					message: "Waiting for diff approval for src/dashboard.css.",
+					ts: 2_050,
+				}),
+			])
+			expect(activities.map((activity) => activity.message)).not.toContain(
+				"Applying a diff to src/dashboard.css.",
+			)
+			expect(statusUpdate?.activities?.at(-1)?.message).toBe("Waiting for diff approval for src/dashboard.css.")
+		})
+	})
+
+	test("answered write tool asks supersede stale diff-start activity labels", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+		const backgroundTask = backgroundTasks.find((task) => task.agentId === "dashboard-agent") as Task
+		const diffAsk: ClineMessage = {
+			type: "ask",
+			ask: "tool",
+			ts: 2_100,
+			text: JSON.stringify({ tool: "appliedDiff", path: "src/dashboard.css" }),
+			partial: true,
+		}
+
+		backgroundTask.emit(RooCodeEventName.Message, { action: "created", message: diffAsk })
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.agentActivities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						kind: "tool",
+						message: "Applying a diff to src/dashboard.css.",
+						ts: 2_100,
+					}),
+				]),
+			)
+		})
+
+		backgroundTask.emit(RooCodeEventName.Message, {
+			action: "updated",
+			message: { ...diffAsk, partial: false, isAnswered: true },
+		})
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			const activities = tool.agentActivities?.filter((activity) => activity.agentId === "dashboard-agent") ?? []
+			const statusUpdate = tool.agentStatusUpdates?.find((update) => update.agentId === "dashboard-agent")
+			expect(activities.filter((activity) => activity.ts === 2_100)).toEqual([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					kind: "file",
+					message: "Saving diff changes to src/dashboard.css.",
+					ts: 2_100,
+				}),
+			])
+			expect(activities.map((activity) => activity.message)).not.toContain(
+				"Applying a diff to src/dashboard.css.",
+			)
+			expect(statusUpdate?.activities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						kind: "file",
+						message: "Saving diff changes to src/dashboard.css.",
+					}),
+				]),
+			)
+		})
+	})
+
+	test("background agent progress events supersede stale file-operation labels during long writes", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+		const backgroundTask = backgroundTasks.find((task) => task.agentId === "dashboard-agent") as Task
+		const diffAsk: ClineMessage = {
+			type: "ask",
+			ask: "tool",
+			ts: 2_200,
+			text: JSON.stringify({ tool: "appliedDiff", path: "src/dashboard.tsx" }),
+			partial: true,
+		}
+
+		backgroundTask.emit(RooCodeEventName.Message, { action: "created", message: diffAsk })
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.agentActivities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						message: "Applying a diff to src/dashboard.tsx.",
+						ts: 2_200,
+					}),
+				]),
+			)
+		})
+
+		AgentBus.getInstance().reportProgress(
+			"dashboard-agent",
+			"Applying 3 diff blocks to src/dashboard.tsx.",
+			"file",
+			"src/dashboard.tsx",
+		)
+		AgentBus.getInstance().reportProgress(
+			"dashboard-agent",
+			"Waiting up to 3s for diagnostics after saving src/dashboard.tsx.",
+			"file",
+			"src/dashboard.tsx",
+		)
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			const activities = tool.agentActivities?.filter((activity) => activity.agentId === "dashboard-agent") ?? []
+			const statusUpdate = tool.agentStatusUpdates?.find((update) => update.agentId === "dashboard-agent")
+
+			expect(activities.at(-1)).toEqual(
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					kind: "file",
+					message: "Waiting up to 3s for diagnostics after saving src/dashboard.tsx.",
+				}),
+			)
+			expect(activities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						kind: "file",
+						message: "Applying 3 diff blocks to src/dashboard.tsx.",
+					}),
+				]),
+			)
+			expect(statusUpdate?.lastTouchedFile).toBe("src/dashboard.tsx")
+			expect(statusUpdate?.activities?.at(-1)?.message).toBe(
+				"Waiting up to 3s for diagnostics after saving src/dashboard.tsx.",
+			)
+		})
+	})
+
+	test("requestPlanApproval shows the plan preview and waits by default", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const plan = createExecutionPlan()
+
+		const approvalPromise = provider.requestPlanApproval(plan)
+		const approvalSpy = vi.fn()
+		approvalPromise.then(approvalSpy)
+
+		await vi.waitFor(() =>
+			expect(mockPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "showPlanPreview",
+					executionPlan: plan,
+				}),
+			),
+		)
+		await Promise.resolve()
+
+		expect(approvalSpy).not.toHaveBeenCalled()
+
+		await provider.cancelExecutionPlan()
+		await expect(approvalPromise).resolves.toEqual({ approved: false })
+	})
+
+	test("requestPlanApproval auto-starts valid parallel plans when parallel tasks auto-approval is enabled", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		await provider.setValues({ autoApprovalEnabled: true, alwaysAllowParallelTasks: true })
+		const validateGitRepository = vi.fn().mockResolvedValue(undefined)
+		const captureWorkspaceBaseline = vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" })
+		;(provider as any).worktreeManager = {
+			validateGitRepository,
+			captureWorkspaceBaseline,
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+		const plan = createExecutionPlan()
+
+		const result = await provider.requestPlanApproval(plan)
+
+		expect(result).toEqual({ approved: true, plan, startResult: { ok: true } })
+		expect(validateGitRepository).toHaveBeenCalled()
+		expect(captureWorkspaceBaseline).toHaveBeenCalledWith("plan-webview-provider")
+		expect(validateGitRepository.mock.invocationCallOrder[0]).toBeLessThan(
+			captureWorkspaceBaseline.mock.invocationCallOrder[0],
+		)
+		expect((provider as any).activeExecutionPlan).toBe(plan)
+		expect(
+			mockPostMessage.mock.calls.some(([message]: [ExtensionMessage]) => message.type === "showPlanPreview"),
+		).toBe(false)
+		await vi.waitFor(() => expect(getParallelAgentToolMessages(parentTask)).toHaveLength(1))
+	})
+
+	test("merge review collects uncommitted worktree changes before displaying agent diffs", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		const prepareMergeReview = vi.fn(async ({ agentId }: { agentId: string }) =>
+			agentId === "dashboard-agent"
+				? "diff --git a/src/dashboard.tsx b/src/dashboard.tsx\n+const dashboard = true\n"
+				: "",
+		)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview,
+			mergeBranch: vi.fn().mockResolvedValue(undefined),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(plan)
+		await vi.waitFor(() => expect((provider as any).activeExecutionPlan).toBe(plan))
+
+		await provider.showMergeReview(plan)
+
+		expect(prepareMergeReview).toHaveBeenCalledWith(
+			expect.objectContaining({
+				agentId: "dashboard-agent",
+				planId: "plan-webview-provider",
+				worktreePath: "/tmp/dashboard-agent",
+				branch: "roo/parallel/plan-webview-provider/dashboard-agent",
+				ownedPaths: ["src/dashboard.tsx"],
+			}),
+		)
+		expect(
+			mockPostMessage.mock.calls.some(([message]: [ExtensionMessage]) => message.type === "showMergeReview"),
+		).toBe(false)
+		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+		expect(statusTool.parallelStatus).toBe("review")
+		expect(statusTool.mergeReviewEntries).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					diff: expect.stringContaining("diff --git"),
+					changeStats: {
+						filesChanged: 1,
+						additions: 1,
+						deletions: 0,
+						totalChanges: 1,
+						binaryFiles: 0,
+					},
+				}),
+				expect.objectContaining({
+					agentId: "styles-agent",
+					diff: "",
+					noChangesReason: "No changes detected in this agent worktree.",
+					changeStats: {
+						filesChanged: 0,
+						additions: 0,
+						deletions: 0,
+						totalChanges: 0,
+						binaryFiles: 0,
+					},
+				}),
+			]),
+		)
+		expect(statusTool.parallelReviewSummary?.markdown).toContain(
+			"Full per-agent diffs are available in the persisted parallel agents card.",
+		)
+		expect(statusTool.agentCompletionPackets).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					artifactManifest: [
+						expect.objectContaining({ path: "src/dashboard.tsx", status: "modified", additions: 1 }),
+					],
+					merge: expect.objectContaining({ readiness: "ready", result: "pending", materialized: false }),
+				}),
+			]),
+		)
+		expect(statusTool.parallelPlanCompletionPacket).toEqual(
+			expect.objectContaining({
+				status: "awaiting-review",
+				aggregateArtifactManifest: [
+					expect.objectContaining({ path: "src/dashboard.tsx", agentId: "dashboard-agent" }),
+				],
+			}),
+		)
+	})
+
+	test("merge approval prepares and merges only selected agent branches after review", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		const prepareMergeReview = vi.fn(
+			async ({ agentId }: { agentId: string }) => `diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n`,
+		)
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		const removeWorktree = vi.fn().mockResolvedValue(undefined)
+		const cleanupPlanBaseline = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview,
+			mergeBranch,
+			removeWorktree,
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline,
+		}
+
+		await provider.approveExecutionPlan(plan)
+		await vi.waitFor(() => expect((provider as any).activeExecutionPlan).toBe(plan))
+
+		expect(mergeBranch).not.toHaveBeenCalled()
+		await provider.mergeApprovedAgents(["dashboard-agent"])
+
+		expect(prepareMergeReview).toHaveBeenCalledWith(
+			expect.objectContaining({
+				agentId: "dashboard-agent",
+				worktreePath: "/tmp/dashboard-agent",
+				ownedPaths: ["src/dashboard.tsx"],
+			}),
+		)
+		expect(mergeBranch).toHaveBeenCalledTimes(1)
+		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/dashboard-agent", {
+			planId: "plan-webview-provider",
+			worktreePath: "/tmp/dashboard-agent",
+			ownedPaths: ["src/dashboard.tsx"],
+			autoApproved: false,
+		})
+		expect(mergeBranch).not.toHaveBeenCalledWith("roo/parallel/plan-webview-provider/styles-agent")
+		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
+		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
+		expect(cleanupPlanBaseline).toHaveBeenCalledWith("plan-webview-provider")
+		expect(mockPostMessage).toHaveBeenCalledWith({ type: "mergeComplete" })
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
+	})
+
+	test("merge approval aborts and disposes completed background agents before deleting worktrees", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const removeWorktree = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreePathsByAgentId.set("styles-agent", "/tmp/styles-agent")
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview: vi.fn(
+				async ({ agentId }: { agentId: string }) =>
+					`diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
+			),
+			mergeBranch: vi.fn().mockResolvedValue(undefined),
+			removeWorktree,
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+		const backgroundTask = await provider.createTask("agent work", undefined, parentTask, {
+			agentId: "dashboard-agent",
+			background: true,
+			workspacePath: "/tmp/dashboard-agent",
+			startTask: false,
+		})
+		const disposeOrder: string[] = []
+		backgroundTask.abortTask = vi.fn(async () => {
+			disposeOrder.push("abort")
+		}) as any
+		backgroundTask.dispose = vi.fn(() => {
+			disposeOrder.push("dispose")
+		})
+		removeWorktree.mockImplementation(async () => {
+			disposeOrder.push("removeWorktree")
+		})
+
+		await expect(provider.mergeApprovedAgents(["dashboard-agent", "styles-agent"])).resolves.toBe(true)
+
+		expect(backgroundTask.abortTask).toHaveBeenCalledWith(true)
+		expect(backgroundTask.dispose).toHaveBeenCalledTimes(1)
+		expect(disposeOrder[0]).toBe("abort")
+		expect(disposeOrder[1]).toBe("dispose")
+		expect(disposeOrder).toContain("removeWorktree")
+		expect(disposeOrder.indexOf("removeWorktree")).toBeGreaterThan(disposeOrder.indexOf("dispose"))
+		expect((provider as any).backgroundTasks.size).toBe(0)
+	})
+
+	test("auto-approves and merges the final review when both auto-approval settings are enabled", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		parentTask.apiConversationHistory = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "Run parallel dashboard work" }],
+			},
+		] as any
+		parentTask.overwriteApiConversationHistory = vi.fn(async (history) => {
+			parentTask.apiConversationHistory = history as any
+		})
+		await provider.addClineToStack(parentTask)
+		await provider.setValues({ autoApprovalEnabled: true, alwaysAllowParallelTasks: true })
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const prepareMergeReview = vi.fn(
+			async ({ agentId }: { agentId: string }) => `diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
+		)
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		const removeWorktree = vi.fn().mockResolvedValue(undefined)
+		const cleanupPlanBaseline = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreePathsByAgentId.set("styles-agent", "/tmp/styles-agent")
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview,
+			mergeBranch,
+			removeWorktree,
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline,
+		}
+
+		await provider.showMergeReview(plan)
+
+		expect(mergeBranch).toHaveBeenCalledTimes(2)
+		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/dashboard-agent", {
+			planId: "plan-webview-provider",
+			worktreePath: "/tmp/dashboard-agent",
+			ownedPaths: ["src/dashboard.tsx"],
+			autoApproved: true,
+		})
+		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/styles-agent", {
+			planId: "plan-webview-provider",
+			worktreePath: "/tmp/styles-agent",
+			ownedPaths: ["src/styles.css"],
+			autoApproved: true,
+		})
+		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
+		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
+		expect(cleanupPlanBaseline).toHaveBeenCalledWith("plan-webview-provider")
+		expect(
+			mockPostMessage.mock.calls.some(([message]: [ExtensionMessage]) => message.type === "showMergeReview"),
+		).toBe(false)
+		expect(mockPostMessage).toHaveBeenCalledWith({ type: "mergeComplete" })
+
+		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+		expect(statusTool.parallelStatus).toBe("merged")
+		expect(statusTool.agentActivities).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					message: "Auto-approved final merge review.",
+					kind: "approval",
+				}),
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					message: "Auto-merged branch roo/parallel/plan-webview-provider/dashboard-agent.",
+					kind: "completion",
+				}),
+			]),
+		)
+		const reviewSummaryMessages = parentTask.clineMessages.filter(
+			(message) => message.type === "say" && message.say === "user_feedback_diff",
+		)
+		expect(reviewSummaryMessages).toHaveLength(0)
+		expect(statusTool.parallelReviewSummary).toEqual(
+			expect.objectContaining({
+				path: ".roo/parallel-agent-review.md",
+				markdown: expect.stringContaining(
+					"Full per-agent diffs are available in the persisted parallel agents card.",
+				),
+			}),
+		)
+		expect(statusTool.parallelReviewSummary?.markdown).toContain("dashboard-agent: merged; 1 files, +1/-0")
+		expect(statusTool.parallelReviewSummary?.markdown).not.toContain("diff --git a/src/dashboard-agent.ts")
+
+		const lastApiMessage = parentTask.apiConversationHistory.at(-1) as any
+		const summaryText = lastApiMessage.content[0].text as string
+		expect(summaryText).toContain("[PARALLEL AGENT SUMMARY] Plan plan-webview-provider is merged.")
+		expect(summaryText).toContain('"parentVerificationDirective"')
+		expect(summaryText).toContain('"sourceOfTruth": "structured_completion_packet"')
+		expect(summaryText).toContain('"evidenceStatus": "clean-merged"')
+		expect(summaryText).toContain('"noReverification": true')
+		expect(summaryText).toContain("Parent resume guidance:")
+		expect(summaryText).toContain(
+			"Treat the structured completion packet and parentVerificationDirective as the verification source of truth",
+		)
+		expect(summaryText).toContain(
+			"Do not perform broad file reads/searches over already-merged parallel deliverables solely to verify them.",
+		)
+		expect(summaryText).toContain(
+			"mark any redundant review/verify result or assembled deliverable todo step complete",
+		)
+		expect(summaryText).toContain("Only inspect files when the user explicitly asks for deeper verification")
+	})
+
+	test.each([
+		["global auto-approval", { autoApprovalEnabled: false, alwaysAllowParallelTasks: true }],
+		["parallel task auto-approval", { autoApprovalEnabled: true, alwaysAllowParallelTasks: false }],
+	])("does not auto-merge the final review when %s is disabled", async (_setting, values) => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		await provider.setValues(values)
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreePathsByAgentId.set("styles-agent", "/tmp/styles-agent")
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview: vi.fn(
+				async ({ agentId }: { agentId: string }) =>
+					`diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
+			),
+			mergeBranch,
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.showMergeReview(plan)
+
+		expect(mergeBranch).not.toHaveBeenCalled()
+		expect(
+			mockPostMessage.mock.calls.some(([message]: [ExtensionMessage]) => message.type === "showMergeReview"),
+		).toBe(false)
+		expect(mockPostMessage).not.toHaveBeenCalledWith({ type: "mergeComplete" })
+		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+		expect(statusTool.parallelStatus).toBe("review")
+		expect(statusTool.mergeReviewEntries).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ agentId: "dashboard-agent" }),
+				expect.objectContaining({ agentId: "styles-agent" }),
+			]),
+		)
+	})
+
+	test("skips auto-merge when the final review has an unmergeable entry", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		await provider.setValues({ autoApprovalEnabled: true, alwaysAllowParallelTasks: true })
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreePathsByAgentId.set("styles-agent", "/tmp/styles-agent")
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview: vi.fn(async ({ agentId }: { agentId: string }) => {
+				if (agentId === "styles-agent") {
+					throw new Error("Merge conflict during review")
+				}
+
+				return `diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`
+			}),
+			mergeBranch,
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.showMergeReview(plan)
+
+		expect(mergeBranch).not.toHaveBeenCalled()
+		expect(
+			mockPostMessage.mock.calls.some(([message]: [ExtensionMessage]) => message.type === "showMergeReview"),
+		).toBe(false)
+		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+		expect(statusTool.parallelStatus).toBe("review")
+		expect(statusTool.mergeReviewEntries).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "styles-agent",
+					reviewError: "Merge conflict during review",
+					mergeable: false,
+				}),
+			]),
+		)
+		expect(statusTool.agentActivities).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "styles-agent",
+					message: "Auto-merge skipped: styles-agent has a merge review error",
+					kind: "wait",
+				}),
+			]),
+		)
+	})
+
+	test("failed merge attempts persist conflicted review state and keep the review actionable", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		parentTask.apiConversationHistory = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "Start parallel dashboard work" }],
+			},
+		] as any
+		parentTask.overwriteApiConversationHistory = vi.fn(async (history) => {
+			parentTask.apiConversationHistory = history as any
+		})
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const mergeError = new WorktreeMergeError(
+			"rebase",
+			"roo/parallel/plan-webview-provider/dashboard-agent",
+			"/tmp/dashboard-agent",
+			["index.html"],
+			undefined,
+			"CONFLICT (add/add): Merge conflict in index.html",
+		)
+		const mergeBranch = vi.fn(async (branch: string) => {
+			if (branch === "roo/parallel/plan-webview-provider/dashboard-agent") {
+				throw mergeError
+			}
+		})
+		const removeWorktree = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreePathsByAgentId.set("styles-agent", "/tmp/styles-agent")
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview: vi.fn(
+				async ({ agentId }: { agentId: string }) =>
+					`diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
+			),
+			mergeBranch,
+			removeWorktree,
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.showMergeReview(plan)
+		mockPostMessage.mockClear()
+
+		await expect(provider.mergeApprovedAgents(["dashboard-agent"])).resolves.toBe(false)
+
+		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/dashboard-agent", {
+			planId: "plan-webview-provider",
+			worktreePath: "/tmp/dashboard-agent",
+			ownedPaths: ["src/dashboard.tsx"],
+			autoApproved: false,
+		})
+		expect(removeWorktree).not.toHaveBeenCalled()
+		expect(mockPostMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "mergeFailed",
+				agentId: "dashboard-agent",
+				gitOutput: expect.stringContaining("CONFLICT (add/add)"),
+			}),
+		)
+
+		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+		expect(statusTool.parallelStatus).toBe("review")
+		expect(statusTool.mergeReviewEntries).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					mergeStatus: "failed",
+					mergeable: false,
+					mergeError: expect.stringContaining("CONFLICT (add/add)"),
+					conflictedFiles: ["index.html"],
+				}),
+			]),
+		)
+		expect(statusTool.agentCompletionPackets).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					merge: expect.objectContaining({
+						readiness: "not-ready",
+						result: "failed",
+						materialized: false,
+						conflictedFiles: ["index.html"],
+						mergeError: expect.stringContaining("CONFLICT (add/add)"),
+					}),
+				}),
+			]),
+		)
+		expect(statusTool.parallelPlanCompletionPacket).toEqual(
+			expect.objectContaining({
+				status: "failed",
+				merge: expect.objectContaining({ status: "failed", failedAgents: ["dashboard-agent"] }),
+			}),
+		)
+		const lastApiMessage = parentTask.apiConversationHistory.at(-1) as any
+		expect(lastApiMessage.content[0].text).toContain(
+			"[PARALLEL AGENT SUMMARY] Plan plan-webview-provider is failed.",
+		)
+		expect(lastApiMessage.content[0].text).toContain("dashboard-agent")
+		expect(lastApiMessage.content[0].text).toContain("CONFLICT (add/add)")
+		expect(lastApiMessage.content[0].text).toContain("Structured completion packet:")
+		expect(lastApiMessage.content[0].text).toContain('"parallelPlanCompletionPacket"')
+		expect(lastApiMessage.content[0].text).toContain('"agentCompletionPackets"')
+		expect(lastApiMessage.content[0].text).toContain('"parentVerificationDirective"')
+		expect(lastApiMessage.content[0].text).toContain('"evidenceStatus": "requires-attention"')
+		expect(lastApiMessage.content[0].text).toContain('"noReverification": false')
+		expect(lastApiMessage.content[0].text).toContain('"artifactManifest"')
+		expect(lastApiMessage.content[0].text).toContain(
+			"The plan-level packet requires attention; do not mark redundant verification complete",
+		)
+		expect(lastApiMessage.content[0].text).toContain(
+			"Only inspect files when the packet is missing, failed, incomplete, or inconclusive",
+		)
+		expect(lastApiMessage.content[0].text).toContain("Use the persisted parallel agents card")
+		expect(
+			parentTask.clineMessages.filter(
+				(message) => message.type === "say" && message.say === "user_feedback_diff",
+			),
+		).toHaveLength(0)
+	})
+
+	test("merge approval restores persisted review state when live parallel agents are gone", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		parentTask.apiConversationHistory = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "Resume pending parallel review" }],
+			},
+		] as any
+		parentTask.overwriteApiConversationHistory = vi.fn(async (history) => {
+			parentTask.apiConversationHistory = history as any
+		})
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const restoredPackets = plan.agents.map((agent) =>
+			createAgentCompletionPacket(plan, agent, {
+				status: "complete",
+				completionResult: `${agent.id} completed before reload`,
+				artifactManifest: [
+					{
+						path: `src/${agent.id}.ts`,
+						status: "modified",
+						additions: 1,
+						deletions: 0,
+						binary: false,
+						source: "merge-review",
+						agentId: agent.id,
+					},
+				],
+				merge: {
+					readiness: "ready",
+					result: "pending",
+					branch: `roo/parallel/plan-webview-provider/${agent.id}`,
+					worktreePath: `/tmp/${agent.id}`,
+					materialized: false,
+					notes: ["Restored review state."],
+					ts: 1_700_000_002,
+				},
+				ts: 1_700_000_002,
+			}),
+		)
+		parentTask.clineMessages = [
+			{
+				type: "say",
+				say: "tool",
+				text: JSON.stringify({
+					tool: "parallelAgents",
+					executionPlan: plan,
+					parallelStatus: "review",
+					agentStatusUpdates: plan.agents.map((agent) => ({ agentId: agent.id, status: "complete" })),
+					mergeReviewEntries: plan.agents.map((agent) => ({
+						agentId: agent.id,
+						mode: agent.mode,
+						task: agent.task,
+						diff: `diff --git a/src/${agent.id}.ts b/src/${agent.id}.ts\n+done\n`,
+						worktreePath: `/tmp/${agent.id}`,
+						branch: `roo/parallel/plan-webview-provider/${agent.id}`,
+						mergeStatus: "pending",
+					})),
+					agentCompletionPackets: restoredPackets,
+					parallelPlanCompletionPacket: buildParallelPlanCompletionPacket(plan, restoredPackets, {
+						status: "awaiting-review",
+						ts: 1_700_000_003,
+					}),
+				} satisfies ClineSayTool),
+				ts: 101,
+			},
+		]
+		await provider.addClineToStack(parentTask)
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		const removeWorktree = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = undefined
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview: vi.fn(
+				async ({ agentId }: { agentId: string }) =>
+					`diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
+			),
+			mergeBranch,
+			removeWorktree,
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await expect(provider.mergeApprovedAgents(["dashboard-agent"])).resolves.toBe(true)
+
+		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/dashboard-agent", {
+			planId: "plan-webview-provider",
+			worktreePath: "/tmp/dashboard-agent",
+			ownedPaths: ["src/dashboard.tsx"],
+			autoApproved: false,
+		})
+		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
+		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
+		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+		expect(statusTool.parallelStatus).toBe("merged")
+		expect(statusTool.mergeReviewEntries).toEqual(
+			expect.arrayContaining([expect.objectContaining({ agentId: "dashboard-agent", mergeStatus: "merged" })]),
+		)
+		expect(statusTool.agentCompletionPackets).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					completionResult: "dashboard-agent completed before reload",
+					merge: expect.objectContaining({ result: "merged", materialized: true }),
+				}),
+				expect.objectContaining({
+					agentId: "styles-agent",
+					completionResult: "styles-agent completed before reload",
+					merge: expect.objectContaining({ result: "pending", materialized: false }),
+				}),
+			]),
+		)
+		expect(statusTool.parallelPlanCompletionPacket).toEqual(
+			expect.objectContaining({
+				status: "merged",
+				aggregateArtifactManifest: expect.arrayContaining([
+					expect.objectContaining({ path: "src/dashboard-agent.ts", agentId: "dashboard-agent" }),
+				]),
+			}),
+		)
+		expect(mockPostMessage).toHaveBeenCalledWith({ type: "mergeComplete" })
+	})
+
+	test("merge denial restores persisted review state and marks the chat row cancelled", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		parentTask.apiConversationHistory = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "Resume pending parallel review" }],
+			},
+		] as any
+		parentTask.overwriteApiConversationHistory = vi.fn(async (history) => {
+			parentTask.apiConversationHistory = history as any
+		})
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		parentTask.clineMessages = [
+			{
+				type: "say",
+				say: "tool",
+				text: JSON.stringify({
+					tool: "parallelAgents",
+					executionPlan: plan,
+					parallelStatus: "review",
+					agentStatusUpdates: plan.agents.map((agent) => ({ agentId: agent.id, status: "complete" })),
+					mergeReviewEntries: plan.agents.map((agent) => ({
+						agentId: agent.id,
+						mode: agent.mode,
+						task: agent.task,
+						diff: `diff --git a/src/${agent.id}.ts b/src/${agent.id}.ts\n+done\n`,
+						worktreePath: `/tmp/${agent.id}`,
+						branch: `roo/parallel/plan-webview-provider/${agent.id}`,
+						mergeStatus: "pending",
+					})),
+				} satisfies ClineSayTool),
+				ts: 101,
+			},
+		]
+		await provider.addClineToStack(parentTask)
+		const removeWorktree = vi.fn().mockResolvedValue(undefined)
+		const cleanup = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = undefined
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview: vi.fn(
+				async ({ agentId }: { agentId: string }) =>
+					`diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
+			),
+			mergeBranch: vi.fn().mockResolvedValue(undefined),
+			removeWorktree,
+			cleanup,
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await expect(provider.denyMergeReview()).resolves.toBe(true)
+
+		expect(cleanup).toHaveBeenCalled()
+		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
+		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
+		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+		expect(statusTool.parallelStatus).toBe("cancelled")
+		expect(statusTool.mergeReviewEntries).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					mergeStatus: "skipped",
+					autoMergeSkippedReason: "Merge review was denied from chat.",
+				}),
+				expect.objectContaining({
+					agentId: "styles-agent",
+					mergeStatus: "skipped",
+					autoMergeSkippedReason: "Merge review was denied from chat.",
+				}),
+			]),
+		)
+		expect(mockPostMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "mergeFailed" }))
+		const lastApiMessage = parentTask.apiConversationHistory.at(-1) as any
+		expect(lastApiMessage.content[0].text).toContain(
+			"[PARALLEL AGENT SUMMARY] Plan plan-webview-provider is cancelled.",
+		)
+		expect(lastApiMessage.content[0].text).toContain("Merge review was denied from chat.")
+		expect(lastApiMessage.content[0].text).toContain("Use the persisted parallel agents card")
+		expect(
+			parentTask.clineMessages.filter(
+				(message) => message.type === "say" && message.say === "user_feedback_diff",
+			),
+		).toHaveLength(0)
+	})
+
+	test("history restore resumes interrupted parallel agents instead of continuing the parent task", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const plan = createExecutionPlan()
+		plan.agents[0] = {
+			...plan.agents[0],
+			status: "complete",
+			worktreePath: "/tmp/dashboard-agent",
+		}
+		plan.agents[1] = {
+			...plan.agents[1],
+			status: "running",
+			worktreePath: "/tmp/styles-agent",
+		}
+		const persistedMessages = [
+			createParallelAgentToolMessage({
+				tool: "parallelAgents",
+				executionPlan: plan,
+				parallelStatus: "running",
+				agentStatusUpdates: [
+					{ agentId: "dashboard-agent", status: "complete", reason: "Dashboard finished" },
+					{ agentId: "styles-agent", status: "running", reason: "Styling in progress" },
+				],
+				agentActivities: [
+					{
+						agentId: "styles-agent",
+						kind: "tool",
+						message: "Editing src/styles.css.",
+						ts: 1_700_000_000,
+					},
+				],
+			} satisfies ClineSayTool),
+		]
+		await seedPersistedTaskMessages(persistedMessages)
+		const worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			restoreWorkspaceBaseline: vi.fn().mockResolvedValue({
+				planId: "plan-webview-provider",
+				commit: "baseline",
+				ref: "refs/roo/parallel-baselines/plan-webview-provider",
+			}),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/restored-${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+		;(provider as any).worktreeManager = worktreeManager
+
+		const task = await provider.createTaskWithHistoryItem(createHistoryItem())
+
+		expect(vi.mocked(Task).mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({ startTask: false }))
+		expect(task.start).not.toHaveBeenCalled()
+		expect(task.restoreClineMessagesFromHistory).toHaveBeenCalledTimes(1)
+		expect(task.restoreParallelExecutionPause).toHaveBeenCalledTimes(1)
+		expect(worktreeManager.restoreWorkspaceBaseline).toHaveBeenCalledWith("plan-webview-provider")
+
+		await vi.waitFor(() =>
+			expect(worktreeManager.createWorktree).toHaveBeenCalledWith("styles-agent", "plan-webview-provider"),
+		)
+		expect(worktreeManager.createWorktree).not.toHaveBeenCalledWith("dashboard-agent", "plan-webview-provider")
+		expect(task.resumeAfterParallelExecution).not.toHaveBeenCalled()
+		expect(
+			(provider as any).activeExecutionPlan.agents.find((agent: any) => agent.id === "dashboard-agent")?.status,
+		).toBe("complete")
+		expect((provider as any).backgroundTasks.size).toBe(1)
+		const restoredChild = Array.from((provider as any).backgroundTasks as Set<Task>)[0] as Task
+		expect(restoredChild.agentId).toBe("styles-agent")
+		expect(restoredChild.workspacePath).toBe("/tmp/restored-styles-agent")
+		expect(restoredChild.start).toHaveBeenCalledTimes(1)
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(task)[0])
+			expect(tool.parallelStatus).toBe("running")
+			expect(tool.agentStatusUpdates).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ agentId: "dashboard-agent", status: "complete" }),
+					expect.objectContaining({ agentId: "styles-agent", status: "running" }),
+				]),
+			)
+			expect(tool.agentActivities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "styles-agent",
+						message: "Rehydrating parallel agent after task resume.",
+					}),
+				]),
+			)
+		})
+	})
+
+	test("history restore reports a parallel-agent recovery message when the saved baseline is missing", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const plan = createExecutionPlan()
+		plan.agents[0] = {
+			...plan.agents[0],
+			status: "complete",
+			worktreePath: "/tmp/dashboard-agent",
+		}
+		plan.agents[1] = {
+			...plan.agents[1],
+			status: "running",
+			worktreePath: "/tmp/styles-agent",
+		}
+		await seedPersistedTaskMessages([
+			createParallelAgentToolMessage({
+				tool: "parallelAgents",
+				executionPlan: plan,
+				parallelStatus: "running",
+				agentStatusUpdates: [
+					{ agentId: "dashboard-agent", status: "complete" },
+					{ agentId: "styles-agent", status: "running" },
+				],
+			} satisfies ClineSayTool),
+		])
+		const worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			restoreWorkspaceBaseline: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+		;(provider as any).worktreeManager = worktreeManager
+
+		const task = await provider.createTaskWithHistoryItem(createHistoryItem({ id: "missing-baseline-task" }))
+
+		expect(vi.mocked(Task).mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({ startTask: false }))
+		expect(task.start).not.toHaveBeenCalled()
+		expect(task.restoreParallelExecutionPause).toHaveBeenCalledTimes(2)
+		expect(worktreeManager.restoreWorkspaceBaseline).toHaveBeenCalledWith("plan-webview-provider")
+		expect(worktreeManager.createWorktree).not.toHaveBeenCalled()
+		expect(task.resumeAfterParallelExecution).not.toHaveBeenCalled()
+		expect(task.say).toHaveBeenCalledWith(
+			"text",
+			expect.stringContaining("Roo found an interrupted parallel-agent run, but it cannot be resumed safely"),
+		)
+		expect(task.say).toHaveBeenCalledWith(
+			"text",
+			expect.stringContaining("The parent task has not been continued automatically"),
+		)
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(task)[0])
+			expect(tool.parallelStatus).toBe("failed")
+			expect(tool.agentActivities).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "styles-agent",
+						kind: "error",
+						message: expect.stringContaining("Parallel-agent resume requires manual recovery"),
+					}),
+				]),
+			)
+		})
+	})
+
+	test("background agent streaming aborts clean up without visible task rehydration", async () => {
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+
+		const backgroundTask = await provider.createTask("Run a specialist agent task", undefined, parentTask, {
+			agentId: "dashboard-js-animation",
+			background: true,
+			mode: "code",
+		})
+		backgroundTask.abortReason = "streaming_failed"
+
+		const getTaskWithIdSpy = vi.spyOn(provider, "getTaskWithId")
+		const createTaskWithHistoryItemSpy = vi.spyOn(provider, "createTaskWithHistoryItem")
+
+		backgroundTask.emit(RooCodeEventName.TaskAborted)
+
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.has(backgroundTask)).toBe(false))
+		expect(getTaskWithIdSpy).not.toHaveBeenCalled()
+		expect(createTaskWithHistoryItemSpy).not.toHaveBeenCalled()
+		expect(provider.getTaskStackSize()).toBe(1)
+		expect(provider.getCurrentTask()).toBe(parentTask)
+		expect(backgroundTask.off).toHaveBeenCalled()
+	})
+
+	test("background agent completion finalizes AgentBus status before cleanup", async () => {
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		;(provider as any).activeExecutionPlan = plan
+		AgentBus.getInstance().setExecutionPlan(plan)
+
+		const backgroundTask = await provider.createTask("Run a specialist agent task", undefined, parentTask, {
+			agentId: "dashboard-agent",
+			background: true,
+			mode: "code",
+		})
+
+		backgroundTask.emit(
+			RooCodeEventName.TaskCompleted,
+			backgroundTask.taskId,
+			{
+				totalTokensIn: 10,
+				totalTokensOut: 5,
+				totalCacheWrites: 0,
+				totalCacheReads: 0,
+				totalCost: 0.01,
+				contextTokens: 15,
+			},
+			{},
+		)
+
+		expect(AgentBus.getInstance().getAgent("dashboard-agent")?.status).toBe("complete")
+		expect((provider as any).backgroundTasks.has(backgroundTask)).toBe(false)
+	})
+
+	test("background agent abort finalizes AgentBus status before cleanup", async () => {
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		;(provider as any).activeExecutionPlan = plan
+		AgentBus.getInstance().setExecutionPlan(plan)
+
+		const backgroundTask = await provider.createTask("Run a specialist agent task", undefined, parentTask, {
+			agentId: "dashboard-agent",
+			background: true,
+			mode: "code",
+		})
+
+		backgroundTask.emit(RooCodeEventName.TaskAborted)
+
+		expect(AgentBus.getInstance().getAgent("dashboard-agent")?.status).toBe("failed")
+		expect((provider as any).backgroundTasks.has(backgroundTask)).toBe(false)
+	})
+
+	test("top-level tasks cancel active parallel state before opening a new visible task", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+
+		const nextTask = await provider.createTask("Build an HTML dashboard")
+
+		expect(provider.getCurrentTask()).toBe(nextTask)
+		expect((provider as any).activeExecutionPlan).toBeUndefined()
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBe(0))
+		for (const backgroundTask of backgroundTasks) {
+			expect(backgroundTask.abortTask).toHaveBeenCalledWith(true)
+		}
+
+		const oldPlanEvent = {
+			type: "COMPLETE",
+			agentId: "dashboard-agent",
+			result: "Stale completion",
+		} as const
+		;(provider as any).forwardAgentEvent(oldPlanEvent)
+
+		expect(getParallelAgentToolMessages(nextTask)).toHaveLength(0)
+	})
+
+	test("cancelTask tears down active parallel state and persists cancelled agent statuses", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+		vi.spyOn(provider, "getTaskWithId").mockResolvedValue({
+			historyItem: {
+				id: parentTask.taskId,
+				number: 1,
+				ts: Date.now(),
+				task: "Parent task",
+				tokensIn: 0,
+				tokensOut: 0,
+				totalCost: 0,
+			} as HistoryItem,
+			apiConversationHistory: [],
+			taskDirPath: "/tmp/task",
+			apiConversationHistoryFilePath: "/tmp/task/api.json",
+			uiMessagesFilePath: "/tmp/task/messages.json",
+		})
+		vi.spyOn(provider, "createTaskWithHistoryItem").mockResolvedValue(undefined as any)
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+
+		await provider.cancelTask()
+
+		expect((provider as any).activeExecutionPlan).toBeUndefined()
+		expect((provider as any).backgroundTasks.size).toBe(0)
+		for (const backgroundTask of backgroundTasks) {
+			expect(backgroundTask.abortTask).toHaveBeenCalledWith(true)
+		}
+		const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+		expect(tool.parallelStatus).toBe("cancelled")
+		expect(tool.agentStatusUpdates).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ agentId: "dashboard-agent", status: "failed" }),
+				expect.objectContaining({ agentId: "styles-agent", status: "failed" }),
+			]),
+		)
+	})
+
+	test("clearTask tears down active parallel state before removing the visible task", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(0))
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+
+		await provider.clearTask()
+
+		expect((provider as any).activeExecutionPlan).toBeUndefined()
+		expect((provider as any).backgroundTasks.size).toBe(0)
+		expect(provider.getTaskStackSize()).toBe(0)
+		for (const backgroundTask of backgroundTasks) {
+			expect(backgroundTask.abortTask).toHaveBeenCalledWith(true)
+		}
+	})
+
+	test("parallel status messages persist aggregate child token usage", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+		await vi.waitFor(() => expect((provider as any).backgroundTasks.size).toBeGreaterThan(1))
+		const backgroundTasks = Array.from((provider as any).backgroundTasks as Set<Task>)
+		const dashboardTask = backgroundTasks.find((task) => task.agentId === "dashboard-agent") as Task
+		const stylesTask = backgroundTasks.find((task) => task.agentId === "styles-agent") as Task
+
+		dashboardTask.emit(
+			RooCodeEventName.TaskTokenUsageUpdated,
+			dashboardTask.taskId,
+			{
+				totalTokensIn: 100,
+				totalTokensOut: 50,
+				totalCacheWrites: 10,
+				totalCacheReads: 20,
+				totalCost: 0.01,
+				contextTokens: 150,
+			},
+			{},
+		)
+		stylesTask.emit(
+			RooCodeEventName.TaskTokenUsageUpdated,
+			stylesTask.taskId,
+			{
+				totalTokensIn: 200,
+				totalTokensOut: 70,
+				totalCacheWrites: 0,
+				totalCacheReads: 30,
+				totalCost: 0.02,
+				contextTokens: 270,
+			},
+			{},
+		)
+
+		await vi.waitFor(() => {
+			const tool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
+			expect(tool.parallelUsageSummary).toEqual({
+				totalTokensIn: 300,
+				totalTokensOut: 120,
+				totalCacheWrites: 10,
+				totalCacheReads: 50,
+				totalCost: 0.03,
+				contextTokens: 420,
+				reportingAgents: 2,
+			})
+		})
+	})
+
 	test("getState returns correct initial state", async () => {
 		const state = await provider.getState()
 
@@ -760,6 +3088,7 @@ describe("ClineProvider", () => {
 		expect(state).toHaveProperty("alwaysAllowReadOnly")
 		expect(state).toHaveProperty("alwaysAllowWrite")
 		expect(state).toHaveProperty("alwaysAllowExecute")
+		expect(state.alwaysAllowParallelTasks).toBe(false)
 		expect(state).toHaveProperty("taskHistory")
 		expect(state).toHaveProperty("soundEnabled")
 		expect(state).toHaveProperty("ttsEnabled")

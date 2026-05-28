@@ -11,6 +11,7 @@ type AutoApproveToggles = Pick<
 	| "alwaysAllowMcp"
 	| "alwaysAllowModeSwitch"
 	| "alwaysAllowSubtasks"
+	| "alwaysAllowParallelTasks"
 	| "alwaysAllowExecute"
 	| "alwaysAllowFollowupQuestions"
 >
@@ -60,6 +61,13 @@ export const autoApproveSettingsConfig: Record<AutoApproveSetting, AutoApproveCo
 		descriptionKey: "settings:autoApprove.subtasks.description",
 		icon: "list-tree",
 		testId: "always-allow-subtasks-toggle",
+	},
+	alwaysAllowParallelTasks: {
+		key: "alwaysAllowParallelTasks",
+		labelKey: "settings:autoApprove.parallelTasks.label",
+		descriptionKey: "settings:autoApprove.parallelTasks.description",
+		icon: "repo-forked",
+		testId: "always-allow-parallel-tasks-toggle",
 	},
 	alwaysAllowExecute: {
 		key: "alwaysAllowExecute",

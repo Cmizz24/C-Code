@@ -3,19 +3,38 @@ import type { ModelInfo } from "../model.js"
 // https://docs.x.ai/docs/api-reference
 export type XAIModelId = keyof typeof xaiModels
 
-export const xaiDefaultModelId: XAIModelId = "grok-4.20"
+export const xaiDefaultModelId: XAIModelId = "grok-4.3"
 
 export const xaiModels = {
-	"grok-4.20": {
+	"grok-4.3": {
 		maxTokens: 65_536,
-		contextWindow: 2_000_000,
+		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
-		inputPrice: 2.0,
-		outputPrice: 6.0,
-		cacheWritesPrice: 0.5,
-		cacheReadsPrice: 0.5,
-		description: "xAI's flagship Grok 4.20 model with 2M context and reasoning support via Responses API.",
+		supportsReasoningEffort: ["none", "low", "medium", "high"],
+		reasoningEffort: "low",
+		inputPrice: 1.25,
+		outputPrice: 2.5,
+		cacheWritesPrice: 0.2,
+		cacheReadsPrice: 0.2,
+		description: "xAI's recommended Grok 4.3 model with 1M context and reasoning support via Responses API.",
+		includedTools: ["search_replace"],
+		excludedTools: ["apply_diff"],
+	},
+	"grok-4.20": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoningEffort: ["low", "medium", "high"],
+		reasoningEffort: "medium",
+		inputPrice: 1.25,
+		outputPrice: 2.5,
+		cacheWritesPrice: 0.2,
+		cacheReadsPrice: 0.2,
+		deprecated: true,
+		description:
+			"xAI's previous Grok 4.20 model metadata retained for existing profiles; use Grok 4.3 for new profiles.",
 		includedTools: ["search_replace"],
 		excludedTools: ["apply_diff"],
 	},
@@ -28,6 +47,7 @@ export const xaiModels = {
 		outputPrice: 1.5,
 		cacheWritesPrice: 0.02,
 		cacheReadsPrice: 0.02,
+		deprecated: true,
 		description: "xAI's Grok Code Fast model with 256K context window",
 		includedTools: ["search_replace"],
 		excludedTools: ["apply_diff"],
@@ -41,6 +61,7 @@ export const xaiModels = {
 		outputPrice: 0.5,
 		cacheWritesPrice: 0.05,
 		cacheReadsPrice: 0.05,
+		deprecated: true,
 		description:
 			"xAI's Grok 4.1 Fast model with 2M context window, optimized for high-performance agentic tool calling with reasoning",
 		includedTools: ["search_replace"],
@@ -55,6 +76,7 @@ export const xaiModels = {
 		outputPrice: 0.5,
 		cacheWritesPrice: 0.05,
 		cacheReadsPrice: 0.05,
+		deprecated: true,
 		description:
 			"xAI's Grok 4.1 Fast model with 2M context window, optimized for high-performance agentic tool calling",
 		includedTools: ["search_replace"],
@@ -69,6 +91,7 @@ export const xaiModels = {
 		outputPrice: 0.5,
 		cacheWritesPrice: 0.05,
 		cacheReadsPrice: 0.05,
+		deprecated: true,
 		description:
 			"xAI's Grok 4 Fast model with 2M context window, optimized for high-performance agentic tool calling with reasoning",
 		includedTools: ["search_replace"],
@@ -83,6 +106,7 @@ export const xaiModels = {
 		outputPrice: 0.5,
 		cacheWritesPrice: 0.05,
 		cacheReadsPrice: 0.05,
+		deprecated: true,
 		description:
 			"xAI's Grok 4 Fast model with 2M context window, optimized for high-performance agentic tool calling",
 		includedTools: ["search_replace"],
@@ -97,6 +121,7 @@ export const xaiModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 0.75,
 		cacheReadsPrice: 0.75,
+		deprecated: true,
 		description: "xAI's Grok-4 model with 256K context window",
 		includedTools: ["search_replace"],
 		excludedTools: ["apply_diff"],
@@ -110,6 +135,7 @@ export const xaiModels = {
 		outputPrice: 0.5,
 		cacheWritesPrice: 0.07,
 		cacheReadsPrice: 0.07,
+		deprecated: true,
 		description: "xAI's Grok-3 mini model with 128K context window",
 		supportsReasoningEffort: ["low", "high"],
 		reasoningEffort: "low",
@@ -125,6 +151,7 @@ export const xaiModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 0.75,
 		cacheReadsPrice: 0.75,
+		deprecated: true,
 		description: "xAI's Grok-3 model with 128K context window",
 		includedTools: ["search_replace"],
 		excludedTools: ["apply_diff"],

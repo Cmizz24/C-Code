@@ -261,6 +261,48 @@
 		"completionInstructions": "Subtasca completada! Pots revisar els resultats i suggerir correccions o següents passos. Si tot sembla correcte, confirma per tornar el resultat a la tasca principal.",
 		"goToSubtask": "Veure tasca"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "Tasca",
+			"ownedFiles": "Fitxers assignats",
+			"mustNotTouch": "No tocar",
+			"status": "Estat",
+			"waiting": "En espera",
+			"lastTouched": "Últim fitxer tocat",
+			"usage": "Ús",
+			"worktree": "Worktree",
+			"activity": "Activitat",
+			"conflicts": "Conflictes",
+			"none": "Cap",
+			"ready": "A punt",
+			"waitingOn": "Esperant {{agents}}",
+			"noFileWrites": "Encara no hi ha escriptures de fitxers",
+			"noUsage": "Encara no s'ha informat d'ús",
+			"noActivity": "Encara no s'ha informat d'activitat",
+			"noConflicts": "Sense conflictes"
+		},
+		"mergeReview": {
+			"title": "Revisa els canvis dels agents",
+			"description": "Aprova les branques dels agents per fusionar-les de nou al repositori, o descarta els worktrees no aprovats.",
+			"approved": "Aprovat",
+			"approveAndMerge": "Aprova i fusiona",
+			"discard": "Descarta",
+			"showDiff": "Mostra el diff",
+			"hideDiff": "Amaga el diff",
+			"noChanges": "No s'han detectat canvis en aquest worktree de l'agent.",
+			"noChangesReported": "No s'han informat canvis.",
+			"close": "Tanca",
+			"mergeAllApproved": "Fusiona tots els aprovats",
+			"stats": {
+				"files_one": "{{count}} fitxer",
+				"files_other": "{{count}} fitxers",
+				"lines_one": "{{count}} línia",
+				"lines_other": "{{count}} línies",
+				"binaryFiles_one": "{{count}} fitxer binari",
+				"binaryFiles_other": "{{count}} fitxers binaris"
+			}
+		}
+	},
 	"questions": {
 		"hasQuestion": "Roo té una pregunta"
 	},

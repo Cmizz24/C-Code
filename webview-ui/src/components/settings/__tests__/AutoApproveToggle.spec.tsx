@@ -22,6 +22,7 @@ describe("AutoApproveToggle", () => {
 		alwaysAllowMcp: false,
 		alwaysAllowModeSwitch: true,
 		alwaysAllowSubtasks: false,
+		alwaysAllowParallelTasks: false,
 		alwaysAllowExecute: true,
 		alwaysAllowFollowupQuestions: false,
 		onToggle: mockOnToggle,
@@ -63,6 +64,11 @@ describe("AutoApproveToggle", () => {
 		fireEvent.click(readOnlyButton)
 		expect(mockOnToggle).toHaveBeenCalledTimes(2)
 		expect(mockOnToggle).toHaveBeenCalledWith("alwaysAllowReadOnly", false)
+
+		const parallelTasksButton = screen.getByTestId(autoApproveSettingsConfig.alwaysAllowParallelTasks.testId)
+		fireEvent.click(parallelTasksButton)
+		expect(mockOnToggle).toHaveBeenCalledTimes(3)
+		expect(mockOnToggle).toHaveBeenCalledWith("alwaysAllowParallelTasks", true)
 	})
 
 	test("updates aria-pressed attribute after toggle", () => {
