@@ -48,6 +48,12 @@ describe("OpenAiCodexHandler.getModel", () => {
 		expect(model.info).toBeDefined()
 	})
 
+	it.each(["gpt-5.5", "gpt-5.4"])("should cap ChatGPT subscription model context to 200k: %s", (apiModelId) => {
+		const handler = new OpenAiCodexHandler({ apiModelId })
+		const model = handler.getModel()
+
+		expect(model.id).toBe(apiModelId)
+		expect(model.info.contextWindow).toBe(200000)
 	it("should use ChatGPT subscription GPT-5.5 Thinking context and default reasoning", () => {
 		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
 		const model = handler.getModel()
