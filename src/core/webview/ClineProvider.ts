@@ -2023,10 +2023,30 @@ export class ClineProvider
 	}> {
 		const { historyItem } = await this.getTaskWithId(taskId)
 
-		const aggregatedCosts = await aggregateTaskCostsRecursive(taskId, async (id: string) => {
-			const result = await this.getTaskWithId(id)
-			return result.historyItem
-		})
+		const aggregatedCosts = await aggregateTaskCostsRecursive(
+			taskId,
+			async (id: string) => {
+				const result = await this.getTaskWithId(id)
+				return result.historyItem
+			},
+			{
+				getChildTaskIds: async (parentId: string) => {
+					const historyById = new Map<string, HistoryItem>()
+
+					for (const item of this.getGlobalState("taskHistory") ?? []) {
+						historyById.set(item.id, item)
+					}
+
+					for (const item of this.taskHistoryStore.getAll()) {
+						historyById.set(item.id, item)
+					}
+
+					return Array.from(historyById.values())
+						.filter((item) => item.parentTaskId === parentId)
+						.map((item) => item.id)
+				},
+			},
+		)
 
 		return { historyItem, aggregatedCosts }
 	}

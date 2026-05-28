@@ -10,25 +10,35 @@ export interface AggregatedCosts {
 	}
 }
 
+export interface AggregateTaskCostsOptions {
+	/** Discover children linked by metadata, e.g. background parallel agents with parentTaskId. */
+	getChildTaskIds?: (parentId: string) => Promise<string[]>
+}
+
 /**
  * Recursively aggregate costs for a task and all its subtasks.
  *
  * @param taskId - The task ID to aggregate costs for
  * @param getTaskHistory - Function to load HistoryItem by task ID
+ * @param optionsOrVisited - Optional callbacks for metadata-linked children, or legacy visited Set
  * @param visited - Set to prevent circular references
  * @returns Aggregated cost information
  */
 export async function aggregateTaskCostsRecursive(
 	taskId: string,
 	getTaskHistory: (id: string) => Promise<HistoryItem | undefined>,
+	optionsOrVisited: AggregateTaskCostsOptions | Set<string> = {},
 	visited: Set<string> = new Set(),
 ): Promise<AggregatedCosts> {
+	const options = optionsOrVisited instanceof Set ? {} : optionsOrVisited
+	const currentVisited = optionsOrVisited instanceof Set ? optionsOrVisited : visited
+
 	// Prevent infinite loops
-	if (visited.has(taskId)) {
+	if (currentVisited.has(taskId)) {
 		console.warn(`[aggregateTaskCostsRecursive] Circular reference detected: ${taskId}`)
 		return { ownCost: 0, childrenCost: 0, totalCost: 0 }
 	}
-	visited.add(taskId)
+	currentVisited.add(taskId)
 
 	// Load this task's history
 	const history = await getTaskHistory(taskId)
@@ -40,14 +50,22 @@ export async function aggregateTaskCostsRecursive(
 	const ownCost = history.totalCost || 0
 	let childrenCost = 0
 	const childBreakdown: { [childId: string]: AggregatedCosts } = {}
+	const childIds = new Set(history.childIds ?? [])
+
+	if (options.getChildTaskIds) {
+		for (const childId of await options.getChildTaskIds(taskId)) {
+			childIds.add(childId)
+		}
+	}
 
 	// Recursively aggregate child costs
-	if (history.childIds && history.childIds.length > 0) {
-		for (const childId of history.childIds) {
+	if (childIds.size > 0) {
+		for (const childId of childIds) {
 			const childAggregated = await aggregateTaskCostsRecursive(
 				childId,
 				getTaskHistory,
-				new Set(visited), // Create new Set to allow sibling traversal
+				options,
+				new Set(currentVisited), // Create new Set to allow sibling traversal
 			)
 			childrenCost += childAggregated.totalCost
 			childBreakdown[childId] = childAggregated

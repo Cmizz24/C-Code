@@ -91,6 +91,8 @@ const TaskHeader = ({
 
 	// Determine if this is a subtask (has a parent)
 	const isSubtask = !!parentTaskId
+	const displayCost = aggregatedCost ?? totalCost
+	const shouldShowCost = Number.isFinite(displayCost) && displayCost > 0
 
 	const handleBackToParent = () => {
 		if (parentTaskId) {
@@ -237,7 +239,7 @@ const TaskHeader = ({
 									})()}
 								</span>
 							</StandardTooltip>
-							{!!totalCost && (
+							{shouldShowCost && (
 								<>
 									<span>·</span>
 									<StandardTooltip
@@ -246,7 +248,7 @@ const TaskHeader = ({
 												<div>
 													<div>
 														{t("chat:costs.totalWithSubtasks", {
-															cost: (aggregatedCost ?? totalCost).toFixed(2),
+															cost: displayCost.toFixed(2),
 														})}
 													</div>
 													{costBreakdown && (
@@ -254,14 +256,14 @@ const TaskHeader = ({
 													)}
 												</div>
 											) : (
-												<div>{t("chat:costs.total", { cost: totalCost.toFixed(2) })}</div>
+												<div>{t("chat:costs.total", { cost: displayCost.toFixed(2) })}</div>
 											)
 										}
 										side="top"
 										sideOffset={8}>
 										<>
 											<span>
-												${(aggregatedCost ?? totalCost).toFixed(2)}
+												${displayCost.toFixed(2)}
 												{hasSubtasks && (
 													<span
 														className="text-xs ml-1"
@@ -364,7 +366,7 @@ const TaskHeader = ({
 										</tr>
 									)}
 
-									{!!totalCost && (
+									{shouldShowCost && (
 										<tr>
 											<th className="font-medium text-left align-top w-1 whitespace-nowrap pr-3 h-[24px]">
 												{t("chat:task.apiCost")}
@@ -376,7 +378,7 @@ const TaskHeader = ({
 															<div>
 																<div>
 																	{t("chat:costs.totalWithSubtasks", {
-																		cost: (aggregatedCost ?? totalCost).toFixed(2),
+																		cost: displayCost.toFixed(2),
 																	})}
 																</div>
 																{costBreakdown && (
@@ -385,14 +387,16 @@ const TaskHeader = ({
 															</div>
 														) : (
 															<div>
-																{t("chat:costs.total", { cost: totalCost.toFixed(2) })}
+																{t("chat:costs.total", {
+																	cost: displayCost.toFixed(2),
+																})}
 															</div>
 														)
 													}
 													side="top"
 													sideOffset={8}>
 													<span>
-														${(aggregatedCost ?? totalCost).toFixed(2)}
+														${displayCost.toFixed(2)}
 														{hasSubtasks && (
 															<span
 																className="text-xs ml-1"

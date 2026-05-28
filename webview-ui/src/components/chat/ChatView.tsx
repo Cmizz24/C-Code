@@ -537,16 +537,36 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	}, [task?.ts])
 
 	const taskTs = task?.ts
+	const childCostSignature = useMemo(() => {
+		if (!currentTaskItem?.id) {
+			return ""
+		}
 
-	// Request aggregated costs when task changes and has childIds
+		const childIds = new Set(currentTaskItem.childIds ?? [])
+		for (const historyItem of taskHistory) {
+			if (historyItem.parentTaskId === currentTaskItem.id) {
+				childIds.add(historyItem.id)
+			}
+		}
+
+		return Array.from(childIds)
+			.sort()
+			.map((childId) => {
+				const child = taskHistory.find((historyItem) => historyItem.id === childId)
+				return `${childId}:${child?.totalCost ?? 0}:${child?.childIds?.join(",") ?? ""}`
+			})
+			.join("|")
+	}, [currentTaskItem?.id, currentTaskItem?.childIds, taskHistory])
+
+	// Request aggregated costs when task changes and has direct or metadata-linked children.
 	useEffect(() => {
-		if (taskTs && currentTaskItem?.childIds && currentTaskItem.childIds.length > 0) {
+		if (taskTs && currentTaskItem?.id && childCostSignature) {
 			vscode.postMessage({
 				type: "getTaskWithAggregatedCosts",
 				text: currentTaskItem.id,
 			})
 		}
-	}, [taskTs, currentTaskItem?.id, currentTaskItem?.childIds])
+	}, [taskTs, currentTaskItem?.id, childCostSignature])
 
 	useEffect(() => {
 		if (isHidden) {
