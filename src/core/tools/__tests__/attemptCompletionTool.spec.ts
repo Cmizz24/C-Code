@@ -67,10 +67,17 @@ describe("attemptCompletionTool", () => {
 			emitFinalTokenUsageUpdate: vi.fn(),
 			emit: vi.fn(),
 			getTokenUsage: vi.fn().mockReturnValue({}),
+			markAgentTerminal: vi.fn(),
+			cancelCurrentRequest: vi.fn(),
 			toolUsage: {},
 			taskId: "task_1",
 			apiConfiguration: { apiProvider: "test" } as any,
 			api: { getModel: vi.fn().mockReturnValue({ id: "test-model", info: {} }) } as any,
+			getAgentCompletionCoordinationGate: vi.fn(() => ({
+				approved: true,
+				blockers: [],
+				unanswerableQuestions: [],
+			})),
 		}
 	})
 
@@ -524,6 +531,115 @@ describe("attemptCompletionTool", () => {
 				await attemptCompletionTool.handle(mockTask as Task, block, callbacks)
 
 				expect(mockHandleError).not.toHaveBeenCalled()
+				expect(mockTask.emit).toHaveBeenCalledWith(
+					RooCodeEventName.TaskCompleted,
+					"task_1",
+					expect.anything(),
+					expect.anything(),
+				)
+			})
+
+			it("blocks parallel agent completion while live coordination questions are unresolved", async () => {
+				const block: AttemptCompletionToolUse = {
+					type: "tool_use",
+					name: "attempt_completion",
+					params: { result: "Agent finished" },
+					nativeArgs: { result: "Agent finished" },
+					partial: false,
+				}
+				const parallelTask = mockTask as any
+				parallelTask.parentTaskId = "parent-task"
+				parallelTask.agentId = "ui-agent"
+				parallelTask.agentBus = {} as any
+				parallelTask.getAgentCompletionCoordinationGate = vi.fn(() => ({
+					approved: false,
+					blockers: [
+						{
+							type: "incoming-question",
+							question: {
+								id: "coord-open",
+								agentId: "styles-agent",
+								targetAgentId: "ui-agent",
+								kind: "question",
+								message: "Which selector should styles target?",
+								ts: 1,
+							},
+						},
+					],
+					unanswerableQuestions: [],
+				}))
+
+				const callbacks: AttemptCompletionCallbacks = {
+					askApproval: mockAskApproval,
+					handleError: mockHandleError,
+					pushToolResult: mockPushToolResult,
+					askFinishSubTaskApproval: mockAskFinishSubTaskApproval,
+					toolDescription: mockToolDescription,
+				}
+
+				await attemptCompletionTool.handle(mockTask as Task, block, callbacks)
+
+				expect(parallelTask.getAgentCompletionCoordinationGate).toHaveBeenCalledWith({ recordAttempt: true })
+				expect(mockTask.say).not.toHaveBeenCalledWith("completion_result", expect.anything(), undefined, false)
+				expect(mockTask.emit).not.toHaveBeenCalledWith(
+					RooCodeEventName.TaskCompleted,
+					expect.anything(),
+					expect.anything(),
+					expect.anything(),
+				)
+				expect(mockTask.recordToolError).toHaveBeenCalledWith(
+					"attempt_completion",
+					"Open parallel-agent coordination questions are unresolved.",
+				)
+				expect(mockPushToolResult).toHaveBeenCalledWith(
+					expect.stringContaining(
+						"Cannot complete yet because live parallel-agent coordination is unresolved.",
+					),
+				)
+			})
+
+			it("lets parallel agent children complete without visible approval or Boomerang delegation", async () => {
+				const block: AttemptCompletionToolUse = {
+					type: "tool_use",
+					name: "attempt_completion",
+					params: { result: "Agent finished" },
+					nativeArgs: { result: "Agent finished" },
+					partial: false,
+				}
+				const provider = {
+					getTaskWithId: vi.fn().mockResolvedValue({ historyItem: { status: undefined } }),
+					reopenParentFromDelegation: vi.fn(),
+				}
+				const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+
+				const parallelTask = mockTask as any
+				parallelTask.parentTaskId = "parent-task"
+				parallelTask.agentId = "ui-agent"
+				parallelTask.agentBus = {} as any
+				parallelTask.providerRef = { deref: () => provider } as any
+				parallelTask.ask = vi.fn().mockResolvedValue({ response: "yesButtonClicked", text: "", images: [] })
+
+				const callbacks: AttemptCompletionCallbacks = {
+					askApproval: mockAskApproval,
+					handleError: mockHandleError,
+					pushToolResult: mockPushToolResult,
+					askFinishSubTaskApproval: mockAskFinishSubTaskApproval,
+					toolDescription: mockToolDescription,
+				}
+
+				try {
+					await attemptCompletionTool.handle(mockTask as Task, block, callbacks)
+				} finally {
+					consoleError.mockRestore()
+				}
+
+				expect(provider.getTaskWithId).not.toHaveBeenCalled()
+				expect(parallelTask.ask).not.toHaveBeenCalled()
+				expect(mockAskFinishSubTaskApproval).not.toHaveBeenCalled()
+				expect(provider.reopenParentFromDelegation).not.toHaveBeenCalled()
+				expect(consoleError).not.toHaveBeenCalled()
+				expect(parallelTask.markAgentTerminal).toHaveBeenCalledTimes(1)
+				expect(parallelTask.cancelCurrentRequest).toHaveBeenCalledTimes(1)
 				expect(mockTask.emit).toHaveBeenCalledWith(
 					RooCodeEventName.TaskCompleted,
 					"task_1",

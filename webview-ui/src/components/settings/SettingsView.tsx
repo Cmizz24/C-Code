@@ -35,6 +35,8 @@ import {
 	type ProviderSettings,
 	type ExperimentId,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
+	DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
+	normalizeParallelTaskConcurrency,
 	ImageGenerationProvider,
 } from "@roo-code/types"
 
@@ -157,6 +159,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		alwaysAllowMcp,
 		alwaysAllowModeSwitch,
 		alwaysAllowSubtasks,
+		alwaysAllowParallelTasks,
+		maxConcurrentParallelTasks,
 		alwaysAllowWrite,
 		alwaysAllowWriteOutsideWorkspace,
 		alwaysAllowWriteProtected,
@@ -395,6 +399,10 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 						includeDiagnosticMessages !== undefined ? includeDiagnosticMessages : true,
 					maxDiagnosticMessages: maxDiagnosticMessages ?? 50,
 					alwaysAllowSubtasks,
+					alwaysAllowParallelTasks: alwaysAllowParallelTasks ?? false,
+					maxConcurrentParallelTasks: normalizeParallelTaskConcurrency(
+						maxConcurrentParallelTasks ?? DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
+					),
 					alwaysAllowFollowupQuestions: alwaysAllowFollowupQuestions ?? false,
 					followupAutoApproveTimeoutMs,
 					includeTaskHistoryInEnhance: includeTaskHistoryInEnhance ?? true,
@@ -774,6 +782,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								alwaysAllowMcp={alwaysAllowMcp}
 								alwaysAllowModeSwitch={alwaysAllowModeSwitch}
 								alwaysAllowSubtasks={alwaysAllowSubtasks}
+								alwaysAllowParallelTasks={alwaysAllowParallelTasks}
+								maxConcurrentParallelTasks={maxConcurrentParallelTasks}
 								alwaysAllowExecute={alwaysAllowExecute}
 								alwaysAllowFollowupQuestions={alwaysAllowFollowupQuestions}
 								followupAutoApproveTimeoutMs={followupAutoApproveTimeoutMs}

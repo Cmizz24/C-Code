@@ -1,7 +1,7 @@
 import path from "path"
 
 import type { AgentDependency, AgentPlan, ExecutionPlan, FileOwnership } from "@roo-code/types"
-import { normalizeModeSlug } from "../../shared/modes"
+import { getModeBySlug, normalizeModeSlug } from "../../shared/modes"
 
 type PlanParallelTasksInputAgent = {
 	id: string
@@ -24,6 +24,11 @@ export type PlanParallelTasksInput = {
 export type PlanParallelTasksResult =
 	| { ok: true; plan: ExecutionPlan; warnings: string[] }
 	| { ok: false; errors: string[]; warnings: string[] }
+
+export interface PlanParallelTasksOptions {
+	/** Maximum total agents allowed in the proposed execution plan. */
+	maxAgents?: number
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -73,6 +78,73 @@ function ownershipsConflict(left: FileOwnership, right: FileOwnership): boolean 
 	return normalizePlanPath(left.path) === normalizePlanPath(right.path)
 }
 
+function hasWritableOwnershipConflict(left: PlanParallelTasksInputAgent, right: PlanParallelTasksInputAgent): boolean {
+	for (const leftOwnership of left.owns ?? []) {
+		if (leftOwnership.mode === "read-only") {
+			continue
+		}
+
+		for (const rightOwnership of right.owns ?? []) {
+			if (rightOwnership.mode === "read-only") {
+				continue
+			}
+
+			if (normalizePlanPath(leftOwnership.path) === normalizePlanPath(rightOwnership.path)) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+function modeAllowsWritableOwnership(mode: string): boolean {
+	return getModeBySlug(mode)?.groups.some((group) => (Array.isArray(group) ? group[0] : group) === "edit") ?? false
+}
+
+const DOCUMENTATION_AGENT_TERMS = /(^|[^a-z0-9])(readme|docs?|documentation|onboarding|contributor|guide)([^a-z0-9]|$)/i
+
+function isDocumentationPath(filePath: string): boolean {
+	const normalized = normalizePlanPath(filePath).toLowerCase()
+	const baseName = normalized.split("/").pop() ?? normalized
+
+	if (baseName === "readme.md" || baseName === "readme.mdx") {
+		return true
+	}
+
+	if (!/\.(md|mdx)$/.test(baseName)) {
+		return false
+	}
+
+	return (
+		normalized.startsWith("docs/") ||
+		normalized.includes("/docs/") ||
+		normalized.includes("onboarding") ||
+		normalized.includes("contributor") ||
+		normalized.includes("guide")
+	)
+}
+
+function isDocumentationFocusedAgent(agent: PlanParallelTasksInputAgent): boolean {
+	if (agent.mode === "onboarding") {
+		return true
+	}
+
+	const writableOwnerships = (agent.owns ?? []).filter((ownership) => ownership.mode !== "read-only")
+	const ownsDocumentationOnly =
+		writableOwnerships.length > 0 && writableOwnerships.every((ownership) => isDocumentationPath(ownership.path))
+	const descriptor = `${agent.id} ${agent.mode} ${agent.task}`
+
+	return ownsDocumentationOnly && DOCUMENTATION_AGENT_TERMS.test(descriptor)
+}
+
+function shouldRemoveDocumentationDependency(
+	agent: PlanParallelTasksInputAgent,
+	dependencyAgent: PlanParallelTasksInputAgent,
+): boolean {
+	return !isDocumentationFocusedAgent(agent) && isDocumentationFocusedAgent(dependencyAgent)
+}
+
 function findDependencyCycle(agents: PlanParallelTasksInputAgent[]): string[] | undefined {
 	const graph = new Map(
 		agents.map((agent) => [agent.id, agent.dependsOn?.map((dependency) => dependency.agentId) ?? []]),
@@ -115,7 +187,11 @@ function findDependencyCycle(agents: PlanParallelTasksInputAgent[]): string[] | 
 	return undefined
 }
 
-export function handlePlanParallelTasks(input: unknown, repoRoot: string): PlanParallelTasksResult {
+export function handlePlanParallelTasks(
+	input: unknown,
+	repoRoot: string,
+	options: PlanParallelTasksOptions = {},
+): PlanParallelTasksResult {
 	const errors: string[] = []
 	const warnings: string[] = []
 
@@ -142,6 +218,16 @@ export function handlePlanParallelTasks(input: unknown, repoRoot: string): PlanP
 	const rawAgents = input.agents
 	if (!Array.isArray(rawAgents) || rawAgents.length === 0) {
 		errors.push("At least one agent must be provided.")
+	}
+
+	const maxAgents =
+		typeof options.maxAgents === "number" && Number.isFinite(options.maxAgents)
+			? Math.trunc(options.maxAgents)
+			: undefined
+	if (Array.isArray(rawAgents) && maxAgents !== undefined && maxAgents > 0 && rawAgents.length > maxAgents) {
+		errors.push(
+			`Parallel task plan includes ${rawAgents.length} agents, but maximum parallel agents is configured to ${maxAgents}. Reduce the plan to ${maxAgents} agents or fewer.`,
+		)
 	}
 
 	const agents: PlanParallelTasksInputAgent[] = []
@@ -259,12 +345,51 @@ export function handlePlanParallelTasks(input: unknown, repoRoot: string): PlanP
 	}
 
 	for (const agent of agents) {
+		if (
+			agent.mode.trim() &&
+			!modeAllowsWritableOwnership(agent.mode) &&
+			(agent.owns ?? []).some((ownership) => ownership.mode === "exclusive")
+		) {
+			errors.push(
+				`Agent ${agent.id} uses read-only mode ${agent.mode} but has exclusive writable ownership. Assign a write-capable mode such as onboarding for documentation or change ownership to read-only.`,
+			)
+		}
+
+		const retainedDependencies: AgentDependency[] = []
 		for (const dependency of agent.dependsOn ?? []) {
+			const dependencyAgent = agents.find((candidate) => candidate.id === dependency.agentId)
 			if (!agentIds.has(dependency.agentId)) {
 				errors.push(`Agent ${agent.id} depends on unknown agent ${dependency.agentId}.`)
+				retainedDependencies.push(dependency)
+				continue
 			}
 			if (dependency.waitFor === "signal" && !dependency.signal) {
 				errors.push(`Agent ${agent.id} has a signal dependency on ${dependency.agentId} without a signal.`)
+			}
+			if (dependencyAgent && shouldRemoveDocumentationDependency(agent, dependencyAgent)) {
+				warnings.push(
+					`Agent ${agent.id} dependency on documentation/onboarding agent ${dependencyAgent.id} was removed so independent implementation work can start in parallel. Move required README, documentation, or onboarding context into sharedContext, or generate it before creating the parallel plan.`,
+				)
+				continue
+			}
+
+			retainedDependencies.push(dependency)
+		}
+
+		agent.dependsOn = retainedDependencies
+	}
+
+	for (const agent of agents) {
+		for (const dependency of agent.dependsOn ?? []) {
+			const dependencyAgent = agents.find((candidate) => candidate.id === dependency.agentId)
+			if (
+				dependency.waitFor === "complete" &&
+				dependencyAgent &&
+				!hasWritableOwnershipConflict(agent, dependencyAgent)
+			) {
+				warnings.push(
+					`Agent ${agent.id} waits for ${dependency.agentId} to complete despite non-conflicting ownership. If this is only an interface or DOM/API contract, move that contract into sharedContext or the agent task and remove the dependency so both agents can run in parallel. Use a signal dependency for a narrow handoff instead of waiting for full completion.`,
+				)
 			}
 		}
 	}

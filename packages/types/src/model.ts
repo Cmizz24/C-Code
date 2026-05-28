@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { DynamicProvider, LocalProvider } from "./provider-settings.js"
+import type { ProviderName } from "./provider-settings.js"
 
 /**
  * ReasoningEffort
@@ -84,6 +84,9 @@ export const modelInfoSchema = z.object({
 	supportsReasoningBudget: z.boolean().optional(),
 	// Capability flag to indicate whether the model supports simple on/off binary reasoning
 	supportsReasoningBinary: z.boolean().optional(),
+	// Capability flag for Anthropic adaptive thinking. Adaptive thinking uses
+	// provider-managed token allocation instead of client-selected budgets.
+	supportsReasoningAdaptive: z.boolean().optional(),
 	// Capability flag to indicate whether the model supports temperature parameter
 	supportsTemperature: z.boolean().optional(),
 	defaultTemperature: z.number().optional(),
@@ -91,6 +94,10 @@ export const modelInfoSchema = z.object({
 	supportsReasoningEffort: z
 		.union([z.boolean(), z.array(z.enum(["disable", "none", "minimal", "low", "medium", "high", "xhigh"]))])
 		.optional(),
+	// Optional default effort for adaptive thinking providers. Anthropic Opus 4.7
+	// currently supports low/medium/high/xhigh; "max" is provider-native but is not
+	// exposed in the shared user setting enum yet.
+	adaptiveThinkingEffort: z.enum(["low", "medium", "high", "xhigh"]).optional(),
 	requiredReasoningEffort: z.boolean().optional(),
 	preserveReasoning: z.boolean().optional(),
 	supportedParameters: z.array(modelParametersSchema).optional(),
@@ -150,4 +157,4 @@ export type ModelInfo = z.infer<typeof modelInfoSchema>
 
 export type ModelRecord = Record<string, ModelInfo>
 
-export type RouterModels = Record<DynamicProvider | LocalProvider, ModelRecord>
+export type RouterModels = Partial<Record<ProviderName, ModelRecord>>

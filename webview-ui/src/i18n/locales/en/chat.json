@@ -303,6 +303,48 @@
 		"completionInstructions": "You can review the results and suggest any corrections or next steps. If everything looks good, confirm to return the result to the parent task.",
 		"goToSubtask": "View task"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "Task",
+			"ownedFiles": "Owned files",
+			"mustNotTouch": "Must not touch",
+			"status": "Status",
+			"waiting": "Waiting",
+			"lastTouched": "Last touched",
+			"usage": "Usage",
+			"worktree": "Worktree",
+			"activity": "Activity",
+			"conflicts": "Conflicts",
+			"none": "None",
+			"ready": "Ready",
+			"waitingOn": "Waiting on {{agents}}",
+			"noFileWrites": "No file writes yet",
+			"noUsage": "No usage reported yet",
+			"noActivity": "No activity reported yet",
+			"noConflicts": "No conflicts"
+		},
+		"mergeReview": {
+			"title": "Review agent changes",
+			"description": "Approve agent branches to merge back into the repository, or discard unapproved worktrees.",
+			"approved": "Approved",
+			"approveAndMerge": "Approve & Merge",
+			"discard": "Discard",
+			"showDiff": "Show diff",
+			"hideDiff": "Hide diff",
+			"noChanges": "No changes detected in this agent worktree.",
+			"noChangesReported": "No changes reported.",
+			"close": "Close",
+			"mergeAllApproved": "Merge All Approved",
+			"stats": {
+				"files_one": "{{count}} file",
+				"files_other": "{{count}} files",
+				"lines_one": "{{count}} line",
+				"lines_other": "{{count}} lines",
+				"binaryFiles_one": "{{count}} binary file",
+				"binaryFiles_other": "{{count}} binary files"
+			}
+		}
+	},
 	"questions": {
 		"hasQuestion": "C has a question"
 	},

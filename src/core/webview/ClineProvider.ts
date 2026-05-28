@@ -2,8 +2,6 @@ import os from "os"
 import * as path from "path"
 import fs from "fs/promises"
 import EventEmitter from "events"
-import { exec } from "child_process"
-import { promisify } from "util"
 
 import { Anthropic } from "@anthropic-ai/sdk"
 import delay from "delay"
@@ -31,13 +29,27 @@ import {
 	type ExtensionMessage,
 	type ExtensionState,
 	type AgentEvent,
+	type AgentCompletionPacket,
+	type AgentDependency,
+	type AgentActivityEvent,
+	type AgentCoordinationEvent,
 	type AgentStatus,
 	type AgentStatusUpdate,
+	type WriteIntentConflict,
 	type MergeReviewEntry,
+	type ParallelAgentReviewSummary,
+	type ParallelPlanCompletionPacket,
+	type ParallelPlanCompletionStatus,
+	type AgentMergeEvidence,
+	computeMergeReviewChangeStats,
+	computeArtifactManifestFromDiff,
+	createAgentCompletionPacket,
+	buildParallelPlanCompletionPacket,
 	RooCodeEventName,
 	requestyDefaultModelId,
 	openRouterDefaultModelId,
 	DEFAULT_WRITE_DELAY_MS,
+	normalizeParallelTaskConcurrency,
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_MODES,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
@@ -89,18 +101,16 @@ import { CustomModesManager } from "../config/CustomModesManager"
 import { Task } from "../task/Task"
 
 import { webviewMessageHandler } from "./webviewMessageHandler"
-import type { ClineMessage, TodoItem } from "@roo-code/types"
+import type { ClineMessage, ClineSayTool, TodoItem } from "@roo-code/types"
 import { readApiMessages, saveApiMessages, saveTaskMessages, TaskHistoryStore } from "../task-persistence"
 import { readTaskMessages } from "../task-persistence/taskMessages"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { REQUESTY_BASE_URL } from "../../shared/utils/requesty"
 import { validateAndFixToolResultIds } from "../task/validateToolResultIds"
-import { AgentBus } from "../agents/AgentBus"
-import { getWorktreeManagerErrorMessage, WorktreeManager } from "../agents/WorktreeManager"
+import { AgentBus, isGenericOwnershipCoordinationMessage } from "../agents/AgentBus"
+import { getWorktreeManagerErrorMessage, WorktreeManager, WorktreeMergeError } from "../agents/WorktreeManager"
 import { OrchestratorEventLoop } from "../orchestrator/OrchestratorEventLoop"
-
-const execAsync = promisify(exec)
 
 /**
  * https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -127,6 +137,65 @@ export type PlanApprovalResult =
 	| { approved: false }
 	| { approved: true; plan: ExecutionPlan; startResult: PlanStartResult }
 
+type ParallelResumeRestoreResult =
+	| { status: "none" }
+	| { status: "running"; agentIdsToRestart: string[] }
+	| { status: "review"; rebuildReview: boolean }
+	| { status: "failed"; reason: string }
+
+type ParallelAgentToolStatus = NonNullable<ClineSayTool["parallelStatus"]>
+type ParallelAgentActivity = AgentActivityEvent
+type ParallelAgentCoordinationEvent = AgentCoordinationEvent
+type ParallelAgentUsageSummary = NonNullable<ClineSayTool["parallelUsageSummary"]>
+type BackgroundAgentActivityDescription = Pick<ParallelAgentActivity, "kind" | "message">
+type BackgroundAgentActivityDescriptionOptions = {
+	agentId?: string
+	partial?: boolean
+}
+type MergeApprovedAgentsOptions = { autoApproved?: boolean }
+type AutoMergeReviewSkipReason = { agentId?: string; reason: string }
+type ParallelParentVerificationDirective = {
+	sourceOfTruth: "structured_completion_packet"
+	evidenceStatus: "clean-merged" | "requires-attention"
+	noReverification: boolean
+	summary: string
+	todoGuidance: string
+	allowedInspectionReasons: string[]
+	evidence: {
+		planStatus: ParallelPlanCompletionStatus
+		mergeStatus: ParallelPlanCompletionPacket["merge"]["status"]
+		mergeClean: boolean
+		packetCount: number
+		agentCount: number
+		failedAgentCount: number
+		mergeFailedAgents: string[]
+		conflictedFiles: string[]
+		validationFailed: number
+		validationUnknown: number
+	}
+}
+type ActivityToolPayload = Omit<ClineSayTool, "tool"> & {
+	tool?: string
+	filePath?: string
+	name?: string
+	serverName?: string
+	uri?: string
+}
+type ParsedActivityTool = {
+	tool: ActivityToolPayload
+	toolName: string
+	targetPath?: string
+}
+type AutoMergeReviewDecision = {
+	enabled: boolean
+	approvedAgentIds: string[]
+	skipReasons: AutoMergeReviewSkipReason[]
+}
+
+const PARALLEL_AGENT_ACTIVITY_LIMIT = 50
+const PARALLEL_AGENT_COORDINATION_LIMIT = 24
+const PARALLEL_REVIEW_SUMMARY_PATH = ".roo/parallel-agent-review.md"
+
 export class ClineProvider
 	extends EventEmitter<TaskProviderEvents>
 	implements vscode.WebviewViewProvider, TaskProviderLike
@@ -141,6 +210,7 @@ export class ClineProvider
 	private webviewDisposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private clineStack: Task[] = []
+	private backgroundTasks: Set<Task> = new Set()
 	private codeIndexStatusSubscription?: vscode.Disposable
 	private codeIndexManager?: CodeIndexManager
 	private _workspaceTracker?: WorkspaceTracker // workSpaceTracker read-only for access outside this class
@@ -155,44 +225,146 @@ export class ClineProvider
 	private pendingPlanApproval?: (result: PlanApprovalResult) => void
 	private readonly worktreePathsByAgentId = new Map<string, string>()
 	private readonly deniedWriteReasons = new Map<string, string | undefined>()
+	private parallelStatusMessageTs?: number
+	private parallelStatusPlanId?: string
+	private parallelStatusPhase: ParallelAgentToolStatus = "running"
+	private parallelMergeReviewEntries?: MergeReviewEntry[]
+	private readonly parallelAgentStatusUpdates = new Map<string, AgentStatusUpdate>()
+	private readonly parallelAgentActivities = new Map<string, ParallelAgentActivity[]>()
+	private parallelAgentCoordinationEvents: ParallelAgentCoordinationEvent[] = []
+	private readonly parallelWriteConflicts = new Map<string, WriteIntentConflict>()
+	private readonly parallelAgentCompletionPackets = new Map<string, AgentCompletionPacket>()
+	private parallelPlanCompletionPacket?: ParallelPlanCompletionPacket
+	private parallelUsageSummary?: ParallelAgentUsageSummary
+	private parallelReviewSummary?: ParallelAgentReviewSummary
+	private parallelStatusUpdateQueue: Promise<void> = Promise.resolve()
+	private parallelStatusUpdatePromise?: Promise<void>
+	private parallelStatusUpdateRequested = false
 	private readonly forwardAgentEvent = (event: AgentEvent): void => {
 		switch (event.type) {
 			case "STATUS":
-				this.postAgentStatusUpdate({ agentId: event.agentId, status: event.status })
+				{
+					const update = { agentId: event.agentId, status: event.status }
+					this.postAgentStatusUpdate(update)
+					this.recordParallelAgentStatus(update)
+					this.recordParallelAgentActivity(event.agentId, this.describeStatusActivity(event.status), "status")
+				}
 				break
-			case "INTENT_WRITE":
-				if (event.permission.approved) {
-					this.postAgentStatusUpdate({
+			case "PROGRESS":
+				if (event.path) {
+					const update = {
 						agentId: event.agentId,
 						status: this.getAgentStatus(event.agentId) ?? "running",
 						lastTouchedFile: event.path,
-					})
+					}
+					this.postAgentStatusUpdate(update)
+					this.recordParallelAgentStatus(update)
+				}
+				this.recordParallelAgentActivity(event.agentId, event.message, event.kind ?? "status")
+				break
+			case "INTENT_WRITE":
+				if (event.permission.approved) {
+					const update = {
+						agentId: event.agentId,
+						status: this.getAgentStatus(event.agentId) ?? "running",
+						lastTouchedFile: event.path,
+					}
+					this.postAgentStatusUpdate(update)
+					this.recordParallelAgentStatus(update)
+					this.recordParallelAgentActivity(event.agentId, `Writing ${event.path}.`, "file")
 				} else {
 					this.deniedWriteReasons.set(this.getConflictKey(event.agentId, event.path), event.permission.reason)
 				}
 				break
 			case "CONFLICT_QUERY":
 				this.postWriteIntentDenied(event.agentId, event.path, event.ownerAgentId)
+				this.recordParallelAgentCoordinationEvent({
+					agentId: event.agentId,
+					kind: "ownership",
+					source: "system",
+					message: event.ownerAgentId
+						? `Agent ${event.agentId} requested ${event.path}, currently owned by ${event.ownerAgentId}.`
+						: `Agent ${event.agentId} requested ${event.path}, which has no assigned owner.`,
+				})
 				break
 			case "INTENT_CLEARED":
 				this.postMessageToWebview({
 					type: "writeIntentCleared",
 					writeIntentConflict: { agentId: event.agentId, filePath: event.path },
 				}).catch(() => {})
+				this.parallelWriteConflicts.delete(this.getConflictKey(event.agentId, event.path))
+				this.recordParallelAgentActivity(event.agentId, `Write access cleared for ${event.path}.`, "file")
 				break
 			case "BLOCKED":
-				this.postAgentStatusUpdate({
-					agentId: event.agentId,
-					status: "blocked",
-					reason: event.reason,
-					blockedOn: event.blockedOn,
-				})
+				{
+					const update = {
+						agentId: event.agentId,
+						status: "blocked",
+						reason: event.reason,
+						blockedOn: event.blockedOn,
+					} satisfies AgentStatusUpdate
+					this.postAgentStatusUpdate(update)
+					this.recordParallelAgentStatus(update)
+					this.recordParallelAgentActivity(event.agentId, `Blocked: ${event.reason}`, "wait")
+					this.recordParallelAgentCoordinationEvent({
+						agentId: event.agentId,
+						kind: "dependency",
+						source: "system",
+						message: event.blockedOn?.length
+							? `Agent ${event.agentId} is waiting for ${event.blockedOn
+									.map((dependency) => this.describeAgentDependency(dependency))
+									.join(", ")}.`
+							: `Agent ${event.agentId} is blocked until coordination clears.`,
+					})
+				}
 				break
 			case "COMPLETE":
-				this.postAgentStatusUpdate({ agentId: event.agentId, status: "complete", reason: event.result })
+				{
+					const update = {
+						agentId: event.agentId,
+						status: "complete",
+						reason: event.result,
+					} satisfies AgentStatusUpdate
+					this.postAgentStatusUpdate(update)
+					this.recordParallelAgentStatus(update)
+					this.recordParallelAgentActivity(
+						event.agentId,
+						event.result ? `Completed: ${event.result}` : "Completed.",
+						"completion",
+					)
+				}
 				break
 			case "FAILED":
-				this.postAgentStatusUpdate({ agentId: event.agentId, status: "failed", reason: event.reason })
+				{
+					const update = {
+						agentId: event.agentId,
+						status: "failed",
+						reason: event.reason,
+					} satisfies AgentStatusUpdate
+					this.postAgentStatusUpdate(update)
+					this.recordParallelAgentStatus(update)
+					this.recordParallelAgentActivity(event.agentId, `Failed: ${event.reason}`, "error")
+				}
+				break
+			case "SIGNAL":
+				this.recordParallelAgentActivity(event.agentId, `Signaled ${event.signal}.`, "signal")
+				break
+			case "COORDINATION":
+				this.recordParallelAgentCoordinationEvent(event.event)
+				if (event.event.agentId) {
+					this.recordParallelAgentActivity(
+						event.event.agentId,
+						`Coordination ${event.event.kind}: ${event.event.message}`,
+						"message",
+					)
+				}
+				break
+			case "COMPLETION_PACKET":
+				this.recordParallelAgentCompletionPacket(event.packet)
+				break
+			case "PLAN_COMPLETION_PACKET":
+				this.parallelPlanCompletionPacket = event.packet
+				this.scheduleParallelAgentStatusMessageUpdate()
 				break
 		}
 	}
@@ -275,12 +447,25 @@ export class ClineProvider
 
 			// Create named listener functions so we can remove them later.
 			const onTaskStarted = () => this.emit(RooCodeEventName.TaskStarted, instance.taskId)
-			const onTaskCompleted = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) =>
+			const onTaskCompleted = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) => {
+				if (instance.background) {
+					this.postBackgroundAgentUsage(instance, tokenUsage)
+					this.finalizeBackgroundAgentTask(instance, "complete")
+					this.removeBackgroundTask(instance)
+				}
+
 				this.emit(RooCodeEventName.TaskCompleted, taskId, tokenUsage, toolUsage)
+			}
 			const onTaskAborted = async () => {
 				this.emit(RooCodeEventName.TaskAborted, instance.taskId)
 
 				try {
+					if (instance.background) {
+						this.finalizeBackgroundAgentTask(instance, "failed", "Agent task aborted.")
+						this.removeBackgroundTask(instance)
+						return
+					}
+
 					// Only rehydrate on genuine streaming failures.
 					// User-initiated cancels are handled by cancelTask().
 					if (instance.abortReason === "streaming_failed") {
@@ -316,8 +501,13 @@ export class ClineProvider
 			const onTaskUnpaused = (taskId: string) => this.emit(RooCodeEventName.TaskUnpaused, taskId)
 			const onTaskSpawned = (taskId: string) => this.emit(RooCodeEventName.TaskSpawned, taskId)
 			const onTaskUserMessage = (taskId: string) => this.emit(RooCodeEventName.TaskUserMessage, taskId)
-			const onTaskTokenUsageUpdated = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) =>
+			const onTaskMessage = ({ action, message }: { action: "created" | "updated"; message: ClineMessage }) => {
+				this.handleBackgroundAgentMessage(instance, action, message)
+			}
+			const onTaskTokenUsageUpdated = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) => {
+				this.postBackgroundAgentUsage(instance, tokenUsage)
 				this.emit(RooCodeEventName.TaskTokenUsageUpdated, taskId, tokenUsage, toolUsage)
+			}
 
 			// Attach the listeners.
 			instance.on(RooCodeEventName.TaskStarted, onTaskStarted)
@@ -333,6 +523,7 @@ export class ClineProvider
 			instance.on(RooCodeEventName.TaskUnpaused, onTaskUnpaused)
 			instance.on(RooCodeEventName.TaskSpawned, onTaskSpawned)
 			instance.on(RooCodeEventName.TaskUserMessage, onTaskUserMessage)
+			instance.on(RooCodeEventName.Message, onTaskMessage)
 			instance.on(RooCodeEventName.TaskTokenUsageUpdated, onTaskTokenUsageUpdated)
 
 			// Store the cleanup functions for later removal.
@@ -350,6 +541,7 @@ export class ClineProvider
 				() => instance.off(RooCodeEventName.TaskPaused, onTaskPaused),
 				() => instance.off(RooCodeEventName.TaskUnpaused, onTaskUnpaused),
 				() => instance.off(RooCodeEventName.TaskSpawned, onTaskSpawned),
+				() => instance.off(RooCodeEventName.Message, onTaskMessage),
 				() => instance.off(RooCodeEventName.TaskTokenUsageUpdated, onTaskTokenUsageUpdated),
 			])
 		}
@@ -422,6 +614,38 @@ export class ClineProvider
 
 		if (!state || typeof state.mode !== "string") {
 			throw new Error(t("common:errors.retrieve_current_mode"))
+		}
+	}
+
+	private async addBackgroundTask(task: Task) {
+		this.backgroundTasks.add(task)
+		await this.performPreparationTasks(task)
+
+		const state = await this.getState()
+
+		if (!state || typeof state.mode !== "string") {
+			throw new Error(t("common:errors.retrieve_current_mode"))
+		}
+	}
+
+	private removeBackgroundTask(task: Task) {
+		if (!this.backgroundTasks.delete(task)) {
+			return
+		}
+
+		const cleanupFunctions = this.taskEventListeners.get(task)
+
+		if (cleanupFunctions) {
+			cleanupFunctions.forEach((cleanup) => cleanup())
+			this.taskEventListeners.delete(task)
+		}
+
+		try {
+			task.dispose()
+		} catch (error) {
+			this.log(
+				`[background-task] Failed to dispose task ${task.taskId}.${task.instanceId}: ${error instanceof Error ? error.message : String(error)}`,
+			)
 		}
 	}
 
@@ -613,15 +837,25 @@ export class ClineProvider
 		this.log("Disposing ClineProvider...")
 
 		// Clear all tasks from the stack.
+		await this.teardownParallelExecution({ resetBus: true, cleanupWorktrees: true })
 		while (this.clineStack.length > 0) {
 			await this.removeClineFromStack()
 		}
-		this.orchestratorEventLoop?.stop()
-		this.orchestratorEventLoop = undefined
+		for (const task of Array.from(this.backgroundTasks)) {
+			try {
+				await task.abortTask(true)
+			} catch (error) {
+				this.log(
+					`[ClineProvider#dispose] abort background task failed ${task.taskId}.${task.instanceId}: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			}
+
+			this.removeBackgroundTask(task)
+		}
 		this.pendingPlanApproval?.({ approved: false })
 		this.pendingPlanApproval = undefined
-		AgentBus.reset()
-		await this.worktreeManager?.cleanup()
 		this.activeExecutionPlan = undefined
 
 		this.log("Cleared all tasks")
@@ -910,6 +1144,7 @@ export class ClineProvider
 		const isRehydratingCurrentTask = currentTask && currentTask.taskId === historyItem.id
 
 		if (!isRehydratingCurrentTask) {
+			await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
 			await this.removeClineFromStack()
 		}
 
@@ -1018,6 +1253,10 @@ export class ClineProvider
 		}
 
 		const { apiConfiguration, enableCheckpoints, checkpointTimeout, experiments } = await this.getState()
+		const shouldStartTask = options?.startTask ?? true
+		const parallelResumeState = shouldStartTask
+			? await this.restorePersistedParallelResumeState(historyItem.id)
+			: ({ status: "none" } satisfies ParallelResumeRestoreResult)
 
 		const task = new Task({
 			provider: this,
@@ -1032,7 +1271,7 @@ export class ClineProvider
 			taskNumber: historyItem.number,
 			workspacePath: historyItem.workspace,
 			onCreated: this.taskCreationCallback,
-			startTask: options?.startTask ?? true,
+			startTask: shouldStartTask && parallelResumeState.status === "none",
 			// Preserve the status from the history item to avoid overwriting it when the task saves messages
 			initialStatus: historyItem.status,
 		})
@@ -1076,6 +1315,23 @@ export class ClineProvider
 			this.log(
 				`[createTaskWithHistoryItem] ${task.parentTask ? "child" : "parent"} task ${task.taskId}.${task.instanceId} instantiated`,
 			)
+		}
+
+		if (parallelResumeState.status !== "none") {
+			await task.restoreClineMessagesFromHistory()
+
+			if (parallelResumeState.status === "running") {
+				await this.resumeRestoredParallelExecution(task, parallelResumeState.agentIdsToRestart)
+			} else if (parallelResumeState.status === "review") {
+				await task.restoreParallelExecutionPause()
+				if (parallelResumeState.rebuildReview && this.activeExecutionPlan) {
+					await this.showMergeReview(this.activeExecutionPlan)
+				} else {
+					await this.postStateToWebviewWithoutClineMessages()
+				}
+			} else {
+				await this.reportRestoredParallelResumeFailure(task, parallelResumeState.reason)
+			}
 		}
 
 		// Check if there's a pending edit after checkpoint restoration
@@ -1767,10 +2023,30 @@ export class ClineProvider
 	}> {
 		const { historyItem } = await this.getTaskWithId(taskId)
 
-		const aggregatedCosts = await aggregateTaskCostsRecursive(taskId, async (id: string) => {
-			const result = await this.getTaskWithId(id)
-			return result.historyItem
-		})
+		const aggregatedCosts = await aggregateTaskCostsRecursive(
+			taskId,
+			async (id: string) => {
+				const result = await this.getTaskWithId(id)
+				return result.historyItem
+			},
+			{
+				getChildTaskIds: async (parentId: string) => {
+					const historyById = new Map<string, HistoryItem>()
+
+					for (const item of this.getGlobalState("taskHistory") ?? []) {
+						historyById.set(item.id, item)
+					}
+
+					for (const item of this.taskHistoryStore.getAll()) {
+						historyById.set(item.id, item)
+					}
+
+					return Array.from(historyById.values())
+						.filter((item) => item.parentTaskId === parentId)
+						.map((item) => item.id)
+				},
+			},
+		)
 
 		return { historyItem, aggregatedCosts }
 	}
@@ -1904,7 +2180,12 @@ export class ClineProvider
 	}
 
 	async refreshWorkspace() {
-		this.currentWorkspacePath = getWorkspacePath()
+		const nextWorkspacePath = getWorkspacePath()
+		if (nextWorkspacePath !== this.currentWorkspacePath) {
+			await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
+			this.currentWorkspacePath = nextWorkspacePath
+			this.worktreeManager = new WorktreeManager(nextWorkspacePath)
+		}
 		await this.postStateToWebview()
 	}
 
@@ -2023,6 +2304,8 @@ export class ClineProvider
 			alwaysAllowMcp,
 			alwaysAllowModeSwitch,
 			alwaysAllowSubtasks,
+			alwaysAllowParallelTasks,
+			maxConcurrentParallelTasks,
 			allowedMaxRequests,
 			allowedMaxCost,
 			autoCondenseContext,
@@ -2102,6 +2385,8 @@ export class ClineProvider
 			alwaysAllowMcp: alwaysAllowMcp ?? false,
 			alwaysAllowModeSwitch: alwaysAllowModeSwitch ?? false,
 			alwaysAllowSubtasks: alwaysAllowSubtasks ?? false,
+			alwaysAllowParallelTasks: alwaysAllowParallelTasks ?? false,
+			maxConcurrentParallelTasks: normalizeParallelTaskConcurrency(maxConcurrentParallelTasks),
 			allowedMaxRequests,
 			allowedMaxCost,
 			autoCondenseContext: autoCondenseContext ?? true,
@@ -2250,6 +2535,8 @@ export class ClineProvider
 			alwaysAllowMcp: stateValues.alwaysAllowMcp ?? false,
 			alwaysAllowModeSwitch: stateValues.alwaysAllowModeSwitch ?? false,
 			alwaysAllowSubtasks: stateValues.alwaysAllowSubtasks ?? false,
+			alwaysAllowParallelTasks: stateValues.alwaysAllowParallelTasks ?? false,
+			maxConcurrentParallelTasks: normalizeParallelTaskConcurrency(stateValues.maxConcurrentParallelTasks),
 			alwaysAllowFollowupQuestions: stateValues.alwaysAllowFollowupQuestions ?? false,
 			followupAutoApproveTimeoutMs: stateValues.followupAutoApproveTimeoutMs ?? 60000,
 			diagnosticsEnabled: stateValues.diagnosticsEnabled ?? true,
@@ -2667,9 +2954,12 @@ export class ClineProvider
 		const { apiConfiguration, organizationAllowList, enableCheckpoints, checkpointTimeout, experiments } =
 			await this.getState()
 
-		// Single-open-task invariant: always enforce for user-initiated top-level tasks
-		if (!parentTask) {
+		// Single-open-task invariant: always enforce for user-initiated top-level tasks.
+		// Background agent tasks must never disturb the visible task, even if they
+		// are created without parent lineage in a degraded path.
+		if (!parentTask && !options.background) {
 			try {
+				await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
 				await this.removeClineFromStack()
 			} catch {
 				// Non-fatal
@@ -2683,7 +2973,6 @@ export class ClineProvider
 		const task = new Task({
 			provider: this,
 			apiConfiguration,
-			enableCheckpoints,
 			checkpointTimeout,
 			consecutiveMistakeLimit: apiConfiguration.consecutiveMistakeLimit,
 			task: text,
@@ -2694,30 +2983,48 @@ export class ClineProvider
 			taskNumber: this.clineStack.length + 1,
 			onCreated: this.taskCreationCallback,
 			initialTodos: options.initialTodos,
-			// Ensure this task is present in clineStack before startTask() emits
-			// its initial state update, so state.currentTaskId is available ASAP.
-			startTask: false,
 			agentBus: options.agentId ? AgentBus.getInstance() : undefined,
 			...options,
+			// Always defer initial execution until the provider has registered the
+			// task in the visible/background collection. Callers can additionally
+			// pass startTask: false to attach their own lifecycle listeners first.
+			startTask: false,
+			enableCheckpoints: options.background ? false : (options.enableCheckpoints ?? enableCheckpoints),
 		})
 
-		await this.addClineToStack(task)
-		task.start()
+		if (options.background) {
+			await this.addBackgroundTask(task)
+		} else {
+			await this.addClineToStack(task)
+		}
+		if (options.startTask !== false) {
+			task.start()
+		}
 
 		this.log(
-			`[createTask] ${task.parentTask ? "child" : "parent"} task ${task.taskId}.${task.instanceId} instantiated`,
+			`[createTask] ${task.parentTask ? "child" : "parent"}${task.background ? " background" : ""} task ${task.taskId}.${task.instanceId} instantiated`,
 		)
 
 		return task
 	}
 
 	private async startApprovedExecutionPlan(plan: ExecutionPlan): Promise<PlanStartResult> {
-		this.activeExecutionPlan = undefined
-		this.worktreePathsByAgentId.clear()
-		this.orchestratorEventLoop?.stop()
+		const { maxConcurrentParallelTasks } = await this.getState()
+		const maxParallelAgents = normalizeParallelTaskConcurrency(maxConcurrentParallelTasks)
+		if (plan.agents.length > maxParallelAgents) {
+			const message = `Parallel execution plan ${plan.planId} includes ${plan.agents.length} agents, but maximum parallel agents is configured to ${maxParallelAgents}. Reduce the plan to ${maxParallelAgents} agents or fewer.`
+			this.log(`[parallel-agents] ${message}`)
+			vscode.window.showErrorMessage(message)
+			return { ok: false, error: message }
+		}
+
+		await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
+		this.resetParallelAgentStatusState(plan.planId)
 
 		try {
-			await this.ensureWorktreeManager().validateGitRepository()
+			const worktreeManager = this.ensureWorktreeManager()
+			await worktreeManager.validateGitRepository()
+			await worktreeManager.captureWorkspaceBaseline(plan.planId)
 		} catch (error) {
 			const message = getWorktreeManagerErrorMessage(error)
 			this.log(`[parallel-agents] ${message}`)
@@ -2726,14 +3033,226 @@ export class ClineProvider
 		}
 
 		this.activeExecutionPlan = plan
-		this.orchestratorEventLoop = new OrchestratorEventLoop(this)
+		await this.updateParallelAgentStatusMessage("running")
+		this.orchestratorEventLoop = new OrchestratorEventLoop(this, AgentBus.getInstance(), {
+			maxConcurrentAgents: maxParallelAgents,
+		})
 		this.attachAgentBusForwarders(AgentBus.getInstance())
 		this.orchestratorEventLoop.start(plan)
 		return { ok: true }
 	}
 
-	public requestPlanApproval(plan: ExecutionPlan): Promise<PlanApprovalResult> {
-		this.pendingPlanApproval?.({ approved: false })
+	private async resumeRestoredParallelExecution(task: Task, agentIdsToRestart: string[]): Promise<void> {
+		const plan = this.activeExecutionPlan
+		if (!plan) {
+			return
+		}
+
+		await task.restoreParallelExecutionPause()
+		const baselineError = await this.restorePersistedParallelBaseline(plan)
+		if (baselineError) {
+			await this.reportRestoredParallelResumeFailure(task, baselineError)
+			return
+		}
+
+		for (const agentId of agentIdsToRestart) {
+			this.recordParallelAgentActivity(agentId, "Rehydrating parallel agent after task resume.", "status")
+		}
+
+		const { maxConcurrentParallelTasks } = await this.getState()
+		const maxParallelAgents = normalizeParallelTaskConcurrency(maxConcurrentParallelTasks)
+		this.orchestratorEventLoop = new OrchestratorEventLoop(this, AgentBus.getInstance(), {
+			maxConcurrentAgents: maxParallelAgents,
+		})
+		this.attachAgentBusForwarders(AgentBus.getInstance())
+		this.orchestratorEventLoop.start(plan)
+		this.scheduleParallelAgentStatusMessageUpdate()
+		await this.postStateToWebviewWithoutClineMessages()
+	}
+
+	private async restorePersistedParallelBaseline(plan: ExecutionPlan): Promise<string | undefined> {
+		try {
+			const worktreeManager = this.ensureWorktreeManager()
+			await worktreeManager.validateGitRepository()
+			const baseline = await worktreeManager.restoreWorkspaceBaseline(plan.planId)
+			if (!baseline) {
+				return `the saved workspace baseline for parallel plan ${plan.planId} is no longer available.`
+			}
+			return undefined
+		} catch (error) {
+			return getWorktreeManagerErrorMessage(error)
+		}
+	}
+
+	private async reportRestoredParallelResumeFailure(task: Task, reason: string): Promise<void> {
+		await task.restoreParallelExecutionPause()
+		const plan = this.activeExecutionPlan
+		this.parallelStatusPhase = "failed"
+
+		const agentId = plan?.agents.find((agent) => agent.status !== "complete")?.id ?? plan?.agents[0]?.id
+		if (agentId) {
+			this.recordParallelAgentActivity(
+				agentId,
+				`Parallel-agent resume requires manual recovery: ${reason}`,
+				"error",
+			)
+		}
+
+		if (plan) {
+			await this.updateParallelAgentStatusMessage("failed")
+		}
+
+		await task.say(
+			"text",
+			`Roo found an interrupted parallel-agent run, but it cannot be resumed safely: ${reason}\n\nThe parent task has not been continued automatically. To recover safely, start a new parallel-agent plan from the same objective or cancel this parallel run and proceed manually.`,
+		)
+		await this.postStateToWebviewWithoutClineMessages()
+	}
+
+	private async restorePersistedParallelResumeState(taskId: string): Promise<ParallelResumeRestoreResult> {
+		try {
+			const globalStoragePath = this.context.globalStorageUri.fsPath
+			const savedMessages = await readTaskMessages({ taskId, globalStoragePath })
+			const parallelMessage = [...savedMessages]
+				.reverse()
+				.map((message) => this.tryParseParallelAgentToolMessage(message))
+				.find(
+					(tool) =>
+						Boolean(tool?.executionPlan) &&
+						(tool?.parallelStatus === "running" ||
+							tool?.parallelStatus === "review" ||
+							tool?.parallelStatus === "failed"),
+				)
+
+			if (!parallelMessage?.executionPlan) {
+				return { status: "none" }
+			}
+
+			this.restoreParallelAgentToolPayload(parallelMessage)
+
+			if (parallelMessage.parallelStatus === "review") {
+				return { status: "review", rebuildReview: false }
+			}
+
+			if (parallelMessage.parallelStatus === "failed") {
+				return {
+					status: "failed",
+					reason: "the saved parallel-agent run was already marked failed before it could be resumed.",
+				}
+			}
+
+			return this.prepareRestoredRunningParallelPlan(parallelMessage.executionPlan)
+		} catch (error) {
+			this.log(
+				`[parallel-agents] Failed to inspect persisted parallel state for resume: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			)
+			return { status: "none" }
+		}
+	}
+
+	private restoreParallelAgentToolPayload(tool: ClineSayTool): void {
+		if (!tool.executionPlan) {
+			return
+		}
+
+		this.activeExecutionPlan = tool.executionPlan
+		this.parallelStatusPhase = tool.parallelStatus ?? "running"
+		this.parallelStatusPlanId = tool.executionPlan.planId
+		this.parallelMergeReviewEntries = tool.mergeReviewEntries
+		this.parallelUsageSummary = tool.parallelUsageSummary
+		this.parallelAgentCompletionPackets.clear()
+		for (const packet of tool.agentCompletionPackets ?? []) {
+			this.parallelAgentCompletionPackets.set(packet.agentId, packet)
+		}
+		this.parallelPlanCompletionPacket = tool.parallelPlanCompletionPacket
+		this.parallelReviewSummary =
+			tool.parallelReviewSummary ??
+			(tool.parallelStatus === "review"
+				? this.buildParallelAgentReviewSummary(tool.executionPlan, tool.mergeReviewEntries ?? [])
+				: undefined)
+		this.parallelAgentStatusUpdates.clear()
+		for (const update of tool.agentStatusUpdates ?? []) {
+			this.parallelAgentStatusUpdates.set(update.agentId, this.withAgentActivities(update))
+		}
+		this.parallelAgentActivities.clear()
+		for (const activity of tool.agentActivities ?? []) {
+			const previous = this.parallelAgentActivities.get(activity.agentId) ?? []
+			this.parallelAgentActivities.set(
+				activity.agentId,
+				[...previous, activity].slice(-PARALLEL_AGENT_ACTIVITY_LIMIT),
+			)
+		}
+		this.parallelAgentCoordinationEvents = (tool.agentCoordinationEvents ?? []).slice(
+			-PARALLEL_AGENT_COORDINATION_LIMIT,
+		)
+		this.parallelWriteConflicts.clear()
+		this.deniedWriteReasons.clear()
+		this.worktreePathsByAgentId.clear()
+		for (const conflict of tool.writeIntentConflicts ?? []) {
+			this.parallelWriteConflicts.set(this.getConflictKey(conflict.agentId, conflict.filePath), conflict)
+			this.deniedWriteReasons.set(this.getConflictKey(conflict.agentId, conflict.filePath), conflict.reason)
+		}
+		for (const agent of tool.executionPlan.agents) {
+			if (agent.worktreePath) {
+				this.worktreePathsByAgentId.set(agent.id, agent.worktreePath)
+			}
+		}
+		for (const entry of tool.mergeReviewEntries ?? []) {
+			if (entry.worktreePath) {
+				this.worktreePathsByAgentId.set(entry.agentId, entry.worktreePath)
+			}
+		}
+	}
+
+	private prepareRestoredRunningParallelPlan(plan: ExecutionPlan): ParallelResumeRestoreResult {
+		const agentIdsToRestart: string[] = []
+		for (const agent of plan.agents) {
+			const persistedStatus = this.parallelAgentStatusUpdates.get(agent.id)?.status ?? agent.status
+			if (persistedStatus === "complete" || agent.status === "complete") {
+				agent.status = "complete"
+				continue
+			}
+
+			if (persistedStatus === "failed" || agent.status === "failed") {
+				agent.status = "failed"
+				continue
+			}
+
+			agent.status = "pending"
+			agentIdsToRestart.push(agent.id)
+		}
+
+		if (agentIdsToRestart.length === 0 && plan.agents.every((agent) => agent.status === "complete")) {
+			this.parallelStatusPhase = "review"
+			return { status: "review", rebuildReview: (this.parallelMergeReviewEntries?.length ?? 0) === 0 }
+		}
+
+		if (agentIdsToRestart.length === 0) {
+			this.parallelStatusPhase = "failed"
+			return {
+				status: "failed",
+				reason: "all incomplete parallel agents were already marked failed, so there is no safe agent to restart automatically.",
+			}
+		}
+
+		this.parallelStatusPhase = "running"
+		return { status: "running", agentIdsToRestart }
+	}
+
+	public async requestPlanApproval(plan: ExecutionPlan): Promise<PlanApprovalResult> {
+		const resolvePendingPlanApproval = this.pendingPlanApproval
+		this.pendingPlanApproval = undefined
+		resolvePendingPlanApproval?.({ approved: false })
+
+		const { autoApprovalEnabled, alwaysAllowParallelTasks } = await this.getState()
+		if (autoApprovalEnabled && alwaysAllowParallelTasks) {
+			const startResult = await this.startApprovedExecutionPlan(plan)
+			this.postStateToWebviewWithoutClineMessages().catch(() => {})
+			return { approved: true, plan, startResult }
+		}
+
 		this.postMessageToWebview({ type: "showPlanPreview", executionPlan: plan }).catch(() => {})
 
 		return new Promise((resolve) => {
@@ -2749,8 +3268,8 @@ export class ClineProvider
 		this.postStateToWebviewWithoutClineMessages().catch(() => {})
 	}
 
-	public cancelExecutionPlan(): void {
-		this.activeExecutionPlan = undefined
+	public async cancelExecutionPlan(): Promise<void> {
+		await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
 		const resolve = this.pendingPlanApproval
 		this.pendingPlanApproval = undefined
 		resolve?.({ approved: false })
@@ -2759,21 +3278,29 @@ export class ClineProvider
 
 	public async createAgentWorktree(agentId: string, planId: string): Promise<string> {
 		try {
+			this.recordParallelAgentActivity(agentId, "Creating isolated worktree.", "tool")
 			const worktreePath = await this.ensureWorktreeManager().createWorktree(agentId, planId)
 			this.worktreePathsByAgentId.set(agentId, worktreePath)
+			this.recordParallelAgentActivity(agentId, `Created isolated worktree at ${worktreePath}.`, "file")
 			return worktreePath
 		} catch (error) {
 			const message = getWorktreeManagerErrorMessage(error)
+			this.recordParallelAgentActivity(agentId, `Failed to create worktree: ${message}`, "error")
 			this.log(`[parallel-agents] Failed to create worktree for ${agentId}: ${message}`)
 			vscode.window.showErrorMessage(message)
 			throw new Error(message)
 		}
 	}
 
+	public async removeAgentWorktree(worktreePath: string): Promise<void> {
+		await this.ensureWorktreeManager().removeWorktree(worktreePath)
+	}
+
 	private ensureWorktreeManager(): WorktreeManager {
-		if (!this.worktreeManager) {
-			this.currentWorkspacePath = this.currentWorkspacePath ?? getWorkspacePath()
-			this.worktreeManager = new WorktreeManager(this.currentWorkspacePath)
+		const workspacePath = getWorkspacePath()
+		if (!this.worktreeManager || this.currentWorkspacePath !== workspacePath) {
+			this.currentWorkspacePath = workspacePath
+			this.worktreeManager = new WorktreeManager(workspacePath)
 		}
 
 		return this.worktreeManager
@@ -2804,36 +3331,270 @@ export class ClineProvider
 
 	public async showMergeReview(plan: ExecutionPlan): Promise<void> {
 		const entries = await Promise.all(plan.agents.map((agent) => this.buildMergeReviewEntry(plan, agent.id)))
-		await this.postMessageToWebview({ type: "showMergeReview", mergeReviewEntries: entries })
+		this.parallelMergeReviewEntries = entries
+		for (const entry of entries) {
+			this.updateParallelAgentPacketFromMergeEntry(plan, entry)
+		}
+		const autoMergeDecision = await this.evaluateAutoMergeReview(plan, entries)
+
+		if (autoMergeDecision.enabled) {
+			if (autoMergeDecision.skipReasons.length > 0) {
+				for (const skipReason of autoMergeDecision.skipReasons) {
+					const agentId = skipReason.agentId ?? plan.agents[0]?.id
+					if (agentId) {
+						this.recordParallelAgentActivity(agentId, `Auto-merge skipped: ${skipReason.reason}`, "wait")
+					}
+				}
+
+				this.log(
+					`[parallel-agents] Auto-merge skipped: ${autoMergeDecision.skipReasons
+						.map((skipReason) => skipReason.reason)
+						.join("; ")}`,
+				)
+			} else {
+				for (const agentId of autoMergeDecision.approvedAgentIds) {
+					this.recordParallelAgentActivity(agentId, "Auto-approved final merge review.", "approval")
+				}
+
+				this.log(
+					`[parallel-agents] Auto-approved final merge review for ${autoMergeDecision.approvedAgentIds.length} agent branch(es).`,
+				)
+			}
+		}
+
+		if (autoMergeDecision.enabled && autoMergeDecision.skipReasons.length > 0) {
+			this.applyAutoMergeSkipReasons(entries, autoMergeDecision.skipReasons)
+			for (const entry of entries) {
+				this.updateParallelAgentPacketFromMergeEntry(plan, entry)
+			}
+		}
+
+		this.recordParallelAgentReviewSummary(plan, entries)
+		await this.updateParallelAgentStatusMessage("review", entries)
+		await this.appendParallelAgentOutcomeSummary(plan, "review", entries)
+
+		if (autoMergeDecision.enabled && autoMergeDecision.skipReasons.length === 0) {
+			await this.mergeApprovedAgents(autoMergeDecision.approvedAgentIds, { autoApproved: true })
+		}
 	}
 
-	public async mergeApprovedAgents(agentIds: string[] = []): Promise<void> {
-		const plan = this.activeExecutionPlan
+	private async evaluateAutoMergeReview(
+		plan: ExecutionPlan,
+		entries: MergeReviewEntry[],
+	): Promise<AutoMergeReviewDecision> {
+		const { autoApprovalEnabled, alwaysAllowParallelTasks } = await this.getState()
+
+		if (!autoApprovalEnabled || !alwaysAllowParallelTasks) {
+			return { enabled: false, approvedAgentIds: [], skipReasons: [] }
+		}
+
+		const entriesByAgentId = new Map(entries.map((entry) => [entry.agentId, entry]))
+		const conflictsByAgentId = new Map<string, WriteIntentConflict>()
+		const skipReasons: AutoMergeReviewSkipReason[] = []
+
+		for (const conflict of this.parallelWriteConflicts.values()) {
+			conflictsByAgentId.set(conflict.agentId, conflict)
+		}
+
+		if (entries.length === 0) {
+			skipReasons.push({ reason: "no merge review entries were available" })
+		}
+
+		for (const agent of plan.agents) {
+			const entry = entriesByAgentId.get(agent.id)
+
+			if (agent.status !== "complete") {
+				skipReasons.push({ agentId: agent.id, reason: `${agent.id} is ${agent.status}` })
+				continue
+			}
+
+			if (!entry) {
+				skipReasons.push({ agentId: agent.id, reason: `${agent.id} has no merge review entry` })
+				continue
+			}
+
+			if (entry.mergeable === false || entry.reviewError || entry.mergeError || entry.mergeStatus === "failed") {
+				skipReasons.push({ agentId: agent.id, reason: `${agent.id} has a merge review error` })
+				continue
+			}
+
+			if (!entry.branch) {
+				skipReasons.push({ agentId: agent.id, reason: `${agent.id} has no review branch` })
+				continue
+			}
+
+			if (!entry.worktreePath) {
+				skipReasons.push({ agentId: agent.id, reason: `${agent.id} has no worktree path` })
+				continue
+			}
+
+			const conflict = conflictsByAgentId.get(agent.id)
+			if (conflict) {
+				skipReasons.push({
+					agentId: agent.id,
+					reason: `${agent.id} still has a write conflict for ${conflict.filePath}`,
+				})
+			}
+		}
+
+		const planAgentIds = new Set(plan.agents.map((agent) => agent.id))
+		for (const entry of entries) {
+			if (!planAgentIds.has(entry.agentId)) {
+				skipReasons.push({ agentId: entry.agentId, reason: `${entry.agentId} is not in the active plan` })
+			}
+		}
+
+		return {
+			enabled: true,
+			approvedAgentIds: skipReasons.length > 0 ? [] : plan.agents.map((agent) => agent.id),
+			skipReasons,
+		}
+	}
+
+	public async mergeApprovedAgents(
+		agentIds: string[] = [],
+		options: MergeApprovedAgentsOptions = {},
+	): Promise<boolean> {
+		let plan = this.activeExecutionPlan
+		if (!plan) {
+			plan = await this.restorePersistedParallelReviewState()
+		}
+
 		if (!plan) {
 			await this.postMessageToWebview({
 				type: "mergeFailed",
 				gitOutput: "No active execution plan is available.",
 			})
-			return
+			return false
 		}
 
 		const approved = new Set(agentIds)
-		for (const agentId of approved) {
-			try {
-				await execAsync(
-					`git merge --no-edit ${this.shellQuote(this.getAgentBranchName(plan.planId, agentId))}`,
-					{
-						cwd: this.currentWorkspacePath ?? this.cwd,
-					},
+		if (approved.size === 0) {
+			await this.postMessageToWebview({
+				type: "mergeFailed",
+				gitOutput: "No agent branches were selected for merge.",
+			})
+			return false
+		}
+
+		const entries = await this.ensureMergeReviewEntriesForPlan(plan)
+		const entryByAgentId = new Map(entries.map((entry) => [entry.agentId, entry]))
+		const unsafeEntries = Array.from(approved)
+			.map((agentId) => entryByAgentId.get(agentId))
+			.filter((entry): entry is MergeReviewEntry => Boolean(entry))
+			.filter((entry) => entry.mergeable === false || entry.reviewError || entry.mergeStatus === "failed")
+
+		if (unsafeEntries.length > 0) {
+			const details = unsafeEntries
+				.map(
+					(entry) => `${entry.agentId}: ${entry.mergeError ?? entry.reviewError ?? "entry is not mergeable"}`,
 				)
+				.join("\n")
+			await this.postMessageToWebview({
+				type: "mergeFailed",
+				gitOutput: `Cannot merge entries with unresolved review errors.\n${details}`,
+			})
+			return false
+		}
+
+		for (const agentId of approved) {
+			const branch = this.getAgentBranchName(plan.planId, agentId)
+			const agent = plan.agents.find((candidate) => candidate.id === agentId)
+			const reviewEntry = entryByAgentId.get(agentId)
+			const worktreePath =
+				this.worktreePathsByAgentId.get(agentId) ?? agent?.worktreePath ?? reviewEntry?.worktreePath
+
+			try {
+				this.recordParallelAgentActivity(agentId, `Preparing branch ${branch} for merge.`, "tool")
+
+				if (worktreePath) {
+					await this.prepareAgentBranchForReview(plan, agentId, branch, worktreePath)
+				}
+
+				const ownedPaths = this.getAgentOwnedPaths(agent)
+				this.recordParallelAgentActivity(agentId, `Applying branch ${branch} to the workspace.`, "file")
+				await this.ensureWorktreeManager().mergeBranch(branch, {
+					planId: plan.planId,
+					worktreePath,
+					ownedPaths,
+					autoApproved: options.autoApproved === true,
+				})
+				this.updateMergeReviewEntry(agentId, {
+					mergeStatus: "merged",
+					mergeError: undefined,
+					conflictedFiles: undefined,
+					autoMergeSkippedReason: undefined,
+				})
+				const mergedEntry = this.parallelMergeReviewEntries?.find((entry) => entry.agentId === agentId)
+				if (mergedEntry) {
+					this.updateParallelAgentPacketFromMergeEntry(plan, mergedEntry, {
+						readiness: "ready",
+						result: "merged",
+						clean: true,
+						materialized: true,
+						autoApproved: options.autoApproved === true,
+						notes: [options.autoApproved ? "Auto-merged cleanly." : "Merged cleanly."],
+					})
+				}
+
+				if (options.autoApproved) {
+					this.recordParallelAgentActivity(agentId, `Auto-merged branch ${branch}.`, "completion")
+				} else {
+					this.recordParallelAgentActivity(agentId, `Merged branch ${branch}.`, "completion")
+				}
 			} catch (error) {
+				const gitOutput = this.formatGitError(error)
+				this.updateMergeReviewEntry(agentId, {
+					mergeStatus: "failed",
+					mergeError: gitOutput,
+					mergeable: false,
+					conflictedFiles: error instanceof WorktreeMergeError ? error.conflictedFiles : undefined,
+				})
+				const failedEntry = this.parallelMergeReviewEntries?.find((entry) => entry.agentId === agentId)
+				if (failedEntry) {
+					this.updateParallelAgentPacketFromMergeEntry(plan, failedEntry, {
+						readiness: "not-ready",
+						result: "failed",
+						clean: false,
+						materialized: false,
+						autoApproved: options.autoApproved === true,
+						mergeError: gitOutput,
+						conflictedFiles: error instanceof WorktreeMergeError ? error.conflictedFiles : undefined,
+						notes: ["Merge failed during workspace materialization."],
+					})
+				}
+
+				if (options.autoApproved) {
+					this.recordParallelAgentActivity(agentId, `Auto-merge failed: ${gitOutput}`, "error")
+				}
+
+				this.recordParallelAgentReviewSummary(plan, this.parallelMergeReviewEntries)
+				await this.updateParallelAgentStatusMessage("review", this.parallelMergeReviewEntries)
+				await this.appendParallelAgentOutcomeSummary(plan, "failed", this.parallelMergeReviewEntries)
+
 				await this.postMessageToWebview({
 					type: "mergeFailed",
 					agentId,
-					gitOutput: this.formatGitError(error),
+					gitOutput,
 				})
-				return
+				return false
 			}
+		}
+
+		for (const task of Array.from(this.backgroundTasks)) {
+			this.finalizeBackgroundAgentTask(task, "complete")
+
+			try {
+				await task.abortTask(true)
+			} catch (error) {
+				this.log(
+					`[parallel-agents] Failed to abort completed background task ${task.taskId}.${task.instanceId}: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			}
+
+			this.removeBackgroundTask(task)
 		}
 
 		await Promise.allSettled(
@@ -2842,14 +3603,148 @@ export class ClineProvider
 				return worktreePath ? this.worktreeManager?.removeWorktree(worktreePath) : Promise.resolve()
 			}),
 		)
+		await this.worktreeManager?.cleanupPlanBaseline(plan.planId)
 
-		this.orchestratorEventLoop?.stop()
-		this.orchestratorEventLoop = undefined
-		AgentBus.reset()
-		this.worktreePathsByAgentId.clear()
-		this.activeExecutionPlan = undefined
+		this.recordParallelAgentReviewSummary(plan, this.parallelMergeReviewEntries)
+		await this.updateParallelAgentStatusMessage("merged")
+		await this.appendParallelAgentOutcomeSummary(plan, "merged", this.parallelMergeReviewEntries)
+		await this.teardownParallelExecution({ resetBus: true })
 		await this.postMessageToWebview({ type: "mergeComplete" })
 		await this.postStateToWebviewWithoutClineMessages()
+		await this.resumeParentAfterParallelMerge()
+		return true
+	}
+
+	private async resumeParentAfterParallelMerge(): Promise<void> {
+		const task = this.getCurrentTask()
+		if (!task || task.background) {
+			return
+		}
+
+		try {
+			await task.resumeAfterParallelExecution()
+		} catch (error) {
+			this.log(
+				`[parallel-agents] Failed to resume parent task after merge: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
+	}
+
+	public async denyMergeReview(): Promise<boolean> {
+		let plan = this.activeExecutionPlan
+		if (!plan) {
+			plan = await this.restorePersistedParallelReviewState()
+		}
+
+		if (!plan) {
+			await this.postMessageToWebview({
+				type: "mergeFailed",
+				gitOutput: "No active execution plan is available.",
+			})
+			return false
+		}
+
+		const entries = await this.ensureMergeReviewEntriesForPlan(plan)
+		for (const entry of entries) {
+			if (entry.mergeStatus === "merged" || entry.mergeStatus === "failed") {
+				continue
+			}
+
+			this.updateMergeReviewEntry(entry.agentId, {
+				mergeStatus: "skipped",
+				autoMergeSkippedReason: "Merge review was denied from chat.",
+			})
+			this.recordParallelAgentActivity(entry.agentId, "Merge review denied from chat.", "approval")
+			const skippedEntry = this.parallelMergeReviewEntries?.find(
+				(candidate) => candidate.agentId === entry.agentId,
+			)
+			if (skippedEntry) {
+				this.updateParallelAgentPacketFromMergeEntry(plan, skippedEntry, {
+					readiness: "not-ready",
+					result: "skipped",
+					clean: true,
+					materialized: false,
+					notes: ["Merge review was denied from chat."],
+				})
+			}
+		}
+
+		this.recordParallelAgentReviewSummary(plan, this.parallelMergeReviewEntries)
+		await this.updateParallelAgentStatusMessage("cancelled", this.parallelMergeReviewEntries)
+		await this.appendParallelAgentOutcomeSummary(plan, "cancelled", this.parallelMergeReviewEntries)
+		await this.teardownParallelExecution({ resetBus: true, cleanupWorktrees: true })
+		await this.postStateToWebviewWithoutClineMessages()
+		return true
+	}
+
+	private async teardownParallelExecution(
+		options: { markCancelled?: boolean; resetBus?: boolean; cleanupWorktrees?: boolean } = {},
+	): Promise<void> {
+		const hadParallelState = Boolean(
+			this.activeExecutionPlan ||
+				this.orchestratorEventLoop ||
+				this.pendingPlanApproval ||
+				this.backgroundTasks.size > 0,
+		)
+
+		if (options.markCancelled) {
+			const resolve = this.pendingPlanApproval
+			this.pendingPlanApproval = undefined
+			resolve?.({ approved: false })
+		}
+
+		const stopReason = options.markCancelled
+			? "Parallel execution was cancelled."
+			: "Parallel execution was stopped."
+
+		this.orchestratorEventLoop?.stop({
+			abortSpawnedTasks: true,
+			reason: stopReason,
+		})
+		this.orchestratorEventLoop = undefined
+
+		for (const task of Array.from(this.backgroundTasks)) {
+			this.finalizeBackgroundAgentTask(task, "failed", stopReason)
+
+			try {
+				await task.abortTask(true)
+			} catch (error) {
+				this.log(
+					`[parallel-agents] Failed to abort background task ${task.taskId}.${task.instanceId}: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			}
+
+			this.removeBackgroundTask(task)
+		}
+
+		if (options.markCancelled && this.activeExecutionPlan) {
+			this.failRemainingActiveParallelAgents(stopReason)
+			await this.updateParallelAgentStatusMessage("cancelled")
+		}
+
+		if (options.cleanupWorktrees) {
+			const knownWorktreePaths = Array.from(this.worktreePathsByAgentId.values())
+			await this.worktreeManager?.cleanup()
+			await Promise.allSettled(
+				knownWorktreePaths.map((worktreePath) => this.worktreeManager?.removeWorktree(worktreePath)),
+			)
+		}
+
+		if (options.resetBus) {
+			AgentBus.getInstance().off("event", this.forwardAgentEvent)
+			AgentBus.reset()
+		}
+
+		this.activeExecutionPlan = undefined
+		this.worktreePathsByAgentId.clear()
+		this.deniedWriteReasons.clear()
+		this.resetParallelAgentStatusState()
+
+		if (hadParallelState) {
+			this.log("[parallel-agents] Cleared active parallel execution state")
+		}
 	}
 
 	private attachAgentBusForwarders(bus: AgentBus): void {
@@ -2858,7 +3753,1277 @@ export class ClineProvider
 	}
 
 	private postAgentStatusUpdate(update: AgentStatusUpdate): void {
-		this.postMessageToWebview({ type: "agentStatusUpdate", agentStatusUpdate: update }).catch(() => {})
+		this.postMessageToWebview({
+			type: "agentStatusUpdate",
+			agentStatusUpdate: this.withAgentActivities(update),
+		}).catch(() => {})
+	}
+
+	private postAgentCoordinationUpdate(event: AgentCoordinationEvent): void {
+		this.postMessageToWebview({
+			type: "agentCoordinationUpdate",
+			agentCoordinationEvent: event,
+		}).catch(() => {})
+	}
+
+	private postBackgroundAgentUsage(task: Task, usage: TokenUsage): void {
+		if (!task.background || !task.agentId) {
+			return
+		}
+
+		const update = {
+			agentId: task.agentId,
+			status: this.getAgentStatus(task.agentId) ?? "running",
+			usage,
+		} satisfies AgentStatusUpdate
+
+		this.postAgentStatusUpdate(update)
+		this.recordParallelAgentStatus(update)
+	}
+
+	private finalizeBackgroundAgentTask(task: Task, status: "complete" | "failed", reason?: string): void {
+		if (!task.background || !task.agentId || !this.activeExecutionPlan) {
+			return
+		}
+
+		const agent = this.activeExecutionPlan.agents.find((candidate) => candidate.id === task.agentId)
+		if (!agent || agent.status === "complete" || agent.status === "failed") {
+			return
+		}
+
+		const bus = AgentBus.getInstance()
+		if (status === "complete") {
+			bus.markComplete(task.agentId)
+		} else {
+			bus.markFailed(task.agentId, reason ?? "Agent task failed.")
+		}
+	}
+
+	private failRemainingActiveParallelAgents(reason: string): void {
+		if (!this.activeExecutionPlan) {
+			return
+		}
+
+		const bus = AgentBus.getInstance()
+		for (const agent of this.activeExecutionPlan.agents) {
+			if (agent.status === "complete" || agent.status === "failed") {
+				continue
+			}
+
+			if (bus.getAgent(agent.id)) {
+				bus.markFailed(agent.id, reason)
+			} else {
+				agent.status = "failed"
+				const update = {
+					agentId: agent.id,
+					status: "failed",
+					reason,
+				} satisfies AgentStatusUpdate
+				this.postAgentStatusUpdate(update)
+				this.recordParallelAgentStatus(update)
+			}
+		}
+	}
+
+	private resetParallelAgentStatusState(planId?: string): void {
+		this.parallelStatusMessageTs = undefined
+		this.parallelStatusPlanId = planId
+		this.parallelStatusPhase = "running"
+		this.parallelMergeReviewEntries = undefined
+		this.parallelUsageSummary = undefined
+		this.parallelReviewSummary = undefined
+		this.parallelAgentCompletionPackets.clear()
+		this.parallelPlanCompletionPacket = undefined
+		this.parallelAgentStatusUpdates.clear()
+		this.parallelAgentActivities.clear()
+		this.parallelAgentCoordinationEvents = []
+		this.parallelWriteConflicts.clear()
+	}
+
+	private async ensureParallelAgentStatusMessage(plan: ExecutionPlan): Promise<void> {
+		const task = this.getCurrentTask()
+
+		if (!task || task.background) {
+			return
+		}
+
+		const existing = this.findParallelAgentStatusMessage(task, plan.planId)
+		if (existing) {
+			this.parallelStatusMessageTs = existing.ts
+			this.parallelStatusPlanId = plan.planId
+			return
+		}
+
+		await task.say(
+			"tool",
+			JSON.stringify(this.buildParallelAgentToolPayload(plan)),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			{ isNonInteractive: true },
+		)
+
+		const created = this.findParallelAgentStatusMessage(task, plan.planId)
+		this.parallelStatusMessageTs = created?.ts
+		this.parallelStatusPlanId = plan.planId
+	}
+
+	private async updateParallelAgentStatusMessage(
+		phase?: ParallelAgentToolStatus,
+		mergeReviewEntries?: MergeReviewEntry[],
+	): Promise<void> {
+		if (phase) {
+			this.parallelStatusPhase = phase
+		}
+
+		if (mergeReviewEntries) {
+			this.parallelMergeReviewEntries = mergeReviewEntries
+		}
+
+		await this.queueParallelAgentStatusMessageUpdate()
+	}
+
+	private scheduleParallelAgentStatusMessageUpdate(): void {
+		this.queueParallelAgentStatusMessageUpdate().catch((error) => {
+			this.log(
+				`[parallel-agents] Failed to persist status message: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			)
+		})
+	}
+
+	private queueParallelAgentStatusMessageUpdate(): Promise<void> {
+		this.parallelStatusUpdateRequested = true
+
+		if (this.parallelStatusUpdatePromise) {
+			return this.parallelStatusUpdatePromise.then(async () => {
+				if (this.parallelStatusUpdateRequested) {
+					await this.queueParallelAgentStatusMessageUpdate()
+				}
+			})
+		}
+
+		const queued = this.parallelStatusUpdateQueue.then(async () => {
+			while (this.parallelStatusUpdateRequested) {
+				this.parallelStatusUpdateRequested = false
+				await this.writeParallelAgentStatusMessage()
+			}
+		})
+
+		let tracked: Promise<void>
+		tracked = queued.finally(() => {
+			if (this.parallelStatusUpdatePromise === tracked) {
+				this.parallelStatusUpdatePromise = undefined
+			}
+		})
+
+		this.parallelStatusUpdatePromise = tracked
+		this.parallelStatusUpdateQueue = tracked.catch(() => undefined)
+		return tracked
+	}
+
+	private async writeParallelAgentStatusMessage(): Promise<void> {
+		const plan = this.activeExecutionPlan
+		if (!plan) {
+			return
+		}
+
+		await this.ensureParallelAgentStatusMessage(plan)
+
+		const task = this.getCurrentTask()
+		if (!task || task.background) {
+			return
+		}
+
+		const message = this.findParallelAgentStatusMessage(task, plan.planId)
+		if (!message) {
+			return
+		}
+
+		message.text = JSON.stringify(this.buildParallelAgentToolPayload(plan, this.parallelMergeReviewEntries))
+		await task.overwriteClineMessages([...task.clineMessages])
+		await this.postMessageToWebview({ type: "messageUpdated", clineMessage: message })
+	}
+
+	private buildParallelAgentToolPayload(plan: ExecutionPlan, mergeReviewEntries?: MergeReviewEntry[]): ClineSayTool {
+		const agentCompletionPackets = this.getParallelAgentCompletionPackets(plan)
+		const parallelPlanCompletionPacket = this.getParallelPlanCompletionPacket(
+			plan,
+			agentCompletionPackets,
+			this.getParallelPlanCompletionStatusOverride(agentCompletionPackets),
+		)
+
+		return {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: this.parallelStatusPhase,
+			agentStatusUpdates: Array.from(this.parallelAgentStatusUpdates.values()),
+			writeIntentConflicts: Array.from(this.parallelWriteConflicts.values()),
+			agentActivities: this.getParallelAgentActivities(),
+			agentCoordinationEvents: this.parallelAgentCoordinationEvents,
+			parallelUsageSummary: this.parallelUsageSummary,
+			parallelReviewSummary: this.parallelReviewSummary,
+			mergeReviewEntries,
+			agentCompletionPackets,
+			parallelPlanCompletionPacket,
+		}
+	}
+
+	private applyAutoMergeSkipReasons(entries: MergeReviewEntry[], skipReasons: AutoMergeReviewSkipReason[]): void {
+		for (const skipReason of skipReasons) {
+			if (!skipReason.agentId) {
+				continue
+			}
+
+			const entry = entries.find((candidate) => candidate.agentId === skipReason.agentId)
+			if (!entry) {
+				continue
+			}
+
+			entry.mergeStatus = "skipped"
+			entry.autoMergeSkippedReason = skipReason.reason
+		}
+	}
+
+	private updateMergeReviewEntry(agentId: string, updates: Partial<MergeReviewEntry>): void {
+		this.parallelMergeReviewEntries = (this.parallelMergeReviewEntries ?? []).map((entry) =>
+			entry.agentId === agentId ? { ...entry, ...updates } : entry,
+		)
+	}
+
+	private async ensureMergeReviewEntriesForPlan(plan: ExecutionPlan): Promise<MergeReviewEntry[]> {
+		if (this.parallelMergeReviewEntries?.length) {
+			return this.parallelMergeReviewEntries
+		}
+
+		const restored = await this.restorePersistedParallelReviewState(plan.planId)
+		if (restored && this.parallelMergeReviewEntries?.length) {
+			return this.parallelMergeReviewEntries
+		}
+
+		return []
+	}
+
+	private async restorePersistedParallelReviewState(planId?: string): Promise<ExecutionPlan | undefined> {
+		const task = this.getCurrentTask()
+		if (!task || task.background) {
+			return undefined
+		}
+		const globalStoragePath = this.context.globalStorageUri.fsPath
+
+		const savedMessages =
+			task.clineMessages.length > 0
+				? task.clineMessages
+				: await readTaskMessages({ taskId: task.taskId, globalStoragePath })
+		const reviewMessage = [...savedMessages]
+			.reverse()
+			.map((message) => this.tryParseParallelAgentToolMessage(message))
+			.find(
+				(tool) =>
+					Boolean(tool?.executionPlan) &&
+					tool?.parallelStatus === "review" &&
+					(!planId || tool.executionPlan?.planId === planId) &&
+					(tool.mergeReviewEntries?.length ?? 0) > 0,
+			)
+
+		if (!reviewMessage?.executionPlan) {
+			return undefined
+		}
+
+		this.activeExecutionPlan = reviewMessage.executionPlan
+		this.parallelStatusPhase = "review"
+		this.parallelStatusPlanId = reviewMessage.executionPlan.planId
+		this.parallelMergeReviewEntries = reviewMessage.mergeReviewEntries
+		this.parallelUsageSummary = reviewMessage.parallelUsageSummary
+		this.parallelAgentCompletionPackets.clear()
+		for (const packet of reviewMessage.agentCompletionPackets ?? []) {
+			this.parallelAgentCompletionPackets.set(packet.agentId, packet)
+		}
+		this.parallelPlanCompletionPacket = reviewMessage.parallelPlanCompletionPacket
+		this.parallelReviewSummary =
+			reviewMessage.parallelReviewSummary ??
+			this.buildParallelAgentReviewSummary(reviewMessage.executionPlan, reviewMessage.mergeReviewEntries ?? [])
+		this.parallelAgentStatusUpdates.clear()
+		for (const update of reviewMessage.agentStatusUpdates ?? []) {
+			this.parallelAgentStatusUpdates.set(update.agentId, update)
+		}
+		this.parallelAgentActivities.clear()
+		for (const activity of reviewMessage.agentActivities ?? []) {
+			const previous = this.parallelAgentActivities.get(activity.agentId) ?? []
+			this.parallelAgentActivities.set(
+				activity.agentId,
+				[...previous, activity].slice(-PARALLEL_AGENT_ACTIVITY_LIMIT),
+			)
+		}
+		this.parallelAgentCoordinationEvents = (reviewMessage.agentCoordinationEvents ?? []).slice(
+			-PARALLEL_AGENT_COORDINATION_LIMIT,
+		)
+		this.parallelWriteConflicts.clear()
+		for (const conflict of reviewMessage.writeIntentConflicts ?? []) {
+			this.parallelWriteConflicts.set(this.getConflictKey(conflict.agentId, conflict.filePath), conflict)
+		}
+
+		for (const entry of reviewMessage.mergeReviewEntries ?? []) {
+			if (entry.worktreePath) {
+				this.worktreePathsByAgentId.set(entry.agentId, entry.worktreePath)
+			}
+		}
+
+		return reviewMessage.executionPlan
+	}
+
+	private tryParseParallelAgentToolMessage(message: ClineMessage): ClineSayTool | undefined {
+		if (message.type !== "say" || message.say !== "tool" || !message.text) {
+			return undefined
+		}
+
+		const tool = this.tryParseToolPayload(message.text)
+		return tool?.tool === "parallelAgents" ? tool : undefined
+	}
+
+	private recordParallelAgentCompletionPacket(packet: AgentCompletionPacket): void {
+		if (!this.activeExecutionPlan || packet.planId !== this.activeExecutionPlan.planId) {
+			return
+		}
+
+		this.parallelAgentCompletionPackets.set(packet.agentId, packet)
+		this.parallelPlanCompletionPacket = buildParallelPlanCompletionPacket(
+			this.activeExecutionPlan,
+			this.getParallelAgentCompletionPackets(this.activeExecutionPlan),
+			{
+				ts: Date.now(),
+				source: {
+					source: "provider",
+					sourceId: this.activeExecutionPlan.planId,
+					ts: Date.now(),
+					note: "Provider persisted AgentBus completion packet evidence.",
+				},
+			},
+		)
+		this.scheduleParallelAgentStatusMessageUpdate()
+	}
+
+	private getParallelAgentCompletionPackets(plan: ExecutionPlan): AgentCompletionPacket[] {
+		return plan.agents
+			.map((agent) => this.ensureParallelAgentCompletionPacket(plan, agent.id))
+			.filter((packet): packet is AgentCompletionPacket => Boolean(packet))
+	}
+
+	private ensureParallelAgentCompletionPacket(
+		plan: ExecutionPlan,
+		agentId: string,
+		options: { ts?: number } = {},
+	): AgentCompletionPacket | undefined {
+		const agent = plan.agents.find((candidate) => candidate.id === agentId)
+		if (!agent) {
+			return undefined
+		}
+
+		const existing = this.parallelAgentCompletionPackets.get(agentId)
+		if (existing) {
+			return existing
+		}
+
+		const ts = options.ts ?? Date.now()
+		const statusUpdate = this.parallelAgentStatusUpdates.get(agentId)
+		const packet = createAgentCompletionPacket(plan, agent, {
+			status: statusUpdate?.status ?? agent.status,
+			completionResult: statusUpdate?.reason,
+			evidence: {
+				source: "provider",
+				sourceId: agentId,
+				ts,
+				note: "Provider synthesized completion packet from persisted parallel-agent status state.",
+			},
+			ts,
+		})
+
+		this.parallelAgentCompletionPackets.set(agentId, packet)
+		return packet
+	}
+
+	private getParallelPlanCompletionPacket(
+		plan: ExecutionPlan,
+		agentCompletionPackets = this.getParallelAgentCompletionPackets(plan),
+		status?: ParallelPlanCompletionStatus,
+	): ParallelPlanCompletionPacket {
+		const existing = this.parallelPlanCompletionPacket
+		if (
+			existing?.planId === plan.planId &&
+			this.isParallelPlanCompletionPacketCurrent(existing, agentCompletionPackets, status)
+		) {
+			return existing
+		}
+
+		const packet = buildParallelPlanCompletionPacket(plan, agentCompletionPackets, {
+			status,
+			ts: Date.now(),
+			source: {
+				source: "provider",
+				sourceId: plan.planId,
+				ts: Date.now(),
+				note: "Provider aggregated persisted per-agent completion packets.",
+			},
+		})
+		this.parallelPlanCompletionPacket = packet
+		return packet
+	}
+
+	private getParallelPlanCompletionStatusOverride(
+		agentCompletionPackets: AgentCompletionPacket[],
+	): ParallelPlanCompletionStatus | undefined {
+		if (agentCompletionPackets.some((packet) => packet.merge.result === "failed")) {
+			return "failed"
+		}
+
+		switch (this.parallelStatusPhase) {
+			case "review":
+				return "awaiting-review"
+			case "merged":
+				return "merged"
+			case "cancelled":
+				return "cancelled"
+			case "failed":
+				return "failed"
+			case "running":
+				return undefined
+		}
+	}
+
+	private isParallelPlanCompletionPacketCurrent(
+		packet: ParallelPlanCompletionPacket,
+		agentCompletionPackets: AgentCompletionPacket[],
+		status?: ParallelPlanCompletionStatus,
+	): boolean {
+		if (packet.packetCount !== agentCompletionPackets.length) {
+			return false
+		}
+
+		if (status && packet.status !== status) {
+			return false
+		}
+
+		const packetRefsByAgentId = new Map(packet.agentPacketRefs.map((ref) => [ref.agentId, ref]))
+		return agentCompletionPackets.every((agentPacket) => {
+			const ref = packetRefsByAgentId.get(agentPacket.agentId)
+			return ref?.status === agentPacket.status && ref.packetUpdatedAt === agentPacket.evidence.updatedAt
+		})
+	}
+
+	private updateParallelAgentPacketFromMergeEntry(
+		plan: ExecutionPlan,
+		entry: MergeReviewEntry,
+		updates: Partial<AgentMergeEvidence> = {},
+	): AgentCompletionPacket | undefined {
+		const agent = plan.agents.find((candidate) => candidate.id === entry.agentId)
+		if (!agent) {
+			return undefined
+		}
+
+		const ts = Date.now()
+		const existing = this.ensureParallelAgentCompletionPacket(plan, entry.agentId, { ts })
+		const artifactManifest = computeArtifactManifestFromDiff(entry.diff).map((artifact) => ({
+			...artifact,
+			agentId: entry.agentId,
+		}))
+		const mergeStatus = entry.mergeStatus ?? "pending"
+		const notes = [
+			...(entry.noChangesReason ? [entry.noChangesReason] : []),
+			...(entry.autoMergeSkippedReason ? [entry.autoMergeSkippedReason] : []),
+		]
+		const packet = createAgentCompletionPacket(plan, agent, {
+			status: existing?.status ?? agent.status,
+			completionResult: existing?.completionResult,
+			artifactManifest,
+			validation: [
+				{
+					name: "merge-review",
+					status: entry.reviewError || entry.mergeError ? "failed" : "passed",
+					summary:
+						entry.reviewError ??
+						entry.mergeError ??
+						entry.noChangesReason ??
+						"Merge review evidence captured.",
+					ts,
+					source: "merge-review",
+				},
+			],
+			merge: {
+				readiness: entry.reviewError ? "not-ready" : mergeStatus === "pending" ? "ready" : "awaiting-review",
+				result: mergeStatus === "pending" ? "pending" : mergeStatus,
+				mergeable: entry.mergeable,
+				branch: entry.branch,
+				worktreePath: entry.worktreePath,
+				clean: !entry.reviewError && !entry.mergeError && (entry.conflictedFiles?.length ?? 0) === 0,
+				materialized: mergeStatus === "merged",
+				reviewError: entry.reviewError,
+				mergeError: entry.mergeError,
+				conflictedFiles: entry.conflictedFiles,
+				notes,
+				ts,
+				...updates,
+			},
+			evidence: {
+				source: "merge-review",
+				sourceId: entry.agentId,
+				ts,
+				note: "Provider updated packet from merge review entry.",
+			},
+			ts,
+		})
+
+		if (existing) {
+			packet.evidence.createdAt = existing.evidence.createdAt
+			packet.evidence.sources = [...existing.evidence.sources, ...packet.evidence.sources]
+			packet.ownership = existing.ownership
+		}
+
+		this.parallelAgentCompletionPackets.set(entry.agentId, packet)
+		this.parallelPlanCompletionPacket = buildParallelPlanCompletionPacket(
+			plan,
+			this.getParallelAgentCompletionPackets(plan),
+			{
+				ts,
+				source: {
+					source: "provider",
+					sourceId: plan.planId,
+					ts,
+					note: "Provider aggregated merge/review packet updates.",
+				},
+			},
+		)
+		return packet
+	}
+
+	private async appendParallelAgentOutcomeSummary(
+		plan: ExecutionPlan,
+		status: "review" | "merged" | "failed" | "cancelled",
+		entries: MergeReviewEntry[] | undefined,
+	): Promise<void> {
+		const task = this.getCurrentTask()
+		if (!task || task.background) {
+			return
+		}
+
+		try {
+			const globalStoragePath = this.context.globalStorageUri.fsPath
+			if (task.apiConversationHistory.length === 0) {
+				task.apiConversationHistory = await readApiMessages({
+					taskId: task.taskId,
+					globalStoragePath,
+				})
+			}
+
+			const summary = this.buildParallelAgentOutcomeSummary(plan, status, entries)
+			const existing = task.apiConversationHistory[task.apiConversationHistory.length - 1]
+			if (this.getApiMessageText(existing) === summary) {
+				return
+			}
+
+			await task.overwriteApiConversationHistory([
+				...task.apiConversationHistory,
+				{
+					role: "user",
+					content: [{ type: "text", text: summary }],
+					ts: Date.now(),
+				},
+			])
+		} catch (error) {
+			this.log(
+				`[parallel-agents] Failed to persist parent context summary: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			)
+		}
+	}
+
+	private recordParallelAgentReviewSummary(plan: ExecutionPlan, entries: MergeReviewEntry[] | undefined): void {
+		this.parallelReviewSummary = this.buildParallelAgentReviewSummary(plan, entries ?? [])
+	}
+
+	private buildParallelAgentReviewSummary(
+		plan: ExecutionPlan,
+		entries: MergeReviewEntry[],
+	): ParallelAgentReviewSummary {
+		const lines = [
+			`# Parallel agent review for ${plan.planId}`,
+			"",
+			"Full per-agent diffs are available in the persisted parallel agents card.",
+			"",
+			...entries.map((entry) => {
+				const stats = entry.changeStats
+				const statsText = stats
+					? `${stats.filesChanged} files, +${stats.additions}/-${stats.deletions}`
+					: entry.diff.trim()
+						? "changes detected"
+						: "no changes"
+				const state = entry.mergeStatus ?? (entry.reviewError ? "failed" : "pending")
+				const detail =
+					entry.mergeError ?? entry.reviewError ?? entry.autoMergeSkippedReason ?? entry.noChangesReason
+				return `- ${entry.agentId}: ${state}; ${statsText}${detail ? `; ${detail}` : ""}`
+			}),
+		]
+
+		return {
+			path: PARALLEL_REVIEW_SUMMARY_PATH,
+			markdown: lines.join("\n"),
+		}
+	}
+
+	private buildParallelAgentOutcomeSummary(
+		plan: ExecutionPlan,
+		status: "review" | "merged" | "failed" | "cancelled",
+		entries: MergeReviewEntry[] | undefined,
+	): string {
+		const statusByOutcome: Record<typeof status, ParallelPlanCompletionStatus> = {
+			review: "awaiting-review",
+			merged: "merged",
+			failed: "failed",
+			cancelled: "cancelled",
+		}
+		const agentCompletionPackets = this.getParallelAgentCompletionPackets(plan)
+		const parallelPlanCompletionPacket = this.getParallelPlanCompletionPacket(
+			plan,
+			agentCompletionPackets,
+			statusByOutcome[status],
+		)
+		const parentVerificationDirective = this.buildParallelParentVerificationDirective(
+			parallelPlanCompletionPacket,
+			agentCompletionPackets,
+		)
+		const entrySummaries = (entries ?? []).map((entry) => {
+			const stats = entry.changeStats
+			const statsText = stats
+				? `${stats.filesChanged} files, +${stats.additions}/-${stats.deletions}`
+				: entry.diff.trim()
+					? "changes detected"
+					: "no changes"
+			const state = entry.mergeStatus ?? (entry.reviewError ? "failed" : "pending")
+			const detail = entry.mergeError ?? entry.reviewError ?? entry.autoMergeSkippedReason
+			return `- ${entry.agentId} (${entry.task}): ${state}; ${statsText}${detail ? `; ${detail}` : ""}`
+		})
+
+		return [
+			`[PARALLEL AGENT SUMMARY] Plan ${plan.planId} is ${status}.`,
+			`Shared context: ${plan.sharedContext}`,
+			entrySummaries.length > 0 ? entrySummaries.join("\n") : "No merge review entries were recorded.",
+			"Structured completion packet:",
+			JSON.stringify(
+				{
+					parallelPlanCompletionPacket,
+					agentCompletionPackets,
+					parentVerificationDirective,
+				},
+				null,
+				2,
+			),
+			this.buildParallelParentVerificationGuidance(parentVerificationDirective),
+			"Use the persisted parallel agents card for approval/merge actions; do not rerun plan_parallel_tasks for this plan unless the user explicitly asks for a new plan.",
+		].join("\n")
+	}
+
+	private buildParallelParentVerificationDirective(
+		parallelPlanCompletionPacket: ParallelPlanCompletionPacket,
+		agentCompletionPackets: AgentCompletionPacket[],
+	): ParallelParentVerificationDirective {
+		const packetCountMatchesPlan =
+			parallelPlanCompletionPacket.packetCount === parallelPlanCompletionPacket.agentCount &&
+			agentCompletionPackets.length === parallelPlanCompletionPacket.agentCount
+		const hasNoFailedAgents =
+			parallelPlanCompletionPacket.failedAgentCount === 0 &&
+			parallelPlanCompletionPacket.failedAgents.length === 0 &&
+			parallelPlanCompletionPacket.merge.failedAgents.length === 0
+		const hasCleanValidation =
+			parallelPlanCompletionPacket.validationSummary.failed === 0 &&
+			parallelPlanCompletionPacket.validationSummary.unknown === 0
+		const hasCleanMerge =
+			parallelPlanCompletionPacket.status === "merged" &&
+			parallelPlanCompletionPacket.merge.status === "merged" &&
+			parallelPlanCompletionPacket.merge.clean &&
+			parallelPlanCompletionPacket.merge.conflictedFiles.length === 0
+		const cleanMergedEvidence = packetCountMatchesPlan && hasNoFailedAgents && hasCleanValidation && hasCleanMerge
+
+		return {
+			sourceOfTruth: "structured_completion_packet",
+			evidenceStatus: cleanMergedEvidence ? "clean-merged" : "requires-attention",
+			noReverification: cleanMergedEvidence,
+			summary: cleanMergedEvidence
+				? "Plan-level structured packet reports clean merged evidence with complete agent packets, clean merge materialization, and no failed or unknown validation results."
+				: "Plan-level structured packet is missing clean merged evidence or reports failed, incomplete, or inconclusive evidence; targeted inspection remains available for the specific evidence gap.",
+			todoGuidance: cleanMergedEvidence
+				? "Mark any redundant review/verify result or assembled deliverable step complete from the structured packet and continue with the next non-verification step."
+				: "Do not mark verification complete from this packet alone; resolve the failed, incomplete, or inconclusive evidence first.",
+			allowedInspectionReasons: cleanMergedEvidence
+				? [
+						"the user explicitly asks for deeper verification",
+						"new evidence contradicts the structured completion packet",
+					]
+				: [
+						"the packet is missing, failed, incomplete, or inconclusive",
+						"merge evidence reports conflicts, failed agents, failed or unknown validation, or an unclean merge",
+						"the user explicitly asks for deeper verification",
+					],
+			evidence: {
+				planStatus: parallelPlanCompletionPacket.status,
+				mergeStatus: parallelPlanCompletionPacket.merge.status,
+				mergeClean: parallelPlanCompletionPacket.merge.clean,
+				packetCount: parallelPlanCompletionPacket.packetCount,
+				agentCount: parallelPlanCompletionPacket.agentCount,
+				failedAgentCount: parallelPlanCompletionPacket.failedAgentCount,
+				mergeFailedAgents: parallelPlanCompletionPacket.merge.failedAgents,
+				conflictedFiles: parallelPlanCompletionPacket.merge.conflictedFiles,
+				validationFailed: parallelPlanCompletionPacket.validationSummary.failed,
+				validationUnknown: parallelPlanCompletionPacket.validationSummary.unknown,
+			},
+		}
+	}
+
+	private buildParallelParentVerificationGuidance(directive: ParallelParentVerificationDirective): string {
+		const lines = [
+			"Parent resume guidance:",
+			"- Treat the structured completion packet and parentVerificationDirective as the verification source of truth for this parallel plan before considering manual inspection.",
+			"- Do not perform broad file reads/searches over already-merged parallel deliverables solely to verify them.",
+		]
+
+		if (directive.evidenceStatus === "clean-merged") {
+			lines.push(
+				"- The plan-level packet reports clean merged evidence; mark any redundant review/verify result or assembled deliverable todo step complete from this evidence and continue with the next non-verification step.",
+			)
+		} else {
+			lines.push(
+				"- The plan-level packet requires attention; do not mark redundant verification complete until the failed, incomplete, or inconclusive evidence is resolved.",
+			)
+		}
+
+		lines.push(`- Only inspect files when ${directive.allowedInspectionReasons.join("; ")}.`)
+		return lines.join("\n")
+	}
+
+	private getApiMessageText(message: unknown): string | undefined {
+		if (!message || typeof message !== "object") {
+			return undefined
+		}
+
+		const content = (message as { content?: unknown }).content
+		if (typeof content === "string") {
+			return content
+		}
+
+		if (!Array.isArray(content)) {
+			return undefined
+		}
+
+		return content
+			.map((block) => (block && typeof block === "object" && "text" in block ? String(block.text) : ""))
+			.filter(Boolean)
+			.join("\n")
+	}
+
+	private findParallelAgentStatusMessage(task: Task, planId: string): ClineMessage | undefined {
+		const byTimestamp = this.parallelStatusMessageTs
+			? task.clineMessages.find((message) => message.ts === this.parallelStatusMessageTs)
+			: undefined
+
+		if (byTimestamp && this.isParallelAgentStatusMessageForPlan(byTimestamp, planId)) {
+			return byTimestamp
+		}
+
+		return task.clineMessages.find((message) => this.isParallelAgentStatusMessageForPlan(message, planId))
+	}
+
+	private isParallelAgentStatusMessageForPlan(message: ClineMessage, planId: string): boolean {
+		if (message.type !== "say" || message.say !== "tool" || !message.text) {
+			return false
+		}
+
+		try {
+			const tool = JSON.parse(message.text) as ClineSayTool
+			return tool.tool === "parallelAgents" && tool.executionPlan?.planId === planId
+		} catch {
+			return false
+		}
+	}
+
+	private recordParallelAgentStatus(update: AgentStatusUpdate): void {
+		if (!this.activeExecutionPlan) {
+			return
+		}
+
+		const previous = this.parallelAgentStatusUpdates.get(update.agentId)
+		this.parallelAgentStatusUpdates.set(update.agentId, this.withAgentActivities({ ...previous, ...update }))
+		this.parallelUsageSummary = this.buildParallelUsageSummary()
+
+		if (update.status === "failed" && this.parallelStatusPhase !== "cancelled") {
+			this.parallelStatusPhase = "failed"
+		}
+
+		this.scheduleParallelAgentStatusMessageUpdate()
+	}
+
+	private buildParallelUsageSummary(): ParallelAgentUsageSummary | undefined {
+		const updatesWithUsage = Array.from(this.parallelAgentStatusUpdates.values()).filter((update) => update.usage)
+
+		if (updatesWithUsage.length === 0) {
+			return undefined
+		}
+
+		return updatesWithUsage.reduce<ParallelAgentUsageSummary>(
+			(summary, update) => {
+				const usage = update.usage!
+				summary.totalTokensIn += usage.totalTokensIn
+				summary.totalTokensOut += usage.totalTokensOut
+				summary.totalCacheWrites += usage.totalCacheWrites ?? 0
+				summary.totalCacheReads += usage.totalCacheReads ?? 0
+				summary.totalCost += usage.totalCost
+				summary.contextTokens += usage.contextTokens
+				summary.reportingAgents += 1
+				return summary
+			},
+			{
+				totalTokensIn: 0,
+				totalTokensOut: 0,
+				totalCacheWrites: 0,
+				totalCacheReads: 0,
+				totalCost: 0,
+				contextTokens: 0,
+				reportingAgents: 0,
+			},
+		)
+	}
+
+	private recordParallelAgentActivity(
+		agentId: string,
+		message: string,
+		kind: ParallelAgentActivity["kind"] = "status",
+		ts: number = Date.now(),
+		options: { replaceExistingTimestamp?: boolean } = {},
+	): void {
+		if (!this.activeExecutionPlan) {
+			return
+		}
+
+		const previousActivities = this.parallelAgentActivities.get(agentId) ?? []
+		const nextActivity = {
+			agentId,
+			kind,
+			message,
+			ts,
+		} satisfies ParallelAgentActivity
+		const replaceIndex = options.replaceExistingTimestamp
+			? previousActivities.findIndex((activity) => activity.ts === ts)
+			: -1
+		const updatedActivities =
+			replaceIndex >= 0
+				? previousActivities.map((activity, index) => (index === replaceIndex ? nextActivity : activity))
+				: [...previousActivities, nextActivity]
+		const activities = updatedActivities.slice(-PARALLEL_AGENT_ACTIVITY_LIMIT)
+		this.parallelAgentActivities.set(agentId, activities)
+
+		const previousStatus = this.parallelAgentStatusUpdates.get(agentId)
+		const update = {
+			...previousStatus,
+			agentId,
+			status: previousStatus?.status ?? this.getAgentStatus(agentId) ?? "running",
+			activities,
+		} satisfies AgentStatusUpdate
+		this.parallelAgentStatusUpdates.set(agentId, update)
+		this.postAgentStatusUpdate(update)
+		this.scheduleParallelAgentStatusMessageUpdate()
+	}
+
+	private recordParallelAgentCoordinationEvent(
+		event: Omit<ParallelAgentCoordinationEvent, "ts"> & { ts?: number },
+	): ParallelAgentCoordinationEvent | undefined {
+		if (!this.activeExecutionPlan) {
+			return undefined
+		}
+
+		if (this.shouldSuppressParallelAgentCoordinationEvent(event)) {
+			return undefined
+		}
+
+		const storedEvent = { ...event, ts: event.ts ?? Date.now() }
+		const previousEvents = storedEvent.id
+			? this.parallelAgentCoordinationEvents.filter((candidate) => candidate.id !== storedEvent.id)
+			: this.parallelAgentCoordinationEvents
+
+		this.parallelAgentCoordinationEvents = [...previousEvents, storedEvent].slice(
+			-PARALLEL_AGENT_COORDINATION_LIMIT,
+		)
+		this.postAgentCoordinationUpdate(storedEvent)
+		this.scheduleParallelAgentStatusMessageUpdate()
+		return storedEvent
+	}
+
+	private shouldSuppressParallelAgentCoordinationEvent(
+		event: Omit<ParallelAgentCoordinationEvent, "ts"> & { ts?: number },
+	): boolean {
+		if (event.kind === "question" || event.kind === "answer") {
+			return false
+		}
+
+		if (event.kind === "shared-context" || event.kind === "ownership" || event.kind === "dependency") {
+			return true
+		}
+
+		return event.source === "system" && isGenericOwnershipCoordinationMessage(event.message)
+	}
+
+	private describeAgentDependency(dependency: AgentDependency): string {
+		if (dependency.waitFor === "signal") {
+			return dependency.signal
+				? `${dependency.agentId} to signal ${dependency.signal}`
+				: `${dependency.agentId} to signal`
+		}
+
+		return `${dependency.agentId} to complete`
+	}
+
+	private handleBackgroundAgentMessage(task: Task, action: "created" | "updated", message: ClineMessage): void {
+		if (!task.background || !task.agentId || !this.activeExecutionPlan) {
+			return
+		}
+
+		const activity = this.describeBackgroundAgentMessage(message, { agentId: task.agentId })
+		if (!activity) {
+			return
+		}
+
+		this.recordParallelAgentActivity(task.agentId, activity.message, activity.kind, message.ts, {
+			replaceExistingTimestamp: action === "updated",
+		})
+	}
+
+	private describeBackgroundAgentMessage(
+		message: ClineMessage,
+		options: BackgroundAgentActivityDescriptionOptions = {},
+	): BackgroundAgentActivityDescription | undefined {
+		if (message.type === "ask" && message.ask === "tool") {
+			if (message.partial) {
+				return {
+					kind: "tool",
+					message: this.describeToolActivity(message.text, "Preparing a tool call."),
+				}
+			}
+
+			return message.isAnswered
+				? this.describeResolvedToolActivity(message.text)
+				: this.describePendingToolApprovalActivity(message.text)
+		}
+
+		if (message.type !== "say") {
+			return undefined
+		}
+
+		if (message.partial) {
+			return this.describePartialBackgroundAgentSayMessage(message, options)
+		}
+
+		switch (message.say) {
+			case "api_req_started":
+				return { kind: "thinking", message: this.describeApiRequestActivity(options.agentId) }
+			case "api_req_finished":
+				return { kind: "result", message: "Finished thinking." }
+			case "api_req_retried":
+				return { kind: "wait", message: "Retrying the model request." }
+			case "api_req_retry_delayed":
+				return { kind: "wait", message: "Waiting before retrying the model request." }
+			case "api_req_rate_limit_wait":
+				return { kind: "wait", message: "Waiting for the provider rate limit." }
+			case "text":
+				return this.describeAssistantTextActivity(message.text)
+			case "reasoning":
+				return { kind: "thinking", message: "Reasoning through the next step." }
+			case "tool":
+				return { kind: "tool", message: this.describeToolActivity(message.text, "Used a tool.") }
+			case "command_output":
+				return { kind: "result", message: "Read command output." }
+			case "mcp_server_request_started":
+				return { kind: "tool", message: "Contacted an MCP server." }
+			case "mcp_server_response":
+				return { kind: "result", message: "Received MCP server response." }
+			case "completion_result":
+				return { kind: "completion", message: "Reported completion." }
+			case "error":
+				return { kind: "error", message: "Encountered an error." }
+			default:
+				return undefined
+		}
+	}
+
+	private describePartialBackgroundAgentSayMessage(
+		message: ClineMessage,
+		options: BackgroundAgentActivityDescriptionOptions = {},
+	): BackgroundAgentActivityDescription | undefined {
+		if (message.type !== "say") {
+			return undefined
+		}
+
+		switch (message.say) {
+			case "api_req_started":
+				return {
+					kind: "thinking",
+					message: this.describeApiRequestActivity(options.agentId, { partial: true }),
+				}
+			case "api_req_retried":
+				return { kind: "wait", message: "Retrying the model request." }
+			case "api_req_retry_delayed":
+				return { kind: "wait", message: "Waiting before retrying the model request." }
+			case "api_req_rate_limit_wait":
+				return { kind: "wait", message: "Waiting for the provider rate limit." }
+			case "reasoning":
+				return { kind: "thinking", message: "Reasoning through the next step." }
+			case "text":
+				return { kind: "message", message: "Drafting an agent message." }
+			case "tool":
+				return { kind: "tool", message: this.describeToolActivity(message.text, "Preparing a tool call.") }
+			case "command_output":
+				return { kind: "result", message: "Reading command output." }
+			case "mcp_server_request_started":
+				return { kind: "tool", message: "Contacting an MCP server." }
+			case "mcp_server_response":
+				return { kind: "result", message: "Receiving MCP server response." }
+			default:
+				return undefined
+		}
+	}
+
+	private describeApiRequestActivity(agentId: string | undefined, options: { partial?: boolean } = {}): string {
+		const status = agentId ? this.getAgentStatus(agentId) : undefined
+		switch (status) {
+			case "pending":
+				return "Requesting the first model action before this agent starts work."
+			case "running":
+				return options.partial ? "Streaming the next model action." : "Requesting the next model action."
+			case "blocked":
+				return "Checking whether blocked work can resume."
+			case "complete":
+				return "Confirming completed agent work."
+			case "failed":
+				return "Collecting failure details from the model."
+			default:
+				return options.partial ? "Streaming the next model action." : "Requesting the next model action."
+		}
+	}
+
+	private withAgentActivities(update: AgentStatusUpdate): AgentStatusUpdate {
+		const activities = this.parallelAgentActivities.get(update.agentId)
+
+		if (!activities?.length) {
+			return update
+		}
+
+		return {
+			...update,
+			activities,
+		}
+	}
+
+	private getParallelAgentActivities(agentId?: string): ParallelAgentActivity[] {
+		const activities = agentId
+			? (this.parallelAgentActivities.get(agentId) ?? [])
+			: Array.from(this.parallelAgentActivities.values()).flat()
+
+		return [...activities].sort((a, b) => a.ts - b.ts)
+	}
+
+	private describeStatusActivity(status: AgentStatus): string {
+		switch (status) {
+			case "pending":
+				return "Queued and waiting to start."
+			case "running":
+				return "Started running."
+			case "blocked":
+				return "Blocked and waiting."
+			case "complete":
+				return "Completed."
+			case "failed":
+				return "Failed."
+		}
+	}
+
+	private describeAssistantTextActivity(text: string | undefined): BackgroundAgentActivityDescription {
+		const summary = this.summarizeActivityText(text)
+
+		return {
+			kind: "message",
+			message: summary ? `Said: ${summary}` : "Shared a response update.",
+		}
+	}
+
+	private summarizeActivityText(text: string | undefined): string | undefined {
+		const normalized = text?.replace(/\s+/g, " ").trim()
+		if (!normalized) {
+			return undefined
+		}
+
+		const maxLength = 160
+		const clipped = normalized.length > maxLength ? `${normalized.slice(0, maxLength - 1).trimEnd()}…` : normalized
+		return `“${clipped}”`
+	}
+
+	private describeToolActivity(text: string | undefined, fallback: string): string {
+		const parsedTool = this.parseActivityTool(text)
+		if (!parsedTool) {
+			return fallback
+		}
+		const { tool, toolName, targetPath } = parsedTool
+
+		switch (toolName) {
+			case "editedExistingFile":
+			case "edit":
+			case "edit_file":
+			case "search_and_replace":
+			case "search_replace":
+				return `Editing ${targetPath ?? "a file"}.`
+			case "appliedDiff":
+			case "apply_diff":
+			case "apply_patch":
+				return `Applying a diff to ${targetPath ?? "a file"}.`
+			case "newFileCreated":
+				return `Creating ${targetPath ?? "a file"}.`
+			case "write_to_file":
+				return `Writing ${targetPath ?? "a file"}.`
+			case "readFile":
+			case "read_file":
+				return `Reading ${targetPath ?? "a file"}.`
+			case "codebaseSearch":
+			case "codebase_search":
+				return "Searching the codebase."
+			case "searchFiles":
+			case "search_files":
+				return tool.regex ? `Searching files for ${tool.regex}.` : "Searching files."
+			case "listFilesTopLevel":
+			case "listFilesRecursive":
+			case "list_files":
+				return `Listing ${targetPath ?? "files"}.`
+			case "execute_command":
+				return tool.command ? `Running command: ${tool.command}.` : "Running a command."
+			case "readCommandOutput":
+			case "read_command_output":
+				return "Reading command output."
+			case "runSlashCommand":
+			case "run_slash_command":
+				return tool.command ? `Running /${tool.command}.` : "Running a slash command."
+			case "switchMode":
+			case "switch_mode":
+				return tool.mode ? `Switching to ${tool.mode} mode.` : "Switching mode."
+			case "newTask":
+			case "new_task":
+				return "Starting a subtask."
+			case "finishTask":
+			case "attempt_completion":
+				return "Finishing a subtask."
+			case "plan_parallel_tasks":
+				return "Planning parallel agents."
+			case "skill":
+				return tool.skill ? `Loading ${tool.skill} skill.` : "Loading a skill."
+			case "generateImage":
+			case "generate_image":
+			case "imageGenerated":
+				return "Working with an image."
+			case "updateTodoList":
+			case "update_todo_list":
+				return "Updating the todo list."
+			case "parallelAgents":
+				return "Updating parallel agent status."
+			case "use_mcp_tool":
+				return tool.serverName
+					? `Calling MCP tool${tool.name ? ` ${tool.name}` : ""} on ${tool.serverName}.`
+					: "Calling an MCP tool."
+			case "access_mcp_resource":
+				return tool.serverName
+					? `Reading MCP resource${tool.uri ? ` ${tool.uri}` : ""} from ${tool.serverName}.`
+					: "Reading an MCP resource."
+			case "ask_followup_question":
+				return "Waiting for a follow-up answer."
+			default:
+				return fallback
+		}
+	}
+
+	private describePendingToolApprovalActivity(text: string | undefined): BackgroundAgentActivityDescription {
+		const parsedTool = this.parseActivityTool(text)
+		if (!parsedTool) {
+			return { kind: "approval", message: "Waiting for tool approval." }
+		}
+
+		const { toolName, targetPath } = parsedTool
+		const fileLabel = targetPath ?? "a file"
+
+		switch (toolName) {
+			case "appliedDiff":
+			case "apply_diff":
+			case "apply_patch":
+				return { kind: "approval", message: `Waiting for diff approval for ${fileLabel}.` }
+			default:
+				return { kind: "approval", message: this.describeToolActivity(text, "Waiting for tool approval.") }
+		}
+	}
+
+	private describeResolvedToolActivity(text: string | undefined): BackgroundAgentActivityDescription {
+		const parsedTool = this.parseActivityTool(text)
+		if (!parsedTool) {
+			return { kind: "approval", message: "Tool approval resolved." }
+		}
+
+		const { toolName, targetPath } = parsedTool
+		const fileLabel = targetPath ?? "a file"
+
+		switch (toolName) {
+			case "appliedDiff":
+			case "apply_diff":
+			case "apply_patch":
+				return { kind: "file", message: `Saving diff changes to ${fileLabel}.` }
+			case "editedExistingFile":
+			case "edit":
+			case "edit_file":
+			case "search_and_replace":
+			case "search_replace":
+			case "write_to_file":
+				return { kind: "file", message: `Saving changes to ${fileLabel}.` }
+			case "newFileCreated":
+				return { kind: "file", message: `Saving new file ${fileLabel}.` }
+			default:
+				return { kind: "approval", message: "Tool approval resolved." }
+		}
+	}
+
+	private parseActivityTool(text: string | undefined): ParsedActivityTool | undefined {
+		const tool = text ? this.tryParseActivityToolPayload(text) : undefined
+		const toolName = tool?.tool
+
+		if (!tool || !toolName) {
+			return undefined
+		}
+
+		return {
+			tool,
+			toolName,
+			targetPath: tool.path ?? tool.filePath,
+		}
+	}
+
+	private getAgentOwnedPaths(agent: ExecutionPlan["agents"][number] | undefined): string[] | undefined {
+		return agent?.owns.filter((ownership) => ownership.mode !== "read-only").map((ownership) => ownership.path)
+	}
+
+	private tryParseActivityToolPayload(text: string): ActivityToolPayload | undefined {
+		try {
+			return JSON.parse(text) as ActivityToolPayload
+		} catch {
+			return undefined
+		}
+	}
+
+	private tryParseToolPayload(text: string): ClineSayTool | undefined {
+		try {
+			return JSON.parse(text) as ClineSayTool
+		} catch {
+			return undefined
+		}
 	}
 
 	private postWriteIntentDenied(agentId: string, filePath: string, ownerAgentId?: string): void {
@@ -2866,17 +5031,24 @@ export class ClineProvider
 			? this.activeExecutionPlan?.agents.find((agent) => agent.id === ownerAgentId)?.task
 			: undefined
 		const reason = this.deniedWriteReasons.get(this.getConflictKey(agentId, filePath))
+		const conflict = {
+			agentId,
+			filePath,
+			ownerAgentId,
+			ownerTask,
+			reason,
+		} satisfies WriteIntentConflict
 
 		this.postMessageToWebview({
 			type: "writeIntentDenied",
-			writeIntentConflict: {
-				agentId,
-				filePath,
-				ownerAgentId,
-				ownerTask,
-				reason,
-			},
+			writeIntentConflict: conflict,
 		}).catch(() => {})
+		this.parallelWriteConflicts.set(this.getConflictKey(agentId, filePath), conflict)
+		this.recordParallelAgentActivity(
+			agentId,
+			`Waiting for write access to ${filePath}${ownerTask ? `, owned by ${ownerTask}` : ""}.`,
+			"wait",
+		)
 	}
 
 	private getAgentStatus(agentId: string): AgentStatus | undefined {
@@ -2888,14 +5060,18 @@ export class ClineProvider
 		const branch = this.getAgentBranchName(plan.planId, agentId)
 		const worktreePath = this.worktreePathsByAgentId.get(agentId) ?? agent?.worktreePath ?? ""
 		let diff = ""
+		let noChangesReason: string | undefined
+		let reviewError: string | undefined
 
 		try {
-			const { stdout } = await execAsync(`git diff HEAD...${this.shellQuote(branch)}`, {
-				cwd: this.currentWorkspacePath ?? this.cwd,
-			})
-			diff = stdout
+			diff = worktreePath ? await this.prepareAgentBranchForReview(plan, agentId, branch, worktreePath) : ""
+
+			if (!diff.trim()) {
+				noChangesReason = "No changes detected in this agent worktree."
+			}
 		} catch (error) {
-			diff = this.formatGitError(error)
+			reviewError = this.formatGitError(error)
+			diff = reviewError
 		}
 
 		return {
@@ -2903,9 +5079,38 @@ export class ClineProvider
 			mode: agent?.mode,
 			task: agent?.task ?? agentId,
 			diff,
+			noChangesReason,
 			worktreePath,
 			branch,
+			changeStats: computeMergeReviewChangeStats(diff),
+			reviewError,
+			mergeable: reviewError ? false : undefined,
+			mergeStatus: reviewError ? "failed" : "pending",
+			mergeError: reviewError,
 		}
+	}
+
+	private async prepareAgentBranchForReview(
+		plan: ExecutionPlan,
+		agentId: string,
+		branch: string,
+		worktreePath: string,
+	): Promise<string> {
+		this.log(`[parallel-agents] Collecting merge-review diff for ${agentId} from ${worktreePath}`)
+		const agent = plan.agents.find((candidate) => candidate.id === agentId)
+		this.recordParallelAgentActivity(agentId, "Reviewing branch changes.", "tool")
+		const ownedPaths = this.getAgentOwnedPaths(agent)
+		const diff = await this.ensureWorktreeManager().prepareMergeReview({
+			agentId,
+			planId: plan.planId,
+			worktreePath,
+			branch,
+			ownedPaths,
+		})
+		this.log(
+			`[parallel-agents] Merge-review diff for ${agentId}: ${diff.trim() ? "changes detected" : "no changes detected"}`,
+		)
+		return diff
 	}
 
 	private getAgentBranchName(planId: string, agentId: string): string {
@@ -2918,10 +5123,6 @@ export class ClineProvider
 			.replace(/[^a-zA-Z0-9._/-]+/g, "-")
 			.replace(/^-+|-+$/g, "")
 			.slice(0, 80)
-	}
-
-	private shellQuote(value: string): string {
-		return `"${value.replace(/"/g, '\\"')}"`
 	}
 
 	private formatGitError(error: unknown): string {
@@ -2945,6 +5146,7 @@ export class ClineProvider
 		}
 
 		console.log(`[cancelTask] cancelling task ${task.taskId}.${task.instanceId}`)
+		await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
 
 		let historyItem: HistoryItem | undefined
 		try {
@@ -3031,6 +5233,7 @@ export class ClineProvider
 		if (this.clineStack.length > 0) {
 			const task = this.clineStack[this.clineStack.length - 1]
 			console.log(`[clearTask] clearing task ${task.taskId}.${task.instanceId}`)
+			await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
 			await this.removeClineFromStack()
 		}
 	}

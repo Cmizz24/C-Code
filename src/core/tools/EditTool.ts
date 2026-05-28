@@ -28,6 +28,7 @@ export class EditTool extends BaseTool<"edit"> {
 	async execute(params: EditParams, task: Task, callbacks: ToolCallbacks): Promise<void> {
 		const { file_path: relPath, old_string: oldString, new_string: newString, replace_all: replaceAll } = params
 		const { askApproval, handleError, pushToolResult } = callbacks
+		let didAcquireWriteIntent = false
 
 		try {
 			// Validate required parameters
@@ -74,6 +75,16 @@ export class EditTool extends BaseTool<"edit"> {
 
 			// Check if file is write-protected
 			const isWriteProtected = task.rooProtectedController?.isWriteProtected(relPath) || false
+			const writePermission = task.requestAgentWriteIntent(relPath)
+
+			if (!writePermission.approved) {
+				const reason = writePermission.reason ?? `Write denied for ${relPath}`
+				await task.say("error", reason)
+				pushToolResult(formatResponse.toolError(reason))
+				return
+			}
+
+			didAcquireWriteIntent = true
 
 			const absolutePath = path.resolve(task.cwd, relPath)
 
@@ -171,6 +182,7 @@ export class EditTool extends BaseTool<"edit"> {
 				state?.experiments ?? {},
 				EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
 			)
+			const shouldSaveDirectly = isPreventFocusDisruptionEnabled
 
 			const sanitizedDiff = sanitizeUnifiedDiff(diff)
 			const diffStats = computeDiffStats(sanitizedDiff) || undefined
@@ -191,7 +203,7 @@ export class EditTool extends BaseTool<"edit"> {
 			} satisfies ClineSayTool)
 
 			// Show diff view if focus disruption prevention is disabled
-			if (!isPreventFocusDisruptionEnabled) {
+			if (!shouldSaveDirectly) {
 				await task.diffViewProvider.open(relPath)
 				await task.diffViewProvider.update(newContent, true)
 				task.diffViewProvider.scrollToFirstDiff()
@@ -201,7 +213,7 @@ export class EditTool extends BaseTool<"edit"> {
 
 			if (!didApprove) {
 				// Revert changes if diff view was shown
-				if (!isPreventFocusDisruptionEnabled) {
+				if (!shouldSaveDirectly) {
 					await task.diffViewProvider.revertChanges()
 				}
 				pushToolResult("Changes were rejected by the user.")
@@ -210,7 +222,7 @@ export class EditTool extends BaseTool<"edit"> {
 			}
 
 			// Save the changes
-			if (isPreventFocusDisruptionEnabled) {
+			if (shouldSaveDirectly) {
 				// Direct file write without diff view or opening the file
 				await task.diffViewProvider.saveDirectly(relPath, newContent, false, diagnosticsEnabled, writeDelayMs)
 			} else {
@@ -240,6 +252,10 @@ export class EditTool extends BaseTool<"edit"> {
 			await handleError("edit", error as Error)
 			await task.diffViewProvider.reset()
 			this.resetPartialState()
+		} finally {
+			if (didAcquireWriteIntent) {
+				task.releaseAgentWriteIntent(relPath)
+			}
 		}
 	}
 

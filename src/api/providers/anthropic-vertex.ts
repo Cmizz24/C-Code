@@ -79,6 +79,12 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 			tools: convertOpenAIToolsToAnthropic(metadata?.tools ?? []),
 			tool_choice: convertOpenAIToolChoiceToAnthropic(metadata?.tool_choice, metadata?.parallelToolCalls),
 		}
+		const samplingParams = temperature === undefined ? {} : { temperature }
+		const thinkingParam = thinking as any
+		const adaptiveThinkingParams =
+			thinking?.type === "adaptive" && info.adaptiveThinkingEffort
+				? { output_config: { effort: info.adaptiveThinkingEffort } }
+				: {}
 
 		/**
 		 * Vertex API has specific limitations for prompt caching:
@@ -96,8 +102,9 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 		const params: Anthropic.Messages.MessageCreateParamsStreaming = {
 			model: id,
 			max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
-			temperature,
-			thinking,
+			thinking: thinkingParam,
+			...adaptiveThinkingParams,
+			...samplingParams,
 			// Cache the system prompt if caching is enabled.
 			system: supportsPromptCache
 				? [{ text: systemPrompt, type: "text" as const, cache_control: { type: "ephemeral" } }]
@@ -263,17 +270,25 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 		try {
 			let {
 				id,
-				info: { supportsPromptCache },
+				info,
 				temperature,
 				maxTokens = ANTHROPIC_DEFAULT_MAX_TOKENS,
 				reasoning: thinking,
 			} = this.getModel()
+			const { supportsPromptCache } = info
+			const samplingParams = temperature === undefined ? {} : { temperature }
+			const thinkingParam = thinking as any
+			const adaptiveThinkingParams =
+				thinking?.type === "adaptive" && info.adaptiveThinkingEffort
+					? { output_config: { effort: info.adaptiveThinkingEffort } }
+					: {}
 
 			const params: Anthropic.Messages.MessageCreateParamsNonStreaming = {
 				model: id,
 				max_tokens: maxTokens,
-				temperature,
-				thinking,
+				thinking: thinkingParam,
+				...adaptiveThinkingParams,
+				...samplingParams,
 				messages: [
 					{
 						role: "user",

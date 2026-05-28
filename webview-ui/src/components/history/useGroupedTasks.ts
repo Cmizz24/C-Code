@@ -81,9 +81,6 @@ export function useGroupedTasks(tasks: HistoryItem[], searchQuery: string): Grou
 			}
 		})
 
-		// Sort groups by parent timestamp (newest first)
-		taskGroups.sort((a, b) => b.parent.ts - a.parent.ts)
-
 		return taskGroups
 	}, [tasks, taskMap, isSearchMode, expandedIds])
 

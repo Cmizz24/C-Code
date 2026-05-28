@@ -1,7 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
-import { type XAIModelId, xaiDefaultModelId, xaiModels } from "@roo-code/types"
+import {
+	type ModelInfo,
+	type ReasoningEffortExtended,
+	type XAIModelId,
+	xaiDefaultModelId,
+	xaiModels,
+} from "@roo-code/types"
 
 import type { ApiHandlerOptions } from "../../shared/api"
 
@@ -36,13 +42,25 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 		})
 	}
 
+	private getResponsesReasoning(reasoning?: {
+		reasoning_effort?: OpenAI.Chat.ChatCompletionCreateParams["reasoning_effort"]
+	}): { effort: ReasoningEffortExtended } | undefined {
+		const effort = reasoning?.reasoning_effort
+
+		if (!effort) {
+			return undefined
+		}
+
+		return { effort: effort as ReasoningEffortExtended }
+	}
+
 	override getModel() {
 		const id =
 			this.options.apiModelId && this.options.apiModelId in xaiModels
 				? (this.options.apiModelId as XAIModelId)
 				: xaiDefaultModelId
 
-		const info = xaiModels[id]
+		const info: ModelInfo = xaiModels[id]
 		const params = getModelParams({
 			format: "openai",
 			modelId: id,
@@ -50,7 +68,7 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 			settings: this.options,
 			defaultTemperature: XAI_DEFAULT_TEMPERATURE,
 		})
-		return { id, info, ...params }
+		return { id, info, ...params, reasoning: this.getResponsesReasoning(params.reasoning) }
 	}
 
 	/**
@@ -118,7 +136,7 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 			requestBody.parallel_tool_calls = metadata?.parallelToolCalls ?? true
 		}
 
-		// Pass reasoning effort for models that support it (e.g., mini models)
+		// xAI Responses API expects reasoning effort under `reasoning.effort`.
 		if (model.reasoning) {
 			requestBody.reasoning = model.reasoning
 		}
@@ -142,11 +160,17 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 		const model = this.getModel()
 
 		try {
-			const response = await this.client.responses.create({
+			const requestBody: Record<string, any> = {
 				model: model.id,
 				input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
 				store: false,
-			})
+			}
+
+			if (model.reasoning) {
+				requestBody.reasoning = model.reasoning
+			}
+
+			const response = await this.client.responses.create(requestBody)
 
 			// output_text is a convenience field on the Responses API response
 			return response.output_text || ""

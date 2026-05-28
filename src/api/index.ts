@@ -19,6 +19,7 @@ import {
 	OpenAiNativeHandler,
 	DeepSeekHandler,
 	MoonshotHandler,
+	XiaomiMiMoHandler,
 	MistralHandler,
 	VsCodeLmHandler,
 	RequestyHandler,
@@ -149,6 +150,8 @@ export function buildApiHandler(configuration: ProviderSettings): ApiHandler {
 			return new QwenCodeHandler(options)
 		case "moonshot":
 			return new MoonshotHandler(options)
+		case "xiaomi-mimo":
+			return new XiaomiMiMoHandler(options)
 		case "vscode-lm":
 			return new VsCodeLmHandler(options)
 		case "mistral":

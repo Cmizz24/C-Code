@@ -4,7 +4,7 @@
 import * as path from "path"
 import * as fs from "fs/promises"
 
-import { ExecuteCommandOptions } from "../ExecuteCommandTool"
+import { ExecuteCommandOptions, ExecuteCommandTool } from "../ExecuteCommandTool"
 import { TerminalRegistry } from "../../../integrations/terminal/TerminalRegistry"
 import { Terminal } from "../../../integrations/terminal/Terminal"
 import { ExecaTerminal } from "../../../integrations/terminal/ExecaTerminal"
@@ -73,6 +73,7 @@ describe("executeCommand", () => {
 
 		// Mock TerminalRegistry.getOrCreateTerminal
 		;(TerminalRegistry.getOrCreateTerminal as any).mockResolvedValue(mockTerminal)
+		;(Terminal.compressTerminalOutput as any).mockImplementation((output: string) => output)
 	})
 
 	describe("Working Directory Behavior", () => {
@@ -362,6 +363,66 @@ describe("executeCommand", () => {
 			expect(result).toContain("within working directory '/test/project'")
 		})
 
+		it("nudges background agents to retry failed shell file writes with write/edit tools", async () => {
+			mockTask.background = true
+			mockTask.agentId = "api-agent"
+			mockTerminal.getCurrentWorkingDirectory.mockReturnValue("/test/project")
+			mockTerminal.runCommand.mockImplementation((command: string, callbacks: RooTerminalCallbacks) => {
+				setTimeout(() => {
+					callbacks.onCompleted("The string is missing the terminator: '@.", mockProcess)
+					callbacks.onShellExecutionComplete({ exitCode: 1 }, mockProcess)
+				}, 0)
+				return mockProcess
+			})
+
+			const options: ExecuteCommandOptions = {
+				executionId: "test-123",
+				command: "powershell -Command \"@'`n{}'@ | Out-File server\\package.json\"",
+				terminalShellIntegrationDisabled: false,
+			}
+
+			const [rejected, result] = await executeCommandInTerminal(mockTask, options)
+
+			expect(rejected).toBe(false)
+			expect(result).toContain("Exit code: 1")
+			expect(result).toContain("retry with the normal write/edit tools")
+			expect(result).toContain("instead of shell here-strings, heredocs, or echo chains")
+			expect(result).toContain("not for embedding file contents")
+		})
+
+		it("nudges background agents when an oversized command line fails", async () => {
+			mockTask.background = true
+			mockTask.agentId = "js-agent"
+			mockTerminal.getCurrentWorkingDirectory.mockReturnValue("/test/project")
+			mockTerminal.runCommand.mockImplementation((_command: string, callbacks: RooTerminalCallbacks) => {
+				let resolveProcess: (() => void) | undefined
+				const process = new Promise<void>((resolve) => {
+					resolveProcess = resolve
+				}) as any
+				process.continue = vitest.fn()
+				setTimeout(async () => {
+					callbacks.onShellExecutionComplete({ exitCode: 1 }, process)
+					await callbacks.onCompleted("The command line is too long.", process)
+					resolveProcess?.()
+				}, 0)
+				return process
+			})
+
+			const options: ExecuteCommandOptions = {
+				executionId: "test-123",
+				command: "powershell -Command \"@'`n$largeGeneratedFileContent`n'@ | Set-Content app.js\"",
+				terminalShellIntegrationDisabled: false,
+			}
+
+			const [rejected, result] = await executeCommandInTerminal(mockTask, options)
+
+			expect(rejected).toBe(false)
+			expect(result).toContain("Exit code: 1")
+			expect(result).toContain("The command line is too long.")
+			expect(result).toContain("retry with the normal write/edit tools")
+			expect(result).toContain("not for embedding file contents")
+		})
+
 		it("should handle command terminated by signal", async () => {
 			mockTerminal.getCurrentWorkingDirectory.mockReturnValue("/test/project")
 			mockTerminal.runCommand.mockImplementation((command: string, callbacks: RooTerminalCallbacks) => {
@@ -437,5 +498,229 @@ describe("executeCommand", () => {
 			// Verify the terminal's getCurrentWorkingDirectory was called
 			expect(mockTerminalInstance.getCurrentWorkingDirectory).toHaveBeenCalled()
 		})
+	})
+})
+
+describe("ExecuteCommandTool background agents", () => {
+	const originalPlatform = process.platform
+
+	beforeEach(() => {
+		vitest.clearAllMocks()
+	})
+
+	afterEach(() => {
+		Object.defineProperty(process, "platform", { value: originalPlatform })
+	})
+
+	it("uses the normal command approval path for background parallel agents", async () => {
+		const tool = new ExecuteCommandTool()
+		const command = "powershell -Command \"Set-Content -Path src/app.ts -Value 'content'\""
+		const task: any = {
+			background: true,
+			agentId: "ui-agent",
+			consecutiveMistakeCount: 0,
+			recordToolError: vitest.fn(),
+		}
+		const callbacks: any = {
+			pushToolResult: vitest.fn(),
+			askApproval: vitest.fn().mockResolvedValue(false),
+			handleError: vitest.fn(),
+		}
+
+		await tool.execute({ command }, task, callbacks)
+
+		expect(callbacks.askApproval).toHaveBeenCalledWith("command", command)
+		expect(task.recordToolError).not.toHaveBeenCalled()
+		expect(callbacks.pushToolResult).not.toHaveBeenCalled()
+	})
+
+	it("returns pre-execution recovery guidance for direct Set-Content here-string values", async () => {
+		const tool = new ExecuteCommandTool()
+		const command = `powershell -Command "Set-Content -Path 'server/index.js' -Value @'
+import 'dotenv/config';
+console.log('ok');
+'@ -Encoding UTF8"`
+		const task: any = {
+			background: true,
+			agentId: "server-agent",
+			cwd: "c:/tmp/worktree",
+			taskId: "background-task-direct-here-string",
+			consecutiveMistakeCount: 0,
+			recordToolError: vitest.fn(),
+			say: vitest.fn().mockResolvedValue(undefined),
+		}
+		const callbacks: any = {
+			pushToolResult: vitest.fn(),
+			askApproval: vitest.fn().mockResolvedValue(true),
+			handleError: vitest.fn(),
+		}
+
+		await tool.execute({ command }, task, callbacks)
+
+		expect(callbacks.askApproval).not.toHaveBeenCalled()
+		expect(TerminalRegistry.getOrCreateTerminal).not.toHaveBeenCalled()
+		expect(callbacks.handleError).not.toHaveBeenCalled()
+		expect(callbacks.pushToolResult).toHaveBeenCalledTimes(1)
+		const result = callbacks.pushToolResult.mock.calls[0][0]
+		expect(result).toContain("Command not executed")
+		expect(result).toContain("PowerShell here-string")
+		expect(result).toContain("retry with the normal write/edit tools")
+		expect(result).toContain("not for embedding file contents")
+	})
+
+	it("continues to run normal non-file-write PowerShell commands for background agents", async () => {
+		;(fs.access as any).mockResolvedValue(undefined)
+
+		const tool = new ExecuteCommandTool()
+		const command = "powershell -Command \"Write-Output 'ok'\""
+		const task: any = {
+			background: true,
+			agentId: "server-agent",
+			cwd: "/test/project",
+			taskId: "background-task-normal-powershell",
+			lastMessageTs: 123,
+			consecutiveMistakeCount: 0,
+			recordToolError: vitest.fn(),
+			say: vitest.fn().mockResolvedValue(undefined),
+			supersedePendingAsk: vitest.fn(),
+			providerRef: {
+				deref: vitest.fn().mockResolvedValue({
+					postMessageToWebview: vitest.fn(),
+					getState: vitest.fn().mockResolvedValue({ terminalShellIntegrationDisabled: true }),
+				}),
+			},
+		}
+		const terminal: any = {
+			provider: "execa",
+			id: 1,
+			initialCwd: "/test/project",
+			getCurrentWorkingDirectory: vitest.fn().mockReturnValue("/test/project"),
+			runCommand: vitest.fn().mockImplementation((_command: string, callbacks: RooTerminalCallbacks) => {
+				let resolveProcess: (() => void) | undefined
+				const process = new Promise<void>((resolve) => {
+					resolveProcess = resolve
+				}) as any
+				process.continue = vitest.fn()
+				setTimeout(async () => {
+					callbacks.onShellExecutionComplete({ exitCode: 0 }, process)
+					await callbacks.onCompleted("ok", process)
+					resolveProcess?.()
+				}, 0)
+				return process
+			}),
+		}
+		;(TerminalRegistry.getOrCreateTerminal as any).mockResolvedValue(terminal)
+		const callbacks: any = {
+			pushToolResult: vitest.fn(),
+			askApproval: vitest.fn().mockResolvedValue(true),
+			handleError: vitest.fn(),
+		}
+
+		await tool.execute({ command }, task, callbacks)
+
+		expect(callbacks.askApproval).toHaveBeenCalledWith("command", command)
+		expect(TerminalRegistry.getOrCreateTerminal).toHaveBeenCalledWith(task.cwd, task.taskId, "execa")
+		expect(terminal.runCommand).toHaveBeenCalledWith(command, expect.any(Object))
+		expect(callbacks.handleError).not.toHaveBeenCalled()
+		expect(callbacks.pushToolResult).toHaveBeenCalledTimes(1)
+		expect(callbacks.pushToolResult.mock.calls[0][0]).toContain("Exit code: 0")
+	})
+
+	it("returns pre-execution recovery guidance for oversized background shell file writes on Windows", async () => {
+		Object.defineProperty(process, "platform", { value: "win32" })
+
+		const tool = new ExecuteCommandTool()
+		const hugeContent = "x".repeat(9_000)
+		const command = `cd /d "c:\\Users\\clayton\\Desktop\\test\\.roo\\parallel-worktrees\\plan-mpoqu33b\\component-agent" && powershell -Command "$content = @'
+${hugeContent}
+'@; Set-Content -Path app.js -Value $content"`
+		const task: any = {
+			background: true,
+			agentId: "component-agent",
+			cwd: "c:/Users/clayton/Desktop/test/.roo/parallel-worktrees/plan-mpoqu33b/component-agent",
+			taskId: "background-task-1",
+			consecutiveMistakeCount: 0,
+			recordToolError: vitest.fn(),
+			say: vitest.fn().mockResolvedValue(undefined),
+		}
+		const callbacks: any = {
+			pushToolResult: vitest.fn(),
+			askApproval: vitest.fn().mockResolvedValue(true),
+			handleError: vitest.fn(),
+		}
+
+		await tool.execute({ command }, task, callbacks)
+
+		expect(callbacks.askApproval).not.toHaveBeenCalled()
+		expect(TerminalRegistry.getOrCreateTerminal).not.toHaveBeenCalled()
+		expect(callbacks.handleError).not.toHaveBeenCalled()
+		expect(callbacks.pushToolResult).toHaveBeenCalledTimes(1)
+		const result = callbacks.pushToolResult.mock.calls[0][0]
+		expect(result).toContain("Command not executed")
+		expect(result).toContain("exceeds the Windows shell command-length safety limit")
+		expect(result).toContain("retry with the normal write/edit tools")
+		expect(result).toContain("not for embedding file contents")
+	})
+
+	it("does not preflight long background commands that are not shell file writes", async () => {
+		Object.defineProperty(process, "platform", { value: "win32" })
+
+		const tool = new ExecuteCommandTool()
+		const command = `node -e "console.log('${"x".repeat(9_000)}')"`
+		const task: any = {
+			background: true,
+			agentId: "component-agent",
+			consecutiveMistakeCount: 0,
+			recordToolError: vitest.fn(),
+		}
+		const callbacks: any = {
+			pushToolResult: vitest.fn(),
+			askApproval: vitest.fn().mockResolvedValue(false),
+			handleError: vitest.fn(),
+		}
+
+		await tool.execute({ command }, task, callbacks)
+
+		expect(callbacks.askApproval).toHaveBeenCalledWith("command", command)
+		expect(callbacks.pushToolResult).not.toHaveBeenCalled()
+		expect(TerminalRegistry.getOrCreateTerminal).not.toHaveBeenCalled()
+	})
+
+	it("blocks background agents with malformed here-string headers regardless of command length (Issue 3)", async () => {
+		// A short command (well under 8000 chars) with a here-string whose @' delimiter
+		// is NOT followed immediately by a newline — this produces a PowerShell parser
+		// error and must be blocked pre-execution.
+		const tool = new ExecuteCommandTool()
+		// Inline here-string: @' is followed by content on the same line (malformed).
+		const command =
+			`powershell -Command "$content = @'some content on same line as delimiter'@; ` +
+			`Set-Content -Path app.js -Value $content"`
+		expect(command.length).toBeLessThan(8_000)
+
+		const task: any = {
+			background: true,
+			agentId: "component-agent",
+			cwd: "c:/tmp/worktree",
+			taskId: "background-task-malformed",
+			consecutiveMistakeCount: 0,
+			recordToolError: vitest.fn(),
+			say: vitest.fn().mockResolvedValue(undefined),
+		}
+		const callbacks: any = {
+			pushToolResult: vitest.fn(),
+			askApproval: vitest.fn().mockResolvedValue(true),
+			handleError: vitest.fn(),
+		}
+
+		await tool.execute({ command }, task, callbacks)
+
+		expect(callbacks.askApproval).not.toHaveBeenCalled()
+		expect(TerminalRegistry.getOrCreateTerminal).not.toHaveBeenCalled()
+		expect(callbacks.handleError).not.toHaveBeenCalled()
+		expect(callbacks.pushToolResult).toHaveBeenCalledTimes(1)
+		const result = callbacks.pushToolResult.mock.calls[0][0]
+		expect(result).toContain("Command not executed")
+		expect(result).toContain("malformed PowerShell here-string header")
+		expect(result).toContain("retry with the normal write/edit tools")
 	})
 })

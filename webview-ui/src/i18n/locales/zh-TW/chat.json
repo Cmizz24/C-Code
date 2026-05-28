@@ -306,6 +306,48 @@
 		"completionInstructions": "子任務已完成！您可以檢閱結果並提出修正或後續步驟。如果一切順利，請確認以將結果回傳給主任務。",
 		"goToSubtask": "查看工作"
 	},
+	"parallelAgents": {
+		"details": {
+			"task": "任務",
+			"ownedFiles": "歸屬檔案",
+			"mustNotTouch": "不得碰觸",
+			"status": "狀態",
+			"waiting": "等待",
+			"lastTouched": "最後碰觸",
+			"usage": "用量",
+			"worktree": "Worktree",
+			"activity": "活動",
+			"conflicts": "衝突",
+			"none": "無",
+			"ready": "就緒",
+			"waitingOn": "正在等待 {{agents}}",
+			"noFileWrites": "尚無檔案寫入",
+			"noUsage": "尚未回報用量",
+			"noActivity": "尚未回報活動",
+			"noConflicts": "無衝突"
+		},
+		"mergeReview": {
+			"title": "審查代理變更",
+			"description": "核准代理分支以合併回儲存庫，或丟棄未核准的 worktree。",
+			"approved": "已核准",
+			"approveAndMerge": "核准並合併",
+			"discard": "丟棄",
+			"showDiff": "顯示 diff",
+			"hideDiff": "隱藏 diff",
+			"noChanges": "此代理 worktree 中未偵測到變更。",
+			"noChangesReported": "未回報任何變更。",
+			"close": "關閉",
+			"mergeAllApproved": "合併所有已核准項目",
+			"stats": {
+				"files_one": "{{count}} 個檔案",
+				"files_other": "{{count}} 個檔案",
+				"lines_one": "{{count}} 行",
+				"lines_other": "{{count}} 行",
+				"binaryFiles_one": "{{count}} 個二進位檔案",
+				"binaryFiles_other": "{{count}} 個二進位檔案"
+			}
+		}
+	},
 	"questions": {
 		"hasQuestion": "Roo 有一個問題"
 	},

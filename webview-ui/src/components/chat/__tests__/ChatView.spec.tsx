@@ -1,7 +1,7 @@
 // pnpm --filter @roo-code/vscode-webview test src/components/chat/__tests__/ChatView.spec.tsx
 
 import React from "react"
-import { render, waitFor, act, fireEvent } from "@/utils/test-utils"
+import { render, waitFor, act, fireEvent, screen } from "@/utils/test-utils"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import { ExtensionStateContextProvider } from "@src/context/ExtensionStateContext"
@@ -47,6 +47,18 @@ vi.mock("use-sound", () => ({
 // Mock components that use ESM dependencies
 vi.mock("../ChatRow", () => ({
 	default: function MockChatRow({ message }: { message: ClineMessage }) {
+		if (message.type === "say" && message.say === "tool" && message.text) {
+			try {
+				const tool = JSON.parse(message.text)
+
+				if (tool.tool === "parallelAgents") {
+					return <section data-testid="agent-status-chat-card">Parallel agents status</section>
+				}
+			} catch {
+				// Fall through to the generic chat row mock for malformed tool payloads.
+			}
+		}
+
 		return <div data-testid="chat-row">{JSON.stringify(message)}</div>
 	},
 }))
@@ -174,12 +186,14 @@ vi.mock("react-i18next", () => ({
 
 interface ChatTextAreaProps {
 	onSend: () => void
+	onStop?: () => void
 	inputValue?: string
 	setInputValue?: (value: string) => void
 	sendingDisabled?: boolean
 	placeholderText?: string
 	selectedImages?: string[]
 	shouldDisableImages?: boolean
+	isStreaming?: boolean
 }
 
 const mockInputRef = React.createRef<HTMLInputElement>()
@@ -200,6 +214,12 @@ vi.mock("../ChatTextArea", () => {
 
 		return (
 			<div data-testid="chat-textarea">
+				<button
+					type="button"
+					data-testid="chat-textarea-send-stop"
+					onClick={props.isStreaming ? props.onStop : props.onSend}>
+					{props.isStreaming ? "stop" : "send"}
+				</button>
 				<input
 					ref={mockInputRef}
 					type="text"
@@ -1194,8 +1214,111 @@ describe("ChatView - Parallel Agent Status Tests", () => {
 		vi.clearAllMocks()
 	})
 
-	it("renders parallel status as a scrollable chat item instead of a persistent panel", async () => {
+	const createExecutionPlan = () => ({
+		planId: "plan-chat-flow",
+		sharedContext: "shared",
+		fileOwnershipMap: {},
+		createdAt: 12345,
+		agents: [
+			{
+				id: "agent-1",
+				mode: "code",
+				task: "Build UI",
+				owns: [{ path: "src/ui.tsx", mode: "exclusive" }],
+				mustNotTouch: [],
+				dependsOn: [],
+				worktreePath: "",
+				status: "running",
+				signals: [],
+			},
+			{
+				id: "agent-2",
+				mode: "code",
+				task: "Build styles",
+				owns: [{ path: "src/styles.css", mode: "exclusive" }],
+				mustNotTouch: [],
+				dependsOn: [],
+				worktreePath: "",
+				status: "complete",
+				signals: [],
+			},
+		],
+	})
+
+	const createParallelReviewMessage = (toolOverrides: Record<string, any> = {}, ts = Date.now()): ClineMessage => ({
+		type: "say",
+		say: "tool",
+		ts,
+		text: JSON.stringify({
+			tool: "parallelAgents",
+			executionPlan: createExecutionPlan(),
+			parallelStatus: "review",
+			mergeReviewEntries: [
+				{
+					agentId: "agent-1",
+					mode: "code",
+					task: "Build UI",
+					diff: "diff --git a/src/ui.tsx b/src/ui.tsx\n+done\n",
+					worktreePath: "/tmp/agent-1",
+					branch: "roo/parallel/plan-chat-flow/agent-1",
+					mergeStatus: "pending",
+				},
+				{
+					agentId: "agent-2",
+					mode: "code",
+					task: "Build styles",
+					diff: "diff --git a/src/styles.css b/src/styles.css\n+done\n",
+					worktreePath: "/tmp/agent-2",
+					branch: "roo/parallel/plan-chat-flow/agent-2",
+					mergeStatus: "merged",
+				},
+			],
+			...toolOverrides,
+		}),
+	})
+
+	it("renders persisted parallel agent status as a native scrollable tool row", async () => {
 		const { getByTestId, queryByTestId } = renderChatView()
+		const executionPlan = createExecutionPlan()
+
+		mockPostMessage({
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Initial task",
+				},
+				{
+					type: "say",
+					say: "text",
+					ts: Date.now() - 1000,
+					text: "Working on parallel plan",
+				},
+				{
+					type: "say",
+					say: "tool",
+					ts: Date.now(),
+					text: JSON.stringify({
+						tool: "parallelAgents",
+						executionPlan,
+						parallelStatus: "running",
+					}),
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(getByTestId("agent-status-chat-card")).toBeInTheDocument()
+		})
+
+		const list = getByTestId("virtuoso-item-list")
+		expect(list).toContainElement(getByTestId("agent-status-chat-card"))
+		expect(queryByTestId("chat-textarea")).toBeInTheDocument()
+	})
+
+	it("does not append a synthetic parallel status row from active extension state alone", async () => {
+		const { queryByTestId } = renderChatView()
 
 		mockPostMessage({
 			clineMessages: [
@@ -1212,33 +1335,181 @@ describe("ChatView - Parallel Agent Status Tests", () => {
 					text: "Working on parallel plan",
 				},
 			],
-			activeExecutionPlan: {
-				planId: "plan-chat-flow",
-				sharedContext: "shared",
-				fileOwnershipMap: {},
-				createdAt: 12345,
-				agents: [
-					{
-						id: "agent-1",
-						mode: "code",
-						task: "Build UI",
-						owns: [{ path: "src/ui.tsx", mode: "exclusive" }],
-						mustNotTouch: [],
-						dependsOn: [],
-						worktreePath: "",
-						status: "running",
-						signals: [],
-					},
-				],
-			},
+			activeExecutionPlan: createExecutionPlan(),
 		})
 
 		await waitFor(() => {
-			expect(getByTestId("agent-status-chat-card")).toBeInTheDocument()
+			expect(queryByTestId("chat-textarea")).toBeInTheDocument()
 		})
 
-		const list = getByTestId("virtuoso-item-list")
-		expect(list).toContainElement(getByTestId("agent-status-chat-card"))
-		expect(queryByTestId("chat-textarea")).toBeInTheDocument()
+		expect(queryByTestId("agent-status-chat-card")).not.toBeInTheDocument()
+	})
+
+	it("uses the standard chat stop button to cancel an active parallel execution plan", async () => {
+		renderChatView()
+
+		mockPostMessage({
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Initial task",
+				},
+				{
+					type: "say",
+					say: "text",
+					ts: Date.now() - 1000,
+					text: "Working on parallel plan",
+				},
+			],
+			activeExecutionPlan: createExecutionPlan(),
+		})
+
+		await waitFor(() => expect(screen.getByTestId("chat-textarea-send-stop")).toHaveTextContent("stop"))
+		fireEvent.click(screen.getByTestId("chat-textarea-send-stop"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "cancelTask" })
+	})
+
+	it("uses bottom chat controls to approve selectable persisted merge review entries", async () => {
+		renderChatView()
+
+		mockPostMessage({
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Initial task",
+				},
+				createParallelReviewMessage({}, Date.now()),
+			],
+		})
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: "chat:parallelAgents.mergeReview.mergeAllApproved" }),
+			).toBeInTheDocument()
+		})
+
+		vi.mocked(vscode.postMessage).mockClear()
+		fireEvent.click(screen.getByRole("button", { name: "chat:parallelAgents.mergeReview.mergeAllApproved" }))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "mergeApprovedAgents", ids: ["agent-1"] })
+	})
+
+	it("uses bottom chat controls to deny a persisted merge review even while a parallel plan is active", async () => {
+		const executionPlan = createExecutionPlan()
+		renderChatView()
+
+		mockPostMessage({
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Initial task",
+				},
+				createParallelReviewMessage({ executionPlan }, Date.now()),
+			],
+			activeExecutionPlan: executionPlan,
+		})
+
+		await waitFor(() => {
+			expect(screen.getByRole("button", { name: "chat:reject.title" })).toBeInTheDocument()
+		})
+
+		vi.mocked(vscode.postMessage).mockClear()
+		fireEvent.click(screen.getByRole("button", { name: "chat:reject.title" }))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "mergeDeniedAgents", ids: ["agent-1"] })
+		expect(vscode.postMessage).not.toHaveBeenCalledWith({ type: "cancelTask" })
+	})
+
+	it("clears bottom merge review controls when the latest persisted parallelAgents row is terminal", async () => {
+		renderChatView()
+
+		const taskMessage: ClineMessage = {
+			type: "say",
+			say: "task",
+			ts: Date.now() - 3000,
+			text: "Initial task",
+		}
+		mockPostMessage({
+			clineMessages: [taskMessage, createParallelReviewMessage({}, Date.now() - 2000)],
+		})
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: "chat:parallelAgents.mergeReview.mergeAllApproved" }),
+			).toBeInTheDocument()
+		})
+
+		mockPostMessage({
+			clineMessages: [
+				taskMessage,
+				createParallelReviewMessage(
+					{
+						parallelStatus: "merged",
+						mergeReviewEntries: [],
+					},
+					Date.now(),
+				),
+			],
+		})
+
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("button", { name: "chat:parallelAgents.mergeReview.mergeAllApproved" }),
+			).not.toBeInTheDocument()
+			expect(screen.queryByRole("button", { name: "chat:reject.title" })).not.toBeInTheDocument()
+		})
+	})
+
+	it("keeps denial available without showing an approval button when no review entries are selectable", async () => {
+		renderChatView()
+
+		mockPostMessage({
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Initial task",
+				},
+				createParallelReviewMessage(
+					{
+						mergeReviewEntries: [
+							{
+								agentId: "agent-1",
+								mode: "code",
+								task: "Build UI",
+								diff: "",
+								worktreePath: "/tmp/agent-1",
+								branch: "roo/parallel/plan-chat-flow/agent-1",
+								mergeStatus: "failed",
+								mergeable: false,
+								mergeError: "CONFLICT",
+							},
+						],
+					},
+					Date.now(),
+				),
+			],
+		})
+
+		await waitFor(() => {
+			expect(screen.getByRole("button", { name: "chat:reject.title" })).toBeInTheDocument()
+		})
+
+		expect(
+			screen.queryByRole("button", { name: "chat:parallelAgents.mergeReview.mergeAllApproved" }),
+		).not.toBeInTheDocument()
+
+		vi.mocked(vscode.postMessage).mockClear()
+		fireEvent.click(screen.getByRole("button", { name: "chat:reject.title" }))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "mergeDeniedAgents", ids: [] })
 	})
 })

@@ -60,8 +60,11 @@ interface BedrockInferenceConfig {
 // This includes thinking configuration, 1M context beta, and other model-specific parameters
 interface BedrockAdditionalModelFields {
 	thinking?: {
-		type: "enabled"
-		budget_tokens: number
+		type: "enabled" | "adaptive"
+		budget_tokens?: number
+	}
+	output_config?: {
+		effort?: "low" | "medium" | "high" | "xhigh"
 	}
 	anthropic_beta?: string[]
 	[key: string]: any // Add index signature to be compatible with DocumentType
@@ -401,11 +404,32 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 				modelId: modelConfig.id,
 				thinking: additionalModelRequestFields.thinking,
 			})
+		} else if (modelConfig.info.supportsReasoningAdaptive && this.options.enableReasoningEffort) {
+			thinkingEnabled = true
+			const adaptiveThinkingEffort =
+				this.options.reasoningEffort &&
+				this.options.reasoningEffort !== "disable" &&
+				this.options.reasoningEffort !== "none" &&
+				this.options.reasoningEffort !== "minimal"
+					? this.options.reasoningEffort
+					: modelConfig.info.adaptiveThinkingEffort
+			additionalModelRequestFields = {
+				thinking: { type: "adaptive" },
+				...(adaptiveThinkingEffort && { output_config: { effort: adaptiveThinkingEffort } }),
+			}
+
+			logger.info("Adaptive thinking enabled for Bedrock request", {
+				ctx: "bedrock",
+				modelId: modelConfig.id,
+				thinking: additionalModelRequestFields.thinking,
+			})
 		}
 
 		const inferenceConfig: BedrockInferenceConfig = {
 			maxTokens: modelConfig.maxTokens || (modelConfig.info.maxTokens as number),
-			temperature: modelConfig.temperature ?? (this.options.modelTemperature as number),
+			...(modelConfig.temperature === undefined
+				? {}
+				: { temperature: modelConfig.temperature ?? (this.options.modelTemperature as number) }),
 		}
 
 		// Check if 1M context is enabled for supported Claude 4 models
@@ -743,7 +767,9 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 
 			const inferenceConfig: BedrockInferenceConfig = {
 				maxTokens: modelConfig.maxTokens || (modelConfig.info.maxTokens as number),
-				temperature: modelConfig.temperature ?? (this.options.modelTemperature as number),
+				...(modelConfig.temperature === undefined
+					? {}
+					: { temperature: modelConfig.temperature ?? (this.options.modelTemperature as number) }),
 			}
 
 			// For completePrompt, use a unique conversation ID based on the prompt

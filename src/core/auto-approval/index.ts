@@ -20,6 +20,7 @@ export type AutoApprovalState =
 	| "alwaysAllowMcp"
 	| "alwaysAllowModeSwitch"
 	| "alwaysAllowSubtasks"
+	| "alwaysAllowParallelTasks"
 	| "alwaysAllowExecute"
 	| "alwaysAllowFollowupQuestions"
 

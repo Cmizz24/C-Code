@@ -17,6 +17,7 @@ import { convertNewFileToUnifiedDiff, computeDiffStats, sanitizeUnifiedDiff } fr
 import type { ToolUse } from "../../shared/tools"
 
 import { BaseTool, ToolCallbacks } from "./BaseTool"
+import { createDiffViewProgressReporter, formatChangeSummary, reportFileProgress } from "./fileProgress"
 
 interface WriteToFileParams {
 	path: string
@@ -67,6 +68,7 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 		}
 
 		didAcquireWriteIntent = true
+		reportFileProgress(task, relPath, `Preparing write for ${relPath}.`)
 
 		try {
 			let fileExists: boolean
@@ -118,11 +120,14 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 				state?.experiments ?? {},
 				EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
 			)
+			const shouldSaveDirectly = isPreventFocusDisruptionEnabled
+			const saveMessage = fileExists ? `Saving changes to ${relPath}.` : `Saving new file ${relPath}.`
 
-			if (isPreventFocusDisruptionEnabled) {
+			if (shouldSaveDirectly) {
 				task.diffViewProvider.editType = fileExists ? "modify" : "create"
 				if (fileExists) {
 					const absolutePath = path.resolve(task.cwd, relPath)
+					reportFileProgress(task, relPath, `Reading ${relPath} before writing changes.`)
 					task.diffViewProvider.originalContent = await fs.readFile(absolutePath, "utf-8")
 				} else {
 					task.diffViewProvider.originalContent = ""
@@ -132,26 +137,39 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 					? formatResponse.createPrettyPatch(relPath, task.diffViewProvider.originalContent, newContent)
 					: convertNewFileToUnifiedDiff(newContent, relPath)
 				unified = sanitizeUnifiedDiff(unified)
+				const diffStats = computeDiffStats(unified) || undefined
+				const changeSummary = formatChangeSummary(diffStats)
 				const completeMessage = JSON.stringify({
 					...sharedMessageProps,
 					content: unified,
-					diffStats: computeDiffStats(unified) || undefined,
+					diffStats,
 				} satisfies ClineSayTool)
 
+				reportFileProgress(task, relPath, `Waiting for write approval for ${relPath}${changeSummary}.`)
 				const didApprove = await askApproval("tool", completeMessage, undefined, isWriteProtected)
 
 				if (!didApprove) {
 					return
 				}
 
-				await task.diffViewProvider.saveDirectly(relPath, newContent, false, diagnosticsEnabled, writeDelayMs)
+				reportFileProgress(task, relPath, saveMessage)
+				await task.diffViewProvider.saveDirectly(
+					relPath,
+					newContent,
+					false,
+					diagnosticsEnabled,
+					writeDelayMs,
+					createDiffViewProgressReporter(task, relPath, { saveMessage }),
+				)
 			} else {
 				if (!task.diffViewProvider.isEditing) {
 					const partialMessage = JSON.stringify(sharedMessageProps)
 					await task.ask("tool", partialMessage, true).catch(() => {})
+					reportFileProgress(task, relPath, `Opening write preview for ${relPath}.`)
 					await task.diffViewProvider.open(relPath)
 				}
 
+				reportFileProgress(task, relPath, `Rendering write preview for ${relPath}.`)
 				await task.diffViewProvider.update(
 					everyLineHasLineNumbers(newContent) ? stripLineNumbers(newContent) : newContent,
 					true,
@@ -164,12 +182,15 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 					? formatResponse.createPrettyPatch(relPath, task.diffViewProvider.originalContent, newContent)
 					: convertNewFileToUnifiedDiff(newContent, relPath)
 				unified = sanitizeUnifiedDiff(unified)
+				const diffStats = computeDiffStats(unified) || undefined
+				const changeSummary = formatChangeSummary(diffStats)
 				const completeMessage = JSON.stringify({
 					...sharedMessageProps,
 					content: unified,
-					diffStats: computeDiffStats(unified) || undefined,
+					diffStats,
 				} satisfies ClineSayTool)
 
+				reportFileProgress(task, relPath, `Waiting for write approval for ${relPath}${changeSummary}.`)
 				const didApprove = await askApproval("tool", completeMessage, undefined, isWriteProtected)
 
 				if (!didApprove) {
@@ -177,9 +198,15 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 					return
 				}
 
-				await task.diffViewProvider.saveChanges(diagnosticsEnabled, writeDelayMs)
+				reportFileProgress(task, relPath, saveMessage)
+				await task.diffViewProvider.saveChanges(
+					diagnosticsEnabled,
+					writeDelayMs,
+					createDiffViewProgressReporter(task, relPath, { saveMessage }),
+				)
 			}
 
+			reportFileProgress(task, relPath, `Finalizing write result for ${relPath}.`)
 			if (relPath) {
 				await task.fileContextTracker.trackFileContext(relPath, "roo_edited" as RecordSource)
 			}
@@ -239,12 +266,6 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 			task.diffViewProvider.editType = fileExists ? "modify" : "create"
 		}
 
-		// Create parent directories early for new files to prevent ENOENT errors
-		// in subsequent operations (e.g., diffViewProvider.open)
-		if (!fileExists) {
-			await createDirectoriesForFile(absolutePath)
-		}
-
 		const isWriteProtected = task.rooProtectedController?.isWriteProtected(relPath!) || false
 		const isOutsideWorkspace = isPathOutsideWorkspace(absolutePath)
 
@@ -254,6 +275,12 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 			content: newContent || "",
 			isOutsideWorkspace,
 			isProtected: isWriteProtected,
+		}
+
+		// Create parent directories early for new files to prevent ENOENT errors
+		// in subsequent operations (e.g., diffViewProvider.open)
+		if (!fileExists) {
+			await createDirectoriesForFile(absolutePath)
 		}
 
 		const partialMessage = JSON.stringify(sharedMessageProps)

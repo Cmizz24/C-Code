@@ -249,6 +249,12 @@
 			"label": "उप-कार्य",
 			"description": "अनुमोदन की आवश्यकता के बिना उप-कार्यों के निर्माण और पूर्णता की अनुमति दें"
 		},
+		"parallelTasks": {
+			"label": "समानांतर कार्य",
+			"maxConcurrentLabel": "अधिकतम समानांतर agents",
+			"maxConcurrentDescription": "चुनें कि स्वीकृत समानांतर कार्य योजना के लिए एक बार में कितने agents चल सकते हैं ({{min}}–{{max}})। लंबित agents तब शुरू होते हैं जब चल रहे agents समाप्त होते हैं।",
+			"description": "मान्य समानांतर कार्य योजनाओं को अपने आप स्वीकृत करें और योजना पूर्वावलोकन मोडल दिखाए बिना agents शुरू करें"
+		},
 		"followupQuestions": {
 			"label": "प्रश्न",
 			"description": "कॉन्फ़िगर किए गए टाइमआउट के बाद अनुवर्ती प्रश्नों के लिए पहले सुझाए गए उत्तर को स्वचालित रूप से चुनें",
@@ -389,6 +395,9 @@
 		"minimaxApiKey": "MiniMax API कुंजी",
 		"getMiniMaxApiKey": "MiniMax API कुंजी प्राप्त करें",
 		"minimaxBaseUrl": "MiniMax प्रवेश बिंदु",
+		"xiaomiMiMoApiKey": "Xiaomi MiMo API कुंजी",
+		"getXiaomiMiMoApiKey": "Xiaomi MiMo API कुंजी प्राप्त करें",
+		"xiaomiMiMoBaseUrl": "Xiaomi MiMo प्रवेश बिंदु",
 		"geminiApiKey": "Gemini API कुंजी",
 		"getSambaNovaApiKey": "SambaNova API कुंजी प्राप्त करें",
 		"sambaNovaApiKey": "SambaNova API कुंजी",

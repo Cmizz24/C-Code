@@ -899,34 +899,35 @@ describe("VertexHandler", () => {
 			expect(model.betas).toContain("context-1m-2025-08-07")
 		})
 
-		it("should enable 1M context for Claude Sonnet 4.6 when beta flag is set", () => {
+		it("should use GA 1M context and standard pricing for Claude Sonnet 4.6", () => {
 			const handler = new AnthropicVertexHandler({
 				apiModelId: "claude-sonnet-4-6",
 				vertexProjectId: "test-project",
 				vertexRegion: "us-central1",
-				vertex1MContext: true,
+				vertex1MContext: false,
 			})
 
 			const model = handler.getModel()
 			expect(model.info.contextWindow).toBe(1_000_000)
-			expect(model.info.inputPrice).toBe(6.0)
-			expect(model.info.outputPrice).toBe(22.5)
-			expect(model.betas).toContain("context-1m-2025-08-07")
+			expect(model.info.inputPrice).toBe(3.0)
+			expect(model.info.outputPrice).toBe(15.0)
+			expect(model.betas).toBeUndefined()
 		})
 
-		it("should enable 1M context for Claude Opus 4.7 when beta flag is set", () => {
+		it("should use GA 1M context and 128K output for Claude Opus 4.7", () => {
 			const handler = new AnthropicVertexHandler({
 				apiModelId: "claude-opus-4-7",
 				vertexProjectId: "test-project",
 				vertexRegion: "us-central1",
-				vertex1MContext: true,
+				vertex1MContext: false,
 			})
 
 			const model = handler.getModel()
 			expect(model.info.contextWindow).toBe(1_000_000)
-			expect(model.info.inputPrice).toBe(10.0)
-			expect(model.info.outputPrice).toBe(37.5)
-			expect(model.betas).toContain("context-1m-2025-08-07")
+			expect(model.info.maxTokens).toBe(128_000)
+			expect(model.info.inputPrice).toBe(5.0)
+			expect(model.info.outputPrice).toBe(25.0)
+			expect(model.betas).toBeUndefined()
 		})
 
 		it("should not enable 1M context when flag is disabled", () => {

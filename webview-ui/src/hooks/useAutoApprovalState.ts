@@ -7,6 +7,7 @@ interface AutoApprovalToggles {
 	alwaysAllowMcp?: boolean
 	alwaysAllowModeSwitch?: boolean
 	alwaysAllowSubtasks?: boolean
+	alwaysAllowParallelTasks?: boolean
 	alwaysAllowFollowupQuestions?: boolean
 }
 

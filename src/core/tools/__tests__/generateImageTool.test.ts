@@ -53,6 +53,8 @@ describe("generateImageTool", () => {
 			fileContextTracker: {
 				trackFileContext: vi.fn(),
 			},
+			requestAgentWriteIntent: vi.fn().mockReturnValue({ approved: true }),
+			releaseAgentWriteIntent: vi.fn(),
 			didEditFile: false,
 		}
 
@@ -163,7 +165,52 @@ describe("generateImageTool", () => {
 			// Should process the complete block
 			expect(mockAskApproval).toHaveBeenCalled()
 			expect(mockGenerateImage).toHaveBeenCalled()
+			expect(mockCline.requestAgentWriteIntent).toHaveBeenCalledWith("test-image.png")
+			expect(mockCline.releaseAgentWriteIntent).toHaveBeenCalledWith("test-image.png")
 			expect(mockPushToolResult).toHaveBeenCalled()
+		})
+
+		it("should not write image when agent write intent is rejected", async () => {
+			mockCline.requestAgentWriteIntent.mockReturnValue({
+				approved: false,
+				reason: "test-image.png is owned by another agent.",
+			})
+
+			const completeBlock: ToolUse = {
+				type: "tool_use",
+				name: "generate_image",
+				params: {
+					prompt: "Generate a test image",
+					path: "test-image.png",
+				},
+				nativeArgs: {
+					prompt: "Generate a test image",
+					path: "test-image.png",
+				},
+				partial: false,
+			}
+
+			const mockGenerateImage = vi.fn().mockResolvedValue({
+				success: true,
+				imageData: "data:image/png;base64,fakebase64data",
+			})
+
+			vi.mocked(OpenRouterHandler).mockImplementation(
+				() =>
+					({
+						generateImage: mockGenerateImage,
+					}) as any,
+			)
+
+			await generateImageTool.handle(mockCline as Task, completeBlock as ToolUse<"generate_image">, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(mockCline.say).toHaveBeenCalledWith("error", "test-image.png is owned by another agent.")
+			expect(fs.writeFile).not.toHaveBeenCalled()
+			expect(mockCline.releaseAgentWriteIntent).not.toHaveBeenCalled()
 		})
 
 		it("should add cache-busting parameter to image URI", async () => {

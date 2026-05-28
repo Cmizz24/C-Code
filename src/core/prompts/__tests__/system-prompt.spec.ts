@@ -43,6 +43,10 @@ vi.mock("os-name", () => ({
 
 vi.mock("fs/promises")
 
+import { readFileSync, writeFileSync } from "node:fs"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
+
 import * as vscode from "vscode"
 
 import { ModeConfig } from "@roo-code/types"
@@ -53,6 +57,21 @@ import { defaultModeSlug, modes, Mode } from "../../../shared/modes"
 import "../../../utils/path"
 import { addCustomInstructions } from "../sections/custom-instructions"
 import { MultiSearchReplaceDiffStrategy } from "../../diff/strategies/multi-search-replace"
+
+const testDir = path.dirname(fileURLToPath(import.meta.url))
+
+function expectToMatchFileSnapshot(actual: string, snapshotPath: string) {
+	const normalizedSnapshotPath = snapshotPath.startsWith("./") ? snapshotPath.slice(2) : snapshotPath
+	const absoluteSnapshotPath = path.resolve(testDir, normalizedSnapshotPath)
+	const normalizedActual = actual.replace(/\r\n/g, "\n")
+
+	if (process.env.UPDATE_PROMPT_SNAPSHOTS === "1") {
+		writeFileSync(absoluteSnapshotPath, normalizedActual, "utf8")
+	}
+
+	const expected = readFileSync(absoluteSnapshotPath, "utf8").replace(/\r\n/g, "\n")
+	expect(normalizedActual).toBe(expected)
+}
 
 // Mock the sections
 vi.mock("../sections/modes", () => ({
@@ -229,7 +248,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // rooIgnoreInstructions
 		)
 
-		expect(prompt).toMatchFileSnapshot("./__snapshots__/system-prompt/consistent-system-prompt.snap")
+		expectToMatchFileSnapshot(prompt, "./__snapshots__/system-prompt/consistent-system-prompt.snap")
 	})
 
 	it("should include MCP server info when mcpHub is provided", async () => {
@@ -250,7 +269,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // rooIgnoreInstructions
 		)
 
-		expect(prompt).toMatchFileSnapshot("./__snapshots__/system-prompt/with-mcp-hub-provided.snap")
+		expectToMatchFileSnapshot(prompt, "./__snapshots__/system-prompt/with-mcp-hub-provided.snap")
 	})
 
 	it("should explicitly handle undefined mcpHub", async () => {
@@ -269,7 +288,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // rooIgnoreInstructions
 		)
 
-		expect(prompt).toMatchFileSnapshot("./__snapshots__/system-prompt/with-undefined-mcp-hub.snap")
+		expectToMatchFileSnapshot(prompt, "./__snapshots__/system-prompt/with-undefined-mcp-hub.snap")
 	})
 
 	it("should include vscode language in custom instructions", async () => {
@@ -490,18 +509,11 @@ describe("SYSTEM_PROMPT", () => {
 			settings, // settings
 		)
 
-		// update_todo_list is still referenced by mode instructions, but tool catalogs are not embedded.
-		expect(prompt).toContain("update_todo_list")
+		// Tool catalogs are not embedded in native-only prompts.
 		expect(prompt).not.toContain("## update_todo_list")
 	})
 
-	it("should include update_todo_list tool when todoListEnabled is undefined", async () => {
-		const settings = {
-			todoListEnabled: true,
-			useAgentRules: true,
-			newTaskRequireTodos: false,
-		}
-
+	it("should not embed update_todo_list catalog when todoListEnabled is undefined", async () => {
 		const prompt = await SYSTEM_PROMPT(
 			mockContext,
 			"/test/path",
@@ -515,11 +527,10 @@ describe("SYSTEM_PROMPT", () => {
 			experiments,
 			undefined, // language
 			undefined, // rooIgnoreInstructions
-			settings, // settings
+			undefined, // settings
 		)
 
-		// update_todo_list is still referenced by mode instructions, but tool catalogs are not embedded.
-		expect(prompt).toContain("update_todo_list")
+		// Tool catalogs are not embedded in native-only prompts.
 		expect(prompt).not.toContain("## update_todo_list")
 	})
 
@@ -557,6 +568,10 @@ describe("SYSTEM_PROMPT", () => {
 
 		// Should contain Tool Use Guidelines section
 		expect(prompt).toContain("Tool Use Guidelines")
+		expect(prompt).toContain("prefer the normal write/edit tools available to your mode")
+		expect(prompt).toContain("execute_command shell here-strings, heredocs, or echo chains")
+		expect(prompt).toContain("Use execute_command for running commands, tests, builds")
+		expect(prompt).toContain("instead of embedding file contents in shell here-strings")
 
 		// Should NOT contain a tool catalog / XML examples
 		expect(prompt).not.toContain("# Tools")
@@ -573,6 +588,38 @@ describe("SYSTEM_PROMPT", () => {
 		expect(prompt).toContain("RULES")
 		expect(prompt).toContain("SYSTEM INFORMATION")
 		expect(prompt).toContain("OBJECTIVE")
+	})
+
+	it("should include max-agent and todo sequencing guidance for parallel planning modes", async () => {
+		const settings = {
+			todoListEnabled: true,
+			useAgentRules: true,
+			newTaskRequireTodos: false,
+			maxParallelAgents: 5,
+		}
+
+		for (const planningMode of ["architect", "orchestrator"] as Mode[]) {
+			const prompt = await SYSTEM_PROMPT(
+				mockContext,
+				"/test/path",
+				false,
+				undefined, // mcpHub
+				undefined, // diffStrategy
+				planningMode,
+				undefined, // customModePrompts
+				undefined, // customModes
+				undefined, // globalCustomInstructions
+				experiments,
+				undefined, // language
+				undefined, // rooIgnoreInstructions
+				settings, // settings
+			)
+
+			expect(prompt).toContain("Limit every ExecutionPlan to at most 5 total agents")
+			expect(prompt).toContain("Complete the active planning todo before requesting plan approval")
+			expect(prompt).toContain("Do not add a separate manual 'Review and verify the result' todo")
+			expect(prompt).toContain("clean structured plan-level completion/merge/validation evidence")
+		}
 	})
 
 	afterAll(() => {

@@ -101,6 +101,7 @@ describe("editTool", () => {
 		mockedIsPathOutsideWorkspace.mockReturnValue(false)
 		mockedGetReadablePath.mockReturnValue("test/path.txt")
 
+		mockTask.background = false
 		mockTask.cwd = "/"
 		mockTask.consecutiveMistakeCount = 0
 		mockTask.didEditFile = false
@@ -132,7 +133,11 @@ describe("editTool", () => {
 				userEdits: null,
 				finalContent: "final content",
 			}),
-			saveDirectly: vi.fn().mockResolvedValue(undefined),
+			saveDirectly: vi.fn().mockResolvedValue({
+				newProblemsMessage: "",
+				userEdits: undefined,
+				finalContent: "final content",
+			}),
 			scrollToFirstDiff: vi.fn(),
 			pushToolWriteResult: vi.fn().mockResolvedValue("Tool result message"),
 		}
@@ -145,6 +150,8 @@ describe("editTool", () => {
 		mockTask.recordToolUsage = vi.fn()
 		mockTask.processQueuedMessages = vi.fn()
 		mockTask.sayAndCreateMissingParamError = vi.fn().mockResolvedValue("Missing param error")
+		mockTask.requestAgentWriteIntent = vi.fn().mockReturnValue({ approved: true })
+		mockTask.releaseAgentWriteIntent = vi.fn()
 
 		mockAskApproval = vi.fn().mockResolvedValue(true)
 		mockHandleError = vi.fn().mockResolvedValue(undefined)
@@ -344,6 +351,64 @@ describe("editTool", () => {
 			expect(mockTask.diffViewProvider.saveChanges).toHaveBeenCalled()
 			expect(mockTask.didEditFile).toBe(true)
 			expect(mockTask.recordToolUsage).toHaveBeenCalledWith("edit")
+			expect(mockTask.requestAgentWriteIntent).toHaveBeenCalledWith(testFilePath)
+			expect(mockTask.releaseAgentWriteIntent).toHaveBeenCalledWith(testFilePath)
+		})
+
+		it("shows and saves live previews for background edits", async () => {
+			mockTask.background = true
+
+			await executeEditTool()
+
+			expect(mockAskApproval).toHaveBeenCalled()
+			expect(mockTask.diffViewProvider.open).toHaveBeenCalledWith(testFilePath)
+			expect(mockTask.diffViewProvider.update).toHaveBeenCalledWith(
+				"Line 1\nModified Line 2\nLine 3\nLine 4",
+				true,
+			)
+			expect(mockTask.diffViewProvider.scrollToFirstDiff).toHaveBeenCalled()
+			expect(mockTask.diffViewProvider.saveChanges).toHaveBeenCalledWith(true, 1000)
+			expect(mockTask.diffViewProvider.saveDirectly).not.toHaveBeenCalled()
+			expect(mockTask.didEditFile).toBe(true)
+			expect(mockTask.recordToolUsage).toHaveBeenCalledWith("edit")
+		})
+
+		it("uses direct save only when focus disruption prevention is enabled", async () => {
+			mockTask.background = true
+			mockTask.providerRef.deref.mockReturnValue({
+				getState: vi.fn().mockResolvedValue({
+					diagnosticsEnabled: true,
+					writeDelayMs: 1000,
+					experiments: { preventFocusDisruption: true },
+				}),
+			})
+
+			await executeEditTool()
+
+			expect(mockTask.diffViewProvider.open).not.toHaveBeenCalled()
+			expect(mockTask.diffViewProvider.saveChanges).not.toHaveBeenCalled()
+			expect(mockTask.diffViewProvider.saveDirectly).toHaveBeenCalledWith(
+				testFilePath,
+				"Line 1\nModified Line 2\nLine 3\nLine 4",
+				false,
+				true,
+				1000,
+			)
+		})
+
+		it("denies edits when agent write intent is rejected", async () => {
+			mockTask.requestAgentWriteIntent.mockReturnValue({
+				approved: false,
+				reason: "test/file.txt is owned by another agent.",
+			})
+
+			const result = await executeEditTool()
+
+			expect(result).toContain("owned by another agent")
+			expect(mockTask.say).toHaveBeenCalledWith("error", "test/file.txt is owned by another agent.")
+			expect(mockAskApproval).not.toHaveBeenCalled()
+			expect(mockTask.diffViewProvider.saveChanges).not.toHaveBeenCalled()
+			expect(mockTask.releaseAgentWriteIntent).not.toHaveBeenCalled()
 		})
 
 		it("reverts changes when user rejects", async () => {

@@ -5,8 +5,10 @@ import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { ExternalLinkIcon } from "@radix-ui/react-icons"
 
 import {
+	type ModelRecord,
 	type ProviderName,
 	type ProviderSettings,
+	type RouterModels,
 	isRetiredProvider,
 	DEFAULT_CONSECUTIVE_MISTAKE_LIMIT,
 	openRouterDefaultModelId,
@@ -20,6 +22,7 @@ import {
 	geminiDefaultModelId,
 	deepSeekDefaultModelId,
 	moonshotDefaultModelId,
+	xiaomiMiMoDefaultModelId,
 	mistralDefaultModelId,
 	xaiDefaultModelId,
 	basetenDefaultModelId,
@@ -75,6 +78,7 @@ import {
 	LiteLLM,
 	Mistral,
 	Moonshot,
+	XiaomiMiMo,
 	Ollama,
 	OpenAI,
 	OpenAICompatible,
@@ -93,6 +97,7 @@ import {
 	VercelAiGateway,
 	MiniMax,
 } from "./providers"
+import { isRouterName } from "@roo/api"
 
 import { MODELS_BY_PROVIDER, PROVIDERS } from "./constants"
 import { inputEventTransform, noTransform } from "./transforms"
@@ -121,6 +126,140 @@ export interface ApiOptionsProps {
 	setErrorMessage: React.Dispatch<React.SetStateAction<string | undefined>>
 }
 
+const LOCAL_ROUTER_MODEL_PROVIDERS = new Set<ProviderName>(["ollama", "lmstudio"])
+
+function mergeRouterModelSources(...sources: Array<RouterModels | undefined>): RouterModels | undefined {
+	const merged: RouterModels = {}
+	let hasModels = false
+
+	for (const source of sources) {
+		if (!source) {
+			continue
+		}
+
+		for (const [provider, models] of Object.entries(source) as Array<[ProviderName, ModelRecord | undefined]>) {
+			if (!models) {
+				continue
+			}
+
+			merged[provider] = { ...(merged[provider] ?? {}), ...models }
+			hasModels = true
+		}
+	}
+
+	return hasModels ? merged : undefined
+}
+
+function shouldRequestRouterModelsForProvider(provider: ProviderName, apiConfiguration: ProviderSettings): boolean {
+	if (!isRouterName(provider) || LOCAL_ROUTER_MODEL_PROVIDERS.has(provider)) {
+		return false
+	}
+
+	switch (provider) {
+		case "openrouter":
+		case "requesty":
+		case "unbound":
+		case "vercel-ai-gateway":
+			return true
+		case "litellm":
+			return !!apiConfiguration.litellmApiKey && !!apiConfiguration.litellmBaseUrl
+		case "poe":
+			return !!apiConfiguration.poeApiKey
+		case "anthropic":
+			return !!apiConfiguration.apiKey
+		case "xai":
+			return !!apiConfiguration.xaiApiKey
+		case "openai-native":
+			return !!apiConfiguration.openAiNativeApiKey
+		case "mistral":
+			return !!apiConfiguration.mistralApiKey
+		case "deepseek":
+			return !!apiConfiguration.deepSeekApiKey
+		case "gemini":
+			return !!apiConfiguration.geminiApiKey
+		case "moonshot":
+			return !!apiConfiguration.moonshotApiKey
+		case "fireworks":
+			return !!apiConfiguration.fireworksApiKey
+		case "baseten":
+			return !!apiConfiguration.basetenApiKey
+		case "sambanova":
+			return !!apiConfiguration.sambaNovaApiKey
+		case "minimax":
+			return !!apiConfiguration.minimaxApiKey
+		case "ollama":
+		case "lmstudio":
+			return false
+	}
+}
+
+function getRouterModelRequestValues(provider: ProviderName, apiConfiguration: ProviderSettings) {
+	const values = { provider }
+
+	switch (provider) {
+		case "requesty":
+			return {
+				...values,
+				requestyApiKey: apiConfiguration.requestyApiKey,
+				requestyBaseUrl: apiConfiguration.requestyBaseUrl,
+			}
+		case "unbound":
+			return { ...values, unboundApiKey: apiConfiguration.unboundApiKey }
+		case "litellm":
+			return {
+				...values,
+				litellmApiKey: apiConfiguration.litellmApiKey,
+				litellmBaseUrl: apiConfiguration.litellmBaseUrl,
+			}
+		case "poe":
+			return { ...values, poeApiKey: apiConfiguration.poeApiKey, poeBaseUrl: apiConfiguration.poeBaseUrl }
+		case "anthropic":
+			return { ...values, apiKey: apiConfiguration.apiKey, anthropicBaseUrl: apiConfiguration.anthropicBaseUrl }
+		case "xai":
+			return { ...values, xaiApiKey: apiConfiguration.xaiApiKey }
+		case "openai-native":
+			return {
+				...values,
+				openAiNativeApiKey: apiConfiguration.openAiNativeApiKey,
+				openAiNativeBaseUrl: apiConfiguration.openAiNativeBaseUrl,
+			}
+		case "mistral":
+			return { ...values, mistralApiKey: apiConfiguration.mistralApiKey }
+		case "deepseek":
+			return {
+				...values,
+				deepSeekApiKey: apiConfiguration.deepSeekApiKey,
+				deepSeekBaseUrl: apiConfiguration.deepSeekBaseUrl,
+			}
+		case "gemini":
+			return {
+				...values,
+				geminiApiKey: apiConfiguration.geminiApiKey,
+				googleGeminiBaseUrl: apiConfiguration.googleGeminiBaseUrl,
+			}
+		case "moonshot":
+			return {
+				...values,
+				moonshotApiKey: apiConfiguration.moonshotApiKey,
+				moonshotBaseUrl: apiConfiguration.moonshotBaseUrl,
+			}
+		case "fireworks":
+			return { ...values, fireworksApiKey: apiConfiguration.fireworksApiKey }
+		case "baseten":
+			return { ...values, basetenApiKey: apiConfiguration.basetenApiKey }
+		case "sambanova":
+			return { ...values, sambaNovaApiKey: apiConfiguration.sambaNovaApiKey }
+		case "minimax":
+			return {
+				...values,
+				minimaxApiKey: apiConfiguration.minimaxApiKey,
+				minimaxBaseUrl: apiConfiguration.minimaxBaseUrl,
+			}
+		default:
+			return values
+	}
+}
+
 const ApiOptions = ({
 	uriScheme,
 	apiConfiguration,
@@ -130,7 +269,11 @@ const ApiOptions = ({
 	setErrorMessage,
 }: ApiOptionsProps) => {
 	const { t } = useAppTranslation()
-	const { organizationAllowList, openAiCodexIsAuthenticated } = useExtensionState()
+	const {
+		organizationAllowList,
+		openAiCodexIsAuthenticated,
+		routerModels: extensionRouterModels,
+	} = useExtensionState()
 
 	const [customHeaders, setCustomHeaders] = useState<[string, string][]>(() => {
 		const headers = apiConfiguration?.openAiHeaders || {}
@@ -188,6 +331,21 @@ const ApiOptions = ({
 		typeof apiConfiguration.apiProvider === "string" && isRetiredProvider(apiConfiguration.apiProvider)
 
 	const { data: routerModels, refetch: refetchRouterModels } = useRouterModels()
+	const availableRouterModels = useMemo(
+		() => mergeRouterModelSources(extensionRouterModels, routerModels),
+		[extensionRouterModels, routerModels],
+	)
+
+	const genericPickerModels = useMemo(() => {
+		if (!activeSelectedProvider) {
+			return {}
+		}
+
+		return {
+			...getStaticModelsForProvider(activeSelectedProvider, t("settings:labels.useCustomArn")),
+			...(availableRouterModels?.[activeSelectedProvider] ?? {}),
+		}
+	}, [activeSelectedProvider, availableRouterModels, t])
 
 	const { data: openRouterModelProviders } = useOpenRouterModelProviders(
 		apiConfiguration?.openRouterModelId,
@@ -195,9 +353,9 @@ const ApiOptions = ({
 		{
 			enabled:
 				!!apiConfiguration?.openRouterModelId &&
-				routerModels?.openrouter &&
-				Object.keys(routerModels.openrouter).length > 1 &&
-				apiConfiguration.openRouterModelId in routerModels.openrouter,
+				availableRouterModels?.openrouter &&
+				Object.keys(availableRouterModels.openrouter).length > 1 &&
+				apiConfiguration.openRouterModelId in availableRouterModels.openrouter,
 		},
 	)
 
@@ -237,16 +395,42 @@ const ApiOptions = ({
 				vscode.postMessage({ type: "requestLmStudioModels" })
 			} else if (selectedProvider === "vscode-lm") {
 				vscode.postMessage({ type: "requestVsCodeLmModels" })
-			} else if (selectedProvider === "litellm" || selectedProvider === "poe") {
-				vscode.postMessage({ type: "requestRouterModels" })
+			} else if (
+				activeSelectedProvider &&
+				shouldRequestRouterModelsForProvider(activeSelectedProvider, apiConfiguration)
+			) {
+				vscode.postMessage({
+					type: "requestRouterModels",
+					values: getRouterModelRequestValues(activeSelectedProvider, apiConfiguration),
+				})
 			}
 		},
 		250,
 		[
+			activeSelectedProvider,
 			selectedProvider,
 			apiConfiguration?.requestyApiKey,
+			apiConfiguration?.requestyBaseUrl,
+			apiConfiguration?.unboundApiKey,
+			apiConfiguration?.apiKey,
+			apiConfiguration?.anthropicBaseUrl,
+			apiConfiguration?.xaiApiKey,
 			apiConfiguration?.openAiBaseUrl,
 			apiConfiguration?.openAiApiKey,
+			apiConfiguration?.openAiNativeApiKey,
+			apiConfiguration?.openAiNativeBaseUrl,
+			apiConfiguration?.mistralApiKey,
+			apiConfiguration?.deepSeekApiKey,
+			apiConfiguration?.deepSeekBaseUrl,
+			apiConfiguration?.geminiApiKey,
+			apiConfiguration?.googleGeminiBaseUrl,
+			apiConfiguration?.moonshotApiKey,
+			apiConfiguration?.moonshotBaseUrl,
+			apiConfiguration?.fireworksApiKey,
+			apiConfiguration?.basetenApiKey,
+			apiConfiguration?.sambaNovaApiKey,
+			apiConfiguration?.minimaxApiKey,
+			apiConfiguration?.minimaxBaseUrl,
 			apiConfiguration?.ollamaBaseUrl,
 			apiConfiguration?.lmStudioBaseUrl,
 			apiConfiguration?.litellmBaseUrl,
@@ -265,11 +449,11 @@ const ApiOptions = ({
 
 		const apiValidationResult = validateApiConfigurationExcludingModelErrors(
 			apiConfiguration,
-			routerModels,
+			availableRouterModels,
 			organizationAllowList,
 		)
 		setErrorMessage(apiValidationResult)
-	}, [apiConfiguration, routerModels, organizationAllowList, setErrorMessage, isRetiredSelectedProvider])
+	}, [apiConfiguration, availableRouterModels, organizationAllowList, setErrorMessage, isRetiredSelectedProvider])
 
 	const onProviderChange = useCallback(
 		(value: ProviderName) => {
@@ -343,6 +527,7 @@ const ApiOptions = ({
 				deepseek: { field: "apiModelId", default: deepSeekDefaultModelId },
 				moonshot: { field: "apiModelId", default: moonshotDefaultModelId },
 				minimax: { field: "apiModelId", default: minimaxDefaultModelId },
+				"xiaomi-mimo": { field: "apiModelId", default: xiaomiMiMoDefaultModelId },
 				mistral: { field: "apiModelId", default: mistralDefaultModelId },
 				xai: { field: "apiModelId", default: xaiDefaultModelId },
 				baseten: { field: "apiModelId", default: basetenDefaultModelId },
@@ -378,8 +563,8 @@ const ApiOptions = ({
 	)
 
 	const modelValidationError = useMemo(() => {
-		return getModelValidationError(apiConfiguration, routerModels, organizationAllowList)
-	}, [apiConfiguration, routerModels, organizationAllowList])
+		return getModelValidationError(apiConfiguration, availableRouterModels, organizationAllowList)
+	}, [apiConfiguration, availableRouterModels, organizationAllowList])
 
 	const docs = useMemo(() => {
 		const provider = PROVIDERS.find(({ value }) => value === selectedProvider)
@@ -488,7 +673,7 @@ const ApiOptions = ({
 						<OpenRouter
 							apiConfiguration={apiConfiguration}
 							setApiConfigurationField={setApiConfigurationField}
-							routerModels={routerModels}
+							routerModels={availableRouterModels}
 							selectedModelId={selectedModelId}
 							uriScheme={uriScheme}
 							simplifySettings={fromWelcomeView}
@@ -502,7 +687,7 @@ const ApiOptions = ({
 							uriScheme={uriScheme}
 							apiConfiguration={apiConfiguration}
 							setApiConfigurationField={setApiConfigurationField}
-							routerModels={routerModels}
+							routerModels={availableRouterModels}
 							refetchRouterModels={refetchRouterModels}
 							organizationAllowList={organizationAllowList}
 							modelValidationError={modelValidationError}
@@ -514,7 +699,7 @@ const ApiOptions = ({
 						<Unbound
 							apiConfiguration={apiConfiguration}
 							setApiConfigurationField={setApiConfigurationField}
-							routerModels={routerModels}
+							routerModels={availableRouterModels}
 							refetchRouterModels={refetchRouterModels}
 							organizationAllowList={organizationAllowList}
 							modelValidationError={modelValidationError}
@@ -635,6 +820,13 @@ const ApiOptions = ({
 						/>
 					)}
 
+					{selectedProvider === "xiaomi-mimo" && (
+						<XiaomiMiMo
+							apiConfiguration={apiConfiguration}
+							setApiConfigurationField={setApiConfigurationField}
+						/>
+					)}
+
 					{selectedProvider === "vscode-lm" && (
 						<VSCodeLM
 							apiConfiguration={apiConfiguration}
@@ -678,7 +870,7 @@ const ApiOptions = ({
 						<VercelAiGateway
 							apiConfiguration={apiConfiguration}
 							setApiConfigurationField={setApiConfigurationField}
-							routerModels={routerModels}
+							routerModels={availableRouterModels}
 							organizationAllowList={organizationAllowList}
 							modelValidationError={modelValidationError}
 							simplifySettings={fromWelcomeView}
@@ -709,10 +901,7 @@ const ApiOptions = ({
 								apiConfiguration={apiConfiguration}
 								setApiConfigurationField={setApiConfigurationField}
 								defaultModelId={getDefaultModelIdForProvider(activeSelectedProvider, apiConfiguration)}
-								models={getStaticModelsForProvider(
-									activeSelectedProvider,
-									t("settings:labels.useCustomArn"),
-								)}
+								models={genericPickerModels}
 								modelIdKey="apiModelId"
 								serviceName={getProviderServiceConfig(activeSelectedProvider).serviceName}
 								serviceUrl={getProviderServiceConfig(activeSelectedProvider).serviceUrl}

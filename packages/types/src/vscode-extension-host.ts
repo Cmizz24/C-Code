@@ -15,7 +15,17 @@ import type { ModelRecord, RouterModels } from "./model.js"
 import type { OpenAiCodexRateLimitInfo } from "./providers/openai-codex-rate-limits.js"
 import type { SkillMetadata } from "./skills.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
-import type { AgentStatusUpdate, ExecutionPlan, MergeReviewEntry, WriteIntentConflict } from "./agents.js"
+import type {
+	AgentActivityEvent,
+	AgentCompletionPacket,
+	AgentCoordinationEvent,
+	AgentStatusUpdate,
+	ExecutionPlan,
+	MergeReviewEntry,
+	ParallelAgentReviewSummary,
+	ParallelPlanCompletionPacket,
+	WriteIntentConflict,
+} from "./agents.js"
 
 /**
  * ExtensionMessage
@@ -83,6 +93,7 @@ export interface ExtensionMessage {
 		| "taskWithAggregatedCosts"
 		| "openAiCodexRateLimits"
 		| "agentStatusUpdate"
+		| "agentCoordinationUpdate"
 		| "showPlanPreview"
 		| "writeIntentDenied"
 		| "writeIntentCleared"
@@ -181,6 +192,7 @@ export interface ExtensionMessage {
 	// Parallel agent system messages
 	executionPlan?: ExecutionPlan
 	agentStatusUpdate?: AgentStatusUpdate
+	agentCoordinationEvent?: AgentCoordinationEvent
 	writeIntentConflict?: WriteIntentConflict
 	mergeReviewEntries?: MergeReviewEntry[]
 	agentId?: string
@@ -256,6 +268,8 @@ export type ExtensionState = Pick<
 	| "alwaysAllowMcp"
 	| "alwaysAllowModeSwitch"
 	| "alwaysAllowSubtasks"
+	| "alwaysAllowParallelTasks"
+	| "maxConcurrentParallelTasks"
 	| "alwaysAllowFollowupQuestions"
 	| "alwaysAllowExecute"
 	| "followupAutoApproveTimeoutMs"
@@ -523,6 +537,7 @@ export interface WebviewMessage {
 		| "agentWaitOnConflict"
 		| "agentEscalateConflict"
 		| "mergeApprovedAgents"
+		| "mergeDeniedAgents"
 		// Worktree messages
 		| "listWorktrees"
 		| "createWorktree"
@@ -733,7 +748,28 @@ export interface ClineSayTool {
 		| "runSlashCommand"
 		| "updateTodoList"
 		| "skill"
+		| "parallelAgents"
 	path?: string
+	// Properties for parallelAgents tool status messages
+	executionPlan?: ExecutionPlan
+	parallelStatus?: "running" | "review" | "merged" | "cancelled" | "failed"
+	agentStatusUpdates?: AgentStatusUpdate[]
+	writeIntentConflicts?: WriteIntentConflict[]
+	agentActivities?: AgentActivityEvent[]
+	agentCoordinationEvents?: AgentCoordinationEvent[]
+	parallelUsageSummary?: {
+		totalTokensIn: number
+		totalTokensOut: number
+		totalCacheWrites: number
+		totalCacheReads: number
+		totalCost: number
+		contextTokens: number
+		reportingAgents: number
+	}
+	parallelReviewSummary?: ParallelAgentReviewSummary
+	mergeReviewEntries?: MergeReviewEntry[]
+	agentCompletionPackets?: AgentCompletionPacket[]
+	parallelPlanCompletionPacket?: ParallelPlanCompletionPacket
 	// For readCommandOutput
 	readStart?: number
 	readEnd?: number

@@ -125,6 +125,84 @@ describe("useTaskSearch", () => {
 		expect(result.current.tasks[2].id).toBe("task-1") // $0.01
 	})
 
+	it("aggregates background child costs linked by parentTaskId", () => {
+		mockUseExtensionState.mockReturnValue({
+			taskHistory: [
+				...mockTaskHistory,
+				{
+					id: "background-child",
+					number: 4,
+					task: "Background child",
+					ts: new Date("2022-02-18T12:00:00").getTime(),
+					workspace: "/workspace/project1",
+					totalCost: 0.08,
+					parentTaskId: "task-1",
+				} as HistoryItem,
+			],
+			cwd: "/workspace/project1",
+		} as any)
+
+		const { result } = renderHook(() => useTaskSearch())
+
+		const parent = result.current.tasks.find((task) => task.id === "task-1")
+		expect(parent?.totalCost).toBe(0.09)
+	})
+
+	it("does not double count child costs linked by childIds and parentTaskId", () => {
+		mockUseExtensionState.mockReturnValue({
+			taskHistory: [
+				{
+					...mockTaskHistory[0],
+					childIds: ["background-child"],
+				},
+				...mockTaskHistory.slice(1),
+				{
+					id: "background-child",
+					number: 4,
+					task: "Background child",
+					ts: new Date("2022-02-18T12:00:00").getTime(),
+					workspace: "/workspace/project1",
+					totalCost: 0.08,
+					parentTaskId: "task-1",
+				} as HistoryItem,
+			],
+			cwd: "/workspace/project1",
+		} as any)
+
+		const { result } = renderHook(() => useTaskSearch())
+
+		const parent = result.current.tasks.find((task) => task.id === "task-1")
+		expect(parent?.totalCost).toBe(0.09)
+	})
+
+	it("sorts by most expensive using aggregated child costs", () => {
+		mockUseExtensionState.mockReturnValue({
+			taskHistory: [
+				...mockTaskHistory,
+				{
+					id: "background-child",
+					number: 4,
+					task: "Background child",
+					ts: new Date("2022-02-18T12:00:00").getTime(),
+					workspace: "/workspace/project1",
+					totalCost: 0.08,
+					parentTaskId: "task-1",
+				} as HistoryItem,
+			],
+			cwd: "/workspace/project1",
+		} as any)
+
+		const { result } = renderHook(() => useTaskSearch())
+
+		act(() => {
+			result.current.setShowAllWorkspaces(true)
+			result.current.setSortOption("mostExpensive")
+		})
+
+		expect(result.current.tasks[0].id).toBe("task-1")
+		expect(result.current.tasks[0].totalCost).toBe(0.09)
+	})
+
 	it("sorts by most tokens", () => {
 		const { result } = renderHook(() => useTaskSearch())
 

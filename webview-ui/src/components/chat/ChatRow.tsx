@@ -33,6 +33,7 @@ import Thumbnails from "../common/Thumbnails"
 import ImageBlock from "../common/ImageBlock"
 import ErrorRow from "./ErrorRow"
 import WarningRow from "./WarningRow"
+import { AgentStatusPanel } from "@src/components/agents/AgentStatusPanel"
 
 import McpResourceRow from "../mcp/McpResourceRow"
 
@@ -431,6 +432,8 @@ export const ChatRowContent = ({
 		)
 
 		switch (tool.tool as string) {
+			case "parallelAgents":
+				return <AgentStatusPanel tool={tool} />
 			case "editedExistingFile":
 			case "appliedDiff":
 			case "newFileCreated":
@@ -1277,6 +1280,10 @@ export const ChatRowContent = ({
 					)
 				case "user_feedback_diff":
 					const tool = safeJsonParse<ClineSayTool>(message.text)
+					if (tool?.tool === "parallelAgents") {
+						return null
+					}
+
 					return (
 						<div style={{ marginTop: -10, width: "100%" }}>
 							<CodeAccordion
@@ -1405,6 +1412,8 @@ export const ChatRowContent = ({
 					if (!sayTool) return null
 
 					switch (sayTool.tool) {
+						case "parallelAgents":
+							return <AgentStatusPanel tool={sayTool} />
 						case "runSlashCommand": {
 							const slashCommandInfo = sayTool
 							return (

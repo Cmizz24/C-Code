@@ -249,6 +249,12 @@
 			"label": "Teilaufgaben",
 			"description": "Erstellung und Abschluss von Unteraufgaben ohne Genehmigung erlauben"
 		},
+		"parallelTasks": {
+			"label": "Parallele Aufgaben",
+			"maxConcurrentLabel": "Maximale parallele Agents",
+			"maxConcurrentDescription": "Wähle, wie viele Agents gleichzeitig für einen genehmigten Plan für parallele Aufgaben laufen dürfen ({{min}}–{{max}}). Wartende Agents starten, sobald laufende Agents fertig sind.",
+			"description": "Gültige Pläne für parallele Aufgaben automatisch genehmigen und Agenten starten, ohne das Modal zur Planvorschau anzuzeigen"
+		},
 		"followupQuestions": {
 			"label": "Frage",
 			"description": "Automatisch die erste vorgeschlagene Antwort für Folgefragen nach der konfigurierten Zeitüberschreitung auswählen",
@@ -389,6 +395,9 @@
 		"minimaxApiKey": "MiniMax API-Schlüssel",
 		"getMiniMaxApiKey": "MiniMax API-Schlüssel erhalten",
 		"minimaxBaseUrl": "MiniMax-Einstiegspunkt",
+		"xiaomiMiMoApiKey": "Xiaomi MiMo API-Schlüssel",
+		"getXiaomiMiMoApiKey": "Xiaomi MiMo API-Schlüssel erhalten",
+		"xiaomiMiMoBaseUrl": "Xiaomi MiMo-Einstiegspunkt",
 		"geminiApiKey": "Gemini API-Schlüssel",
 		"getSambaNovaApiKey": "SambaNova API-Schlüssel erhalten",
 		"sambaNovaApiKey": "SambaNova API-Schlüssel",

@@ -68,15 +68,34 @@ describe("XAIHandler", () => {
 	it("should return default model when no model is specified", () => {
 		const model = handler.getModel()
 		expect(model.id).toBe(xaiDefaultModelId)
+		expect(model.id).toBe("grok-4.3")
 		expect(model.info).toEqual(xaiModels[xaiDefaultModelId])
+		expect(model.info.contextWindow).toBe(1_000_000)
+		expect(model.info.inputPrice).toBe(1.25)
+		expect(model.info.outputPrice).toBe(2.5)
+		expect(model.info.supportsReasoningEffort).toEqual(["none", "low", "medium", "high"])
+		expect(model.info.reasoningEffort).toBe("low")
+		expect(model.reasoning).toEqual({ effort: "low" })
 	})
 
 	it("should return specified model when valid model is provided", () => {
-		const testModelId = "grok-3"
+		const testModelId = "grok-4.3"
 		const handlerWithModel = new XAIHandler({ apiModelId: testModelId })
 		const model = handlerWithModel.getModel()
 		expect(model.id).toBe(testModelId)
 		expect(model.info).toEqual(xaiModels[testModelId])
+	})
+
+	it("should retain deprecated xAI models for existing profiles", () => {
+		expect(xaiModels["grok-code-fast-1"].deprecated).toBe(true)
+		expect(xaiModels["grok-4-1-fast-reasoning"].deprecated).toBe(true)
+		expect(xaiModels["grok-4-1-fast-non-reasoning"].deprecated).toBe(true)
+		expect(xaiModels["grok-4-fast-reasoning"].deprecated).toBe(true)
+		expect(xaiModels["grok-4-fast-non-reasoning"].deprecated).toBe(true)
+		expect(xaiModels["grok-4.20"].deprecated).toBe(true)
+		expect(xaiModels["grok-4-0709"].deprecated).toBe(true)
+		expect(xaiModels["grok-3"].deprecated).toBe(true)
+		expect(xaiModels["grok-3-mini"].deprecated).toBe(true)
 	})
 
 	it("should use Responses API (client.responses.create)", async () => {
@@ -242,21 +261,21 @@ describe("XAIHandler", () => {
 		await expect(handler.completePrompt("test prompt")).rejects.toThrow(`xAI completion error: ${errorMessage}`)
 	})
 
-	it("should include reasoning_effort for mini models", async () => {
-		const miniModelHandler = new XAIHandler({
-			apiModelId: "grok-3-mini",
+	it("should include official Responses API reasoning effort for reasoning-capable models", async () => {
+		const reasoningModelHandler = new XAIHandler({
+			apiModelId: "grok-4.3",
 			reasoningEffort: "high",
 		})
 
 		mockResponsesCreate.mockResolvedValueOnce(mockStream([]))
 
-		const stream = miniModelHandler.createMessage("test prompt", [])
+		const stream = reasoningModelHandler.createMessage("test prompt", [])
 		await stream.next()
 
 		expect(mockResponsesCreate).toHaveBeenCalledWith(
 			expect.objectContaining({
 				reasoning: expect.objectContaining({
-					reasoning_effort: "high",
+					effort: "high",
 				}),
 			}),
 		)

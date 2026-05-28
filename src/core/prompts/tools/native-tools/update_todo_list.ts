@@ -13,6 +13,7 @@ Core Principles:
 - Add new actionable items as they're discovered
 - Only mark a task as completed when fully accomplished
 - Keep all unfinished tasks unless explicitly instructed to remove
+- For approved parallel-agent plans, do not create or keep a separate manual "Review and verify the result" todo solely to re-check agent output. Clean structured plan-level completion, merge, and validation evidence satisfies redundant review/verification todos; manual verification is only needed when that evidence is missing, failed, inconclusive, contradicted, or explicitly requested by the user.
 
 Example: Initial task list
 { "todos": "[x] Analyze requirements\\n[x] Design architecture\\n[-] Implement core logic\\n[ ] Write tests\\n[ ] Update documentation" }

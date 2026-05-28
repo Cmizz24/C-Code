@@ -1,10 +1,37 @@
 import { useState, useEffect, useMemo } from "react"
 import { Fzf } from "fzf"
+import type { HistoryItem } from "@roo-code/types"
 
 import { highlightFzfMatch } from "@/utils/highlight"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
+
+const aggregateTaskCost = (
+	taskId: string,
+	taskById: Map<string, HistoryItem>,
+	childrenByParentId: Map<string, string[]>,
+	visited: Set<string> = new Set(),
+): number => {
+	if (visited.has(taskId)) {
+		return 0
+	}
+
+	visited.add(taskId)
+	const task = taskById.get(taskId)
+	if (!task) {
+		return 0
+	}
+
+	let totalCost = task.totalCost || 0
+	const childIds = new Set([...(task.childIds ?? []), ...(childrenByParentId.get(taskId) ?? [])])
+
+	for (const childId of childIds) {
+		totalCost += aggregateTaskCost(childId, taskById, childrenByParentId, new Set(visited))
+	}
+
+	return totalCost
+}
 
 export const useTaskSearch = () => {
 	const { taskHistory, cwd } = useExtensionState()
@@ -24,11 +51,27 @@ export const useTaskSearch = () => {
 	}, [searchQuery, sortOption, lastNonRelevantSort])
 
 	const presentableTasks = useMemo(() => {
-		let tasks = taskHistory.filter((item) => item.ts && item.task)
+		const validTasks = taskHistory.filter((item) => item.ts && item.task)
+		let tasks = validTasks
 		if (!showAllWorkspaces) {
 			tasks = tasks.filter((item) => item.workspace === cwd)
 		}
-		return tasks
+
+		const taskById = new Map(validTasks.map((task) => [task.id, task]))
+		const childrenByParentId = new Map<string, string[]>()
+
+		for (const task of validTasks) {
+			if (task.parentTaskId && taskById.has(task.parentTaskId)) {
+				const siblings = childrenByParentId.get(task.parentTaskId) ?? []
+				siblings.push(task.id)
+				childrenByParentId.set(task.parentTaskId, siblings)
+			}
+		}
+
+		return tasks.map((task) => ({
+			...task,
+			totalCost: aggregateTaskCost(task.id, taskById, childrenByParentId),
+		}))
 	}, [taskHistory, showAllWorkspaces, cwd])
 
 	const fzf = useMemo(() => {

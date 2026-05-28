@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 
 import type {
+	AgentCoordinationKind,
 	AgentDependency,
 	ClineAsk,
 	FileOwnership,
@@ -73,6 +74,10 @@ export const toolParamNames = [
 	"dependsOn",
 	"worktreePath",
 	"signals",
+	"kind",
+	"targetAgentId",
+	"relatedFiles",
+	"replyToId",
 	"prompt",
 	"image",
 	// read_file parameters (native protocol)
@@ -134,6 +139,15 @@ export type NativeToolArgs = {
 			worktreePath?: string
 			signals: string[]
 		}>
+	}
+	coordinate_agents: {
+		action: "publish" | "read"
+		kind?: AgentCoordinationKind
+		message?: string
+		targetAgentId?: string
+		relatedFiles?: string[]
+		replyToId?: string
+		limit?: number
 	}
 	ask_followup_question: {
 		question: string
@@ -317,6 +331,7 @@ export const TOOL_DISPLAY_NAMES: Record<ToolName, string> = {
 	switch_mode: "switch modes",
 	new_task: "create new task",
 	plan_parallel_tasks: "plan parallel tasks",
+	coordinate_agents: "coordinate with parallel agents",
 	codebase_search: "codebase search",
 	update_todo_list: "update todo list",
 	run_slash_command: "run slash command",
@@ -331,8 +346,7 @@ export const TOOL_GROUPS: Record<ToolGroup, ToolGroupConfig> = {
 		tools: ["read_file", "search_files", "list_files", "codebase_search"],
 	},
 	edit: {
-		tools: ["apply_diff", "write_to_file", "generate_image"],
-		customTools: ["edit", "search_replace", "edit_file", "apply_patch"],
+		tools: ["apply_diff", "write_to_file", "edit", "search_replace", "edit_file", "apply_patch", "generate_image"],
 	},
 	command: {
 		tools: ["execute_command", "read_command_output"],
@@ -355,6 +369,7 @@ export const ALWAYS_AVAILABLE_TOOLS: ToolName[] = [
 	"attempt_completion",
 	"switch_mode",
 	"new_task",
+	"coordinate_agents",
 	"update_todo_list",
 	"run_slash_command",
 	"skill",

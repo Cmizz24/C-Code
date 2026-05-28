@@ -553,6 +553,45 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 			baseUrl: "http://localhost:4000", // From config
 		})
 	})
+
+	it("uses explicit message values for filtered credentialed static provider requests", async () => {
+		mockClineProvider.getState = vi.fn().mockResolvedValue({
+			apiConfiguration: {
+				geminiApiKey: "saved-gemini-key",
+				googleGeminiBaseUrl: "https://saved.example.com",
+			},
+		})
+
+		const mockModels: ModelRecord = {
+			"gemini-3.1-pro-preview": {
+				maxTokens: 65_536,
+				contextWindow: 1_048_576,
+				supportsPromptCache: false,
+			},
+		}
+
+		mockGetModels.mockResolvedValue(mockModels)
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "requestRouterModels",
+			values: {
+				provider: "gemini",
+				geminiApiKey: "message-gemini-key",
+				googleGeminiBaseUrl: "https://message.example.com",
+			},
+		})
+
+		expect(mockGetModels).toHaveBeenCalledWith({
+			provider: "gemini",
+			apiKey: "message-gemini-key",
+			baseUrl: "https://message.example.com",
+		})
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "routerModels",
+			routerModels: { gemini: mockModels },
+			values: { provider: "gemini" },
+		})
+	})
 })
 
 describe("webviewMessageHandler - requestOpenAiCodexRateLimits", () => {

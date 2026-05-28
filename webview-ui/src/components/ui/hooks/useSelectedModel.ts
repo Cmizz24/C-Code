@@ -8,6 +8,7 @@ import {
 	bedrockModels,
 	deepSeekModels,
 	moonshotModels,
+	xiaomiMiMoModels,
 	minimaxModels,
 	geminiModels,
 	mistralModels,
@@ -28,10 +29,11 @@ import {
 	lMStudioDefaultModelInfo,
 	BEDROCK_1M_CONTEXT_MODEL_IDS,
 	VERTEX_1M_CONTEXT_MODEL_IDS,
-	isDynamicProvider,
 	isRetiredProvider,
 	getProviderDefaultModelId,
 } from "@roo-code/types"
+
+import { isRouterName, type RouterName } from "@roo/api"
 
 import { useRouterModels } from "./useRouterModels"
 import { useOpenRouterModelProviders } from "./useOpenRouterModelProviders"
@@ -50,18 +52,86 @@ function getValidatedModelId(
 	return configuredId && availableModels?.[configuredId] ? configuredId : defaultModelId
 }
 
+const localModelProviders = new Set<ProviderName>(["ollama", "lmstudio"])
+
+function getRouterFetchProvider(provider: ProviderName | undefined): RouterName | undefined {
+	return provider && isRouterName(provider) && !localModelProviders.has(provider) ? provider : undefined
+}
+
+function canFetchProviderModels(provider: RouterName | undefined, apiConfiguration?: ProviderSettings): boolean {
+	if (!provider) {
+		return false
+	}
+
+	switch (provider) {
+		case "openrouter":
+		case "requesty":
+		case "unbound":
+		case "vercel-ai-gateway":
+			return true
+		case "litellm":
+			return !!apiConfiguration?.litellmApiKey && !!apiConfiguration?.litellmBaseUrl
+		case "poe":
+			return !!apiConfiguration?.poeApiKey
+		case "anthropic":
+			return !!apiConfiguration?.apiKey
+		case "xai":
+			return !!apiConfiguration?.xaiApiKey
+		case "openai-native":
+			return !!apiConfiguration?.openAiNativeApiKey
+		case "mistral":
+			return !!apiConfiguration?.mistralApiKey
+		case "deepseek":
+			return !!apiConfiguration?.deepSeekApiKey
+		case "gemini":
+			return !!apiConfiguration?.geminiApiKey
+		case "moonshot":
+			return !!apiConfiguration?.moonshotApiKey
+		case "fireworks":
+			return !!apiConfiguration?.fireworksApiKey
+		case "baseten":
+			return !!apiConfiguration?.basetenApiKey
+		case "sambanova":
+			return !!apiConfiguration?.sambaNovaApiKey
+		case "minimax":
+			return !!apiConfiguration?.minimaxApiKey
+		case "ollama":
+		case "lmstudio":
+			return false
+	}
+}
+
+function needsRouterModelsForSelection(provider: RouterName | undefined): boolean {
+	return !!provider && ["openrouter", "requesty", "unbound", "litellm", "poe", "vercel-ai-gateway"].includes(provider)
+}
+
+function mergeStaticAndRouterModelInfo(
+	provider: RouterName,
+	routerModels: RouterModels,
+	modelId: string,
+	fallbackModels: ModelRecord,
+): ModelInfo | undefined {
+	const fallbackInfo = fallbackModels[modelId]
+	const routerInfo = routerModels[provider]?.[modelId]
+
+	if (!fallbackInfo && !routerInfo) {
+		return undefined
+	}
+
+	return { ...(fallbackInfo ?? {}), ...(routerInfo ?? {}) } as ModelInfo
+}
+
 export const useSelectedModel = (apiConfiguration?: ProviderSettings) => {
 	const provider = apiConfiguration?.apiProvider || "openrouter"
 	const activeProvider: ProviderName | undefined = isRetiredProvider(provider) ? undefined : provider
-	const dynamicProvider = activeProvider && isDynamicProvider(activeProvider) ? activeProvider : undefined
+	const routerFetchProvider = getRouterFetchProvider(activeProvider)
 	const openRouterModelId = activeProvider === "openrouter" ? apiConfiguration?.openRouterModelId : undefined
 	const lmStudioModelId = activeProvider === "lmstudio" ? apiConfiguration?.lmStudioModelId : undefined
 	const ollamaModelId = activeProvider === "ollama" ? apiConfiguration?.ollamaModelId : undefined
 
-	// Only fetch router models for dynamic providers
-	const shouldFetchRouterModels = !!dynamicProvider
+	const shouldFetchRouterModels = canFetchProviderModels(routerFetchProvider, apiConfiguration)
 	const routerModels = useRouterModels({
-		provider: dynamicProvider,
+		provider: routerFetchProvider,
 		enabled: shouldFetchRouterModels,
 	})
 
@@ -70,16 +140,16 @@ export const useSelectedModel = (apiConfiguration?: ProviderSettings) => {
 	const ollamaModels = useOllamaModels(ollamaModelId)
 
 	// Compute readiness only for the data actually needed for the selected provider
-	const needRouterModels = shouldFetchRouterModels
+	const needRouterModels = shouldFetchRouterModels && needsRouterModelsForSelection(routerFetchProvider)
 	const needOpenRouterProviders = activeProvider === "openrouter"
 	const needLmStudio = typeof lmStudioModelId !== "undefined"
 	const needOllama = typeof ollamaModelId !== "undefined"
 
 	const hasValidRouterData =
-		needRouterModels && dynamicProvider
+		needRouterModels && routerFetchProvider
 			? routerModels.data &&
-				routerModels.data[dynamicProvider] !== undefined &&
-				typeof routerModels.data[dynamicProvider] === "object" &&
+				routerModels.data[routerFetchProvider] !== undefined &&
+				typeof routerModels.data[routerFetchProvider] === "object" &&
 				!routerModels.isLoading
 			: true
 
@@ -171,12 +241,12 @@ function getSelectedModel({
 		}
 		case "xai": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const info = xaiModels[id as keyof typeof xaiModels]
+			const info = mergeStaticAndRouterModelInfo("xai", routerModels, id, xaiModels)
 			return info ? { id, info } : { id, info: undefined }
 		}
 		case "baseten": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const info = basetenModels[id as keyof typeof basetenModels]
+			const info = mergeStaticAndRouterModelInfo("baseten", routerModels, id, basetenModels)
 			return { id, info }
 		}
 		case "bedrock": {
@@ -228,22 +298,27 @@ function getSelectedModel({
 		}
 		case "gemini": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const info = geminiModels[id as keyof typeof geminiModels]
+			const info = mergeStaticAndRouterModelInfo("gemini", routerModels, id, geminiModels)
 			return { id, info }
 		}
 		case "deepseek": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const info = deepSeekModels[id as keyof typeof deepSeekModels]
+			const info = mergeStaticAndRouterModelInfo("deepseek", routerModels, id, deepSeekModels)
 			return { id, info }
 		}
 		case "moonshot": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const info = moonshotModels[id as keyof typeof moonshotModels]
+			const info = mergeStaticAndRouterModelInfo("moonshot", routerModels, id, moonshotModels)
 			return { id, info }
 		}
 		case "minimax": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const info = minimaxModels[id as keyof typeof minimaxModels]
+			const info = mergeStaticAndRouterModelInfo("minimax", routerModels, id, minimaxModels)
+			return { id, info }
+		}
+		case "xiaomi-mimo": {
+			const id = apiConfiguration.apiModelId ?? defaultModelId
+			const info = xiaomiMiMoModels[id as keyof typeof xiaomiMiMoModels]
 			return { id, info }
 		}
 		case "zai": {
@@ -256,12 +331,12 @@ function getSelectedModel({
 		}
 		case "openai-native": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const info = openAiNativeModels[id as keyof typeof openAiNativeModels]
+			const info = mergeStaticAndRouterModelInfo("openai-native", routerModels, id, openAiNativeModels)
 			return { id, info }
 		}
 		case "mistral": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const info = mistralModels[id as keyof typeof mistralModels]
+			const info = mergeStaticAndRouterModelInfo("mistral", routerModels, id, mistralModels)
 			return { id, info }
 		}
 		case "openai": {
@@ -304,12 +379,12 @@ function getSelectedModel({
 		}
 		case "sambanova": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const info = sambaNovaModels[id as keyof typeof sambaNovaModels]
+			const info = mergeStaticAndRouterModelInfo("sambanova", routerModels, id, sambaNovaModels)
 			return { id, info }
 		}
 		case "fireworks": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const info = fireworksModels[id as keyof typeof fireworksModels]
+			const info = mergeStaticAndRouterModelInfo("fireworks", routerModels, id, fireworksModels)
 			return { id, info }
 		}
 		case "poe": {
@@ -341,7 +416,10 @@ function getSelectedModel({
 		default: {
 			provider satisfies "anthropic" | "gemini-cli" | "fake-ai"
 			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const baseInfo = anthropicModels[id as keyof typeof anthropicModels]
+			const baseInfo =
+				provider === "anthropic"
+					? mergeStaticAndRouterModelInfo("anthropic", routerModels, id, anthropicModels)
+					: anthropicModels[id as keyof typeof anthropicModels]
 
 			// Apply 1M context beta tier pricing for supported Claude 4 models
 			if (

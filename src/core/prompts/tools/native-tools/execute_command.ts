@@ -1,6 +1,8 @@
 import type OpenAI from "openai"
 
-const EXECUTE_COMMAND_DESCRIPTION = `Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Prefer relative commands and paths that avoid location sensitivity for terminal consistency.
+const EXECUTE_COMMAND_DESCRIPTION = `Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task, such as running tests, builds, package managers, scripts, or inspecting the environment. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer relative commands and paths that avoid location sensitivity for terminal consistency.
+
+For creating or editing file contents, prefer the normal write/edit tools available to the current mode (for example write_to_file, apply_patch, apply_diff, edit, edit_file, or search_replace) instead of embedding file contents in execute_command with shell here-strings, heredocs, or echo chains. Use execute_command for shell operations, not as the primary way to write file contents.
 
 Parameters:
 - command: (required) The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
@@ -13,8 +15,8 @@ Example: Executing npm run dev
 Example: Executing ls in a specific directory if directed
 { "command": "ls -la", "cwd": "/home/user/projects", "timeout": null }
 
-Example: Using relative paths
-{ "command": "touch ./testdata/example.file", "cwd": null, "timeout": null }
+Example: Checking Git status with relative paths
+{ "command": "git status --short", "cwd": null, "timeout": null }
 
 Example: Running a build with a timeout
 { "command": "npm run build", "cwd": null, "timeout": 30 }`
