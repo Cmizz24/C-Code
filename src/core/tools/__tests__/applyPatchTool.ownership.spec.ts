@@ -131,7 +131,7 @@ describe("ApplyPatchTool ownership coordination", () => {
 		expect(task.recordToolUsage).toHaveBeenCalledWith("apply_patch")
 	})
 
-	it("saves background patch updates directly without opening editable preview", async () => {
+	it("shows and saves live previews for background patch updates", async () => {
 		task.background = true
 
 		await executePatch(`*** Begin Patch
@@ -142,15 +142,15 @@ describe("ApplyPatchTool ownership coordination", () => {
 *** End Patch`)
 
 		expect(askApproval).toHaveBeenCalled()
-		expect(task.diffViewProvider.open).not.toHaveBeenCalled()
-		expect(task.diffViewProvider.update).not.toHaveBeenCalled()
-		expect(task.diffViewProvider.scrollToFirstDiff).not.toHaveBeenCalled()
-		expect(task.diffViewProvider.saveChanges).not.toHaveBeenCalled()
-		expect(task.diffViewProvider.saveDirectly).toHaveBeenCalledWith("src/owned.ts", "new\n", false, true, 1000)
+		expect(task.diffViewProvider.open).toHaveBeenCalledWith("src/owned.ts")
+		expect(task.diffViewProvider.update).toHaveBeenCalledWith("new\n", true)
+		expect(task.diffViewProvider.scrollToFirstDiff).toHaveBeenCalled()
+		expect(task.diffViewProvider.saveChanges).toHaveBeenCalledWith(true, 1000)
+		expect(task.diffViewProvider.saveDirectly).not.toHaveBeenCalled()
 		expect(task.recordToolUsage).toHaveBeenCalledWith("apply_patch")
 	})
 
-	it("saves background patch additions directly without opening the new file", async () => {
+	it("shows and saves live previews for background patch additions", async () => {
 		task.background = true
 		vi.mocked(fileExistsAtPath).mockResolvedValue(false)
 
@@ -159,10 +159,10 @@ describe("ApplyPatchTool ownership coordination", () => {
 +new
 *** End Patch`)
 
-		expect(task.diffViewProvider.open).not.toHaveBeenCalled()
-		expect(task.diffViewProvider.update).not.toHaveBeenCalled()
-		expect(task.diffViewProvider.saveChanges).not.toHaveBeenCalled()
-		expect(task.diffViewProvider.saveDirectly).toHaveBeenCalledWith("src/new.ts", "new\n", false, true, 1000)
+		expect(task.diffViewProvider.open).toHaveBeenCalledWith("src/new.ts")
+		expect(task.diffViewProvider.update).toHaveBeenCalledWith("new\n", true)
+		expect(task.diffViewProvider.saveChanges).toHaveBeenCalledWith(true, 1000)
+		expect(task.diffViewProvider.saveDirectly).not.toHaveBeenCalled()
 	})
 
 	it("denies patch writes when ownership rejects the path", async () => {

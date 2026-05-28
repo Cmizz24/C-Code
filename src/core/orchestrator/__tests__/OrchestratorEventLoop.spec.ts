@@ -193,14 +193,14 @@ describe("OrchestratorEventLoop", () => {
 		expect(options?.systemPromptSuffix).toContain("not for embedding large file contents")
 		expect(message).toContain("Use coordinate_agents only for genuine live coordination")
 		expect(message).toContain("read team chat when you need current coordination state")
-		expect(message).toContain(
-			"Publish a coordinate_agents question only when a blocking or unclear integration detail",
-		)
+		expect(message).toContain("Publish a coordinate_agents question proactively")
+		expect(message).toContain("shared integration contract is missing, ambiguous")
+		expect(message).toContain("do not guess UI/CSS/component interfaces")
 		expect(message).toContain("Do not post pre-planned, basic, or filler questions")
 		expect(message).toContain("adapt your files or final result")
 		expect(message).toContain("Do not post ownership or introduction messages")
 		expect(message).toContain("real question/answer coordination only")
-		expect(message).toContain("one short blocking question at a time")
+		expect(message).toContain("one short shared-contract question at a time")
 		expect(message).toContain("only the key hook, selector, variable, file, or decision")
 		expect(message).toContain("Avoid manifest-style messages")
 		expect(message).toContain("Never include emojis")
@@ -210,15 +210,15 @@ describe("OrchestratorEventLoop", () => {
 		expect(message).not.toContain("Before attempt_completion, read team chat again")
 		expect(message).not.toMatch(/\p{Extended_Pictographic}/u)
 		expect(options?.systemPromptSuffix).toContain("Use coordinate_agents only for genuine live coordination")
-		expect(options?.systemPromptSuffix).toContain(
-			"Publish a coordinate_agents question only when a blocking or unclear integration detail",
-		)
+		expect(options?.systemPromptSuffix).toContain("Publish a coordinate_agents question proactively")
+		expect(options?.systemPromptSuffix).toContain("shared integration contract is missing, ambiguous")
+		expect(options?.systemPromptSuffix).toContain("do not guess UI/CSS/component interfaces")
 		expect(options?.systemPromptSuffix).toContain("Do not post pre-planned, basic, or filler questions")
 		expect(options?.systemPromptSuffix).toContain("After attempt_completion or terminal completion")
 		expect(options?.systemPromptSuffix).toContain("adapt your files or final result")
 		expect(options?.systemPromptSuffix).toContain("Do not post ownership or introduction messages")
 		expect(options?.systemPromptSuffix).toContain("real question/answer coordination only")
-		expect(options?.systemPromptSuffix).toContain("one short blocking question at a time")
+		expect(options?.systemPromptSuffix).toContain("one short shared-contract question at a time")
 		expect(options?.systemPromptSuffix).toContain(
 			"answer with only the key hook, selector, variable, file, or decision",
 		)
@@ -266,10 +266,11 @@ describe("OrchestratorEventLoop", () => {
 				"each native tool call must have exactly one JSON argument object",
 			)
 			expect(options?.systemPromptSuffix).toContain("Use coordinate_agents only for genuine live coordination")
-			expect(options?.systemPromptSuffix).toContain("blocking or unclear integration detail")
+			expect(options?.systemPromptSuffix).toContain("shared integration contract is missing, ambiguous")
+			expect(options?.systemPromptSuffix).toContain("do not guess UI/CSS/component interfaces")
 			expect(options?.systemPromptSuffix).toContain("Do not post pre-planned, basic, or filler questions")
 			expect(options?.systemPromptSuffix).toContain("Do not post ownership or introduction messages")
-			expect(options?.systemPromptSuffix).toContain("one short blocking question at a time")
+			expect(options?.systemPromptSuffix).toContain("one short shared-contract question at a time")
 			expect(options?.systemPromptSuffix).toContain("Avoid manifest-style dumps")
 			expect(options?.systemPromptSuffix).not.toContain("call coordinate_agents with action=read")
 		}

@@ -355,15 +355,37 @@ describe("editTool", () => {
 			expect(mockTask.releaseAgentWriteIntent).toHaveBeenCalledWith(testFilePath)
 		})
 
-		it("saves background edits directly without opening editable preview", async () => {
+		it("shows and saves live previews for background edits", async () => {
 			mockTask.background = true
 
 			await executeEditTool()
 
 			expect(mockAskApproval).toHaveBeenCalled()
+			expect(mockTask.diffViewProvider.open).toHaveBeenCalledWith(testFilePath)
+			expect(mockTask.diffViewProvider.update).toHaveBeenCalledWith(
+				"Line 1\nModified Line 2\nLine 3\nLine 4",
+				true,
+			)
+			expect(mockTask.diffViewProvider.scrollToFirstDiff).toHaveBeenCalled()
+			expect(mockTask.diffViewProvider.saveChanges).toHaveBeenCalledWith(true, 1000)
+			expect(mockTask.diffViewProvider.saveDirectly).not.toHaveBeenCalled()
+			expect(mockTask.didEditFile).toBe(true)
+			expect(mockTask.recordToolUsage).toHaveBeenCalledWith("edit")
+		})
+
+		it("uses direct save only when focus disruption prevention is enabled", async () => {
+			mockTask.background = true
+			mockTask.providerRef.deref.mockReturnValue({
+				getState: vi.fn().mockResolvedValue({
+					diagnosticsEnabled: true,
+					writeDelayMs: 1000,
+					experiments: { preventFocusDisruption: true },
+				}),
+			})
+
+			await executeEditTool()
+
 			expect(mockTask.diffViewProvider.open).not.toHaveBeenCalled()
-			expect(mockTask.diffViewProvider.update).not.toHaveBeenCalled()
-			expect(mockTask.diffViewProvider.scrollToFirstDiff).not.toHaveBeenCalled()
 			expect(mockTask.diffViewProvider.saveChanges).not.toHaveBeenCalled()
 			expect(mockTask.diffViewProvider.saveDirectly).toHaveBeenCalledWith(
 				testFilePath,
@@ -372,8 +394,6 @@ describe("editTool", () => {
 				true,
 				1000,
 			)
-			expect(mockTask.didEditFile).toBe(true)
-			expect(mockTask.recordToolUsage).toHaveBeenCalledWith("edit")
 		})
 
 		it("denies edits when agent write intent is rejected", async () => {

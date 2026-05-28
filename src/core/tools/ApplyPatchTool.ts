@@ -222,7 +222,7 @@ export class ApplyPatchTool extends BaseTool<"apply_patch"> {
 			state?.experiments ?? {},
 			EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
 		)
-		const shouldSaveDirectly = isPreventFocusDisruptionEnabled || task.background
+		const shouldSaveDirectly = isPreventFocusDisruptionEnabled
 
 		const sanitizedDiff = sanitizeUnifiedDiff(diff || "")
 		const diffStats = computeDiffStats(sanitizedDiff) || undefined
@@ -385,7 +385,7 @@ export class ApplyPatchTool extends BaseTool<"apply_patch"> {
 			state?.experiments ?? {},
 			EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
 		)
-		const shouldSaveDirectly = isPreventFocusDisruptionEnabled || task.background
+		const shouldSaveDirectly = isPreventFocusDisruptionEnabled
 
 		const sanitizedDiff = sanitizeUnifiedDiff(diff)
 		const diffStats = computeDiffStats(sanitizedDiff) || undefined

@@ -378,23 +378,16 @@ describe("writeToFileTool", () => {
 			expect(mockCline.didEditFile).toBe(true)
 		})
 
-		it("saves background writes directly without opening editable preview", async () => {
+		it("shows and saves live previews for background writes", async () => {
 			mockCline.background = true
 
 			await executeWriteFileTool({}, { fileExists: false })
 
 			expect(mockAskApproval).toHaveBeenCalled()
-			expect(mockCline.diffViewProvider.open).not.toHaveBeenCalled()
-			expect(mockCline.diffViewProvider.update).not.toHaveBeenCalled()
-			expect(mockCline.diffViewProvider.saveChanges).not.toHaveBeenCalled()
-			expect(mockCline.diffViewProvider.saveDirectly).toHaveBeenCalledWith(
-				testFilePath,
-				testContent,
-				false,
-				true,
-				1000,
-				expect.any(Function),
-			)
+			expect(mockCline.diffViewProvider.open).toHaveBeenCalledWith(testFilePath)
+			expect(mockCline.diffViewProvider.update).toHaveBeenCalledWith(testContent, true)
+			expect(mockCline.diffViewProvider.saveChanges).toHaveBeenCalledWith(true, 1000, expect.any(Function))
+			expect(mockCline.diffViewProvider.saveDirectly).not.toHaveBeenCalled()
 			expect(mockCline.fileContextTracker.trackFileContext).toHaveBeenCalledWith(testFilePath, "roo_edited")
 			expect(mockCline.didEditFile).toBe(true)
 		})
@@ -489,7 +482,7 @@ describe("writeToFileTool", () => {
 			expect(mockCline.diffViewProvider.update).toHaveBeenCalledWith(testContent, false)
 		})
 
-		it("streams live diff rows for background partial writes without opening editable previews", async () => {
+		it("streams background partial writes through the live editable preview", async () => {
 			mockCline.background = true
 
 			await executeWriteFileTool({}, { isPartial: true })
@@ -498,18 +491,8 @@ describe("writeToFileTool", () => {
 			await executeWriteFileTool({}, { isPartial: true })
 
 			expect(mockCline.ask).toHaveBeenCalledTimes(1)
-			const payload = JSON.parse(mockCline.ask.mock.calls[0][1])
-			expect(payload).toEqual(
-				expect.objectContaining({
-					tool: "newFileCreated",
-					path: "test/path.txt",
-					content: expect.stringContaining("+Line 1"),
-				}),
-			)
-			expect(payload.content).not.toBe(testContent)
-			expect(mockCline.diffViewProvider.open).not.toHaveBeenCalled()
-			expect(mockCline.diffViewProvider.update).not.toHaveBeenCalled()
-			expect(mockedCreateDirectoriesForFile).not.toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.open).toHaveBeenCalledWith(testFilePath)
+			expect(mockCline.diffViewProvider.update).toHaveBeenCalledWith(testContent, false)
 		})
 	})
 

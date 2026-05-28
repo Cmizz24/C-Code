@@ -8,7 +8,7 @@ describe("coordinate_agents native tool", () => {
 		expect(description).toContain("team chat")
 		expect(description).toContain("real model-published question/answer coordination only")
 		expect(description).toContain("Use action=read when you need recent team chat")
-		expect(description).toContain("blocking or unclear shared contract cannot be inferred")
+		expect(description).toContain("missing, ambiguous, or likely to affect another agent's work")
 		expect(description).toContain('{"action":"read","limit":8}')
 		expect(description).toContain(
 			'{"action":"publish","kind":"question","message":"...","targetAgentId":"agent-id"}',
@@ -26,9 +26,10 @@ describe("coordinate_agents native tool", () => {
 		expect(description).toContain("pre-planned/basic questions")
 		expect(description).toContain("Ask the specific relevant agent")
 		expect(description).toContain(
-			"one missing hook, selector, variable, data attribute, public function, file contract",
+			"one missing UI/CSS/component interface, DOM structure, class name, selector, ID, data attribute, API shape",
 		)
-		expect(description).toContain("only the key hook, selector, variable, data attribute, file, or decision")
+		expect(description).toContain("Do not guess shared contracts that another agent can answer")
+		expect(description).toContain("only the key hook, selector, variable, data attribute, file, DOM hook")
 		expect(description).toContain("Avoid manifest-style dumps")
 		expect(description).toContain("split them into multiple short messages")
 		expect(description).toContain("complete or otherwise terminal")

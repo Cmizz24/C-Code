@@ -183,24 +183,17 @@ describe("applyDiffTool", () => {
 		expect(toolResult).toContain("Tool result message")
 	})
 
-	it("saves background diffs directly without opening editable preview", async () => {
+	it("shows and saves live previews for background diffs", async () => {
 		mockTask.background = true
 
 		await executeApplyDiffTool()
 
 		expect(mockAskApproval).toHaveBeenCalled()
-		expect(mockTask.diffViewProvider.open).not.toHaveBeenCalled()
-		expect(mockTask.diffViewProvider.update).not.toHaveBeenCalled()
-		expect(mockTask.diffViewProvider.scrollToFirstDiff).not.toHaveBeenCalled()
-		expect(mockTask.diffViewProvider.saveChanges).not.toHaveBeenCalled()
-		expect(mockTask.diffViewProvider.saveDirectly).toHaveBeenCalledWith(
-			relPath,
-			"new content\nextra updated\n",
-			false,
-			true,
-			1000,
-			expect.any(Function),
-		)
+		expect(mockTask.diffViewProvider.open).toHaveBeenCalledWith(relPath)
+		expect(mockTask.diffViewProvider.update).toHaveBeenCalledWith("new content\nextra updated\n", true)
+		expect(mockTask.diffViewProvider.scrollToFirstDiff).toHaveBeenCalled()
+		expect(mockTask.diffViewProvider.saveChanges).toHaveBeenCalledWith(true, 1000, expect.any(Function))
+		expect(mockTask.diffViewProvider.saveDirectly).not.toHaveBeenCalled()
 		expect(toolResult).toContain("Tool result message")
 	})
 })

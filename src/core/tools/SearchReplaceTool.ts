@@ -180,7 +180,7 @@ export class SearchReplaceTool extends BaseTool<"search_replace"> {
 				state?.experiments ?? {},
 				EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
 			)
-			const shouldSaveDirectly = isPreventFocusDisruptionEnabled || task.background
+			const shouldSaveDirectly = isPreventFocusDisruptionEnabled
 
 			const sanitizedDiff = sanitizeUnifiedDiff(diff)
 			const diffStats = computeDiffStats(sanitizedDiff) || undefined

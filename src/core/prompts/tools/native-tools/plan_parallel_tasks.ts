@@ -1,6 +1,6 @@
 import type OpenAI from "openai"
 
-const PLAN_PARALLEL_TASKS_DESCRIPTION = `Create an execution plan for independent agents only when the user explicitly asks for parallel agents or the work can be split across multiple agents that own non-conflicting files. Do not use this tool for simple single-file edits or ordinary sequential implementation. Use sharedContext and each agent task to document planned interface contracts, DOM, API, README, onboarding, and documentation contracts so agents with non-conflicting ownership can start together. Add dependsOn only for true runtime blockers; prefer signal dependencies for a narrow handoff, and avoid waitFor=complete when another agent's planned contract is sufficient. Do not make independent implementation agents depend on README, onboarding, or documentation agents; if that context is truly required, generate or verify it before creating the parallel plan. Do not create or preserve a separate manual "Review and verify the result" todo solely for this parallel plan: after clean structured plan-level completion/merge/validation evidence, that evidence satisfies redundant review/verification todos. Perform manual verification only when evidence is missing, failed, inconclusive, contradicted, or explicitly requested by the user. After the user approves the plan, Roo starts the agents programmatically as normal single-scope specialist tasks; do not call new_task for these parallel agents. The tool validates file ownership conflicts and dependency cycles, then registers the plan for write coordination.`
+const PLAN_PARALLEL_TASKS_DESCRIPTION = `Create an execution plan for independent agents only when the user explicitly asks for parallel agents or the work can be split across multiple agents that own non-conflicting files. Do not use this tool for simple single-file edits or ordinary sequential implementation. Use sharedContext and each agent task to document planned interface contracts, UI/CSS/component contracts, DOM structure, class names, selectors, IDs, data attributes, API shapes, file paths, timing, README, onboarding, and documentation contracts so agents with non-conflicting ownership can start together. When a contract is known, put it in sharedContext and the relevant agent task instead of leaving agents to infer it. Tell agents to use coordinate_agents for genuine targeted Q/A when a shared contract becomes missing, ambiguous, or likely to affect another agent's work instead of guessing. Add dependsOn only for true runtime blockers; prefer signal dependencies for a narrow handoff, and avoid waitFor=complete when another agent's planned contract is sufficient. Do not make independent implementation agents depend on README, onboarding, or documentation agents; if that context is truly required, generate or verify it before creating the parallel plan. Do not create or preserve a separate manual "Review and verify the result" todo solely for this parallel plan: after clean structured plan-level completion/merge/validation evidence, that evidence satisfies redundant review/verification todos. Perform manual verification only when evidence is missing, failed, inconclusive, contradicted, or explicitly requested by the user. After the user approves the plan, Roo starts the agents programmatically as normal single-scope specialist tasks; do not call new_task for these parallel agents. The tool validates file ownership conflicts and dependency cycles, then registers the plan for write coordination.`
 
 export interface PlanParallelTasksToolOptions {
 	/** Maximum total agents allowed in a single plan. */
@@ -35,7 +35,7 @@ export function createPlanParallelTasksTool(
 					sharedContext: {
 						type: "string",
 						description:
-							"Context shared with every agent, including constraints, planned interface contracts, and relevant discoveries that let independent agents run without blocking on each other.",
+							"Context shared with every agent, including constraints, planned interface contracts, UI/CSS/component contracts, DOM structure, class names, selectors, IDs, data attributes, API shapes, file paths, timing, and relevant discoveries that let independent agents run without blocking on each other.",
 					},
 					expectedFiles: {
 						type: "array",
@@ -57,7 +57,11 @@ export function createPlanParallelTasksTool(
 									type: "string",
 									description: "Mode slug for the specialist agent assigned to this task.",
 								},
-								task: { type: "string", description: "Precise task instructions for this agent." },
+								task: {
+									type: "string",
+									description:
+										"Precise task instructions for this agent. Include known shared contracts and tell the agent to ask genuine coordinate_agents Q/A instead of guessing when UI/CSS/component, DOM, class, selector, ID, data attribute, API shape, file path, user-facing name, or timing details become missing or ambiguous.",
+								},
 								owns: {
 									type: "array",
 									description: "Files or directories this agent owns.",

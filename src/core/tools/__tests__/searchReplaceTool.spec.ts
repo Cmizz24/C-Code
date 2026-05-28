@@ -324,15 +324,37 @@ describe("searchReplaceTool", () => {
 			expect(mockCline.releaseAgentWriteIntent).toHaveBeenCalledWith(testFilePath)
 		})
 
-		it("saves background replacements directly without opening editable preview", async () => {
+		it("shows and saves live previews for background replacements", async () => {
 			mockCline.background = true
 
 			await executeSearchReplaceTool()
 
 			expect(mockAskApproval).toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.open).toHaveBeenCalledWith(testFilePath)
+			expect(mockCline.diffViewProvider.update).toHaveBeenCalledWith(
+				"Line 1\nModified Line 2\nLine 3\nLine 4",
+				true,
+			)
+			expect(mockCline.diffViewProvider.scrollToFirstDiff).toHaveBeenCalled()
+			expect(mockCline.diffViewProvider.saveChanges).toHaveBeenCalledWith(true, 1000)
+			expect(mockCline.diffViewProvider.saveDirectly).not.toHaveBeenCalled()
+			expect(mockCline.didEditFile).toBe(true)
+			expect(mockCline.recordToolUsage).toHaveBeenCalledWith("search_replace")
+		})
+
+		it("uses direct save only when focus disruption prevention is enabled", async () => {
+			mockCline.background = true
+			mockCline.providerRef.deref.mockReturnValue({
+				getState: vi.fn().mockResolvedValue({
+					diagnosticsEnabled: true,
+					writeDelayMs: 1000,
+					experiments: { preventFocusDisruption: true },
+				}),
+			})
+
+			await executeSearchReplaceTool()
+
 			expect(mockCline.diffViewProvider.open).not.toHaveBeenCalled()
-			expect(mockCline.diffViewProvider.update).not.toHaveBeenCalled()
-			expect(mockCline.diffViewProvider.scrollToFirstDiff).not.toHaveBeenCalled()
 			expect(mockCline.diffViewProvider.saveChanges).not.toHaveBeenCalled()
 			expect(mockCline.diffViewProvider.saveDirectly).toHaveBeenCalledWith(
 				testFilePath,
@@ -341,8 +363,6 @@ describe("searchReplaceTool", () => {
 				true,
 				1000,
 			)
-			expect(mockCline.didEditFile).toBe(true)
-			expect(mockCline.recordToolUsage).toHaveBeenCalledWith("search_replace")
 		})
 
 		it("denies replacements when agent write intent is rejected", async () => {

@@ -410,7 +410,7 @@ export class EditFileTool extends BaseTool<"edit_file"> {
 				state?.experiments ?? {},
 				EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
 			)
-			const shouldSaveDirectly = isPreventFocusDisruptionEnabled || task.background
+			const shouldSaveDirectly = isPreventFocusDisruptionEnabled
 
 			const sanitizedDiff = sanitizeUnifiedDiff(diff || "")
 			const diffStats = computeDiffStats(sanitizedDiff) || undefined
@@ -455,7 +455,7 @@ export class EditFileTool extends BaseTool<"edit_file"> {
 				await task.diffViewProvider.saveDirectly(
 					relPath,
 					newContent,
-					task.background ? false : isNewFile,
+					isNewFile,
 					diagnosticsEnabled,
 					writeDelayMs,
 				)

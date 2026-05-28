@@ -24,9 +24,17 @@ describe("createPlanParallelTasksTool", () => {
 
 		expect(tool.function.description).toContain("sharedContext")
 		expect(tool.function.description).toContain("planned interface contracts")
+		expect(tool.function.description).toContain("UI/CSS/component contracts")
+		expect(tool.function.description).toContain(
+			"DOM structure, class names, selectors, IDs, data attributes, API shapes",
+		)
+		expect(tool.function.description).toContain("coordinate_agents for genuine targeted Q/A")
+		expect(tool.function.description).toContain("instead of guessing")
 		expect(tool.function.description).toContain("Add dependsOn only for true runtime blockers")
 		expect(tool.function.description).toContain("avoid waitFor=complete")
 		expect(parameters.properties.sharedContext.description).toContain("planned interface contracts")
+		expect(parameters.properties.sharedContext.description).toContain("UI/CSS/component contracts")
+		expect(agentProperties.task.description).toContain("coordinate_agents Q/A instead of guessing")
 		expect(agentProperties.dependsOn.description).toContain("True blockers")
 		expect(agentProperties.dependsOn.description).toContain("planned contract")
 	})

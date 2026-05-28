@@ -154,7 +154,7 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 				state?.experiments ?? {},
 				EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
 			)
-			const shouldSaveDirectly = isPreventFocusDisruptionEnabled || task.background
+			const shouldSaveDirectly = isPreventFocusDisruptionEnabled
 
 			// Check if file is write-protected
 			const isWriteProtected = task.rooProtectedController?.isWriteProtected(relPath) || false
