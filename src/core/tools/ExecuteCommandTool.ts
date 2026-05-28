@@ -593,17 +593,31 @@ function getPreExecutionShellWriteRecoveryGuidance(
 	const commandLengthLimit = getShellCommandLengthSoftLimit(process.platform)
 
 	if (
-		commandLengthLimit === undefined ||
-		command.length <= commandLengthLimit ||
-		!looksLikeEmbeddedShellFileWrite(command)
+		commandLengthLimit !== undefined &&
+		command.length > commandLengthLimit &&
+		looksLikeEmbeddedShellFileWrite(command)
 	) {
-		return ""
+		return [
+			`Command not executed: this background-agent command is ${command.length} characters, which exceeds the Windows shell command-length safety limit of ${commandLengthLimit} characters and would likely fail before it can run.`,
+			SHELL_WRITE_RECOVERY_GUIDANCE,
+		].join("\n")
 	}
 
-	return [
-		`Command not executed: this background-agent command is ${command.length} characters, which exceeds the Windows shell command-length safety limit of ${commandLengthLimit} characters and would likely fail before it can run.`,
-		SHELL_WRITE_RECOVERY_GUIDANCE,
-	].join("\n")
+	if (hasMalformedHereStringTerminator(command) && looksLikePowerShellWriteCommand(command)) {
+		return [
+			`Command not executed: this background-agent command contains a malformed PowerShell here-string terminator (the closing '@ or "@ delimiter must be on its own line) and would produce a PowerShell parser error.`,
+			SHELL_WRITE_RECOVERY_GUIDANCE,
+		].join("\n")
+	}
+
+	if (looksLikeDirectPowerShellHereStringFileWrite(command)) {
+		return [
+			`Command not executed: this background-agent command appears to embed multiline file contents in a PowerShell file-write command using a direct here-string value, which is fragile and may produce a PowerShell parser error.`,
+			SHELL_WRITE_RECOVERY_GUIDANCE,
+		].join("\n")
+	}
+
+	return ""
 }
 
 /**
@@ -625,6 +639,31 @@ function hasMalformedHereStringHeader(command: string): boolean {
 	// A valid here-string header must look like: @'\n or @"\n (newline right after).
 	// An invalid one looks like: @'<any non-newline chars> on the same line.
 	return /@['"][^\n]/.test(command)
+}
+
+/**
+ * Returns true when a PowerShell here-string closing delimiter is followed by
+ * other tokens on the same line. PowerShell only recognizes '@ or "@ as the
+ * terminator when the delimiter is on its own line, so forms like
+ * `Set-Content -Value @'\n...\n'@ -Encoding UTF8` keep parsing as an
+ * unterminated string.
+ */
+function hasMalformedHereStringTerminator(command: string): boolean {
+	return /(?:^|\r?\n)['"]@[^\r\n]+/.test(command)
+}
+
+/**
+ * Returns true for background-agent PowerShell file writes that embed file
+ * contents directly as here-strings instead of using the normal write/edit
+ * tools. This is intentionally narrow: it requires both here-string syntax and
+ * a direct PowerShell file-write command shape.
+ */
+function looksLikeDirectPowerShellHereStringFileWrite(command: string): boolean {
+	const hasSetContentDirectValue = /\b(?:set-content|add-content)\b[\s\S]*-value\b\s*@['"]/i.test(command)
+	const hasOutFileDirectInputObject = /\bout-file\b[\s\S]*-(?:inputobject|input-object)\b\s*@['"]/i.test(command)
+	const hasHereStringPipedToOutFile = /@['"][\s\S]*['"]@[\s\S]*\|\s*\bout-file\b/i.test(command)
+
+	return hasSetContentDirectValue || hasOutFileDirectInputObject || hasHereStringPipedToOutFile
 }
 
 function getShellCommandLengthSoftLimit(platform: NodeJS.Platform): number | undefined {

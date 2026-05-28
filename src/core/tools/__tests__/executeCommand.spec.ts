@@ -534,6 +534,98 @@ describe("ExecuteCommandTool background agents", () => {
 		expect(callbacks.pushToolResult).not.toHaveBeenCalled()
 	})
 
+	it("returns pre-execution recovery guidance for direct Set-Content here-string values", async () => {
+		const tool = new ExecuteCommandTool()
+		const command = `powershell -Command "Set-Content -Path 'server/index.js' -Value @'
+import 'dotenv/config';
+console.log('ok');
+'@ -Encoding UTF8"`
+		const task: any = {
+			background: true,
+			agentId: "server-agent",
+			cwd: "c:/tmp/worktree",
+			taskId: "background-task-direct-here-string",
+			consecutiveMistakeCount: 0,
+			recordToolError: vitest.fn(),
+			say: vitest.fn().mockResolvedValue(undefined),
+		}
+		const callbacks: any = {
+			pushToolResult: vitest.fn(),
+			askApproval: vitest.fn().mockResolvedValue(true),
+			handleError: vitest.fn(),
+		}
+
+		await tool.execute({ command }, task, callbacks)
+
+		expect(callbacks.askApproval).not.toHaveBeenCalled()
+		expect(TerminalRegistry.getOrCreateTerminal).not.toHaveBeenCalled()
+		expect(callbacks.handleError).not.toHaveBeenCalled()
+		expect(callbacks.pushToolResult).toHaveBeenCalledTimes(1)
+		const result = callbacks.pushToolResult.mock.calls[0][0]
+		expect(result).toContain("Command not executed")
+		expect(result).toContain("PowerShell here-string")
+		expect(result).toContain("retry with the normal write/edit tools")
+		expect(result).toContain("not for embedding file contents")
+	})
+
+	it("continues to run normal non-file-write PowerShell commands for background agents", async () => {
+		;(fs.access as any).mockResolvedValue(undefined)
+
+		const tool = new ExecuteCommandTool()
+		const command = "powershell -Command \"Write-Output 'ok'\""
+		const task: any = {
+			background: true,
+			agentId: "server-agent",
+			cwd: "/test/project",
+			taskId: "background-task-normal-powershell",
+			lastMessageTs: 123,
+			consecutiveMistakeCount: 0,
+			recordToolError: vitest.fn(),
+			say: vitest.fn().mockResolvedValue(undefined),
+			supersedePendingAsk: vitest.fn(),
+			providerRef: {
+				deref: vitest.fn().mockResolvedValue({
+					postMessageToWebview: vitest.fn(),
+					getState: vitest.fn().mockResolvedValue({ terminalShellIntegrationDisabled: true }),
+				}),
+			},
+		}
+		const terminal: any = {
+			provider: "execa",
+			id: 1,
+			initialCwd: "/test/project",
+			getCurrentWorkingDirectory: vitest.fn().mockReturnValue("/test/project"),
+			runCommand: vitest.fn().mockImplementation((_command: string, callbacks: RooTerminalCallbacks) => {
+				let resolveProcess: (() => void) | undefined
+				const process = new Promise<void>((resolve) => {
+					resolveProcess = resolve
+				}) as any
+				process.continue = vitest.fn()
+				setTimeout(async () => {
+					callbacks.onShellExecutionComplete({ exitCode: 0 }, process)
+					await callbacks.onCompleted("ok", process)
+					resolveProcess?.()
+				}, 0)
+				return process
+			}),
+		}
+		;(TerminalRegistry.getOrCreateTerminal as any).mockResolvedValue(terminal)
+		const callbacks: any = {
+			pushToolResult: vitest.fn(),
+			askApproval: vitest.fn().mockResolvedValue(true),
+			handleError: vitest.fn(),
+		}
+
+		await tool.execute({ command }, task, callbacks)
+
+		expect(callbacks.askApproval).toHaveBeenCalledWith("command", command)
+		expect(TerminalRegistry.getOrCreateTerminal).toHaveBeenCalledWith(task.cwd, task.taskId, "execa")
+		expect(terminal.runCommand).toHaveBeenCalledWith(command, expect.any(Object))
+		expect(callbacks.handleError).not.toHaveBeenCalled()
+		expect(callbacks.pushToolResult).toHaveBeenCalledTimes(1)
+		expect(callbacks.pushToolResult.mock.calls[0][0]).toContain("Exit code: 0")
+	})
+
 	it("returns pre-execution recovery guidance for oversized background shell file writes on Windows", async () => {
 		Object.defineProperty(process, "platform", { value: "win32" })
 
