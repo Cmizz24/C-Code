@@ -502,6 +502,16 @@ describe("executeCommand", () => {
 })
 
 describe("ExecuteCommandTool background agents", () => {
+	const originalPlatform = process.platform
+
+	beforeEach(() => {
+		vitest.clearAllMocks()
+	})
+
+	afterEach(() => {
+		Object.defineProperty(process, "platform", { value: originalPlatform })
+	})
+
 	it("uses the normal command approval path for background parallel agents", async () => {
 		const tool = new ExecuteCommandTool()
 		const command = "powershell -Command \"Set-Content -Path src/app.ts -Value 'content'\""
@@ -522,5 +532,65 @@ describe("ExecuteCommandTool background agents", () => {
 		expect(callbacks.askApproval).toHaveBeenCalledWith("command", command)
 		expect(task.recordToolError).not.toHaveBeenCalled()
 		expect(callbacks.pushToolResult).not.toHaveBeenCalled()
+	})
+
+	it("returns pre-execution recovery guidance for oversized background shell file writes on Windows", async () => {
+		Object.defineProperty(process, "platform", { value: "win32" })
+
+		const tool = new ExecuteCommandTool()
+		const hugeContent = "x".repeat(9_000)
+		const command = `cd /d "c:\\Users\\clayton\\Desktop\\test\\.roo\\parallel-worktrees\\plan-mpoqu33b\\component-agent" && powershell -Command "$content = @'
+${hugeContent}
+'@; Set-Content -Path app.js -Value $content"`
+		const task: any = {
+			background: true,
+			agentId: "component-agent",
+			cwd: "c:/Users/clayton/Desktop/test/.roo/parallel-worktrees/plan-mpoqu33b/component-agent",
+			taskId: "background-task-1",
+			consecutiveMistakeCount: 0,
+			recordToolError: vitest.fn(),
+			say: vitest.fn().mockResolvedValue(undefined),
+		}
+		const callbacks: any = {
+			pushToolResult: vitest.fn(),
+			askApproval: vitest.fn().mockResolvedValue(true),
+			handleError: vitest.fn(),
+		}
+
+		await tool.execute({ command }, task, callbacks)
+
+		expect(callbacks.askApproval).not.toHaveBeenCalled()
+		expect(TerminalRegistry.getOrCreateTerminal).not.toHaveBeenCalled()
+		expect(callbacks.handleError).not.toHaveBeenCalled()
+		expect(callbacks.pushToolResult).toHaveBeenCalledTimes(1)
+		const result = callbacks.pushToolResult.mock.calls[0][0]
+		expect(result).toContain("Command not executed")
+		expect(result).toContain("exceeds the Windows shell command-length safety limit")
+		expect(result).toContain("retry with the normal write/edit tools")
+		expect(result).toContain("not for embedding file contents")
+	})
+
+	it("does not preflight long background commands that are not shell file writes", async () => {
+		Object.defineProperty(process, "platform", { value: "win32" })
+
+		const tool = new ExecuteCommandTool()
+		const command = `node -e "console.log('${"x".repeat(9_000)}')"`
+		const task: any = {
+			background: true,
+			agentId: "component-agent",
+			consecutiveMistakeCount: 0,
+			recordToolError: vitest.fn(),
+		}
+		const callbacks: any = {
+			pushToolResult: vitest.fn(),
+			askApproval: vitest.fn().mockResolvedValue(false),
+			handleError: vitest.fn(),
+		}
+
+		await tool.execute({ command }, task, callbacks)
+
+		expect(callbacks.askApproval).toHaveBeenCalledWith("command", command)
+		expect(callbacks.pushToolResult).not.toHaveBeenCalled()
+		expect(TerminalRegistry.getOrCreateTerminal).not.toHaveBeenCalled()
 	})
 })

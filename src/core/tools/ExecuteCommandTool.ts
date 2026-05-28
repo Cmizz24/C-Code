@@ -64,6 +64,12 @@ export class ExecuteCommandTool extends BaseTool<"execute_command"> {
 
 			task.consecutiveMistakeCount = 0
 
+			const preExecutionRecoveryGuidance = getPreExecutionShellWriteRecoveryGuidance(task, canonicalCommand)
+			if (preExecutionRecoveryGuidance) {
+				pushToolResult(preExecutionRecoveryGuidance)
+				return
+			}
+
 			const didApprove = await askApproval("command", canonicalCommand)
 
 			if (!didApprove) {
@@ -559,6 +565,50 @@ function formatExitStatus(exitDetails: ExitCodeDetails | undefined): string {
 
 const SHELL_WRITE_RECOVERY_GUIDANCE =
 	"If this command was attempting to create or edit file contents, retry with the normal write/edit tools available to this mode (for example write_to_file, apply_patch, apply_diff, edit, edit_file, or search_replace) instead of shell here-strings, heredocs, or echo chains. Use execute_command for commands, tests, builds, package managers, scripts, or shell operations, not for embedding file contents."
+
+const WINDOWS_SHELL_COMMAND_LENGTH_SOFT_LIMIT = 8_000
+
+function getPreExecutionShellWriteRecoveryGuidance(
+	task: Pick<Task, "background" | "agentId">,
+	command: string,
+): string {
+	const commandLengthLimit = getShellCommandLengthSoftLimit(process.platform)
+
+	if (
+		task.background !== true ||
+		!task.agentId ||
+		commandLengthLimit === undefined ||
+		command.length <= commandLengthLimit ||
+		!looksLikeEmbeddedShellFileWrite(command)
+	) {
+		return ""
+	}
+
+	return [
+		`Command not executed: this background-agent command is ${command.length} characters, which exceeds the Windows shell command-length safety limit of ${commandLengthLimit} characters and would likely fail before it can run.`,
+		SHELL_WRITE_RECOVERY_GUIDANCE,
+	].join("\n")
+}
+
+function getShellCommandLengthSoftLimit(platform: NodeJS.Platform): number | undefined {
+	// Windows shell execution commonly goes through cmd.exe, whose command line limit is
+	// lower than CreateProcess. Stay slightly below the 8191-character cmd.exe ceiling so
+	// clearly oversized generated file writes do not reach the OS-level failure path.
+	return platform === "win32" ? WINDOWS_SHELL_COMMAND_LENGTH_SOFT_LIMIT : undefined
+}
+
+function looksLikeEmbeddedShellFileWrite(command: string): boolean {
+	const hasHereStringOrHeredoc = /(^|\s)(@'|@"|'@|"@)(\s|$)/.test(command) || /<<\s*['"]?[a-z0-9_-]+/i.test(command)
+	const hasPowerShellWriteCommand = /\b(out-file|set-content|add-content|tee-object)\b/i.test(command)
+	const hasShellRedirectionWrite = /\b(echo|printf|cat)\b[\s\S]*(?:>|>>)/i.test(command)
+	const hasPowerShellInlineValueWrite = /\b(set-content|add-content)\b[\s\S]*\b-value\b/i.test(command)
+
+	return (
+		(hasHereStringOrHeredoc && hasPowerShellWriteCommand) ||
+		hasShellRedirectionWrite ||
+		hasPowerShellInlineValueWrite
+	)
+}
 
 function getShellWriteRecoveryGuidance(
 	task: Pick<Task, "background" | "agentId">,
