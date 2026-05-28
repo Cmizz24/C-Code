@@ -36,6 +36,55 @@ describe("NativeToolCallParser", () => {
 				expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('"name": "new_task"'))
 				errorSpy.mockRestore()
 			})
+
+			it("recovers from unquoted markdown checklist in todos field (Issue 2)", () => {
+				// Simulate the LLM emitting "todos": - [ ] Item ... without quoting the value.
+				const rawArgs =
+					'{"mode":"code","message":"Build dashboard","todos": - [ ] Create project\n- [ ] Add routing\n- [x] Review spec\n}'
+
+				const result = NativeToolCallParser.parseToolCall({
+					id: "toolu_unquoted_todos",
+					name: "new_task" as const,
+					arguments: rawArgs,
+				})
+
+				expect(result).not.toBeNull()
+				expect(result?.type).toBe("tool_use")
+				if (result?.type === "tool_use" && result.nativeArgs) {
+					expect(result.nativeArgs).toMatchObject({ mode: "code", message: "Build dashboard" })
+					// The recovered todos field should be a string containing the markdown
+					expect(typeof result.nativeArgs.todos).toBe("string")
+					expect(String(result.nativeArgs.todos)).toContain("- [ ] Create project")
+				}
+			})
+		})
+
+		describe("plan_parallel_tasks tool", () => {
+			it("recovers from raw control characters in sharedContext string (Issue 1)", () => {
+				// Simulate a sharedContext field containing embedded TAB and BEL control chars.
+				const sharedContextWithControlChars = "Use the shared API\tclient\x07for all agents"
+				// Build a valid-except-for-control-chars JSON string.
+				// Note: plan_parallel_tasks requires both `goal` and `agents` to produce nativeArgs.
+				const rawArgs = `{"goal":"Build dashboard","agents":[{"agentId":"api-agent","description":"Build API","owns":[],"dependsOn":[]}],"sharedContext":"${sharedContextWithControlChars}"}`
+
+				const result = NativeToolCallParser.parseToolCall({
+					id: "toolu_ctrl_chars_sharedctx",
+					name: "plan_parallel_tasks" as const,
+					arguments: rawArgs,
+				})
+
+				expect(result).not.toBeNull()
+				expect(result?.type).toBe("tool_use")
+				if (result?.type === "tool_use") {
+					// sharedContext should have been sanitized — control chars stripped
+					const sharedCtx = (result.nativeArgs as any).sharedContext as string
+					// eslint-disable-next-line no-control-regex
+					expect(sharedCtx).not.toMatch(/[\x00-\x1F\x7F]/)
+					expect(sharedCtx).toContain("Use the shared API")
+					expect(sharedCtx).toContain("client")
+					expect(sharedCtx).toContain("for all agents")
+				}
+			})
 		})
 
 		describe("read_file tool", () => {

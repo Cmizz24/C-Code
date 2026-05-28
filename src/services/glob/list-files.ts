@@ -495,7 +495,10 @@ async function listFilteredDirectories(
 			}
 		} catch (err) {
 			// Continue if we can't read a directory
-			if (!isExpectedMissingParallelWorktreeDirectoryReadError(err, currentPath)) {
+			if (
+				!isExpectedMissingParallelWorktreeDirectoryReadError(err, currentPath) &&
+				!isExpectedMissingRootDirectoryReadError(err, currentPath, absolutePath)
+			) {
 				console.warn(`Could not read directory ${currentPath}: ${err}`)
 			}
 		}
@@ -784,6 +787,31 @@ function isExpectedMissingParallelWorktreeDirectoryReadError(error: unknown, dir
 		/not a directory/i.test(message)
 
 	return hasMissingPathError && isParallelWorktreePath(normalizePathForRipgrepLogMatch(directoryPath))
+}
+
+/**
+ * Returns true when a background agent calls list_files on the scan root directory
+ * before that directory has been created. This is expected during parallel agent startup
+ * when the orchestrator assigns work to an agent before its project directory exists.
+ * We suppress the warning only when the failing path IS the root being scanned (not a
+ * subdirectory inside it) and the error code indicates a missing path.
+ */
+function isExpectedMissingRootDirectoryReadError(error: unknown, currentPath: string, rootPath: string): boolean {
+	if (path.resolve(currentPath) !== path.resolve(rootPath)) {
+		return false
+	}
+	const code =
+		typeof error === "object" && error !== null && "code" in error
+			? String((error as NodeJS.ErrnoException).code ?? "")
+			: ""
+	const message = error instanceof Error ? error.message : String(error)
+	return (
+		code === "ENOENT" ||
+		code === "ENOTDIR" ||
+		/\(os error\s*[23]\)/i.test(message) ||
+		/the system cannot find the (?:file|path) specified/i.test(message) ||
+		/no such file or directory/i.test(message)
+	)
 }
 
 function normalizePathForRipgrepLogMatch(value: string): string {

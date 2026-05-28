@@ -316,6 +316,41 @@ describe("list-files symlink support", () => {
 		warnSpy.mockRestore()
 	})
 
+	it("should not warn when a not-yet-created project root directory returns ENOENT during directory scanning (Issue 4)", async () => {
+		const mockSpawn = vi.mocked(childProcess.spawn)
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+		const projectRootPath = "/test/trading212-dashboard"
+		const mockProcess = {
+			stdout: {
+				on: vi.fn(),
+			},
+			stderr: {
+				on: vi.fn(),
+			},
+			on: vi.fn((event, callback) => {
+				if (event === "close") {
+					setTimeout(() => callback(0), 20)
+				}
+			}),
+			kill: vi.fn(),
+		}
+
+		mockSpawn.mockReturnValue(mockProcess as any)
+		vi.mocked(fs.promises.access).mockRejectedValue(new Error("File not found"))
+		// Root directory does not exist yet (background agent pre-creation)
+		vi.mocked(fs.promises.readdir).mockRejectedValueOnce(
+			Object.assign(new Error(`ENOENT: no such file or directory, scandir '${projectRootPath}'`), {
+				code: "ENOENT",
+			}),
+		)
+
+		await listFiles(projectRootPath, true, 100)
+
+		expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("Could not read directory"))
+
+		warnSpy.mockRestore()
+	})
+
 	it("should preserve unexpected directory read warnings outside deleted parallel worktrees", async () => {
 		const mockSpawn = vi.mocked(childProcess.spawn)
 		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)

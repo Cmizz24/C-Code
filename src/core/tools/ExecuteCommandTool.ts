@@ -572,11 +572,27 @@ function getPreExecutionShellWriteRecoveryGuidance(
 	task: Pick<Task, "background" | "agentId">,
 	command: string,
 ): string {
+	if (task.background !== true || !task.agentId) {
+		return ""
+	}
+
+	// Block background-agent commands with malformed here-string headers regardless
+	// of command length.  A malformed here-string has `@'` or `@"` with non-newline
+	// content immediately after the opening sequence on the same line, which causes
+	// PowerShell parser errors even for short commands that pass the length gate.
+	// Note: looksLikeEmbeddedShellFileWrite requires well-formed here-string syntax
+	// (whitespace around the delimiters), so for the malformed check we only require
+	// the presence of any known PowerShell write command alongside the bad header.
+	if (hasMalformedHereStringHeader(command) && looksLikePowerShellWriteCommand(command)) {
+		return [
+			`Command not executed: this background-agent command contains a malformed PowerShell here-string header (the opening @' or @" delimiter must be followed immediately by a newline) and would produce a PowerShell parser error.`,
+			SHELL_WRITE_RECOVERY_GUIDANCE,
+		].join("\n")
+	}
+
 	const commandLengthLimit = getShellCommandLengthSoftLimit(process.platform)
 
 	if (
-		task.background !== true ||
-		!task.agentId ||
 		commandLengthLimit === undefined ||
 		command.length <= commandLengthLimit ||
 		!looksLikeEmbeddedShellFileWrite(command)
@@ -588,6 +604,27 @@ function getPreExecutionShellWriteRecoveryGuidance(
 		`Command not executed: this background-agent command is ${command.length} characters, which exceeds the Windows shell command-length safety limit of ${commandLengthLimit} characters and would likely fail before it can run.`,
 		SHELL_WRITE_RECOVERY_GUIDANCE,
 	].join("\n")
+}
+
+/**
+ * Returns true when a command contains any PowerShell write-file command keyword.
+ * Used as a lightweight companion to hasMalformedHereStringHeader when we cannot
+ * rely on well-formed here-string syntax detection.
+ */
+function looksLikePowerShellWriteCommand(command: string): boolean {
+	return /\b(out-file|set-content|add-content|tee-object)\b/i.test(command)
+}
+
+/**
+ * Returns true when a command contains a PowerShell here-string whose opening
+ * delimiter (`@'` or `@"`) is not immediately followed by a newline character.
+ * Such commands cause a PowerShell "The string is missing the terminator"
+ * parser error regardless of overall command length.
+ */
+function hasMalformedHereStringHeader(command: string): boolean {
+	// A valid here-string header must look like: @'\n or @"\n (newline right after).
+	// An invalid one looks like: @'<any non-newline chars> on the same line.
+	return /@['"][^\n]/.test(command)
 }
 
 function getShellCommandLengthSoftLimit(platform: NodeJS.Platform): number | undefined {

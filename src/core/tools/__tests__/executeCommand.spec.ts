@@ -593,4 +593,42 @@ ${hugeContent}
 		expect(callbacks.pushToolResult).not.toHaveBeenCalled()
 		expect(TerminalRegistry.getOrCreateTerminal).not.toHaveBeenCalled()
 	})
+
+	it("blocks background agents with malformed here-string headers regardless of command length (Issue 3)", async () => {
+		// A short command (well under 8000 chars) with a here-string whose @' delimiter
+		// is NOT followed immediately by a newline — this produces a PowerShell parser
+		// error and must be blocked pre-execution.
+		const tool = new ExecuteCommandTool()
+		// Inline here-string: @' is followed by content on the same line (malformed).
+		const command =
+			`powershell -Command "$content = @'some content on same line as delimiter'@; ` +
+			`Set-Content -Path app.js -Value $content"`
+		expect(command.length).toBeLessThan(8_000)
+
+		const task: any = {
+			background: true,
+			agentId: "component-agent",
+			cwd: "c:/tmp/worktree",
+			taskId: "background-task-malformed",
+			consecutiveMistakeCount: 0,
+			recordToolError: vitest.fn(),
+			say: vitest.fn().mockResolvedValue(undefined),
+		}
+		const callbacks: any = {
+			pushToolResult: vitest.fn(),
+			askApproval: vitest.fn().mockResolvedValue(true),
+			handleError: vitest.fn(),
+		}
+
+		await tool.execute({ command }, task, callbacks)
+
+		expect(callbacks.askApproval).not.toHaveBeenCalled()
+		expect(TerminalRegistry.getOrCreateTerminal).not.toHaveBeenCalled()
+		expect(callbacks.handleError).not.toHaveBeenCalled()
+		expect(callbacks.pushToolResult).toHaveBeenCalledTimes(1)
+		const result = callbacks.pushToolResult.mock.calls[0][0]
+		expect(result).toContain("Command not executed")
+		expect(result).toContain("malformed PowerShell here-string header")
+		expect(result).toContain("retry with the normal write/edit tools")
+	})
 })

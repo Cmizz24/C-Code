@@ -1134,7 +1134,7 @@ export class NativeToolCallParser {
 
 		try {
 			// Parse the arguments JSON string
-			const args = NativeToolCallParser.parseToolArguments(toolCall.arguments)
+			const args = NativeToolCallParser.parseToolArguments(toolCall.arguments, resolvedName as ToolName)
 
 			// Build stringified params for display/logging.
 			// Tool execution MUST use nativeArgs (typed) and does not support legacy fallbacks.
@@ -1485,7 +1485,7 @@ export class NativeToolCallParser {
 		}
 	}
 
-	private static parseToolArguments(argumentsString: string): Record<string, any> {
+	private static parseToolArguments(argumentsString: string, toolName?: ToolName): Record<string, any> {
 		if (argumentsString === "") {
 			return {}
 		}
@@ -1501,8 +1501,88 @@ export class NativeToolCallParser {
 				)
 			}
 
+			// Attempt narrow recoveries before giving up.
+			for (const candidate of NativeToolCallParser.buildRecoveredArgumentCandidates(argumentsString, toolName)) {
+				try {
+					return JSON.parse(candidate)
+				} catch {
+					// Try next candidate.
+				}
+			}
+
 			throw error
 		}
+	}
+
+	/**
+	 * Builds a small set of narrowly-scoped recovery candidates for common LLM
+	 * serialisation mistakes that cause raw JSON.parse() to fail.
+	 *
+	 * Recovery 1 – unquoted markdown checklist in new_task `todos` field:
+	 *   The model emits `"todos": - [ ] Item ...` without wrapping the value in
+	 *   quotes.  Detect the pattern and re-stringify the markdown portion.
+	 *
+	 * Recovery 2 – raw control characters inside JSON string values:
+	 *   Some LLMs embed bare TAB/CR/LF/BEL characters (code points ≤ 31 or = 127)
+	 *   inside a JSON string literal, which is invalid per spec.  Strip them from
+	 *   the raw JSON text so JSON.parse() can proceed.
+	 */
+	private static buildRecoveredArgumentCandidates(raw: string, toolName?: ToolName): string[] {
+		const candidates: string[] = []
+
+		// Recovery 1: unquoted markdown checklist in `todos` for new_task.
+		if (toolName === "new_task") {
+			// Match: "todos": followed by optional whitespace then a markdown checklist
+			// (starts with `- [` as in `- [ ] item` or `- [x] item`).  Everything from
+			// there to the next JSON key boundary or closing `}` is the raw markdown.
+			const unquotedTodosMatch = raw.match(/"todos"\s*:\s*(-\s*\[[\s\S]*?)(\s*(?:,\s*"|}\s*$))/)
+			if (unquotedTodosMatch) {
+				const markdownContent = unquotedTodosMatch[1]
+				const suffix = unquotedTodosMatch[2]
+				const prefixEnd = unquotedTodosMatch.index! + '"todos":'.length
+				const candidate = raw.slice(0, prefixEnd) + " " + JSON.stringify(markdownContent) + suffix
+				candidates.push(candidate)
+			}
+		}
+
+		// Recovery 2: strip bare control characters (≤ 0x1F or = 0x7F) embedded
+		// inside JSON string values.  Walk character-by-character so structural JSON
+		// (braces, colons, commas) is never touched.
+		// eslint-disable-next-line no-control-regex
+		if (/[\x00-\x1F\x7F]/.test(raw)) {
+			let sanitized = ""
+			let inString = false
+			let escaped = false
+			for (let i = 0; i < raw.length; i++) {
+				const ch = raw[i]
+				const code = raw.charCodeAt(i)
+				if (escaped) {
+					sanitized += ch
+					escaped = false
+					continue
+				}
+				if (ch === "\\") {
+					sanitized += ch
+					escaped = true
+					continue
+				}
+				if (ch === '"') {
+					inString = !inString
+					sanitized += ch
+					continue
+				}
+				if (inString && (code <= 0x1f || code === 0x7f)) {
+					// Drop the illegal control character.
+					continue
+				}
+				sanitized += ch
+			}
+			if (sanitized !== raw) {
+				candidates.push(sanitized)
+			}
+		}
+
+		return candidates
 	}
 
 	private static hasAdjacentTopLevelJsonValues(value: string): boolean {
