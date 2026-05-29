@@ -1160,10 +1160,8 @@ describe("ClineProvider", () => {
 						status: "complete",
 						completionResult: "Dashboard done",
 						ownership: expect.objectContaining({
-							status: "violation",
-							conflicts: expect.arrayContaining([
-								expect.objectContaining({ path: "src/styles.css", ownerAgentId: "styles-agent" }),
-							]),
+							status: "warning",
+							conflicts: [],
 						}),
 					}),
 				]),
@@ -1172,7 +1170,7 @@ describe("ClineProvider", () => {
 				expect.objectContaining({
 					planId: "plan-webview-provider",
 					packetCount: 2,
-					ownership: expect.objectContaining({ status: "violation" }),
+					ownership: expect.objectContaining({ status: "warning" }),
 				}),
 			)
 		})

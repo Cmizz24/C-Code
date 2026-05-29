@@ -365,16 +365,16 @@ describe("searchReplaceTool", () => {
 			)
 		})
 
-		it("denies replacements when agent write intent is rejected", async () => {
+		it("denies replacements when agent write intent is rejected for mustNotTouch", async () => {
 			mockCline.requestAgentWriteIntent.mockReturnValue({
 				approved: false,
-				reason: "test/file.txt is owned by another agent.",
+				reason: "test/file.txt is listed in mustNotTouch for agent-a.",
 			})
 
 			const result = await executeSearchReplaceTool()
 
-			expect(result).toContain("owned by another agent")
-			expect(mockCline.say).toHaveBeenCalledWith("error", "test/file.txt is owned by another agent.")
+			expect(result).toContain("mustNotTouch")
+			expect(mockCline.say).toHaveBeenCalledWith("error", "test/file.txt is listed in mustNotTouch for agent-a.")
 			expect(mockAskApproval).not.toHaveBeenCalled()
 			expect(mockCline.diffViewProvider.saveChanges).not.toHaveBeenCalled()
 			expect(mockCline.releaseAgentWriteIntent).not.toHaveBeenCalled()

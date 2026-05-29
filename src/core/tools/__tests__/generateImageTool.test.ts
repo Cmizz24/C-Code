@@ -170,10 +170,10 @@ describe("generateImageTool", () => {
 			expect(mockPushToolResult).toHaveBeenCalled()
 		})
 
-		it("should not write image when agent write intent is rejected", async () => {
+		it("should not write image when agent write intent is rejected for mustNotTouch", async () => {
 			mockCline.requestAgentWriteIntent.mockReturnValue({
 				approved: false,
-				reason: "test-image.png is owned by another agent.",
+				reason: "test-image.png is listed in mustNotTouch for agent-a.",
 			})
 
 			const completeBlock: ToolUse = {
@@ -208,7 +208,7 @@ describe("generateImageTool", () => {
 				pushToolResult: mockPushToolResult,
 			})
 
-			expect(mockCline.say).toHaveBeenCalledWith("error", "test-image.png is owned by another agent.")
+			expect(mockCline.say).toHaveBeenCalledWith("error", "test-image.png is listed in mustNotTouch for agent-a.")
 			expect(fs.writeFile).not.toHaveBeenCalled()
 			expect(mockCline.releaseAgentWriteIntent).not.toHaveBeenCalled()
 		})
