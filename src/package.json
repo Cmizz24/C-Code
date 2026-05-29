@@ -2,7 +2,7 @@
 	"name": "c-code",
 	"displayName": "%extension.displayName%",
 	"description": "%extension.description%",
-	"publisher": "clayton",
+	"publisher": "cmizz",
 	"version": "3.53.0",
 	"icon": "assets/icons/icon.png",
 	"galleryBanner": {
