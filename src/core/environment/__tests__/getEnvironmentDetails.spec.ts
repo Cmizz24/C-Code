@@ -117,6 +117,7 @@ describe("getEnvironmentDetails", () => {
 				deref: vi.fn().mockReturnValue(mockProvider),
 				[Symbol.toStringTag]: "WeakRef",
 			} as unknown as WeakRef<ClineProvider>,
+			getTaskMode: vi.fn().mockResolvedValue("code"),
 		}
 
 		// Mock other dependencies.
