@@ -54,6 +54,8 @@ describe("OpenAiCodexHandler.getModel", () => {
 
 		expect(model.id).toBe(apiModelId)
 		expect(model.info.contextWindow).toBe(200000)
+	})
+
 	it("should use ChatGPT subscription GPT-5.5 Thinking context and default reasoning", () => {
 		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
 		const model = handler.getModel()
