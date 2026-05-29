@@ -6,11 +6,7 @@ C Code is Cmizz's personal fork of Roo Code. Security fixes are handled on a bes
 
 ## Reporting a Vulnerability
 
-Please report vulnerabilities through the C Code fork on GitHub:
-
-- https://github.com/Cmizz24/C-Code/issues
-
-Include:
+Email c1ayton129010@gmail.com with:
 
 - A short summary of the issue
 - Steps to reproduce or a proof of concept
