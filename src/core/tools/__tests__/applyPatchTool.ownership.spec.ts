@@ -165,10 +165,10 @@ describe("ApplyPatchTool ownership coordination", () => {
 		expect(task.diffViewProvider.saveDirectly).not.toHaveBeenCalled()
 	})
 
-	it("denies patch writes when ownership rejects the path", async () => {
+	it("denies patch writes when mustNotTouch rejects the path", async () => {
 		task.requestAgentWriteIntent.mockReturnValue({
 			approved: false,
-			reason: "src/other.ts is owned by another agent.",
+			reason: "src/other.ts is listed in mustNotTouch for agent-a.",
 		})
 		vi.mocked(fileExistsAtPath).mockResolvedValue(false)
 
@@ -177,8 +177,8 @@ describe("ApplyPatchTool ownership coordination", () => {
 +new
 *** End Patch`)
 
-		expect(result).toContain("owned by another agent")
-		expect(task.say).toHaveBeenCalledWith("error", "src/other.ts is owned by another agent.")
+		expect(result).toContain("mustNotTouch")
+		expect(task.say).toHaveBeenCalledWith("error", "src/other.ts is listed in mustNotTouch for agent-a.")
 		expect(askApproval).not.toHaveBeenCalled()
 		expect(task.diffViewProvider.saveChanges).not.toHaveBeenCalled()
 		expect(task.releaseAgentWriteIntent).not.toHaveBeenCalled()
@@ -187,7 +187,7 @@ describe("ApplyPatchTool ownership coordination", () => {
 	it("checks and releases both source and destination paths for moves", async () => {
 		task.requestAgentWriteIntent
 			.mockReturnValueOnce({ approved: true })
-			.mockReturnValueOnce({ approved: false, reason: "src/new.ts is owned by another agent." })
+			.mockReturnValueOnce({ approved: false, reason: "src/new.ts is listed in mustNotTouch for agent-a." })
 
 		const result = await executePatch(`*** Begin Patch
 *** Update File: src/old.ts
@@ -197,7 +197,7 @@ describe("ApplyPatchTool ownership coordination", () => {
 +new
 *** End Patch`)
 
-		expect(result).toContain("owned by another agent")
+		expect(result).toContain("mustNotTouch")
 		expect(task.requestAgentWriteIntent).toHaveBeenNthCalledWith(1, "src/old.ts")
 		expect(task.requestAgentWriteIntent).toHaveBeenNthCalledWith(2, "src/new.ts")
 		expect(task.releaseAgentWriteIntent).toHaveBeenCalledWith("src/old.ts")

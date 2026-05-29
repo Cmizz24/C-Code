@@ -396,16 +396,16 @@ describe("editTool", () => {
 			)
 		})
 
-		it("denies edits when agent write intent is rejected", async () => {
+		it("denies edits when agent write intent is rejected for mustNotTouch", async () => {
 			mockTask.requestAgentWriteIntent.mockReturnValue({
 				approved: false,
-				reason: "test/file.txt is owned by another agent.",
+				reason: "test/file.txt is listed in mustNotTouch for agent-a.",
 			})
 
 			const result = await executeEditTool()
 
-			expect(result).toContain("owned by another agent")
-			expect(mockTask.say).toHaveBeenCalledWith("error", "test/file.txt is owned by another agent.")
+			expect(result).toContain("mustNotTouch")
+			expect(mockTask.say).toHaveBeenCalledWith("error", "test/file.txt is listed in mustNotTouch for agent-a.")
 			expect(mockAskApproval).not.toHaveBeenCalled()
 			expect(mockTask.diffViewProvider.saveChanges).not.toHaveBeenCalled()
 			expect(mockTask.releaseAgentWriteIntent).not.toHaveBeenCalled()

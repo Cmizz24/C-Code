@@ -11,7 +11,7 @@ import type {
 	WriteIntentConflict,
 } from "@roo-code/types"
 
-import { Badge, Button } from "@/components/ui"
+import { Badge } from "@/components/ui"
 import DiffView from "@/components/common/DiffView"
 import { ToolUseBlock, ToolUseBlockHeader } from "@/components/common/ToolUseBlock"
 import { ProgressIndicator } from "@/components/chat/ProgressIndicator"
@@ -19,8 +19,6 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { cn } from "@/lib/utils"
 import { formatLargeNumber } from "@/utils/format"
-import { vscode } from "@/utils/vscode"
-
 import { getAgentModeLabel } from "./agentDisplay"
 import {
 	formatMergeReviewStatsLabel,
@@ -928,52 +926,6 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 									No team chat messages yet.
 								</div>
 							)}
-						</div>
-					)}
-
-					{conflicts.length > 0 && (
-						<div className="mt-2 flex flex-col gap-1.5 border-t border-vscode-sideBar-background pt-2">
-							{conflicts.map((conflict) => (
-								<div
-									key={conflict.key}
-									data-testid="agent-conflict-row"
-									className="flex flex-wrap items-center gap-1.5 text-[11px] text-vscode-foreground">
-									<span className="codicon codicon-warning text-vscode-editorWarning-foreground" />
-									<span className="font-medium">
-										Blocked writing <span className="font-mono">{conflict.filePath}</span> — owned
-										by <span>{conflict.ownerTask ?? "another agent task"}</span>
-									</span>
-									{conflict.reason && (
-										<span className="text-vscode-descriptionForeground">{conflict.reason}</span>
-									)}
-									<div className="ml-auto flex flex-wrap gap-1.5">
-										<Button
-											variant="secondary"
-											size="sm"
-											onClick={() =>
-												vscode.postMessage({
-													type: "agentWaitOnConflict",
-													agentId: conflict.agentId,
-													filePath: conflict.filePath,
-												})
-											}>
-											Wait
-										</Button>
-										<Button
-											variant="primary"
-											size="sm"
-											onClick={() =>
-												vscode.postMessage({
-													type: "agentEscalateConflict",
-													agentId: conflict.agentId,
-													filePath: conflict.filePath,
-												})
-											}>
-											Ask Orchestrator
-										</Button>
-									</div>
-								</div>
-							))}
 						</div>
 					)}
 

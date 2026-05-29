@@ -230,9 +230,8 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			}
 		} else if (ownerAgentId && ownerAgentId !== agentId) {
 			permission = {
-				approved: false,
-				reason: `${normalizedPath} is owned by ${ownerAgentId}.`,
-				suggestWait: true,
+				approved: true,
+				unownedWarning: `${normalizedPath} is owned by ${ownerAgentId} (advisory only).`,
 			}
 		} else if (
 			agent.owns.some(
