@@ -34,8 +34,8 @@ export const XiaomiMiMo = ({ apiConfiguration, setApiConfigurationField }: Xiaom
 					<VSCodeOption value="https://api.xiaomimimo.com/v1" className="p-2">
 						api.xiaomimimo.com
 					</VSCodeOption>
-					<VSCodeOption value="https://token-plan-cn.xiaomimimo.com/v1" className="p-2">
-						token-plan-cn.xiaomimimo.com
+					<VSCodeOption value="https://token-plan-ams.xiaomimimo.com/v1" className="p-2">
+						token-plan-ams.xiaomimimo.com
 					</VSCodeOption>
 				</VSCodeDropdown>
 			</div>

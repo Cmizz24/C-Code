@@ -922,7 +922,7 @@ describe("useSelectedModel", () => {
 			const apiConfiguration: ProviderSettings = {
 				apiProvider: "xiaomi-mimo",
 				xiaomiMiMoApiKey: "test-api-key",
-				xiaomiMiMoBaseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+				xiaomiMiMoBaseUrl: "https://token-plan-ams.xiaomimimo.com/v1",
 			}
 
 			const wrapper = createWrapper()

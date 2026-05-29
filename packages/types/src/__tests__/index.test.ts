@@ -56,7 +56,7 @@ describe("Xiaomi MiMo provider settings", () => {
 	})
 
 	it("should accept both official Xiaomi MiMo base URLs", () => {
-		for (const xiaomiMiMoBaseUrl of ["https://api.xiaomimimo.com/v1", "https://token-plan-cn.xiaomimimo.com/v1"]) {
+		for (const xiaomiMiMoBaseUrl of ["https://api.xiaomimimo.com/v1", "https://token-plan-ams.xiaomimimo.com/v1"]) {
 			expect(
 				providerSettingsSchemaDiscriminated.safeParse({
 					apiProvider: "xiaomi-mimo",
