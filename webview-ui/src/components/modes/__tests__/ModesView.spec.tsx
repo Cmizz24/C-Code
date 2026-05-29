@@ -64,10 +64,10 @@ describe("PromptsView", () => {
 		fireEvent.click(selectTrigger)
 
 		const searchInput = screen.getByTestId("mode-search-input")
-		fireEvent.change(searchInput, { target: { value: "ask" } })
+		fireEvent.change(searchInput, { target: { value: "explain" } })
 
 		await waitFor(() => {
-			expect(screen.getByTestId("mode-option-ask")).toBeInTheDocument()
+			expect(screen.getByTestId("mode-option-explain")).toBeInTheDocument()
 			expect(screen.queryByTestId("mode-option-code")).not.toBeInTheDocument()
 			expect(screen.queryByTestId("mode-option-architect")).not.toBeInTheDocument()
 		})
@@ -78,13 +78,13 @@ describe("PromptsView", () => {
 		const selectTrigger = screen.getByTestId("mode-select-trigger")
 		fireEvent.click(selectTrigger)
 
-		const askOption = await waitFor(() => screen.getByTestId("mode-option-ask"))
-		fireEvent.click(askOption)
+		const explainOption = await waitFor(() => screen.getByTestId("mode-option-explain"))
+		fireEvent.click(explainOption)
 
 		expect(mockExtensionState.setEnhancementApiConfigId).not.toHaveBeenCalled() // Ensure this is not called by mode switch
 		expect(vscode.postMessage).toHaveBeenCalledWith({
 			type: "mode",
-			text: "ask",
+			text: "explain",
 		})
 		await waitFor(() => {
 			expect(selectTrigger).toHaveAttribute("aria-expanded", "false")
