@@ -165,7 +165,7 @@ describe("OrchestratorEventLoop", () => {
 		expect(message).toContain("You are agent ui, running a normal single ui-ux specialist task.")
 		expect(message).toContain("Shared context:\nBuild the dashboard")
 		expect(message).toContain("Task:\nBuild the dashboard UI")
-		expect(message).toContain("Your single ownership scope")
+		expect(message).toContain("Your primary ownership scope")
 		expect(message).toContain("Use normal sequential tool calls")
 		expect(message).toContain("Never combine multiple tool argument JSON objects into one tool call")
 		expect(message).toContain("prefer the normal write/edit tools available in this mode")
@@ -191,7 +191,7 @@ describe("OrchestratorEventLoop", () => {
 			"instead of execute_command shell here-strings, heredocs, or echo chains",
 		)
 		expect(options?.systemPromptSuffix).toContain("not for embedding large file contents")
-		expect(message).toContain("Use coordinate_agents only for genuine live coordination")
+		expect(message).toContain("Use coordinate_agents for genuine live coordination")
 		expect(message).toContain("read team chat when you need current coordination state")
 		expect(message).toContain("Publish a coordinate_agents question proactively")
 		expect(message).toContain("shared integration contract is missing, ambiguous")
@@ -209,7 +209,7 @@ describe("OrchestratorEventLoop", () => {
 		expect(message).not.toContain("Before your first write")
 		expect(message).not.toContain("Before attempt_completion, read team chat again")
 		expect(message).not.toMatch(/\p{Extended_Pictographic}/u)
-		expect(options?.systemPromptSuffix).toContain("Use coordinate_agents only for genuine live coordination")
+		expect(options?.systemPromptSuffix).toContain("Use coordinate_agents for genuine live coordination")
 		expect(options?.systemPromptSuffix).toContain("Publish a coordinate_agents question proactively")
 		expect(options?.systemPromptSuffix).toContain("shared integration contract is missing, ambiguous")
 		expect(options?.systemPromptSuffix).toContain("do not guess UI/CSS/component interfaces")
@@ -265,7 +265,7 @@ describe("OrchestratorEventLoop", () => {
 			expect(options?.systemPromptSuffix).toContain(
 				"each native tool call must have exactly one JSON argument object",
 			)
-			expect(options?.systemPromptSuffix).toContain("Use coordinate_agents only for genuine live coordination")
+			expect(options?.systemPromptSuffix).toContain("Use coordinate_agents for genuine live coordination")
 			expect(options?.systemPromptSuffix).toContain("shared integration contract is missing, ambiguous")
 			expect(options?.systemPromptSuffix).toContain("do not guess UI/CSS/component interfaces")
 			expect(options?.systemPromptSuffix).toContain("Do not post pre-planned, basic, or filler questions")

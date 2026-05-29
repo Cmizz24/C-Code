@@ -8,6 +8,8 @@ on:
 jobs:
   publish-nightly:
     runs-on: ubuntu-latest
+    # Disabled: No VSCE_PAT configured for this fork. Re-enable when marketplace publishing is needed.
+    if: false
 
     permissions:
       contents: read # No tags pushed → read is enough.
