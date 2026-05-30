@@ -60,5 +60,34 @@
 		"running": "Running",
 		"completed": "Completed",
 		"error": "Error"
+	},
+	"marketplace": {
+		"title": "MCP Marketplace",
+		"description": "Choose a trusted MCP server and let C set it up in a new task.",
+		"featuredCatalog": "Featured MCP servers",
+		"labels": {
+			"category": "Category",
+			"package": "Package",
+			"source": "Source",
+			"transport": "Transport",
+			"requiredSecrets": "Required secrets",
+			"prerequisites": "Prerequisites",
+			"suggestedScope": "Suggested scope",
+			"scope": "Target scope",
+			"verification": "Verification",
+			"riskNotes": "Risk notes"
+		},
+		"scope": {
+			"global": "Global",
+			"project": "Project"
+		},
+		"actions": {
+			"installWithAI": "Install with AI",
+			"configureAgain": "Configure Again"
+		},
+		"status": {
+			"installed": "Installed"
+		},
+		"noneRequired": "None required"
 	}
 }

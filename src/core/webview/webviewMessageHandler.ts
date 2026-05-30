@@ -62,6 +62,11 @@ import { resolveImageMentions } from "../mentions/resolveImageMentions"
 import { RooIgnoreController } from "../ignore/RooIgnoreController"
 import { getWorkspacePath } from "../../utils/path"
 import { isPathOutsideWorkspace } from "../../utils/pathUtils"
+import {
+	buildMarketplaceMcpSetupPrompt,
+	getMarketplaceMcpItem,
+	isMarketplaceMcpScope,
+} from "../../services/mcp/marketplaceCatalog"
 import { Mode, defaultModeSlug } from "../../shared/modes"
 import { getModels, flushModels } from "../../api/providers/fetchers/modelCache"
 import { GetModelsOptions } from "../../shared/api"
@@ -1394,6 +1399,44 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				await openFile(mcpPath)
 			} catch (error) {
 				vscode.window.showErrorMessage(t("mcp:errors.create_json", { error: `${error}` }))
+			}
+
+			break
+		}
+		case "installMarketplaceMcp": {
+			const catalogItem = getMarketplaceMcpItem(message.marketplaceMcpId)
+			const targetScope = message.marketplaceMcpScope ?? message.source
+
+			if (!message.marketplaceMcpId || !catalogItem) {
+				vscode.window.showErrorMessage(
+					`Unknown MCP marketplace item: ${message.marketplaceMcpId ?? "missing catalog id"}`,
+				)
+				break
+			}
+
+			if (!isMarketplaceMcpScope(targetScope)) {
+				vscode.window.showErrorMessage(
+					`Invalid MCP marketplace scope: ${String(targetScope ?? "missing scope")}`,
+				)
+				break
+			}
+
+			try {
+				const globalConfigPath =
+					targetScope === "global" ? await provider.getMcpHub?.()?.getMcpSettingsFilePath() : undefined
+				const projectConfigPath = path.join(getCurrentCwd(), ".roo", "mcp.json")
+				const prompt = buildMarketplaceMcpSetupPrompt(catalogItem, targetScope, {
+					globalConfigPath,
+					projectConfigPath,
+				})
+
+				await provider.createTask(prompt, undefined, undefined, undefined, message.taskConfiguration)
+				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
+			} catch (error) {
+				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
+				vscode.window.showErrorMessage(
+					`Failed to create MCP marketplace setup task: ${error instanceof Error ? error.message : String(error)}`,
+				)
 			}
 
 			break

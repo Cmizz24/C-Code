@@ -26,6 +26,7 @@ import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
 import McpEnabledToggle from "./McpEnabledToggle"
 import { McpErrorRow } from "./McpErrorRow"
+import McpMarketplace from "./McpMarketplace"
 
 const McpView = () => {
 	const { mcpServers: servers, alwaysAllowMcp, mcpEnabled } = useExtensionState()
@@ -82,6 +83,8 @@ const McpView = () => {
 								</div>
 							</div>
 						)}
+
+						<McpMarketplace servers={servers} />
 
 						{/* Server List */}
 						{servers.length > 0 && (

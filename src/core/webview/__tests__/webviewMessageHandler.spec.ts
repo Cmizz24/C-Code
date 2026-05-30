@@ -76,7 +76,9 @@ const mockClineProvider = {
 	postStateToWebview: vi.fn(),
 	getCurrentTask: vi.fn(),
 	getTaskWithId: vi.fn(),
+	createTask: vi.fn().mockResolvedValue({ taskId: "mock-task-id" }),
 	createTaskWithHistoryItem: vi.fn(),
+	getMcpHub: vi.fn(),
 	getSkillsManager: vi.fn(),
 	cwd: "/mock/workspace",
 } as unknown as ClineProvider
@@ -1080,5 +1082,73 @@ describe("webviewMessageHandler - downloadErrorDiagnostics", () => {
 
 		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("No active task to generate diagnostics for")
 		expect(generateErrorDiagnostics).not.toHaveBeenCalled()
+	})
+})
+
+describe("webviewMessageHandler - installMarketplaceMcp", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		vi.mocked(mockClineProvider.createTask).mockResolvedValue({ taskId: "marketplace-task-id" } as any)
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(null as any)
+		vi.mocked(mockClineProvider.getMcpHub).mockReturnValue({
+			getMcpSettingsFilePath: vi.fn().mockResolvedValue("/mock/global/mcp_settings.json"),
+		} as any)
+	})
+
+	it("creates a top-level setup task for a valid marketplace item", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "installMarketplaceMcp",
+			marketplaceMcpId: "github",
+			marketplaceMcpScope: "global",
+		} as any)
+
+		expect(mockClineProvider.createTask).toHaveBeenCalledTimes(1)
+		const prompt = vi.mocked(mockClineProvider.createTask).mock.calls[0][0] as string
+		expect(prompt).toContain('Set up the "GitHub" MCP server')
+		expect(prompt).toContain("Target scope: global")
+		expect(prompt).toContain("GITHUB_PERSONAL_ACCESS_TOKEN")
+		expect(prompt).toContain("/mock/global/mcp_settings.json")
+		expect(vi.mocked(mockClineProvider.createTask).mock.calls[0][2]).toBeUndefined()
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({ type: "invoke", invoke: "newChat" })
+	})
+
+	it("includes project scope config guidance when project is selected", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "installMarketplaceMcp",
+			marketplaceMcpId: "sqlite",
+			marketplaceMcpScope: "project",
+		} as any)
+
+		const prompt = vi.mocked(mockClineProvider.createTask).mock.calls[0][0] as string
+		expect(prompt).toContain("Target scope: project")
+		expect(prompt).toContain(".roo")
+		expect(prompt).toContain("mcp.json")
+		expect(prompt).toContain("sqlite")
+	})
+
+	it("rejects an unknown marketplace catalog id", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "installMarketplaceMcp",
+			marketplaceMcpId: "unknown-server",
+			marketplaceMcpScope: "global",
+		} as any)
+
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			expect.stringContaining("Unknown MCP marketplace item"),
+		)
+		expect(mockClineProvider.createTask).not.toHaveBeenCalled()
+	})
+
+	it("rejects an invalid marketplace scope", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "installMarketplaceMcp",
+			marketplaceMcpId: "github",
+			marketplaceMcpScope: "workspace",
+		} as any)
+
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			expect.stringContaining("Invalid MCP marketplace scope"),
+		)
+		expect(mockClineProvider.createTask).not.toHaveBeenCalled()
 	})
 })
