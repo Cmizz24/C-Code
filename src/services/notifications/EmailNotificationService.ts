@@ -17,6 +17,12 @@ export type EmailNotificationPayload = {
 	requestCount?: number
 }
 
+export type EmailNotificationSendResult = {
+	attempted: boolean
+	sent: boolean
+	skippedReason?: "disabled" | "invalid-config" | "duplicate"
+}
+
 type EmailTransportOptions = {
 	host: string
 	port: number
@@ -91,37 +97,43 @@ export class EmailNotificationService {
 			options.transportFactory ?? ((transportOptions) => nodemailer.createTransport(transportOptions))
 	}
 
-	public async sendTaskNotification(payload: EmailNotificationPayload): Promise<void> {
+	public async sendTaskNotification(payload: EmailNotificationPayload): Promise<EmailNotificationSendResult> {
+		let attempted = false
+
 		try {
 			const settings = this.contextProxy.getValues()
 
 			if (!this.shouldNotify(settings, payload.outcome)) {
-				return
+				return { attempted: false, sent: false, skippedReason: "disabled" }
 			}
 
 			const config = this.buildConfig(settings)
 
 			if (!config) {
-				return
+				return { attempted: false, sent: false, skippedReason: "invalid-config" }
 			}
 
 			if (this.hasNotificationBeenSent(payload)) {
-				return
+				return { attempted: false, sent: false, skippedReason: "duplicate" }
 			}
 
-			this.rememberNotification(payload)
-
 			const transport = this.transportFactory(config.transportOptions)
-
-			await transport.sendMail({
+			const mailOptions = {
 				from: config.from,
 				to: config.recipients,
 				subject: this.renderSubject(config.subjectTemplate, payload),
 				text: this.renderTextBody(payload),
 				html: this.renderHtmlBody(payload),
-			})
+			}
+
+			attempted = true
+			await transport.sendMail(mailOptions)
+			this.rememberNotification(payload)
+
+			return { attempted: true, sent: true }
 		} catch (error) {
 			this.logError("Failed to send task completion email notification", error)
+			return { attempted, sent: false }
 		}
 	}
 
@@ -297,7 +309,7 @@ ${rowMarkup}
 	}
 
 	private getTemplateTokens(payload: EmailNotificationPayload): Record<string, string> {
-		const tokenUsage = payload.tokenUsage ?? ZERO_USAGE
+		const tokenUsage = this.normalizeTokenUsage(payload.tokenUsage)
 		const toolCounts = this.getToolUsageCounts(payload.toolUsage)
 		const workspace = payload.workspacePath || "Unknown workspace"
 		const summary = this.formatSummary(payload.summary) || ""
@@ -340,14 +352,33 @@ ${rowMarkup}
 		return tokenName.replaceAll("_", "").toLowerCase()
 	}
 
+	private normalizeTokenUsage(tokenUsage: TokenUsage | undefined): TokenUsage {
+		return {
+			totalTokensIn: this.toFiniteNotificationNumber(tokenUsage?.totalTokensIn),
+			totalTokensOut: this.toFiniteNotificationNumber(tokenUsage?.totalTokensOut),
+			totalCacheWrites: this.toFiniteNotificationNumber(tokenUsage?.totalCacheWrites),
+			totalCacheReads: this.toFiniteNotificationNumber(tokenUsage?.totalCacheReads),
+			totalCost: this.toFiniteNotificationNumber(tokenUsage?.totalCost),
+			contextTokens: this.toFiniteNotificationNumber(tokenUsage?.contextTokens),
+		}
+	}
+
 	private getToolUsageCounts(toolUsage: ToolUsage | undefined): { attempts: number; failures: number } {
-		return Object.values(toolUsage ?? {}).reduce(
+		if (!toolUsage || typeof toolUsage !== "object") {
+			return { attempts: 0, failures: 0 }
+		}
+
+		return Object.values(toolUsage).reduce(
 			(counts, usage) => ({
-				attempts: counts.attempts + usage.attempts,
-				failures: counts.failures + usage.failures,
+				attempts: counts.attempts + this.toFiniteNotificationNumber(usage?.attempts),
+				failures: counts.failures + this.toFiniteNotificationNumber(usage?.failures),
 			}),
 			{ attempts: 0, failures: 0 },
 		)
+	}
+
+	private toFiniteNotificationNumber(value: unknown): number {
+		return typeof value === "number" && Number.isFinite(value) ? value : 0
 	}
 
 	private formatNumber(value: number | undefined): string {

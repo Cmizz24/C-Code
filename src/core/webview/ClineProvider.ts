@@ -396,6 +396,7 @@ export class ClineProvider
 	private taskHistoryStoreInitialized = false
 	private readonly emailNotificationService: EmailNotificationService
 	private readonly emailNotificationTaskOutcomes = new Map<string, EmailNotificationOutcome>()
+	private readonly emailNotificationTaskOutcomesInFlight = new Map<string, EmailNotificationOutcome>()
 	private readonly emailNotificationTaskOutcomeOrder: string[] = []
 	private emailNotificationTaskOutcomeStateLoaded = false
 	private globalStateWriteThroughTimer: ReturnType<typeof setTimeout> | null = null
@@ -728,7 +729,15 @@ export class ClineProvider
 		>,
 		completionResultSummary: string,
 	): Promise<void> {
-		const usage = await this.getAggregatedTaskNotificationUsage(historyItem)
+		const usage = await this.getAggregatedTaskNotificationUsage(historyItem).catch((error) => {
+			this.log(
+				`[email-notifications] Failed to aggregate delegated completion usage for task ${historyItem.id}; sending notification with fallback usage: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			)
+
+			return this.getFallbackTaskNotificationUsage(historyItem)
+		})
 
 		this.notifyTaskOutcome({
 			taskId: historyItem.id,
@@ -772,20 +781,59 @@ export class ClineProvider
 		)
 	}
 
+	private getFallbackTaskNotificationUsage(
+		historyItem: Pick<HistoryItem, "tokensIn" | "tokensOut" | "cacheWrites" | "cacheReads" | "totalCost">,
+	): Pick<EmailNotificationPayload, "tokenUsage" | "requestCount"> {
+		return {
+			tokenUsage: {
+				totalTokensIn: this.toFiniteEmailNotificationNumber(historyItem.tokensIn),
+				totalTokensOut: this.toFiniteEmailNotificationNumber(historyItem.tokensOut),
+				totalCacheWrites: this.toFiniteEmailNotificationNumber(historyItem.cacheWrites),
+				totalCacheReads: this.toFiniteEmailNotificationNumber(historyItem.cacheReads),
+				totalCost: this.toFiniteEmailNotificationNumber(historyItem.totalCost),
+				contextTokens: 0,
+			},
+			requestCount: 0,
+		}
+	}
+
+	private toFiniteEmailNotificationNumber(value: number | undefined): number {
+		return typeof value === "number" && Number.isFinite(value) ? value : 0
+	}
+
 	private notifyTaskOutcome(payload: EmailNotificationPayload): void {
-		if (this.hasEmailNotificationTaskOutcomeBeenSent(payload.taskId, payload.outcome)) {
+		if (
+			this.hasEmailNotificationTaskOutcomeBeenSent(payload.taskId, payload.outcome) ||
+			this.hasEmailNotificationTaskOutcomeInFlight(payload.taskId, payload.outcome)
+		) {
 			return
 		}
 
-		this.rememberEmailNotificationTaskOutcome(payload.taskId, payload.outcome)
+		this.emailNotificationTaskOutcomesInFlight.set(payload.taskId, payload.outcome)
 
-		this.emailNotificationService.sendTaskNotification(payload).catch((error) => {
-			this.log(
-				`[email-notifications] Unexpected notification error: ${
-					error instanceof Error ? error.message : String(error)
-				}`,
-			)
-		})
+		this.emailNotificationService
+			.sendTaskNotification(payload)
+			.then((result) => {
+				if (this.emailNotificationTaskOutcomesInFlight.get(payload.taskId) !== payload.outcome) {
+					return
+				}
+
+				if (result?.sent ?? true) {
+					this.rememberEmailNotificationTaskOutcome(payload.taskId, payload.outcome)
+				}
+			})
+			.catch((error) => {
+				this.log(
+					`[email-notifications] Unexpected notification error: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			})
+			.finally(() => {
+				if (this.emailNotificationTaskOutcomesInFlight.get(payload.taskId) === payload.outcome) {
+					this.emailNotificationTaskOutcomesInFlight.delete(payload.taskId)
+				}
+			})
 	}
 
 	private getChildTaskIds(parentId: string): string[] {
@@ -842,6 +890,20 @@ export class ClineProvider
 		this.loadEmailNotificationTaskOutcomeState()
 
 		const previousOutcome = this.emailNotificationTaskOutcomes.get(taskId)
+
+		if (!previousOutcome) {
+			return false
+		}
+
+		if (previousOutcome === "success") {
+			return true
+		}
+
+		return outcome !== "success"
+	}
+
+	private hasEmailNotificationTaskOutcomeInFlight(taskId: string, outcome: EmailNotificationOutcome): boolean {
+		const previousOutcome = this.emailNotificationTaskOutcomesInFlight.get(taskId)
 
 		if (!previousOutcome) {
 			return false

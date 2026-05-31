@@ -179,6 +179,39 @@ describe("EmailNotificationService", () => {
 		expect(mailOptions.html).not.toContain("n/a")
 	})
 
+	it("renders malformed usage safely as zeros instead of skipping the send", async () => {
+		const { service, sendMail } = createService()
+
+		await service.sendTaskNotification({
+			...payload,
+			taskId: "task-malformed-usage",
+			tokenUsage: {
+				totalTokensIn: Number.NaN,
+				totalTokensOut: undefined,
+				totalCacheWrites: Number.POSITIVE_INFINITY,
+				totalCacheReads: "not-a-number",
+				totalCost: undefined,
+				contextTokens: null,
+			} as any,
+			toolUsage: {
+				read_file: { attempts: Number.NaN, failures: "nope" },
+				execute_command: undefined,
+			} as any,
+		})
+
+		expect(sendMail).toHaveBeenCalledTimes(1)
+		const mailOptions = sendMail.mock.calls[0][0]
+		expect(mailOptions.text).toContain("Total tokens in: 0")
+		expect(mailOptions.text).toContain("Total tokens out: 0")
+		expect(mailOptions.text).toContain("Cache write tokens: 0")
+		expect(mailOptions.text).toContain("Cache read tokens: 0")
+		expect(mailOptions.text).toContain("Total tokens: 0")
+		expect(mailOptions.text).toContain("Context tokens: 0")
+		expect(mailOptions.text).toContain("Total cost: $0.000000")
+		expect(mailOptions.text).toContain("Tool attempts: 0")
+		expect(mailOptions.text).toContain("Tool failures: 0")
+	})
+
 	it("defaults success notifications on and failure notifications off", async () => {
 		const contextProxy = createContextProxy({
 			emailNotifyOnSuccess: undefined,
@@ -248,11 +281,28 @@ describe("EmailNotificationService", () => {
 		const log = vi.fn()
 		const service = new EmailNotificationService(contextProxy, { log, transportFactory })
 
-		await expect(service.sendTaskNotification(payload)).resolves.toBeUndefined()
+		await expect(service.sendTaskNotification(payload)).resolves.toEqual({ attempted: true, sent: false })
 
 		expect(log).toHaveBeenCalledWith(
 			"Failed to send task completion email notification: Authentication failed for [redacted]",
 		)
 		expect(log.mock.calls[0][0]).not.toContain("smtp-secret")
+	})
+
+	it("does not suppress retries when a previous send attempt failed", async () => {
+		const contextProxy = createContextProxy()
+		const sendMail = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("Authentication failed for smtp-secret"))
+			.mockResolvedValueOnce(undefined)
+		const transportFactory = vi.fn(() => ({ sendMail }))
+		const log = vi.fn()
+		const service = new EmailNotificationService(contextProxy, { log, transportFactory })
+
+		await expect(service.sendTaskNotification(payload)).resolves.toEqual({ attempted: true, sent: false })
+		await expect(service.sendTaskNotification(payload)).resolves.toEqual({ attempted: true, sent: true })
+
+		expect(sendMail).toHaveBeenCalledTimes(2)
+		expect(log.mock.calls.flat().join("\n")).not.toContain("smtp-secret")
 	})
 })

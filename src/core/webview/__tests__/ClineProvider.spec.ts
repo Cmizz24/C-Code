@@ -742,6 +742,46 @@ describe("ClineProvider", () => {
 			})
 		})
 
+		test("sends direct completion notifications when usage stats are unavailable", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = new Task({
+				...defaultTaskOptions,
+				taskId: "task-missing-usage",
+				workspacePath: "/workspace",
+			} as any)
+			;(task as any).taskMode = "code"
+			task.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "Transcript content must not be copied into notification payload",
+				ts: 1,
+			})
+			task.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Completed without final usage stats.",
+				ts: 2,
+			})
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, undefined as any, undefined as any)
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			expect(sendTaskNotification).toHaveBeenCalledWith({
+				taskId: "task-missing-usage",
+				outcome: "success",
+				summary: "Completed without final usage stats.",
+				workspacePath: "/workspace",
+				mode: "code",
+				tokenUsage: undefined,
+				toolUsage: undefined,
+				requestCount: 0,
+			})
+			expect(JSON.stringify(sendTaskNotification.mock.calls[0][0])).not.toContain(
+				"Transcript content must not be copied into notification payload",
+			)
+		})
+
 		test("maps streaming failure aborts to failed notifications", () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const task = new Task({ ...defaultTaskOptions, taskId: "task-failed", workspacePath: "/workspace" } as any)
@@ -833,6 +873,48 @@ describe("ClineProvider", () => {
 				requestCount: 1,
 			})
 			expect(JSON.stringify(sendTaskNotification.mock.calls[0][0])).not.toContain(transcriptText)
+		})
+
+		test("falls back to basic usage and still sends delegated completion when aggregation fails", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			;(provider as any).getAggregatedTaskNotificationUsage = vi.fn().mockRejectedValue(new Error("usage failed"))
+
+			await (provider as any).notifyDelegatedWorkflowCompleted(
+				createHistoryItem({
+					id: "delegated-parent-aggregation-fallback",
+					workspace: "/workspace",
+					mode: "code",
+					tokensIn: Number.NaN,
+					tokensOut: undefined as any,
+					cacheWrites: undefined,
+					cacheReads: undefined,
+					totalCost: undefined as any,
+				}),
+				"Child completed after usage aggregation failed.",
+			)
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			expect(sendTaskNotification).toHaveBeenCalledWith({
+				taskId: "delegated-parent-aggregation-fallback",
+				outcome: "success",
+				summary: "Child completed after usage aggregation failed.",
+				workspacePath: "/workspace",
+				mode: "code",
+				tokenUsage: {
+					totalTokensIn: 0,
+					totalTokensOut: 0,
+					totalCacheWrites: 0,
+					totalCacheReads: 0,
+					totalCost: 0,
+					contextTokens: 0,
+				},
+				requestCount: 0,
+			})
+			expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
+				expect.stringContaining(
+					"[email-notifications] Failed to aggregate delegated completion usage for task delegated-parent-aggregation-fallback; sending notification with fallback usage: usage failed",
+				),
+			)
 		})
 
 		test("aggregates delegated child usage totals for parent workflow completion notifications", async () => {
@@ -975,6 +1057,38 @@ describe("ClineProvider", () => {
 			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
 		})
 
+		test("does not persist completion de-duplication until notification dispatch succeeds", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock(
+				vi
+					.fn()
+					.mockResolvedValueOnce({ attempted: true, sent: false })
+					.mockResolvedValueOnce({ attempted: true, sent: true }),
+			)
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-retry-after-send-failure" } as any)
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			await vi.waitFor(() => {
+				expect((provider as any).emailNotificationTaskOutcomesInFlight.has(task.taskId)).toBe(false)
+			})
+			expect(mockContext.globalState.update).not.toHaveBeenCalledWith(
+				"emailNotificationTaskOutcomes.v1",
+				expect.anything(),
+			)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(2)
+			await vi.waitFor(() => {
+				expect(mockContext.globalState.update).toHaveBeenCalledWith("emailNotificationTaskOutcomes.v1", {
+					version: 1,
+					outcomes: [{ taskId: "task-retry-after-send-failure", outcome: "success" }],
+				})
+			})
+		})
+
 		test("completed task notification wins over a later abort cleanup event", () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const task = new Task({ ...defaultTaskOptions, taskId: "task-complete-then-abort" } as any)
@@ -1007,7 +1121,7 @@ describe("ClineProvider", () => {
 			expect(sendTaskNotification).not.toHaveBeenCalled()
 		})
 
-		test("persists task-level success de-duplication across provider instances", () => {
+		test("persists task-level success de-duplication across provider instances", async () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const task = new Task({ ...defaultTaskOptions, taskId: "persisted-success-task" } as any)
 			;(provider as any).taskCreationCallback(task)
@@ -1015,6 +1129,12 @@ describe("ClineProvider", () => {
 			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
 
 			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			await vi.waitFor(() => {
+				expect(mockContext.globalState.update).toHaveBeenCalledWith("emailNotificationTaskOutcomes.v1", {
+					version: 1,
+					outcomes: [{ taskId: "persisted-success-task", outcome: "success" }],
+				})
+			})
 
 			const reloadedProvider = new ClineProvider(
 				mockContext,
