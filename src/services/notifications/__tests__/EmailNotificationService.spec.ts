@@ -14,14 +14,17 @@ const toolUsage = {
 	read_file: { attempts: 2, failures: 1 },
 } as ToolUsage
 
-const payload: EmailNotificationPayload = {
+const payload: EmailNotificationPayload & { clineMessages?: string; apiConversationHistory?: string } = {
 	taskId: "task-1",
 	outcome: "success",
+	summary: "Implemented SMTP summary output without leaking smtp-secret.",
 	workspacePath: "/workspace/project",
 	mode: "code",
 	tokenUsage,
 	toolUsage,
 }
+payload.clineMessages = "Full transcript content must not be included"
+payload.apiConversationHistory = "Raw API transcript content must not be included"
 
 const baseSettings: Partial<RooCodeSettings> = {
 	emailNotificationsEnabled: true,
@@ -96,18 +99,26 @@ describe("EmailNotificationService", () => {
 
 		const mailOptions = sendMail.mock.calls[0][0]
 		expect(mailOptions.text).toContain("Status: Completed")
+		expect(mailOptions.text).toContain(
+			"Completion summary: Implemented SMTP summary output without leaking [redacted].",
+		)
 		expect(mailOptions.text).toContain("Workspace: /workspace/project")
 		expect(mailOptions.text).toContain("Total tokens in: 12")
 		expect(mailOptions.text).toContain("Tool failures: 1")
 		expect(mailOptions.text).toContain("Task transcripts and SMTP secrets are not included")
 		expect(mailOptions.text).not.toContain("apiConversationHistory")
 		expect(mailOptions.text).not.toContain("clineMessages")
+		expect(mailOptions.text).not.toContain("Full transcript content")
+		expect(mailOptions.text).not.toContain("Raw API transcript content")
 		expect(mailOptions.text).not.toContain("smtp-secret")
 		expect(mailOptions.html).toContain("Task Completed")
 		expect(mailOptions.html).toContain("Task ID")
+		expect(mailOptions.html).toContain("Implemented SMTP summary output without leaking [redacted].")
 		expect(mailOptions.html).toContain("/workspace/project")
 		expect(mailOptions.html).not.toContain("apiConversationHistory")
 		expect(mailOptions.html).not.toContain("clineMessages")
+		expect(mailOptions.html).not.toContain("Full transcript content")
+		expect(mailOptions.html).not.toContain("Raw API transcript content")
 		expect(mailOptions.html).not.toContain("smtp-secret")
 	})
 

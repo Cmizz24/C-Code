@@ -196,9 +196,21 @@ type AutoMergeReviewDecision = {
 	skipReasons: AutoMergeReviewSkipReason[]
 }
 
+type EmailNotificationTaskOutcomeState = {
+	version: 1
+	outcomes: Array<{
+		taskId: string
+		outcome: EmailNotificationOutcome
+	}>
+}
+
 const PARALLEL_AGENT_ACTIVITY_LIMIT = 50
 const PARALLEL_AGENT_COORDINATION_LIMIT = 24
 const PARALLEL_REVIEW_SUMMARY_PATH = ".roo/parallel-agent-review.md"
+const EMAIL_NOTIFICATION_TASK_OUTCOME_STATE_KEY = "emailNotificationTaskOutcomes.v1"
+const MAX_EMAIL_NOTIFICATION_TASK_OUTCOMES = 500
+const MAX_EMAIL_NOTIFICATION_SUMMARY_LENGTH = 600
+const DEFAULT_COMPLETION_EMAIL_SUMMARY = "Task completed successfully."
 
 export class ClineProvider
 	extends EventEmitter<TaskProviderEvents>
@@ -378,10 +390,10 @@ export class ClineProvider
 	public readonly taskHistoryStore: TaskHistoryStore
 	private taskHistoryStoreInitialized = false
 	private readonly emailNotificationService: EmailNotificationService
-	private readonly completedEmailNotificationTaskInstances = new Set<string>()
-	private readonly completedEmailNotificationTaskInstanceOrder: string[] = []
+	private readonly emailNotificationTaskOutcomes = new Map<string, EmailNotificationOutcome>()
+	private readonly emailNotificationTaskOutcomeOrder: string[] = []
+	private emailNotificationTaskOutcomeStateLoaded = false
 	private globalStateWriteThroughTimer: ReturnType<typeof setTimeout> | null = null
-	private static readonly MAX_COMPLETED_EMAIL_NOTIFICATION_TASK_INSTANCES = 500
 	private static readonly GLOBAL_STATE_WRITE_THROUGH_DEBOUNCE_MS = 5000 // 5 seconds
 	private pendingOperations: Map<string, PendingEditOperation> = new Map()
 	private static readonly PENDING_OPERATION_TIMEOUT_MS = 30000 // 30 seconds
@@ -410,6 +422,7 @@ export class ClineProvider
 		this.emailNotificationService = new EmailNotificationService(this.contextProxy, {
 			log: (message) => this.log(message),
 		})
+		this.loadEmailNotificationTaskOutcomeState()
 
 		ClineProvider.activeInstances.add(this)
 
@@ -679,18 +692,17 @@ export class ClineProvider
 			return
 		}
 
-		const notificationInstanceKey = `${task.taskId}:${task.instanceId}`
-
-		if (outcome === "success") {
-			this.rememberCompletedEmailNotificationTaskInstance(notificationInstanceKey)
-		} else if (this.completedEmailNotificationTaskInstances.has(notificationInstanceKey)) {
+		if (this.hasEmailNotificationTaskOutcomeBeenSent(task.taskId, outcome)) {
 			return
 		}
+
+		this.rememberEmailNotificationTaskOutcome(task.taskId, outcome)
 
 		this.emailNotificationService
 			.sendTaskNotification({
 				taskId: task.taskId,
 				outcome,
+				summary: this.getEmailNotificationSummary(task, outcome),
 				workspacePath: task.workspacePath,
 				mode: task.taskMode,
 				tokenUsage,
@@ -705,23 +717,124 @@ export class ClineProvider
 			})
 	}
 
-	private rememberCompletedEmailNotificationTaskInstance(notificationInstanceKey: string): void {
-		if (!this.completedEmailNotificationTaskInstances.has(notificationInstanceKey)) {
-			this.completedEmailNotificationTaskInstanceOrder.push(notificationInstanceKey)
+	private hasEmailNotificationTaskOutcomeBeenSent(taskId: string, outcome: EmailNotificationOutcome): boolean {
+		this.loadEmailNotificationTaskOutcomeState()
+
+		const previousOutcome = this.emailNotificationTaskOutcomes.get(taskId)
+
+		if (!previousOutcome) {
+			return false
 		}
 
-		this.completedEmailNotificationTaskInstances.add(notificationInstanceKey)
+		if (previousOutcome === "success") {
+			return true
+		}
 
-		while (
-			this.completedEmailNotificationTaskInstanceOrder.length >
-			ClineProvider.MAX_COMPLETED_EMAIL_NOTIFICATION_TASK_INSTANCES
-		) {
-			const oldestNotificationInstanceKey = this.completedEmailNotificationTaskInstanceOrder.shift()
+		return outcome !== "success"
+	}
 
-			if (oldestNotificationInstanceKey) {
-				this.completedEmailNotificationTaskInstances.delete(oldestNotificationInstanceKey)
+	private rememberEmailNotificationTaskOutcome(taskId: string, outcome: EmailNotificationOutcome): void {
+		this.loadEmailNotificationTaskOutcomeState()
+
+		if (!this.emailNotificationTaskOutcomes.has(taskId)) {
+			this.emailNotificationTaskOutcomeOrder.push(taskId)
+		}
+
+		this.emailNotificationTaskOutcomes.set(taskId, outcome)
+
+		while (this.emailNotificationTaskOutcomeOrder.length > MAX_EMAIL_NOTIFICATION_TASK_OUTCOMES) {
+			const oldestTaskId = this.emailNotificationTaskOutcomeOrder.shift()
+
+			if (oldestTaskId) {
+				this.emailNotificationTaskOutcomes.delete(oldestTaskId)
 			}
 		}
+
+		this.persistEmailNotificationTaskOutcomeState()
+	}
+
+	private loadEmailNotificationTaskOutcomeState(): void {
+		if (this.emailNotificationTaskOutcomeStateLoaded) {
+			return
+		}
+
+		this.emailNotificationTaskOutcomeStateLoaded = true
+
+		const state = this.context.globalState.get<EmailNotificationTaskOutcomeState>(
+			EMAIL_NOTIFICATION_TASK_OUTCOME_STATE_KEY,
+		)
+		const outcomes = Array.isArray(state?.outcomes)
+			? state.outcomes.slice(-MAX_EMAIL_NOTIFICATION_TASK_OUTCOMES)
+			: []
+
+		for (const record of outcomes) {
+			if (!record || typeof record.taskId !== "string" || !this.isEmailNotificationOutcome(record.outcome)) {
+				continue
+			}
+
+			if (!this.emailNotificationTaskOutcomes.has(record.taskId)) {
+				this.emailNotificationTaskOutcomeOrder.push(record.taskId)
+			}
+
+			this.emailNotificationTaskOutcomes.set(record.taskId, record.outcome)
+		}
+	}
+
+	private persistEmailNotificationTaskOutcomeState(): void {
+		const state: EmailNotificationTaskOutcomeState = {
+			version: 1,
+			outcomes: this.emailNotificationTaskOutcomeOrder.flatMap((taskId) => {
+				const outcome = this.emailNotificationTaskOutcomes.get(taskId)
+				return outcome ? [{ taskId, outcome }] : []
+			}),
+		}
+
+		Promise.resolve(this.context.globalState.update(EMAIL_NOTIFICATION_TASK_OUTCOME_STATE_KEY, state)).catch(
+			(error) => {
+				this.log(
+					`[email-notifications] Failed to persist notification state: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			},
+		)
+	}
+
+	private isEmailNotificationOutcome(outcome: unknown): outcome is EmailNotificationOutcome {
+		return outcome === "success" || outcome === "failed" || outcome === "aborted"
+	}
+
+	private getEmailNotificationSummary(task: Task, outcome: EmailNotificationOutcome): string | undefined {
+		if (outcome !== "success") {
+			return undefined
+		}
+
+		const completionResult = task.clineMessages
+			.slice()
+			.reverse()
+			.find(
+				(message) =>
+					message.type === "say" &&
+					message.say === "completion_result" &&
+					typeof message.text === "string" &&
+					message.text.trim().length > 0,
+			)?.text
+
+		return this.formatEmailNotificationSummary(completionResult) ?? DEFAULT_COMPLETION_EMAIL_SUMMARY
+	}
+
+	private formatEmailNotificationSummary(summary: string | undefined): string | undefined {
+		const normalizedSummary = summary?.replace(/\s+/g, " ").trim()
+
+		if (!normalizedSummary) {
+			return undefined
+		}
+
+		if (normalizedSummary.length <= MAX_EMAIL_NOTIFICATION_SUMMARY_LENGTH) {
+			return normalizedSummary
+		}
+
+		return `${normalizedSummary.slice(0, MAX_EMAIL_NOTIFICATION_SUMMARY_LENGTH - 1).trimEnd()}…`
 	}
 
 	async performPreparationTasks(cline: Task) {
@@ -1221,6 +1334,10 @@ export class ClineProvider
 		if (!isRehydratingCurrentTask) {
 			await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
 			await this.removeClineFromStack()
+		}
+
+		if (historyItem.status === "completed") {
+			this.rememberEmailNotificationTaskOutcome(historyItem.id, "success")
 		}
 
 		// If the history item has a saved mode, restore it and its associated API configuration.

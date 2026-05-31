@@ -483,7 +483,7 @@ describe("ClineProvider", () => {
 		vi.clearAllMocks()
 		AgentBus.reset()
 
-		const globalState: Record<string, string | undefined> = {
+		const globalState: Record<string, unknown> = {
 			mode: "architect",
 			currentApiConfigName: "current-config",
 		}
@@ -495,9 +495,7 @@ describe("ClineProvider", () => {
 			extensionUri: {} as vscode.Uri,
 			globalState: {
 				get: vi.fn().mockImplementation((key: string) => globalState[key]),
-				update: vi
-					.fn()
-					.mockImplementation((key: string, value: string | undefined) => (globalState[key] = value)),
+				update: vi.fn().mockImplementation((key: string, value: unknown) => (globalState[key] = value)),
 				keys: vi.fn().mockImplementation(() => Object.keys(globalState)),
 			},
 			secrets: {
@@ -703,12 +701,25 @@ describe("ClineProvider", () => {
 			const tokenUsage = createTokenUsage()
 			const toolUsage = createToolUsage()
 			;(task as any).taskMode = "code"
+			task.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "Earlier transcript text that should not be included",
+				ts: 1,
+			})
+			task.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Implemented SMTP completion notifications.\nAdded regression tests.",
+				ts: 2,
+			})
 			;(provider as any).taskCreationCallback(task)
 			task.emit(RooCodeEventName.TaskCompleted, task.taskId, tokenUsage, toolUsage)
 
 			expect(sendTaskNotification).toHaveBeenCalledWith({
 				taskId: "task-success",
 				outcome: "success",
+				summary: "Implemented SMTP completion notifications. Added regression tests.",
 				workspacePath: "/workspace",
 				mode: "code",
 				tokenUsage,
@@ -816,6 +827,51 @@ describe("ClineProvider", () => {
 					outcome: "success",
 				}),
 			)
+		})
+
+		test("does not send again when reopening an already-completed historical task", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = await provider.createTaskWithHistoryItem(
+				createHistoryItem({ id: "historical-completed-task", status: "completed" }),
+			)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+		})
+
+		test("persists task-level success de-duplication across provider instances", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = new Task({ ...defaultTaskOptions, taskId: "persisted-success-task" } as any)
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+
+			const reloadedProvider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+			)
+			const reloadedSendTaskNotification = vi.fn().mockResolvedValue(undefined)
+			;(reloadedProvider as any).emailNotificationService = { sendTaskNotification: reloadedSendTaskNotification }
+			const reloadedTask = new Task({
+				...defaultTaskOptions,
+				provider: reloadedProvider,
+				taskId: "persisted-success-task",
+			} as any)
+			;(reloadedProvider as any).taskCreationCallback(reloadedTask)
+
+			reloadedTask.emit(
+				RooCodeEventName.TaskCompleted,
+				reloadedTask.taskId,
+				createTokenUsage(),
+				createToolUsage(),
+			)
+
+			expect(reloadedSendTaskNotification).not.toHaveBeenCalled()
 		})
 	})
 

@@ -9,6 +9,7 @@ export type EmailNotificationOutcome = "success" | "failed" | "aborted"
 export type EmailNotificationPayload = {
 	taskId: string
 	outcome: EmailNotificationOutcome
+	summary?: string
 	workspacePath?: string
 	mode?: string
 	tokenUsage?: TokenUsage
@@ -46,6 +47,7 @@ export type EmailNotificationServiceOptions = {
 const DEFAULT_SMTP_PORT = 587
 const DEFAULT_SUBJECT_TEMPLATE = "C Code task {outcome}: {taskId}"
 const MAX_SENT_NOTIFICATION_KEYS = 500
+const MAX_NOTIFICATION_SUMMARY_LENGTH = 600
 
 const OUTCOME_LABELS: Record<EmailNotificationOutcome, string> = {
 	success: "Completed",
@@ -263,10 +265,12 @@ ${rowMarkup}
 
 	private getBodyRows(payload: EmailNotificationPayload): NotificationBodyRow[] {
 		const tokens = this.getTemplateTokens(payload)
+		const summary = this.formatSummary(payload.summary)
 
 		return [
 			{ label: "Task ID", value: payload.taskId },
 			{ label: "Status", value: tokens.status },
+			...(summary ? [{ label: "Completion summary", value: summary }] : []),
 			{ label: "Workspace", value: tokens.workspace },
 			{ label: "Mode", value: tokens.mode },
 			{ label: "Total tokens in", value: tokens.totalTokensIn },
@@ -282,11 +286,14 @@ ${rowMarkup}
 		const tokenUsage = payload.tokenUsage
 		const toolCounts = this.getToolUsageCounts(payload.toolUsage)
 		const workspace = payload.workspacePath || "Unknown workspace"
+		const summary = this.formatSummary(payload.summary) || "n/a"
 
 		return {
 			taskId: payload.taskId,
 			outcome: payload.outcome,
 			status: OUTCOME_LABELS[payload.outcome],
+			summary,
+			completionSummary: summary,
 			workspace,
 			workspacePath: workspace,
 			mode: payload.mode || "unknown",
@@ -333,6 +340,31 @@ ${rowMarkup}
 
 	private formatCost(value: number | undefined): string {
 		return typeof value === "number" && Number.isFinite(value) ? `$${value.toFixed(6)}` : "n/a"
+	}
+
+	private formatSummary(summary: string | undefined): string | undefined {
+		const sanitizedSummary = this.sanitizeNotificationText(summary)
+
+		if (!sanitizedSummary) {
+			return undefined
+		}
+
+		if (sanitizedSummary.length <= MAX_NOTIFICATION_SUMMARY_LENGTH) {
+			return sanitizedSummary
+		}
+
+		return `${sanitizedSummary.slice(0, MAX_NOTIFICATION_SUMMARY_LENGTH - 1).trimEnd()}…`
+	}
+
+	private sanitizeNotificationText(value: string | undefined): string | undefined {
+		const normalizedValue = value?.replace(/\s+/g, " ").trim()
+
+		if (!normalizedValue) {
+			return undefined
+		}
+
+		const password = this.contextProxy.getSecret("smtpPassword")
+		return password ? normalizedValue.replaceAll(password, "[redacted]") : normalizedValue
 	}
 
 	private hasNotificationBeenSent(payload: EmailNotificationPayload): boolean {
