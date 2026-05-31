@@ -109,11 +109,26 @@
 		"customDiscovery": {
 			"title": "Kun je de MCP-server niet vinden?",
 			"description": "Voer de MCP-server in die je wilt en C opent een MCP Setup-taak om officiële documentatie te vinden, veilige configuratie voor te stellen en die te verifiëren met je geïnstalleerde onderzoekstools.",
+			"mode": {
+				"label": "Aangepaste MCP-serveractie",
+				"find": "Bestaande vinden",
+				"create": "Nieuwe maken"
+			},
 			"inputLabel": "Naam of beschrijving van de MCP-server",
 			"placeholder": "Voorbeeld: Perplexity zoek-MCP-server",
 			"action": "Ontdekken met AI",
 			"validation": {
 				"empty": "Voer een naam of beschrijving van de MCP-server in voordat je de ontdekking start."
+			},
+			"create": {
+				"description": "Beschrijf de MCP-server of tooling die je wilt en C opent een MCP Setup-taak om een aangepaste lokale server te ontwerpen, implementeren, configureren en verifiëren.",
+				"inputLabel": "Wat moet de nieuwe MCP-server doen?",
+				"placeholder": "Voorbeeld: voeg een tool toe die interne pakketdocumentatie uit deze workspace opzoekt",
+				"action": "Maken met AI",
+				"recommendation": "Context7 en webzoekopdrachten kunnen helpen met documentatie, maar maken wordt niet geblokkeerd als ze niet zijn geïnstalleerd.",
+				"validation": {
+					"empty": "Voer in wat je wilt dat de MCP-server doet voordat je de aangepaste MCP-server maakt."
+				}
 			},
 			"requirements": {
 				"context7": "Context7 geïnstalleerd",

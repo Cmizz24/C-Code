@@ -20,6 +20,10 @@ type McpMarketplaceProps = {
 
 const catalogItems = marketplaceMcpCatalog as readonly MarketplaceMcpCatalogItem[]
 
+type CustomDiscoveryMode = "find" | "create"
+
+const customDiscoveryModes: readonly CustomDiscoveryMode[] = ["find", "create"]
+
 const formatList = (items: string[], fallback: string) => {
 	return items.length > 0 ? items.join(", ") : fallback
 }
@@ -56,7 +60,9 @@ const McpMarketplace = ({ servers }: McpMarketplaceProps) => {
 	const [searchQuery, setSearchQuery] = useState("")
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
 	const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(() => new Set())
+	const [customDiscoveryMode, setCustomDiscoveryMode] = useState<CustomDiscoveryMode>("find")
 	const [customDiscoveryQuery, setCustomDiscoveryQuery] = useState("")
+	const [customCreationRequest, setCustomCreationRequest] = useState("")
 	const [customDiscoveryMessage, setCustomDiscoveryMessage] = useState<string | null>(null)
 
 	const installedServerIdentifiers = useMemo(() => getInstalledServerIdentifiers(servers), [servers])
@@ -71,10 +77,13 @@ const McpMarketplace = ({ servers }: McpMarketplaceProps) => {
 		[installedServerIdentifiers],
 	)
 	const trimmedCustomDiscoveryQuery = customDiscoveryQuery.trim()
-	const isCustomDiscoveryReady =
-		trimmedCustomDiscoveryQuery.length > 0 &&
-		customDiscoveryPrerequisiteStatus.hasContext7 &&
-		customDiscoveryPrerequisiteStatus.hasWebSearch
+	const trimmedCustomCreationRequest = customCreationRequest.trim()
+	const isFindExistingMode = customDiscoveryMode === "find"
+	const isCustomDiscoveryReady = isFindExistingMode
+		? trimmedCustomDiscoveryQuery.length > 0 &&
+			customDiscoveryPrerequisiteStatus.hasContext7 &&
+			customDiscoveryPrerequisiteStatus.hasWebSearch
+		: trimmedCustomCreationRequest.length > 0
 	const categories = useMemo(
 		() => Array.from(new Set(catalogItems.map((item) => item.category))).sort((a, b) => a.localeCompare(b)),
 		[],
@@ -128,24 +137,49 @@ const McpMarketplace = ({ servers }: McpMarketplaceProps) => {
 			: t("mcp:marketplace.customDiscovery.requirements.missingWebSearch")
 	}
 	const customDiscoveryPrerequisiteMessage = getCustomDiscoveryPrerequisiteMessage()
+	const activeCustomDiscoveryPrerequisiteMessage = isFindExistingMode ? customDiscoveryPrerequisiteMessage : null
+	const customDiscoveryInputLabel = isFindExistingMode
+		? t("mcp:marketplace.customDiscovery.inputLabel")
+		: t("mcp:marketplace.customDiscovery.create.inputLabel")
+	const customDiscoveryPlaceholder = isFindExistingMode
+		? t("mcp:marketplace.customDiscovery.placeholder")
+		: t("mcp:marketplace.customDiscovery.create.placeholder")
+	const customDiscoveryAction = isFindExistingMode
+		? t("mcp:marketplace.customDiscovery.action")
+		: t("mcp:marketplace.customDiscovery.create.action")
+	const customDiscoveryValue = isFindExistingMode ? customDiscoveryQuery : customCreationRequest
 
 	const handleCustomDiscoverySubmit = (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault()
 
-		if (!trimmedCustomDiscoveryQuery) {
-			setCustomDiscoveryMessage(t("mcp:marketplace.customDiscovery.validation.empty"))
+		if (isFindExistingMode) {
+			if (!trimmedCustomDiscoveryQuery) {
+				setCustomDiscoveryMessage(t("mcp:marketplace.customDiscovery.validation.empty"))
+				return
+			}
+
+			if (activeCustomDiscoveryPrerequisiteMessage) {
+				setCustomDiscoveryMessage(activeCustomDiscoveryPrerequisiteMessage)
+				return
+			}
+
+			setCustomDiscoveryMessage(null)
+			vscode.postMessage({
+				type: "discoverMarketplaceMcp",
+				marketplaceMcpDiscoveryRequest: trimmedCustomDiscoveryQuery,
+			})
 			return
 		}
 
-		if (customDiscoveryPrerequisiteMessage) {
-			setCustomDiscoveryMessage(customDiscoveryPrerequisiteMessage)
+		if (!trimmedCustomCreationRequest) {
+			setCustomDiscoveryMessage(t("mcp:marketplace.customDiscovery.create.validation.empty"))
 			return
 		}
 
 		setCustomDiscoveryMessage(null)
 		vscode.postMessage({
-			type: "discoverMarketplaceMcp",
-			marketplaceMcpDiscoveryRequest: trimmedCustomDiscoveryQuery,
+			type: "createMarketplaceMcpServer",
+			marketplaceMcpCreationRequest: trimmedCustomCreationRequest,
 		})
 	}
 
@@ -200,72 +234,112 @@ const McpMarketplace = ({ servers }: McpMarketplaceProps) => {
 								</h4>
 							</div>
 							<p className="m-0 text-xs leading-5 text-vscode-descriptionForeground">
-								{t("mcp:marketplace.customDiscovery.description")}
+								{isFindExistingMode
+									? t("mcp:marketplace.customDiscovery.description")
+									: t("mcp:marketplace.customDiscovery.create.description")}
 							</p>
+							<div
+								className="mt-2 inline-flex rounded-md border border-vscode-widget-border bg-vscode-editor-background p-0.5"
+								role="tablist"
+								aria-label={t("mcp:marketplace.customDiscovery.mode.label")}>
+								{customDiscoveryModes.map((mode) => {
+									const isSelected = customDiscoveryMode === mode
+
+									return (
+										<button
+											key={mode}
+											type="button"
+											role="tab"
+											aria-selected={isSelected}
+											className={`rounded px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-vscode-focusBorder ${
+												isSelected
+													? "bg-vscode-button-background text-vscode-button-foreground"
+													: "text-vscode-descriptionForeground hover:bg-vscode-list-hoverBackground hover:text-vscode-list-hoverForeground"
+											}`}
+											onClick={() => {
+												setCustomDiscoveryMode(mode)
+												setCustomDiscoveryMessage(null)
+											}}>
+											{t(`mcp:marketplace.customDiscovery.mode.${mode}`)}
+										</button>
+									)
+								})}
+							</div>
 						</div>
-						<div className="flex flex-wrap gap-1.5">
-							<Chip
-								className={
-									customDiscoveryPrerequisiteStatus.hasContext7
-										? "border-vscode-charts-green/50 text-vscode-charts-green"
-										: "border-vscode-errorForeground/50 text-vscode-errorForeground"
-								}>
-								<span
-									className={`codicon ${
+						{isFindExistingMode ? (
+							<div className="flex flex-wrap gap-1.5">
+								<Chip
+									className={
 										customDiscoveryPrerequisiteStatus.hasContext7
-											? "codicon-check"
-											: "codicon-warning"
-									}`}
-								/>
-								{t("mcp:marketplace.customDiscovery.requirements.context7")}
-							</Chip>
-							<Chip
-								className={
-									customDiscoveryPrerequisiteStatus.hasWebSearch
-										? "border-vscode-charts-green/50 text-vscode-charts-green"
-										: "border-vscode-errorForeground/50 text-vscode-errorForeground"
-								}>
-								<span
-									className={`codicon ${
+											? "border-vscode-charts-green/50 text-vscode-charts-green"
+											: "border-vscode-errorForeground/50 text-vscode-errorForeground"
+									}>
+									<span
+										className={`codicon ${
+											customDiscoveryPrerequisiteStatus.hasContext7
+												? "codicon-check"
+												: "codicon-warning"
+										}`}
+									/>
+									{t("mcp:marketplace.customDiscovery.requirements.context7")}
+								</Chip>
+								<Chip
+									className={
 										customDiscoveryPrerequisiteStatus.hasWebSearch
-											? "codicon-check"
-											: "codicon-warning"
-									}`}
-								/>
-								{t("mcp:marketplace.customDiscovery.requirements.webSearch")}
-							</Chip>
-						</div>
+											? "border-vscode-charts-green/50 text-vscode-charts-green"
+											: "border-vscode-errorForeground/50 text-vscode-errorForeground"
+									}>
+									<span
+										className={`codicon ${
+											customDiscoveryPrerequisiteStatus.hasWebSearch
+												? "codicon-check"
+												: "codicon-warning"
+										}`}
+									/>
+									{t("mcp:marketplace.customDiscovery.requirements.webSearch")}
+								</Chip>
+							</div>
+						) : (
+							<div className="flex max-w-sm items-start gap-2 rounded-md border border-vscode-widget-border bg-vscode-editor-background px-3 py-2 text-xs leading-5 text-vscode-descriptionForeground">
+								<span className="codicon codicon-info mt-0.5" />
+								<span>{t("mcp:marketplace.customDiscovery.create.recommendation")}</span>
+							</div>
+						)}
 					</div>
 
-					{customDiscoveryPrerequisiteMessage && (
+					{activeCustomDiscoveryPrerequisiteMessage && (
 						<div className="mb-3 flex items-start gap-2 rounded-md border border-vscode-inputValidation-errorBorder bg-vscode-inputValidation-errorBackground px-3 py-2 text-xs text-vscode-errorForeground">
 							<span className="codicon codicon-warning mt-0.5" />
-							<span>{customDiscoveryPrerequisiteMessage}</span>
+							<span>{activeCustomDiscoveryPrerequisiteMessage}</span>
 						</div>
 					)}
 
 					<div className="flex flex-col gap-2 sm:flex-row sm:items-start">
 						<label className="flex flex-1 flex-col gap-1 text-xs font-medium text-vscode-descriptionForeground">
-							<span>{t("mcp:marketplace.customDiscovery.inputLabel")}</span>
+							<span>{customDiscoveryInputLabel}</span>
 							<input
 								className="h-8 w-full rounded-md border border-vscode-input-border bg-vscode-input-background px-2 text-xs text-vscode-input-foreground placeholder:text-vscode-descriptionForeground focus:outline-none focus:ring-1 focus:ring-vscode-focusBorder"
 								type="text"
-								aria-label={t("mcp:marketplace.customDiscovery.inputLabel")}
-								placeholder={t("mcp:marketplace.customDiscovery.placeholder")}
-								value={customDiscoveryQuery}
+								aria-label={customDiscoveryInputLabel}
+								placeholder={customDiscoveryPlaceholder}
+								value={customDiscoveryValue}
 								onChange={(event) => {
-									setCustomDiscoveryQuery(event.target.value)
+									if (isFindExistingMode) {
+										setCustomDiscoveryQuery(event.target.value)
+									} else {
+										setCustomCreationRequest(event.target.value)
+									}
 									setCustomDiscoveryMessage(null)
 								}}
 							/>
 						</label>
 						<Button className="w-full sm:mt-5 sm:w-auto" disabled={!isCustomDiscoveryReady} type="submit">
 							<span className="codicon codicon-sparkle" />
-							{t("mcp:marketplace.customDiscovery.action")}
+							{customDiscoveryAction}
 						</Button>
 					</div>
 
-					{customDiscoveryMessage && customDiscoveryMessage !== customDiscoveryPrerequisiteMessage && (
+					{customDiscoveryMessage && customDiscoveryMessage !== activeCustomDiscoveryPrerequisiteMessage && (
 						<div className="mt-2 rounded-md border border-vscode-inputValidation-errorBorder bg-vscode-inputValidation-errorBackground px-3 py-2 text-xs text-vscode-errorForeground">
 							{customDiscoveryMessage}
 						</div>

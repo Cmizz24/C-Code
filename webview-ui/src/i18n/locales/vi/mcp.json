@@ -109,11 +109,26 @@
 		"customDiscovery": {
 			"title": "Không tìm thấy máy chủ MCP?",
 			"description": "Nhập máy chủ MCP bạn muốn và C sẽ mở một tác vụ thiết lập MCP để tìm tài liệu chính thức, đề xuất cấu hình an toàn và xác minh bằng các công cụ nghiên cứu đã cài đặt.",
+			"mode": {
+				"label": "Hành động máy chủ MCP tùy chỉnh",
+				"find": "Tìm máy chủ có sẵn",
+				"create": "Tạo mới"
+			},
 			"inputLabel": "Tên hoặc mô tả máy chủ MCP",
 			"placeholder": "Ví dụ: máy chủ MCP tìm kiếm Perplexity",
 			"action": "Khám phá bằng AI",
 			"validation": {
 				"empty": "Nhập tên hoặc mô tả máy chủ MCP trước khi bắt đầu khám phá."
+			},
+			"create": {
+				"description": "Mô tả máy chủ MCP hoặc bộ công cụ bạn muốn và C sẽ mở một tác vụ MCP Setup để thiết kế, triển khai, cấu hình và xác minh một máy chủ cục bộ tùy chỉnh.",
+				"inputLabel": "Máy chủ MCP mới nên làm gì?",
+				"placeholder": "Ví dụ: thêm một công cụ tra cứu tài liệu gói nội bộ từ workspace này",
+				"action": "Tạo bằng AI",
+				"recommendation": "Context7 và tìm kiếm web có thể hỗ trợ tài liệu, nhưng việc tạo sẽ không bị chặn nếu chúng chưa được cài đặt.",
+				"validation": {
+					"empty": "Nhập điều bạn muốn máy chủ MCP làm trước khi bắt đầu tạo máy chủ MCP tùy chỉnh."
+				}
 			},
 			"requirements": {
 				"context7": "Đã cài Context7",

@@ -109,11 +109,26 @@
 		"customDiscovery": {
 			"title": "Can't find the MCP server?",
 			"description": "Enter the MCP server you want and C will open an MCP Setup task to discover official docs, propose safe config, and verify it with your installed research tools.",
+			"mode": {
+				"label": "Custom MCP server action",
+				"find": "Find existing",
+				"create": "Create new"
+			},
 			"inputLabel": "MCP server name or description",
 			"placeholder": "Example: Perplexity search MCP server",
 			"action": "Discover with AI",
 			"validation": {
 				"empty": "Enter an MCP server name or description before starting discovery."
+			},
+			"create": {
+				"description": "Describe the MCP server or tooling you want and C will open an MCP Setup task to design, implement, configure, and verify a custom local server.",
+				"inputLabel": "What should the new MCP server do?",
+				"placeholder": "Example: Add a tool that looks up internal package docs from this workspace",
+				"action": "Create with AI",
+				"recommendation": "Context7 and web search can help with docs, but creation is not blocked if they are not installed.",
+				"validation": {
+					"empty": "Enter what you want the MCP server to do before starting custom MCP server creation."
+				}
 			},
 			"requirements": {
 				"context7": "Context7 installed",

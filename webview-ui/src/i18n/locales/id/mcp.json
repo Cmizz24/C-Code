@@ -109,11 +109,26 @@
 		"customDiscovery": {
 			"title": "Tidak menemukan server MCP?",
 			"description": "Masukkan server MCP yang kamu inginkan dan C akan membuka tugas MCP Setup untuk menemukan dokumentasi resmi, mengusulkan konfigurasi aman, dan memverifikasinya dengan tool riset yang sudah terpasang.",
+			"mode": {
+				"label": "Aksi server MCP kustom",
+				"find": "Temukan yang ada",
+				"create": "Buat baru"
+			},
 			"inputLabel": "Nama atau deskripsi server MCP",
 			"placeholder": "Contoh: server MCP pencarian Perplexity",
 			"action": "Temukan dengan AI",
 			"validation": {
 				"empty": "Masukkan nama atau deskripsi server MCP sebelum memulai discovery."
+			},
+			"create": {
+				"description": "Jelaskan server MCP atau tooling yang kamu inginkan dan C akan membuka tugas MCP Setup untuk merancang, mengimplementasikan, mengonfigurasi, dan memverifikasi server lokal kustom.",
+				"inputLabel": "Apa yang harus dilakukan server MCP baru?",
+				"placeholder": "Contoh: tambahkan tool yang mencari dokumentasi paket internal dari workspace ini",
+				"action": "Buat dengan AI",
+				"recommendation": "Context7 dan pencarian web bisa membantu dengan dokumentasi, tapi pembuatan tidak diblokir jika belum terpasang.",
+				"validation": {
+					"empty": "Masukkan apa yang kamu ingin server MCP lakukan sebelum memulai pembuatan server MCP kustom."
+				}
 			},
 			"requirements": {
 				"context7": "Context7 terpasang",

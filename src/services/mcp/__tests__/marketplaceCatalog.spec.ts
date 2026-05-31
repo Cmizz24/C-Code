@@ -1,4 +1,5 @@
 import {
+	buildMarketplaceMcpCreationPrompt,
 	buildMarketplaceMcpDiscoveryPrompt,
 	buildMarketplaceMcpSetupPrompt,
 	getMarketplaceMcpDiscoveryPrerequisiteStatus,
@@ -225,5 +226,29 @@ describe("marketplaceCatalog", () => {
 		expect(prompt).toContain("Request approval before running commands")
 		expect(prompt).toContain("Verify the server connects")
 		expect(prompt).toContain("Report the discovered official source/docs")
+	})
+
+	it("builds a deterministic custom creation prompt with implementation, config, secrets, and verification instructions", () => {
+		const prompt = buildMarketplaceMcpCreationPrompt(" Build a workspace docs lookup MCP server ", {
+			globalConfigPath: "/mock/global/mcp_settings.json",
+			projectConfigPath: "/mock/workspace/.roo/mcp.json",
+			installedServerNames: ["context7"],
+		})
+
+		expect(prompt).toContain("Create a new custom MCP server")
+		expect(prompt).toContain("Build a workspace docs lookup MCP server")
+		expect(prompt).toContain("- context7")
+		expect(prompt).toContain("/mock/global/mcp_settings.json")
+		expect(prompt).toContain("/mock/workspace/.roo/mcp.json")
+		expect(prompt).toContain("Prefer a simple local TypeScript/Node MCP server")
+		expect(prompt).toContain("safe project-local location")
+		expect(prompt).toContain("merge MCP config under the existing top-level mcpServers object")
+		expect(prompt).toContain("Preserve all existing servers")
+		expect(prompt).toContain("Use environment variables")
+		expect(prompt).toContain("${env:SECRET_NAME}")
+		expect(prompt).toContain("Request approval before running commands")
+		expect(prompt).toContain("Verify the server connects")
+		expect(prompt).toContain("safe, non-destructive test call")
+		expect(prompt).toContain("Report the final server name")
 	})
 })

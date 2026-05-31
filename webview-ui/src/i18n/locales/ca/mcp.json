@@ -109,11 +109,26 @@
 		"customDiscovery": {
 			"title": "No trobes el servidor MCP?",
 			"description": "Introdueix el servidor MCP que vols i C obrirà una tasca de configuració MCP per descobrir la documentació oficial, proposar una configuració segura i verificar-la amb les teves eines de recerca instal·lades.",
+			"mode": {
+				"label": "Acció del servidor MCP personalitzat",
+				"find": "Troba'n un d'existent",
+				"create": "Crea'n un de nou"
+			},
 			"inputLabel": "Nom o descripció del servidor MCP",
 			"placeholder": "Exemple: servidor MCP de cerca Perplexity",
 			"action": "Descobreix amb AI",
 			"validation": {
 				"empty": "Introdueix un nom o una descripció del servidor MCP abans d'iniciar el descobriment."
+			},
+			"create": {
+				"description": "Descriu el servidor MCP o les eines que vols i C obrirà una tasca MCP Setup per dissenyar, implementar, configurar i verificar un servidor local personalitzat.",
+				"inputLabel": "Què hauria de fer el nou servidor MCP?",
+				"placeholder": "Exemple: afegeix una eina que cerqui documentació interna dels paquets d'aquest espai de treball",
+				"action": "Crea amb AI",
+				"recommendation": "Context7 i la cerca web poden ajudar amb la documentació, però la creació no es bloqueja si no estan instal·lats.",
+				"validation": {
+					"empty": "Introdueix què vols que faci el servidor MCP abans d'iniciar la creació del servidor MCP personalitzat."
+				}
 			},
 			"requirements": {
 				"context7": "Context7 instal·lat",

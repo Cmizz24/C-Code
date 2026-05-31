@@ -109,11 +109,26 @@
 		"customDiscovery": {
 			"title": "找不到 MCP 伺服器？",
 			"description": "輸入你想要的 MCP 伺服器，C 會開啟一個 MCP 設定任務，用已安裝的研究工具尋找官方文件、提出安全設定並進行驗證。",
+			"mode": {
+				"label": "自訂 MCP 伺服器動作",
+				"find": "尋找現有伺服器",
+				"create": "建立新伺服器"
+			},
 			"inputLabel": "MCP 伺服器名稱或描述",
 			"placeholder": "範例：Perplexity 搜尋 MCP 伺服器",
 			"action": "使用 AI 探索",
 			"validation": {
 				"empty": "開始探索前，請輸入 MCP 伺服器名稱或描述。"
+			},
+			"create": {
+				"description": "描述你想要的 MCP 伺服器或工具，C 會開啟一個 MCP Setup 任務來設計、實作、設定並驗證自訂本機伺服器。",
+				"inputLabel": "新的 MCP 伺服器應該做什麼？",
+				"placeholder": "範例：新增一個從此工作區查詢內部套件文件的工具",
+				"action": "使用 AI 建立",
+				"recommendation": "Context7 和 Web 搜尋可以協助查找文件，但即使未安裝它們，也不會阻止建立。",
+				"validation": {
+					"empty": "開始建立自訂 MCP 伺服器前，請輸入你希望 MCP 伺服器執行的操作。"
+				}
 			},
 			"requirements": {
 				"context7": "Context7 已安裝",

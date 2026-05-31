@@ -63,6 +63,7 @@ import { RooIgnoreController } from "../ignore/RooIgnoreController"
 import { getWorkspacePath } from "../../utils/path"
 import { isPathOutsideWorkspace } from "../../utils/pathUtils"
 import {
+	buildMarketplaceMcpCreationPrompt,
 	buildMarketplaceMcpDiscoveryPrompt,
 	buildMarketplaceMcpSetupPrompt,
 	getMarketplaceMcpDiscoveryPrerequisiteStatus,
@@ -1504,6 +1505,48 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
 				vscode.window.showErrorMessage(
 					`Failed to create custom MCP discovery task: ${error instanceof Error ? error.message : String(error)}`,
+				)
+			}
+
+			break
+		}
+		case "createMarketplaceMcpServer": {
+			const requestedCapability = message.marketplaceMcpCreationRequest?.trim()
+
+			if (!requestedCapability) {
+				vscode.window.showErrorMessage(
+					"Enter what you want the MCP server to do before starting custom MCP server creation.",
+				)
+				break
+			}
+
+			try {
+				const installedServerNames = getInstalledMcpServerNames()
+				const globalConfigPath = await provider.getMcpHub?.()?.getMcpSettingsFilePath?.()
+				const projectConfigPath = path.join(getCurrentCwd(), ".roo", "mcp.json")
+				const prompt = buildMarketplaceMcpCreationPrompt(requestedCapability, {
+					globalConfigPath,
+					projectConfigPath,
+					installedServerNames,
+				})
+				const taskConfiguration = {
+					...(message.taskConfiguration ?? {}),
+					mode: marketplaceMcpSetupModeSlug,
+				}
+
+				await provider.createTask(
+					prompt,
+					undefined,
+					undefined,
+					{ mode: marketplaceMcpSetupModeSlug },
+					taskConfiguration,
+				)
+				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
+				await provider.postMessageToWebview({ type: "action", action: "switchTab", tab: "chat" })
+			} catch (error) {
+				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
+				vscode.window.showErrorMessage(
+					`Failed to create custom MCP server task: ${error instanceof Error ? error.message : String(error)}`,
 				)
 			}
 

@@ -109,11 +109,26 @@
 		"customDiscovery": {
 			"title": "Non trovi il server MCP?",
 			"description": "Inserisci il server MCP che vuoi e C aprirà un'attività di configurazione MCP per trovare la documentazione ufficiale, proporre una configurazione sicura e verificarla con i tuoi strumenti di ricerca installati.",
+			"mode": {
+				"label": "Azione del server MCP personalizzato",
+				"find": "Trova esistente",
+				"create": "Crea nuovo"
+			},
 			"inputLabel": "Nome o descrizione del server MCP",
 			"placeholder": "Esempio: server MCP di ricerca Perplexity",
 			"action": "Scopri con AI",
 			"validation": {
 				"empty": "Inserisci un nome o una descrizione del server MCP prima di avviare la scoperta."
+			},
+			"create": {
+				"description": "Descrivi il server MCP o gli strumenti che vuoi e C aprirà un'attività MCP Setup per progettare, implementare, configurare e verificare un server locale personalizzato.",
+				"inputLabel": "Cosa dovrebbe fare il nuovo server MCP?",
+				"placeholder": "Esempio: aggiungi uno strumento che consulta la documentazione interna dei pacchetti da questo workspace",
+				"action": "Crea con AI",
+				"recommendation": "Context7 e la ricerca web possono aiutare con la documentazione, ma la creazione non viene bloccata se non sono installati.",
+				"validation": {
+					"empty": "Inserisci cosa vuoi che faccia il server MCP prima di avviare la creazione del server MCP personalizzato."
+				}
 			},
 			"requirements": {
 				"context7": "Context7 installato",

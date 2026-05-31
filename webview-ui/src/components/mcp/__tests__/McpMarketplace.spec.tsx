@@ -44,11 +44,24 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 				"mcp:marketplace.customDiscovery.title": "Can't find the MCP server?",
 				"mcp:marketplace.customDiscovery.description":
 					"Enter the MCP server you want and C will open an MCP Setup task to discover official docs, propose safe config, and verify it with your installed research tools.",
+				"mcp:marketplace.customDiscovery.mode.label": "Custom MCP server action",
+				"mcp:marketplace.customDiscovery.mode.find": "Find existing",
+				"mcp:marketplace.customDiscovery.mode.create": "Create new",
 				"mcp:marketplace.customDiscovery.inputLabel": "MCP server name or description",
 				"mcp:marketplace.customDiscovery.placeholder": "Example: Perplexity search MCP server",
 				"mcp:marketplace.customDiscovery.action": "Discover with AI",
 				"mcp:marketplace.customDiscovery.validation.empty":
 					"Enter an MCP server name or description before starting discovery.",
+				"mcp:marketplace.customDiscovery.create.description":
+					"Describe the MCP server or tooling you want and C will open an MCP Setup task to design, implement, configure, and verify a custom local server.",
+				"mcp:marketplace.customDiscovery.create.inputLabel": "What should the new MCP server do?",
+				"mcp:marketplace.customDiscovery.create.placeholder":
+					"Example: Add a tool that looks up internal package docs from this workspace",
+				"mcp:marketplace.customDiscovery.create.action": "Create with AI",
+				"mcp:marketplace.customDiscovery.create.recommendation":
+					"Context7 and web search can help with docs, but creation is not blocked if they are not installed.",
+				"mcp:marketplace.customDiscovery.create.validation.empty":
+					"Enter what you want the MCP server to do before starting custom MCP server creation.",
 				"mcp:marketplace.customDiscovery.requirements.context7": "Context7 installed",
 				"mcp:marketplace.customDiscovery.requirements.webSearch": "Web search installed",
 				"mcp:marketplace.customDiscovery.requirements.missingBoth":
@@ -215,6 +228,32 @@ describe("McpMarketplace", () => {
 		})
 	})
 
+	it("switches between find existing and create new custom MCP modes", () => {
+		render(<McpMarketplace servers={[]} />)
+
+		expect(screen.getByRole("tab", { name: "Find existing" })).toHaveAttribute("aria-selected", "true")
+		expect(screen.getByRole("tab", { name: "Create new" })).toHaveAttribute("aria-selected", "false")
+		expect(screen.getByLabelText("MCP server name or description")).toBeInTheDocument()
+		expect(screen.getByText("Context7 installed")).toBeInTheDocument()
+
+		fireEvent.click(screen.getByRole("tab", { name: "Create new" }))
+
+		expect(screen.getByRole("tab", { name: "Find existing" })).toHaveAttribute("aria-selected", "false")
+		expect(screen.getByRole("tab", { name: "Create new" })).toHaveAttribute("aria-selected", "true")
+		expect(screen.getByLabelText("What should the new MCP server do?")).toBeInTheDocument()
+		expect(
+			screen.getByText(
+				"Context7 and web search can help with docs, but creation is not blocked if they are not installed.",
+			),
+		).toBeInTheDocument()
+		expect(screen.queryByText("Context7 installed")).not.toBeInTheDocument()
+
+		fireEvent.click(screen.getByRole("tab", { name: "Find existing" }))
+
+		expect(screen.getByLabelText("MCP server name or description")).toBeInTheDocument()
+		expect(screen.getByText("Context7 installed")).toBeInTheDocument()
+	})
+
 	it("shows missing custom discovery prerequisites instead of starting a task", () => {
 		render(<McpMarketplace servers={[]} />)
 
@@ -249,6 +288,23 @@ describe("McpMarketplace", () => {
 		expect(screen.getByRole("button", { name: /Discover with AI/i })).toBeDisabled()
 	})
 
+	it("validates an empty custom creation request without requiring discovery prerequisites", () => {
+		render(<McpMarketplace servers={[]} />)
+
+		fireEvent.click(screen.getByRole("tab", { name: "Create new" }))
+
+		const input = screen.getByLabelText("What should the new MCP server do?")
+		expect(screen.queryByText(/before starting custom MCP discovery/i)).not.toBeInTheDocument()
+		expect(screen.getByRole("button", { name: /Create with AI/i })).toBeDisabled()
+
+		fireEvent.submit(input.closest("form")!)
+
+		expect(
+			screen.getByText("Enter what you want the MCP server to do before starting custom MCP server creation."),
+		).toBeInTheDocument()
+		expect(vscode.postMessage).not.toHaveBeenCalled()
+	})
+
 	it("posts a custom discovery message when Context7 and web search are installed", () => {
 		render(
 			<McpMarketplace
@@ -269,6 +325,21 @@ describe("McpMarketplace", () => {
 		expect(vscode.postMessage).toHaveBeenCalledWith({
 			type: "discoverMarketplaceMcp",
 			marketplaceMcpDiscoveryRequest: "Perplexity search MCP server",
+		})
+	})
+
+	it("posts a custom creation message without requiring web search prerequisites", () => {
+		render(<McpMarketplace servers={[]} />)
+
+		fireEvent.click(screen.getByRole("tab", { name: "Create new" }))
+		fireEvent.change(screen.getByLabelText("What should the new MCP server do?"), {
+			target: { value: " Build a workspace docs lookup MCP server " },
+		})
+		fireEvent.click(screen.getByRole("button", { name: /Create with AI/i }))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({
+			type: "createMarketplaceMcpServer",
+			marketplaceMcpCreationRequest: "Build a workspace docs lookup MCP server",
 		})
 	})
 })

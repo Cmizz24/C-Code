@@ -454,6 +454,7 @@ export interface WebviewMessage {
 		| "openProjectMcpSettings"
 		| "installMarketplaceMcp"
 		| "discoverMarketplaceMcp"
+		| "createMarketplaceMcpServer"
 		| "restartMcpServer"
 		| "refreshAllMcpServers"
 		| "toggleToolAlwaysAllow"
@@ -600,6 +601,7 @@ export interface WebviewMessage {
 	marketplaceMcpId?: string
 	marketplaceMcpScope?: "global" | "project"
 	marketplaceMcpDiscoveryRequest?: string
+	marketplaceMcpCreationRequest?: string
 	skillName?: string // For skill operations (createSkill, deleteSkill, moveSkill, openSkillFile)
 	/** @deprecated Use skillModeSlugs instead */
 	skillMode?: string // For skill operations (current mode restriction)

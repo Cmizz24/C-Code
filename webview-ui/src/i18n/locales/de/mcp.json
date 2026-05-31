@@ -109,11 +109,26 @@
 		"customDiscovery": {
 			"title": "Findest du den MCP-Server nicht?",
 			"description": "Gib den gewünschten MCP-Server ein und C öffnet eine MCP-Setup-Aufgabe, um offizielle Dokumentation zu finden, eine sichere Konfiguration vorzuschlagen und sie mit deinen installierten Recherche-Tools zu verifizieren.",
+			"mode": {
+				"label": "Aktion für benutzerdefinierte MCP-Server",
+				"find": "Vorhandenen finden",
+				"create": "Neuen erstellen"
+			},
 			"inputLabel": "Name oder Beschreibung des MCP-Servers",
 			"placeholder": "Beispiel: Perplexity-Such-MCP-Server",
 			"action": "Mit KI entdecken",
 			"validation": {
 				"empty": "Gib einen Namen oder eine Beschreibung des MCP-Servers ein, bevor du die Suche startest."
+			},
+			"create": {
+				"description": "Beschreibe den MCP-Server oder die Tools, die du möchtest, und C öffnet eine MCP Setup-Aufgabe, um einen benutzerdefinierten lokalen Server zu entwerfen, zu implementieren, zu konfigurieren und zu verifizieren.",
+				"inputLabel": "Was soll der neue MCP-Server tun?",
+				"placeholder": "Beispiel: Füge ein Tool hinzu, das interne Paketdokumentation aus diesem Workspace nachschlägt",
+				"action": "Mit AI erstellen",
+				"recommendation": "Context7 und Websuche können bei der Dokumentation helfen, aber die Erstellung wird nicht blockiert, wenn sie nicht installiert sind.",
+				"validation": {
+					"empty": "Gib ein, was der MCP-Server tun soll, bevor du die Erstellung des benutzerdefinierten MCP-Servers startest."
+				}
 			},
 			"requirements": {
 				"context7": "Context7 installiert",

@@ -35,6 +35,10 @@ export interface MarketplaceMcpDiscoveryPromptOptions extends MarketplaceMcpSetu
 	installedServerNames?: string[]
 }
 
+export interface MarketplaceMcpCreationPromptOptions extends MarketplaceMcpSetupPromptOptions {
+	installedServerNames?: string[]
+}
+
 const formatList = (items: string[]) => {
 	return items.length > 0 ? items.map((item) => `- ${item}`).join("\n") : "- None"
 }
@@ -154,4 +158,44 @@ Task requirements:
 9. Refresh or restart MCP connections if needed after saving config.
 10. Verify the server connects and exposes expected tools/resources using a read-only, non-sensitive check. Avoid destructive verification and do not modify repositories, databases, files, browser sessions, or external services unless the user explicitly asks.
 11. Report the discovered official source/docs, final server name, target config scope/file, exposed tools/resources observed during verification, and any follow-up the user must complete.`
+}
+
+export const buildMarketplaceMcpCreationPrompt = (
+	requestedCapability: string,
+	options: MarketplaceMcpCreationPromptOptions = {},
+) => {
+	const trimmedRequest = requestedCapability.trim()
+	const installedServerNames = options.installedServerNames?.length
+		? options.installedServerNames.map((serverName) => `- ${serverName}`).join("\n")
+		: "- None reported. Proceed from the user's requirements and local development tools; do not block creation only because research MCP servers are missing."
+
+	return `Create a new custom MCP server using C Code's MCP Marketplace creation flow.
+
+User request:
+${trimmedRequest}
+
+Installed MCP servers available for optional research or verification:
+${installedServerNames}
+
+Config targets:
+- Global MCP settings file: ${options.globalConfigPath ?? "use C Code's global MCP settings file"}
+- Project MCP settings file: ${options.projectConfigPath ?? ".roo/mcp.json in the current workspace"}
+
+Mode guidance:
+- You are running in the dedicated MCP Setup mode for designing, implementing, configuring, troubleshooting, and verifying MCP servers.
+- Stay within MCP setup work. Do not refactor unrelated project code, rewrite unrelated settings, or mutate existing MCP servers beyond the requested custom server unless the user explicitly asks.
+
+Task requirements:
+1. Clarify requirements only when necessary to implement safely. If the user's request is already actionable, proceed without extra questions.
+2. Design the minimal MCP server appropriate for the requested capability. Prefer a simple local TypeScript/Node MCP server unless the request clearly implies another stack or runtime.
+3. Create implementation files in a safe project-local location, such as a clearly named directory under the current workspace. Do not write outside the workspace unless the user explicitly approves a different safe path.
+4. Keep the implementation focused on the requested tools/resources. Avoid unrelated scaffolding, broad permissions, destructive defaults, or hidden network/file access.
+5. Add or merge MCP config under the existing top-level mcpServers object. Preserve all existing servers and existing unrelated settings.
+6. Avoid storing secrets in committed or project files. Use environment variables, documented placeholders such as \${env:SECRET_NAME}, or local user-provided secret stores instead of literal secret values.
+7. Request approval before running commands that install packages, change files, start long-running processes, or contact external services.
+8. Install dependencies and run the MCP server locally using the simplest documented local workflow for the chosen stack.
+9. Refresh or restart MCP connections if needed after saving config.
+10. Verify the server connects and exposes the expected tools/resources. Perform a safe, non-destructive test call if possible.
+11. Avoid destructive verification. Do not modify repositories, databases, files, browser sessions, or external services unless the user explicitly asks.
+12. Report the final server name, files created, config location, exposed capabilities, verification steps/results, and any manual follow-up the user must complete.`
 }

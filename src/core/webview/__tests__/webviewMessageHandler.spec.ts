@@ -1283,3 +1283,64 @@ describe("webviewMessageHandler - discoverMarketplaceMcp", () => {
 		expect(mockClineProvider.createTask).not.toHaveBeenCalled()
 	})
 })
+
+describe("webviewMessageHandler - createMarketplaceMcpServer", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		vi.mocked(mockClineProvider.createTask).mockResolvedValue({ taskId: "marketplace-creation-task-id" } as any)
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(null as any)
+		vi.mocked(mockClineProvider.getMcpHub).mockReturnValue({
+			getMcpSettingsFilePath: vi.fn().mockResolvedValue("/mock/global/mcp_settings.json"),
+			getAllServers: vi.fn().mockReturnValue([{ name: "context7" }]),
+		} as any)
+	})
+
+	it("creates a top-level custom creation task in MCP Setup mode without requiring web search prerequisites", async () => {
+		const taskConfiguration = { apiProvider: "openrouter", currentApiConfigName: "work-profile", mode: "code" }
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "createMarketplaceMcpServer",
+			marketplaceMcpCreationRequest: " Build a workspace docs lookup MCP server ",
+			taskConfiguration,
+		} as any)
+
+		expect(mockClineProvider.createTask).toHaveBeenCalledTimes(1)
+		const createTaskCall = vi.mocked(mockClineProvider.createTask).mock.calls[0]
+		const prompt = createTaskCall[0] as string
+		expect(prompt).toContain("Create a new custom MCP server")
+		expect(prompt).toContain("Build a workspace docs lookup MCP server")
+		expect(prompt).toContain("- context7")
+		expect(prompt).toContain("/mock/global/mcp_settings.json")
+		expect(prompt).toMatch(/[\\/]mock[\\/]workspace[\\/]\.roo[\\/]mcp\.json/)
+		expect(prompt).toContain("Prefer a simple local TypeScript/Node MCP server")
+		expect(prompt).toContain("Preserve all existing servers")
+		expect(prompt).toContain("Use environment variables")
+		expect(prompt).toContain("Verify the server connects")
+		expect(prompt).toContain("safe, non-destructive test call")
+		expect(createTaskCall[2]).toBeUndefined()
+		expect(createTaskCall[3]).toEqual({ mode: "mcp-setup" })
+		expect(createTaskCall[4]).toEqual({
+			...taskConfiguration,
+			mode: "mcp-setup",
+		})
+		expect((createTaskCall[4] as any).mode).not.toBe("code")
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({ type: "invoke", invoke: "newChat" })
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "action",
+			action: "switchTab",
+			tab: "chat",
+		})
+	})
+
+	it("rejects an empty custom creation request", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "createMarketplaceMcpServer",
+			marketplaceMcpCreationRequest: "  ",
+		} as any)
+
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			"Enter what you want the MCP server to do before starting custom MCP server creation.",
+		)
+		expect(mockClineProvider.createTask).not.toHaveBeenCalled()
+	})
+})

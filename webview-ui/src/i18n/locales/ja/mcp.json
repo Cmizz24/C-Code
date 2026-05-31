@@ -109,11 +109,26 @@
 		"customDiscovery": {
 			"title": "MCP サーバーが見つかりませんか？",
 			"description": "必要な MCP サーバーを入力すると、C が MCP Setup タスクを開き、公式ドキュメントの検出、安全な設定案の作成、インストール済みの調査ツールによる検証を行います。",
+			"mode": {
+				"label": "カスタム MCP サーバーのアクション",
+				"find": "既存を探す",
+				"create": "新規作成"
+			},
 			"inputLabel": "MCP サーバーの名前または説明",
 			"placeholder": "例: Perplexity 検索 MCP サーバー",
 			"action": "AI で探す",
 			"validation": {
 				"empty": "検出を開始する前に MCP サーバーの名前または説明を入力してください。"
+			},
+			"create": {
+				"description": "必要な MCP サーバーやツールを説明すると、C が MCP Setup タスクを開き、カスタムローカルサーバーの設計、実装、設定、検証を行います。",
+				"inputLabel": "新しい MCP サーバーで何を行いますか？",
+				"placeholder": "例: このワークスペースから内部パッケージドキュメントを検索するツールを追加する",
+				"action": "AI で作成",
+				"recommendation": "Context7 と Web 検索はドキュメント調査に役立ちますが、未インストールでも作成はブロックされません。",
+				"validation": {
+					"empty": "カスタム MCP サーバーの作成を開始する前に、MCP サーバーで何を行うかを入力してください。"
+				}
 			},
 			"requirements": {
 				"context7": "Context7 インストール済み",
