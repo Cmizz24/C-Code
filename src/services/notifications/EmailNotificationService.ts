@@ -14,6 +14,7 @@ export type EmailNotificationPayload = {
 	mode?: string
 	tokenUsage?: TokenUsage
 	toolUsage?: ToolUsage
+	requestCount?: number
 }
 
 type EmailTransportOptions = {
@@ -64,6 +65,15 @@ const OUTCOME_COLORS: Record<EmailNotificationOutcome, string> = {
 type NotificationBodyRow = {
 	label: string
 	value: string
+}
+
+const ZERO_USAGE: TokenUsage = {
+	totalTokensIn: 0,
+	totalTokensOut: 0,
+	totalCacheWrites: 0,
+	totalCacheReads: 0,
+	totalCost: 0,
+	contextTokens: 0,
 }
 
 export class EmailNotificationService {
@@ -273,8 +283,12 @@ ${rowMarkup}
 			...(summary ? [{ label: "Completion summary", value: summary }] : []),
 			{ label: "Workspace", value: tokens.workspace },
 			{ label: "Mode", value: tokens.mode },
+			{ label: "Requests", value: tokens.requests },
 			{ label: "Total tokens in", value: tokens.totalTokensIn },
 			{ label: "Total tokens out", value: tokens.totalTokensOut },
+			{ label: "Cache write tokens", value: tokens.totalCacheWrites },
+			{ label: "Cache read tokens", value: tokens.totalCacheReads },
+			{ label: "Total tokens", value: tokens.totalTokens },
 			{ label: "Context tokens", value: tokens.contextTokens },
 			{ label: "Total cost", value: tokens.totalCost },
 			{ label: "Tool attempts", value: tokens.toolAttempts },
@@ -283,10 +297,11 @@ ${rowMarkup}
 	}
 
 	private getTemplateTokens(payload: EmailNotificationPayload): Record<string, string> {
-		const tokenUsage = payload.tokenUsage
+		const tokenUsage = payload.tokenUsage ?? ZERO_USAGE
 		const toolCounts = this.getToolUsageCounts(payload.toolUsage)
 		const workspace = payload.workspacePath || "Unknown workspace"
-		const summary = this.formatSummary(payload.summary) || "n/a"
+		const summary = this.formatSummary(payload.summary) || ""
+		const totalTokens = tokenUsage.totalTokensIn + tokenUsage.totalTokensOut
 
 		return {
 			taskId: payload.taskId,
@@ -297,13 +312,14 @@ ${rowMarkup}
 			workspace,
 			workspacePath: workspace,
 			mode: payload.mode || "unknown",
-			totalTokensIn: this.formatNumber(tokenUsage?.totalTokensIn),
-			totalTokensOut: this.formatNumber(tokenUsage?.totalTokensOut),
-			totalTokens: this.formatNumber(
-				tokenUsage ? tokenUsage.totalTokensIn + tokenUsage.totalTokensOut : undefined,
-			),
-			contextTokens: this.formatNumber(tokenUsage?.contextTokens),
-			totalCost: this.formatCost(tokenUsage?.totalCost),
+			requests: this.formatNumber(payload.requestCount),
+			totalTokensIn: this.formatNumber(tokenUsage.totalTokensIn),
+			totalTokensOut: this.formatNumber(tokenUsage.totalTokensOut),
+			totalCacheWrites: this.formatNumber(tokenUsage.totalCacheWrites),
+			totalCacheReads: this.formatNumber(tokenUsage.totalCacheReads),
+			totalTokens: this.formatNumber(totalTokens),
+			contextTokens: this.formatNumber(tokenUsage.contextTokens),
+			totalCost: this.formatCost(tokenUsage.totalCost),
 			toolAttempts: this.formatNumber(toolCounts.attempts),
 			toolFailures: this.formatNumber(toolCounts.failures),
 		}
@@ -335,11 +351,11 @@ ${rowMarkup}
 	}
 
 	private formatNumber(value: number | undefined): string {
-		return typeof value === "number" && Number.isFinite(value) ? value.toLocaleString("en-US") : "n/a"
+		return typeof value === "number" && Number.isFinite(value) ? value.toLocaleString("en-US") : "0"
 	}
 
 	private formatCost(value: number | undefined): string {
-		return typeof value === "number" && Number.isFinite(value) ? `$${value.toFixed(6)}` : "n/a"
+		return typeof value === "number" && Number.isFinite(value) ? `$${value.toFixed(6)}` : "$0.000000"
 	}
 
 	private formatSummary(summary: string | undefined): string | undefined {

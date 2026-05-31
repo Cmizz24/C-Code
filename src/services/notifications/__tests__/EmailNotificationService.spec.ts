@@ -6,6 +6,8 @@ import { EmailNotificationService, type EmailNotificationPayload } from "../Emai
 const tokenUsage: TokenUsage = {
 	totalTokensIn: 12,
 	totalTokensOut: 34,
+	totalCacheWrites: 5,
+	totalCacheReads: 7,
 	totalCost: 0.123456,
 	contextTokens: 2048,
 }
@@ -22,6 +24,7 @@ const payload: EmailNotificationPayload & { clineMessages?: string; apiConversat
 	mode: "code",
 	tokenUsage,
 	toolUsage,
+	requestCount: 3,
 }
 payload.clineMessages = "Full transcript content must not be included"
 payload.apiConversationHistory = "Raw API transcript content must not be included"
@@ -103,7 +106,14 @@ describe("EmailNotificationService", () => {
 			"Completion summary: Implemented SMTP summary output without leaking [redacted].",
 		)
 		expect(mailOptions.text).toContain("Workspace: /workspace/project")
+		expect(mailOptions.text).toContain("Requests: 3")
 		expect(mailOptions.text).toContain("Total tokens in: 12")
+		expect(mailOptions.text).toContain("Total tokens out: 34")
+		expect(mailOptions.text).toContain("Cache write tokens: 5")
+		expect(mailOptions.text).toContain("Cache read tokens: 7")
+		expect(mailOptions.text).toContain("Total tokens: 46")
+		expect(mailOptions.text).toContain("Total cost: $0.123456")
+		expect(mailOptions.text).toContain("Tool attempts: 2")
 		expect(mailOptions.text).toContain("Tool failures: 1")
 		expect(mailOptions.text).toContain("Task transcripts and SMTP secrets are not included")
 		expect(mailOptions.text).not.toContain("apiConversationHistory")
@@ -115,6 +125,10 @@ describe("EmailNotificationService", () => {
 		expect(mailOptions.html).toContain("Task ID")
 		expect(mailOptions.html).toContain("Implemented SMTP summary output without leaking [redacted].")
 		expect(mailOptions.html).toContain("/workspace/project")
+		expect(mailOptions.html).toContain("Requests")
+		expect(mailOptions.html).toContain("Cache write tokens")
+		expect(mailOptions.html).toContain("Total tokens")
+		expect(mailOptions.html).toContain("$0.123456")
 		expect(mailOptions.html).not.toContain("apiConversationHistory")
 		expect(mailOptions.html).not.toContain("clineMessages")
 		expect(mailOptions.html).not.toContain("Full transcript content")
@@ -126,7 +140,7 @@ describe("EmailNotificationService", () => {
 		const { service, sendMail } = createService(
 			createContextProxy({
 				smtpSubjectTemplate:
-					"{{taskid}} {{TASKID}} {{taskId}} {{Workspace_Path}} {{MODE}} {{TOTAL_TOKENS}} {{unknown}}",
+					"{{taskid}} {{TASKID}} {{taskId}} {{Workspace_Path}} {{MODE}} {{REQUESTS}} {{TOTAL_CACHE_WRITES}} {{total_cache_reads}} {{TOTAL_TOKENS}} {{unknown}}",
 			}),
 		)
 
@@ -134,9 +148,35 @@ describe("EmailNotificationService", () => {
 
 		expect(sendMail).toHaveBeenCalledWith(
 			expect.objectContaining({
-				subject: "task-1 task-1 task-1 /workspace/project code 46 {{unknown}}",
+				subject: "task-1 task-1 task-1 /workspace/project code 3 5 7 46 {{unknown}}",
 			}),
 		)
+	})
+
+	it("renders missing usage safely as zeros without n/a placeholders", async () => {
+		const { service, sendMail } = createService()
+
+		await service.sendTaskNotification({
+			taskId: "task-missing-usage",
+			outcome: "success",
+			workspacePath: "/workspace/project",
+			mode: "code",
+		})
+
+		const mailOptions = sendMail.mock.calls[0][0]
+		expect(mailOptions.text).toContain("Requests: 0")
+		expect(mailOptions.text).toContain("Total tokens in: 0")
+		expect(mailOptions.text).toContain("Total tokens out: 0")
+		expect(mailOptions.text).toContain("Cache write tokens: 0")
+		expect(mailOptions.text).toContain("Cache read tokens: 0")
+		expect(mailOptions.text).toContain("Total tokens: 0")
+		expect(mailOptions.text).toContain("Context tokens: 0")
+		expect(mailOptions.text).toContain("Total cost: $0.000000")
+		expect(mailOptions.text).toContain("Tool attempts: 0")
+		expect(mailOptions.text).toContain("Tool failures: 0")
+		expect(mailOptions.text).not.toContain("Completion summary:")
+		expect(mailOptions.text).not.toContain("n/a")
+		expect(mailOptions.html).not.toContain("n/a")
 	})
 
 	it("defaults success notifications on and failure notifications off", async () => {

@@ -56,7 +56,11 @@ import {
 	getModelId,
 	isRetiredProvider,
 } from "@roo-code/types"
-import { aggregateTaskCostsRecursive, type AggregatedCosts } from "./aggregateTaskCosts"
+import {
+	aggregateTaskCostsRecursive,
+	aggregateTaskTokenUsageRecursive,
+	type AggregatedCosts,
+} from "./aggregateTaskCosts"
 
 import { Package } from "../../shared/package"
 import { findLast } from "../../shared/array"
@@ -705,20 +709,67 @@ export class ClineProvider
 			mode: task.taskMode,
 			tokenUsage,
 			toolUsage,
+			requestCount: this.countApiRequestMessages(task.clineMessages),
 		})
 	}
 
-	private notifyDelegatedWorkflowCompleted(
-		historyItem: Pick<HistoryItem, "id" | "workspace" | "mode">,
+	private async notifyDelegatedWorkflowCompleted(
+		historyItem: Pick<
+			HistoryItem,
+			| "id"
+			| "workspace"
+			| "mode"
+			| "tokensIn"
+			| "tokensOut"
+			| "cacheWrites"
+			| "cacheReads"
+			| "totalCost"
+			| "childIds"
+		>,
 		completionResultSummary: string,
-	): void {
+	): Promise<void> {
+		const usage = await this.getAggregatedTaskNotificationUsage(historyItem)
+
 		this.notifyTaskOutcome({
 			taskId: historyItem.id,
 			outcome: "success",
 			summary: this.formatEmailNotificationSummary(completionResultSummary) ?? DEFAULT_COMPLETION_EMAIL_SUMMARY,
 			workspacePath: historyItem.workspace,
 			mode: typeof historyItem.mode === "string" ? historyItem.mode : undefined,
+			...usage,
 		})
+	}
+
+	private async getAggregatedTaskNotificationUsage(
+		historyItem: Pick<
+			HistoryItem,
+			"id" | "tokensIn" | "tokensOut" | "cacheWrites" | "cacheReads" | "totalCost" | "childIds"
+		>,
+	): Promise<Pick<EmailNotificationPayload, "tokenUsage" | "requestCount">> {
+		return aggregateTaskTokenUsageRecursive(
+			historyItem.id,
+			async (id: string) => {
+				if (id === historyItem.id) {
+					return historyItem as HistoryItem
+				}
+
+				try {
+					const result = await this.getTaskWithId(id)
+					return result.historyItem
+				} catch (error) {
+					this.log(
+						`[email-notifications] Failed to load usage history for task ${id}: ${
+							error instanceof Error ? error.message : String(error)
+						}`,
+					)
+					return undefined
+				}
+			},
+			{
+				getChildTaskIds: async (parentId: string) => this.getChildTaskIds(parentId),
+				getTaskRequestCount: async (id: string) => this.getPersistedTaskRequestCount(id),
+			},
+		)
 	}
 
 	private notifyTaskOutcome(payload: EmailNotificationPayload): void {
@@ -735,6 +786,52 @@ export class ClineProvider
 				}`,
 			)
 		})
+	}
+
+	private getChildTaskIds(parentId: string): string[] {
+		const historyById = new Map<string, HistoryItem>()
+
+		for (const item of this.getGlobalState("taskHistory") ?? []) {
+			historyById.set(item.id, item)
+		}
+
+		for (const item of this.taskHistoryStore.getAll()) {
+			historyById.set(item.id, item)
+		}
+
+		return Array.from(historyById.values())
+			.filter((item) => item.parentTaskId === parentId)
+			.map((item) => item.id)
+	}
+
+	private async getPersistedTaskRequestCount(taskId: string): Promise<number | undefined> {
+		try {
+			const { getTaskDirectoryPath } = await import("../../utils/storage")
+			const taskDirPath = await getTaskDirectoryPath(this.contextProxy.globalStorageUri.fsPath, taskId)
+			const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
+
+			if (!(await fileExistsAtPath(uiMessagesFilePath))) {
+				return undefined
+			}
+
+			const messages = await readTaskMessages({
+				taskId,
+				globalStoragePath: this.contextProxy.globalStorageUri.fsPath,
+			})
+
+			return this.countApiRequestMessages(messages)
+		} catch (error) {
+			this.log(
+				`[email-notifications] Failed to load request count for task ${taskId}: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			)
+			return undefined
+		}
+	}
+
+	private countApiRequestMessages(messages: ClineMessage[]): number {
+		return messages.filter((message) => message.type === "say" && message.say === "api_req_started").length
 	}
 
 	private isTaskAbandonedCleanupAbort(task: Task): boolean {
@@ -2246,21 +2343,7 @@ export class ClineProvider
 				return result.historyItem
 			},
 			{
-				getChildTaskIds: async (parentId: string) => {
-					const historyById = new Map<string, HistoryItem>()
-
-					for (const item of this.getGlobalState("taskHistory") ?? []) {
-						historyById.set(item.id, item)
-					}
-
-					for (const item of this.taskHistoryStore.getAll()) {
-						historyById.set(item.id, item)
-					}
-
-					return Array.from(historyById.values())
-						.filter((item) => item.parentTaskId === parentId)
-						.map((item) => item.id)
-				},
+				getChildTaskIds: async (parentId: string) => this.getChildTaskIds(parentId),
 			},
 		)
 
@@ -5841,7 +5924,13 @@ export class ClineProvider
 			childIds,
 		}
 		await this.updateTaskHistory(updatedHistory)
-		this.notifyDelegatedWorkflowCompleted(updatedHistory, completionResultSummary)
+		void this.notifyDelegatedWorkflowCompleted(updatedHistory, completionResultSummary).catch((error) => {
+			this.log(
+				`[email-notifications] Failed to prepare delegated completion notification for ${parentTaskId}: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			)
+		})
 
 		// 6) Emit TaskDelegationCompleted (provider-level)
 		try {

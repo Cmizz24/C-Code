@@ -711,6 +711,18 @@ describe("ClineProvider", () => {
 			})
 			task.clineMessages.push({
 				type: "say",
+				say: "api_req_started",
+				text: "Starting request 1",
+				ts: 1.5,
+			})
+			task.clineMessages.push({
+				type: "say",
+				say: "api_req_started",
+				text: "Starting request 2",
+				ts: 1.6,
+			})
+			task.clineMessages.push({
+				type: "say",
 				say: "completion_result",
 				text: "Implemented SMTP completion notifications.\nAdded regression tests.",
 				ts: 2,
@@ -726,6 +738,7 @@ describe("ClineProvider", () => {
 				mode: "code",
 				tokenUsage,
 				toolUsage,
+				requestCount: 2,
 			})
 		})
 
@@ -784,15 +797,20 @@ describe("ClineProvider", () => {
 			expect(sendTaskNotification).not.toHaveBeenCalled()
 		})
 
-		test("sends one parent workflow success notification for delegated completion", () => {
+		test("sends one parent workflow success notification for delegated completion", async () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const transcriptText = "Earlier parent transcript text that must not appear in notification payload"
 
-			;(provider as any).notifyDelegatedWorkflowCompleted(
+			await (provider as any).notifyDelegatedWorkflowCompleted(
 				createHistoryItem({
 					id: "delegated-parent-success",
 					workspace: "/workspace",
 					mode: "code",
+					tokensIn: 10,
+					tokensOut: 5,
+					cacheWrites: 2,
+					cacheReads: 3,
+					totalCost: 0.01,
 				}),
 				"Child completed delegated work.\nReady for parent follow-up.",
 			)
@@ -804,11 +822,89 @@ describe("ClineProvider", () => {
 				summary: "Child completed delegated work. Ready for parent follow-up.",
 				workspacePath: "/workspace",
 				mode: "code",
+				tokenUsage: {
+					totalTokensIn: 10,
+					totalTokensOut: 5,
+					totalCacheWrites: 2,
+					totalCacheReads: 3,
+					totalCost: 0.01,
+					contextTokens: 0,
+				},
+				requestCount: 1,
 			})
 			expect(JSON.stringify(sendTaskNotification.mock.calls[0][0])).not.toContain(transcriptText)
 		})
 
-		test("deduplicates delegated completion across child cleanup and parent resume", () => {
+		test("aggregates delegated child usage totals for parent workflow completion notifications", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const fsUtils = await import("../../../utils/fs")
+			const fsPromises = await import("fs/promises")
+			const parentHistory = createHistoryItem({
+				id: "delegated-parent-usage",
+				workspace: "/workspace",
+				mode: "code",
+				tokensIn: 100,
+				tokensOut: 50,
+				cacheWrites: 10,
+				cacheReads: 20,
+				totalCost: 0.1,
+				childIds: ["delegated-child-usage"],
+			})
+			const childHistory = createHistoryItem({
+				id: "delegated-child-usage",
+				parentTaskId: "delegated-parent-usage",
+				tokensIn: 25,
+				tokensOut: 15,
+				cacheWrites: 5,
+				cacheReads: 8,
+				totalCost: 0.02,
+				childIds: [],
+			})
+			;(provider as any).taskHistoryStore.getAll = vi.fn(() => [childHistory])
+			vi.spyOn(provider, "getTaskWithId").mockImplementation(async (id: string) => ({
+				historyItem: id === "delegated-child-usage" ? childHistory : parentHistory,
+				apiConversationHistory: [],
+				taskDirPath: "/test/task/path",
+				apiConversationHistoryFilePath: "/test/task/path/api_conversation_history.json",
+				uiMessagesFilePath: "/test/task/path/ui_messages.json",
+			}))
+			vi.spyOn(fsUtils, "fileExistsAtPath").mockResolvedValue(true)
+			;(vi.mocked(fsPromises.readFile) as any).mockImplementation(async (filePath: string) => {
+				if (filePath.includes("ui_messages.json")) {
+					return JSON.stringify([
+						{ type: "say", say: "api_req_started", ts: 1 },
+						{ type: "say", say: "text", text: "raw transcript should stay out of payload", ts: 2 },
+					])
+				}
+
+				return "[]"
+			})
+
+			await (provider as any).notifyDelegatedWorkflowCompleted(parentHistory, "Child completed delegated work.")
+
+			expect(sendTaskNotification).toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "delegated-parent-usage",
+					outcome: "success",
+					workspacePath: "/workspace",
+					mode: "code",
+					tokenUsage: {
+						totalTokensIn: 125,
+						totalTokensOut: 65,
+						totalCacheWrites: 15,
+						totalCacheReads: 28,
+						totalCost: 0.12000000000000001,
+						contextTokens: 0,
+					},
+					requestCount: 2,
+				}),
+			)
+			expect(JSON.stringify(sendTaskNotification.mock.calls[0][0])).not.toContain(
+				"raw transcript should stay out of payload",
+			)
+		})
+
+		test("deduplicates delegated completion across child cleanup and parent resume", async () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const historyItem = createHistoryItem({
 				id: "delegated-parent-dedupe",
@@ -817,8 +913,8 @@ describe("ClineProvider", () => {
 			})
 			const parentTask = new Task({ ...defaultTaskOptions, taskId: "delegated-parent-dedupe" } as any)
 			;(provider as any).taskCreationCallback(parentTask)
-			;(provider as any).notifyDelegatedWorkflowCompleted(historyItem, "Child finished delegated work.")
-			;(provider as any).notifyDelegatedWorkflowCompleted(
+			await (provider as any).notifyDelegatedWorkflowCompleted(historyItem, "Child finished delegated work.")
+			await (provider as any).notifyDelegatedWorkflowCompleted(
 				historyItem,
 				"Duplicate child finish should be ignored.",
 			)
