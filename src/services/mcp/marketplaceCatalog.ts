@@ -1,15 +1,25 @@
 import {
+	getMarketplaceMcpDiscoveryPrerequisiteStatus,
 	getMarketplaceMcpCatalogItem,
 	isMarketplaceMcpScope,
+	isMarketplaceMcpContext7ServerIdentifier,
+	isMarketplaceMcpWebSearchServerIdentifier,
+	isMarketplaceMcpCatalogItemInstalled,
 	marketplaceMcpCatalog,
+	type MarketplaceMcpDiscoveryPrerequisiteStatus,
 	type MarketplaceMcpCatalogItem,
 	type MarketplaceMcpScope,
 } from "../../shared/mcpMarketplace"
 
 export {
+	getMarketplaceMcpDiscoveryPrerequisiteStatus,
 	getMarketplaceMcpCatalogItem,
 	isMarketplaceMcpScope,
+	isMarketplaceMcpContext7ServerIdentifier,
+	isMarketplaceMcpWebSearchServerIdentifier,
+	isMarketplaceMcpCatalogItemInstalled,
 	marketplaceMcpCatalog,
+	type MarketplaceMcpDiscoveryPrerequisiteStatus,
 	type MarketplaceMcpCatalogItem,
 	type MarketplaceMcpScope,
 }
@@ -19,6 +29,10 @@ export const getMarketplaceMcpItem = getMarketplaceMcpCatalogItem
 export interface MarketplaceMcpSetupPromptOptions {
 	globalConfigPath?: string
 	projectConfigPath?: string
+}
+
+export interface MarketplaceMcpDiscoveryPromptOptions extends MarketplaceMcpSetupPromptOptions {
+	installedServerNames?: string[]
 }
 
 const formatList = (items: string[]) => {
@@ -101,4 +115,43 @@ Task requirements:
 8. Verify the server connects and exposes expected capabilities. Use this safe verification approach: ${item.verificationApproach}
 9. Avoid destructive verification. Do not modify repositories, databases, files, browser sessions, or external services unless the user explicitly asks.
 10. Report the final server name, target scope, config file location, exposed tools/resources observed during verification, and any follow-up the user must complete.`
+}
+
+export const buildMarketplaceMcpDiscoveryPrompt = (
+	requestedServer: string,
+	options: MarketplaceMcpDiscoveryPromptOptions = {},
+) => {
+	const trimmedRequest = requestedServer.trim()
+	const installedServerNames = options.installedServerNames?.length
+		? options.installedServerNames.map((serverName) => `- ${serverName}`).join("\n")
+		: "- Context7 and at least one web search MCP server were reported as installed by the Marketplace UI. Re-check the current MCP server list before using tools."
+
+	return `Find and set up the requested MCP server using C Code's custom MCP discovery flow.
+
+User request:
+${trimmedRequest}
+
+Installed MCP prerequisites reported by the Marketplace UI:
+${installedServerNames}
+
+Config targets:
+- Global MCP settings file: ${options.globalConfigPath ?? "use C Code's global MCP settings file"}
+- Project MCP settings file: ${options.projectConfigPath ?? ".roo/mcp.json in the current workspace"}
+
+Mode guidance:
+- You are running in the dedicated MCP Setup mode for discovery, installation, configuration, troubleshooting, and verification of MCP servers.
+- Stay within MCP setup work. Do not refactor unrelated project code, rewrite unrelated settings, or mutate existing MCP servers beyond the requested setup unless the user explicitly asks.
+
+Task requirements:
+1. Use the installed Context7 MCP server for current documentation and code examples when the target MCP package, SDK, framework, or service has library docs available.
+2. Use an installed web search MCP server for web discovery. Search for the official MCP server, official package, source repository, and documentation for the user's requested server.
+3. Verify the official source before proposing configuration. Prefer vendor-owned documentation, official GitHub organizations, reputable package registries, and Model Context Protocol references. Clearly call out uncertainty if only community sources exist.
+4. Propose a safe MCP config under the existing top-level mcpServers object. Preserve all existing servers and existing unrelated settings.
+5. Ask the user only for genuinely required missing credentials, API keys, paths, account IDs, or local prerequisites. Do not ask for optional credentials unless they are needed for the requested setup.
+6. Do not echo, log, or store literal secret values in the conversation. Prefer environment placeholders such as \${env:SECRET_NAME} in MCP config.
+7. Request approval before running commands that install packages, start installers, change files, or contact external services beyond read-only documentation/search lookups.
+8. Install or invoke the package using the safest current documented command. Avoid deprecated packages when an official replacement exists.
+9. Refresh or restart MCP connections if needed after saving config.
+10. Verify the server connects and exposes expected tools/resources using a read-only, non-sensitive check. Avoid destructive verification and do not modify repositories, databases, files, browser sessions, or external services unless the user explicitly asks.
+11. Report the discovered official source/docs, final server name, target config scope/file, exposed tools/resources observed during verification, and any follow-up the user must complete.`
 }

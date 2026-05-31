@@ -101,7 +101,27 @@
 		"actions": {
 			"installWithAI": "AI でインストール",
 			"configureAgain": "再設定",
-			"clearFilters": "フィルターをクリア"
+			"clearFilters": "フィルターをクリア",
+			"showDetails": "詳細",
+			"hideDetails": "詳細を隠す",
+			"openDocs": "ドキュメントを開く"
+		},
+		"customDiscovery": {
+			"title": "MCP サーバーが見つかりませんか？",
+			"description": "必要な MCP サーバーを入力すると、C が MCP Setup タスクを開き、公式ドキュメントの検出、安全な設定案の作成、インストール済みの調査ツールによる検証を行います。",
+			"inputLabel": "MCP サーバーの名前または説明",
+			"placeholder": "例: Perplexity 検索 MCP サーバー",
+			"action": "AI で探す",
+			"validation": {
+				"empty": "検出を開始する前に MCP サーバーの名前または説明を入力してください。"
+			},
+			"requirements": {
+				"context7": "Context7 インストール済み",
+				"webSearch": "Web 検索インストール済み",
+				"missingBoth": "カスタム MCP 検出を開始する前に、Context7 と少なくとも 1 つの Web 検索 MCP サーバーをインストールしてください。",
+				"missingContext7": "カスタム MCP 検出を開始する前に Context7 をインストールしてください。",
+				"missingWebSearch": "カスタム MCP 検出を開始する前に、Exa Web Search、Brave Search、Tavily Search、Firecrawl など少なくとも 1 つの Web 検索 MCP サーバーをインストールしてください。"
+			}
 		},
 		"empty": {
 			"title": "MCP サーバーが見つかりません",

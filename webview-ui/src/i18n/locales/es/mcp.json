@@ -101,7 +101,27 @@
 		"actions": {
 			"installWithAI": "Instalar con IA",
 			"configureAgain": "Configurar de nuevo",
-			"clearFilters": "Borrar filtros"
+			"clearFilters": "Borrar filtros",
+			"showDetails": "Detalles",
+			"hideDetails": "Ocultar detalles",
+			"openDocs": "Abrir documentación"
+		},
+		"customDiscovery": {
+			"title": "¿No encuentras el servidor MCP?",
+			"description": "Introduce el servidor MCP que quieres y C abrirá una tarea de configuración MCP para descubrir documentación oficial, proponer una configuración segura y verificarla con tus herramientas de investigación instaladas.",
+			"inputLabel": "Nombre o descripción del servidor MCP",
+			"placeholder": "Ejemplo: servidor MCP de búsqueda Perplexity",
+			"action": "Descubrir con IA",
+			"validation": {
+				"empty": "Introduce un nombre o una descripción del servidor MCP antes de iniciar el descubrimiento."
+			},
+			"requirements": {
+				"context7": "Context7 instalado",
+				"webSearch": "Búsqueda web instalada",
+				"missingBoth": "Instala Context7 y al menos un servidor MCP de búsqueda web antes de iniciar el descubrimiento MCP personalizado.",
+				"missingContext7": "Instala Context7 antes de iniciar el descubrimiento MCP personalizado.",
+				"missingWebSearch": "Instala al menos un servidor MCP de búsqueda web, como Exa Web Search, Brave Search, Tavily Search o Firecrawl, antes de iniciar el descubrimiento MCP personalizado."
+			}
 		},
 		"empty": {
 			"title": "No se encontraron servidores MCP",

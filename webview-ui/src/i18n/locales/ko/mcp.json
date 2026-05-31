@@ -101,7 +101,27 @@
 		"actions": {
 			"installWithAI": "AI로 설치",
 			"configureAgain": "다시 구성",
-			"clearFilters": "필터 지우기"
+			"clearFilters": "필터 지우기",
+			"showDetails": "세부 정보",
+			"hideDetails": "세부 정보 숨기기",
+			"openDocs": "문서 열기"
+		},
+		"customDiscovery": {
+			"title": "MCP 서버를 찾을 수 없나요?",
+			"description": "원하는 MCP 서버를 입력하면 C가 MCP Setup 작업을 열어 공식 문서를 찾고, 안전한 구성을 제안하며, 설치된 조사 도구로 검증합니다.",
+			"inputLabel": "MCP 서버 이름 또는 설명",
+			"placeholder": "예: Perplexity 검색 MCP 서버",
+			"action": "AI로 찾기",
+			"validation": {
+				"empty": "탐색을 시작하기 전에 MCP 서버 이름 또는 설명을 입력하세요."
+			},
+			"requirements": {
+				"context7": "Context7 설치됨",
+				"webSearch": "웹 검색 설치됨",
+				"missingBoth": "사용자 지정 MCP 탐색을 시작하기 전에 Context7과 하나 이상의 웹 검색 MCP 서버를 설치하세요.",
+				"missingContext7": "사용자 지정 MCP 탐색을 시작하기 전에 Context7을 설치하세요.",
+				"missingWebSearch": "사용자 지정 MCP 탐색을 시작하기 전에 Exa Web Search, Brave Search, Tavily Search 또는 Firecrawl 같은 웹 검색 MCP 서버를 하나 이상 설치하세요."
+			}
 		},
 		"empty": {
 			"title": "MCP 서버를 찾을 수 없음",

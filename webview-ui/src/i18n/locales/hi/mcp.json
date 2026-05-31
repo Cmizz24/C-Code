@@ -101,7 +101,27 @@
 		"actions": {
 			"installWithAI": "AI के साथ इंस्टॉल करें",
 			"configureAgain": "फिर से कॉन्फ़िगर करें",
-			"clearFilters": "फ़िल्टर साफ़ करें"
+			"clearFilters": "फ़िल्टर साफ़ करें",
+			"showDetails": "विवरण",
+			"hideDetails": "विवरण छिपाएँ",
+			"openDocs": "दस्तावेज़ खोलें"
+		},
+		"customDiscovery": {
+			"title": "MCP सर्वर नहीं मिल रहा?",
+			"description": "जिस MCP सर्वर को तुम चाहते हो उसे दर्ज करो, और C आधिकारिक दस्तावेज़ खोजने, सुरक्षित कॉन्फ़िग सुझाने और तुम्हारे इंस्टॉल किए गए रिसर्च टूल्स से उसे सत्यापित करने के लिए MCP Setup टास्क खोलेगा।",
+			"inputLabel": "MCP सर्वर का नाम या विवरण",
+			"placeholder": "उदाहरण: Perplexity search MCP server",
+			"action": "AI से खोजें",
+			"validation": {
+				"empty": "डिस्कवरी शुरू करने से पहले MCP सर्वर का नाम या विवरण दर्ज करो।"
+			},
+			"requirements": {
+				"context7": "Context7 इंस्टॉल है",
+				"webSearch": "Web search इंस्टॉल है",
+				"missingBoth": "कस्टम MCP डिस्कवरी शुरू करने से पहले Context7 और कम से कम एक web search MCP सर्वर इंस्टॉल करो।",
+				"missingContext7": "कस्टम MCP डिस्कवरी शुरू करने से पहले Context7 इंस्टॉल करो।",
+				"missingWebSearch": "कस्टम MCP डिस्कवरी शुरू करने से पहले कम से कम एक web search MCP सर्वर इंस्टॉल करो, जैसे Exa Web Search, Brave Search, Tavily Search या Firecrawl।"
+			}
 		},
 		"empty": {
 			"title": "कोई MCP सर्वर नहीं मिला",

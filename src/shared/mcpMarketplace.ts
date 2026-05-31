@@ -1506,3 +1506,89 @@ export const getMarketplaceMcpCatalogItem = (id: string | undefined) => {
 export const isMarketplaceMcpScope = (scope: unknown): scope is MarketplaceMcpScope => {
 	return scope === "global" || scope === "project"
 }
+
+const normalizeMarketplaceMcpIdentifier = (value: string) =>
+	value
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]/g, "")
+
+const marketplaceMcpDiscoveryContext7CatalogIds: readonly MarketplaceMcpCatalogId[] = ["context7"]
+
+const marketplaceMcpDiscoveryWebSearchCatalogIds: readonly MarketplaceMcpCatalogId[] = [
+	"exa-web-search",
+	"brave-search",
+	"tavily-search",
+	"firecrawl",
+]
+
+export type MarketplaceMcpDiscoveryMissingPrerequisite = "context7" | "webSearch"
+
+export interface MarketplaceMcpDiscoveryPrerequisiteStatus {
+	hasContext7: boolean
+	hasWebSearch: boolean
+	missing: MarketplaceMcpDiscoveryMissingPrerequisite[]
+}
+
+const getMarketplaceMcpIdentifierAliases = (item: MarketplaceMcpCatalogItem) => [
+	item.id,
+	item.serverName,
+	item.name,
+	item.packageName,
+	...item.packageName.split(/[\s/]+/),
+]
+
+const doesMarketplaceMcpIdentifierMatchItem = (identifier: string | undefined, item: MarketplaceMcpCatalogItem) => {
+	if (!identifier) {
+		return false
+	}
+
+	const normalizedIdentifier = normalizeMarketplaceMcpIdentifier(identifier)
+
+	return getMarketplaceMcpIdentifierAliases(item).some(
+		(alias) => normalizeMarketplaceMcpIdentifier(alias) === normalizedIdentifier,
+	)
+}
+
+export const isMarketplaceMcpCatalogItemInstalled = (
+	item: MarketplaceMcpCatalogItem,
+	installedServerIdentifiers: readonly (string | undefined)[],
+) => installedServerIdentifiers.some((identifier) => doesMarketplaceMcpIdentifierMatchItem(identifier, item))
+
+const isMarketplaceMcpContext7CatalogItem = (item: MarketplaceMcpCatalogItem) =>
+	marketplaceMcpDiscoveryContext7CatalogIds.includes(item.id as MarketplaceMcpCatalogId)
+
+const isMarketplaceMcpWebSearchCatalogItem = (item: MarketplaceMcpCatalogItem) => {
+	if (marketplaceMcpDiscoveryWebSearchCatalogIds.includes(item.id as MarketplaceMcpCatalogId)) {
+		return true
+	}
+
+	const normalizedSearchText = normalizeMarketplaceMcpIdentifier(
+		[item.id, item.serverName, item.name, item.category, item.description, item.packageName].join(" "),
+	)
+
+	return normalizedSearchText.includes("perplexity") || normalizedSearchText.includes("websearch")
+}
+
+export const isMarketplaceMcpContext7ServerIdentifier = (identifier: string | undefined) =>
+	marketplaceMcpCatalog
+		.filter(isMarketplaceMcpContext7CatalogItem)
+		.some((item) => doesMarketplaceMcpIdentifierMatchItem(identifier, item))
+
+export const isMarketplaceMcpWebSearchServerIdentifier = (identifier: string | undefined) =>
+	marketplaceMcpCatalog
+		.filter(isMarketplaceMcpWebSearchCatalogItem)
+		.some((item) => doesMarketplaceMcpIdentifierMatchItem(identifier, item))
+
+export const getMarketplaceMcpDiscoveryPrerequisiteStatus = (
+	installedServerIdentifiers: readonly (string | undefined)[],
+): MarketplaceMcpDiscoveryPrerequisiteStatus => {
+	const hasContext7 = installedServerIdentifiers.some(isMarketplaceMcpContext7ServerIdentifier)
+	const hasWebSearch = installedServerIdentifiers.some(isMarketplaceMcpWebSearchServerIdentifier)
+
+	return {
+		hasContext7,
+		hasWebSearch,
+		missing: [...(hasContext7 ? [] : (["context7"] as const)), ...(hasWebSearch ? [] : (["webSearch"] as const))],
+	}
+}

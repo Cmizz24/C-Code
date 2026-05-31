@@ -101,7 +101,27 @@
 		"actions": {
 			"installWithAI": "Install with AI",
 			"configureAgain": "Configure Again",
-			"clearFilters": "Clear filters"
+			"clearFilters": "Clear filters",
+			"showDetails": "Details",
+			"hideDetails": "Hide details",
+			"openDocs": "Open docs"
+		},
+		"customDiscovery": {
+			"title": "Can't find the MCP server?",
+			"description": "Enter the MCP server you want and C will open an MCP Setup task to discover official docs, propose safe config, and verify it with your installed research tools.",
+			"inputLabel": "MCP server name or description",
+			"placeholder": "Example: Perplexity search MCP server",
+			"action": "Discover with AI",
+			"validation": {
+				"empty": "Enter an MCP server name or description before starting discovery."
+			},
+			"requirements": {
+				"context7": "Context7 installed",
+				"webSearch": "Web search installed",
+				"missingBoth": "Install Context7 and at least one web search MCP server before starting custom MCP discovery.",
+				"missingContext7": "Install Context7 before starting custom MCP discovery.",
+				"missingWebSearch": "Install at least one web search MCP server, such as Exa Web Search, Brave Search, Tavily Search, or Firecrawl, before starting custom MCP discovery."
+			}
 		},
 		"empty": {
 			"title": "No MCP servers found",

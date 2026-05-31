@@ -101,7 +101,27 @@
 		"actions": {
 			"installWithAI": "使用 AI 安装",
 			"configureAgain": "重新配置",
-			"clearFilters": "清除筛选"
+			"clearFilters": "清除筛选",
+			"showDetails": "详情",
+			"hideDetails": "隐藏详情",
+			"openDocs": "打开文档"
+		},
+		"customDiscovery": {
+			"title": "找不到 MCP 服务器？",
+			"description": "输入你想要的 MCP 服务器，C 会打开一个 MCP 设置任务，用已安装的研究工具查找官方文档、提出安全配置并进行验证。",
+			"inputLabel": "MCP 服务器名称或描述",
+			"placeholder": "示例：Perplexity 搜索 MCP 服务器",
+			"action": "使用 AI 发现",
+			"validation": {
+				"empty": "开始发现前，请输入 MCP 服务器名称或描述。"
+			},
+			"requirements": {
+				"context7": "Context7 已安装",
+				"webSearch": "Web 搜索已安装",
+				"missingBoth": "开始自定义 MCP 发现前，请安装 Context7 和至少一个 Web 搜索 MCP 服务器。",
+				"missingContext7": "开始自定义 MCP 发现前，请安装 Context7。",
+				"missingWebSearch": "开始自定义 MCP 发现前，请安装至少一个 Web 搜索 MCP 服务器，例如 Exa Web Search、Brave Search、Tavily Search 或 Firecrawl。"
+			}
 		},
 		"empty": {
 			"title": "未找到 MCP 服务器",

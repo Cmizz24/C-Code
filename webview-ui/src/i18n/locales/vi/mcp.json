@@ -101,7 +101,27 @@
 		"actions": {
 			"installWithAI": "Cài đặt bằng AI",
 			"configureAgain": "Cấu hình lại",
-			"clearFilters": "Xóa bộ lọc"
+			"clearFilters": "Xóa bộ lọc",
+			"showDetails": "Chi tiết",
+			"hideDetails": "Ẩn chi tiết",
+			"openDocs": "Mở tài liệu"
+		},
+		"customDiscovery": {
+			"title": "Không tìm thấy máy chủ MCP?",
+			"description": "Nhập máy chủ MCP bạn muốn và C sẽ mở một tác vụ thiết lập MCP để tìm tài liệu chính thức, đề xuất cấu hình an toàn và xác minh bằng các công cụ nghiên cứu đã cài đặt.",
+			"inputLabel": "Tên hoặc mô tả máy chủ MCP",
+			"placeholder": "Ví dụ: máy chủ MCP tìm kiếm Perplexity",
+			"action": "Khám phá bằng AI",
+			"validation": {
+				"empty": "Nhập tên hoặc mô tả máy chủ MCP trước khi bắt đầu khám phá."
+			},
+			"requirements": {
+				"context7": "Đã cài Context7",
+				"webSearch": "Đã cài tìm kiếm web",
+				"missingBoth": "Cài Context7 và ít nhất một máy chủ MCP tìm kiếm web trước khi bắt đầu khám phá MCP tùy chỉnh.",
+				"missingContext7": "Cài Context7 trước khi bắt đầu khám phá MCP tùy chỉnh.",
+				"missingWebSearch": "Cài ít nhất một máy chủ MCP tìm kiếm web, như Exa Web Search, Brave Search, Tavily Search hoặc Firecrawl, trước khi bắt đầu khám phá MCP tùy chỉnh."
+			}
 		},
 		"empty": {
 			"title": "Không tìm thấy server MCP",

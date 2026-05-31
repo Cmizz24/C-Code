@@ -101,7 +101,27 @@
 		"actions": {
 			"installWithAI": "Instal dengan AI",
 			"configureAgain": "Konfigurasi lagi",
-			"clearFilters": "Hapus filter"
+			"clearFilters": "Hapus filter",
+			"showDetails": "Detail",
+			"hideDetails": "Sembunyikan detail",
+			"openDocs": "Buka dokumentasi"
+		},
+		"customDiscovery": {
+			"title": "Tidak menemukan server MCP?",
+			"description": "Masukkan server MCP yang kamu inginkan dan C akan membuka tugas MCP Setup untuk menemukan dokumentasi resmi, mengusulkan konfigurasi aman, dan memverifikasinya dengan tool riset yang sudah terpasang.",
+			"inputLabel": "Nama atau deskripsi server MCP",
+			"placeholder": "Contoh: server MCP pencarian Perplexity",
+			"action": "Temukan dengan AI",
+			"validation": {
+				"empty": "Masukkan nama atau deskripsi server MCP sebelum memulai discovery."
+			},
+			"requirements": {
+				"context7": "Context7 terpasang",
+				"webSearch": "Pencarian web terpasang",
+				"missingBoth": "Instal Context7 dan setidaknya satu server MCP pencarian web sebelum memulai discovery MCP kustom.",
+				"missingContext7": "Instal Context7 sebelum memulai discovery MCP kustom.",
+				"missingWebSearch": "Instal setidaknya satu server MCP pencarian web, seperti Exa Web Search, Brave Search, Tavily Search, atau Firecrawl, sebelum memulai discovery MCP kustom."
+			}
 		},
 		"empty": {
 			"title": "Tidak ada server MCP ditemukan",

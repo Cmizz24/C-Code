@@ -101,7 +101,27 @@
 		"actions": {
 			"installWithAI": "Instal·la amb AI",
 			"configureAgain": "Configura de nou",
-			"clearFilters": "Esborra filtres"
+			"clearFilters": "Esborra filtres",
+			"showDetails": "Detalls",
+			"hideDetails": "Amaga detalls",
+			"openDocs": "Obre la documentació"
+		},
+		"customDiscovery": {
+			"title": "No trobes el servidor MCP?",
+			"description": "Introdueix el servidor MCP que vols i C obrirà una tasca de configuració MCP per descobrir la documentació oficial, proposar una configuració segura i verificar-la amb les teves eines de recerca instal·lades.",
+			"inputLabel": "Nom o descripció del servidor MCP",
+			"placeholder": "Exemple: servidor MCP de cerca Perplexity",
+			"action": "Descobreix amb AI",
+			"validation": {
+				"empty": "Introdueix un nom o una descripció del servidor MCP abans d'iniciar el descobriment."
+			},
+			"requirements": {
+				"context7": "Context7 instal·lat",
+				"webSearch": "Cerca web instal·lada",
+				"missingBoth": "Instal·la Context7 i almenys un servidor MCP de cerca web abans d'iniciar el descobriment MCP personalitzat.",
+				"missingContext7": "Instal·la Context7 abans d'iniciar el descobriment MCP personalitzat.",
+				"missingWebSearch": "Instal·la almenys un servidor MCP de cerca web, com ara Exa Web Search, Brave Search, Tavily Search o Firecrawl, abans d'iniciar el descobriment MCP personalitzat."
+			}
 		},
 		"empty": {
 			"title": "No s'han trobat servidors MCP",

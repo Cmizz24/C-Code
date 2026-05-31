@@ -63,7 +63,9 @@ import { RooIgnoreController } from "../ignore/RooIgnoreController"
 import { getWorkspacePath } from "../../utils/path"
 import { isPathOutsideWorkspace } from "../../utils/pathUtils"
 import {
+	buildMarketplaceMcpDiscoveryPrompt,
 	buildMarketplaceMcpSetupPrompt,
+	getMarketplaceMcpDiscoveryPrerequisiteStatus,
 	getMarketplaceMcpItem,
 	isMarketplaceMcpScope,
 } from "../../services/mcp/marketplaceCatalog"
@@ -99,6 +101,12 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 	const getCurrentCwd = () => {
 		return provider.getCurrentTask()?.cwd || provider.cwd
 	}
+
+	const getInstalledMcpServerNames = () =>
+		provider
+			.getMcpHub?.()
+			?.getAllServers?.()
+			?.map((server) => server.name) ?? []
 
 	const getCurrentMode = async (): Promise<string> => {
 		const currentTask = provider.getCurrentTask()
@@ -1447,6 +1455,55 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
 				vscode.window.showErrorMessage(
 					`Failed to create MCP marketplace setup task: ${error instanceof Error ? error.message : String(error)}`,
+				)
+			}
+
+			break
+		}
+		case "discoverMarketplaceMcp": {
+			const requestedServer = message.marketplaceMcpDiscoveryRequest?.trim()
+
+			if (!requestedServer) {
+				vscode.window.showErrorMessage("Enter an MCP server name or description before starting discovery.")
+				break
+			}
+
+			const installedServerNames = getInstalledMcpServerNames()
+			const prerequisiteStatus = getMarketplaceMcpDiscoveryPrerequisiteStatus(installedServerNames)
+
+			if (prerequisiteStatus.missing.length > 0) {
+				vscode.window.showErrorMessage(
+					"Install Context7 and at least one web search MCP server before starting custom MCP discovery.",
+				)
+				break
+			}
+
+			try {
+				const globalConfigPath = await provider.getMcpHub?.()?.getMcpSettingsFilePath?.()
+				const projectConfigPath = path.join(getCurrentCwd(), ".roo", "mcp.json")
+				const prompt = buildMarketplaceMcpDiscoveryPrompt(requestedServer, {
+					globalConfigPath,
+					projectConfigPath,
+					installedServerNames,
+				})
+				const taskConfiguration = {
+					...(message.taskConfiguration ?? {}),
+					mode: marketplaceMcpSetupModeSlug,
+				}
+
+				await provider.createTask(
+					prompt,
+					undefined,
+					undefined,
+					{ mode: marketplaceMcpSetupModeSlug },
+					taskConfiguration,
+				)
+				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
+				await provider.postMessageToWebview({ type: "action", action: "switchTab", tab: "chat" })
+			} catch (error) {
+				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
+				vscode.window.showErrorMessage(
+					`Failed to create custom MCP discovery task: ${error instanceof Error ? error.message : String(error)}`,
 				)
 			}
 

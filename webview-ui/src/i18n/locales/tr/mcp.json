@@ -101,7 +101,27 @@
 		"actions": {
 			"installWithAI": "AI ile kur",
 			"configureAgain": "Tekrar yapılandır",
-			"clearFilters": "Filtreleri temizle"
+			"clearFilters": "Filtreleri temizle",
+			"showDetails": "Ayrıntılar",
+			"hideDetails": "Ayrıntıları gizle",
+			"openDocs": "Belgeleri aç"
+		},
+		"customDiscovery": {
+			"title": "MCP sunucusunu bulamıyor musun?",
+			"description": "İstediğin MCP sunucusunu gir; C resmi belgeleri bulmak, güvenli yapılandırma önermek ve kurulu araştırma araçlarınla doğrulamak için bir MCP Setup görevi açacak.",
+			"inputLabel": "MCP sunucusu adı veya açıklaması",
+			"placeholder": "Örnek: Perplexity arama MCP sunucusu",
+			"action": "AI ile keşfet",
+			"validation": {
+				"empty": "Keşfi başlatmadan önce bir MCP sunucusu adı veya açıklaması gir."
+			},
+			"requirements": {
+				"context7": "Context7 kurulu",
+				"webSearch": "Web arama kurulu",
+				"missingBoth": "Özel MCP keşfini başlatmadan önce Context7 ve en az bir web arama MCP sunucusu kur.",
+				"missingContext7": "Özel MCP keşfini başlatmadan önce Context7 kur.",
+				"missingWebSearch": "Özel MCP keşfini başlatmadan önce Exa Web Search, Brave Search, Tavily Search veya Firecrawl gibi en az bir web arama MCP sunucusu kur."
+			}
 		},
 		"empty": {
 			"title": "MCP sunucusu bulunamadı",

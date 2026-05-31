@@ -101,7 +101,27 @@
 		"actions": {
 			"installWithAI": "使用 AI 安裝",
 			"configureAgain": "重新設定",
-			"clearFilters": "清除篩選"
+			"clearFilters": "清除篩選",
+			"showDetails": "詳細資料",
+			"hideDetails": "隱藏詳細資料",
+			"openDocs": "開啟文件"
+		},
+		"customDiscovery": {
+			"title": "找不到 MCP 伺服器？",
+			"description": "輸入你想要的 MCP 伺服器，C 會開啟一個 MCP 設定任務，用已安裝的研究工具尋找官方文件、提出安全設定並進行驗證。",
+			"inputLabel": "MCP 伺服器名稱或描述",
+			"placeholder": "範例：Perplexity 搜尋 MCP 伺服器",
+			"action": "使用 AI 探索",
+			"validation": {
+				"empty": "開始探索前，請輸入 MCP 伺服器名稱或描述。"
+			},
+			"requirements": {
+				"context7": "Context7 已安裝",
+				"webSearch": "Web 搜尋已安裝",
+				"missingBoth": "開始自訂 MCP 探索前，請安裝 Context7 和至少一個 Web 搜尋 MCP 伺服器。",
+				"missingContext7": "開始自訂 MCP 探索前，請安裝 Context7。",
+				"missingWebSearch": "開始自訂 MCP 探索前，請安裝至少一個 Web 搜尋 MCP 伺服器，例如 Exa Web Search、Brave Search、Tavily Search 或 Firecrawl。"
+			}
 		},
 		"empty": {
 			"title": "找不到 MCP 伺服器",

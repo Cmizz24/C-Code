@@ -101,7 +101,27 @@
 		"actions": {
 			"installWithAI": "Установить с AI",
 			"configureAgain": "Настроить снова",
-			"clearFilters": "Очистить фильтры"
+			"clearFilters": "Очистить фильтры",
+			"showDetails": "Подробности",
+			"hideDetails": "Скрыть подробности",
+			"openDocs": "Открыть документацию"
+		},
+		"customDiscovery": {
+			"title": "Не можешь найти MCP-сервер?",
+			"description": "Введи нужный MCP-сервер, и C откроет задачу настройки MCP, чтобы найти официальную документацию, предложить безопасную конфигурацию и проверить её с помощью установленных инструментов исследования.",
+			"inputLabel": "Название или описание MCP-сервера",
+			"placeholder": "Пример: MCP-сервер поиска Perplexity",
+			"action": "Найти с AI",
+			"validation": {
+				"empty": "Введи название или описание MCP-сервера перед началом поиска."
+			},
+			"requirements": {
+				"context7": "Context7 установлен",
+				"webSearch": "Веб-поиск установлен",
+				"missingBoth": "Установи Context7 и хотя бы один MCP-сервер веб-поиска перед запуском пользовательского поиска MCP.",
+				"missingContext7": "Установи Context7 перед запуском пользовательского поиска MCP.",
+				"missingWebSearch": "Установи хотя бы один MCP-сервер веб-поиска, например Exa Web Search, Brave Search, Tavily Search или Firecrawl, перед запуском пользовательского поиска MCP."
+			}
 		},
 		"empty": {
 			"title": "MCP-серверы не найдены",

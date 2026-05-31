@@ -38,6 +38,25 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 				"mcp:marketplace.actions.installWithAI": "Install with AI",
 				"mcp:marketplace.actions.configureAgain": "Configure Again",
 				"mcp:marketplace.actions.clearFilters": "Clear filters",
+				"mcp:marketplace.actions.showDetails": "Details",
+				"mcp:marketplace.actions.hideDetails": "Hide details",
+				"mcp:marketplace.actions.openDocs": "Open docs",
+				"mcp:marketplace.customDiscovery.title": "Can't find the MCP server?",
+				"mcp:marketplace.customDiscovery.description":
+					"Enter the MCP server you want and C will open an MCP Setup task to discover official docs, propose safe config, and verify it with your installed research tools.",
+				"mcp:marketplace.customDiscovery.inputLabel": "MCP server name or description",
+				"mcp:marketplace.customDiscovery.placeholder": "Example: Perplexity search MCP server",
+				"mcp:marketplace.customDiscovery.action": "Discover with AI",
+				"mcp:marketplace.customDiscovery.validation.empty":
+					"Enter an MCP server name or description before starting discovery.",
+				"mcp:marketplace.customDiscovery.requirements.context7": "Context7 installed",
+				"mcp:marketplace.customDiscovery.requirements.webSearch": "Web search installed",
+				"mcp:marketplace.customDiscovery.requirements.missingBoth":
+					"Install Context7 and at least one web search MCP server before starting custom MCP discovery.",
+				"mcp:marketplace.customDiscovery.requirements.missingContext7":
+					"Install Context7 before starting custom MCP discovery.",
+				"mcp:marketplace.customDiscovery.requirements.missingWebSearch":
+					"Install at least one web search MCP server, such as Exa Web Search, Brave Search, Tavily Search, or Firecrawl, before starting custom MCP discovery.",
 				"mcp:marketplace.empty.title": "No MCP servers found",
 				"mcp:marketplace.empty.description":
 					"Try a different search term or clear the selected category filter.",
@@ -74,23 +93,29 @@ describe("McpMarketplace", () => {
 		return card!
 	}
 
-	it("renders marketplace catalog cards with setup metadata", () => {
+	it("renders slim marketplace catalog cards with setup metadata hidden until expanded", () => {
 		render(<McpMarketplace servers={[]} />)
 
 		expect(screen.getByText("MCP Marketplace")).toBeInTheDocument()
+		expect(screen.getByRole("heading", { name: "Can't find the MCP server?" })).toBeInTheDocument()
 		expect(screen.getByText(String(marketplaceMcpCatalog.length))).toBeInTheDocument()
 		expect(screen.getByText("Curated servers")).toBeInTheDocument()
 		expect(screen.getByRole("heading", { name: "Filesystem" })).toBeInTheDocument()
 		expect(screen.getByRole("heading", { name: "GitHub" })).toBeInTheDocument()
 		expect(screen.getByRole("heading", { name: "Context7" })).toBeInTheDocument()
 		expect(screen.getByRole("heading", { name: "Exa Web Search" })).toBeInTheDocument()
-		expect(screen.getByText("@modelcontextprotocol/server-filesystem")).toBeInTheDocument()
-		expect(screen.getByText("@upstash/context7-mcp")).toBeInTheDocument()
-		expect(screen.getByText("exa-mcp-server")).toBeInTheDocument()
-		expect(screen.getByText("GITHUB_PERSONAL_ACCESS_TOKEN")).toBeInTheDocument()
-		expect(screen.getByText("EXA_API_KEY")).toBeInTheDocument()
-		expect(screen.getByText("streamable-http")).toBeInTheDocument()
-		expect(screen.getAllByText("stdio").length).toBeGreaterThan(0)
+
+		expect(screen.queryByText("@modelcontextprotocol/server-filesystem")).not.toBeInTheDocument()
+		expect(screen.queryByText("GITHUB_PERSONAL_ACCESS_TOKEN")).not.toBeInTheDocument()
+		expect(screen.queryByText("streamable-http")).not.toBeInTheDocument()
+
+		const githubCard = getCard("GitHub")
+		fireEvent.click(within(githubCard).getByRole("button", { name: /Details/i }))
+
+		expect(within(githubCard).getByText("@modelcontextprotocol/server-github")).toBeInTheDocument()
+		expect(within(githubCard).getByText("GITHUB_PERSONAL_ACCESS_TOKEN")).toBeInTheDocument()
+		expect(within(githubCard).getByText("stdio")).toBeInTheDocument()
+		expect(within(githubCard).getByText("Open docs")).toBeInTheDocument()
 	})
 
 	it("filters catalog cards by search query", () => {
@@ -150,6 +175,10 @@ describe("McpMarketplace", () => {
 
 		const githubCard = getCard("GitHub")
 		expect(within(githubCard!).getByText("Installed")).toBeInTheDocument()
+		expect(within(githubCard!).queryByRole("button", { name: /Configure Again/i })).not.toBeInTheDocument()
+
+		fireEvent.click(within(githubCard!).getByRole("button", { name: /Details/i }))
+
 		expect(within(githubCard!).getByRole("button", { name: /Configure Again/i })).toBeInTheDocument()
 	})
 
@@ -158,6 +187,7 @@ describe("McpMarketplace", () => {
 
 		render(<McpMarketplace servers={[]} />)
 
+		fireEvent.click(within(getCard(item.name)).getByRole("button", { name: /Details/i }))
 		fireEvent.click(within(getCard(item.name)).getByRole("button", { name: /Install with AI/i }))
 
 		expect(vscode.postMessage).toHaveBeenCalledWith({
@@ -174,6 +204,7 @@ describe("McpMarketplace", () => {
 
 		const itemCard = getCard(item.name)
 
+		fireEvent.click(within(itemCard!).getByRole("button", { name: /Details/i }))
 		fireEvent.change(within(itemCard!).getByLabelText(`Target scope ${item.name}`), { target: { value: "global" } })
 		fireEvent.click(within(itemCard!).getByRole("button", { name: /Install with AI/i }))
 
@@ -181,6 +212,63 @@ describe("McpMarketplace", () => {
 			type: "installMarketplaceMcp",
 			marketplaceMcpId: item.id,
 			marketplaceMcpScope: "global",
+		})
+	})
+
+	it("shows missing custom discovery prerequisites instead of starting a task", () => {
+		render(<McpMarketplace servers={[]} />)
+
+		expect(
+			screen.getByText(
+				"Install Context7 and at least one web search MCP server before starting custom MCP discovery.",
+			),
+		).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: /Discover with AI/i })).toBeDisabled()
+
+		fireEvent.change(screen.getByLabelText("MCP server name or description"), {
+			target: { value: "Perplexity search MCP server" },
+		})
+
+		expect(screen.getByRole("button", { name: /Discover with AI/i })).toBeDisabled()
+		expect(vscode.postMessage).not.toHaveBeenCalled()
+	})
+
+	it("keeps custom discovery disabled for empty input when prerequisites are installed", () => {
+		render(
+			<McpMarketplace
+				servers={
+					[
+						{ name: "context7", config: "{}", status: "connected" },
+						{ name: "exa", config: "{}", status: "connected" },
+					] as any
+				}
+			/>,
+		)
+
+		expect(screen.queryByText(/before starting custom MCP discovery/i)).not.toBeInTheDocument()
+		expect(screen.getByRole("button", { name: /Discover with AI/i })).toBeDisabled()
+	})
+
+	it("posts a custom discovery message when Context7 and web search are installed", () => {
+		render(
+			<McpMarketplace
+				servers={
+					[
+						{ name: "context7", config: "{}", status: "connected" },
+						{ name: "exa", config: "{}", status: "connected" },
+					] as any
+				}
+			/>,
+		)
+
+		fireEvent.change(screen.getByLabelText("MCP server name or description"), {
+			target: { value: " Perplexity search MCP server " },
+		})
+		fireEvent.click(screen.getByRole("button", { name: /Discover with AI/i }))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({
+			type: "discoverMarketplaceMcp",
+			marketplaceMcpDiscoveryRequest: "Perplexity search MCP server",
 		})
 	})
 })

@@ -1185,3 +1185,101 @@ describe("webviewMessageHandler - installMarketplaceMcp", () => {
 		expect(mockClineProvider.createTask).not.toHaveBeenCalled()
 	})
 })
+
+describe("webviewMessageHandler - discoverMarketplaceMcp", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		vi.mocked(mockClineProvider.createTask).mockResolvedValue({ taskId: "marketplace-discovery-task-id" } as any)
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(null as any)
+		vi.mocked(mockClineProvider.getMcpHub).mockReturnValue({
+			getMcpSettingsFilePath: vi.fn().mockResolvedValue("/mock/global/mcp_settings.json"),
+			getAllServers: vi.fn().mockReturnValue([{ name: "context7" }, { name: "exa" }]),
+		} as any)
+	})
+
+	it("creates a top-level custom discovery task in MCP Setup mode when prerequisites are installed", async () => {
+		const taskConfiguration = { apiProvider: "openrouter", currentApiConfigName: "work-profile", mode: "code" }
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "discoverMarketplaceMcp",
+			marketplaceMcpDiscoveryRequest: " Perplexity search MCP server ",
+			taskConfiguration,
+		} as any)
+
+		expect(mockClineProvider.createTask).toHaveBeenCalledTimes(1)
+		const createTaskCall = vi.mocked(mockClineProvider.createTask).mock.calls[0]
+		const prompt = createTaskCall[0] as string
+		expect(prompt).toContain("Find and set up the requested MCP server")
+		expect(prompt).toContain("Perplexity search MCP server")
+		expect(prompt).toContain("- context7")
+		expect(prompt).toContain("- exa")
+		expect(prompt).toContain("/mock/global/mcp_settings.json")
+		expect(prompt).toMatch(/[\\/]mock[\\/]workspace[\\/]\.roo[\\/]mcp\.json/)
+		expect(prompt).toContain("Use the installed Context7 MCP server")
+		expect(prompt).toContain("Use an installed web search MCP server")
+		expect(prompt).toContain("Verify the official source")
+		expect(prompt).toContain("Propose a safe MCP config")
+		expect(prompt).toContain("Do not echo, log, or store literal secret values")
+		expect(prompt).toContain("Request approval before running commands")
+		expect(prompt).toContain("Verify the server connects")
+		expect(createTaskCall[2]).toBeUndefined()
+		expect(createTaskCall[3]).toEqual({ mode: "mcp-setup" })
+		expect(createTaskCall[4]).toEqual({
+			...taskConfiguration,
+			mode: "mcp-setup",
+		})
+		expect((createTaskCall[4] as any).mode).not.toBe("code")
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({ type: "invoke", invoke: "newChat" })
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "action",
+			action: "switchTab",
+			tab: "chat",
+		})
+	})
+
+	it("rejects an empty custom discovery request", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "discoverMarketplaceMcp",
+			marketplaceMcpDiscoveryRequest: "  ",
+		} as any)
+
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			"Enter an MCP server name or description before starting discovery.",
+		)
+		expect(mockClineProvider.createTask).not.toHaveBeenCalled()
+	})
+
+	it("rejects custom discovery when Context7 is missing", async () => {
+		vi.mocked(mockClineProvider.getMcpHub).mockReturnValue({
+			getMcpSettingsFilePath: vi.fn().mockResolvedValue("/mock/global/mcp_settings.json"),
+			getAllServers: vi.fn().mockReturnValue([{ name: "exa" }]),
+		} as any)
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "discoverMarketplaceMcp",
+			marketplaceMcpDiscoveryRequest: "Perplexity search MCP server",
+		} as any)
+
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			"Install Context7 and at least one web search MCP server before starting custom MCP discovery.",
+		)
+		expect(mockClineProvider.createTask).not.toHaveBeenCalled()
+	})
+
+	it("rejects custom discovery when a web search server is missing", async () => {
+		vi.mocked(mockClineProvider.getMcpHub).mockReturnValue({
+			getMcpSettingsFilePath: vi.fn().mockResolvedValue("/mock/global/mcp_settings.json"),
+			getAllServers: vi.fn().mockReturnValue([{ name: "context7" }]),
+		} as any)
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "discoverMarketplaceMcp",
+			marketplaceMcpDiscoveryRequest: "Perplexity search MCP server",
+		} as any)
+
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			"Install Context7 and at least one web search MCP server before starting custom MCP discovery.",
+		)
+		expect(mockClineProvider.createTask).not.toHaveBeenCalled()
+	})
+})

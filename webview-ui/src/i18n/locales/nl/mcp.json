@@ -101,7 +101,27 @@
 		"actions": {
 			"installWithAI": "Installeren met AI",
 			"configureAgain": "Opnieuw configureren",
-			"clearFilters": "Filters wissen"
+			"clearFilters": "Filters wissen",
+			"showDetails": "Details",
+			"hideDetails": "Details verbergen",
+			"openDocs": "Documentatie openen"
+		},
+		"customDiscovery": {
+			"title": "Kun je de MCP-server niet vinden?",
+			"description": "Voer de MCP-server in die je wilt en C opent een MCP Setup-taak om officiële documentatie te vinden, veilige configuratie voor te stellen en die te verifiëren met je geïnstalleerde onderzoekstools.",
+			"inputLabel": "Naam of beschrijving van de MCP-server",
+			"placeholder": "Voorbeeld: Perplexity zoek-MCP-server",
+			"action": "Ontdekken met AI",
+			"validation": {
+				"empty": "Voer een naam of beschrijving van de MCP-server in voordat je de ontdekking start."
+			},
+			"requirements": {
+				"context7": "Context7 geïnstalleerd",
+				"webSearch": "Webzoekfunctie geïnstalleerd",
+				"missingBoth": "Installeer Context7 en minstens één webzoek-MCP-server voordat je aangepaste MCP-ontdekking start.",
+				"missingContext7": "Installeer Context7 voordat je aangepaste MCP-ontdekking start.",
+				"missingWebSearch": "Installeer minstens één webzoek-MCP-server, zoals Exa Web Search, Brave Search, Tavily Search of Firecrawl, voordat je aangepaste MCP-ontdekking start."
+			}
 		},
 		"empty": {
 			"title": "Geen MCP-servers gevonden",

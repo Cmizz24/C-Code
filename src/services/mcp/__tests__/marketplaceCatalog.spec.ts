@@ -1,7 +1,12 @@
 import {
+	buildMarketplaceMcpDiscoveryPrompt,
 	buildMarketplaceMcpSetupPrompt,
+	getMarketplaceMcpDiscoveryPrerequisiteStatus,
 	getMarketplaceMcpItem,
+	isMarketplaceMcpCatalogItemInstalled,
+	isMarketplaceMcpContext7ServerIdentifier,
 	isMarketplaceMcpScope,
+	isMarketplaceMcpWebSearchServerIdentifier,
 	marketplaceMcpCatalog,
 } from "../marketplaceCatalog"
 
@@ -130,6 +135,39 @@ describe("marketplaceCatalog", () => {
 		expect(isMarketplaceMcpScope("workspace")).toBe(false)
 	})
 
+	it("matches installed catalog items and custom discovery prerequisites by trusted identifiers", () => {
+		const context7 = getMarketplaceMcpItem("context7")
+		const exa = getMarketplaceMcpItem("exa-web-search")
+		const github = getMarketplaceMcpItem("github")
+
+		expect(context7).toBeDefined()
+		expect(exa).toBeDefined()
+		expect(github).toBeDefined()
+		expect(isMarketplaceMcpCatalogItemInstalled(context7!, ["Context7"])).toBe(true)
+		expect(isMarketplaceMcpCatalogItemInstalled(exa!, ["exa-web-search"])).toBe(true)
+		expect(isMarketplaceMcpCatalogItemInstalled(github!, ["not-github"])).toBe(false)
+		expect(isMarketplaceMcpContext7ServerIdentifier("@upstash/context7-mcp")).toBe(true)
+		expect(isMarketplaceMcpWebSearchServerIdentifier("exa")).toBe(true)
+		expect(isMarketplaceMcpWebSearchServerIdentifier("firecrawl")).toBe(true)
+		expect(isMarketplaceMcpWebSearchServerIdentifier("github")).toBe(false)
+
+		expect(getMarketplaceMcpDiscoveryPrerequisiteStatus([])).toEqual({
+			hasContext7: false,
+			hasWebSearch: false,
+			missing: ["context7", "webSearch"],
+		})
+		expect(getMarketplaceMcpDiscoveryPrerequisiteStatus(["context7"])).toEqual({
+			hasContext7: true,
+			hasWebSearch: false,
+			missing: ["webSearch"],
+		})
+		expect(getMarketplaceMcpDiscoveryPrerequisiteStatus(["context7", "brave-search"])).toEqual({
+			hasContext7: true,
+			hasWebSearch: true,
+			missing: [],
+		})
+	})
+
 	it("builds a deterministic setup prompt with scope, secrets, merge, and verification instructions", () => {
 		const item = getMarketplaceMcpItem("github")
 
@@ -164,5 +202,28 @@ describe("marketplaceCatalog", () => {
 		expect(prompt).toContain('"type": "streamable-http"')
 		expect(prompt).toContain('"url": "https://mcp.context7.com/mcp"')
 		expect(prompt).toContain("Resolve a public library such as Next.js")
+	})
+
+	it("builds a deterministic custom discovery prompt with research, safety, and verification instructions", () => {
+		const prompt = buildMarketplaceMcpDiscoveryPrompt(" Perplexity search MCP server ", {
+			globalConfigPath: "/mock/global/mcp_settings.json",
+			projectConfigPath: "/mock/workspace/.roo/mcp.json",
+			installedServerNames: ["context7", "exa"],
+		})
+
+		expect(prompt).toContain("Find and set up the requested MCP server")
+		expect(prompt).toContain("Perplexity search MCP server")
+		expect(prompt).toContain("- context7")
+		expect(prompt).toContain("- exa")
+		expect(prompt).toContain("/mock/global/mcp_settings.json")
+		expect(prompt).toContain("/mock/workspace/.roo/mcp.json")
+		expect(prompt).toContain("Use the installed Context7 MCP server")
+		expect(prompt).toContain("Use an installed web search MCP server")
+		expect(prompt).toContain("Verify the official source")
+		expect(prompt).toContain("Propose a safe MCP config")
+		expect(prompt).toContain("Do not echo, log, or store literal secret values")
+		expect(prompt).toContain("Request approval before running commands")
+		expect(prompt).toContain("Verify the server connects")
+		expect(prompt).toContain("Report the discovered official source/docs")
 	})
 })
