@@ -86,6 +86,10 @@ Suggested MCP config starting point, to merge under the existing top-level mcpSe
 ${suggestedConfig}
 \`\`\`
 
+Mode guidance:
+- You are running in the dedicated MCP Setup mode for installation, configuration, troubleshooting, and verification of MCP servers.
+- Stay within MCP setup work. Do not refactor unrelated project code, rewrite unrelated settings, or mutate existing MCP servers beyond the requested merge unless the user explicitly asks.
+
 Task requirements:
 1. Inspect the marketplace metadata and current upstream package documentation before choosing final command arguments.
 2. Confirm prerequisites. Ask the user only for genuinely missing secrets or required local values, such as paths, database connection strings, or API keys.

@@ -67,7 +67,7 @@ import {
 	getMarketplaceMcpItem,
 	isMarketplaceMcpScope,
 } from "../../services/mcp/marketplaceCatalog"
-import { Mode, defaultModeSlug } from "../../shared/modes"
+import { type Mode, defaultModeSlug, marketplaceMcpSetupModeSlug } from "../../shared/modes"
 import { getModels, flushModels } from "../../api/providers/fetchers/modelCache"
 import { GetModelsOptions } from "../../shared/api"
 import { generateSystemPrompt } from "./generateSystemPrompt"
@@ -1430,8 +1430,15 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					projectConfigPath,
 				})
 
-				await provider.createTask(prompt, undefined, undefined, undefined, message.taskConfiguration)
+				await provider.createTask(
+					prompt,
+					undefined,
+					undefined,
+					{ mode: marketplaceMcpSetupModeSlug },
+					message.taskConfiguration,
+				)
 				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
+				await provider.postMessageToWebview({ type: "action", action: "switchTab", tab: "chat" })
 			} catch (error) {
 				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
 				vscode.window.showErrorMessage(

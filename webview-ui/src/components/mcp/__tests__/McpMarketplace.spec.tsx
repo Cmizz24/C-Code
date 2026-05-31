@@ -104,6 +104,8 @@ describe("McpMarketplace", () => {
 	})
 
 	it("filters catalog cards by category", () => {
+		const searchCatalogItems = marketplaceMcpCatalog.filter((item) => item.category === "Search")
+
 		render(<McpMarketplace servers={[]} />)
 
 		fireEvent.click(screen.getByRole("button", { name: "Search" }))
@@ -112,7 +114,9 @@ describe("McpMarketplace", () => {
 		expect(screen.getByRole("heading", { name: "Brave Search" })).toBeInTheDocument()
 		expect(screen.getByRole("heading", { name: "Tavily Search" })).toBeInTheDocument()
 		expect(screen.queryByRole("heading", { name: "Filesystem" })).not.toBeInTheDocument()
-		expect(screen.getByText(`Showing 3 of ${marketplaceMcpCatalog.length} servers`)).toBeInTheDocument()
+		expect(
+			screen.getByText(`Showing ${searchCatalogItems.length} of ${marketplaceMcpCatalog.length} servers`),
+		).toBeInTheDocument()
 	})
 
 	it("shows an empty state and clears active filters", () => {

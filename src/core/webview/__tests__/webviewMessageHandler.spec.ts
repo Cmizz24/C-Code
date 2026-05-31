@@ -1096,21 +1096,34 @@ describe("webviewMessageHandler - installMarketplaceMcp", () => {
 	})
 
 	it("creates a top-level setup task for a valid marketplace item", async () => {
-		await webviewMessageHandler(mockClineProvider, {
+		const taskConfiguration = { apiProvider: "openrouter", currentApiConfigName: "work-profile" }
+		const message = {
 			type: "installMarketplaceMcp",
 			marketplaceMcpId: "github",
 			marketplaceMcpScope: "global",
-		} as any)
+			taskConfiguration,
+		} as any
+
+		await webviewMessageHandler(mockClineProvider, message)
 
 		expect(mockClineProvider.createTask).toHaveBeenCalledTimes(1)
-		const prompt = vi.mocked(mockClineProvider.createTask).mock.calls[0][0] as string
+		const createTaskCall = vi.mocked(mockClineProvider.createTask).mock.calls[0]
+		const prompt = createTaskCall[0] as string
 		expect(prompt).toContain('Set up the "GitHub" MCP server')
 		expect(prompt).toContain("Target scope: global")
 		expect(prompt).toContain("GITHUB_PERSONAL_ACCESS_TOKEN")
 		expect(prompt).toContain("Optional secrets:\n- None")
 		expect(prompt).toContain("/mock/global/mcp_settings.json")
-		expect(vi.mocked(mockClineProvider.createTask).mock.calls[0][2]).toBeUndefined()
+		expect(prompt).toContain("dedicated MCP Setup mode")
+		expect(createTaskCall[2]).toBeUndefined()
+		expect(createTaskCall[3]).toEqual({ mode: "mcp-setup" })
+		expect(createTaskCall[4]).toBe(taskConfiguration)
 		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({ type: "invoke", invoke: "newChat" })
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "action",
+			action: "switchTab",
+			tab: "chat",
+		})
 	})
 
 	it("creates setup guidance for Context7 streamable HTTP marketplace installs", async () => {

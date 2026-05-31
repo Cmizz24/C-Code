@@ -8,6 +8,7 @@ import {
 	type PromptComponent,
 	DEFAULT_MODES,
 	DEFAULT_MODE_GROUPS,
+	MCP_SETUP_MODE_SLUG,
 	type BuiltInModeGroup,
 } from "@roo-code/types"
 
@@ -50,6 +51,8 @@ export const modes = DEFAULT_MODES
 export const defaultModeSlug = modes[0].slug
 
 export const explainModeSlug = "explain"
+
+export const marketplaceMcpSetupModeSlug = MCP_SETUP_MODE_SLUG
 
 export const legacyModeSlugFallbacks: Readonly<Record<string, string>> = Object.freeze({
 	ask: explainModeSlug,

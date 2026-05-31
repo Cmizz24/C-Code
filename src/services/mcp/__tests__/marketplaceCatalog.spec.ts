@@ -6,25 +6,78 @@ import {
 } from "../marketplaceCatalog"
 
 describe("marketplaceCatalog", () => {
-	it("contains the curated MCP marketplace entries", () => {
-		expect(marketplaceMcpCatalog.map((item) => item.id)).toEqual([
-			"filesystem",
-			"github",
-			"notion",
-			"linear",
-			"context7",
-			"exa-web-search",
-			"google-drive",
-			"sentry",
-			"memory",
-			"sequential-thinking",
-			"sqlite",
-			"postgresql",
-			"playwright",
-			"brave-search",
-			"tavily-search",
-			"firecrawl",
-		])
+	it("contains the expanded curated MCP marketplace entries", () => {
+		const catalogIds = marketplaceMcpCatalog.map((item) => item.id)
+
+		expect(marketplaceMcpCatalog).toHaveLength(50)
+		expect(new Set(catalogIds).size).toBe(catalogIds.length)
+		expect(catalogIds).toEqual(
+			expect.arrayContaining([
+				"filesystem",
+				"github",
+				"notion",
+				"linear",
+				"context7",
+				"exa-web-search",
+				"google-drive",
+				"sentry",
+				"memory",
+				"sequential-thinking",
+				"sqlite",
+				"postgresql",
+				"playwright",
+				"brave-search",
+				"tavily-search",
+				"firecrawl",
+				"git",
+				"fetch",
+				"time",
+				"puppeteer",
+				"slack",
+				"google-maps",
+				"redis",
+				"gitlab",
+				"aws-kb-retrieval",
+				"docker",
+				"kubernetes",
+				"aws-documentation",
+				"azure",
+				"supabase",
+				"stripe",
+				"shopify",
+				"browserbase",
+				"figma",
+				"atlassian",
+				"gmail",
+				"google-calendar",
+				"google-sheets",
+				"bigquery",
+				"snowflake",
+				"mongodb",
+				"elasticsearch",
+				"qdrant",
+				"chroma",
+				"datadog",
+				"grafana",
+				"prometheus",
+				"logfire",
+				"airtable",
+				"hubspot",
+			]),
+		)
+
+		for (const item of marketplaceMcpCatalog) {
+			expect(item.serverName).toBeTruthy()
+			expect(item.name).toBeTruthy()
+			expect(item.category).toBeTruthy()
+			expect(item.description).toBeTruthy()
+			expect(item.packageName).toBeTruthy()
+			expect(item.sourceUrl).toMatch(/^https:\/\//)
+			expect(item.transportType).toMatch(/^(stdio|streamable-http)$/)
+			expect(item.recommendedScope).toMatch(/^(global|project)$/)
+			expect(item.verificationApproach).toBeTruthy()
+			expect(item.sampleConfig).toBeTruthy()
+		}
 	})
 
 	it("includes Context7 and Exa metadata, secrets, and config templates", () => {
@@ -92,6 +145,8 @@ describe("marketplaceCatalog", () => {
 		expect(prompt).toContain("GITHUB_PERSONAL_ACCESS_TOKEN")
 		expect(prompt).toContain("Optional secrets:\n- None")
 		expect(prompt).toContain("merge under the existing top-level mcpServers object")
+		expect(prompt).toContain("dedicated MCP Setup mode")
+		expect(prompt).toContain("Stay within MCP setup work")
 		expect(prompt).toContain("Preserve all existing servers")
 		expect(prompt).toContain("Do not echo, log, or store literal secret values")
 		expect(prompt).toContain("Verify the server connects")
