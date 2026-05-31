@@ -577,6 +577,57 @@
 			"label": "Abilita sintesi vocale",
 			"description": "Quando abilitato, Roo leggerà ad alta voce le sue risposte utilizzando la sintesi vocale.",
 			"speedLabel": "Velocità"
+		},
+		"email": {
+			"label": "Abilita notifiche email",
+			"description": "Invia notifiche email SMTP in testo semplice quando termina un'attività di livello superiore. Le trascrizioni delle attività non vengono mai incluse.",
+			"notifyOnSuccess": {
+				"label": "Notifica quando le attività vengono completate correttamente"
+			},
+			"notifyOnFailure": {
+				"label": "Notifica quando le attività falliscono o vengono interrotte",
+				"description": "Include errori di streaming e attività interrotte dall'utente. Le attività in background e le attività figlie delegate vengono ignorate."
+			},
+			"smtpHost": {
+				"label": "Host SMTP",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "Porta SMTP"
+			},
+			"smtpSecure": {
+				"label": "Usa TLS implicito",
+				"description": "Abilitalo per connessioni SMTPS, di solito sulla porta 465. Lascialo disattivato per STARTTLS sulla porta 587."
+			},
+			"smtpRequireTls": {
+				"label": "Richiedi STARTTLS",
+				"description": "Richiede al server di aggiornare la connessione con STARTTLS prima di inviare le credenziali."
+			},
+			"smtpUsername": {
+				"label": "Nome utente SMTP",
+				"placeholder": "Nome utente opzionale"
+			},
+			"smtpPassword": {
+				"label": "Password SMTP",
+				"placeholder": "Inserisci la password SMTP",
+				"configuredPlaceholder": "Lascia vuoto per mantenere la password salvata",
+				"description": "Memorizzata nell'archivio segreto di VS Code e mai più mostrata.",
+				"configuredDescription": "Una password è già salvata. Inserisci una nuova password solo se vuoi sostituirla."
+			},
+			"smtpFromAddress": {
+				"label": "Indirizzo mittente",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Destinatari",
+				"placeholder": "tu@example.com\nteam@example.com",
+				"description": "Separa i destinatari con virgole o nuove righe."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Modello oggetto",
+				"placeholder": "Attività C {{outcome}}",
+				"description": "Opzionale. Token disponibili: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+			}
 		}
 	},
 	"contextManagement": {

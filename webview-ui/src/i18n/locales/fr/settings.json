@@ -577,6 +577,57 @@
 			"label": "Activer la synthèse vocale",
 			"description": "Lorsque cette option est activée, Roo lira ses réponses à haute voix en utilisant la synthèse vocale.",
 			"speedLabel": "Vitesse"
+		},
+		"email": {
+			"label": "Activer les notifications par email",
+			"description": "Envoie des notifications par email SMTP en texte brut lorsqu'une tâche de premier niveau se termine. Les transcriptions de tâches ne sont jamais incluses.",
+			"notifyOnSuccess": {
+				"label": "Notifier quand les tâches se terminent avec succès"
+			},
+			"notifyOnFailure": {
+				"label": "Notifier quand les tâches échouent ou sont abandonnées",
+				"description": "Inclut les échecs de streaming et les tâches abandonnées par l'utilisateur. Les tâches en arrière-plan et les tâches enfants déléguées sont ignorées."
+			},
+			"smtpHost": {
+				"label": "Hôte SMTP",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "Port SMTP"
+			},
+			"smtpSecure": {
+				"label": "Utiliser le TLS implicite",
+				"description": "Active-le pour les connexions SMTPS, généralement sur le port 465. Laisse-le désactivé pour STARTTLS sur le port 587."
+			},
+			"smtpRequireTls": {
+				"label": "Exiger STARTTLS",
+				"description": "Exige que le serveur mette à niveau la connexion avec STARTTLS avant d'envoyer les identifiants."
+			},
+			"smtpUsername": {
+				"label": "Nom d'utilisateur SMTP",
+				"placeholder": "Nom d'utilisateur facultatif"
+			},
+			"smtpPassword": {
+				"label": "Mot de passe SMTP",
+				"placeholder": "Saisis le mot de passe SMTP",
+				"configuredPlaceholder": "Laisse vide pour conserver le mot de passe enregistré",
+				"description": "Stocké dans le stockage secret de VS Code et jamais réaffiché.",
+				"configuredDescription": "Un mot de passe est déjà enregistré. Saisis un nouveau mot de passe uniquement si tu veux le remplacer."
+			},
+			"smtpFromAddress": {
+				"label": "Adresse d'expéditeur",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Destinataires",
+				"placeholder": "toi@example.com\nequipe@example.com",
+				"description": "Sépare les destinataires par des virgules ou des retours à la ligne."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Modèle d'objet",
+				"placeholder": "Tâche C {{outcome}}",
+				"description": "Facultatif. Tokens disponibles : {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+			}
 		}
 	},
 	"contextManagement": {

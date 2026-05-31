@@ -577,6 +577,57 @@
 			"label": "Habilitar text a veu",
 			"description": "Quan està habilitat, Roo llegirà en veu alta les seves respostes utilitzant text a veu.",
 			"speedLabel": "Velocitat"
+		},
+		"email": {
+			"label": "Activa les notificacions per email",
+			"description": "Envia notificacions per email SMTP en text pla quan finalitzi una tasca de nivell superior. Les transcripcions de tasques no s'inclouen mai.",
+			"notifyOnSuccess": {
+				"label": "Notifica quan les tasques es completin correctament"
+			},
+			"notifyOnFailure": {
+				"label": "Notifica quan les tasques fallin o s'avortin",
+				"description": "Inclou errors de transmissió i tasques avortades per l'usuari. Les tasques en segon pla i les tasques filles delegades s'ometen."
+			},
+			"smtpHost": {
+				"label": "Servidor SMTP",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "Port SMTP"
+			},
+			"smtpSecure": {
+				"label": "Usa TLS implícit",
+				"description": "Activa-ho per a connexions SMTPS, normalment al port 465. Deixa-ho desactivat per a STARTTLS al port 587."
+			},
+			"smtpRequireTls": {
+				"label": "Requereix STARTTLS",
+				"description": "Exigeix que el servidor actualitzi la connexió amb STARTTLS abans d'enviar credencials."
+			},
+			"smtpUsername": {
+				"label": "Nom d'usuari SMTP",
+				"placeholder": "Nom d'usuari opcional"
+			},
+			"smtpPassword": {
+				"label": "Contrasenya SMTP",
+				"placeholder": "Introdueix la contrasenya SMTP",
+				"configuredPlaceholder": "Deixa-ho en blanc per conservar la contrasenya desada",
+				"description": "S'emmagatzema a l'emmagatzematge secret de VS Code i no es torna a mostrar mai.",
+				"configuredDescription": "Ja hi ha una contrasenya desada. Introdueix-ne una de nova només si vols substituir-la."
+			},
+			"smtpFromAddress": {
+				"label": "Adreça del remitent",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Destinataris",
+				"placeholder": "tu@example.com\nequip@example.com",
+				"description": "Separa els destinataris amb comes o línies noves."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Plantilla de l'assumpte",
+				"placeholder": "Tasca C {{outcome}}",
+				"description": "Opcional. Tokens disponibles: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+			}
 		}
 	},
 	"contextManagement": {

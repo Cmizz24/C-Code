@@ -12,6 +12,8 @@ import {
 	type ExtensionMessage,
 	type ExtensionState,
 	type HistoryItem,
+	type TokenUsage,
+	type ToolUsage,
 	createAgentCompletionPacket,
 	buildParallelPlanCompletionPacket,
 	ORGANIZATION_ALLOW_ALL,
@@ -639,6 +641,23 @@ describe("ClineProvider", () => {
 		...overrides,
 	})
 
+	const createTokenUsage = (): TokenUsage => ({
+		totalTokensIn: 12,
+		totalTokensOut: 34,
+		totalCost: 0.12,
+		contextTokens: 2048,
+	})
+
+	const createToolUsage = (): ToolUsage =>
+		({
+			read_file: { attempts: 2, failures: 1 },
+		}) as ToolUsage
+
+	const installEmailNotificationServiceMock = (sendTaskNotification = vi.fn().mockResolvedValue(undefined)) => {
+		;(provider as any).emailNotificationService = { sendTaskNotification }
+		return sendTaskNotification
+	}
+
 	const createParallelAgentToolMessage = (tool: ClineSayTool, ts = 1_700_000_001): ClineMessage => ({
 		type: "say",
 		say: "tool",
@@ -675,6 +694,108 @@ describe("ClineProvider", () => {
 		// @ts-ignore - accessing private property for testing
 		provider.view = mockWebviewView
 		expect(ClineProvider.getVisibleInstance()).toBe(provider)
+	})
+
+	describe("email notification lifecycle dispatch", () => {
+		test("sends success notifications for top-level task completion", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-success", workspacePath: "/workspace" } as any)
+			const tokenUsage = createTokenUsage()
+			const toolUsage = createToolUsage()
+			;(task as any).taskMode = "code"
+			;(provider as any).taskCreationCallback(task)
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, tokenUsage, toolUsage)
+
+			expect(sendTaskNotification).toHaveBeenCalledWith({
+				taskId: "task-success",
+				outcome: "success",
+				workspacePath: "/workspace",
+				mode: "code",
+				tokenUsage,
+				toolUsage,
+			})
+		})
+
+		test("maps streaming failure aborts to failed notifications", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-failed", workspacePath: "/workspace" } as any)
+			const tokenUsage = createTokenUsage()
+			const toolUsage = createToolUsage()
+			;(task as any).taskMode = "code"
+			;(task as any).abortReason = "streaming_failed"
+			;(task as any).tokenUsage = tokenUsage
+			;(task as any).toolUsage = toolUsage
+			;(provider as any).clineStack = [{ instanceId: "different-current-task" }]
+			;(provider as any).taskCreationCallback(task)
+			task.emit(RooCodeEventName.TaskAborted)
+
+			expect(sendTaskNotification).toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "task-failed",
+					outcome: "failed",
+					tokenUsage,
+					toolUsage,
+				}),
+			)
+		})
+
+		test("maps user aborts to aborted notifications", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-aborted", workspacePath: "/workspace" } as any)
+			const tokenUsage = createTokenUsage()
+			const toolUsage = createToolUsage()
+			;(task as any).taskMode = "code"
+			;(task as any).tokenUsage = tokenUsage
+			;(task as any).toolUsage = toolUsage
+			;(provider as any).taskCreationCallback(task)
+			task.emit(RooCodeEventName.TaskAborted)
+
+			expect(sendTaskNotification).toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "task-aborted",
+					outcome: "aborted",
+					tokenUsage,
+					toolUsage,
+				}),
+			)
+		})
+
+		test("skips background and delegated child tasks", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const backgroundTask = new Task({
+				...defaultTaskOptions,
+				taskId: "background-task",
+				background: true,
+			} as any)
+			const parentTask = new Task({ ...defaultTaskOptions, taskId: "parent-task" } as any)
+			const childTask = new Task({ ...defaultTaskOptions, taskId: "child-task", parentTask } as any)
+
+			;(provider as any).taskCreationCallback(backgroundTask)
+			;(provider as any).taskCreationCallback(childTask)
+			backgroundTask.emit(
+				RooCodeEventName.TaskCompleted,
+				backgroundTask.taskId,
+				createTokenUsage(),
+				createToolUsage(),
+			)
+			childTask.emit(RooCodeEventName.TaskCompleted, childTask.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+		})
+
+		test("does not throw when notification dispatch rejects", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock(
+				vi.fn().mockRejectedValue(new Error("SMTP down")),
+			)
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-notification-error" } as any)
+
+			;(provider as any).taskCreationCallback(task)
+
+			expect(() =>
+				task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage()),
+			).not.toThrow()
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+		})
 	})
 
 	test("resolveWebviewView sets up webview correctly", async () => {

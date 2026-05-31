@@ -577,6 +577,57 @@
 			"label": "Bật chuyển văn bản thành giọng nói",
 			"description": "Khi được bật, Roo sẽ đọc to các phản hồi của nó bằng chức năng chuyển văn bản thành giọng nói.",
 			"speedLabel": "Tốc độ"
+		},
+		"email": {
+			"label": "Bật thông báo email",
+			"description": "Gửi thông báo email SMTP dạng văn bản thuần khi tác vụ cấp cao nhất kết thúc. Bản ghi tác vụ không bao giờ được bao gồm.",
+			"notifyOnSuccess": {
+				"label": "Thông báo khi tác vụ hoàn tất thành công"
+			},
+			"notifyOnFailure": {
+				"label": "Thông báo khi tác vụ thất bại hoặc bị hủy",
+				"description": "Bao gồm lỗi streaming và tác vụ do người dùng hủy. Tác vụ nền và tác vụ con được ủy quyền sẽ bị bỏ qua."
+			},
+			"smtpHost": {
+				"label": "SMTP host",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "SMTP port"
+			},
+			"smtpSecure": {
+				"label": "Dùng TLS ngầm định",
+				"description": "Bật cho kết nối SMTPS, thường trên port 465. Tắt cho STARTTLS trên port 587."
+			},
+			"smtpRequireTls": {
+				"label": "Yêu cầu STARTTLS",
+				"description": "Yêu cầu máy chủ nâng cấp kết nối bằng STARTTLS trước khi gửi thông tin xác thực."
+			},
+			"smtpUsername": {
+				"label": "Tên người dùng SMTP",
+				"placeholder": "Tên người dùng tùy chọn"
+			},
+			"smtpPassword": {
+				"label": "Mật khẩu SMTP",
+				"placeholder": "Nhập mật khẩu SMTP",
+				"configuredPlaceholder": "Để trống để giữ mật khẩu đã lưu",
+				"description": "Được lưu trong VS Code secret storage và không bao giờ hiển thị lại.",
+				"configuredDescription": "Đã có mật khẩu được lưu. Chỉ nhập mật khẩu mới nếu bạn muốn thay thế."
+			},
+			"smtpFromAddress": {
+				"label": "Địa chỉ người gửi",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Người nhận",
+				"placeholder": "ban@example.com\nnhom@example.com",
+				"description": "Phân tách người nhận bằng dấu phẩy hoặc dòng mới."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Mẫu chủ đề",
+				"placeholder": "Tác vụ C {{outcome}}",
+				"description": "Tùy chọn. Tokens có sẵn: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+			}
 		}
 	},
 	"contextManagement": {

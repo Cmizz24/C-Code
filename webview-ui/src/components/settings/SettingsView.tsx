@@ -176,6 +176,20 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		ttsEnabled,
 		ttsSpeed,
 		soundVolume,
+		emailNotificationsEnabled,
+		emailNotifyOnSuccess,
+		emailNotifyOnFailure,
+		smtpHost,
+		smtpPort,
+		smtpSecure,
+		smtpRequireTls,
+		smtpUsername,
+		smtpPassword,
+		smtpFromAddress,
+		smtpRecipients,
+		smtpRecipientsText,
+		smtpSubjectTemplate,
+		smtpPasswordConfigured,
 		terminalOutputPreviewSize,
 		terminalShellIntegrationTimeout,
 		terminalShellIntegrationDisabled, // Added from upstream
@@ -351,73 +365,93 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 
 	const handleSubmit = () => {
 		if (isSettingValid) {
+			const normalizedSmtpPort = Number.isFinite(smtpPort)
+				? Math.min(Math.max(1, Math.trunc(smtpPort ?? 587)), 65_535)
+				: 587
+
+			const updatedSettings = {
+				language,
+				alwaysAllowReadOnly: alwaysAllowReadOnly ?? undefined,
+				alwaysAllowReadOnlyOutsideWorkspace: alwaysAllowReadOnlyOutsideWorkspace ?? undefined,
+				alwaysAllowWrite: alwaysAllowWrite ?? undefined,
+				alwaysAllowWriteOutsideWorkspace: alwaysAllowWriteOutsideWorkspace ?? undefined,
+				alwaysAllowWriteProtected: alwaysAllowWriteProtected ?? undefined,
+				alwaysAllowExecute: alwaysAllowExecute ?? undefined,
+				alwaysAllowMcp,
+				alwaysAllowModeSwitch,
+				allowedCommands: allowedCommands ?? [],
+				deniedCommands: deniedCommands ?? [],
+				// Note that we use `null` instead of `undefined` since `JSON.stringify`
+				// will omit `undefined` when serializing the object and passing it to the
+				// extension host. We may need to do the same for other nullable fields.
+				allowedMaxRequests: allowedMaxRequests ?? null,
+				allowedMaxCost: allowedMaxCost ?? null,
+				autoCondenseContext,
+				autoCondenseContextPercent,
+				soundEnabled: soundEnabled ?? true,
+				soundVolume: soundVolume ?? 0.5,
+				ttsEnabled,
+				ttsSpeed,
+				emailNotificationsEnabled: emailNotificationsEnabled ?? false,
+				emailNotifyOnSuccess: emailNotifyOnSuccess ?? true,
+				emailNotifyOnFailure: emailNotifyOnFailure ?? false,
+				smtpHost: smtpHost ?? "",
+				smtpPort: normalizedSmtpPort,
+				smtpSecure: smtpSecure ?? false,
+				smtpRequireTls: smtpRequireTls ?? false,
+				smtpUsername: smtpUsername ?? "",
+				smtpFromAddress: smtpFromAddress ?? "",
+				smtpRecipients: smtpRecipients ?? [],
+				smtpSubjectTemplate: smtpSubjectTemplate ?? "",
+				enableCheckpoints: enableCheckpoints ?? false,
+				checkpointTimeout: checkpointTimeout ?? DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
+				writeDelayMs,
+				terminalShellIntegrationTimeout: terminalShellIntegrationTimeout ?? 30_000,
+				terminalShellIntegrationDisabled,
+				terminalCommandDelay,
+				terminalPowershellCounter,
+				terminalZshClearEolMark,
+				terminalZshOhMy,
+				terminalZshP10k,
+				terminalZdotdir,
+				terminalOutputPreviewSize: terminalOutputPreviewSize ?? "medium",
+				mcpEnabled,
+				maxOpenTabsContext: Math.min(Math.max(0, maxOpenTabsContext ?? 20), 500),
+				maxWorkspaceFiles: Math.min(Math.max(0, maxWorkspaceFiles ?? 200), 500),
+				showRooIgnoredFiles: showRooIgnoredFiles ?? true,
+				enableSubfolderRules: enableSubfolderRules ?? false,
+				maxImageFileSize: maxImageFileSize ?? 5,
+				maxTotalImageSize: maxTotalImageSize ?? 20,
+				includeDiagnosticMessages: includeDiagnosticMessages !== undefined ? includeDiagnosticMessages : true,
+				maxDiagnosticMessages: maxDiagnosticMessages ?? 50,
+				alwaysAllowSubtasks,
+				alwaysAllowParallelTasks: alwaysAllowParallelTasks ?? false,
+				maxConcurrentParallelTasks: normalizeParallelTaskConcurrency(
+					maxConcurrentParallelTasks ?? DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
+				),
+				alwaysAllowFollowupQuestions: alwaysAllowFollowupQuestions ?? false,
+				followupAutoApproveTimeoutMs,
+				includeTaskHistoryInEnhance: includeTaskHistoryInEnhance ?? true,
+				reasoningBlockCollapsed: reasoningBlockCollapsed ?? true,
+				enterBehavior: enterBehavior ?? "send",
+				includeCurrentTime: includeCurrentTime ?? true,
+				includeCurrentCost: includeCurrentCost ?? true,
+				maxGitStatusFiles: maxGitStatusFiles ?? 0,
+				profileThresholds,
+				imageGenerationProvider,
+				openRouterImageApiKey,
+				openRouterImageGenerationSelectedModel,
+				experiments,
+				customSupportPrompts,
+			} as Partial<ExtensionStateContextType> & { smtpPassword?: string }
+
+			if (smtpPassword && smtpPassword.length > 0) {
+				updatedSettings.smtpPassword = smtpPassword
+			}
+
 			vscode.postMessage({
 				type: "updateSettings",
-				updatedSettings: {
-					language,
-					alwaysAllowReadOnly: alwaysAllowReadOnly ?? undefined,
-					alwaysAllowReadOnlyOutsideWorkspace: alwaysAllowReadOnlyOutsideWorkspace ?? undefined,
-					alwaysAllowWrite: alwaysAllowWrite ?? undefined,
-					alwaysAllowWriteOutsideWorkspace: alwaysAllowWriteOutsideWorkspace ?? undefined,
-					alwaysAllowWriteProtected: alwaysAllowWriteProtected ?? undefined,
-					alwaysAllowExecute: alwaysAllowExecute ?? undefined,
-					alwaysAllowMcp,
-					alwaysAllowModeSwitch,
-					allowedCommands: allowedCommands ?? [],
-					deniedCommands: deniedCommands ?? [],
-					// Note that we use `null` instead of `undefined` since `JSON.stringify`
-					// will omit `undefined` when serializing the object and passing it to the
-					// extension host. We may need to do the same for other nullable fields.
-					allowedMaxRequests: allowedMaxRequests ?? null,
-					allowedMaxCost: allowedMaxCost ?? null,
-					autoCondenseContext,
-					autoCondenseContextPercent,
-					soundEnabled: soundEnabled ?? true,
-					soundVolume: soundVolume ?? 0.5,
-					ttsEnabled,
-					ttsSpeed,
-					enableCheckpoints: enableCheckpoints ?? false,
-					checkpointTimeout: checkpointTimeout ?? DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
-					writeDelayMs,
-					terminalShellIntegrationTimeout: terminalShellIntegrationTimeout ?? 30_000,
-					terminalShellIntegrationDisabled,
-					terminalCommandDelay,
-					terminalPowershellCounter,
-					terminalZshClearEolMark,
-					terminalZshOhMy,
-					terminalZshP10k,
-					terminalZdotdir,
-					terminalOutputPreviewSize: terminalOutputPreviewSize ?? "medium",
-					mcpEnabled,
-					maxOpenTabsContext: Math.min(Math.max(0, maxOpenTabsContext ?? 20), 500),
-					maxWorkspaceFiles: Math.min(Math.max(0, maxWorkspaceFiles ?? 200), 500),
-					showRooIgnoredFiles: showRooIgnoredFiles ?? true,
-					enableSubfolderRules: enableSubfolderRules ?? false,
-					maxImageFileSize: maxImageFileSize ?? 5,
-					maxTotalImageSize: maxTotalImageSize ?? 20,
-					includeDiagnosticMessages:
-						includeDiagnosticMessages !== undefined ? includeDiagnosticMessages : true,
-					maxDiagnosticMessages: maxDiagnosticMessages ?? 50,
-					alwaysAllowSubtasks,
-					alwaysAllowParallelTasks: alwaysAllowParallelTasks ?? false,
-					maxConcurrentParallelTasks: normalizeParallelTaskConcurrency(
-						maxConcurrentParallelTasks ?? DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
-					),
-					alwaysAllowFollowupQuestions: alwaysAllowFollowupQuestions ?? false,
-					followupAutoApproveTimeoutMs,
-					includeTaskHistoryInEnhance: includeTaskHistoryInEnhance ?? true,
-					reasoningBlockCollapsed: reasoningBlockCollapsed ?? true,
-					enterBehavior: enterBehavior ?? "send",
-					includeCurrentTime: includeCurrentTime ?? true,
-					includeCurrentCost: includeCurrentCost ?? true,
-					maxGitStatusFiles: maxGitStatusFiles ?? 0,
-					profileThresholds,
-					imageGenerationProvider,
-					openRouterImageApiKey,
-					openRouterImageGenerationSelectedModel,
-					experiments,
-					customSupportPrompts,
-				},
+				updatedSettings,
 			})
 
 			// These have more complex logic so they aren't (yet) handled
@@ -817,6 +851,20 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								ttsSpeed={ttsSpeed}
 								soundEnabled={soundEnabled}
 								soundVolume={soundVolume}
+								emailNotificationsEnabled={emailNotificationsEnabled}
+								emailNotifyOnSuccess={emailNotifyOnSuccess}
+								emailNotifyOnFailure={emailNotifyOnFailure}
+								smtpHost={smtpHost}
+								smtpPort={smtpPort}
+								smtpSecure={smtpSecure}
+								smtpRequireTls={smtpRequireTls}
+								smtpUsername={smtpUsername}
+								smtpPassword={smtpPassword}
+								smtpPasswordConfigured={smtpPasswordConfigured}
+								smtpFromAddress={smtpFromAddress}
+								smtpRecipients={smtpRecipients}
+								smtpRecipientsText={smtpRecipientsText}
+								smtpSubjectTemplate={smtpSubjectTemplate}
 								setCachedStateField={setCachedStateField}
 							/>
 						)}

@@ -577,6 +577,57 @@
 			"label": "Ativar texto para fala",
 			"description": "Quando ativado, o Roo lerá em voz alta suas respostas usando texto para fala.",
 			"speedLabel": "Velocidade"
+		},
+		"email": {
+			"label": "Ativar notificações por email",
+			"description": "Envia notificações por email SMTP em texto simples quando uma tarefa de nível superior termina. Transcrições de tarefas nunca são incluídas.",
+			"notifyOnSuccess": {
+				"label": "Notificar quando tarefas forem concluídas com sucesso"
+			},
+			"notifyOnFailure": {
+				"label": "Notificar quando tarefas falharem ou forem abortadas",
+				"description": "Inclui falhas de streaming e tarefas abortadas pelo usuário. Tarefas em segundo plano e tarefas filhas delegadas são ignoradas."
+			},
+			"smtpHost": {
+				"label": "Host SMTP",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "Porta SMTP"
+			},
+			"smtpSecure": {
+				"label": "Usar TLS implícito",
+				"description": "Ative para conexões SMTPS, geralmente na porta 465. Deixe desativado para STARTTLS na porta 587."
+			},
+			"smtpRequireTls": {
+				"label": "Exigir STARTTLS",
+				"description": "Exige que o servidor atualize a conexão com STARTTLS antes de enviar credenciais."
+			},
+			"smtpUsername": {
+				"label": "Nome de usuário SMTP",
+				"placeholder": "Nome de usuário opcional"
+			},
+			"smtpPassword": {
+				"label": "Senha SMTP",
+				"placeholder": "Digite a senha SMTP",
+				"configuredPlaceholder": "Deixe em branco para manter a senha salva",
+				"description": "Armazenada no armazenamento secreto do VS Code e nunca mostrada novamente.",
+				"configuredDescription": "Uma senha já está salva. Digite uma nova senha apenas se quiser substituí-la."
+			},
+			"smtpFromAddress": {
+				"label": "Endereço do remetente",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Destinatários",
+				"placeholder": "voce@example.com\ntime@example.com",
+				"description": "Separe destinatários com vírgulas ou novas linhas."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Modelo de assunto",
+				"placeholder": "Tarefa C {{outcome}}",
+				"description": "Opcional. Tokens disponíveis: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+			}
 		}
 	},
 	"contextManagement": {

@@ -577,6 +577,57 @@
 			"label": "Text-zu-Sprache aktivieren",
 			"description": "Wenn aktiviert, liest Roo seine Antworten mit Text-zu-Sprache laut vor.",
 			"speedLabel": "Geschwindigkeit"
+		},
+		"email": {
+			"label": "E-Mail-Benachrichtigungen aktivieren",
+			"description": "Sendet Nur-Text-SMTP-E-Mail-Benachrichtigungen, wenn eine Top-Level-Aufgabe abgeschlossen ist. Aufgaben-Transkripte werden nie eingefügt.",
+			"notifyOnSuccess": {
+				"label": "Benachrichtigen, wenn Aufgaben erfolgreich abgeschlossen werden"
+			},
+			"notifyOnFailure": {
+				"label": "Benachrichtigen, wenn Aufgaben fehlschlagen oder abgebrochen werden",
+				"description": "Umfasst Streaming-Fehler und von dir abgebrochene Aufgaben. Hintergrundaufgaben und delegierte untergeordnete Aufgaben werden übersprungen."
+			},
+			"smtpHost": {
+				"label": "SMTP-Host",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "SMTP-Port"
+			},
+			"smtpSecure": {
+				"label": "Implizites TLS verwenden",
+				"description": "Für SMTPS-Verbindungen aktivieren, normalerweise auf Port 465. Für STARTTLS auf Port 587 deaktiviert lassen."
+			},
+			"smtpRequireTls": {
+				"label": "STARTTLS verlangen",
+				"description": "Verlangt, dass der Server die Verbindung per STARTTLS aktualisiert, bevor Zugangsdaten gesendet werden."
+			},
+			"smtpUsername": {
+				"label": "SMTP-Benutzername",
+				"placeholder": "Optionaler Benutzername"
+			},
+			"smtpPassword": {
+				"label": "SMTP-Passwort",
+				"placeholder": "SMTP-Passwort eingeben",
+				"configuredPlaceholder": "Leer lassen, um das gespeicherte Passwort beizubehalten",
+				"description": "Wird im geheimen Speicher von VS Code gespeichert und nie wieder angezeigt.",
+				"configuredDescription": "Ein Passwort ist bereits gespeichert. Gib nur dann ein neues Passwort ein, wenn du es ersetzen möchtest."
+			},
+			"smtpFromAddress": {
+				"label": "Absenderadresse",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Empfänger",
+				"placeholder": "du@example.com\nteam@example.com",
+				"description": "Trenne Empfänger mit Kommas oder neuen Zeilen."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Betreffvorlage",
+				"placeholder": "C-Aufgabe {{outcome}}",
+				"description": "Optional. Verfügbare Tokens: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+			}
 		}
 	},
 	"contextManagement": {

@@ -577,6 +577,57 @@
 			"label": "음성 합성 활성화",
 			"description": "활성화되면 Roo는 음성 합성을 사용하여 응답을 소리내어 읽습니다.",
 			"speedLabel": "속도"
+		},
+		"email": {
+			"label": "email 알림 활성화",
+			"description": "최상위 작업이 끝나면 일반 텍스트 SMTP email 알림을 보냅니다. 작업 transcript는 절대 포함되지 않습니다.",
+			"notifyOnSuccess": {
+				"label": "작업이 성공적으로 완료되면 알림"
+			},
+			"notifyOnFailure": {
+				"label": "작업이 실패하거나 중단되면 알림",
+				"description": "스트리밍 실패와 사용자가 중단한 작업을 포함합니다. 백그라운드 작업과 위임된 하위 작업은 건너뜁니다."
+			},
+			"smtpHost": {
+				"label": "SMTP 호스트",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "SMTP 포트"
+			},
+			"smtpSecure": {
+				"label": "암시적 TLS 사용",
+				"description": "보통 포트 465의 SMTPS 연결에 사용합니다. 포트 587의 STARTTLS에는 꺼 둡니다."
+			},
+			"smtpRequireTls": {
+				"label": "STARTTLS 필요",
+				"description": "자격 증명을 보내기 전에 서버가 STARTTLS로 연결을 업그레이드하도록 요구합니다."
+			},
+			"smtpUsername": {
+				"label": "SMTP 사용자 이름",
+				"placeholder": "선택 사항 사용자 이름"
+			},
+			"smtpPassword": {
+				"label": "SMTP 비밀번호",
+				"placeholder": "SMTP 비밀번호 입력",
+				"configuredPlaceholder": "저장된 비밀번호를 유지하려면 비워 두세요",
+				"description": "VS Code secret storage에 저장되며 다시 표시되지 않습니다.",
+				"configuredDescription": "비밀번호가 이미 저장되어 있습니다. 교체하려는 경우에만 새 비밀번호를 입력하세요."
+			},
+			"smtpFromAddress": {
+				"label": "보낸 사람 주소",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "수신자",
+				"placeholder": "you@example.com\nteam@example.com",
+				"description": "수신자는 쉼표 또는 새 줄로 구분하세요."
+			},
+			"smtpSubjectTemplate": {
+				"label": "제목 템플릿",
+				"placeholder": "C task {{outcome}}",
+				"description": "선택 사항. 사용 가능한 토큰: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+			}
 		}
 	},
 	"contextManagement": {

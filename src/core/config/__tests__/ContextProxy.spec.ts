@@ -241,6 +241,19 @@ describe("ContextProxy", () => {
 			expect(storedValue).toBe("test-api-key")
 		})
 
+		it("should route smtpPassword through secret storage only", async () => {
+			const storeSecretSpy = vi.spyOn(proxy, "storeSecret")
+			const updateGlobalStateSpy = vi.spyOn(proxy, "updateGlobalState")
+
+			await proxy.setValue("smtpPassword", "smtp-secret")
+
+			expect(storeSecretSpy).toHaveBeenCalledWith("smtpPassword", "smtp-secret")
+			expect(mockSecrets.store).toHaveBeenCalledWith("smtpPassword", "smtp-secret")
+			expect(updateGlobalStateSpy).not.toHaveBeenCalledWith("smtpPassword", expect.anything())
+			expect(mockGlobalState.update).not.toHaveBeenCalledWith("smtpPassword", expect.anything())
+			expect(proxy.getSecret("smtpPassword")).toBe("smtp-secret")
+		})
+
 		it("should route global state keys to updateGlobalState", async () => {
 			// Spy on updateGlobalState
 			const updateGlobalStateSpy = vi.spyOn(proxy, "updateGlobalState")

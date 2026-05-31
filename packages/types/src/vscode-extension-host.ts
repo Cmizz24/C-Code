@@ -281,6 +281,17 @@ export type ExtensionState = Pick<
 	| "ttsSpeed"
 	| "soundEnabled"
 	| "soundVolume"
+	| "emailNotificationsEnabled"
+	| "emailNotifyOnSuccess"
+	| "emailNotifyOnFailure"
+	| "smtpHost"
+	| "smtpPort"
+	| "smtpSecure"
+	| "smtpRequireTls"
+	| "smtpUsername"
+	| "smtpFromAddress"
+	| "smtpRecipients"
+	| "smtpSubjectTemplate"
 	| "terminalOutputPreviewSize"
 	| "terminalShellIntegrationTimeout"
 	| "terminalShellIntegrationDisabled"
@@ -359,6 +370,7 @@ export type ExtensionState = Pick<
 	profileThresholds: Record<string, number>
 	hasOpenedModeSelector: boolean
 	openRouterImageApiKey?: string
+	smtpPasswordConfigured?: boolean
 	messageQueue?: QueuedMessage[]
 	lastShownAnnouncementId?: string
 	apiModelId?: string

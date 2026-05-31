@@ -577,6 +577,57 @@
 			"label": "Habilitar texto a voz",
 			"description": "Cuando está habilitado, Roo leerá en voz alta sus respuestas usando texto a voz.",
 			"speedLabel": "Velocidad"
+		},
+		"email": {
+			"label": "Habilitar notificaciones por email",
+			"description": "Envía notificaciones SMTP por email en texto plano cuando finaliza una tarea de nivel superior. Nunca se incluyen transcripciones de tareas.",
+			"notifyOnSuccess": {
+				"label": "Notificar cuando las tareas se completen correctamente"
+			},
+			"notifyOnFailure": {
+				"label": "Notificar cuando las tareas fallen o se aborten",
+				"description": "Incluye errores de streaming y tareas abortadas por el usuario. Se omiten las tareas en segundo plano y las tareas hijas delegadas."
+			},
+			"smtpHost": {
+				"label": "Host SMTP",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "Puerto SMTP"
+			},
+			"smtpSecure": {
+				"label": "Usar TLS implícito",
+				"description": "Actívalo para conexiones SMTPS, normalmente en el puerto 465. Déjalo desactivado para STARTTLS en el puerto 587."
+			},
+			"smtpRequireTls": {
+				"label": "Requerir STARTTLS",
+				"description": "Requiere que el servidor actualice la conexión con STARTTLS antes de enviar credenciales."
+			},
+			"smtpUsername": {
+				"label": "Nombre de usuario SMTP",
+				"placeholder": "Nombre de usuario opcional"
+			},
+			"smtpPassword": {
+				"label": "Contraseña SMTP",
+				"placeholder": "Introduce la contraseña SMTP",
+				"configuredPlaceholder": "Déjalo en blanco para conservar la contraseña guardada",
+				"description": "Se almacena en el almacenamiento secreto de VS Code y nunca se vuelve a mostrar.",
+				"configuredDescription": "Ya hay una contraseña guardada. Introduce una nueva solo si quieres reemplazarla."
+			},
+			"smtpFromAddress": {
+				"label": "Dirección de remitente",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Destinatarios",
+				"placeholder": "tu@example.com\nequipo@example.com",
+				"description": "Separa los destinatarios con comas o saltos de línea."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Plantilla de asunto",
+				"placeholder": "Tarea de C {{outcome}}",
+				"description": "Opcional. Tokens disponibles: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+			}
 		}
 	},
 	"contextManagement": {

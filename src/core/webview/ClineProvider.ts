@@ -81,6 +81,10 @@ import { ShadowCheckpointService } from "../../services/checkpoints/ShadowCheckp
 import { CodeIndexManager } from "../../services/code-index/manager"
 import type { IndexProgressUpdate } from "../../services/code-index/interfaces/manager"
 import { SkillsManager } from "../../services/skills/SkillsManager"
+import {
+	EmailNotificationService,
+	type EmailNotificationOutcome,
+} from "../../services/notifications/EmailNotificationService"
 
 import { fileExistsAtPath } from "../../utils/fs"
 import { setTtsEnabled, setTtsSpeed } from "../../utils/tts"
@@ -373,6 +377,7 @@ export class ClineProvider
 	private recentTasksCache?: string[]
 	public readonly taskHistoryStore: TaskHistoryStore
 	private taskHistoryStoreInitialized = false
+	private readonly emailNotificationService: EmailNotificationService
 	private globalStateWriteThroughTimer: ReturnType<typeof setTimeout> | null = null
 	private static readonly GLOBAL_STATE_WRITE_THROUGH_DEBOUNCE_MS = 5000 // 5 seconds
 	private pendingOperations: Map<string, PendingEditOperation> = new Map()
@@ -399,6 +404,9 @@ export class ClineProvider
 		super()
 		this.currentWorkspacePath = getWorkspacePath()
 		this.worktreeManager = new WorktreeManager(this.currentWorkspacePath)
+		this.emailNotificationService = new EmailNotificationService(this.contextProxy, {
+			log: (message) => this.log(message),
+		})
 
 		ClineProvider.activeInstances.add(this)
 
@@ -454,6 +462,8 @@ export class ClineProvider
 					this.removeBackgroundTask(instance)
 				}
 
+				this.notifyTaskCompleted(instance, "success", tokenUsage, toolUsage)
+
 				this.emit(RooCodeEventName.TaskCompleted, taskId, tokenUsage, toolUsage)
 			}
 			const onTaskAborted = async () => {
@@ -465,6 +475,13 @@ export class ClineProvider
 						this.removeBackgroundTask(instance)
 						return
 					}
+
+					this.notifyTaskCompleted(
+						instance,
+						instance.abortReason === "streaming_failed" ? "failed" : "aborted",
+						instance.tokenUsage,
+						instance.toolUsage,
+					)
 
 					// Only rehydrate on genuine streaming failures.
 					// User-initiated cancels are handled by cancelTask().
@@ -647,6 +664,34 @@ export class ClineProvider
 				`[background-task] Failed to dispose task ${task.taskId}.${task.instanceId}: ${error instanceof Error ? error.message : String(error)}`,
 			)
 		}
+	}
+
+	private notifyTaskCompleted(
+		task: Task,
+		outcome: EmailNotificationOutcome,
+		tokenUsage?: TokenUsage,
+		toolUsage?: ToolUsage,
+	): void {
+		if (task.background || task.parentTask || task.parentTaskId) {
+			return
+		}
+
+		this.emailNotificationService
+			.sendTaskNotification({
+				taskId: task.taskId,
+				outcome,
+				workspacePath: task.workspacePath,
+				mode: task.taskMode,
+				tokenUsage,
+				toolUsage,
+			})
+			.catch((error) => {
+				this.log(
+					`[email-notifications] Unexpected notification error: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			})
 	}
 
 	async performPreparationTasks(cline: Task) {
@@ -2313,6 +2358,18 @@ export class ClineProvider
 			soundEnabled,
 			ttsEnabled,
 			ttsSpeed,
+			emailNotificationsEnabled,
+			emailNotifyOnSuccess,
+			emailNotifyOnFailure,
+			smtpHost,
+			smtpPort,
+			smtpSecure,
+			smtpRequireTls,
+			smtpUsername,
+			smtpFromAddress,
+			smtpRecipients,
+			smtpSubjectTemplate,
+			smtpPasswordConfigured,
 			enableCheckpoints,
 			checkpointTimeout,
 			taskHistory,
@@ -2401,6 +2458,18 @@ export class ClineProvider
 			soundEnabled: soundEnabled ?? false,
 			ttsEnabled: ttsEnabled ?? false,
 			ttsSpeed: ttsSpeed ?? 1.0,
+			emailNotificationsEnabled: emailNotificationsEnabled ?? false,
+			emailNotifyOnSuccess: emailNotifyOnSuccess ?? true,
+			emailNotifyOnFailure: emailNotifyOnFailure ?? false,
+			smtpHost: smtpHost ?? "",
+			smtpPort: smtpPort ?? 587,
+			smtpSecure: smtpSecure ?? false,
+			smtpRequireTls: smtpRequireTls ?? false,
+			smtpUsername: smtpUsername ?? "",
+			smtpFromAddress: smtpFromAddress ?? "",
+			smtpRecipients: smtpRecipients ?? [],
+			smtpSubjectTemplate: smtpSubjectTemplate ?? "",
+			smtpPasswordConfigured: smtpPasswordConfigured ?? false,
 			enableCheckpoints: enableCheckpoints ?? true,
 			checkpointTimeout: checkpointTimeout ?? DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
@@ -2550,6 +2619,18 @@ export class ClineProvider
 			soundEnabled: stateValues.soundEnabled ?? false,
 			ttsEnabled: stateValues.ttsEnabled ?? false,
 			ttsSpeed: stateValues.ttsSpeed ?? 1.0,
+			emailNotificationsEnabled: stateValues.emailNotificationsEnabled ?? false,
+			emailNotifyOnSuccess: stateValues.emailNotifyOnSuccess ?? true,
+			emailNotifyOnFailure: stateValues.emailNotifyOnFailure ?? false,
+			smtpHost: stateValues.smtpHost ?? "",
+			smtpPort: stateValues.smtpPort ?? 587,
+			smtpSecure: stateValues.smtpSecure ?? false,
+			smtpRequireTls: stateValues.smtpRequireTls ?? false,
+			smtpUsername: stateValues.smtpUsername ?? "",
+			smtpFromAddress: stateValues.smtpFromAddress ?? "",
+			smtpRecipients: stateValues.smtpRecipients ?? [],
+			smtpSubjectTemplate: stateValues.smtpSubjectTemplate ?? "",
+			smtpPasswordConfigured: Boolean(this.contextProxy.getSecret("smtpPassword")),
 			enableCheckpoints: stateValues.enableCheckpoints ?? true,
 			checkpointTimeout: stateValues.checkpointTimeout ?? DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 			soundVolume: stateValues.soundVolume,

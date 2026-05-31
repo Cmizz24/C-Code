@@ -577,6 +577,57 @@
 			"label": "音声合成を有効化",
 			"description": "有効にすると、Rooは音声合成を使用して応答を音声で読み上げます。",
 			"speedLabel": "速度"
+		},
+		"email": {
+			"label": "email通知を有効にする",
+			"description": "最上位タスクの完了時に、プレーンテキストのSMTP email通知を送信します。タスクのトランスクリプトは含まれません。",
+			"notifyOnSuccess": {
+				"label": "タスクが正常に完了したら通知する"
+			},
+			"notifyOnFailure": {
+				"label": "タスクが失敗または中止されたら通知する",
+				"description": "ストリーミング失敗とユーザーが中止したタスクを含みます。バックグラウンドタスクと委任された子タスクはスキップされます。"
+			},
+			"smtpHost": {
+				"label": "SMTPホスト",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "SMTPポート"
+			},
+			"smtpSecure": {
+				"label": "暗黙的TLSを使用",
+				"description": "通常ポート465のSMTPS接続で有効にします。ポート587のSTARTTLSではオフのままにします。"
+			},
+			"smtpRequireTls": {
+				"label": "STARTTLSを必須にする",
+				"description": "認証情報を送信する前に、サーバーがSTARTTLSで接続をアップグレードすることを必須にします。"
+			},
+			"smtpUsername": {
+				"label": "SMTPユーザー名",
+				"placeholder": "任意のユーザー名"
+			},
+			"smtpPassword": {
+				"label": "SMTPパスワード",
+				"placeholder": "SMTPパスワードを入力",
+				"configuredPlaceholder": "保存済みパスワードを保持するには空欄のままにする",
+				"description": "VS Codeのシークレットストレージに保存され、二度と表示されません。",
+				"configuredDescription": "パスワードはすでに保存されています。置き換える場合のみ新しいパスワードを入力してください。"
+			},
+			"smtpFromAddress": {
+				"label": "送信元アドレス",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "受信者",
+				"placeholder": "you@example.com\nteam@example.com",
+				"description": "受信者はカンマまたは改行で区切ってください。"
+			},
+			"smtpSubjectTemplate": {
+				"label": "件名テンプレート",
+				"placeholder": "C task {{outcome}}",
+				"description": "任意。利用可能なトークン: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}。"
+			}
 		}
 	},
 	"contextManagement": {

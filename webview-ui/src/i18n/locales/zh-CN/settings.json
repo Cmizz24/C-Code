@@ -577,6 +577,57 @@
 			"label": "启用文本转语音",
 			"description": "启用后，Roo 将使用文本转语音功能朗读其响应。",
 			"speedLabel": "速度"
+		},
+		"email": {
+			"label": "启用 email 通知",
+			"description": "顶层任务结束时发送纯文本 SMTP email 通知。绝不会包含任务 transcript。",
+			"notifyOnSuccess": {
+				"label": "任务成功完成时通知"
+			},
+			"notifyOnFailure": {
+				"label": "任务失败或中止时通知",
+				"description": "包括 streaming 失败和用户中止的任务。会跳过后台任务和委派的子任务。"
+			},
+			"smtpHost": {
+				"label": "SMTP host",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "SMTP port"
+			},
+			"smtpSecure": {
+				"label": "使用隐式 TLS",
+				"description": "为 SMTPS 连接启用，通常使用 port 465。STARTTLS 使用 port 587 时保持关闭。"
+			},
+			"smtpRequireTls": {
+				"label": "要求 STARTTLS",
+				"description": "要求服务器在发送凭据前使用 STARTTLS 升级连接。"
+			},
+			"smtpUsername": {
+				"label": "SMTP 用户名",
+				"placeholder": "可选用户名"
+			},
+			"smtpPassword": {
+				"label": "SMTP 密码",
+				"placeholder": "输入 SMTP 密码",
+				"configuredPlaceholder": "留空以保留已保存的密码",
+				"description": "存储在 VS Code secret storage 中，之后不会再次显示。",
+				"configuredDescription": "已保存密码。只有在想替换时才输入新密码。"
+			},
+			"smtpFromAddress": {
+				"label": "发件人地址",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "收件人",
+				"placeholder": "you@example.com\nteam@example.com",
+				"description": "用逗号或换行分隔收件人。"
+			},
+			"smtpSubjectTemplate": {
+				"label": "主题模板",
+				"placeholder": "C task {{outcome}}",
+				"description": "可选。可用 tokens：{{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}。"
+			}
 		}
 	},
 	"contextManagement": {

@@ -577,6 +577,57 @@
 			"label": "Włącz syntezę mowy",
 			"description": "Gdy włączone, Roo będzie czytać na głos swoje odpowiedzi za pomocą syntezy mowy.",
 			"speedLabel": "Szybkość"
+		},
+		"email": {
+			"label": "Włącz powiadomienia email",
+			"description": "Wysyłaj powiadomienia email SMTP w zwykłym tekście po zakończeniu zadania najwyższego poziomu. Transkrypcje zadań nigdy nie są dołączane.",
+			"notifyOnSuccess": {
+				"label": "Powiadamiaj, gdy zadania zakończą się powodzeniem"
+			},
+			"notifyOnFailure": {
+				"label": "Powiadamiaj, gdy zadania zakończą się błędem lub zostaną przerwane",
+				"description": "Obejmuje błędy streamingu i zadania przerwane przez użytkownika. Zadania w tle i delegowane zadania podrzędne są pomijane."
+			},
+			"smtpHost": {
+				"label": "Host SMTP",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "Port SMTP"
+			},
+			"smtpSecure": {
+				"label": "Użyj niejawnego TLS",
+				"description": "Włącz dla połączeń SMTPS, zwykle na porcie 465. Zostaw wyłączone dla STARTTLS na porcie 587."
+			},
+			"smtpRequireTls": {
+				"label": "Wymagaj STARTTLS",
+				"description": "Wymagaj, aby serwer zaktualizował połączenie przez STARTTLS przed wysłaniem danych logowania."
+			},
+			"smtpUsername": {
+				"label": "Nazwa użytkownika SMTP",
+				"placeholder": "Opcjonalna nazwa użytkownika"
+			},
+			"smtpPassword": {
+				"label": "Hasło SMTP",
+				"placeholder": "Wpisz hasło SMTP",
+				"configuredPlaceholder": "Zostaw puste, aby zachować zapisane hasło",
+				"description": "Przechowywane w tajnym magazynie VS Code i nigdy więcej nie wyświetlane.",
+				"configuredDescription": "Hasło jest już zapisane. Wpisz nowe hasło tylko wtedy, gdy chcesz je zastąpić."
+			},
+			"smtpFromAddress": {
+				"label": "Adres nadawcy",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Odbiorcy",
+				"placeholder": "ty@example.com\nzespol@example.com",
+				"description": "Oddziel odbiorców przecinkami lub nowymi wierszami."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Szablon tematu",
+				"placeholder": "Zadanie C {{outcome}}",
+				"description": "Opcjonalne. Dostępne tokens: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+			}
 		}
 	},
 	"contextManagement": {

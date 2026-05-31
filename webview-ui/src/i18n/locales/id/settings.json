@@ -577,6 +577,57 @@
 			"label": "Aktifkan text-to-speech",
 			"description": "Ketika diaktifkan, Roo akan membacakan responnya menggunakan text-to-speech.",
 			"speedLabel": "Kecepatan"
+		},
+		"email": {
+			"label": "Aktifkan notifikasi email",
+			"description": "Kirim notifikasi email SMTP teks biasa saat tugas tingkat atas selesai. Transkrip tugas tidak pernah disertakan.",
+			"notifyOnSuccess": {
+				"label": "Beri tahu saat tugas berhasil selesai"
+			},
+			"notifyOnFailure": {
+				"label": "Beri tahu saat tugas gagal atau dibatalkan",
+				"description": "Termasuk kegagalan streaming dan tugas yang dibatalkan pengguna. Tugas latar belakang dan tugas anak yang didelegasikan dilewati."
+			},
+			"smtpHost": {
+				"label": "Host SMTP",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "Port SMTP"
+			},
+			"smtpSecure": {
+				"label": "Gunakan TLS implisit",
+				"description": "Aktifkan untuk koneksi SMTPS, biasanya di port 465. Biarkan nonaktif untuk STARTTLS di port 587."
+			},
+			"smtpRequireTls": {
+				"label": "Wajibkan STARTTLS",
+				"description": "Wajibkan server meningkatkan koneksi dengan STARTTLS sebelum mengirim kredensial."
+			},
+			"smtpUsername": {
+				"label": "Nama pengguna SMTP",
+				"placeholder": "Nama pengguna opsional"
+			},
+			"smtpPassword": {
+				"label": "Kata sandi SMTP",
+				"placeholder": "Masukkan kata sandi SMTP",
+				"configuredPlaceholder": "Biarkan kosong untuk mempertahankan kata sandi tersimpan",
+				"description": "Disimpan di penyimpanan rahasia VS Code dan tidak pernah ditampilkan lagi.",
+				"configuredDescription": "Kata sandi sudah tersimpan. Masukkan kata sandi baru hanya jika kamu ingin menggantinya."
+			},
+			"smtpFromAddress": {
+				"label": "Alamat pengirim",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Penerima",
+				"placeholder": "kamu@example.com\ntim@example.com",
+				"description": "Pisahkan penerima dengan koma atau baris baru."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Template subjek",
+				"placeholder": "Tugas C {{outcome}}",
+				"description": "Opsional. Token yang tersedia: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+			}
 		}
 	},
 	"contextManagement": {

@@ -577,6 +577,57 @@
 			"label": "Включить озвучивание",
 			"description": "Если включено, Roo будет озвучивать свои ответы с помощью преобразования текста в речь.",
 			"speedLabel": "Скорость"
+		},
+		"email": {
+			"label": "Включить email-уведомления",
+			"description": "Отправляет простые текстовые SMTP email-уведомления, когда задача верхнего уровня завершается. Транскрипты задач никогда не включаются.",
+			"notifyOnSuccess": {
+				"label": "Уведомлять, когда задачи успешно завершены"
+			},
+			"notifyOnFailure": {
+				"label": "Уведомлять, когда задачи завершаются с ошибкой или прерываются",
+				"description": "Включает ошибки streaming и задачи, прерванные пользователем. Фоновые задачи и делегированные дочерние задачи пропускаются."
+			},
+			"smtpHost": {
+				"label": "SMTP-хост",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "SMTP-порт"
+			},
+			"smtpSecure": {
+				"label": "Использовать неявный TLS",
+				"description": "Включи для SMTPS-подключений, обычно на порту 465. Оставь выключенным для STARTTLS на порту 587."
+			},
+			"smtpRequireTls": {
+				"label": "Требовать STARTTLS",
+				"description": "Требует, чтобы сервер обновил подключение через STARTTLS перед отправкой учетных данных."
+			},
+			"smtpUsername": {
+				"label": "Имя пользователя SMTP",
+				"placeholder": "Необязательное имя пользователя"
+			},
+			"smtpPassword": {
+				"label": "Пароль SMTP",
+				"placeholder": "Введи пароль SMTP",
+				"configuredPlaceholder": "Оставь пустым, чтобы сохранить текущий пароль",
+				"description": "Хранится в секретном хранилище VS Code и больше никогда не показывается.",
+				"configuredDescription": "Пароль уже сохранен. Введи новый пароль только если хочешь заменить его."
+			},
+			"smtpFromAddress": {
+				"label": "Адрес отправителя",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Получатели",
+				"placeholder": "you@example.com\nteam@example.com",
+				"description": "Разделяй получателей запятыми или новыми строками."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Шаблон темы",
+				"placeholder": "Задача C {{outcome}}",
+				"description": "Необязательно. Доступные tokens: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+			}
 		}
 	},
 	"contextManagement": {
