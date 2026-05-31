@@ -13,7 +13,7 @@ vi.mock("@/utils/vscode", () => ({
 }))
 
 // Mock ExtensionState context
-vi.mock("@/context/ExtensionStateContext", () => ({
+vi.mock("@src/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
 		version: "1.0.0",
 		apiConfiguration: {},

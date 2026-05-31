@@ -15,7 +15,7 @@ import {
 
 import { vscode } from "@/utils/vscode"
 import { cn } from "@/lib/utils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { useRooPortal } from "@/components/ui/hooks/useRooPortal"
 import { Popover, PopoverContent, PopoverTrigger, StandardTooltip } from "@/components/ui"

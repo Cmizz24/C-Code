@@ -22,7 +22,7 @@ vi.mock("@/i18n/TranslationContext", () => ({
 let mockExtensionState: any = {}
 
 // Mock the useExtensionState hook
-vi.mock("@/context/ExtensionStateContext", () => ({
+vi.mock("@src/context/ExtensionStateContext", () => ({
 	ExtensionStateContextProvider: ({ children }: any) => children,
 	useExtensionState: () => mockExtensionState,
 }))

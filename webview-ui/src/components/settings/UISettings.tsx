@@ -6,7 +6,7 @@ import { SetCachedStateField } from "./types"
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 import { SearchableSetting } from "./SearchableSetting"
-import { ExtensionStateContextType } from "@/context/ExtensionStateContext"
+import { ExtensionStateContextType } from "@src/context/ExtensionStateContext"
 
 interface UISettingsProps extends HTMLAttributes<HTMLDivElement> {
 	reasoningBlockCollapsed: boolean

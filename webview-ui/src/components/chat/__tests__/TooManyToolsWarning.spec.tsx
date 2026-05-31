@@ -13,7 +13,7 @@ vi.mock("@/utils/vscode", () => ({
 // Mock ExtensionState context with variable mcpServers
 const mockMcpServers = vi.fn()
 
-vi.mock("@/context/ExtensionStateContext", () => ({
+vi.mock("@src/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
 		mcpServers: mockMcpServers(),
 	}),

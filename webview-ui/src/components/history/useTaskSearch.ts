@@ -3,7 +3,7 @@ import { Fzf } from "fzf"
 import type { HistoryItem } from "@roo-code/types"
 
 import { highlightFzfMatch } from "@/utils/highlight"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
 

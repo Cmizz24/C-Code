@@ -20,7 +20,7 @@ import { Section } from "./Section"
 import { SearchableSetting } from "./SearchableSetting"
 import { AutoApproveToggle } from "./AutoApproveToggle"
 import { MaxLimitInputs } from "./MaxLimitInputs"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { useAutoApprovalState } from "@/hooks/useAutoApprovalState"
 import { useAutoApprovalToggles } from "@/hooks/useAutoApprovalToggles"
 

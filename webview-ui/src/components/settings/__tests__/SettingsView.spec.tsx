@@ -4,7 +4,7 @@ import { render, screen, fireEvent, within } from "@/utils/test-utils"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import { vscode } from "@/utils/vscode"
-import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
+import { ExtensionStateContextProvider } from "@src/context/ExtensionStateContext"
 
 import SettingsView from "../SettingsView"
 

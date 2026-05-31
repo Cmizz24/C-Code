@@ -1,6 +1,6 @@
 import type { ExperimentId } from "@roo-code/types"
 
-import { ExtensionStateContextType } from "@/context/ExtensionStateContext"
+import { ExtensionStateContextType } from "@src/context/ExtensionStateContext"
 
 export type SetCachedStateField<K extends keyof ExtensionStateContextType> = (
 	field: K,

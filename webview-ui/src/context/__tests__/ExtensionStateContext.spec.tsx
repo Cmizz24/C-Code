@@ -8,7 +8,11 @@ import {
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 } from "@roo-code/types"
 
-import { ExtensionStateContextProvider, useExtensionState, mergeExtensionState } from "../ExtensionStateContext"
+import {
+	ExtensionStateContextProvider,
+	useExtensionState,
+	mergeExtensionState,
+} from "@src/context/ExtensionStateContext"
 
 const TestComponent = () => {
 	const { allowedCommands, setAllowedCommands, soundEnabled, showRooIgnoredFiles, setShowRooIgnoredFiles } =

@@ -5,7 +5,7 @@ import { Trans } from "react-i18next"
 import type { Command } from "@roo-code/types"
 
 import { useAppTranslation } from "@/i18n/TranslationContext"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 import {
 	AlertDialog,
 	AlertDialogAction,

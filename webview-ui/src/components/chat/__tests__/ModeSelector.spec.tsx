@@ -8,7 +8,7 @@ import { ModeSelector } from "../ModeSelector"
 
 const mockSetHasOpenedModeSelector = vi.hoisted(() => vi.fn())
 
-vi.mock("@/context/ExtensionStateContext", () => ({
+vi.mock("@src/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
 		hasOpenedModeSelector: false,
 		setHasOpenedModeSelector: mockSetHasOpenedModeSelector,
