@@ -63,31 +63,57 @@
 	},
 	"marketplace": {
 		"title": "MCP Marketplace",
-		"description": "Choose a trusted MCP server and let C set it up in a new task.",
-		"featuredCatalog": "Featured MCP servers",
+		"description": "검색, 코딩, 문서, 데이터베이스, 파일, 팀 워크플로우를 위한 신뢰할 수 있는 MCP 서버를 찾아보세요. 하나를 선택하면 C가 안내형 작업에서 설정합니다.",
+		"featuredCatalog": "추천 MCP 서버",
+		"stats": {
+			"servers": "선별된 서버",
+			"installed": "설치됨"
+		},
+		"search": {
+			"label": "Marketplace 검색",
+			"placeholder": "이름, 카테고리, 패키지 또는 secret으로 검색..."
+		},
+		"filters": {
+			"categoryLabel": "카테고리로 필터링",
+			"all": "모든 카테고리"
+		},
+		"resultsSummary": "서버 {{total}}개 중 {{shown}}개 표시 중",
+		"badges": {
+			"featured": "추천",
+			"popular": "인기"
+		},
 		"labels": {
-			"category": "Category",
-			"package": "Package",
-			"source": "Source",
-			"transport": "Transport",
-			"requiredSecrets": "Required secrets",
-			"prerequisites": "Prerequisites",
-			"suggestedScope": "Suggested scope",
-			"scope": "Target scope",
-			"verification": "Verification",
-			"riskNotes": "Risk notes"
+			"category": "카테고리",
+			"package": "패키지",
+			"source": "소스",
+			"transport": "전송 방식",
+			"requiredSecrets": "필수 secret",
+			"prerequisites": "사전 요구 사항",
+			"suggestedScope": "권장 범위",
+			"scope": "대상 범위",
+			"verification": "검증",
+			"riskNotes": "위험 참고 사항"
 		},
 		"scope": {
-			"global": "Global",
-			"project": "Project"
+			"global": "전역",
+			"project": "프로젝트"
 		},
 		"actions": {
-			"installWithAI": "Install with AI",
-			"configureAgain": "Configure Again"
+			"installWithAI": "AI로 설치",
+			"configureAgain": "다시 구성",
+			"clearFilters": "필터 지우기"
+		},
+		"empty": {
+			"title": "MCP 서버를 찾을 수 없음",
+			"description": "다른 검색어를 시도하거나 선택한 카테고리 필터를 지우세요."
 		},
 		"status": {
-			"installed": "Installed"
+			"installed": "설치됨"
 		},
-		"noneRequired": "None required"
+		"prerequisiteOverflow": "+{{count}}개 더",
+		"secretSummary": "{{count}}개 필수",
+		"optionalSecretSummary": "{{count}}개 선택 사항",
+		"noSecrets": "secret 없음",
+		"noneRequired": "필요 없음"
 	}
 }

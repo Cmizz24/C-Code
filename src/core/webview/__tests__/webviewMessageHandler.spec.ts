@@ -1107,9 +1107,25 @@ describe("webviewMessageHandler - installMarketplaceMcp", () => {
 		expect(prompt).toContain('Set up the "GitHub" MCP server')
 		expect(prompt).toContain("Target scope: global")
 		expect(prompt).toContain("GITHUB_PERSONAL_ACCESS_TOKEN")
+		expect(prompt).toContain("Optional secrets:\n- None")
 		expect(prompt).toContain("/mock/global/mcp_settings.json")
 		expect(vi.mocked(mockClineProvider.createTask).mock.calls[0][2]).toBeUndefined()
 		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({ type: "invoke", invoke: "newChat" })
+	})
+
+	it("creates setup guidance for Context7 streamable HTTP marketplace installs", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "installMarketplaceMcp",
+			marketplaceMcpId: "context7",
+			marketplaceMcpScope: "global",
+		} as any)
+
+		const prompt = vi.mocked(mockClineProvider.createTask).mock.calls[0][0] as string
+		expect(prompt).toContain('Set up the "Context7" MCP server')
+		expect(prompt).toContain("Transport type: streamable-http")
+		expect(prompt).toContain("Optional secrets:\n- CONTEXT7_API_KEY")
+		expect(prompt).toContain('"type": "streamable-http"')
+		expect(prompt).toContain('"url": "https://mcp.context7.com/mcp"')
 	})
 
 	it("includes project scope config guidance when project is selected", async () => {

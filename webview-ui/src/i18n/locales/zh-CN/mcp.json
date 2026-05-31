@@ -63,31 +63,57 @@
 	},
 	"marketplace": {
 		"title": "MCP Marketplace",
-		"description": "Choose a trusted MCP server and let C set it up in a new task.",
-		"featuredCatalog": "Featured MCP servers",
+		"description": "发现适用于搜索、编码、文档、数据库、文件和团队工作流的可信 MCP 服务器。选择一个，C 会在引导式任务中完成设置。",
+		"featuredCatalog": "精选 MCP 服务器",
+		"stats": {
+			"servers": "精选服务器",
+			"installed": "已安装"
+		},
+		"search": {
+			"label": "搜索 Marketplace",
+			"placeholder": "按名称、类别、包或 secret 搜索..."
+		},
+		"filters": {
+			"categoryLabel": "按类别筛选",
+			"all": "所有类别"
+		},
+		"resultsSummary": "正在显示 {{shown}} / {{total}} 个服务器",
+		"badges": {
+			"featured": "精选",
+			"popular": "热门"
+		},
 		"labels": {
-			"category": "Category",
-			"package": "Package",
-			"source": "Source",
-			"transport": "Transport",
-			"requiredSecrets": "Required secrets",
-			"prerequisites": "Prerequisites",
-			"suggestedScope": "Suggested scope",
-			"scope": "Target scope",
-			"verification": "Verification",
-			"riskNotes": "Risk notes"
+			"category": "类别",
+			"package": "包",
+			"source": "来源",
+			"transport": "传输方式",
+			"requiredSecrets": "必需 secret",
+			"prerequisites": "前提条件",
+			"suggestedScope": "建议范围",
+			"scope": "目标范围",
+			"verification": "验证",
+			"riskNotes": "风险说明"
 		},
 		"scope": {
-			"global": "Global",
-			"project": "Project"
+			"global": "全局",
+			"project": "项目"
 		},
 		"actions": {
-			"installWithAI": "Install with AI",
-			"configureAgain": "Configure Again"
+			"installWithAI": "使用 AI 安装",
+			"configureAgain": "重新配置",
+			"clearFilters": "清除筛选"
+		},
+		"empty": {
+			"title": "未找到 MCP 服务器",
+			"description": "请尝试其他搜索词，或清除所选类别筛选。"
 		},
 		"status": {
-			"installed": "Installed"
+			"installed": "已安装"
 		},
-		"noneRequired": "None required"
+		"prerequisiteOverflow": "+{{count}} 个更多",
+		"secretSummary": "{{count}} 个必需",
+		"optionalSecretSummary": "{{count}} 个可选",
+		"noSecrets": "无 secret",
+		"noneRequired": "无需"
 	}
 }

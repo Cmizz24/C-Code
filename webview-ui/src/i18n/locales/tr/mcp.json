@@ -63,31 +63,57 @@
 	},
 	"marketplace": {
 		"title": "MCP Marketplace",
-		"description": "Choose a trusted MCP server and let C set it up in a new task.",
-		"featuredCatalog": "Featured MCP servers",
+		"description": "Arama, kodlama, dokümantasyon, veritabanları, dosyalar ve ekip workflow'ları için güvenilir MCP sunucularını keşfet. Birini seç, C onu yönlendirmeli bir görevde kursun.",
+		"featuredCatalog": "Öne çıkan MCP sunucuları",
+		"stats": {
+			"servers": "Seçilmiş sunucular",
+			"installed": "Kurulu"
+		},
+		"search": {
+			"label": "Marketplace'te ara",
+			"placeholder": "Ada, kategoriye, pakete veya secret'a göre ara..."
+		},
+		"filters": {
+			"categoryLabel": "Kategoriye göre filtrele",
+			"all": "Tüm kategoriler"
+		},
+		"resultsSummary": "{{total}} sunucudan {{shown}} tanesi gösteriliyor",
+		"badges": {
+			"featured": "Öne çıkan",
+			"popular": "Popüler"
+		},
 		"labels": {
-			"category": "Category",
-			"package": "Package",
-			"source": "Source",
+			"category": "Kategori",
+			"package": "Paket",
+			"source": "Kaynak",
 			"transport": "Transport",
-			"requiredSecrets": "Required secrets",
-			"prerequisites": "Prerequisites",
-			"suggestedScope": "Suggested scope",
-			"scope": "Target scope",
-			"verification": "Verification",
-			"riskNotes": "Risk notes"
+			"requiredSecrets": "Gerekli secrets",
+			"prerequisites": "Ön koşullar",
+			"suggestedScope": "Önerilen kapsam",
+			"scope": "Hedef kapsam",
+			"verification": "Doğrulama",
+			"riskNotes": "Risk notları"
 		},
 		"scope": {
 			"global": "Global",
-			"project": "Project"
+			"project": "Proje"
 		},
 		"actions": {
-			"installWithAI": "Install with AI",
-			"configureAgain": "Configure Again"
+			"installWithAI": "AI ile kur",
+			"configureAgain": "Tekrar yapılandır",
+			"clearFilters": "Filtreleri temizle"
+		},
+		"empty": {
+			"title": "MCP sunucusu bulunamadı",
+			"description": "Farklı bir arama terimi dene veya seçili kategori filtresini temizle."
 		},
 		"status": {
-			"installed": "Installed"
+			"installed": "Kurulu"
 		},
-		"noneRequired": "None required"
+		"prerequisiteOverflow": "+{{count}} daha",
+		"secretSummary": "{{count}} gerekli",
+		"optionalSecretSummary": "{{count}} isteğe bağlı",
+		"noSecrets": "Secret yok",
+		"noneRequired": "Gerekli değil"
 	}
 }

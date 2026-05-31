@@ -63,31 +63,57 @@
 	},
 	"marketplace": {
 		"title": "MCP Marketplace",
-		"description": "Choose a trusted MCP server and let C set it up in a new task.",
-		"featuredCatalog": "Featured MCP servers",
+		"description": "Ontdek vertrouwde MCP-servers voor zoeken, coderen, docs, databases, bestanden en teamworkflows. Kies er een en C stelt deze in via een begeleide taak.",
+		"featuredCatalog": "Uitgelichte MCP-servers",
+		"stats": {
+			"servers": "Gecureerde servers",
+			"installed": "Geïnstalleerd"
+		},
+		"search": {
+			"label": "Marketplace doorzoeken",
+			"placeholder": "Zoek op naam, categorie, pakket of secret..."
+		},
+		"filters": {
+			"categoryLabel": "Filteren op categorie",
+			"all": "Alle categorieën"
+		},
+		"resultsSummary": "Toont {{shown}} van {{total}} servers",
+		"badges": {
+			"featured": "Uitgelicht",
+			"popular": "Populair"
+		},
 		"labels": {
-			"category": "Category",
-			"package": "Package",
-			"source": "Source",
+			"category": "Categorie",
+			"package": "Pakket",
+			"source": "Bron",
 			"transport": "Transport",
-			"requiredSecrets": "Required secrets",
-			"prerequisites": "Prerequisites",
-			"suggestedScope": "Suggested scope",
-			"scope": "Target scope",
-			"verification": "Verification",
-			"riskNotes": "Risk notes"
+			"requiredSecrets": "Vereiste secrets",
+			"prerequisites": "Vereisten",
+			"suggestedScope": "Aanbevolen scope",
+			"scope": "Doelscope",
+			"verification": "Verificatie",
+			"riskNotes": "Risiconotities"
 		},
 		"scope": {
 			"global": "Global",
 			"project": "Project"
 		},
 		"actions": {
-			"installWithAI": "Install with AI",
-			"configureAgain": "Configure Again"
+			"installWithAI": "Installeren met AI",
+			"configureAgain": "Opnieuw configureren",
+			"clearFilters": "Filters wissen"
+		},
+		"empty": {
+			"title": "Geen MCP-servers gevonden",
+			"description": "Probeer een andere zoekterm of wis het geselecteerde categoriefilter."
 		},
 		"status": {
-			"installed": "Installed"
+			"installed": "Geïnstalleerd"
 		},
-		"noneRequired": "None required"
+		"prerequisiteOverflow": "+{{count}} meer",
+		"secretSummary": "{{count}} vereist",
+		"optionalSecretSummary": "{{count}} optioneel",
+		"noSecrets": "Geen secrets",
+		"noneRequired": "Niet vereist"
 	}
 }

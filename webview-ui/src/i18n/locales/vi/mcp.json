@@ -63,31 +63,57 @@
 	},
 	"marketplace": {
 		"title": "MCP Marketplace",
-		"description": "Choose a trusted MCP server and let C set it up in a new task.",
-		"featuredCatalog": "Featured MCP servers",
+		"description": "Khám phá các server MCP đáng tin cậy cho tìm kiếm, coding, docs, cơ sở dữ liệu, tệp và workflow nhóm. Chọn một server và C sẽ thiết lập nó trong một task có hướng dẫn.",
+		"featuredCatalog": "Server MCP nổi bật",
+		"stats": {
+			"servers": "Server được tuyển chọn",
+			"installed": "Đã cài đặt"
+		},
+		"search": {
+			"label": "Tìm kiếm marketplace",
+			"placeholder": "Tìm theo tên, danh mục, gói hoặc secret..."
+		},
+		"filters": {
+			"categoryLabel": "Lọc theo danh mục",
+			"all": "Tất cả danh mục"
+		},
+		"resultsSummary": "Đang hiển thị {{shown}} trong số {{total}} server",
+		"badges": {
+			"featured": "Nổi bật",
+			"popular": "Phổ biến"
+		},
 		"labels": {
-			"category": "Category",
-			"package": "Package",
-			"source": "Source",
+			"category": "Danh mục",
+			"package": "Gói",
+			"source": "Nguồn",
 			"transport": "Transport",
-			"requiredSecrets": "Required secrets",
-			"prerequisites": "Prerequisites",
-			"suggestedScope": "Suggested scope",
-			"scope": "Target scope",
-			"verification": "Verification",
-			"riskNotes": "Risk notes"
+			"requiredSecrets": "Secret bắt buộc",
+			"prerequisites": "Điều kiện tiên quyết",
+			"suggestedScope": "Phạm vi đề xuất",
+			"scope": "Phạm vi đích",
+			"verification": "Xác minh",
+			"riskNotes": "Ghi chú rủi ro"
 		},
 		"scope": {
 			"global": "Global",
-			"project": "Project"
+			"project": "Dự án"
 		},
 		"actions": {
-			"installWithAI": "Install with AI",
-			"configureAgain": "Configure Again"
+			"installWithAI": "Cài đặt bằng AI",
+			"configureAgain": "Cấu hình lại",
+			"clearFilters": "Xóa bộ lọc"
+		},
+		"empty": {
+			"title": "Không tìm thấy server MCP",
+			"description": "Thử một cụm từ tìm kiếm khác hoặc xóa bộ lọc danh mục đã chọn."
 		},
 		"status": {
-			"installed": "Installed"
+			"installed": "Đã cài đặt"
 		},
-		"noneRequired": "None required"
+		"prerequisiteOverflow": "+{{count}} nữa",
+		"secretSummary": "{{count}} bắt buộc",
+		"optionalSecretSummary": "{{count}} tùy chọn",
+		"noSecrets": "Không có secret",
+		"noneRequired": "Không yêu cầu"
 	}
 }

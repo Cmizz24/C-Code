@@ -63,31 +63,57 @@
 	},
 	"marketplace": {
 		"title": "MCP Marketplace",
-		"description": "Choose a trusted MCP server and let C set it up in a new task.",
-		"featuredCatalog": "Featured MCP servers",
+		"description": "खोज, कोडिंग, दस्तावेज़ों, डेटाबेस, फ़ाइलों और टीम वर्कफ़्लो के लिए भरोसेमंद MCP सर्वर खोजें। एक चुनें और C इसे एक निर्देशित टास्क में सेट अप करेगा।",
+		"featuredCatalog": "विशेष MCP सर्वर",
+		"stats": {
+			"servers": "चुने हुए सर्वर",
+			"installed": "इंस्टॉल किए गए"
+		},
+		"search": {
+			"label": "Marketplace खोजें",
+			"placeholder": "नाम, श्रेणी, पैकेज या सीक्रेट से खोजें..."
+		},
+		"filters": {
+			"categoryLabel": "श्रेणी से फ़िल्टर करें",
+			"all": "सभी श्रेणियाँ"
+		},
+		"resultsSummary": "कुल {{total}} में से {{shown}} सर्वर दिखाए जा रहे हैं",
+		"badges": {
+			"featured": "विशेष",
+			"popular": "लोकप्रिय"
+		},
 		"labels": {
-			"category": "Category",
-			"package": "Package",
-			"source": "Source",
-			"transport": "Transport",
-			"requiredSecrets": "Required secrets",
-			"prerequisites": "Prerequisites",
-			"suggestedScope": "Suggested scope",
-			"scope": "Target scope",
-			"verification": "Verification",
-			"riskNotes": "Risk notes"
+			"category": "श्रेणी",
+			"package": "पैकेज",
+			"source": "स्रोत",
+			"transport": "ट्रांसपोर्ट",
+			"requiredSecrets": "आवश्यक सीक्रेट",
+			"prerequisites": "पूर्वापेक्षाएँ",
+			"suggestedScope": "सुझाया गया स्कोप",
+			"scope": "लक्षित स्कोप",
+			"verification": "सत्यापन",
+			"riskNotes": "जोखिम नोट"
 		},
 		"scope": {
-			"global": "Global",
-			"project": "Project"
+			"global": "ग्लोबल",
+			"project": "प्रोजेक्ट"
 		},
 		"actions": {
-			"installWithAI": "Install with AI",
-			"configureAgain": "Configure Again"
+			"installWithAI": "AI के साथ इंस्टॉल करें",
+			"configureAgain": "फिर से कॉन्फ़िगर करें",
+			"clearFilters": "फ़िल्टर साफ़ करें"
+		},
+		"empty": {
+			"title": "कोई MCP सर्वर नहीं मिला",
+			"description": "कोई दूसरा खोज शब्द आज़माएँ या चुना गया श्रेणी फ़िल्टर साफ़ करें।"
 		},
 		"status": {
-			"installed": "Installed"
+			"installed": "इंस्टॉल किया गया"
 		},
-		"noneRequired": "None required"
+		"prerequisiteOverflow": "+{{count}} और",
+		"secretSummary": "{{count}} आवश्यक",
+		"optionalSecretSummary": "{{count}} वैकल्पिक",
+		"noSecrets": "कोई सीक्रेट नहीं",
+		"noneRequired": "कुछ भी आवश्यक नहीं"
 	}
 }

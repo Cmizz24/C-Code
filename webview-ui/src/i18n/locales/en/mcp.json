@@ -63,8 +63,25 @@
 	},
 	"marketplace": {
 		"title": "MCP Marketplace",
-		"description": "Choose a trusted MCP server and let C set it up in a new task.",
+		"description": "Discover trusted MCP servers for search, coding, docs, databases, files, and team workflows. Choose one and C will set it up in a guided task.",
 		"featuredCatalog": "Featured MCP servers",
+		"stats": {
+			"servers": "Curated servers",
+			"installed": "Installed"
+		},
+		"search": {
+			"label": "Search marketplace",
+			"placeholder": "Search by name, category, package, or secret..."
+		},
+		"filters": {
+			"categoryLabel": "Filter by category",
+			"all": "All categories"
+		},
+		"resultsSummary": "Showing {{shown}} of {{total}} servers",
+		"badges": {
+			"featured": "Featured",
+			"popular": "Popular"
+		},
 		"labels": {
 			"category": "Category",
 			"package": "Package",
@@ -83,11 +100,20 @@
 		},
 		"actions": {
 			"installWithAI": "Install with AI",
-			"configureAgain": "Configure Again"
+			"configureAgain": "Configure Again",
+			"clearFilters": "Clear filters"
+		},
+		"empty": {
+			"title": "No MCP servers found",
+			"description": "Try a different search term or clear the selected category filter."
 		},
 		"status": {
 			"installed": "Installed"
 		},
+		"prerequisiteOverflow": "+{{count}} more",
+		"secretSummary": "{{count}} required",
+		"optionalSecretSummary": "{{count}} optional",
+		"noSecrets": "No secrets",
 		"noneRequired": "None required"
 	}
 }

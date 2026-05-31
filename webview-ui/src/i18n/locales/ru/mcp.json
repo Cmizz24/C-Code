@@ -63,31 +63,57 @@
 	},
 	"marketplace": {
 		"title": "MCP Marketplace",
-		"description": "Choose a trusted MCP server and let C set it up in a new task.",
-		"featuredCatalog": "Featured MCP servers",
+		"description": "Открой доверенные MCP-серверы для поиска, кода, документации, баз данных, файлов и командных workflow. Выбери один, и C настроит его в задаче с подсказками.",
+		"featuredCatalog": "Рекомендуемые MCP-серверы",
+		"stats": {
+			"servers": "Отобранные серверы",
+			"installed": "Установлено"
+		},
+		"search": {
+			"label": "Поиск в Marketplace",
+			"placeholder": "Ищи по имени, категории, пакету или secret..."
+		},
+		"filters": {
+			"categoryLabel": "Фильтр по категории",
+			"all": "Все категории"
+		},
+		"resultsSummary": "Показано {{shown}} из {{total}} серверов",
+		"badges": {
+			"featured": "Рекомендуемый",
+			"popular": "Популярный"
+		},
 		"labels": {
-			"category": "Category",
-			"package": "Package",
-			"source": "Source",
-			"transport": "Transport",
-			"requiredSecrets": "Required secrets",
-			"prerequisites": "Prerequisites",
-			"suggestedScope": "Suggested scope",
-			"scope": "Target scope",
-			"verification": "Verification",
-			"riskNotes": "Risk notes"
+			"category": "Категория",
+			"package": "Пакет",
+			"source": "Источник",
+			"transport": "Транспорт",
+			"requiredSecrets": "Обязательные secrets",
+			"prerequisites": "Предварительные требования",
+			"suggestedScope": "Рекомендуемая область",
+			"scope": "Целевая область",
+			"verification": "Проверка",
+			"riskNotes": "Примечания о рисках"
 		},
 		"scope": {
-			"global": "Global",
-			"project": "Project"
+			"global": "Глобально",
+			"project": "Проект"
 		},
 		"actions": {
-			"installWithAI": "Install with AI",
-			"configureAgain": "Configure Again"
+			"installWithAI": "Установить с AI",
+			"configureAgain": "Настроить снова",
+			"clearFilters": "Очистить фильтры"
+		},
+		"empty": {
+			"title": "MCP-серверы не найдены",
+			"description": "Попробуй другой поисковый запрос или очисти выбранный фильтр категории."
 		},
 		"status": {
-			"installed": "Installed"
+			"installed": "Установлено"
 		},
-		"noneRequired": "None required"
+		"prerequisiteOverflow": "+{{count}} еще",
+		"secretSummary": "{{count}} обязательных",
+		"optionalSecretSummary": "{{count}} необязательных",
+		"noSecrets": "Без secrets",
+		"noneRequired": "Не требуется"
 	}
 }

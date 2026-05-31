@@ -63,31 +63,57 @@
 	},
 	"marketplace": {
 		"title": "MCP Marketplace",
-		"description": "Choose a trusted MCP server and let C set it up in a new task.",
-		"featuredCatalog": "Featured MCP servers",
+		"description": "検索、コーディング、ドキュメント、データベース、ファイル、チームワークフロー向けの信頼できる MCP サーバーを見つけましょう。1つ選ぶと、C がガイド付きタスクでセットアップします。",
+		"featuredCatalog": "注目の MCP サーバー",
+		"stats": {
+			"servers": "厳選サーバー",
+			"installed": "インストール済み"
+		},
+		"search": {
+			"label": "Marketplace を検索",
+			"placeholder": "名前、カテゴリ、パッケージ、secret で検索..."
+		},
+		"filters": {
+			"categoryLabel": "カテゴリでフィルター",
+			"all": "すべてのカテゴリ"
+		},
+		"resultsSummary": "{{total}} 件中 {{shown}} 件のサーバーを表示",
+		"badges": {
+			"featured": "注目",
+			"popular": "人気"
+		},
 		"labels": {
-			"category": "Category",
-			"package": "Package",
-			"source": "Source",
-			"transport": "Transport",
-			"requiredSecrets": "Required secrets",
-			"prerequisites": "Prerequisites",
-			"suggestedScope": "Suggested scope",
-			"scope": "Target scope",
-			"verification": "Verification",
-			"riskNotes": "Risk notes"
+			"category": "カテゴリ",
+			"package": "パッケージ",
+			"source": "ソース",
+			"transport": "トランスポート",
+			"requiredSecrets": "必須 secret",
+			"prerequisites": "前提条件",
+			"suggestedScope": "推奨スコープ",
+			"scope": "対象スコープ",
+			"verification": "検証",
+			"riskNotes": "リスクメモ"
 		},
 		"scope": {
-			"global": "Global",
-			"project": "Project"
+			"global": "グローバル",
+			"project": "プロジェクト"
 		},
 		"actions": {
-			"installWithAI": "Install with AI",
-			"configureAgain": "Configure Again"
+			"installWithAI": "AI でインストール",
+			"configureAgain": "再設定",
+			"clearFilters": "フィルターをクリア"
+		},
+		"empty": {
+			"title": "MCP サーバーが見つかりません",
+			"description": "別の検索語を試すか、選択中のカテゴリフィルターをクリアしてください。"
 		},
 		"status": {
-			"installed": "Installed"
+			"installed": "インストール済み"
 		},
-		"noneRequired": "None required"
+		"prerequisiteOverflow": "+{{count}} 件",
+		"secretSummary": "{{count}} 件必須",
+		"optionalSecretSummary": "{{count}} 件任意",
+		"noSecrets": "secret なし",
+		"noneRequired": "不要"
 	}
 }

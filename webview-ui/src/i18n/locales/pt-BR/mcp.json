@@ -63,31 +63,57 @@
 	},
 	"marketplace": {
 		"title": "MCP Marketplace",
-		"description": "Choose a trusted MCP server and let C set it up in a new task.",
-		"featuredCatalog": "Featured MCP servers",
+		"description": "Descubra servidores MCP confiáveis para busca, código, docs, bancos de dados, arquivos e workflows de equipe. Escolha um e o C vai configurá-lo em uma tarefa guiada.",
+		"featuredCatalog": "Servidores MCP em destaque",
+		"stats": {
+			"servers": "Servidores selecionados",
+			"installed": "Instalados"
+		},
+		"search": {
+			"label": "Pesquisar no Marketplace",
+			"placeholder": "Pesquise por nome, categoria, pacote ou secret..."
+		},
+		"filters": {
+			"categoryLabel": "Filtrar por categoria",
+			"all": "Todas as categorias"
+		},
+		"resultsSummary": "Mostrando {{shown}} de {{total}} servidores",
+		"badges": {
+			"featured": "Destaque",
+			"popular": "Popular"
+		},
 		"labels": {
-			"category": "Category",
-			"package": "Package",
-			"source": "Source",
+			"category": "Categoria",
+			"package": "Pacote",
+			"source": "Fonte",
 			"transport": "Transport",
-			"requiredSecrets": "Required secrets",
-			"prerequisites": "Prerequisites",
-			"suggestedScope": "Suggested scope",
-			"scope": "Target scope",
-			"verification": "Verification",
-			"riskNotes": "Risk notes"
+			"requiredSecrets": "Secrets obrigatórios",
+			"prerequisites": "Pré-requisitos",
+			"suggestedScope": "Escopo sugerido",
+			"scope": "Escopo de destino",
+			"verification": "Verificação",
+			"riskNotes": "Notas de risco"
 		},
 		"scope": {
 			"global": "Global",
-			"project": "Project"
+			"project": "Projeto"
 		},
 		"actions": {
-			"installWithAI": "Install with AI",
-			"configureAgain": "Configure Again"
+			"installWithAI": "Instalar com IA",
+			"configureAgain": "Configurar novamente",
+			"clearFilters": "Limpar filtros"
+		},
+		"empty": {
+			"title": "Nenhum servidor MCP encontrado",
+			"description": "Tente outro termo de busca ou limpe o filtro de categoria selecionado."
 		},
 		"status": {
-			"installed": "Installed"
+			"installed": "Instalado"
 		},
-		"noneRequired": "None required"
+		"prerequisiteOverflow": "+{{count}} mais",
+		"secretSummary": "{{count}} obrigatórios",
+		"optionalSecretSummary": "{{count}} opcionais",
+		"noSecrets": "Sem secrets",
+		"noneRequired": "Nenhum obrigatório"
 	}
 }

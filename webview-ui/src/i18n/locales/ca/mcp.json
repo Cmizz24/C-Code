@@ -63,31 +63,57 @@
 	},
 	"marketplace": {
 		"title": "MCP Marketplace",
-		"description": "Choose a trusted MCP server and let C set it up in a new task.",
-		"featuredCatalog": "Featured MCP servers",
+		"description": "Descobreix servidors MCP de confiança per a cerca, codi, documentació, bases de dades, fitxers i fluxos de treball d'equip. Tria'n un i C el configurarà en una tasca guiada.",
+		"featuredCatalog": "Servidors MCP destacats",
+		"stats": {
+			"servers": "Servidors seleccionats",
+			"installed": "Instal·lats"
+		},
+		"search": {
+			"label": "Cerca al Marketplace",
+			"placeholder": "Cerca per nom, categoria, paquet o secret..."
+		},
+		"filters": {
+			"categoryLabel": "Filtra per categoria",
+			"all": "Totes les categories"
+		},
+		"resultsSummary": "Mostrant {{shown}} de {{total}} servidors",
+		"badges": {
+			"featured": "Destacat",
+			"popular": "Popular"
+		},
 		"labels": {
-			"category": "Category",
-			"package": "Package",
-			"source": "Source",
+			"category": "Categoria",
+			"package": "Paquet",
+			"source": "Font",
 			"transport": "Transport",
-			"requiredSecrets": "Required secrets",
-			"prerequisites": "Prerequisites",
-			"suggestedScope": "Suggested scope",
-			"scope": "Target scope",
-			"verification": "Verification",
-			"riskNotes": "Risk notes"
+			"requiredSecrets": "Secrets necessaris",
+			"prerequisites": "Requisits previs",
+			"suggestedScope": "Àmbit suggerit",
+			"scope": "Àmbit de destinació",
+			"verification": "Verificació",
+			"riskNotes": "Notes de risc"
 		},
 		"scope": {
 			"global": "Global",
-			"project": "Project"
+			"project": "Projecte"
 		},
 		"actions": {
-			"installWithAI": "Install with AI",
-			"configureAgain": "Configure Again"
+			"installWithAI": "Instal·la amb AI",
+			"configureAgain": "Configura de nou",
+			"clearFilters": "Esborra filtres"
+		},
+		"empty": {
+			"title": "No s'han trobat servidors MCP",
+			"description": "Prova un altre terme de cerca o esborra el filtre de categoria seleccionat."
 		},
 		"status": {
-			"installed": "Installed"
+			"installed": "Instal·lat"
 		},
-		"noneRequired": "None required"
+		"prerequisiteOverflow": "+{{count}} més",
+		"secretSummary": "{{count}} necessaris",
+		"optionalSecretSummary": "{{count}} opcionals",
+		"noSecrets": "Cap secret",
+		"noneRequired": "Cap necessari"
 	}
 }

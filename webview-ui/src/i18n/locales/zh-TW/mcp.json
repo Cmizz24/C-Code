@@ -63,31 +63,57 @@
 	},
 	"marketplace": {
 		"title": "MCP Marketplace",
-		"description": "Choose a trusted MCP server and let C set it up in a new task.",
-		"featuredCatalog": "Featured MCP servers",
+		"description": "探索適用於搜尋、編碼、文件、資料庫、檔案和團隊工作流程的可信 MCP 伺服器。選擇一個，C 會在引導式任務中完成設定。",
+		"featuredCatalog": "精選 MCP 伺服器",
+		"stats": {
+			"servers": "精選伺服器",
+			"installed": "已安裝"
+		},
+		"search": {
+			"label": "搜尋 Marketplace",
+			"placeholder": "依名稱、類別、套件或 secret 搜尋..."
+		},
+		"filters": {
+			"categoryLabel": "依類別篩選",
+			"all": "所有類別"
+		},
+		"resultsSummary": "正在顯示 {{shown}} / {{total}} 個伺服器",
+		"badges": {
+			"featured": "精選",
+			"popular": "熱門"
+		},
 		"labels": {
-			"category": "Category",
-			"package": "Package",
-			"source": "Source",
-			"transport": "Transport",
-			"requiredSecrets": "Required secrets",
-			"prerequisites": "Prerequisites",
-			"suggestedScope": "Suggested scope",
-			"scope": "Target scope",
-			"verification": "Verification",
-			"riskNotes": "Risk notes"
+			"category": "類別",
+			"package": "套件",
+			"source": "來源",
+			"transport": "傳輸方式",
+			"requiredSecrets": "必要 secret",
+			"prerequisites": "先決條件",
+			"suggestedScope": "建議範圍",
+			"scope": "目標範圍",
+			"verification": "驗證",
+			"riskNotes": "風險說明"
 		},
 		"scope": {
-			"global": "Global",
-			"project": "Project"
+			"global": "全域",
+			"project": "專案"
 		},
 		"actions": {
-			"installWithAI": "Install with AI",
-			"configureAgain": "Configure Again"
+			"installWithAI": "使用 AI 安裝",
+			"configureAgain": "重新設定",
+			"clearFilters": "清除篩選"
+		},
+		"empty": {
+			"title": "找不到 MCP 伺服器",
+			"description": "請嘗試其他搜尋詞，或清除所選類別篩選。"
 		},
 		"status": {
-			"installed": "Installed"
+			"installed": "已安裝"
 		},
-		"noneRequired": "None required"
+		"prerequisiteOverflow": "+{{count}} 個更多",
+		"secretSummary": "{{count}} 個必要",
+		"optionalSecretSummary": "{{count}} 個選用",
+		"noSecrets": "無 secret",
+		"noneRequired": "不需要"
 	}
 }

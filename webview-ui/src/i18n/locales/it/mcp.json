@@ -63,31 +63,57 @@
 	},
 	"marketplace": {
 		"title": "MCP Marketplace",
-		"description": "Choose a trusted MCP server and let C set it up in a new task.",
-		"featuredCatalog": "Featured MCP servers",
+		"description": "Scopri server MCP affidabili per ricerca, coding, documentazione, database, file e workflow di team. Scegline uno e C lo configurerà in un'attività guidata.",
+		"featuredCatalog": "Server MCP in evidenza",
+		"stats": {
+			"servers": "Server curati",
+			"installed": "Installati"
+		},
+		"search": {
+			"label": "Cerca nel Marketplace",
+			"placeholder": "Cerca per nome, categoria, pacchetto o secret..."
+		},
+		"filters": {
+			"categoryLabel": "Filtra per categoria",
+			"all": "Tutte le categorie"
+		},
+		"resultsSummary": "Visualizzazione di {{shown}} server su {{total}}",
+		"badges": {
+			"featured": "In evidenza",
+			"popular": "Popolare"
+		},
 		"labels": {
-			"category": "Category",
-			"package": "Package",
-			"source": "Source",
+			"category": "Categoria",
+			"package": "Pacchetto",
+			"source": "Fonte",
 			"transport": "Transport",
-			"requiredSecrets": "Required secrets",
-			"prerequisites": "Prerequisites",
-			"suggestedScope": "Suggested scope",
-			"scope": "Target scope",
-			"verification": "Verification",
-			"riskNotes": "Risk notes"
+			"requiredSecrets": "Secret richiesti",
+			"prerequisites": "Prerequisiti",
+			"suggestedScope": "Ambito suggerito",
+			"scope": "Ambito di destinazione",
+			"verification": "Verifica",
+			"riskNotes": "Note sui rischi"
 		},
 		"scope": {
 			"global": "Global",
-			"project": "Project"
+			"project": "Progetto"
 		},
 		"actions": {
-			"installWithAI": "Install with AI",
-			"configureAgain": "Configure Again"
+			"installWithAI": "Installa con AI",
+			"configureAgain": "Configura di nuovo",
+			"clearFilters": "Cancella filtri"
+		},
+		"empty": {
+			"title": "Nessun server MCP trovato",
+			"description": "Prova un altro termine di ricerca o cancella il filtro di categoria selezionato."
 		},
 		"status": {
-			"installed": "Installed"
+			"installed": "Installato"
 		},
-		"noneRequired": "None required"
+		"prerequisiteOverflow": "+{{count}} altri",
+		"secretSummary": "{{count}} obbligatori",
+		"optionalSecretSummary": "{{count}} opzionali",
+		"noSecrets": "Nessun secret",
+		"noneRequired": "Nessuno richiesto"
 	}
 }

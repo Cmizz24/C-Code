@@ -69,6 +69,9 @@ Marketplace metadata:
 Required secrets:
 ${formatList(item.requiredSecrets)}
 
+Optional secrets:
+${formatList(item.optionalSecrets ?? [])}
+
 Prerequisites:
 ${formatList(item.prerequisites)}
 
