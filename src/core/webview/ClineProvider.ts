@@ -84,6 +84,7 @@ import { SkillsManager } from "../../services/skills/SkillsManager"
 import {
 	EmailNotificationService,
 	type EmailNotificationOutcome,
+	type EmailNotificationPayload,
 } from "../../services/notifications/EmailNotificationService"
 
 import { fileExistsAtPath } from "../../utils/fs"
@@ -492,6 +493,10 @@ export class ClineProvider
 						return
 					}
 
+					if (this.isTaskAbandonedCleanupAbort(instance)) {
+						return
+					}
+
 					this.notifyTaskCompleted(
 						instance,
 						instance.abortReason === "streaming_failed" ? "failed" : "aborted",
@@ -692,29 +697,48 @@ export class ClineProvider
 			return
 		}
 
-		if (this.hasEmailNotificationTaskOutcomeBeenSent(task.taskId, outcome)) {
+		this.notifyTaskOutcome({
+			taskId: task.taskId,
+			outcome,
+			summary: this.getEmailNotificationSummary(task, outcome),
+			workspacePath: task.workspacePath,
+			mode: task.taskMode,
+			tokenUsage,
+			toolUsage,
+		})
+	}
+
+	private notifyDelegatedWorkflowCompleted(
+		historyItem: Pick<HistoryItem, "id" | "workspace" | "mode">,
+		completionResultSummary: string,
+	): void {
+		this.notifyTaskOutcome({
+			taskId: historyItem.id,
+			outcome: "success",
+			summary: this.formatEmailNotificationSummary(completionResultSummary) ?? DEFAULT_COMPLETION_EMAIL_SUMMARY,
+			workspacePath: historyItem.workspace,
+			mode: typeof historyItem.mode === "string" ? historyItem.mode : undefined,
+		})
+	}
+
+	private notifyTaskOutcome(payload: EmailNotificationPayload): void {
+		if (this.hasEmailNotificationTaskOutcomeBeenSent(payload.taskId, payload.outcome)) {
 			return
 		}
 
-		this.rememberEmailNotificationTaskOutcome(task.taskId, outcome)
+		this.rememberEmailNotificationTaskOutcome(payload.taskId, payload.outcome)
 
-		this.emailNotificationService
-			.sendTaskNotification({
-				taskId: task.taskId,
-				outcome,
-				summary: this.getEmailNotificationSummary(task, outcome),
-				workspacePath: task.workspacePath,
-				mode: task.taskMode,
-				tokenUsage,
-				toolUsage,
-			})
-			.catch((error) => {
-				this.log(
-					`[email-notifications] Unexpected notification error: ${
-						error instanceof Error ? error.message : String(error)
-					}`,
-				)
-			})
+		this.emailNotificationService.sendTaskNotification(payload).catch((error) => {
+			this.log(
+				`[email-notifications] Unexpected notification error: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			)
+		})
+	}
+
+	private isTaskAbandonedCleanupAbort(task: Task): boolean {
+		return task.abandoned === true && task.abortReason !== "streaming_failed"
 	}
 
 	private hasEmailNotificationTaskOutcomeBeenSent(taskId: string, outcome: EmailNotificationOutcome): boolean {
@@ -5817,6 +5841,7 @@ export class ClineProvider
 			childIds,
 		}
 		await this.updateTaskHistory(updatedHistory)
+		this.notifyDelegatedWorkflowCompleted(updatedHistory, completionResultSummary)
 
 		// 6) Emit TaskDelegationCompleted (provider-level)
 		try {

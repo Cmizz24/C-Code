@@ -204,6 +204,7 @@ vi.mock("../../task/Task", () => ({
 			overwriteClineMessages: vi.fn(),
 			overwriteApiConversationHistory: vi.fn(),
 			resumeAfterParallelExecution: vi.fn(),
+			resumeAfterDelegation: vi.fn(),
 			dispose: vi.fn(),
 			getTaskNumber: vi.fn().mockReturnValue(0),
 			setTaskNumber: vi.fn(),
@@ -412,6 +413,7 @@ describe("ClineProvider", () => {
 				}),
 				overwriteApiConversationHistory: vi.fn(),
 				resumeAfterParallelExecution: vi.fn(),
+				resumeAfterDelegation: vi.fn(),
 				restoreClineMessagesFromHistory: vi.fn(async () => {
 					await loadSavedMessages()
 				}),
@@ -767,6 +769,75 @@ describe("ClineProvider", () => {
 					outcome: "aborted",
 					tokenUsage,
 					toolUsage,
+				}),
+			)
+		})
+
+		test("suppresses abandoned cleanup abort notifications during delegation handoff", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = new Task({ ...defaultTaskOptions, taskId: "delegation-cleanup-parent" } as any)
+			;(task as any).abandoned = true
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(RooCodeEventName.TaskAborted)
+
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+		})
+
+		test("sends one parent workflow success notification for delegated completion", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const transcriptText = "Earlier parent transcript text that must not appear in notification payload"
+
+			;(provider as any).notifyDelegatedWorkflowCompleted(
+				createHistoryItem({
+					id: "delegated-parent-success",
+					workspace: "/workspace",
+					mode: "code",
+				}),
+				"Child completed delegated work.\nReady for parent follow-up.",
+			)
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			expect(sendTaskNotification).toHaveBeenCalledWith({
+				taskId: "delegated-parent-success",
+				outcome: "success",
+				summary: "Child completed delegated work. Ready for parent follow-up.",
+				workspacePath: "/workspace",
+				mode: "code",
+			})
+			expect(JSON.stringify(sendTaskNotification.mock.calls[0][0])).not.toContain(transcriptText)
+		})
+
+		test("deduplicates delegated completion across child cleanup and parent resume", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const historyItem = createHistoryItem({
+				id: "delegated-parent-dedupe",
+				workspace: "/workspace",
+				mode: "code",
+			})
+			const parentTask = new Task({ ...defaultTaskOptions, taskId: "delegated-parent-dedupe" } as any)
+			;(provider as any).taskCreationCallback(parentTask)
+			;(provider as any).notifyDelegatedWorkflowCompleted(historyItem, "Child finished delegated work.")
+			;(provider as any).notifyDelegatedWorkflowCompleted(
+				historyItem,
+				"Duplicate child finish should be ignored.",
+			)
+			;(parentTask as any).abandoned = true
+			parentTask.emit(RooCodeEventName.TaskAborted)
+			parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			expect(sendTaskNotification).toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "delegated-parent-dedupe",
+					outcome: "success",
+					summary: "Child finished delegated work.",
+				}),
+			)
+			expect(sendTaskNotification).not.toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "delegated-parent-dedupe",
+					outcome: "aborted",
 				}),
 			)
 		})
