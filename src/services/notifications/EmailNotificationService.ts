@@ -31,6 +31,7 @@ type EmailMailOptions = {
 	to: string[]
 	subject: string
 	text: string
+	html?: string
 }
 
 type EmailTransport = {
@@ -46,11 +47,28 @@ const DEFAULT_SMTP_PORT = 587
 const DEFAULT_SUBJECT_TEMPLATE = "C Code task {outcome}: {taskId}"
 const MAX_SENT_NOTIFICATION_KEYS = 500
 
+const OUTCOME_LABELS: Record<EmailNotificationOutcome, string> = {
+	success: "Completed",
+	failed: "Failed",
+	aborted: "Aborted",
+}
+
+const OUTCOME_COLORS: Record<EmailNotificationOutcome, string> = {
+	success: "#2da44e",
+	failed: "#cf222e",
+	aborted: "#bf8700",
+}
+
+type NotificationBodyRow = {
+	label: string
+	value: string
+}
+
 export class EmailNotificationService {
 	private readonly log?: (message: string) => void
 	private readonly transportFactory: (options: EmailTransportOptions) => EmailTransport
-	private readonly sentNotificationKeys = new Set<string>()
-	private readonly sentNotificationKeyOrder: string[] = []
+	private readonly sentTaskOutcomes = new Map<string, EmailNotificationOutcome>()
+	private readonly sentTaskOutcomeOrder: string[] = []
 
 	constructor(
 		private readonly contextProxy: ContextProxy,
@@ -75,13 +93,11 @@ export class EmailNotificationService {
 				return
 			}
 
-			const notificationKey = `${payload.taskId}:${payload.outcome}`
-
-			if (this.hasNotificationBeenSent(notificationKey)) {
+			if (this.hasNotificationBeenSent(payload)) {
 				return
 			}
 
-			this.rememberNotificationKey(notificationKey)
+			this.rememberNotification(payload)
 
 			const transport = this.transportFactory(config.transportOptions)
 
@@ -89,7 +105,8 @@ export class EmailNotificationService {
 				from: config.from,
 				to: config.recipients,
 				subject: this.renderSubject(config.subjectTemplate, payload),
-				text: this.renderBody(payload),
+				text: this.renderTextBody(payload),
+				html: this.renderHtmlBody(payload),
 			})
 		} catch (error) {
 			this.logError("Failed to send task completion email notification", error)
@@ -171,24 +188,94 @@ export class EmailNotificationService {
 		return this.replaceTemplateTokens(subjectTemplate, this.getTemplateTokens(payload))
 	}
 
-	private renderBody(payload: EmailNotificationPayload): string {
+	private renderTextBody(payload: EmailNotificationPayload): string {
 		const tokens = this.getTemplateTokens(payload)
+		const rows = this.getBodyRows(payload)
 		const lines = [
 			"C Code task notification",
 			"",
-			`Task ID: ${payload.taskId}`,
-			`Status: ${tokens.status}`,
-			`Workspace: ${tokens.workspace}`,
-			`Mode: ${tokens.mode}`,
-			`Total tokens in: ${tokens.totalTokensIn}`,
-			`Total tokens out: ${tokens.totalTokensOut}`,
-			`Context tokens: ${tokens.contextTokens}`,
-			`Total cost: ${tokens.totalCost}`,
-			`Tool attempts: ${tokens.toolAttempts}`,
-			`Tool failures: ${tokens.toolFailures}`,
+			`${tokens.status}: ${payload.taskId}`,
+			"",
+			...rows.map(({ label, value }) => `${label}: ${value}`),
+			"",
+			"Task transcripts and SMTP secrets are not included in this notification.",
 		]
 
 		return lines.join("\n")
+	}
+
+	private renderHtmlBody(payload: EmailNotificationPayload): string {
+		const tokens = this.getTemplateTokens(payload)
+		const rows = this.getBodyRows(payload)
+		const accentColor = OUTCOME_COLORS[payload.outcome]
+		const escapedStatus = this.escapeHtml(tokens.status)
+		const escapedTaskId = this.escapeHtml(payload.taskId)
+		const preheader = this.escapeHtml(`C Code task ${tokens.status}: ${payload.taskId}`)
+		const rowMarkup = rows
+			.map(
+				({ label, value }) => `
+					<tr>
+						<td style="padding:10px 0;color:#57606a;font-size:13px;line-height:18px;border-bottom:1px solid #d8dee4;">${this.escapeHtml(label)}</td>
+						<td style="padding:10px 0;color:#24292f;font-size:13px;line-height:18px;text-align:right;border-bottom:1px solid #d8dee4;font-weight:600;">${this.escapeHtml(value)}</td>
+					</tr>`,
+			)
+			.join("")
+
+		return `<!doctype html>
+<html lang="en">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>C Code task notification</title>
+	</head>
+	<body style="margin:0;padding:0;background-color:#f6f8fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#24292f;">
+		<div style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden;">${preheader}</div>
+		<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f6f8fa;margin:0;padding:24px 0;">
+			<tr>
+				<td align="center" style="padding:0 12px;">
+					<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:640px;background-color:#ffffff;border:1px solid #d8dee4;border-radius:12px;overflow:hidden;">
+						<tr>
+							<td style="background-color:#24292f;color:#ffffff;padding:20px 24px;">
+								<div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#c9d1d9;margin-bottom:8px;">C Code notification</div>
+								<div style="font-size:24px;line-height:30px;font-weight:700;margin:0;">Task ${escapedStatus}</div>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:24px;">
+								<div style="display:inline-block;background-color:${accentColor};color:#ffffff;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;margin-bottom:16px;">${escapedStatus}</div>
+								<div style="font-size:16px;line-height:24px;font-weight:700;margin-bottom:4px;">Task ID</div>
+								<div style="font-family:Consolas,'Liberation Mono',Menlo,monospace;font-size:14px;line-height:20px;color:#57606a;word-break:break-all;margin-bottom:20px;">${escapedTaskId}</div>
+								<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
+${rowMarkup}
+								</table>
+								<div style="margin-top:20px;padding:12px 14px;background-color:#f6f8fa;border:1px solid #d8dee4;border-radius:8px;color:#57606a;font-size:12px;line-height:18px;">
+									Task transcripts and SMTP secrets are not included in this notification.
+								</div>
+							</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>`
+	}
+
+	private getBodyRows(payload: EmailNotificationPayload): NotificationBodyRow[] {
+		const tokens = this.getTemplateTokens(payload)
+
+		return [
+			{ label: "Task ID", value: payload.taskId },
+			{ label: "Status", value: tokens.status },
+			{ label: "Workspace", value: tokens.workspace },
+			{ label: "Mode", value: tokens.mode },
+			{ label: "Total tokens in", value: tokens.totalTokensIn },
+			{ label: "Total tokens out", value: tokens.totalTokensOut },
+			{ label: "Context tokens", value: tokens.contextTokens },
+			{ label: "Total cost", value: tokens.totalCost },
+			{ label: "Tool attempts", value: tokens.toolAttempts },
+			{ label: "Tool failures", value: tokens.toolFailures },
+		]
 	}
 
 	private getTemplateTokens(payload: EmailNotificationPayload): Record<string, string> {
@@ -199,7 +286,7 @@ export class EmailNotificationService {
 		return {
 			taskId: payload.taskId,
 			outcome: payload.outcome,
-			status: payload.outcome,
+			status: OUTCOME_LABELS[payload.outcome],
 			workspace,
 			workspacePath: workspace,
 			mode: payload.mode || "unknown",
@@ -216,7 +303,18 @@ export class EmailNotificationService {
 	}
 
 	private replaceTemplateTokens(template: string, tokens: Record<string, string>): string {
-		return template.replace(/\{\{?([a-zA-Z0-9_]+)\}?\}/g, (match, tokenName: string) => tokens[tokenName] ?? match)
+		const normalizedTokens = Object.entries(tokens).reduce<Record<string, string>>((acc, [tokenName, value]) => {
+			acc[this.normalizeTemplateTokenName(tokenName)] = value
+			return acc
+		}, {})
+
+		return template.replace(/\{\{?([a-zA-Z0-9_]+)\}?\}/g, (match, tokenName: string) => {
+			return tokens[tokenName] ?? normalizedTokens[this.normalizeTemplateTokenName(tokenName)] ?? match
+		})
+	}
+
+	private normalizeTemplateTokenName(tokenName: string): string {
+		return tokenName.replaceAll("_", "").toLowerCase()
 	}
 
 	private getToolUsageCounts(toolUsage: ToolUsage | undefined): { attempts: number; failures: number } {
@@ -237,21 +335,53 @@ export class EmailNotificationService {
 		return typeof value === "number" && Number.isFinite(value) ? `$${value.toFixed(6)}` : "n/a"
 	}
 
-	private hasNotificationBeenSent(notificationKey: string): boolean {
-		return this.sentNotificationKeys.has(notificationKey)
+	private hasNotificationBeenSent(payload: EmailNotificationPayload): boolean {
+		const previousOutcome = this.sentTaskOutcomes.get(payload.taskId)
+
+		if (!previousOutcome) {
+			return false
+		}
+
+		if (previousOutcome === "success") {
+			return true
+		}
+
+		return payload.outcome !== "success"
 	}
 
-	private rememberNotificationKey(notificationKey: string): void {
-		this.sentNotificationKeys.add(notificationKey)
-		this.sentNotificationKeyOrder.push(notificationKey)
+	private rememberNotification(payload: EmailNotificationPayload): void {
+		if (!this.sentTaskOutcomes.has(payload.taskId)) {
+			this.sentTaskOutcomeOrder.push(payload.taskId)
+		}
 
-		while (this.sentNotificationKeyOrder.length > MAX_SENT_NOTIFICATION_KEYS) {
-			const oldestKey = this.sentNotificationKeyOrder.shift()
+		this.sentTaskOutcomes.set(payload.taskId, payload.outcome)
+
+		while (this.sentTaskOutcomeOrder.length > MAX_SENT_NOTIFICATION_KEYS) {
+			const oldestKey = this.sentTaskOutcomeOrder.shift()
 
 			if (oldestKey) {
-				this.sentNotificationKeys.delete(oldestKey)
+				this.sentTaskOutcomes.delete(oldestKey)
 			}
 		}
+	}
+
+	private escapeHtml(value: string): string {
+		return value.replace(/[&<>'"]/g, (character) => {
+			switch (character) {
+				case "&":
+					return "&amp;"
+				case "<":
+					return "&lt;"
+				case ">":
+					return "&gt;"
+				case "'":
+					return "&#39;"
+				case '"':
+					return "&quot;"
+				default:
+					return character
+			}
+		})
 	}
 
 	private logError(message: string, error: unknown): void {

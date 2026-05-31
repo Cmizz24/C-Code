@@ -580,7 +580,7 @@
 		},
 		"email": {
 			"label": "E-mailmeldingen inschakelen",
-			"description": "Verstuur platte-tekst SMTP-e-mailmeldingen wanneer een taak op het hoogste niveau klaar is. Taaktranscripten worden nooit opgenomen.",
+			"description": "Verstuur HTML SMTP-e-mailmeldingen met een platte-tekst fallback wanneer een taak op het hoogste niveau klaar is. Taaktranscripten worden nooit opgenomen.",
 			"notifyOnSuccess": {
 				"label": "Melden wanneer taken succesvol worden voltooid"
 			},
@@ -626,7 +626,7 @@
 			"smtpSubjectTemplate": {
 				"label": "Onderwerpsjabloon",
 				"placeholder": "C-taak {{outcome}}",
-				"description": "Optioneel. Beschikbare tokens: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+				"description": "Optioneel. Beschikbare tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens zijn niet hoofdlettergevoelig, dus {{taskId}} en {{taskid}} werken allebei."
 			}
 		}
 	},

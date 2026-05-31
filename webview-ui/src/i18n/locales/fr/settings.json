@@ -580,7 +580,7 @@
 		},
 		"email": {
 			"label": "Activer les notifications par email",
-			"description": "Envoie des notifications par email SMTP en texte brut lorsqu'une tâche de premier niveau se termine. Les transcriptions de tâches ne sont jamais incluses.",
+			"description": "Envoie des notifications par email SMTP en HTML avec une version de secours en texte brut lorsqu'une tâche de premier niveau se termine. Les transcriptions de tâches ne sont jamais incluses.",
 			"notifyOnSuccess": {
 				"label": "Notifier quand les tâches se terminent avec succès"
 			},
@@ -626,7 +626,7 @@
 			"smtpSubjectTemplate": {
 				"label": "Modèle d'objet",
 				"placeholder": "Tâche C {{outcome}}",
-				"description": "Facultatif. Tokens disponibles : {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+				"description": "Facultatif. Tokens disponibles : {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Les tokens ne tiennent pas compte de la casse, donc {{taskId}} et {{taskid}} fonctionnent tous les deux."
 			}
 		}
 	},

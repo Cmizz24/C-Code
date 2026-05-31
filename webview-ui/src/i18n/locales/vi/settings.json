@@ -580,7 +580,7 @@
 		},
 		"email": {
 			"label": "Bật thông báo email",
-			"description": "Gửi thông báo email SMTP dạng văn bản thuần khi tác vụ cấp cao nhất kết thúc. Bản ghi tác vụ không bao giờ được bao gồm.",
+			"description": "Gửi thông báo email SMTP dạng HTML với fallback văn bản thuần khi tác vụ cấp cao nhất kết thúc. Bản ghi tác vụ không bao giờ được bao gồm.",
 			"notifyOnSuccess": {
 				"label": "Thông báo khi tác vụ hoàn tất thành công"
 			},
@@ -626,7 +626,7 @@
 			"smtpSubjectTemplate": {
 				"label": "Mẫu chủ đề",
 				"placeholder": "Tác vụ C {{outcome}}",
-				"description": "Tùy chọn. Tokens có sẵn: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+				"description": "Tùy chọn. Tokens có sẵn: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens không phân biệt hoa thường, nên {{taskId}} và {{taskid}} đều hoạt động."
 			}
 		}
 	},

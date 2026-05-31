@@ -580,7 +580,7 @@
 		},
 		"email": {
 			"label": "Включить email-уведомления",
-			"description": "Отправляет простые текстовые SMTP email-уведомления, когда задача верхнего уровня завершается. Транскрипты задач никогда не включаются.",
+			"description": "Отправляет HTML SMTP email-уведомления с fallback в виде обычного текста, когда задача верхнего уровня завершается. Транскрипты задач никогда не включаются.",
 			"notifyOnSuccess": {
 				"label": "Уведомлять, когда задачи успешно завершены"
 			},
@@ -626,7 +626,7 @@
 			"smtpSubjectTemplate": {
 				"label": "Шаблон темы",
 				"placeholder": "Задача C {{outcome}}",
-				"description": "Необязательно. Доступные tokens: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+				"description": "Необязательно. Доступные tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens не учитывают регистр, поэтому {{taskId}} и {{taskid}} оба работают."
 			}
 		}
 	},

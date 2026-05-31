@@ -580,7 +580,7 @@
 		},
 		"email": {
 			"label": "email 알림 활성화",
-			"description": "최상위 작업이 끝나면 일반 텍스트 SMTP email 알림을 보냅니다. 작업 transcript는 절대 포함되지 않습니다.",
+			"description": "최상위 작업이 끝나면 일반 텍스트 fallback이 포함된 HTML SMTP email 알림을 보냅니다. 작업 transcript는 절대 포함되지 않습니다.",
 			"notifyOnSuccess": {
 				"label": "작업이 성공적으로 완료되면 알림"
 			},
@@ -626,7 +626,7 @@
 			"smtpSubjectTemplate": {
 				"label": "제목 템플릿",
 				"placeholder": "C task {{outcome}}",
-				"description": "선택 사항. 사용 가능한 토큰: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+				"description": "선택 사항. 사용 가능한 tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens는 대소문자를 구분하지 않으므로 {{taskId}}와 {{taskid}}가 모두 작동합니다."
 			}
 		}
 	},

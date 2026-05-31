@@ -580,7 +580,7 @@
 		},
 		"email": {
 			"label": "E-Mail-Benachrichtigungen aktivieren",
-			"description": "Sendet Nur-Text-SMTP-E-Mail-Benachrichtigungen, wenn eine Top-Level-Aufgabe abgeschlossen ist. Aufgaben-Transkripte werden nie eingefügt.",
+			"description": "Sendet HTML-SMTP-E-Mail-Benachrichtigungen mit Nur-Text-Fallback, wenn eine Top-Level-Aufgabe abgeschlossen ist. Aufgaben-Transkripte werden nie eingefügt.",
 			"notifyOnSuccess": {
 				"label": "Benachrichtigen, wenn Aufgaben erfolgreich abgeschlossen werden"
 			},
@@ -626,7 +626,7 @@
 			"smtpSubjectTemplate": {
 				"label": "Betreffvorlage",
 				"placeholder": "C-Aufgabe {{outcome}}",
-				"description": "Optional. Verfügbare Tokens: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+				"description": "Optional. Verfügbare Tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens ignorieren Groß-/Kleinschreibung, also funktionieren {{taskId}} und {{taskid}} beide."
 			}
 		}
 	},

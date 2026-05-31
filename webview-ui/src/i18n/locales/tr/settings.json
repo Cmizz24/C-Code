@@ -580,7 +580,7 @@
 		},
 		"email": {
 			"label": "email bildirimlerini etkinleştir",
-			"description": "Üst düzey bir görev bittiğinde düz metin SMTP email bildirimleri gönder. Görev transcript'leri asla dahil edilmez.",
+			"description": "Üst düzey bir görev bittiğinde düz metin fallback'i olan HTML SMTP email bildirimleri gönder. Görev transcript'leri asla dahil edilmez.",
 			"notifyOnSuccess": {
 				"label": "Görevler başarıyla tamamlandığında bildir"
 			},
@@ -626,7 +626,7 @@
 			"smtpSubjectTemplate": {
 				"label": "Konu şablonu",
 				"placeholder": "C görevi {{outcome}}",
-				"description": "İsteğe bağlı. Kullanılabilir tokens: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+				"description": "İsteğe bağlı. Kullanılabilir tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens büyük/küçük harfe duyarlı değildir; bu yüzden {{taskId}} ve {{taskid}} ikisi de çalışır."
 			}
 		}
 	},

@@ -580,7 +580,7 @@
 		},
 		"email": {
 			"label": "Aktifkan notifikasi email",
-			"description": "Kirim notifikasi email SMTP teks biasa saat tugas tingkat atas selesai. Transkrip tugas tidak pernah disertakan.",
+			"description": "Kirim notifikasi email SMTP HTML dengan fallback teks biasa saat tugas tingkat atas selesai. Transkrip tugas tidak pernah disertakan.",
 			"notifyOnSuccess": {
 				"label": "Beri tahu saat tugas berhasil selesai"
 			},
@@ -626,7 +626,7 @@
 			"smtpSubjectTemplate": {
 				"label": "Template subjek",
 				"placeholder": "Tugas C {{outcome}}",
-				"description": "Opsional. Token yang tersedia: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+				"description": "Opsional. Token yang tersedia: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Token tidak peka huruf besar/kecil, jadi {{taskId}} dan {{taskid}} sama-sama berfungsi."
 			}
 		}
 	},

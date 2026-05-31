@@ -796,6 +796,27 @@ describe("ClineProvider", () => {
 			).not.toThrow()
 			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
 		})
+
+		test("completed task notification wins over a later abort cleanup event", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-complete-then-abort" } as any)
+			const tokenUsage = createTokenUsage()
+			const toolUsage = createToolUsage()
+			;(task as any).tokenUsage = tokenUsage
+			;(task as any).toolUsage = toolUsage
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, tokenUsage, toolUsage)
+			task.emit(RooCodeEventName.TaskAborted)
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			expect(sendTaskNotification).toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "task-complete-then-abort",
+					outcome: "success",
+				}),
+			)
+		})
 	})
 
 	test("resolveWebviewView sets up webview correctly", async () => {

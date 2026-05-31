@@ -590,7 +590,7 @@
 		},
 		"email": {
 			"label": "啟用 email 通知",
-			"description": "頂層任務結束時傳送純文字 SMTP email 通知。絕不包含任務 transcript。",
+			"description": "頂層任務結束時傳送含純文字 fallback 的 HTML SMTP email 通知。絕不包含任務 transcript。",
 			"notifyOnSuccess": {
 				"label": "任務成功完成時通知"
 			},
@@ -636,7 +636,7 @@
 			"smtpSubjectTemplate": {
 				"label": "主旨範本",
 				"placeholder": "C task {{outcome}}",
-				"description": "選填。可用 tokens：{{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}。"
+				"description": "選填。可用 tokens：{{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}。Tokens 不區分大小寫，因此 {{taskId}} 和 {{taskid}} 都可用。"
 			}
 		}
 	},

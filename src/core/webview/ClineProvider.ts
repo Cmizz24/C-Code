@@ -378,7 +378,10 @@ export class ClineProvider
 	public readonly taskHistoryStore: TaskHistoryStore
 	private taskHistoryStoreInitialized = false
 	private readonly emailNotificationService: EmailNotificationService
+	private readonly completedEmailNotificationTaskInstances = new Set<string>()
+	private readonly completedEmailNotificationTaskInstanceOrder: string[] = []
 	private globalStateWriteThroughTimer: ReturnType<typeof setTimeout> | null = null
+	private static readonly MAX_COMPLETED_EMAIL_NOTIFICATION_TASK_INSTANCES = 500
 	private static readonly GLOBAL_STATE_WRITE_THROUGH_DEBOUNCE_MS = 5000 // 5 seconds
 	private pendingOperations: Map<string, PendingEditOperation> = new Map()
 	private static readonly PENDING_OPERATION_TIMEOUT_MS = 30000 // 30 seconds
@@ -676,6 +679,14 @@ export class ClineProvider
 			return
 		}
 
+		const notificationInstanceKey = `${task.taskId}:${task.instanceId}`
+
+		if (outcome === "success") {
+			this.rememberCompletedEmailNotificationTaskInstance(notificationInstanceKey)
+		} else if (this.completedEmailNotificationTaskInstances.has(notificationInstanceKey)) {
+			return
+		}
+
 		this.emailNotificationService
 			.sendTaskNotification({
 				taskId: task.taskId,
@@ -692,6 +703,25 @@ export class ClineProvider
 					}`,
 				)
 			})
+	}
+
+	private rememberCompletedEmailNotificationTaskInstance(notificationInstanceKey: string): void {
+		if (!this.completedEmailNotificationTaskInstances.has(notificationInstanceKey)) {
+			this.completedEmailNotificationTaskInstanceOrder.push(notificationInstanceKey)
+		}
+
+		this.completedEmailNotificationTaskInstances.add(notificationInstanceKey)
+
+		while (
+			this.completedEmailNotificationTaskInstanceOrder.length >
+			ClineProvider.MAX_COMPLETED_EMAIL_NOTIFICATION_TASK_INSTANCES
+		) {
+			const oldestNotificationInstanceKey = this.completedEmailNotificationTaskInstanceOrder.shift()
+
+			if (oldestNotificationInstanceKey) {
+				this.completedEmailNotificationTaskInstances.delete(oldestNotificationInstanceKey)
+			}
+		}
 	}
 
 	async performPreparationTasks(cline: Task) {

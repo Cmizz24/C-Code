@@ -580,7 +580,7 @@
 		},
 		"email": {
 			"label": "email सूचनाएं सक्षम करें",
-			"description": "जब कोई शीर्ष-स्तरीय कार्य पूरा हो, तो plain-text SMTP email सूचनाएं भेजें। कार्य transcripts कभी शामिल नहीं किए जाते।",
+			"description": "जब कोई शीर्ष-स्तरीय कार्य पूरा हो, तो plain-text fallback के साथ HTML SMTP email सूचनाएं भेजें। कार्य transcripts कभी शामिल नहीं किए जाते।",
 			"notifyOnSuccess": {
 				"label": "कार्य सफलतापूर्वक पूरे होने पर सूचित करें"
 			},
@@ -626,7 +626,7 @@
 			"smtpSubjectTemplate": {
 				"label": "Subject template",
 				"placeholder": "C task {{outcome}}",
-				"description": "वैकल्पिक। उपलब्ध tokens: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}।"
+				"description": "वैकल्पिक। उपलब्ध tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}। Tokens case-insensitive हैं, इसलिए {{taskId}} और {{taskid}} दोनों काम करते हैं।"
 			}
 		}
 	},

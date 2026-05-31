@@ -61,7 +61,7 @@ describe("EmailNotificationService", () => {
 		expect(transportFactory).not.toHaveBeenCalled()
 	})
 
-	it("sends successful task notifications with sanitized SMTP config and plain text body", async () => {
+	it("sends successful task notifications with sanitized SMTP config, HTML body, and plain text fallback", async () => {
 		const contextProxy = createContextProxy({
 			smtpHost: " smtp.example.com ",
 			smtpPort: 465,
@@ -84,20 +84,48 @@ describe("EmailNotificationService", () => {
 				pass: "smtp-secret",
 			},
 		})
-		expect(sendMail).toHaveBeenCalledWith({
-			from: "C Code <roo@example.com>",
-			to: ["dev@example.com", "ops@example.com"],
-			subject: "C task success for /workspace/project in code",
-			text: expect.stringContaining("Task ID: task-1"),
-		})
+		expect(sendMail).toHaveBeenCalledWith(
+			expect.objectContaining({
+				from: "C Code <roo@example.com>",
+				to: ["dev@example.com", "ops@example.com"],
+				subject: "C task success for /workspace/project in code",
+				text: expect.stringContaining("Task ID: task-1"),
+				html: expect.stringContaining("<!doctype html>"),
+			}),
+		)
 
 		const mailOptions = sendMail.mock.calls[0][0]
-		expect(mailOptions.text).toContain("Status: success")
+		expect(mailOptions.text).toContain("Status: Completed")
 		expect(mailOptions.text).toContain("Workspace: /workspace/project")
 		expect(mailOptions.text).toContain("Total tokens in: 12")
 		expect(mailOptions.text).toContain("Tool failures: 1")
+		expect(mailOptions.text).toContain("Task transcripts and SMTP secrets are not included")
 		expect(mailOptions.text).not.toContain("apiConversationHistory")
 		expect(mailOptions.text).not.toContain("clineMessages")
+		expect(mailOptions.text).not.toContain("smtp-secret")
+		expect(mailOptions.html).toContain("Task Completed")
+		expect(mailOptions.html).toContain("Task ID")
+		expect(mailOptions.html).toContain("/workspace/project")
+		expect(mailOptions.html).not.toContain("apiConversationHistory")
+		expect(mailOptions.html).not.toContain("clineMessages")
+		expect(mailOptions.html).not.toContain("smtp-secret")
+	})
+
+	it("replaces subject template tokens case-insensitively including lowercase taskid", async () => {
+		const { service, sendMail } = createService(
+			createContextProxy({
+				smtpSubjectTemplate:
+					"{{taskid}} {{TASKID}} {{taskId}} {{Workspace_Path}} {{MODE}} {{TOTAL_TOKENS}} {{unknown}}",
+			}),
+		)
+
+		await service.sendTaskNotification(payload)
+
+		expect(sendMail).toHaveBeenCalledWith(
+			expect.objectContaining({
+				subject: "task-1 task-1 task-1 /workspace/project code 46 {{unknown}}",
+			}),
+		)
 	})
 
 	it("defaults success notifications on and failure notifications off", async () => {
@@ -150,6 +178,16 @@ describe("EmailNotificationService", () => {
 		await service.sendTaskNotification(payload)
 
 		expect(sendMail).toHaveBeenCalledTimes(1)
+	})
+
+	it("does not send an aborted notification after a successful completion was already sent", async () => {
+		const { service, sendMail } = createService(createContextProxy({ emailNotifyOnFailure: true }))
+
+		await service.sendTaskNotification(payload)
+		await service.sendTaskNotification({ ...payload, outcome: "aborted" })
+
+		expect(sendMail).toHaveBeenCalledTimes(1)
+		expect(sendMail.mock.calls[0][0].subject).toContain("success")
 	})
 
 	it("logs sanitized send failures without throwing", async () => {

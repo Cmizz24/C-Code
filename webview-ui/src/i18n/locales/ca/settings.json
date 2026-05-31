@@ -580,7 +580,7 @@
 		},
 		"email": {
 			"label": "Activa les notificacions per email",
-			"description": "Envia notificacions per email SMTP en text pla quan finalitzi una tasca de nivell superior. Les transcripcions de tasques no s'inclouen mai.",
+			"description": "Envia notificacions per email SMTP en HTML amb alternativa de text pla quan finalitzi una tasca de nivell superior. Les transcripcions de tasques no s'inclouen mai.",
 			"notifyOnSuccess": {
 				"label": "Notifica quan les tasques es completin correctament"
 			},
@@ -626,7 +626,7 @@
 			"smtpSubjectTemplate": {
 				"label": "Plantilla de l'assumpte",
 				"placeholder": "Tasca C {{outcome}}",
-				"description": "Opcional. Tokens disponibles: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+				"description": "Opcional. Tokens disponibles: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Els tokens no distingeixen majúscules i minúscules, així que {{taskId}} i {{taskid}} funcionen."
 			}
 		}
 	},

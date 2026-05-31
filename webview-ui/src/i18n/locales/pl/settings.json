@@ -580,7 +580,7 @@
 		},
 		"email": {
 			"label": "Włącz powiadomienia email",
-			"description": "Wysyłaj powiadomienia email SMTP w zwykłym tekście po zakończeniu zadania najwyższego poziomu. Transkrypcje zadań nigdy nie są dołączane.",
+			"description": "Wysyłaj powiadomienia email SMTP w HTML z fallbackiem w zwykłym tekście po zakończeniu zadania najwyższego poziomu. Transkrypcje zadań nigdy nie są dołączane.",
 			"notifyOnSuccess": {
 				"label": "Powiadamiaj, gdy zadania zakończą się powodzeniem"
 			},
@@ -626,7 +626,7 @@
 			"smtpSubjectTemplate": {
 				"label": "Szablon tematu",
 				"placeholder": "Zadanie C {{outcome}}",
-				"description": "Opcjonalne. Dostępne tokens: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+				"description": "Opcjonalne. Dostępne tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens nie rozróżniają wielkości liter, więc {{taskId}} i {{taskid}} działają."
 			}
 		}
 	},

@@ -580,7 +580,7 @@
 		},
 		"email": {
 			"label": "email通知を有効にする",
-			"description": "最上位タスクの完了時に、プレーンテキストのSMTP email通知を送信します。タスクのトランスクリプトは含まれません。",
+			"description": "最上位タスクの完了時に、プレーンテキストのフォールバック付きHTML SMTP email通知を送信します。タスクのトランスクリプトは含まれません。",
 			"notifyOnSuccess": {
 				"label": "タスクが正常に完了したら通知する"
 			},
@@ -626,7 +626,7 @@
 			"smtpSubjectTemplate": {
 				"label": "件名テンプレート",
 				"placeholder": "C task {{outcome}}",
-				"description": "任意。利用可能なトークン: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}。"
+				"description": "任意。利用可能なtokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}。Tokensは大文字と小文字を区別しないため、{{taskId}} と {{taskid}} の両方が使えます。"
 			}
 		}
 	},

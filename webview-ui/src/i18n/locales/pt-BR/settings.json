@@ -580,7 +580,7 @@
 		},
 		"email": {
 			"label": "Ativar notificações por email",
-			"description": "Envia notificações por email SMTP em texto simples quando uma tarefa de nível superior termina. Transcrições de tarefas nunca são incluídas.",
+			"description": "Envia notificações por email SMTP em HTML com fallback em texto simples quando uma tarefa de nível superior termina. Transcrições de tarefas nunca são incluídas.",
 			"notifyOnSuccess": {
 				"label": "Notificar quando tarefas forem concluídas com sucesso"
 			},
@@ -626,7 +626,7 @@
 			"smtpSubjectTemplate": {
 				"label": "Modelo de assunto",
 				"placeholder": "Tarefa C {{outcome}}",
-				"description": "Opcional. Tokens disponíveis: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+				"description": "Opcional. Tokens disponíveis: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens não diferenciam maiúsculas de minúsculas, então {{taskId}} e {{taskid}} funcionam."
 			}
 		}
 	},

@@ -580,7 +580,7 @@
 		},
 		"email": {
 			"label": "Habilitar notificaciones por email",
-			"description": "Envía notificaciones SMTP por email en texto plano cuando finaliza una tarea de nivel superior. Nunca se incluyen transcripciones de tareas.",
+			"description": "Envía notificaciones SMTP por email en HTML con alternativa de texto plano cuando finaliza una tarea de nivel superior. Nunca se incluyen transcripciones de tareas.",
 			"notifyOnSuccess": {
 				"label": "Notificar cuando las tareas se completen correctamente"
 			},
@@ -626,7 +626,7 @@
 			"smtpSubjectTemplate": {
 				"label": "Plantilla de asunto",
 				"placeholder": "Tarea de C {{outcome}}",
-				"description": "Opcional. Tokens disponibles: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+				"description": "Opcional. Tokens disponibles: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Los tokens no distinguen mayúsculas y minúsculas, así que {{taskId}} y {{taskid}} funcionan."
 			}
 		}
 	},

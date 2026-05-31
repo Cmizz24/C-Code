@@ -580,7 +580,7 @@
 		},
 		"email": {
 			"label": "Abilita notifiche email",
-			"description": "Invia notifiche email SMTP in testo semplice quando termina un'attività di livello superiore. Le trascrizioni delle attività non vengono mai incluse.",
+			"description": "Invia notifiche email SMTP in HTML con fallback in testo semplice quando termina un'attività di livello superiore. Le trascrizioni delle attività non vengono mai incluse.",
 			"notifyOnSuccess": {
 				"label": "Notifica quando le attività vengono completate correttamente"
 			},
@@ -626,7 +626,7 @@
 			"smtpSubjectTemplate": {
 				"label": "Modello oggetto",
 				"placeholder": "Attività C {{outcome}}",
-				"description": "Opzionale. Token disponibili: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+				"description": "Opzionale. Token disponibili: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. I token non distinguono tra maiuscole e minuscole, quindi {{taskId}} e {{taskid}} funzionano entrambi."
 			}
 		}
 	},

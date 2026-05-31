@@ -642,7 +642,7 @@
 		},
 		"email": {
 			"label": "Enable email notifications",
-			"description": "Send plain-text SMTP email notifications when a top-level task finishes. Task transcripts are never included.",
+			"description": "Send HTML SMTP email notifications with a plain-text fallback when a top-level task finishes. Task transcripts are never included.",
 			"notifyOnSuccess": {
 				"label": "Notify when tasks complete successfully"
 			},
@@ -688,7 +688,7 @@
 			"smtpSubjectTemplate": {
 				"label": "Subject template",
 				"placeholder": "C task {{outcome}}",
-				"description": "Optional. Available tokens: {{taskId}}, {{outcome}}, {{workspacePath}}, {{mode}}."
+				"description": "Optional. Available tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens are case-insensitive, so {{taskId}} and {{taskid}} both work."
 			}
 		}
 	},
