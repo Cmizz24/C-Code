@@ -134,7 +134,12 @@ export interface ExtensionStateContextType extends ExtensionState {
 	skills?: SkillMetadata[]
 }
 
-export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
+const extensionStateContextKey = Symbol.for("roo-code.webview.ExtensionStateContext")
+
+export const ExtensionStateContext = ((globalThis as Record<PropertyKey, unknown>)[extensionStateContextKey] ??=
+	createContext<ExtensionStateContextType | undefined>(undefined)) as React.Context<
+	ExtensionStateContextType | undefined
+>
 
 export const mergeExtensionState = (prevState: ExtensionState, newState: Partial<ExtensionState>) => {
 	const { customModePrompts: prevCustomModePrompts, experiments: prevExperiments, ...prevRest } = prevState
