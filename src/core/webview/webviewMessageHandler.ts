@@ -1429,13 +1429,17 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					globalConfigPath,
 					projectConfigPath,
 				})
+				const taskConfiguration = {
+					...(message.taskConfiguration ?? {}),
+					mode: marketplaceMcpSetupModeSlug,
+				}
 
 				await provider.createTask(
 					prompt,
 					undefined,
 					undefined,
 					{ mode: marketplaceMcpSetupModeSlug },
-					message.taskConfiguration,
+					taskConfiguration,
 				)
 				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
 				await provider.postMessageToWebview({ type: "action", action: "switchTab", tab: "chat" })
