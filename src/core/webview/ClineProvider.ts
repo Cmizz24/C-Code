@@ -2447,11 +2447,11 @@ export class ClineProvider
 		const taskDirPath = await getTaskDirectoryPath(globalStoragePath, id)
 		const apiConversationHistoryFilePath = path.join(taskDirPath, GlobalFileNames.apiConversationHistory)
 		const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
-		const fileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
+		const apiHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
 
 		let apiConversationHistory: Anthropic.MessageParam[] = []
 
-		if (fileExists) {
+		if (apiHistoryFileExists) {
 			try {
 				apiConversationHistory = JSON.parse(await fs.readFile(apiConversationHistoryFilePath, "utf8"))
 			} catch (error) {
@@ -2459,9 +2459,9 @@ export class ClineProvider
 					`[getTaskWithId] api_conversation_history.json corrupted for task ${id}, returning empty history: ${error instanceof Error ? error.message : String(error)}`,
 				)
 			}
-		} else {
+		} else if (!(await fileExistsAtPath(uiMessagesFilePath))) {
 			console.warn(
-				`[getTaskWithId] api_conversation_history.json missing for task ${id}, returning empty history`,
+				`[getTaskWithId] api_conversation_history.json missing for task ${id} and ui_messages.json is also missing; task history entry may be stale, returning empty history`,
 			)
 		}
 

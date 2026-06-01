@@ -6506,7 +6506,7 @@ describe("ClineProvider - Comprehensive Edit/Delete Edge Cases", () => {
 	})
 
 	describe("getTaskWithId", () => {
-		it("returns empty apiConversationHistory when file is missing", async () => {
+		it("returns empty apiConversationHistory without warning when only api history is missing", async () => {
 			const historyItem = { id: "missing-api-file-task", task: "test task", ts: Date.now() }
 			vi.mocked(mockContext.globalState.get).mockImplementation((key: string) => {
 				if (key === "taskHistory") {
@@ -6515,13 +6515,51 @@ describe("ClineProvider - Comprehensive Edit/Delete Edge Cases", () => {
 				return undefined
 			})
 
+			const fsUtils = await import("../../../utils/fs")
+			const fileExistsSpy = vi
+				.spyOn(fsUtils, "fileExistsAtPath")
+				.mockImplementation(async (filePath: string) => filePath.endsWith("ui_messages.json"))
+			const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
 			const deleteTaskSpy = vi.spyOn(provider, "deleteTaskFromState")
 
 			const result = await (provider as any).getTaskWithId("missing-api-file-task")
 
 			expect(result.historyItem).toEqual(historyItem)
 			expect(result.apiConversationHistory).toEqual([])
+			expect(warnSpy).not.toHaveBeenCalled()
 			expect(deleteTaskSpy).not.toHaveBeenCalled()
+
+			fileExistsSpy.mockRestore()
+			warnSpy.mockRestore()
+		})
+
+		it("warns when both api history and UI messages are missing", async () => {
+			const historyItem = { id: "stale-history-task", task: "test task", ts: Date.now() }
+			vi.mocked(mockContext.globalState.get).mockImplementation((key: string) => {
+				if (key === "taskHistory") {
+					return [historyItem]
+				}
+				return undefined
+			})
+
+			const fsUtils = await import("../../../utils/fs")
+			const fileExistsSpy = vi.spyOn(fsUtils, "fileExistsAtPath").mockResolvedValue(false)
+			const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+			const deleteTaskSpy = vi.spyOn(provider, "deleteTaskFromState")
+
+			const result = await (provider as any).getTaskWithId("stale-history-task")
+
+			expect(result.historyItem).toEqual(historyItem)
+			expect(result.apiConversationHistory).toEqual([])
+			expect(warnSpy).toHaveBeenCalledWith(
+				expect.stringContaining(
+					"api_conversation_history.json missing for task stale-history-task and ui_messages.json is also missing",
+				),
+			)
+			expect(deleteTaskSpy).not.toHaveBeenCalled()
+
+			fileExistsSpy.mockRestore()
+			warnSpy.mockRestore()
 		})
 
 		it("returns empty apiConversationHistory when file contains invalid JSON", async () => {
@@ -6535,22 +6573,26 @@ describe("ClineProvider - Comprehensive Edit/Delete Edge Cases", () => {
 
 			// Make fileExistsAtPath return true so the read path is exercised
 			const fsUtils = await import("../../../utils/fs")
-			vi.spyOn(fsUtils, "fileExistsAtPath").mockResolvedValue(true)
+			const fileExistsSpy = vi.spyOn(fsUtils, "fileExistsAtPath").mockResolvedValue(true)
 
 			// Make readFile return corrupted JSON
 			const fsp = await import("fs/promises")
 			vi.mocked(fsp.readFile).mockResolvedValueOnce("{not valid json!!!" as never)
 
+			const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
 			const deleteTaskSpy = vi.spyOn(provider, "deleteTaskFromState")
 
 			const result = await (provider as any).getTaskWithId("corrupt-api-task")
 
 			expect(result.historyItem).toEqual(historyItem)
 			expect(result.apiConversationHistory).toEqual([])
+			expect(warnSpy).toHaveBeenCalledWith(
+				expect.stringContaining("api_conversation_history.json corrupted for task corrupt-api-task"),
+			)
 			expect(deleteTaskSpy).not.toHaveBeenCalled()
 
-			// Restore the spy
-			vi.mocked(fsUtils.fileExistsAtPath).mockRestore()
+			fileExistsSpy.mockRestore()
+			warnSpy.mockRestore()
 		})
 	})
 })

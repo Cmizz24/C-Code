@@ -40,7 +40,7 @@ function getCommandChainNote(): string {
 
 	// Check for cmd.exe
 	if (shell.includes("cmd.exe")) {
-		return "Note: Using `&&` for cmd.exe command chaining (conditional execution). For bash/zsh use `&&`, for PowerShell use `;`. IMPORTANT: When using cmd.exe, avoid Unix-specific utilities like `sed`, `grep`, `awk`, `cat`, `rm`, `cp`, `mv`. Use built-in commands like `type` for cat, `del` for rm, `copy` for cp, `move` for mv, `find`/`findstr` for grep, or consider using PowerShell commands instead."
+		return "Note: Using `&&` for cmd.exe command chaining (conditional execution). For bash/zsh use `&&`, for PowerShell use `;`. IMPORTANT: When using cmd.exe, avoid Unix-specific utilities like `sed`, `grep`, `awk`, `cat`, `rm`, `cp`, `mv`. Use built-in commands like `type` for cat, `del` for rm, `copy` for cp, and `move` for mv. For text search, prefer the dedicated search tools for repository content; if shell search is necessary, use `findstr` only for short literal/simple patterns, avoid long `findstr` alternation patterns or `type file | findstr ...` pipelines, split large searches into smaller commands, or use PowerShell `Select-String`. `findstr` exit code 1 means no matches, not necessarily a command failure."
 	}
 
 	// Unix shells

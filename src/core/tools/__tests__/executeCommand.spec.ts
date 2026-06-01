@@ -363,6 +363,59 @@ describe("executeCommand", () => {
 			expect(result).toContain("within working directory '/test/project'")
 		})
 
+		it("treats findstr exit code 1 without error output as no matches", async () => {
+			mockTerminal.getCurrentWorkingDirectory.mockReturnValue("/test/project")
+			mockTerminal.runCommand.mockImplementation((command: string, callbacks: RooTerminalCallbacks) => {
+				setTimeout(() => {
+					callbacks.onCompleted("", mockProcess)
+					callbacks.onShellExecutionComplete({ exitCode: 1 }, mockProcess)
+				}, 0)
+				return mockProcess
+			})
+
+			const options: ExecuteCommandOptions = {
+				executionId: "test-123",
+				command: 'findstr /N "needle" file.txt',
+				terminalShellIntegrationDisabled: false,
+			}
+
+			const [rejected, result] = await executeCommandInTerminal(mockTask, options)
+
+			expect(rejected).toBe(false)
+			expect(result).toContain("findstr returned no matches (exit code 1)")
+			expect(result).not.toContain("Command execution was not successful")
+			expect(result).toContain("within working directory '/test/project'")
+		})
+
+		it("adds recovery guidance for findstr long-pattern or broken-pipe failures", async () => {
+			mockTerminal.getCurrentWorkingDirectory.mockReturnValue("/test/project")
+			mockTerminal.runCommand.mockImplementation((command: string, callbacks: RooTerminalCallbacks) => {
+				setTimeout(() => {
+					callbacks.onCompleted(
+						"FINDSTR: Search string too long.\nThe process tried to write to a nonexistent pipe.",
+						mockProcess,
+					)
+					callbacks.onShellExecutionComplete({ exitCode: 1 }, mockProcess)
+				}, 0)
+				return mockProcess
+			})
+
+			const options: ExecuteCommandOptions = {
+				executionId: "test-123",
+				command: 'type file.txt | findstr /N "alpha\\|beta\\|gamma"',
+				terminalShellIntegrationDisabled: false,
+			}
+
+			const [rejected, result] = await executeCommandInTerminal(mockTask, options)
+
+			expect(rejected).toBe(false)
+			expect(result).toContain("Command execution was not successful")
+			expect(result).toContain("Exit code: 1")
+			expect(result).toContain("Windows findstr/cmd.exe cannot handle long search strings")
+			expect(result).toContain("PowerShell Select-String")
+			expect(result).toContain("within working directory '/test/project'")
+		})
+
 		it("nudges background agents to retry failed shell file writes with write/edit tools", async () => {
 			mockTask.background = true
 			mockTask.agentId = "api-agent"

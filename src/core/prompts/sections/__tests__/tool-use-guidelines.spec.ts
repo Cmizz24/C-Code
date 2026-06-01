@@ -6,7 +6,16 @@ describe("getToolUseGuidelinesSection", () => {
 
 		expect(guidelines).toContain("1. Assess what information")
 		expect(guidelines).toContain("2. Choose the most appropriate tool")
-		expect(guidelines).toContain("4. If multiple actions are needed")
+		expect(guidelines).toContain("5. If multiple actions are needed")
+	})
+
+	it("should include Windows-safe repository search guidance", () => {
+		const guidelines = getToolUseGuidelinesSection()
+
+		expect(guidelines).toContain("prefer dedicated search tools")
+		expect(guidelines).toContain("avoid long findstr alternation patterns")
+		expect(guidelines).toContain("PowerShell Select-String")
+		expect(guidelines).toContain("treat findstr exit code 1 as no matches")
 	})
 
 	it("should include multiple-tools-per-message guidance", () => {
