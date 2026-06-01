@@ -627,6 +627,16 @@
 				"label": "Modèle d'objet",
 				"placeholder": "Tâche C {{outcome}}",
 				"description": "Facultatif. Tokens disponibles : {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Les tokens ne tiennent pas compte de la casse, donc {{taskId}} et {{taskid}} fonctionnent tous les deux."
+			},
+			"test": {
+				"label": "Tester les paramètres SMTP",
+				"description": "Envoie un e-mail de test avec les paramètres SMTP enregistrés. Les modifications non enregistrées et les nouveaux mots de passe doivent d'abord être enregistrés.",
+				"button": "Tester SMTP",
+				"sending": "Envoi...",
+				"success": "E-mail de test SMTP envoyé avec succès.",
+				"failure": "Impossible d'envoyer l'e-mail de test SMTP.",
+				"invalidConfig": "Les paramètres SMTP sont incomplets ou invalides. Consulte la sortie de l'extension pour plus de détails.",
+				"unsavedChanges": "Enregistre tes paramètres SMTP avant de tester. Tester SMTP utilise uniquement les paramètres enregistrés et le mot de passe du stockage secret de VS Code."
 			}
 		}
 	},

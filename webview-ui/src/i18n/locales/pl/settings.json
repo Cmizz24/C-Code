@@ -627,6 +627,16 @@
 				"label": "Szablon tematu",
 				"placeholder": "Zadanie C {{outcome}}",
 				"description": "Opcjonalne. Dostępne tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens nie rozróżniają wielkości liter, więc {{taskId}} i {{taskid}} działają."
+			},
+			"test": {
+				"label": "Testuj ustawienia SMTP",
+				"description": "Wyślij testowy e-mail przy użyciu zapisanych ustawień SMTP. Niezapisane zmiany i nowe hasła muszą zostać najpierw zapisane.",
+				"button": "Testuj SMTP",
+				"sending": "Wysyłanie...",
+				"success": "Testowy e-mail SMTP został wysłany pomyślnie.",
+				"failure": "Nie udało się wysłać testowego e-maila SMTP.",
+				"invalidConfig": "Ustawienia SMTP są niekompletne lub nieprawidłowe. Szczegóły znajdziesz w wyjściu rozszerzenia.",
+				"unsavedChanges": "Zapisz ustawienia SMTP przed testem. Testuj SMTP używa tylko zapisanych ustawień i hasła z tajnego magazynu VS Code."
 			}
 		}
 	},

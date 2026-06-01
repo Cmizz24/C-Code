@@ -78,6 +78,7 @@ const mockClineProvider = {
 	getTaskWithId: vi.fn(),
 	createTask: vi.fn().mockResolvedValue({ taskId: "mock-task-id" }),
 	createTaskWithHistoryItem: vi.fn(),
+	testSmtpSettings: vi.fn(),
 	getMcpHub: vi.fn(),
 	getSkillsManager: vi.fn(),
 	cwd: "/mock/workspace",
@@ -164,6 +165,88 @@ vi.mock("../../mentions/resolveImageMentions", () => ({
 }))
 
 import { resolveImageMentions } from "../../mentions/resolveImageMentions"
+
+describe("webviewMessageHandler - testSmtpSettings", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("posts a successful SMTP test result without SMTP secrets", async () => {
+		vi.mocked(mockClineProvider.testSmtpSettings).mockResolvedValue({ attempted: true, sent: true })
+
+		await webviewMessageHandler(mockClineProvider, { type: "testSmtpSettings" } as any)
+
+		expect(mockClineProvider.testSmtpSettings).toHaveBeenCalledTimes(1)
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "smtpTestResult",
+			success: true,
+			text: "SMTP test email sent successfully.",
+			error: undefined,
+			values: {
+				attempted: true,
+				sent: true,
+				skippedReason: undefined,
+			},
+		})
+		expect(JSON.stringify(vi.mocked(mockClineProvider.postMessageToWebview).mock.calls)).not.toContain(
+			"smtp-secret",
+		)
+	})
+
+	it("posts invalid SMTP test configuration errors without accepting webview password input", async () => {
+		vi.mocked(mockClineProvider.testSmtpSettings).mockResolvedValue({
+			attempted: false,
+			sent: false,
+			skippedReason: "invalid-config",
+		})
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "testSmtpSettings",
+			values: { smtpPassword: "smtp-secret" },
+		} as any)
+
+		expect(mockClineProvider.testSmtpSettings).toHaveBeenCalledWith()
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "smtpTestResult",
+			success: false,
+			text: undefined,
+			error: "SMTP settings are incomplete or invalid. Check the extension output for details.",
+			values: {
+				attempted: false,
+				sent: false,
+				skippedReason: "invalid-config",
+			},
+		})
+		expect(JSON.stringify(vi.mocked(mockClineProvider.postMessageToWebview).mock.calls)).not.toContain(
+			"smtp-secret",
+		)
+	})
+
+	it("posts sanitized SMTP test send failures", async () => {
+		vi.mocked(mockClineProvider.testSmtpSettings).mockResolvedValue({
+			attempted: true,
+			sent: false,
+			error: "Authentication failed for [redacted]",
+		})
+
+		await webviewMessageHandler(mockClineProvider, { type: "testSmtpSettings" } as any)
+
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "smtpTestResult",
+			success: false,
+			text: undefined,
+			error: "Authentication failed for [redacted]",
+			values: {
+				attempted: true,
+				sent: false,
+				skippedReason: undefined,
+			},
+		})
+		expect(JSON.stringify(vi.mocked(mockClineProvider.postMessageToWebview).mock.calls)).not.toContain(
+			"smtp-secret",
+		)
+	})
+})
 
 describe("webviewMessageHandler - requestLmStudioModels", () => {
 	beforeEach(() => {

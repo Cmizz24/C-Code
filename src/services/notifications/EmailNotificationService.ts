@@ -21,6 +21,7 @@ export type EmailNotificationSendResult = {
 	attempted: boolean
 	sent: boolean
 	skippedReason?: "disabled" | "invalid-config" | "duplicate"
+	error?: string
 }
 
 type EmailTransportOptions = {
@@ -53,6 +54,7 @@ export type EmailNotificationServiceOptions = {
 
 const DEFAULT_SMTP_PORT = 587
 const DEFAULT_SUBJECT_TEMPLATE = "C Code task {outcome}: {taskId}"
+const DEFAULT_TEST_SUBJECT = "C Code SMTP test"
 const MAX_SENT_NOTIFICATION_KEYS = 500
 const MAX_NOTIFICATION_SUMMARY_LENGTH = 600
 
@@ -137,6 +139,47 @@ export class EmailNotificationService {
 		}
 	}
 
+	public async sendTestNotification(): Promise<EmailNotificationSendResult> {
+		let attempted = false
+
+		try {
+			const settings = this.contextProxy.getValues()
+			const config = this.buildConfig(settings, "test")
+
+			if (!config) {
+				return {
+					attempted: false,
+					sent: false,
+					skippedReason: "invalid-config",
+					error: "SMTP settings are incomplete or invalid. Check the extension output for details.",
+				}
+			}
+
+			this.log?.(
+				`[email-notifications] Sending SMTP test email to ${config.recipients.length} recipient(s) using ${config.transportOptions.host}:${config.transportOptions.port}.`,
+			)
+
+			const transport = this.transportFactory(config.transportOptions)
+			const mailOptions = {
+				from: config.from,
+				to: config.recipients,
+				subject: DEFAULT_TEST_SUBJECT,
+				text: this.renderTestTextBody(),
+				html: this.renderTestHtmlBody(),
+			}
+
+			attempted = true
+			await transport.sendMail(mailOptions)
+			this.log?.("[email-notifications] SMTP test email sent successfully.")
+
+			return { attempted: true, sent: true }
+		} catch (error) {
+			const sanitizedError = this.sanitizeErrorMessage(error)
+			this.log?.(`Failed to send SMTP test email notification: ${sanitizedError}`)
+			return { attempted, sent: false, error: sanitizedError }
+		}
+	}
+
 	private shouldNotify(settings: RooCodeSettings, outcome: EmailNotificationOutcome): boolean {
 		if (!settings.emailNotificationsEnabled) {
 			return false
@@ -149,7 +192,10 @@ export class EmailNotificationService {
 		return settings.emailNotifyOnFailure ?? false
 	}
 
-	private buildConfig(settings: RooCodeSettings):
+	private buildConfig(
+		settings: RooCodeSettings,
+		context: "notification" | "test" = "notification",
+	):
 		| {
 				transportOptions: EmailTransportOptions
 				from: string
@@ -166,27 +212,27 @@ export class EmailNotificationService {
 		const subjectTemplate = settings.smtpSubjectTemplate?.trim() || DEFAULT_SUBJECT_TEMPLATE
 
 		if (!host) {
-			this.log?.("Email notifications are enabled but SMTP host is not configured.")
+			this.logInvalidConfig("SMTP host is not configured.", context)
 			return undefined
 		}
 
 		if (!Number.isInteger(port) || port < 1 || port > 65535) {
-			this.log?.("Email notifications are enabled but SMTP port is invalid.")
+			this.logInvalidConfig("SMTP port is invalid.", context)
 			return undefined
 		}
 
 		if (!from) {
-			this.log?.("Email notifications are enabled but SMTP from address is not configured.")
+			this.logInvalidConfig("SMTP from address is not configured.", context)
 			return undefined
 		}
 
 		if (recipients.length === 0) {
-			this.log?.("Email notifications are enabled but no SMTP recipients are configured.")
+			this.logInvalidConfig("no SMTP recipients are configured.", context)
 			return undefined
 		}
 
 		if (username && !password) {
-			this.log?.("Email notifications are enabled but SMTP password is not configured.")
+			this.logInvalidConfig("SMTP password is not configured.", context)
 			return undefined
 		}
 
@@ -202,6 +248,12 @@ export class EmailNotificationService {
 			recipients,
 			subjectTemplate,
 		}
+	}
+
+	private logInvalidConfig(reason: string, context: "notification" | "test"): void {
+		const prefix =
+			context === "test" ? "SMTP test email cannot be sent because" : "Email notifications are enabled but"
+		this.log?.(`${prefix} ${reason}`)
 	}
 
 	private normalizeRecipients(recipients: RooCodeSettings["smtpRecipients"]): string[] {
@@ -274,6 +326,50 @@ ${rowMarkup}
 								</table>
 								<div style="margin-top:20px;padding:12px 14px;background-color:#f6f8fa;border:1px solid #d8dee4;border-radius:8px;color:#57606a;font-size:12px;line-height:18px;">
 									Task transcripts and SMTP secrets are not included in this notification.
+								</div>
+							</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>`
+	}
+
+	private renderTestTextBody(): string {
+		return [
+			"C Code SMTP test email",
+			"",
+			"Your saved SMTP settings can send email successfully.",
+			"Task transcripts and SMTP secrets are not included in this test email.",
+		].join("\n")
+	}
+
+	private renderTestHtmlBody(): string {
+		return `<!doctype html>
+<html lang="en">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>C Code SMTP test</title>
+	</head>
+	<body style="margin:0;padding:0;background-color:#f6f8fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#24292f;">
+		<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f6f8fa;margin:0;padding:24px 0;">
+			<tr>
+				<td align="center" style="padding:0 12px;">
+					<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:640px;background-color:#ffffff;border:1px solid #d8dee4;border-radius:12px;overflow:hidden;">
+						<tr>
+							<td style="background-color:#24292f;color:#ffffff;padding:20px 24px;">
+								<div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#c9d1d9;margin-bottom:8px;">C Code notification</div>
+								<div style="font-size:24px;line-height:30px;font-weight:700;margin:0;">SMTP test email</div>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:24px;font-size:14px;line-height:22px;">
+								<p style="margin:0 0 12px;">Your saved SMTP settings can send email successfully.</p>
+								<div style="margin-top:20px;padding:12px 14px;background-color:#f6f8fa;border:1px solid #d8dee4;border-radius:8px;color:#57606a;font-size:12px;line-height:18px;">
+									Task transcripts and SMTP secrets are not included in this test email.
 								</div>
 							</td>
 						</tr>

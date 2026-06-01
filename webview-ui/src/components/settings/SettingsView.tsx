@@ -32,6 +32,7 @@ import {
 } from "lucide-react"
 
 import {
+	type ExtensionMessage,
 	type ProviderSettings,
 	type ExperimentId,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
@@ -122,6 +123,8 @@ type SettingsViewProps = {
 	targetSection?: string
 }
 
+type SmtpTestStatus = "idle" | "sending" | "success" | "error"
+
 const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, targetSection }, ref) => {
 	const { t } = useAppTranslation()
 
@@ -131,6 +134,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 	const [isDiscardDialogShow, setDiscardDialogShow] = useState(false)
 	const [isChangeDetected, setChangeDetected] = useState(false)
 	const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
+	const [smtpTestStatus, setSmtpTestStatus] = useState<SmtpTestStatus>("idle")
+	const [smtpTestMessage, setSmtpTestMessage] = useState<string | undefined>(undefined)
 	const [activeTab, setActiveTab] = useState<SectionName>(
 		targetSection && sectionNames.includes(targetSection as SectionName)
 			? (targetSection as SectionName)
@@ -250,9 +255,61 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			}
 
 			setChangeDetected(true)
+
+			if (typeof field === "string" && field.startsWith("smtp")) {
+				setSmtpTestStatus("idle")
+				setSmtpTestMessage(undefined)
+			}
+
 			return { ...prevState, [field]: value }
 		})
 	}, [])
+
+	const smtpTestHasUnsavedChanges = useMemo(() => {
+		const normalizeString = (value: string | undefined) => value ?? ""
+		const normalizeBoolean = (value: boolean | undefined) => value ?? false
+		const normalizePort = (value: number | undefined) => value ?? 587
+		const normalizeRecipients = (value: string[] | undefined) => JSON.stringify(value ?? [])
+
+		return (
+			(smtpPassword?.length ?? 0) > 0 ||
+			normalizeString(smtpHost) !== normalizeString(extensionState.smtpHost) ||
+			normalizePort(smtpPort) !== normalizePort(extensionState.smtpPort) ||
+			normalizeBoolean(smtpSecure) !== normalizeBoolean(extensionState.smtpSecure) ||
+			normalizeBoolean(smtpRequireTls) !== normalizeBoolean(extensionState.smtpRequireTls) ||
+			normalizeString(smtpUsername) !== normalizeString(extensionState.smtpUsername) ||
+			normalizeString(smtpFromAddress) !== normalizeString(extensionState.smtpFromAddress) ||
+			normalizeRecipients(smtpRecipients) !== normalizeRecipients(extensionState.smtpRecipients)
+		)
+	}, [
+		extensionState.smtpFromAddress,
+		extensionState.smtpHost,
+		extensionState.smtpPort,
+		extensionState.smtpRecipients,
+		extensionState.smtpRequireTls,
+		extensionState.smtpSecure,
+		extensionState.smtpUsername,
+		smtpFromAddress,
+		smtpHost,
+		smtpPassword,
+		smtpPort,
+		smtpRecipients,
+		smtpRequireTls,
+		smtpSecure,
+		smtpUsername,
+	])
+
+	const handleTestSmtpSettings = useCallback(() => {
+		if (smtpTestHasUnsavedChanges) {
+			setSmtpTestStatus("error")
+			setSmtpTestMessage(t("settings:notifications.email.test.unsavedChanges"))
+			return
+		}
+
+		setSmtpTestStatus("sending")
+		setSmtpTestMessage(undefined)
+		vscode.postMessage({ type: "testSmtpSettings" })
+	}, [smtpTestHasUnsavedChanges, t])
 
 	const setApiConfigurationField = useCallback(
 		<K extends keyof ProviderSettings>(field: K, value: ProviderSettings[K], isUserAction: boolean = true) => {
@@ -449,6 +506,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				updatedSettings.smtpPassword = smtpPassword
 			}
 
+			const savedSmtpPassword = Boolean(updatedSettings.smtpPassword)
+
 			vscode.postMessage({
 				type: "updateSettings",
 				updatedSettings,
@@ -460,6 +519,10 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			vscode.postMessage({ type: "debugSetting", bool: cachedState.debug })
 
 			setChangeDetected(false)
+
+			if (savedSmtpPassword) {
+				setCachedState((prevState) => ({ ...prevState, smtpPassword: "", smtpPasswordConfigured: true }))
+			}
 		}
 	}
 
@@ -583,9 +646,30 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 	// Effect to scroll when the webview becomes visible
 	useLayoutEffect(() => {
 		const handleMessage = (event: MessageEvent) => {
-			const message = event.data
+			const message = event.data as ExtensionMessage
+
 			if (message.type === "action" && message.action === "didBecomeVisible") {
 				scrollToActiveTab()
+			}
+
+			if (message.type === "smtpTestResult") {
+				setSmtpTestStatus(message.success ? "success" : "error")
+
+				if (message.success) {
+					setSmtpTestMessage(message.text ?? t("settings:notifications.email.test.success"))
+					return
+				}
+
+				const skippedReason =
+					typeof message.values === "object" && message.values && "skippedReason" in message.values
+						? message.values.skippedReason
+						: undefined
+
+				setSmtpTestMessage(
+					typeof skippedReason === "string" && skippedReason === "invalid-config"
+						? t("settings:notifications.email.test.invalidConfig")
+						: (message.error ?? t("settings:notifications.email.test.failure")),
+				)
 			}
 		}
 
@@ -594,7 +678,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		return () => {
 			window.removeEventListener("message", handleMessage)
 		}
-	}, [scrollToActiveTab])
+	}, [scrollToActiveTab, t])
 
 	// Search index registry - settings register themselves on mount
 	const getSectionLabel = useCallback((section: SectionName) => t(`settings:sections.${section}`), [t])
@@ -865,6 +949,10 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								smtpRecipients={smtpRecipients}
 								smtpRecipientsText={smtpRecipientsText}
 								smtpSubjectTemplate={smtpSubjectTemplate}
+								smtpTestStatus={smtpTestStatus}
+								smtpTestMessage={smtpTestMessage}
+								smtpTestHasUnsavedChanges={smtpTestHasUnsavedChanges}
+								onTestSmtpSettings={handleTestSmtpSettings}
 								setCachedStateField={setCachedStateField}
 							/>
 						)}

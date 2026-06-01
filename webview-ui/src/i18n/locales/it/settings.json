@@ -627,6 +627,16 @@
 				"label": "Modello oggetto",
 				"placeholder": "Attività C {{outcome}}",
 				"description": "Opzionale. Token disponibili: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. I token non distinguono tra maiuscole e minuscole, quindi {{taskId}} e {{taskid}} funzionano entrambi."
+			},
+			"test": {
+				"label": "Testa impostazioni SMTP",
+				"description": "Invia un'email di test usando le impostazioni SMTP salvate. Le modifiche non salvate e le nuove password devono essere salvate prima.",
+				"button": "Testa SMTP",
+				"sending": "Invio...",
+				"success": "Email di test SMTP inviata correttamente.",
+				"failure": "Impossibile inviare l'email di test SMTP.",
+				"invalidConfig": "Le impostazioni SMTP sono incomplete o non valide. Controlla l'output dell'estensione per i dettagli.",
+				"unsavedChanges": "Salva le impostazioni SMTP prima di testare. Testa SMTP usa solo le impostazioni salvate e la password nello storage segreto di VS Code."
 			}
 		}
 	},

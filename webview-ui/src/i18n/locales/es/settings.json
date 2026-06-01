@@ -627,6 +627,16 @@
 				"label": "Plantilla de asunto",
 				"placeholder": "Tarea de C {{outcome}}",
 				"description": "Opcional. Tokens disponibles: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Los tokens no distinguen mayúsculas y minúsculas, así que {{taskId}} y {{taskid}} funcionan."
+			},
+			"test": {
+				"label": "Probar configuración SMTP",
+				"description": "Envía un correo de prueba usando la configuración SMTP guardada. Los cambios sin guardar y las contraseñas nuevas deben guardarse primero.",
+				"button": "Probar SMTP",
+				"sending": "Enviando...",
+				"success": "Correo de prueba SMTP enviado correctamente.",
+				"failure": "No se pudo enviar el correo de prueba SMTP.",
+				"invalidConfig": "La configuración SMTP está incompleta o no es válida. Consulta la salida de la extensión para más detalles.",
+				"unsavedChanges": "Guarda tu configuración SMTP antes de probarla. Probar SMTP solo usa la configuración guardada y la contraseña del almacenamiento secreto de VS Code."
 			}
 		}
 	},

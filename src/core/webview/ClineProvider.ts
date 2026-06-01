@@ -89,6 +89,7 @@ import {
 	EmailNotificationService,
 	type EmailNotificationOutcome,
 	type EmailNotificationPayload,
+	type EmailNotificationSendResult,
 } from "../../services/notifications/EmailNotificationService"
 
 import { fileExistsAtPath } from "../../utils/fs"
@@ -698,14 +699,47 @@ export class ClineProvider
 		tokenUsage?: TokenUsage,
 		toolUsage?: ToolUsage,
 	): void {
-		if (task.background || task.parentTask || task.parentTaskId) {
+		if (task.background) {
+			this.log(`[email-notifications] Skipping task ${task.taskId} notification because it is a background task.`)
 			return
+		}
+
+		if (task.parentTask || task.parentTaskId) {
+			this.log(
+				`[email-notifications] Skipping task ${task.taskId} notification because it is a delegated child task.`,
+			)
+			return
+		}
+
+		const summary = this.getEmailNotificationSummary(task, outcome)
+
+		if (outcome === "success") {
+			const historyItem = this.getEmailNotificationHistoryItem(task.taskId)
+
+			if (historyItem && this.hasDelegatedWorkflowNotificationMetadata(historyItem)) {
+				void this.notifyDelegatedWorkflowCompleted(
+					historyItem,
+					summary ?? historyItem.completionResultSummary ?? DEFAULT_COMPLETION_EMAIL_SUMMARY,
+					{
+						workspacePath: task.workspacePath,
+						mode: task.taskMode,
+						toolUsage,
+					},
+				).catch((error) => {
+					this.log(
+						`[email-notifications] Failed to prepare delegated parent completion notification for ${task.taskId}: ${this.sanitizeEmailNotificationLogMessage(
+							error,
+						)}`,
+					)
+				})
+				return
+			}
 		}
 
 		this.notifyTaskOutcome({
 			taskId: task.taskId,
 			outcome,
-			summary: this.getEmailNotificationSummary(task, outcome),
+			summary,
 			workspacePath: task.workspacePath,
 			mode: task.taskMode,
 			tokenUsage,
@@ -728,12 +762,13 @@ export class ClineProvider
 			| "childIds"
 		>,
 		completionResultSummary: string,
+		options: Pick<EmailNotificationPayload, "workspacePath" | "mode" | "toolUsage"> = {},
 	): Promise<void> {
 		const usage = await this.getAggregatedTaskNotificationUsage(historyItem).catch((error) => {
 			this.log(
-				`[email-notifications] Failed to aggregate delegated completion usage for task ${historyItem.id}; sending notification with fallback usage: ${
-					error instanceof Error ? error.message : String(error)
-				}`,
+				`[email-notifications] Failed to aggregate delegated completion usage for task ${historyItem.id}; sending notification with fallback usage: ${this.sanitizeEmailNotificationLogMessage(
+					error,
+				)}`,
 			)
 
 			return this.getFallbackTaskNotificationUsage(historyItem)
@@ -743,10 +778,35 @@ export class ClineProvider
 			taskId: historyItem.id,
 			outcome: "success",
 			summary: this.formatEmailNotificationSummary(completionResultSummary) ?? DEFAULT_COMPLETION_EMAIL_SUMMARY,
-			workspacePath: historyItem.workspace,
-			mode: typeof historyItem.mode === "string" ? historyItem.mode : undefined,
+			workspacePath: options.workspacePath ?? historyItem.workspace,
+			mode: options.mode ?? (typeof historyItem.mode === "string" ? historyItem.mode : undefined),
+			toolUsage: options.toolUsage,
 			...usage,
 		})
+	}
+
+	private getEmailNotificationHistoryItem(taskId: string): HistoryItem | undefined {
+		const historyById = new Map<string, HistoryItem>()
+
+		for (const item of this.getGlobalState("taskHistory") ?? []) {
+			historyById.set(item.id, item)
+		}
+
+		for (const item of this.taskHistoryStore.getAll()) {
+			historyById.set(item.id, item)
+		}
+
+		return historyById.get(taskId)
+	}
+
+	private hasDelegatedWorkflowNotificationMetadata(
+		historyItem: Pick<HistoryItem, "childIds" | "completedByChildId" | "completionResultSummary">,
+	): boolean {
+		return (
+			(historyItem.childIds?.length ?? 0) > 0 ||
+			typeof historyItem.completedByChildId === "string" ||
+			typeof historyItem.completionResultSummary === "string"
+		)
 	}
 
 	private async getAggregatedTaskNotificationUsage(
@@ -802,14 +862,22 @@ export class ClineProvider
 	}
 
 	private notifyTaskOutcome(payload: EmailNotificationPayload): void {
-		if (
-			this.hasEmailNotificationTaskOutcomeBeenSent(payload.taskId, payload.outcome) ||
-			this.hasEmailNotificationTaskOutcomeInFlight(payload.taskId, payload.outcome)
-		) {
+		if (this.hasEmailNotificationTaskOutcomeBeenSent(payload.taskId, payload.outcome)) {
+			this.log(
+				`[email-notifications] Skipping ${payload.outcome} notification for task ${payload.taskId}; an equal or higher-precedence outcome was already sent.`,
+			)
+			return
+		}
+
+		if (this.hasEmailNotificationTaskOutcomeInFlight(payload.taskId, payload.outcome)) {
+			this.log(
+				`[email-notifications] Skipping ${payload.outcome} notification for task ${payload.taskId}; an equal or higher-precedence outcome is already in flight.`,
+			)
 			return
 		}
 
 		this.emailNotificationTaskOutcomesInFlight.set(payload.taskId, payload.outcome)
+		this.log(`[email-notifications] Dispatching ${payload.outcome} notification for task ${payload.taskId}.`)
 
 		this.emailNotificationService
 			.sendTaskNotification(payload)
@@ -820,13 +888,30 @@ export class ClineProvider
 
 				if (result?.sent ?? true) {
 					this.rememberEmailNotificationTaskOutcome(payload.taskId, payload.outcome)
+					this.log(`[email-notifications] Sent ${payload.outcome} notification for task ${payload.taskId}.`)
+					return
 				}
+
+				if (result?.skippedReason) {
+					this.log(
+						`[email-notifications] Notification for task ${payload.taskId} was skipped by service: ${result.skippedReason}.`,
+					)
+					return
+				}
+
+				const sanitizedResultError = result?.error
+					? this.sanitizeEmailNotificationLogMessage(result.error)
+					: undefined
+
+				this.log(
+					`[email-notifications] Notification for task ${payload.taskId} was not sent${
+						sanitizedResultError ? `: ${sanitizedResultError}` : "."
+					}`,
+				)
 			})
 			.catch((error) => {
 				this.log(
-					`[email-notifications] Unexpected notification error: ${
-						error instanceof Error ? error.message : String(error)
-					}`,
+					`[email-notifications] Unexpected notification error: ${this.sanitizeEmailNotificationLogMessage(error)}`,
 				)
 			})
 			.finally(() => {
@@ -834,6 +919,17 @@ export class ClineProvider
 					this.emailNotificationTaskOutcomesInFlight.delete(payload.taskId)
 				}
 			})
+	}
+
+	private sanitizeEmailNotificationLogMessage(error: unknown): string {
+		const password = this.contextProxy.getSecret("smtpPassword")
+		const message = error instanceof Error ? error.message : String(error)
+
+		return password ? message.replaceAll(password, "[redacted]") : message
+	}
+
+	public async testSmtpSettings(): Promise<EmailNotificationSendResult> {
+		return this.emailNotificationService.sendTestNotification()
 	}
 
 	private getChildTaskIds(parentId: string): string[] {
@@ -5986,13 +6082,9 @@ export class ClineProvider
 			childIds,
 		}
 		await this.updateTaskHistory(updatedHistory)
-		void this.notifyDelegatedWorkflowCompleted(updatedHistory, completionResultSummary).catch((error) => {
-			this.log(
-				`[email-notifications] Failed to prepare delegated completion notification for ${parentTaskId}: ${
-					error instanceof Error ? error.message : String(error)
-				}`,
-			)
-		})
+		this.log(
+			`[email-notifications] Recorded delegated child ${childTaskId} completion for parent ${parentTaskId}; final parent completion will send the workflow notification.`,
+		)
 
 		// 6) Emit TaskDelegationCompleted (provider-level)
 		try {

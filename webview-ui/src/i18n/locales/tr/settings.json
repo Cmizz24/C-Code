@@ -627,6 +627,16 @@
 				"label": "Konu şablonu",
 				"placeholder": "C görevi {{outcome}}",
 				"description": "İsteğe bağlı. Kullanılabilir tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens büyük/küçük harfe duyarlı değildir; bu yüzden {{taskId}} ve {{taskid}} ikisi de çalışır."
+			},
+			"test": {
+				"label": "SMTP ayarlarını test et",
+				"description": "Kaydedilmiş SMTP ayarlarını kullanarak bir test e-postası gönder. Kaydedilmemiş değişiklikler ve yeni parolalar önce kaydedilmelidir.",
+				"button": "SMTP'yi test et",
+				"sending": "Gönderiliyor...",
+				"success": "SMTP test e-postası başarıyla gönderildi.",
+				"failure": "SMTP test e-postası gönderilemedi.",
+				"invalidConfig": "SMTP ayarları eksik veya geçersiz. Ayrıntılar için eklenti çıktısını kontrol et.",
+				"unsavedChanges": "Test etmeden önce SMTP ayarlarını kaydet. SMTP testi yalnızca kaydedilmiş ayarları ve VS Code gizli depolamasındaki parolayı kullanır."
 			}
 		}
 	},

@@ -6,7 +6,7 @@ import { SetCachedStateField } from "./types"
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 import { SearchableSetting } from "./SearchableSetting"
-import { Input, Slider, Textarea } from "../ui"
+import { Button, Input, Slider, Textarea } from "../ui"
 
 const parseRecipients = (value: string) =>
 	value
@@ -33,6 +33,10 @@ type NotificationSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	smtpRecipients?: string[]
 	smtpRecipientsText?: string
 	smtpSubjectTemplate?: string
+	smtpTestStatus?: "idle" | "sending" | "success" | "error"
+	smtpTestMessage?: string
+	smtpTestHasUnsavedChanges?: boolean
+	onTestSmtpSettings: () => void
 	setCachedStateField: SetCachedStateField<
 		| "ttsEnabled"
 		| "ttsSpeed"
@@ -73,11 +77,21 @@ export const NotificationSettings = ({
 	smtpRecipients,
 	smtpRecipientsText,
 	smtpSubjectTemplate,
+	smtpTestStatus = "idle",
+	smtpTestMessage,
+	smtpTestHasUnsavedChanges = false,
+	onTestSmtpSettings,
 	setCachedStateField,
 	...props
 }: NotificationSettingsProps) => {
 	const { t } = useAppTranslation()
 	const recipientsText = smtpRecipientsText ?? (smtpRecipients ?? []).join("\n")
+	const smtpTestStatusClassName =
+		smtpTestStatus === "success"
+			? "text-vscode-testing-iconPassed"
+			: smtpTestStatus === "error"
+				? "text-vscode-errorForeground"
+				: "text-vscode-descriptionForeground"
 
 	return (
 		<div {...props}>
@@ -300,6 +314,48 @@ export const NotificationSettings = ({
 							/>
 							<div className="text-vscode-descriptionForeground text-sm mt-1">
 								{t("settings:notifications.email.smtpSubjectTemplate.description")}
+							</div>
+						</SearchableSetting>
+
+						<SearchableSetting
+							settingId="notifications-email-test"
+							section="notifications"
+							label={t("settings:notifications.email.test.label")}>
+							<div className="flex flex-col gap-2">
+								<div>
+									<div className="font-medium">{t("settings:notifications.email.test.label")}</div>
+									<div className="text-vscode-descriptionForeground text-sm mt-1">
+										{t("settings:notifications.email.test.description")}
+									</div>
+								</div>
+
+								<Button
+									type="button"
+									variant="secondary"
+									className="w-fit"
+									onClick={onTestSmtpSettings}
+									disabled={smtpTestStatus === "sending"}
+									data-testid="test-smtp-button">
+									{smtpTestStatus === "sending"
+										? t("settings:notifications.email.test.sending")
+										: t("settings:notifications.email.test.button")}
+								</Button>
+
+								{smtpTestHasUnsavedChanges && smtpTestStatus !== "sending" && (
+									<div
+										className="text-vscode-descriptionForeground text-sm"
+										data-testid="smtp-test-unsaved-warning">
+										{t("settings:notifications.email.test.unsavedChanges")}
+									</div>
+								)}
+
+								{smtpTestMessage && (
+									<div
+										className={`text-sm ${smtpTestStatusClassName}`}
+										data-testid="smtp-test-result">
+										{smtpTestMessage}
+									</div>
+								)}
 							</div>
 						</SearchableSetting>
 					</div>

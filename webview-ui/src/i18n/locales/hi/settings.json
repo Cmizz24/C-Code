@@ -627,6 +627,16 @@
 				"label": "Subject template",
 				"placeholder": "C task {{outcome}}",
 				"description": "वैकल्पिक। उपलब्ध tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}। Tokens case-insensitive हैं, इसलिए {{taskId}} और {{taskid}} दोनों काम करते हैं।"
+			},
+			"test": {
+				"label": "SMTP settings टेस्ट करें",
+				"description": "सेव की गई SMTP settings का उपयोग करके एक टेस्ट ईमेल भेजें। सेव न किए गए बदलाव और नए पासवर्ड पहले सेव करने होंगे।",
+				"button": "SMTP टेस्ट करें",
+				"sending": "भेजा जा रहा है...",
+				"success": "SMTP टेस्ट ईमेल सफलतापूर्वक भेजा गया।",
+				"failure": "SMTP टेस्ट ईमेल नहीं भेजा जा सका।",
+				"invalidConfig": "SMTP settings अधूरी या अमान्य हैं। विवरण के लिए extension output देखें।",
+				"unsavedChanges": "टेस्ट करने से पहले अपनी SMTP settings सेव करें। SMTP टेस्ट केवल सेव की गई settings और VS Code secret storage में मौजूद पासवर्ड का उपयोग करता है।"
 			}
 		}
 	},

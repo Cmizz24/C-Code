@@ -627,6 +627,16 @@
 				"label": "Betreffvorlage",
 				"placeholder": "C-Aufgabe {{outcome}}",
 				"description": "Optional. Verfügbare Tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens ignorieren Groß-/Kleinschreibung, also funktionieren {{taskId}} und {{taskid}} beide."
+			},
+			"test": {
+				"label": "SMTP-Einstellungen testen",
+				"description": "Sende eine Test-E-Mail mit den gespeicherten SMTP-Einstellungen. Ungespeicherte Änderungen und neue Passwörter müssen zuerst gespeichert werden.",
+				"button": "SMTP testen",
+				"sending": "Wird gesendet...",
+				"success": "SMTP-Test-E-Mail erfolgreich gesendet.",
+				"failure": "SMTP-Test-E-Mail konnte nicht gesendet werden.",
+				"invalidConfig": "SMTP-Einstellungen sind unvollständig oder ungültig. Details findest du in der Extension-Ausgabe.",
+				"unsavedChanges": "Speichere deine SMTP-Einstellungen vor dem Testen. SMTP testen verwendet nur gespeicherte Einstellungen und das Passwort im geheimen Speicher von VS Code."
 			}
 		}
 	},

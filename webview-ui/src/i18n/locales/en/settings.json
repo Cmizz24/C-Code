@@ -689,6 +689,16 @@
 				"label": "Subject template",
 				"placeholder": "C task {{outcome}}",
 				"description": "Optional. Available tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens are case-insensitive, so {{taskId}} and {{taskid}} both work."
+			},
+			"test": {
+				"label": "Test SMTP settings",
+				"description": "Send a test email using the saved SMTP settings. Unsaved changes and new passwords must be saved first.",
+				"button": "Test SMTP",
+				"sending": "Sending...",
+				"success": "SMTP test email sent successfully.",
+				"failure": "SMTP test email could not be sent.",
+				"invalidConfig": "SMTP settings are incomplete or invalid. Check the extension output for details.",
+				"unsavedChanges": "Save your SMTP settings before testing. Test SMTP only uses saved settings and the password in VS Code secret storage."
 			}
 		}
 	},

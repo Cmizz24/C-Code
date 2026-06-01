@@ -1143,7 +1143,10 @@ describe("ClineProvider", () => {
 				new ContextProxy(mockContext),
 			)
 			const reloadedSendTaskNotification = vi.fn().mockResolvedValue(undefined)
-			;(reloadedProvider as any).emailNotificationService = { sendTaskNotification: reloadedSendTaskNotification }
+			;(reloadedProvider as any).emailNotificationService = {
+				sendTaskNotification: reloadedSendTaskNotification,
+				sendTestNotification: vi.fn(),
+			}
 			const reloadedTask = new Task({
 				...defaultTaskOptions,
 				provider: reloadedProvider,

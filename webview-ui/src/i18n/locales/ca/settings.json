@@ -627,6 +627,16 @@
 				"label": "Plantilla de l'assumpte",
 				"placeholder": "Tasca C {{outcome}}",
 				"description": "Opcional. Tokens disponibles: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Els tokens no distingeixen majúscules i minúscules, així que {{taskId}} i {{taskid}} funcionen."
+			},
+			"test": {
+				"label": "Prova la configuració SMTP",
+				"description": "Envia un correu de prova amb la configuració SMTP desada. Els canvis sense desar i les contrasenyes noves s'han de desar primer.",
+				"button": "Prova SMTP",
+				"sending": "S'està enviant...",
+				"success": "El correu de prova SMTP s'ha enviat correctament.",
+				"failure": "No s'ha pogut enviar el correu de prova SMTP.",
+				"invalidConfig": "La configuració SMTP és incompleta o no és vàlida. Consulta la sortida de l'extensió per obtenir-ne detalls.",
+				"unsavedChanges": "Desa la configuració SMTP abans de provar-la. Prova SMTP només utilitza la configuració desada i la contrasenya a l'emmagatzematge secret de VS Code."
 			}
 		}
 	},

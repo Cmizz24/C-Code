@@ -627,6 +627,16 @@
 				"label": "件名テンプレート",
 				"placeholder": "C task {{outcome}}",
 				"description": "任意。利用可能なtokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}。Tokensは大文字と小文字を区別しないため、{{taskId}} と {{taskid}} の両方が使えます。"
+			},
+			"test": {
+				"label": "SMTP設定をテスト",
+				"description": "保存済みのSMTP設定を使ってテストメールを送信します。未保存の変更や新しいパスワードは先に保存する必要があります。",
+				"button": "SMTPをテスト",
+				"sending": "送信中...",
+				"success": "SMTPテストメールを正常に送信しました。",
+				"failure": "SMTPテストメールを送信できませんでした。",
+				"invalidConfig": "SMTP設定が不完全または無効です。詳細は拡張機能の出力を確認してください。",
+				"unsavedChanges": "テストする前にSMTP設定を保存してください。SMTPテストは保存済みの設定とVS Code secret storage内のパスワードのみを使用します。"
 			}
 		}
 	},

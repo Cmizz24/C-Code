@@ -627,6 +627,16 @@
 				"label": "Template subjek",
 				"placeholder": "Tugas C {{outcome}}",
 				"description": "Opsional. Token yang tersedia: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Token tidak peka huruf besar/kecil, jadi {{taskId}} dan {{taskid}} sama-sama berfungsi."
+			},
+			"test": {
+				"label": "Uji pengaturan SMTP",
+				"description": "Kirim email uji memakai pengaturan SMTP yang tersimpan. Perubahan yang belum disimpan dan kata sandi baru harus disimpan terlebih dahulu.",
+				"button": "Uji SMTP",
+				"sending": "Mengirim...",
+				"success": "Email uji SMTP berhasil dikirim.",
+				"failure": "Email uji SMTP tidak dapat dikirim.",
+				"invalidConfig": "Pengaturan SMTP belum lengkap atau tidak valid. Periksa output ekstensi untuk detailnya.",
+				"unsavedChanges": "Simpan pengaturan SMTP sebelum menguji. Uji SMTP hanya memakai pengaturan tersimpan dan kata sandi di penyimpanan rahasia VS Code."
 			}
 		}
 	},

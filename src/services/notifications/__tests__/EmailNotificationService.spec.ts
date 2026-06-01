@@ -255,6 +255,81 @@ describe("EmailNotificationService", () => {
 		expect(log).toHaveBeenCalledWith("Email notifications are enabled but SMTP password is not configured.")
 	})
 
+	it("sends SMTP test emails using saved settings and SecretStorage password even when task notifications are disabled", async () => {
+		const contextProxy = createContextProxy({
+			emailNotificationsEnabled: false,
+			emailNotifyOnSuccess: false,
+			emailNotifyOnFailure: false,
+			smtpRecipients: [" dev@example.com ", "ops@example.com", "dev@example.com"],
+		})
+		const { service, sendMail, transportFactory, log } = createService(contextProxy)
+
+		await expect(service.sendTestNotification()).resolves.toEqual({ attempted: true, sent: true })
+
+		expect(contextProxy.getSecret).toHaveBeenCalledWith("smtpPassword")
+		expect(transportFactory).toHaveBeenCalledWith({
+			host: "smtp.example.com",
+			port: 587,
+			secure: false,
+			requireTLS: undefined,
+			auth: {
+				user: "smtp-user",
+				pass: "smtp-secret",
+			},
+		})
+		expect(sendMail).toHaveBeenCalledWith(
+			expect.objectContaining({
+				from: "C Code <roo@example.com>",
+				to: ["dev@example.com", "ops@example.com"],
+				subject: "C Code SMTP test",
+				text: expect.stringContaining("Your saved SMTP settings can send email successfully."),
+				html: expect.stringContaining("SMTP test email"),
+			}),
+		)
+
+		const mailOptions = sendMail.mock.calls[0][0]
+		expect(mailOptions.text).toContain("Task transcripts and SMTP secrets are not included")
+		expect(mailOptions.text).not.toContain("Full transcript content")
+		expect(mailOptions.text).not.toContain("Raw API transcript content")
+		expect(mailOptions.text).not.toContain("smtp-secret")
+		expect(mailOptions.html).not.toContain("smtp-secret")
+		expect(log.mock.calls.flat().join("\n")).not.toContain("smtp-secret")
+		expect(log).toHaveBeenCalledWith("[email-notifications] SMTP test email sent successfully.")
+	})
+
+	it("reports invalid SMTP test configuration without creating a transport", async () => {
+		const { service, transportFactory, log } = createService(createContextProxy({ smtpHost: "" }))
+
+		await expect(service.sendTestNotification()).resolves.toEqual({
+			attempted: false,
+			sent: false,
+			skippedReason: "invalid-config",
+			error: "SMTP settings are incomplete or invalid. Check the extension output for details.",
+		})
+
+		expect(transportFactory).not.toHaveBeenCalled()
+		expect(log).toHaveBeenCalledWith("SMTP test email cannot be sent because SMTP host is not configured.")
+	})
+
+	it("returns sanitized SMTP test send failures without throwing", async () => {
+		const contextProxy = createContextProxy()
+		const sendMail = vi.fn().mockRejectedValue(new Error("Authentication failed for smtp-secret"))
+		const transportFactory = vi.fn(() => ({ sendMail }))
+		const log = vi.fn()
+		const service = new EmailNotificationService(contextProxy, { log, transportFactory })
+
+		await expect(service.sendTestNotification()).resolves.toEqual({
+			attempted: true,
+			sent: false,
+			error: "Authentication failed for [redacted]",
+		})
+
+		expect(log).toHaveBeenCalledWith(
+			"Failed to send SMTP test email notification: Authentication failed for [redacted]",
+		)
+		expect(log.mock.calls.flat().join("\n")).not.toContain("smtp-secret")
+	})
+
 	it("suppresses duplicate task outcome notifications", async () => {
 		const { service, sendMail } = createService(createContextProxy())
 

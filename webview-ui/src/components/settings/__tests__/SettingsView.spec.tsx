@@ -164,8 +164,14 @@ vi.mock("@/components/ui", () => ({
 			data-testid={dataTestId}
 		/>
 	),
-	Button: ({ children, onClick, variant, className, "data-testid": dataTestId }: any) => (
-		<button onClick={onClick} data-variant={variant} className={className} data-testid={dataTestId}>
+	Button: ({ children, onClick, variant, className, disabled, type, "data-testid": dataTestId }: any) => (
+		<button
+			type={type}
+			onClick={onClick}
+			disabled={disabled}
+			data-variant={variant}
+			className={className}
+			data-testid={dataTestId}>
 			{children}
 		</button>
 	),
@@ -606,6 +612,92 @@ describe("SettingsView - Email Notification Settings", () => {
 				smtpPassword: "new-smtp-secret",
 			}),
 		)
+	})
+
+	it("posts Test SMTP requests with saved settings and no SMTP password payload", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			emailNotificationsEnabled: true,
+			smtpHost: "smtp.example.com",
+			smtpPort: 587,
+			smtpUsername: "smtp-user",
+			smtpPasswordConfigured: true,
+			smtpFromAddress: "C Code <roo@example.com>",
+			smtpRecipients: ["dev@example.com"],
+		})
+
+		activateTab("notifications")
+		vi.mocked(vscode.postMessage).mockClear()
+
+		fireEvent.click(within(getSettingsContent()).getByTestId("test-smtp-button"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "testSmtpSettings" })
+		expect(JSON.stringify(vi.mocked(vscode.postMessage).mock.calls)).not.toContain("smtpPassword")
+		expect(JSON.stringify(vi.mocked(vscode.postMessage).mock.calls)).not.toContain("smtp-secret")
+		expect(within(getSettingsContent()).getByTestId("test-smtp-button")).toBeDisabled()
+	})
+
+	it("blocks Test SMTP while SMTP edits or a replacement password are unsaved", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			emailNotificationsEnabled: true,
+			smtpHost: "smtp.example.com",
+			smtpPasswordConfigured: true,
+			smtpFromAddress: "C Code <roo@example.com>",
+			smtpRecipients: ["dev@example.com"],
+		})
+
+		activateTab("notifications")
+		const content = getSettingsContent()
+		vi.mocked(vscode.postMessage).mockClear()
+
+		fireEvent.change(within(content).getByTestId("smtp-password-input"), { target: { value: "new-smtp-secret" } })
+		fireEvent.click(within(content).getByTestId("test-smtp-button"))
+
+		expect(vscode.postMessage).not.toHaveBeenCalledWith({ type: "testSmtpSettings" })
+		expect(within(content).getByTestId("smtp-test-unsaved-warning")).toBeInTheDocument()
+		expect(within(content).getByTestId("smtp-test-result")).toHaveTextContent(
+			"settings:notifications.email.test.unsavedChanges",
+		)
+	})
+
+	it("renders SMTP test success and invalid-configuration results from the extension host", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			emailNotificationsEnabled: true,
+			smtpHost: "smtp.example.com",
+			smtpPasswordConfigured: true,
+			smtpFromAddress: "C Code <roo@example.com>",
+			smtpRecipients: ["dev@example.com"],
+		})
+
+		activateTab("notifications")
+		const content = getSettingsContent()
+
+		act(() => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: { type: "smtpTestResult", success: true, text: "SMTP test email sent successfully." },
+				}),
+			)
+		})
+
+		expect(within(content).getByTestId("smtp-test-result")).toHaveTextContent("SMTP test email sent successfully.")
+
+		act(() => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "smtpTestResult",
+						success: false,
+						error: "Backend error should be replaced for invalid config",
+						values: { skippedReason: "invalid-config" },
+					},
+				}),
+			)
+		})
+
+		expect(within(content).getByTestId("smtp-test-result")).toHaveTextContent(
+			"settings:notifications.email.test.invalidConfig",
+		)
+		expect(within(content).getByTestId("smtp-test-result")).not.toHaveTextContent("smtp-secret")
 	})
 })
 

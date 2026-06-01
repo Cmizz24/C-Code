@@ -627,6 +627,16 @@
 				"label": "Onderwerpsjabloon",
 				"placeholder": "C-taak {{outcome}}",
 				"description": "Optioneel. Beschikbare tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens zijn niet hoofdlettergevoelig, dus {{taskId}} en {{taskid}} werken allebei."
+			},
+			"test": {
+				"label": "SMTP-instellingen testen",
+				"description": "Verstuur een testmail met de opgeslagen SMTP-instellingen. Niet-opgeslagen wijzigingen en nieuwe wachtwoorden moeten eerst worden opgeslagen.",
+				"button": "SMTP testen",
+				"sending": "Bezig met verzenden...",
+				"success": "SMTP-testmail succesvol verzonden.",
+				"failure": "SMTP-testmail kon niet worden verzonden.",
+				"invalidConfig": "SMTP-instellingen zijn onvolledig of ongeldig. Controleer de uitvoer van de extensie voor details.",
+				"unsavedChanges": "Sla je SMTP-instellingen op voordat je test. SMTP testen gebruikt alleen opgeslagen instellingen en het wachtwoord in de geheime opslag van VS Code."
 			}
 		}
 	},

@@ -627,6 +627,16 @@
 				"label": "Modelo de assunto",
 				"placeholder": "Tarefa C {{outcome}}",
 				"description": "Opcional. Tokens disponíveis: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens não diferenciam maiúsculas de minúsculas, então {{taskId}} e {{taskid}} funcionam."
+			},
+			"test": {
+				"label": "Testar configurações SMTP",
+				"description": "Envia um e-mail de teste usando as configurações SMTP salvas. Alterações não salvas e novas senhas devem ser salvas primeiro.",
+				"button": "Testar SMTP",
+				"sending": "Enviando...",
+				"success": "E-mail de teste SMTP enviado com sucesso.",
+				"failure": "Não foi possível enviar o e-mail de teste SMTP.",
+				"invalidConfig": "As configurações SMTP estão incompletas ou inválidas. Confira a saída da extensão para detalhes.",
+				"unsavedChanges": "Salve suas configurações SMTP antes de testar. Testar SMTP usa apenas as configurações salvas e a senha no armazenamento secreto do VS Code."
 			}
 		}
 	},

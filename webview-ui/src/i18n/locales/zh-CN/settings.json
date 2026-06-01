@@ -627,6 +627,16 @@
 				"label": "主题模板",
 				"placeholder": "C task {{outcome}}",
 				"description": "可选。可用 tokens：{{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}。Tokens 不区分大小写，因此 {{taskId}} 和 {{taskid}} 都可用。"
+			},
+			"test": {
+				"label": "测试 SMTP 设置",
+				"description": "使用已保存的 SMTP 设置发送测试邮件。未保存的更改和新密码必须先保存。",
+				"button": "测试 SMTP",
+				"sending": "正在发送...",
+				"success": "SMTP 测试邮件已成功发送。",
+				"failure": "无法发送 SMTP 测试邮件。",
+				"invalidConfig": "SMTP 设置不完整或无效。请查看扩展输出了解详情。",
+				"unsavedChanges": "测试前请保存 SMTP 设置。测试 SMTP 只使用已保存的设置和 VS Code secret storage 中的密码。"
 			}
 		}
 	},

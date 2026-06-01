@@ -637,6 +637,16 @@
 				"label": "主旨範本",
 				"placeholder": "C task {{outcome}}",
 				"description": "選填。可用 tokens：{{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}。Tokens 不區分大小寫，因此 {{taskId}} 和 {{taskid}} 都可用。"
+			},
+			"test": {
+				"label": "測試 SMTP 設定",
+				"description": "使用已儲存的 SMTP 設定傳送測試郵件。未儲存的變更和新密碼必須先儲存。",
+				"button": "測試 SMTP",
+				"sending": "正在傳送...",
+				"success": "SMTP 測試郵件已成功傳送。",
+				"failure": "無法傳送 SMTP 測試郵件。",
+				"invalidConfig": "SMTP 設定不完整或無效。請查看擴充功能輸出以取得詳細資訊。",
+				"unsavedChanges": "測試前請儲存 SMTP 設定。測試 SMTP 只使用已儲存的設定和 VS Code secret storage 中的密碼。"
 			}
 		}
 	},

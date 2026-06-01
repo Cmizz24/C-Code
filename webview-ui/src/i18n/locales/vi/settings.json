@@ -627,6 +627,16 @@
 				"label": "Mẫu chủ đề",
 				"placeholder": "Tác vụ C {{outcome}}",
 				"description": "Tùy chọn. Tokens có sẵn: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens không phân biệt hoa thường, nên {{taskId}} và {{taskid}} đều hoạt động."
+			},
+			"test": {
+				"label": "Kiểm tra cài đặt SMTP",
+				"description": "Gửi email kiểm tra bằng cài đặt SMTP đã lưu. Các thay đổi chưa lưu và mật khẩu mới phải được lưu trước.",
+				"button": "Kiểm tra SMTP",
+				"sending": "Đang gửi...",
+				"success": "Email kiểm tra SMTP đã được gửi thành công.",
+				"failure": "Không thể gửi email kiểm tra SMTP.",
+				"invalidConfig": "Cài đặt SMTP chưa đầy đủ hoặc không hợp lệ. Kiểm tra output của tiện ích để biết chi tiết.",
+				"unsavedChanges": "Lưu cài đặt SMTP trước khi kiểm tra. Kiểm tra SMTP chỉ dùng cài đặt đã lưu và mật khẩu trong kho bí mật của VS Code."
 			}
 		}
 	},

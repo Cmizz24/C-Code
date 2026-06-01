@@ -777,6 +777,27 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 
 			break
 
+		case "testSmtpSettings": {
+			const result = await provider.testSmtpSettings()
+			await provider.postMessageToWebview({
+				type: "smtpTestResult",
+				success: result.sent,
+				text: result.sent ? "SMTP test email sent successfully." : undefined,
+				error: result.sent
+					? undefined
+					: (result.error ??
+						(result.skippedReason === "invalid-config"
+							? "SMTP settings are incomplete or invalid. Check the extension output for details."
+							: "SMTP test email could not be sent.")),
+				values: {
+					attempted: result.attempted,
+					sent: result.sent,
+					skippedReason: result.skippedReason,
+				},
+			})
+			break
+		}
+
 		case "terminalOperation":
 			if (message.terminalOperation) {
 				provider.getCurrentTask()?.handleTerminalOperation(message.terminalOperation)
