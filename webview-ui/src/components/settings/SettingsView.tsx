@@ -125,6 +125,13 @@ type SettingsViewProps = {
 
 type SmtpTestStatus = "idle" | "sending" | "success" | "error"
 
+const isSmtpTestRelevantField = (field: keyof ExtensionStateContextType) =>
+	typeof field === "string" &&
+	(field.startsWith("smtp") ||
+		field === "emailNotificationsEnabled" ||
+		field === "emailNotifyOnSuccess" ||
+		field === "emailNotifyOnFailure")
+
 const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, targetSection }, ref) => {
 	const { t } = useAppTranslation()
 
@@ -256,7 +263,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 
 			setChangeDetected(true)
 
-			if (typeof field === "string" && field.startsWith("smtp")) {
+			if (isSmtpTestRelevantField(field)) {
 				setSmtpTestStatus("idle")
 				setSmtpTestMessage(undefined)
 			}
@@ -267,27 +274,40 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 
 	const smtpTestHasUnsavedChanges = useMemo(() => {
 		const normalizeString = (value: string | undefined) => value ?? ""
-		const normalizeBoolean = (value: boolean | undefined) => value ?? false
+		const normalizeBoolean = (value: boolean | undefined, defaultValue = false) => value ?? defaultValue
 		const normalizePort = (value: number | undefined) => value ?? 587
 		const normalizeRecipients = (value: string[] | undefined) => JSON.stringify(value ?? [])
 
 		return (
 			(smtpPassword?.length ?? 0) > 0 ||
+			normalizeBoolean(emailNotificationsEnabled) !==
+				normalizeBoolean(extensionState.emailNotificationsEnabled) ||
+			normalizeBoolean(emailNotifyOnSuccess, true) !==
+				normalizeBoolean(extensionState.emailNotifyOnSuccess, true) ||
+			normalizeBoolean(emailNotifyOnFailure) !== normalizeBoolean(extensionState.emailNotifyOnFailure) ||
 			normalizeString(smtpHost) !== normalizeString(extensionState.smtpHost) ||
 			normalizePort(smtpPort) !== normalizePort(extensionState.smtpPort) ||
 			normalizeBoolean(smtpSecure) !== normalizeBoolean(extensionState.smtpSecure) ||
 			normalizeBoolean(smtpRequireTls) !== normalizeBoolean(extensionState.smtpRequireTls) ||
 			normalizeString(smtpUsername) !== normalizeString(extensionState.smtpUsername) ||
 			normalizeString(smtpFromAddress) !== normalizeString(extensionState.smtpFromAddress) ||
-			normalizeRecipients(smtpRecipients) !== normalizeRecipients(extensionState.smtpRecipients)
+			normalizeRecipients(smtpRecipients) !== normalizeRecipients(extensionState.smtpRecipients) ||
+			normalizeString(smtpSubjectTemplate) !== normalizeString(extensionState.smtpSubjectTemplate)
 		)
 	}, [
+		emailNotificationsEnabled,
+		emailNotifyOnFailure,
+		emailNotifyOnSuccess,
+		extensionState.emailNotificationsEnabled,
+		extensionState.emailNotifyOnFailure,
+		extensionState.emailNotifyOnSuccess,
 		extensionState.smtpFromAddress,
 		extensionState.smtpHost,
 		extensionState.smtpPort,
 		extensionState.smtpRecipients,
 		extensionState.smtpRequireTls,
 		extensionState.smtpSecure,
+		extensionState.smtpSubjectTemplate,
 		extensionState.smtpUsername,
 		smtpFromAddress,
 		smtpHost,
@@ -296,6 +316,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		smtpRecipients,
 		smtpRequireTls,
 		smtpSecure,
+		smtpSubjectTemplate,
 		smtpUsername,
 	])
 

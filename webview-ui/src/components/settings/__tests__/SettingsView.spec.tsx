@@ -541,6 +541,26 @@ describe("SettingsView - Email Notification Settings", () => {
 		return call?.[0]
 	}
 
+	const savedSmtpSettings = {
+		emailNotificationsEnabled: true,
+		smtpHost: "smtp.example.com",
+		smtpPort: 587,
+		smtpUsername: "smtp-user",
+		smtpPasswordConfigured: true,
+		smtpFromAddress: "C Code <roo@example.com>",
+		smtpRecipients: ["dev@example.com"],
+	}
+
+	const expectTestSmtpBlockedForUnsavedChanges = (content: HTMLElement) => {
+		fireEvent.click(within(content).getByTestId("test-smtp-button"))
+
+		expect(vscode.postMessage).not.toHaveBeenCalledWith({ type: "testSmtpSettings" })
+		expect(within(content).getByTestId("smtp-test-unsaved-warning")).toBeInTheDocument()
+		expect(within(content).getByTestId("smtp-test-result")).toHaveTextContent(
+			"settings:notifications.email.test.unsavedChanges",
+		)
+	}
+
 	it("saves SMTP settings with recipients as an array and omits blank passwords", () => {
 		const { activateTab, getSettingsContent } = renderSettingsView()
 
@@ -615,15 +635,7 @@ describe("SettingsView - Email Notification Settings", () => {
 	})
 
 	it("posts Test SMTP requests with saved settings and no SMTP password payload", () => {
-		const { activateTab, getSettingsContent } = renderSettingsView({
-			emailNotificationsEnabled: true,
-			smtpHost: "smtp.example.com",
-			smtpPort: 587,
-			smtpUsername: "smtp-user",
-			smtpPasswordConfigured: true,
-			smtpFromAddress: "C Code <roo@example.com>",
-			smtpRecipients: ["dev@example.com"],
-		})
+		const { activateTab, getSettingsContent } = renderSettingsView(savedSmtpSettings)
 
 		activateTab("notifications")
 		vi.mocked(vscode.postMessage).mockClear()
@@ -637,26 +649,61 @@ describe("SettingsView - Email Notification Settings", () => {
 	})
 
 	it("blocks Test SMTP while SMTP edits or a replacement password are unsaved", () => {
-		const { activateTab, getSettingsContent } = renderSettingsView({
-			emailNotificationsEnabled: true,
-			smtpHost: "smtp.example.com",
-			smtpPasswordConfigured: true,
-			smtpFromAddress: "C Code <roo@example.com>",
-			smtpRecipients: ["dev@example.com"],
-		})
+		const { activateTab, getSettingsContent } = renderSettingsView(savedSmtpSettings)
 
 		activateTab("notifications")
 		const content = getSettingsContent()
 		vi.mocked(vscode.postMessage).mockClear()
 
 		fireEvent.change(within(content).getByTestId("smtp-password-input"), { target: { value: "new-smtp-secret" } })
-		fireEvent.click(within(content).getByTestId("test-smtp-button"))
 
-		expect(vscode.postMessage).not.toHaveBeenCalledWith({ type: "testSmtpSettings" })
-		expect(within(content).getByTestId("smtp-test-unsaved-warning")).toBeInTheDocument()
-		expect(within(content).getByTestId("smtp-test-result")).toHaveTextContent(
-			"settings:notifications.email.test.unsavedChanges",
-		)
+		expectTestSmtpBlockedForUnsavedChanges(content)
+	})
+
+	it("blocks Test SMTP while email notification enablement is unsaved", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			...savedSmtpSettings,
+			emailNotificationsEnabled: false,
+		})
+
+		activateTab("notifications")
+		let content = getSettingsContent()
+		vi.mocked(vscode.postMessage).mockClear()
+
+		fireEvent.click(within(content).getByTestId("email-notifications-enabled-checkbox"))
+		content = getSettingsContent()
+
+		expectTestSmtpBlockedForUnsavedChanges(content)
+	})
+
+	const unsavedNotificationSettingCases: Array<[string, (content: HTMLElement) => void]> = [
+		[
+			"success notification preference",
+			(content) => fireEvent.click(within(content).getByTestId("email-notify-success-checkbox")),
+		],
+		[
+			"failure notification preference",
+			(content) => fireEvent.click(within(content).getByTestId("email-notify-failure-checkbox")),
+		],
+		[
+			"subject template",
+			(content) =>
+				fireEvent.change(within(content).getByTestId("smtp-subject-input"), {
+					target: { value: "C task {{outcome}}" },
+				}),
+		],
+	]
+
+	it.each(unsavedNotificationSettingCases)("blocks Test SMTP while %s is unsaved", (_settingName, updateSetting) => {
+		const { activateTab, getSettingsContent } = renderSettingsView(savedSmtpSettings)
+
+		activateTab("notifications")
+		const content = getSettingsContent()
+		vi.mocked(vscode.postMessage).mockClear()
+
+		updateSetting(content)
+
+		expectTestSmtpBlockedForUnsavedChanges(content)
 	})
 
 	it("renders SMTP test success and invalid-configuration results from the extension host", () => {
