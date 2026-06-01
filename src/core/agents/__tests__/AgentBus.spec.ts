@@ -266,12 +266,45 @@ describe("AgentBus", () => {
 		expect(permission.reason).toContain("locked by agent-a")
 	})
 
-	it("approves writes to paths owned by another agent with advisory warning", () => {
+	it("denies writes to paths owned by another agent", () => {
+		const events = vi.fn()
+		bus.on("event", events)
+
 		const permission = bus.requestWriteIntent("agent-a", "src/b.ts")
 
-		expect(permission.approved).toBe(true)
-		expect(permission.unownedWarning).toContain("owned by agent-b")
-		expect(permission.unownedWarning).toContain("advisory")
+		expect(permission.approved).toBe(false)
+		expect(permission.suggestWait).toBe(true)
+		expect(permission.reason).toContain("owned by agent-b")
+		expect(events).toHaveBeenCalledWith({
+			type: "CONFLICT_QUERY",
+			agentId: "agent-a",
+			path: "src/b.ts",
+			ownerAgentId: "agent-b",
+		})
+	})
+
+	it("denies writes below directories owned by another agent", () => {
+		const plan = createPlan()
+		plan.agents[1] = {
+			...plan.agents[1],
+			owns: [{ path: "src/services/", mode: "exclusive" }],
+		}
+		bus.setExecutionPlan(plan)
+
+		const permission = bus.requestWriteIntent("agent-a", "src/services/client.ts")
+
+		expect(permission.approved).toBe(false)
+		expect(permission.reason).toContain("owned by agent-b")
+	})
+
+	it("denies overlapping writes while another agent holds a parent path lock", () => {
+		expect(bus.requestWriteIntent("agent-a", "src/generated").approved).toBe(true)
+
+		const permission = bus.requestWriteIntent("agent-b", "src/generated/types.ts")
+
+		expect(permission.approved).toBe(false)
+		expect(permission.suggestWait).toBe(true)
+		expect(permission.reason).toContain("locked by agent-a")
 	})
 
 	it("allows unowned writes with a warning", () => {
@@ -360,7 +393,7 @@ describe("AgentBus", () => {
 		bus.on("event", events)
 
 		expect(bus.requestWriteIntent("agent-a", "src/unowned.ts").approved).toBe(true)
-		expect(bus.requestWriteIntent("agent-a", "src/b.ts").approved).toBe(true)
+		expect(bus.requestWriteIntent("agent-a", "src/b.ts").approved).toBe(false)
 
 		bus.markComplete("agent-a", "A done")
 
@@ -374,17 +407,22 @@ describe("AgentBus", () => {
 				completionResult: "A done",
 			}),
 		)
-		expect(packet?.ownership.status).toBe("warning")
+		expect(packet?.ownership.status).toBe("violation")
 		expect(packet?.ownership.attemptedOutOfScopeWrites).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ path: "src/unowned.ts", approved: true }),
-				expect.objectContaining({ path: "src/b.ts", approved: true, ownerAgentId: "agent-b" }),
+				expect.objectContaining({ path: "src/b.ts", approved: false, ownerAgentId: "agent-b" }),
+			]),
+		)
+		expect(packet?.ownership.conflicts).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ path: "src/b.ts", approved: false, ownerAgentId: "agent-b" }),
 			]),
 		)
 		expect(packet?.validation).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ name: "agent-terminal-status", status: "passed" }),
-				expect.objectContaining({ name: "ownership-compliance", status: "warning" }),
+				expect.objectContaining({ name: "ownership-compliance", status: "failed" }),
 			]),
 		)
 		expect(events).toHaveBeenCalledWith({ type: "COMPLETION_PACKET", agentId: "agent-a", packet })

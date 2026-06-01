@@ -111,6 +111,22 @@ function pathMatches(ownedPath: string, requestedPath: string): boolean {
 	)
 }
 
+function trimTrailingPathSeparator(filePath: string): string {
+	return normalizePath(filePath).replace(/\/+$/, "")
+}
+
+function pathsOverlap(leftPath: string, rightPath: string): boolean {
+	const normalizedLeft = trimTrailingPathSeparator(leftPath)
+	const normalizedRight = trimTrailingPathSeparator(rightPath)
+
+	return (
+		Boolean(normalizedLeft && normalizedRight) &&
+		(normalizedLeft === normalizedRight ||
+			normalizedLeft.startsWith(`${normalizedRight}/`) ||
+			normalizedRight.startsWith(`${normalizedLeft}/`))
+	)
+}
+
 export class AgentBus extends EventEmitter<AgentBusEvents> {
 	private static instance: AgentBus | undefined
 
@@ -209,7 +225,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		const normalizedPath = normalizePath(filePath)
 		const agent = this.getAgent(agentId)
 		const ownerAgentId = this.findOwnerAgentId(normalizedPath)
-		const activeWriter = this.activeWrites.get(normalizedPath)
+		const activeWriter = this.findActiveWriter(normalizedPath)
 		const incomingQuestionBlockers = this.getBlockingIncomingQuestions(agentId).filter((question) =>
 			this.isQuestionRelevantToPath(question, normalizedPath),
 		)
@@ -219,16 +235,19 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			permission = { approved: true, unownedWarning: "No active execution plan is available for this agent." }
 		} else if (agent.mustNotTouch.some((blockedPath) => pathMatches(blockedPath, normalizedPath))) {
 			permission = { approved: false, reason: `${normalizedPath} is listed in mustNotTouch for ${agentId}.` }
-		} else if (activeWriter && activeWriter !== agentId) {
+		} else if (activeWriter && activeWriter.agentId !== agentId) {
 			permission = {
 				approved: false,
-				reason: `${normalizedPath} is currently locked by ${activeWriter}.`,
+				reason: `${normalizedPath} is currently locked by ${activeWriter.agentId}${
+					activeWriter.path === normalizedPath ? "" : ` through overlapping write ${activeWriter.path}`
+				}.`,
 				suggestWait: true,
 			}
 		} else if (ownerAgentId && ownerAgentId !== agentId) {
 			permission = {
-				approved: true,
-				unownedWarning: `${normalizedPath} is owned by ${ownerAgentId} (advisory only).`,
+				approved: false,
+				reason: `${normalizedPath} is owned by ${ownerAgentId}. Coordinate with the owning agent or update the execution plan before writing.`,
+				suggestWait: true,
 			}
 		} else if (
 			agent.owns.some(
@@ -1136,16 +1155,36 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	}
 
 	private findOwnerAgentId(filePath: string): string | undefined {
+		const normalizedPath = normalizePath(filePath)
+
 		for (const agent of this.executionPlan?.agents ?? []) {
 			const ownership = agent.owns.find(
-				(candidate) => candidate.mode !== "shared" && pathMatches(candidate.path, filePath),
+				(candidate) => candidate.mode !== "shared" && pathMatches(candidate.path, normalizedPath),
 			)
 			if (ownership) {
 				return agent.id
 			}
 		}
 
-		return this.executionPlan?.fileOwnershipMap[normalizePath(filePath)]
+		for (const [ownedPath, agentId] of Object.entries(this.executionPlan?.fileOwnershipMap ?? {})) {
+			if (pathMatches(ownedPath, normalizedPath)) {
+				return agentId
+			}
+		}
+
+		return undefined
+	}
+
+	private findActiveWriter(filePath: string): { path: string; agentId: string } | undefined {
+		const normalizedPath = normalizePath(filePath)
+
+		for (const [activePath, activeAgentId] of this.activeWrites.entries()) {
+			if (pathsOverlap(activePath, normalizedPath)) {
+				return { path: activePath, agentId: activeAgentId }
+			}
+		}
+
+		return undefined
 	}
 
 	private areDependenciesSatisfied(dependsOn: AgentDependency[]): boolean {

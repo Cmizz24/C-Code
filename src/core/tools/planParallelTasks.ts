@@ -66,6 +66,22 @@ function normalizePlanPath(filePath: string): string {
 	return filePath.replace(/\\/g, "/").replace(/^\.\//, "")
 }
 
+function trimPlanPath(filePath: string): string {
+	return normalizePlanPath(filePath).replace(/\/+$/, "")
+}
+
+function planPathsOverlap(leftPath: string, rightPath: string): boolean {
+	const normalizedLeft = trimPlanPath(leftPath)
+	const normalizedRight = trimPlanPath(rightPath)
+
+	return (
+		Boolean(normalizedLeft && normalizedRight) &&
+		(normalizedLeft === normalizedRight ||
+			normalizedLeft.startsWith(`${normalizedRight}/`) ||
+			normalizedRight.startsWith(`${normalizedLeft}/`))
+	)
+}
+
 function ownershipsConflict(left: FileOwnership, right: FileOwnership): boolean {
 	if (left.mode === "shared" || right.mode === "shared") {
 		return false
@@ -75,7 +91,7 @@ function ownershipsConflict(left: FileOwnership, right: FileOwnership): boolean 
 		return false
 	}
 
-	return normalizePlanPath(left.path) === normalizePlanPath(right.path)
+	return planPathsOverlap(left.path, right.path)
 }
 
 function hasWritableOwnershipConflict(left: PlanParallelTasksInputAgent, right: PlanParallelTasksInputAgent): boolean {
@@ -89,7 +105,7 @@ function hasWritableOwnershipConflict(left: PlanParallelTasksInputAgent, right: 
 				continue
 			}
 
-			if (normalizePlanPath(leftOwnership.path) === normalizePlanPath(rightOwnership.path)) {
+			if (planPathsOverlap(leftOwnership.path, rightOwnership.path)) {
 				return true
 			}
 		}

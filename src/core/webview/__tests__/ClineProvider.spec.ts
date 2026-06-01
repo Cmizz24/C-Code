@@ -1855,8 +1855,14 @@ describe("ClineProvider", () => {
 						status: "complete",
 						completionResult: "Dashboard done",
 						ownership: expect.objectContaining({
-							status: "warning",
-							conflicts: [],
+							status: "violation",
+							conflicts: expect.arrayContaining([
+								expect.objectContaining({
+									path: "src/styles.css",
+									approved: false,
+									ownerAgentId: "styles-agent",
+								}),
+							]),
 						}),
 					}),
 				]),
@@ -1865,7 +1871,7 @@ describe("ClineProvider", () => {
 				expect.objectContaining({
 					planId: "plan-webview-provider",
 					packetCount: 2,
-					ownership: expect.objectContaining({ status: "warning" }),
+					ownership: expect.objectContaining({ status: "violation" }),
 				}),
 			)
 		})
@@ -3061,7 +3067,13 @@ describe("ClineProvider", () => {
 
 	test("failed merge attempts persist conflicted review state and keep the review actionable", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
-		const parentTask = new Task(defaultTaskOptions)
+		const sendTaskNotification = installEmailNotificationServiceMock()
+		const parentTask = new Task({
+			...defaultTaskOptions,
+			taskId: "parallel-parent-merge-failure",
+			workspacePath: "/workspace",
+		} as any)
+		;(parentTask as any).taskMode = "code"
 		parentTask.apiConversationHistory = [
 			{
 				role: "user",
@@ -3071,6 +3083,7 @@ describe("ClineProvider", () => {
 		parentTask.overwriteApiConversationHistory = vi.fn(async (history) => {
 			parentTask.apiConversationHistory = history as any
 		})
+		;(provider as any).taskCreationCallback(parentTask)
 		await provider.addClineToStack(parentTask)
 		const plan = createExecutionPlan()
 		plan.agents = plan.agents.map((agent) => ({
@@ -3114,6 +3127,7 @@ describe("ClineProvider", () => {
 
 		await expect(provider.mergeApprovedAgents(["dashboard-agent"])).resolves.toBe(false)
 
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
 		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/dashboard-agent", {
 			planId: "plan-webview-provider",
 			worktreePath: "/tmp/dashboard-agent",
@@ -3187,6 +3201,30 @@ describe("ClineProvider", () => {
 				(message) => message.type === "say" && message.say === "user_feedback_diff",
 			),
 		).toHaveLength(0)
+		expect(sendTaskNotification).not.toHaveBeenCalled()
+
+		const tokenUsage = createTokenUsage()
+		const toolUsage = createToolUsage()
+		parentTask.clineMessages.push({
+			type: "say",
+			say: "completion_result",
+			text: "Parent handled the failed parallel merge and reported actionable recovery steps.",
+			ts: 2,
+		})
+		parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, tokenUsage, toolUsage)
+		parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, tokenUsage, toolUsage)
+
+		expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+		expect(sendTaskNotification).toHaveBeenCalledWith({
+			taskId: "parallel-parent-merge-failure",
+			outcome: "success",
+			summary: "Parent handled the failed parallel merge and reported actionable recovery steps.",
+			workspacePath: "/workspace",
+			mode: "code",
+			tokenUsage,
+			toolUsage,
+			requestCount: 0,
+		})
 	})
 
 	test("merge approval restores persisted review state when live parallel agents are gone", async () => {

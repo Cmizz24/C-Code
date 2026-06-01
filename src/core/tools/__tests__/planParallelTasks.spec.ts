@@ -97,6 +97,34 @@ describe("handlePlanParallelTasks", () => {
 		}
 	})
 
+	it("rejects overlapping directory and file writable ownership", () => {
+		const result = handlePlanParallelTasks(
+			{
+				goal: "Split implementation work",
+				agents: [
+					{
+						id: "agent-a",
+						mode: "component",
+						task: "Edit files under src",
+						owns: [{ path: "src", mode: "exclusive" }],
+					},
+					{
+						id: "agent-b",
+						mode: "api",
+						task: "Edit one file under src",
+						owns: [{ path: "./src/shared.ts", mode: "exclusive" }],
+					},
+				],
+			},
+			"/repo",
+		)
+
+		expect(result.ok).toBe(false)
+		if (!result.ok) {
+			expect(result.errors).toContain("Ownership conflict for src between agent-a and agent-b.")
+		}
+	})
+
 	it("allows shared ownership without conflict", () => {
 		const result = handlePlanParallelTasks(
 			{

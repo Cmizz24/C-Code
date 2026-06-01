@@ -4069,6 +4069,7 @@ export class ClineProvider
 					agentId,
 					gitOutput,
 				})
+				await this.resumeParentAfterParallelMerge()
 				return false
 			}
 		}
