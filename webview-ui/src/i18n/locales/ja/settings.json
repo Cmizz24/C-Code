@@ -347,6 +347,10 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Fast modeを有効にする",
+			"description": "対応モデル（GPT-5.5とGPT-5.4）でOpenAIのpriority service tierを使用します。Fast modeではクレジットの消費速度が高くなる場合があります。"
+		},
 		"useCustomBaseUrl": "カスタムベースURLを使用",
 		"useReasoning": "推論を有効化",
 		"useHostHeader": "カスタムHostヘッダーを使用",

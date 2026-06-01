@@ -70,6 +70,34 @@ export interface ParseMentionsResult {
 	contentBlocks: MentionContentBlock[]
 	slashCommandHelp?: string
 	mode?: string // Mode from the first slash command that has one
+	openAiCodexFastMode?: boolean
+}
+
+const openAiCodexFastDirectiveRegex = /(?:^|\s)\/fast(?:[ \t]+(on|off|status))?(?=$|\s)[ \t]*/gi
+
+function stripOpenAiCodexFastDirectives(text: string): { text: string; openAiCodexFastMode?: boolean } {
+	let openAiCodexFastMode: boolean | undefined
+
+	const strippedText = text.replace(openAiCodexFastDirectiveRegex, (match, option?: string) => {
+		const normalizedOption = option?.toLowerCase()
+		if (normalizedOption === "off") {
+			openAiCodexFastMode = false
+		} else if (normalizedOption !== "status") {
+			openAiCodexFastMode = true
+		}
+
+		if (match.startsWith("\r\n")) {
+			return "\r\n"
+		}
+
+		if (match.startsWith("\n")) {
+			return "\n"
+		}
+
+		return /^\s/.test(match) ? " " : ""
+	})
+
+	return { text: strippedText.replace(/[ \t]{2,}/g, " "), openAiCodexFastMode }
 }
 
 /**
@@ -112,9 +140,11 @@ export async function parseMentions(
 	const validSkills: Map<string, SkillContent> = new Map()
 	const contentBlocks: MentionContentBlock[] = []
 	let commandMode: string | undefined // Track mode from the first slash command that has one
+	const fastDirectiveResult = stripOpenAiCodexFastDirectives(text)
+	const textWithoutFastDirectives = fastDirectiveResult.text
 
 	// First pass: check which command mentions exist and cache the results
-	const commandMatches = Array.from(text.matchAll(commandRegexGlobal))
+	const commandMatches = Array.from(textWithoutFastDirectives.matchAll(commandRegexGlobal))
 	const uniqueCommandNames = new Set(commandMatches.map(([, commandName]) => commandName))
 
 	const commandExistenceChecks = await Promise.all(
@@ -151,7 +181,7 @@ export async function parseMentions(
 	}
 
 	// Only replace text for commands that actually exist (keep "see below" for commands)
-	let parsedText = text
+	let parsedText = textWithoutFastDirectives
 	for (const [match, commandName] of commandMatches) {
 		if (validCommands.has(commandName) || validSkills.has(commandName)) {
 			parsedText = parsedText.replace(match, `Command '${commandName}' (see below for command content)`)
@@ -254,6 +284,7 @@ export async function parseMentions(
 		text: parsedText,
 		contentBlocks,
 		mode: commandMode,
+		openAiCodexFastMode: fastDirectiveResult.openAiCodexFastMode,
 		slashCommandHelp: slashCommandHelp.trim() || undefined,
 	}
 }

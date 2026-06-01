@@ -1,5 +1,7 @@
 import React from "react"
 
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+
 import { type ProviderSettings, openAiCodexDefaultModelId, openAiCodexModels } from "@roo-code/types"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
@@ -53,6 +55,19 @@ export const OpenAICodex: React.FC<OpenAICodexProps> = ({
 
 			{/* Rate Limit Dashboard - only shown when authenticated */}
 			<OpenAICodexRateLimitDashboard isAuthenticated={openAiCodexIsAuthenticated} />
+
+			<div className="flex flex-col gap-1">
+				<VSCodeCheckbox
+					checked={apiConfiguration.openAiCodexFastMode ?? false}
+					onChange={(event: any) => {
+						setApiConfigurationField("openAiCodexFastMode", event.target.checked)
+					}}>
+					<span className="font-medium">{t("settings:providers.openAiCodexFastMode.label")}</span>
+				</VSCodeCheckbox>
+				<p className="m-0 text-sm text-vscode-descriptionForeground">
+					{t("settings:providers.openAiCodexFastMode.description")}
+				</p>
+			</div>
 
 			{/* Model Picker */}
 			<ModelPicker

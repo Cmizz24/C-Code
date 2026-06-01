@@ -283,6 +283,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 			model: string
 			input: Array<{ role: "user" | "assistant"; content: any[] } | { type: string; content: string }>
 			stream: boolean
+			service_tier?: "priority"
 			reasoning?: { effort?: ReasoningEffortExtended; summary?: "auto" }
 			temperature?: number
 			store?: boolean
@@ -305,6 +306,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 			model: model.id,
 			input: formattedInput,
 			stream: true,
+			...(this.shouldUseFastMode(model, metadata) ? { service_tier: "priority" as const } : {}),
 			store: false,
 			instructions: systemPrompt,
 			// Only include encrypted reasoning content when reasoning effort is set
@@ -336,6 +338,11 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		}
 
 		return body
+	}
+
+	private shouldUseFastMode(model: OpenAiCodexModel, metadata?: ApiHandlerCreateMessageMetadata): boolean {
+		const fastModeEnabled = metadata?.openAiCodexFastMode ?? this.options.openAiCodexFastMode
+		return fastModeEnabled === true && model.info.supportsFastMode === true
 	}
 
 	private async *executeRequest(
@@ -1173,6 +1180,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 					},
 				],
 				stream: false,
+				...(this.shouldUseFastMode(model) ? { service_tier: "priority" as const } : {}),
 				store: false,
 				...(reasoningEffort ? { include: ["reasoning.encrypted_content"] } : {}),
 			}

@@ -347,6 +347,10 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Aktifkan Fast mode",
+			"description": "Menggunakan priority service tier OpenAI untuk model yang didukung (GPT-5.5 dan GPT-5.4). Fast mode dapat menggunakan kredit dengan laju lebih tinggi."
+		},
 		"useCustomBaseUrl": "Gunakan base URL kustom",
 		"useReasoning": "Aktifkan reasoning",
 		"useHostHeader": "Gunakan Host header kustom",

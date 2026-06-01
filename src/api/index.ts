@@ -87,6 +87,12 @@ export interface ApiHandlerCreateMessageMetadata {
 	 * Only applies to providers that support function calling restrictions (e.g., Gemini).
 	 */
 	allowedFunctionNames?: string[]
+	/**
+	 * Per-request override for OpenAI Codex Fast mode. When true, supported models
+	 * request the priority service tier; when false, it overrides a persisted
+	 * provider setting for the current request.
+	 */
+	openAiCodexFastMode?: boolean
 }
 
 export interface ApiHandler {

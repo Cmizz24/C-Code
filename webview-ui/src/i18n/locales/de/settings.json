@@ -347,6 +347,10 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Fast mode aktivieren",
+			"description": "Verwendet den Priority-Service-Tier von OpenAI für unterstützte Modelle (GPT-5.5 und GPT-5.4). Fast mode kann Credits schneller verbrauchen."
+		},
 		"useCustomBaseUrl": "Benutzerdefinierte Basis-URL verwenden",
 		"useReasoning": "Reasoning aktivieren",
 		"useHostHeader": "Benutzerdefinierten Host-Header verwenden",

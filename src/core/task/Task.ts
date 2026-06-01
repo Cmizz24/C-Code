@@ -2678,6 +2678,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			includeFileDetails: boolean
 			retryAttempt?: number
 			userMessageWasRemoved?: boolean // Track if user message was removed due to empty response
+			openAiCodexFastMode?: boolean
 		}
 
 		const stack: StackItem[] = [{ userContent, includeFileDetails, retryAttempt: 0 }]
@@ -2766,7 +2767,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			const maxDiagnosticMessages = state?.maxDiagnosticMessages ?? 50
 			const currentMode = this.background ? await this.getTaskMode() : (state?.mode ?? defaultModeSlug)
 
-			const { content: parsedUserContent, mode: slashCommandMode } = await processUserContentMentions({
+			const {
+				content: parsedUserContent,
+				mode: slashCommandMode,
+				openAiCodexFastMode: parsedOpenAiCodexFastMode,
+			} = await processUserContentMentions({
 				userContent: currentUserContent,
 				cwd: this.cwd,
 				fileContextTracker: this.fileContextTracker,
@@ -2777,6 +2782,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				skillsManager: provider?.getSkillsManager(),
 				currentMode,
 			})
+			const openAiCodexFastMode = parsedOpenAiCodexFastMode ?? currentItem.openAiCodexFastMode
 
 			// Switch mode if specified in a slash command's frontmatter
 			if (slashCommandMode) {
@@ -2957,7 +2963,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				// Yields only if the first chunk is successful, otherwise will
 				// allow the user to retry the request (most likely due to rate
 				// limit error, which gets thrown on the first chunk).
-				const stream = this.attemptApiRequest(currentItem.retryAttempt ?? 0, { skipProviderRateLimit: true })
+				const stream = this.attemptApiRequest(currentItem.retryAttempt ?? 0, {
+					skipProviderRateLimit: true,
+					openAiCodexFastMode,
+				})
 				let assistantMessage = ""
 				let reasoningMessage = ""
 				let pendingGroundingSources: GroundingSource[] = []
@@ -3440,6 +3449,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 								userContent: currentUserContent,
 								includeFileDetails: false,
 								retryAttempt: (currentItem.retryAttempt ?? 0) + 1,
+								openAiCodexFastMode,
 							})
 
 							// Continue to retry the request
@@ -3773,6 +3783,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						stack.push({
 							userContent: [...this.userMessageContent], // Create a copy to avoid mutation issues
 							includeFileDetails: false, // Subsequent iterations don't need file details
+							openAiCodexFastMode,
 						})
 
 						// Add periodic yielding to prevent blocking
@@ -3833,6 +3844,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							includeFileDetails: false,
 							retryAttempt: (currentItem.retryAttempt ?? 0) + 1,
 							userMessageWasRemoved: true,
+							openAiCodexFastMode,
 						})
 
 						// Continue to retry the request
@@ -3852,6 +3864,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 								userContent: currentUserContent,
 								includeFileDetails: false,
 								retryAttempt: (currentItem.retryAttempt ?? 0) + 1,
+								openAiCodexFastMode,
 							})
 
 							// Continue to retry the request
@@ -4232,7 +4245,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	public async *attemptApiRequest(
 		retryAttempt: number = 0,
-		options: { skipProviderRateLimit?: boolean } = {},
+		options: { skipProviderRateLimit?: boolean; openAiCodexFastMode?: boolean } = {},
 	): ApiStream {
 		const state = await this.providerRef.deref()?.getState()
 
@@ -4340,6 +4353,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			const contextMgmtMetadata: ApiHandlerCreateMessageMetadata = {
 				mode: taskMode,
 				taskId: this.taskId,
+				...(options.openAiCodexFastMode !== undefined
+					? { openAiCodexFastMode: options.openAiCodexFastMode }
+					: {}),
 				...(contextMgmtTools.length > 0
 					? {
 							tools: contextMgmtTools,
@@ -4508,6 +4524,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			mode: taskMode,
 			taskId: this.taskId,
 			suppressPreviousResponseId: this.skipPrevResponseIdOnce,
+			...(options.openAiCodexFastMode !== undefined ? { openAiCodexFastMode: options.openAiCodexFastMode } : {}),
 			// Include tools whenever they are present.
 			...(shouldIncludeTools
 				? {
@@ -4574,7 +4591,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				)
 				await this.handleContextWindowExceededError()
 				// Retry the request after handling the context window error
-				yield* this.attemptApiRequest(retryAttempt + 1)
+				yield* this.attemptApiRequest(retryAttempt + 1, options)
 				return
 			}
 
@@ -4594,7 +4611,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 				// Delegate generator output from the recursive call with
 				// incremented retry count.
-				yield* this.attemptApiRequest(retryAttempt + 1)
+				yield* this.attemptApiRequest(retryAttempt + 1, options)
 
 				return
 			} else {
@@ -4612,7 +4629,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				await this.say("api_req_retried")
 
 				// Delegate generator output from the recursive call.
-				yield* this.attemptApiRequest()
+				yield* this.attemptApiRequest(0, options)
 				return
 			}
 		}

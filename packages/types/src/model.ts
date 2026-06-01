@@ -81,6 +81,8 @@ export const modelInfoSchema = z.object({
 	promptCacheRetention: z.enum(["in_memory", "24h"]).optional(),
 	// Capability flag to indicate whether the model supports an output verbosity parameter
 	supportsVerbosity: z.boolean().optional(),
+	// Capability flag to indicate whether the model supports provider-specific Fast/Priority mode
+	supportsFastMode: z.boolean().optional(),
 	supportsReasoningBudget: z.boolean().optional(),
 	// Capability flag to indicate whether the model supports simple on/off binary reasoning
 	supportsReasoningBinary: z.boolean().optional(),

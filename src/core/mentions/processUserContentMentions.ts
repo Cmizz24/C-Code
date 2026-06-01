@@ -12,6 +12,7 @@ type ToolResultPart = Anthropic.Messages.ToolResultBlockParam
 export interface ProcessUserContentMentionsResult {
 	content: Anthropic.Messages.ContentBlockParam[]
 	mode?: string // Mode from the first slash command that has one
+	openAiCodexFastMode?: boolean
 }
 
 /**
@@ -56,6 +57,17 @@ export async function processUserContentMentions({
 }): Promise<ProcessUserContentMentionsResult> {
 	// Track the first mode found from slash commands
 	let commandMode: string | undefined
+	let openAiCodexFastMode: boolean | undefined
+
+	const captureParseMetadata = (result: ParseMentionsResult) => {
+		if (!commandMode && result.mode) {
+			commandMode = result.mode
+		}
+
+		if (openAiCodexFastMode === undefined && result.openAiCodexFastMode !== undefined) {
+			openAiCodexFastMode = result.openAiCodexFastMode
+		}
+	}
 
 	// Process userContent array, which contains text and image parts.
 	// We need to apply parseMentions() to TextPart's text that contains "<user_message>".
@@ -77,10 +89,7 @@ export async function processUserContentMentions({
 							skillsManager,
 							currentMode,
 						)
-						// Capture the first mode found
-						if (!commandMode && result.mode) {
-							commandMode = result.mode
-						}
+						captureParseMetadata(result)
 
 						// Build the blocks array:
 						// 1. User's text (with @ mentions replaced by clean paths)
@@ -122,10 +131,7 @@ export async function processUserContentMentions({
 								skillsManager,
 								currentMode,
 							)
-							// Capture the first mode found
-							if (!commandMode && result.mode) {
-								commandMode = result.mode
-							}
+							captureParseMetadata(result)
 
 							// Build content array with file blocks included
 							const contentParts: Array<{ type: "text"; text: string }> = [
@@ -173,10 +179,7 @@ export async function processUserContentMentions({
 											skillsManager,
 											currentMode,
 										)
-										// Capture the first mode found
-										if (!commandMode && result.mode) {
-											commandMode = result.mode
-										}
+										captureParseMetadata(result)
 
 										// Build blocks array with file content
 										const blocks: Array<{ type: "text"; text: string }> = [
@@ -221,5 +224,5 @@ export async function processUserContentMentions({
 		)
 	).flat()
 
-	return { content: content as Anthropic.Messages.ContentBlockParam[], mode: commandMode }
+	return { content: content as Anthropic.Messages.ContentBlockParam[], mode: commandMode, openAiCodexFastMode }
 }

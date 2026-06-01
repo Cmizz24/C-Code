@@ -347,6 +347,10 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Bật Fast mode",
+			"description": "Sử dụng priority service tier của OpenAI cho các mô hình được hỗ trợ (GPT-5.5 và GPT-5.4). Fast mode có thể dùng credits với tốc độ cao hơn."
+		},
 		"useCustomBaseUrl": "Sử dụng URL cơ sở tùy chỉnh",
 		"useReasoning": "Bật lý luận",
 		"useHostHeader": "Sử dụng tiêu đề Host tùy chỉnh",

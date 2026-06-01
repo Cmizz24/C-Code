@@ -347,6 +347,10 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Fast mode inschakelen",
+			"description": "Gebruikt de priority service tier van OpenAI voor ondersteunde modellen (GPT-5.5 en GPT-5.4). Fast mode kan credits sneller verbruiken."
+		},
 		"useCustomBaseUrl": "Aangepaste basis-URL gebruiken",
 		"useReasoning": "Redenering inschakelen",
 		"useHostHeader": "Aangepaste Host-header gebruiken",

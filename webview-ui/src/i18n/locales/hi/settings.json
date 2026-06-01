@@ -347,6 +347,10 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Fast mode सक्षम करें",
+			"description": "समर्थित मॉडलों (GPT-5.5 और GPT-5.4) के लिए OpenAI priority service tier का उपयोग करता है। Fast mode अधिक दर से credits का उपयोग कर सकता है।"
+		},
 		"useCustomBaseUrl": "कस्टम बेस URL का उपयोग करें",
 		"useReasoning": "तर्क सक्षम करें",
 		"useHostHeader": "कस्टम होस्ट हेडर का उपयोग करें",

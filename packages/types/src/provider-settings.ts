@@ -287,7 +287,8 @@ const geminiCliSchema = apiModelIdProviderModelSchema.extend({
 })
 
 const openAiCodexSchema = apiModelIdProviderModelSchema.extend({
-	// No additional settings needed - uses OAuth authentication
+	// OpenAI Codex Fast mode requests priority service tier for supported ChatGPT Plus/Pro models.
+	openAiCodexFastMode: z.boolean().optional(),
 })
 
 const openAiNativeSchema = apiModelIdProviderModelSchema.extend({

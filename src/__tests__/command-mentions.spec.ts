@@ -25,6 +25,41 @@ describe("Command Mentions", () => {
 	}
 
 	describe("parseMentions with command support", () => {
+		it.each([
+			["/fast build the feature", "build the feature", true],
+			["/fast on build the feature", "build the feature", true],
+			["/fast off build the feature", "build the feature", false],
+			["/fast status build the feature", "build the feature", undefined],
+		])(
+			"should strip OpenAI Codex Fast directive from prompt text: %s",
+			async (input, expectedText, expectedFastMode) => {
+				mockGetCommand.mockResolvedValue(undefined)
+
+				const result = await callParseMentions(input)
+
+				expect(result.text).toBe(expectedText)
+				expect(result.openAiCodexFastMode).toBe(expectedFastMode)
+				expect(mockGetCommand).not.toHaveBeenCalledWith("/test/cwd", "fast")
+			},
+		)
+
+		it("should strip OpenAI Codex Fast directive before processing other slash commands", async () => {
+			mockGetCommand.mockResolvedValue({
+				name: "setup",
+				content: "# Setup instructions",
+				source: "project",
+				filePath: "/project/.roo/commands/setup.md",
+			})
+
+			const result = await callParseMentions("/fast /setup the project")
+
+			expect(result.openAiCodexFastMode).toBe(true)
+			expect(result.text).toContain("Command 'setup' (see below for command content)")
+			expect(result.text).not.toContain("/fast")
+			expect(mockGetCommand).toHaveBeenCalledWith("/test/cwd", "setup")
+			expect(mockGetCommand).not.toHaveBeenCalledWith("/test/cwd", "fast")
+		})
+
 		it("should parse command mentions and include content", async () => {
 			const commandContent = "# Setup Environment\n\nRun the following commands:\n```bash\nnpm install\n```"
 			mockGetCommand.mockResolvedValue({

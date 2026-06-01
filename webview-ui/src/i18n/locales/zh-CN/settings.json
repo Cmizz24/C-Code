@@ -347,6 +347,10 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "启用 Fast mode",
+			"description": "对受支持的模型（GPT-5.5 和 GPT-5.4）使用 OpenAI priority service tier。Fast mode 可能会以更高的速度消耗 credits。"
+		},
 		"useCustomBaseUrl": "使用自定义基础 URL",
 		"useReasoning": "启用推理",
 		"useHostHeader": "使用自定义 Host 标头",

@@ -347,6 +347,10 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Activa Fast mode",
+			"description": "Utilitza el nivell de servei prioritari d'OpenAI per als models compatibles (GPT-5.5 i GPT-5.4). Fast mode pot consumir crèdits a un ritme més alt."
+		},
 		"useCustomBaseUrl": "Utilitzar URL base personalitzada",
 		"useReasoning": "Activar raonament",
 		"useHostHeader": "Utilitzar capçalera Host personalitzada",

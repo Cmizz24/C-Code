@@ -347,6 +347,10 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Włącz Fast mode",
+			"description": "Używa priority service tier OpenAI dla obsługiwanych modeli (GPT-5.5 i GPT-5.4). Fast mode może zużywać kredyty szybciej."
+		},
 		"useCustomBaseUrl": "Użyj niestandardowego URL bazowego",
 		"useReasoning": "Włącz rozumowanie",
 		"useHostHeader": "Użyj niestandardowego nagłówka Host",
