@@ -349,7 +349,13 @@
 		},
 		"openAiCodexFastMode": {
 			"label": "Aktifkan Fast mode",
-			"description": "Menggunakan priority service tier OpenAI untuk model yang didukung (GPT-5.5 dan GPT-5.4). Fast mode dapat menggunakan kredit dengan laju lebih tinggi."
+			"description": "Menggunakan priority service tier OpenAI untuk model yang didukung (GPT-5.5 dan GPT-5.4). Fast mode dapat menggunakan kredit dengan laju lebih tinggi.",
+			"status": {
+				"active": "Fast mode aktif untuk {{modelId}}.",
+				"disabled": "Fast mode tersedia untuk {{modelId}}, tetapi saat ini nonaktif.",
+				"unsupported": "Fast mode tidak tersedia untuk {{modelId}}.",
+				"signInRequired": "Fast mode diaktifkan untuk {{modelId}}, tetapi kamu harus masuk sebelum bisa dijalankan."
+			}
 		},
 		"useCustomBaseUrl": "Gunakan base URL kustom",
 		"useReasoning": "Aktifkan reasoning",

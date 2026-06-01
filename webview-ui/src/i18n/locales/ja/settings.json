@@ -349,7 +349,13 @@
 		},
 		"openAiCodexFastMode": {
 			"label": "Fast modeを有効にする",
-			"description": "対応モデル（GPT-5.5とGPT-5.4）でOpenAIのpriority service tierを使用します。Fast modeではクレジットの消費速度が高くなる場合があります。"
+			"description": "対応モデル（GPT-5.5とGPT-5.4）でOpenAIのpriority service tierを使用します。Fast modeではクレジットの消費速度が高くなる場合があります。",
+			"status": {
+				"active": "{{modelId}}でFast modeが有効です。",
+				"disabled": "{{modelId}}ではFast modeを利用できますが、現在はオフです。",
+				"unsupported": "{{modelId}}ではFast modeを利用できません。",
+				"signInRequired": "{{modelId}}でFast modeが有効ですが、実行する前にサインインが必要です。"
+			}
 		},
 		"useCustomBaseUrl": "カスタムベースURLを使用",
 		"useReasoning": "推論を有効化",

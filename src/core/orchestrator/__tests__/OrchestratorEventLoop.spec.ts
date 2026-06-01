@@ -561,7 +561,7 @@ describe("OrchestratorEventLoop", () => {
 			expect(task.off).toHaveBeenCalledWith(RooCodeEventName.TaskInteractive, expect.any(Function))
 			expect(task.off).toHaveBeenCalledWith(RooCodeEventName.TaskResumable, expect.any(Function))
 			expect(task.off).toHaveBeenCalledWith(RooCodeEventName.TaskIdle, expect.any(Function))
-			expect(task.abortTask).toHaveBeenCalled()
+			expect(task.abortTask).toHaveBeenCalledWith(true)
 		}
 		expect(AgentBus.getInstance().getAgent("ui")?.status).toBe("failed")
 		expect(AgentBus.getInstance().getAgent("styles")?.status).toBe("failed")
@@ -590,7 +590,7 @@ describe("OrchestratorEventLoop", () => {
 		expect(spawnedTask?.denyAsk).toHaveBeenCalledWith({
 			text: "Agent task requires tool approval that cannot be surfaced from a background agent.",
 		})
-		expect(spawnedTask?.abortTask).toHaveBeenCalled()
+		expect(spawnedTask?.abortTask).toHaveBeenCalledWith(true)
 		expect(provider.postStateToWebview).toHaveBeenCalled()
 	})
 
@@ -616,7 +616,7 @@ describe("OrchestratorEventLoop", () => {
 		await vi.waitFor(() => expect(AgentBus.getInstance().getAgent("ui")?.status).toBe("complete"))
 		expect(spawnedTask?.approveAsk).toHaveBeenCalled()
 		expect(spawnedTask?.denyAsk).not.toHaveBeenCalled()
-		expect(spawnedTask?.abortTask).toHaveBeenCalled()
+		expect(spawnedTask?.abortTask).toHaveBeenCalledWith(true)
 		expect(provider.postStateToWebview).toHaveBeenCalled()
 	})
 

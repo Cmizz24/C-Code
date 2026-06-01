@@ -349,7 +349,13 @@
 		},
 		"openAiCodexFastMode": {
 			"label": "Fast mode inschakelen",
-			"description": "Gebruikt de priority service tier van OpenAI voor ondersteunde modellen (GPT-5.5 en GPT-5.4). Fast mode kan credits sneller verbruiken."
+			"description": "Gebruikt de priority service tier van OpenAI voor ondersteunde modellen (GPT-5.5 en GPT-5.4). Fast mode kan credits sneller verbruiken.",
+			"status": {
+				"active": "Fast mode is actief voor {{modelId}}.",
+				"disabled": "Fast mode is beschikbaar voor {{modelId}}, maar staat momenteel uit.",
+				"unsupported": "Fast mode is niet beschikbaar voor {{modelId}}.",
+				"signInRequired": "Fast mode is ingeschakeld voor {{modelId}}, maar je moet inloggen voordat deze kan worden uitgevoerd."
+			}
 		},
 		"useCustomBaseUrl": "Aangepaste basis-URL gebruiken",
 		"useReasoning": "Redenering inschakelen",

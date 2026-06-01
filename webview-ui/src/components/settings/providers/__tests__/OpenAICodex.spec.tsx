@@ -19,7 +19,9 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 }))
 
 vi.mock("@src/i18n/TranslationContext", () => ({
-	useAppTranslation: () => ({ t: (key: string) => key }),
+	useAppTranslation: () => ({
+		t: (key: string, options?: Record<string, any>) => (options?.modelId ? `${key}:${options.modelId}` : key),
+	}),
 }))
 
 vi.mock("@src/components/ui", () => ({
@@ -43,11 +45,15 @@ vi.mock("../OpenAICodexRateLimitDashboard", () => ({
 describe("OpenAICodex", () => {
 	const mockSetApiConfigurationField = vi.fn()
 
-	const renderOpenAICodex = (apiConfiguration: Partial<ProviderSettings> = {}) =>
+	const renderOpenAICodex = (
+		apiConfiguration: Partial<ProviderSettings> = {},
+		props: { openAiCodexIsAuthenticated?: boolean } = {},
+	) =>
 		render(
 			<OpenAICodex
 				apiConfiguration={apiConfiguration as ProviderSettings}
 				setApiConfigurationField={mockSetApiConfigurationField}
+				openAiCodexIsAuthenticated={props.openAiCodexIsAuthenticated}
 			/>,
 		)
 
@@ -74,6 +80,41 @@ describe("OpenAICodex", () => {
 		expect(screen.getByTestId("openai-codex-fast-mode-checkbox-input")).toBeChecked()
 	})
 
+	it("shows Fast mode as active when enabled for a supported authenticated model", () => {
+		renderOpenAICodex({ apiModelId: "gpt-5.5", openAiCodexFastMode: true }, { openAiCodexIsAuthenticated: true })
+
+		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
+			"settings:providers.openAiCodexFastMode.status.active:gpt-5.5",
+		)
+	})
+
+	it("shows Fast mode as disabled when the supported model can use it but the toggle is off", () => {
+		renderOpenAICodex({ apiModelId: "gpt-5.4", openAiCodexFastMode: false }, { openAiCodexIsAuthenticated: true })
+
+		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
+			"settings:providers.openAiCodexFastMode.status.disabled:gpt-5.4",
+		)
+	})
+
+	it("shows Fast mode as unsupported for models that cannot use the priority tier", () => {
+		renderOpenAICodex(
+			{ apiModelId: "gpt-5.4-mini", openAiCodexFastMode: true },
+			{ openAiCodexIsAuthenticated: true },
+		)
+
+		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
+			"settings:providers.openAiCodexFastMode.status.unsupported:gpt-5.4-mini",
+		)
+	})
+
+	it("shows sign-in required when Fast mode is enabled but OpenAI Codex is not authenticated", () => {
+		renderOpenAICodex({ apiModelId: "gpt-5.5", openAiCodexFastMode: true })
+
+		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
+			"settings:providers.openAiCodexFastMode.status.signInRequired:gpt-5.5",
+		)
+	})
+
 	it.each([
 		[false, true],
 		[true, false],
@@ -90,6 +131,7 @@ describe("OpenAICodex", () => {
 			<OpenAICodex
 				apiConfiguration={{ openAiCodexFastMode: false } as ProviderSettings}
 				setApiConfigurationField={mockSetApiConfigurationField}
+				openAiCodexIsAuthenticated={false}
 			/>,
 		)
 
@@ -99,6 +141,7 @@ describe("OpenAICodex", () => {
 			<OpenAICodex
 				apiConfiguration={{ openAiCodexFastMode: true } as ProviderSettings}
 				setApiConfigurationField={mockSetApiConfigurationField}
+				openAiCodexIsAuthenticated={false}
 			/>,
 		)
 

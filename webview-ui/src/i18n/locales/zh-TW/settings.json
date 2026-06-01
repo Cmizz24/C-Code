@@ -359,7 +359,13 @@
 		},
 		"openAiCodexFastMode": {
 			"label": "啟用 Fast mode",
-			"description": "對支援的模型（GPT-5.5 和 GPT-5.4）使用 OpenAI priority service tier。Fast mode 可能會以較高速度消耗 credits。"
+			"description": "對支援的模型（GPT-5.5 和 GPT-5.4）使用 OpenAI priority service tier。Fast mode 可能會以較高速度消耗 credits。",
+			"status": {
+				"active": "{{modelId}} 的 Fast mode 已啟用。",
+				"disabled": "{{modelId}} 可使用 Fast mode，但目前已關閉。",
+				"unsupported": "{{modelId}} 不支援 Fast mode。",
+				"signInRequired": "{{modelId}} 的 Fast mode 已啟用，但執行前需要先登入。"
+			}
 		},
 		"useCustomBaseUrl": "使用自訂基礎 URL",
 		"useReasoning": "啟用推理",

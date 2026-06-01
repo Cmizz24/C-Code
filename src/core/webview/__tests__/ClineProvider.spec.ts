@@ -919,6 +919,7 @@ describe("ClineProvider", () => {
 			const tokenUsage = createTokenUsage()
 			const toolUsage = createToolUsage()
 			;(task as any).taskMode = "code"
+			;(task as any).abortReason = "user_cancelled"
 			;(task as any).tokenUsage = tokenUsage
 			;(task as any).toolUsage = toolUsage
 			;(provider as any).taskCreationCallback(task)
@@ -934,6 +935,16 @@ describe("ClineProvider", () => {
 			)
 		})
 
+		test("suppresses non-user lifecycle abort notifications", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-lifecycle-cleanup" } as any)
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(RooCodeEventName.TaskAborted)
+
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+		})
+
 		test("suppresses abandoned cleanup abort notifications during delegation handoff", () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const task = new Task({ ...defaultTaskOptions, taskId: "delegation-cleanup-parent" } as any)
@@ -943,6 +954,71 @@ describe("ClineProvider", () => {
 			task.emit(RooCodeEventName.TaskAborted)
 
 			expect(sendTaskNotification).not.toHaveBeenCalled()
+		})
+
+		test("parallel-agent lifecycle aborts do not send false aborted notifications", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const parentTask = new Task({ ...defaultTaskOptions, taskId: "parallel-parent-cleanup" } as any)
+			;(provider as any).taskCreationCallback(parentTask)
+			await provider.addClineToStack(parentTask)
+
+			const backgroundTask = await provider.createTask("Run a specialist agent task", undefined, parentTask, {
+				agentId: "dashboard-agent",
+				background: true,
+				mode: "code",
+			})
+
+			backgroundTask.emit(RooCodeEventName.TaskAborted)
+			parentTask.emit(RooCodeEventName.TaskAborted)
+
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+		})
+
+		test("parallel-agent parent workflow completion sends exactly one success notification", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const parentTask = new Task({
+				...defaultTaskOptions,
+				taskId: "parallel-parent-success",
+				workspacePath: "/workspace",
+			} as any)
+			const tokenUsage = createTokenUsage()
+			const toolUsage = createToolUsage()
+			;(parentTask as any).taskMode = "code"
+			parentTask.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Parallel agents completed and the parent verified the workflow.",
+				ts: 2,
+			})
+			;(provider as any).taskCreationCallback(parentTask)
+			await provider.addClineToStack(parentTask)
+
+			const backgroundTask = await provider.createTask("Run a specialist agent task", undefined, parentTask, {
+				agentId: "dashboard-agent",
+				background: true,
+				mode: "code",
+			})
+
+			backgroundTask.emit(
+				RooCodeEventName.TaskCompleted,
+				backgroundTask.taskId,
+				createTokenUsage(),
+				createToolUsage(),
+			)
+			parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, tokenUsage, toolUsage)
+			parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, tokenUsage, toolUsage)
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			expect(sendTaskNotification).toHaveBeenCalledWith({
+				taskId: "parallel-parent-success",
+				outcome: "success",
+				summary: "Parallel agents completed and the parent verified the workflow.",
+				workspacePath: "/workspace",
+				mode: "code",
+				tokenUsage,
+				toolUsage,
+				requestCount: 0,
+			})
 		})
 
 		test("sends one parent workflow success notification for delegated completion", async () => {
@@ -1193,6 +1269,38 @@ describe("ClineProvider", () => {
 				expect(mockContext.globalState.update).toHaveBeenCalledWith("emailNotificationTaskOutcomes.v1", {
 					version: 1,
 					outcomes: [{ taskId: "task-retry-after-send-failure", outcome: "success" }],
+				})
+			})
+		})
+
+		test("does not persist completion de-duplication when notification dispatch is skipped", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock(
+				vi
+					.fn()
+					.mockResolvedValueOnce({ attempted: false, sent: false, skippedReason: "disabled" })
+					.mockResolvedValueOnce({ attempted: true, sent: true }),
+			)
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-retry-after-send-skip" } as any)
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			await vi.waitFor(() => {
+				expect((provider as any).emailNotificationTaskOutcomesInFlight.has(task.taskId)).toBe(false)
+			})
+			expect(mockContext.globalState.update).not.toHaveBeenCalledWith(
+				"emailNotificationTaskOutcomes.v1",
+				expect.anything(),
+			)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(2)
+			await vi.waitFor(() => {
+				expect(mockContext.globalState.update).toHaveBeenCalledWith("emailNotificationTaskOutcomes.v1", {
+					version: 1,
+					outcomes: [{ taskId: "task-retry-after-send-skip", outcome: "success" }],
 				})
 			})
 		})

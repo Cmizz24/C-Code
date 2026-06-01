@@ -103,7 +103,7 @@ export class OrchestratorEventLoop {
 
 			if (options.abortSpawnedTasks) {
 				this.bus.markFailed(agentId, options.reason ?? "Parallel execution was cancelled.")
-				Promise.resolve(record.task.abortTask()).catch(() => {})
+				Promise.resolve(record.task.abortTask(true)).catch(() => {})
 			}
 		}
 	}
@@ -206,7 +206,7 @@ export class OrchestratorEventLoop {
 			})
 
 			if (!this.running) {
-				Promise.resolve(task.abortTask()).catch(() => {})
+				Promise.resolve(task.abortTask(true)).catch(() => {})
 				return
 			}
 
@@ -232,7 +232,7 @@ export class OrchestratorEventLoop {
 
 			if (!this.running) {
 				this.cleanupSpawnedTask(agent.id)
-				Promise.resolve(task.abortTask()).catch(() => {})
+				Promise.resolve(task.abortTask(true)).catch(() => {})
 				return
 			}
 
@@ -274,7 +274,7 @@ export class OrchestratorEventLoop {
 			this.cleanupSpawnedTask(agentId)
 			this.bus.markComplete(agentId)
 			task.approveAsk()
-			Promise.resolve(task.abortTask()).catch(() => {})
+			Promise.resolve(task.abortTask(true)).catch(() => {})
 			Promise.resolve(this.provider.postStateToWebview()).catch(() => {})
 			return
 		}
@@ -287,7 +287,7 @@ export class OrchestratorEventLoop {
 		} catch {
 			// Non-fatal: the ask may already have been cleared by the task.
 		}
-		Promise.resolve(task.abortTask()).catch(() => {})
+		Promise.resolve(task.abortTask(true)).catch(() => {})
 		Promise.resolve(this.provider.postStateToWebview()).catch(() => {})
 	}
 

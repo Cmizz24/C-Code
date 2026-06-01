@@ -499,13 +499,18 @@ export class ClineProvider
 						return
 					}
 
-					if (this.isTaskAbandonedCleanupAbort(instance)) {
+					const abortNotificationOutcome = this.getTaskAbortNotificationOutcome(instance)
+
+					if (!abortNotificationOutcome) {
+						this.log(
+							`[email-notifications] Skipping task ${instance.taskId} abort notification because it was not an explicit user cancellation or streaming failure.`,
+						)
 						return
 					}
 
 					this.notifyTaskCompleted(
 						instance,
-						instance.abortReason === "streaming_failed" ? "failed" : "aborted",
+						abortNotificationOutcome,
 						instance.tokenUsage,
 						instance.toolUsage,
 					)
@@ -978,8 +983,16 @@ export class ClineProvider
 		return messages.filter((message) => message.type === "say" && message.say === "api_req_started").length
 	}
 
-	private isTaskAbandonedCleanupAbort(task: Task): boolean {
-		return task.abandoned === true && task.abortReason !== "streaming_failed"
+	private getTaskAbortNotificationOutcome(task: Task): EmailNotificationOutcome | undefined {
+		if (task.abortReason === "streaming_failed") {
+			return "failed"
+		}
+
+		if (task.abortReason === "user_cancelled" && task.abandoned !== true) {
+			return "aborted"
+		}
+
+		return undefined
 	}
 
 	private hasEmailNotificationTaskOutcomeBeenSent(taskId: string, outcome: EmailNotificationOutcome): boolean {

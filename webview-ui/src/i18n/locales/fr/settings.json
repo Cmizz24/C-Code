@@ -349,7 +349,13 @@
 		},
 		"openAiCodexFastMode": {
 			"label": "Activer Fast mode",
-			"description": "Utilise le niveau de service prioritaire d'OpenAI pour les modèles compatibles (GPT-5.5 et GPT-5.4). Fast mode peut consommer des crédits plus rapidement."
+			"description": "Utilise le niveau de service prioritaire d'OpenAI pour les modèles compatibles (GPT-5.5 et GPT-5.4). Fast mode peut consommer des crédits plus rapidement.",
+			"status": {
+				"active": "Fast mode est actif pour {{modelId}}.",
+				"disabled": "Fast mode est disponible pour {{modelId}}, mais il est actuellement désactivé.",
+				"unsupported": "Fast mode n'est pas disponible pour {{modelId}}.",
+				"signInRequired": "Fast mode est activé pour {{modelId}}, mais tu dois te connecter avant qu'il puisse s'exécuter."
+			}
 		},
 		"useCustomBaseUrl": "Utiliser une URL de base personnalisée",
 		"useReasoning": "Activer le raisonnement",
