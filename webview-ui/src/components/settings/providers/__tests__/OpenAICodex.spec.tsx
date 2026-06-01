@@ -1,6 +1,6 @@
 import React from "react"
 import { render, screen, fireEvent } from "@/utils/test-utils"
-import type { ProviderSettings } from "@roo-code/types"
+import type { OpenAiCodexFastStatus, ProviderSettings } from "@roo-code/types"
 
 import { OpenAICodex } from "../OpenAICodex"
 
@@ -47,13 +47,14 @@ describe("OpenAICodex", () => {
 
 	const renderOpenAICodex = (
 		apiConfiguration: Partial<ProviderSettings> = {},
-		props: { openAiCodexIsAuthenticated?: boolean } = {},
+		props: { openAiCodexIsAuthenticated?: boolean; openAiCodexFastStatus?: OpenAiCodexFastStatus } = {},
 	) =>
 		render(
 			<OpenAICodex
 				apiConfiguration={apiConfiguration as ProviderSettings}
 				setApiConfigurationField={mockSetApiConfigurationField}
 				openAiCodexIsAuthenticated={props.openAiCodexIsAuthenticated}
+				openAiCodexFastStatus={props.openAiCodexFastStatus}
 			/>,
 		)
 
@@ -80,11 +81,68 @@ describe("OpenAICodex", () => {
 		expect(screen.getByTestId("openai-codex-fast-mode-checkbox-input")).toBeChecked()
 	})
 
-	it("shows Fast mode as active when enabled for a supported authenticated model", () => {
+	it("shows Fast mode as requested when enabled for a supported authenticated model without provider confirmation", () => {
 		renderOpenAICodex({ apiModelId: "gpt-5.5", openAiCodexFastMode: true }, { openAiCodexIsAuthenticated: true })
 
 		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
-			"settings:providers.openAiCodexFastMode.status.active:gpt-5.5",
+			"settings:providers.openAiCodexFastMode.status.requested:gpt-5.5",
+		)
+	})
+
+	it("shows Fast mode as confirmed when the provider echoes the requested priority tier", () => {
+		renderOpenAICodex(
+			{ apiModelId: "gpt-5.5", openAiCodexFastMode: true },
+			{
+				openAiCodexIsAuthenticated: true,
+				openAiCodexFastStatus: {
+					state: "confirmed",
+					modelId: "gpt-5.5",
+					requestedServiceTier: "priority",
+					observedServiceTier: "priority",
+				},
+			},
+		)
+
+		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
+			"settings:providers.openAiCodexFastMode.status.confirmed:gpt-5.5",
+		)
+	})
+
+	it("shows Fast mode as rejected when the provider returns a different service tier", () => {
+		renderOpenAICodex(
+			{ apiModelId: "gpt-5.5", openAiCodexFastMode: true },
+			{
+				openAiCodexIsAuthenticated: true,
+				openAiCodexFastStatus: {
+					state: "rejected",
+					modelId: "gpt-5.5",
+					requestedServiceTier: "priority",
+					observedServiceTier: "default",
+				},
+			},
+		)
+
+		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
+			"settings:providers.openAiCodexFastMode.status.rejected:gpt-5.5",
+		)
+	})
+
+	it("ignores stale Fast status from a different selected model", () => {
+		renderOpenAICodex(
+			{ apiModelId: "gpt-5.5", openAiCodexFastMode: true },
+			{
+				openAiCodexIsAuthenticated: true,
+				openAiCodexFastStatus: {
+					state: "confirmed",
+					modelId: "gpt-5.4",
+					requestedServiceTier: "priority",
+					observedServiceTier: "priority",
+				},
+			},
+		)
+
+		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
+			"settings:providers.openAiCodexFastMode.status.requested:gpt-5.5",
 		)
 	})
 

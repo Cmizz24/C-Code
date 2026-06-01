@@ -38,6 +38,7 @@ import {
 	type HistoryItem,
 	type CreateTaskOptions,
 	type ModelInfo,
+	type OpenAiCodexFastStatus,
 	type ClineApiReqCancelReason,
 	type ClineApiReqInfo,
 	RooCodeEventName,
@@ -4080,6 +4081,25 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		)
 	}
 
+	private async persistOpenAiCodexFastStatus(): Promise<void> {
+		const status: OpenAiCodexFastStatus | undefined = this.api.getOpenAiCodexFastStatus?.()
+		if (!status) {
+			return
+		}
+
+		const provider = this.providerRef.deref()
+		if (!provider?.updateOpenAiCodexFastStatus) {
+			return
+		}
+
+		try {
+			await provider.updateOpenAiCodexFastStatus(status)
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			provider.log(`[openai-codex-fast] Failed to persist Fast status: ${errorMessage}`)
+		}
+	}
+
 	private async handleContextWindowExceededError(): Promise<void> {
 		const state = await this.providerRef.deref()?.getState()
 		const { profileThresholds = {}, apiConfiguration, maxConcurrentParallelTasks } = state ?? {}
@@ -4575,11 +4595,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			})
 
 			const firstChunk = await Promise.race([firstChunkPromise, abortPromise])
+			await this.persistOpenAiCodexFastStatus()
 			yield firstChunk.value
 			this.isWaitingForFirstChunk = false
 		} catch (error) {
 			this.isWaitingForFirstChunk = false
 			this.currentRequestAbortController = undefined
+			await this.persistOpenAiCodexFastStatus()
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
 
 			// If it's a context window error and we haven't exceeded max retries for this error type
@@ -4642,7 +4664,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		// it's saying "yield all remaining values from this iterator". This
 		// effectively passes along all subsequent chunks from the original
 		// stream.
-		yield* iterator
+		try {
+			yield* iterator
+		} finally {
+			await this.persistOpenAiCodexFastStatus()
+		}
 	}
 
 	// Shared exponential backoff for retries (first-chunk and mid-stream)

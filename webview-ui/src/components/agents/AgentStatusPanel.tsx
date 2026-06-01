@@ -124,13 +124,57 @@ const activityKindLabels: Record<AgentActivityKind, string> = {
 	file: "file",
 }
 
-const chatCoordinationKinds = new Set<AgentCoordinationKind>(["question", "answer"])
+const visibleCoordinationKinds = new Set<AgentCoordinationKind>(["question", "answer", "decision", "note", "blocker"])
+
+const hiddenCoordinationKinds = new Set<AgentCoordinationKind>([
+	"shared-context",
+	"ownership",
+	"dependency",
+	"signal",
+	"completion",
+])
+
+const genericCoordinationMessagePatterns = [
+	/^\s*(?:agent\s+[\w.-]+:\s*)?i\s+(?:own|can read|am assigned to|will handle|will work on|am working on)\b/i,
+	/^\s*agent\s+[\w.-]+\s+(?:owns|can read|is assigned to|will handle|is working on|is writing|released write access|requested|waits for|is blocked|signaled)\b/i,
+	/^\s*team chat open for plan\b/i,
+	/^\s*shared context is in each agent task\b/i,
+	/^\s*[\w.-]+\s+waits for\s+[\w.-]+\s+to\s+(?:complete|signal)\b/i,
+]
+
+const coordinationKindBadgeClasses: Partial<Record<AgentCoordinationKind, string>> = {
+	question: "border-vscode-focusBorder/40 bg-vscode-focusBorder/10 text-vscode-foreground",
+	answer: "border-vscode-charts-green/40 bg-vscode-charts-green/10 text-vscode-charts-green",
+	decision: "border-vscode-charts-green/50 bg-vscode-charts-green/10 text-vscode-charts-green",
+	note: "border-vscode-descriptionForeground/30 bg-vscode-descriptionForeground/10 text-vscode-descriptionForeground",
+	blocker:
+		"border-vscode-editorWarning-foreground/50 bg-vscode-editorWarning-foreground/10 text-vscode-editorWarning-foreground",
+}
 
 const getActivityKind = (activity: AgentActivity): AgentActivityKind => activity.kind ?? "status"
 
 const getActivityKindLabel = (activity: AgentActivity): string => activityKindLabels[getActivityKind(activity)]
 
-const isChatCoordinationEvent = (event: AgentCoordination): boolean => chatCoordinationKinds.has(event.kind)
+const isGenericCoordinationMessage = (message: string): boolean => {
+	const normalized = String(message ?? "")
+		.replace(/\s+/g, " ")
+		.trim()
+
+	if (!normalized) {
+		return false
+	}
+
+	return genericCoordinationMessagePatterns.some((pattern) => pattern.test(normalized))
+}
+
+const isChatCoordinationEvent = (event: AgentCoordination): boolean =>
+	visibleCoordinationKinds.has(event.kind) &&
+	!hiddenCoordinationKinds.has(event.kind) &&
+	!isGenericCoordinationMessage(event.message)
+
+const getCoordinationKindBadgeClass = (kind: AgentCoordinationKind): string =>
+	coordinationKindBadgeClasses[kind] ??
+	"border-vscode-focusBorder/40 bg-vscode-focusBorder/10 text-[10px] capitalize text-vscode-foreground"
 
 const getActivityKey = (activity: AgentActivity, index: number): string =>
 	`${activity.agentId}:${activity.ts}:${getActivityKind(activity)}:${index}:${activity.message}`
@@ -836,7 +880,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 							<div className="mb-1 flex items-center gap-1.5 text-vscode-foreground">
 								<span className="font-medium">Coordination</span>
 								<span className="text-vscode-descriptionForeground">
-									Team chat · short messages · latest {AGENT_COORDINATION_DISPLAY_LIMIT}
+									Team chat · decisions/questions/blockers · latest {AGENT_COORDINATION_DISPLAY_LIMIT}
 								</span>
 							</div>
 							{coordinationChatEvents.length > 0 ? (
@@ -874,7 +918,11 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 															{senderStatus}
 														</Badge>
 													)}
-													<Badge className="shrink-0 border border-vscode-focusBorder/40 bg-vscode-focusBorder/10 text-[10px] capitalize text-vscode-foreground">
+													<Badge
+														className={cn(
+															"shrink-0 border text-[10px] capitalize",
+															getCoordinationKindBadgeClass(event.kind),
+														)}>
 														{event.kind}
 													</Badge>
 													{addressLabel && (

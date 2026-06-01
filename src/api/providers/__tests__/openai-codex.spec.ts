@@ -134,3 +134,88 @@ describe("OpenAiCodexHandler Fast mode request body", () => {
 		expect(body.service_tier).toBeUndefined()
 	})
 })
+
+describe("OpenAiCodexHandler Fast mode status", () => {
+	const beginStatus = (handler: OpenAiCodexHandler, metadata?: ApiHandlerCreateMessageMetadata) => {
+		;(handler as any).beginOpenAiCodexFastStatus(handler.getModel(), metadata)
+	}
+
+	it("reports off when Fast mode is not requested", () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		beginStatus(handler)
+
+		expect(handler.getOpenAiCodexFastStatus()).toMatchObject({
+			state: "off",
+			modelId: "gpt-5.5",
+		})
+	})
+
+	it("reports unsupported when Fast mode is enabled for a model without priority tier support", () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.3-codex-spark", openAiCodexFastMode: true })
+
+		beginStatus(handler)
+
+		expect(handler.getOpenAiCodexFastStatus()).toMatchObject({
+			state: "unsupported",
+			modelId: "gpt-5.3-codex-spark",
+			requestedServiceTier: "priority",
+		})
+	})
+
+	it("keeps requested status when the provider does not echo service tier confirmation", () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5", openAiCodexFastMode: true })
+
+		beginStatus(handler)
+		;(handler as any).captureOpenAiCodexFastStatusFromEvent({ type: "response.created" })
+
+		expect(handler.getOpenAiCodexFastStatus()).toMatchObject({
+			state: "requested",
+			modelId: "gpt-5.5",
+			requestedServiceTier: "priority",
+		})
+	})
+
+	it("reports confirmed when the provider echoes the requested priority service tier", () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5", openAiCodexFastMode: true })
+
+		beginStatus(handler)
+		;(handler as any).captureOpenAiCodexFastStatusFromEvent({ response: { service_tier: "priority" } })
+
+		expect(handler.getOpenAiCodexFastStatus()).toMatchObject({
+			state: "confirmed",
+			modelId: "gpt-5.5",
+			requestedServiceTier: "priority",
+			observedServiceTier: "priority",
+		})
+	})
+
+	it("reports rejected when the provider returns a non-priority service tier", () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5", openAiCodexFastMode: true })
+
+		beginStatus(handler)
+		;(handler as any).captureOpenAiCodexFastStatusFromEvent({ response: { service_tier: "default" } })
+
+		expect(handler.getOpenAiCodexFastStatus()).toMatchObject({
+			state: "rejected",
+			modelId: "gpt-5.5",
+			requestedServiceTier: "priority",
+			observedServiceTier: "default",
+			error: "Provider returned default service tier instead of priority.",
+		})
+	})
+
+	it("reports rejected when the provider errors after priority was requested", () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5", openAiCodexFastMode: true })
+
+		beginStatus(handler)
+		;(handler as any).markOpenAiCodexFastStatusRejected(new Error("priority tier rejected"))
+
+		expect(handler.getOpenAiCodexFastStatus()).toMatchObject({
+			state: "rejected",
+			modelId: "gpt-5.5",
+			requestedServiceTier: "priority",
+			error: "priority tier rejected",
+		})
+	})
+})

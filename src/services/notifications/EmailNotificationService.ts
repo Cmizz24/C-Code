@@ -20,7 +20,7 @@ export type EmailNotificationPayload = {
 export type EmailNotificationSendResult = {
 	attempted: boolean
 	sent: boolean
-	skippedReason?: "disabled" | "invalid-config" | "duplicate"
+	skippedReason?: "disabled" | "invalid-config" | "duplicate" | "completion-only"
 	error?: string
 }
 
@@ -104,6 +104,10 @@ export class EmailNotificationService {
 
 		try {
 			const settings = this.contextProxy.getValues()
+
+			if (payload.outcome !== "success") {
+				return { attempted: false, sent: false, skippedReason: "completion-only" }
+			}
 
 			if (!this.shouldNotify(settings, payload.outcome)) {
 				return { attempted: false, sent: false, skippedReason: "disabled" }
@@ -189,7 +193,7 @@ export class EmailNotificationService {
 			return settings.emailNotifyOnSuccess ?? true
 		}
 
-		return settings.emailNotifyOnFailure ?? false
+		return false
 	}
 
 	private buildConfig(

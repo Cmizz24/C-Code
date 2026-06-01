@@ -317,6 +317,7 @@ export type ExtensionState = Pick<
 	| "maxDiagnosticMessages"
 	| "imageGenerationProvider"
 	| "openRouterImageGenerationSelectedModel"
+	| "openAiCodexFastStatus"
 	| "includeTaskHistoryInEnhance"
 	| "reasoningBlockCollapsed"
 	| "enterBehavior"

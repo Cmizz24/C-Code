@@ -351,10 +351,12 @@
 			"label": "Fast mode'u etkinleştir",
 			"description": "Desteklenen modeller (GPT-5.5 ve GPT-5.4) için OpenAI priority service tier kullanır. Fast mode kredileri daha yüksek hızda tüketebilir.",
 			"status": {
-				"active": "Fast mode {{modelId}} için aktif.",
 				"disabled": "Fast mode {{modelId}} için kullanılabilir, ancak şu anda kapalı.",
 				"unsupported": "Fast mode {{modelId}} için kullanılamaz.",
-				"signInRequired": "Fast mode {{modelId}} için etkin, ancak çalışmadan önce oturum açman gerekiyor."
+				"signInRequired": "Fast mode {{modelId}} için etkin, ancak çalışmadan önce oturum açman gerekiyor.",
+				"requested": "Fast mode {{modelId}} için istendi, ancak OpenAI priority tier'ı henüz onaylamadı.",
+				"confirmed": "Fast mode {{modelId}} için OpenAI priority tier'ında onaylandı.",
+				"rejected": "Fast mode {{modelId}} için istendi, ancak OpenAI {{observedServiceTier}} service tier'ını bildirdi."
 			}
 		},
 		"useCustomBaseUrl": "Özel temel URL kullan",

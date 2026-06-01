@@ -1,4 +1,6 @@
-import type { ModelInfo } from "../model.js"
+import { z } from "zod"
+
+import { serviceTierSchema, type ModelInfo } from "../model.js"
 
 /**
  * OpenAI Codex Provider
@@ -17,6 +19,21 @@ import type { ModelInfo } from "../model.js"
 export type OpenAiCodexModelId = keyof typeof openAiCodexModels
 
 export const openAiCodexDefaultModelId: OpenAiCodexModelId = "gpt-5.5"
+
+export const openAiCodexFastStatusStates = ["off", "unsupported", "requested", "confirmed", "rejected"] as const
+
+export const openAiCodexFastStatusStateSchema = z.enum(openAiCodexFastStatusStates)
+
+export const openAiCodexFastStatusSchema = z.object({
+	state: openAiCodexFastStatusStateSchema,
+	modelId: z.string().optional(),
+	requestedServiceTier: serviceTierSchema.optional(),
+	observedServiceTier: serviceTierSchema.optional(),
+	error: z.string().optional(),
+	updatedAt: z.number().optional(),
+})
+
+export type OpenAiCodexFastStatus = z.infer<typeof openAiCodexFastStatusSchema>
 
 /**
  * Models available through the Codex OAuth flow.

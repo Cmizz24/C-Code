@@ -351,10 +351,12 @@
 			"label": "Включить Fast mode",
 			"description": "Использует priority service tier OpenAI для поддерживаемых моделей (GPT-5.5 и GPT-5.4). Fast mode может расходовать кредиты быстрее.",
 			"status": {
-				"active": "Fast mode активен для {{modelId}}.",
 				"disabled": "Fast mode доступен для {{modelId}}, но сейчас выключен.",
 				"unsupported": "Fast mode недоступен для {{modelId}}.",
-				"signInRequired": "Fast mode включён для {{modelId}}, но перед запуском нужно войти."
+				"signInRequired": "Fast mode включён для {{modelId}}, но перед запуском нужно войти.",
+				"requested": "Fast mode запрошен для {{modelId}}, но OpenAI ещё не подтвердила tier priority.",
+				"confirmed": "Fast mode подтверждён для {{modelId}} на tier priority OpenAI.",
+				"rejected": "Fast mode запрошен для {{modelId}}, но OpenAI сообщила service tier {{observedServiceTier}}."
 			}
 		},
 		"useCustomBaseUrl": "Использовать пользовательский базовый URL",

@@ -890,7 +890,7 @@ describe("ClineProvider", () => {
 			)
 		})
 
-		test("maps streaming failure aborts to failed notifications", () => {
+		test("does not send SMTP notifications for streaming failure aborts", () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const task = new Task({ ...defaultTaskOptions, taskId: "task-failed", workspacePath: "/workspace" } as any)
 			const tokenUsage = createTokenUsage()
@@ -903,17 +903,15 @@ describe("ClineProvider", () => {
 			;(provider as any).taskCreationCallback(task)
 			task.emit(RooCodeEventName.TaskAborted)
 
-			expect(sendTaskNotification).toHaveBeenCalledWith(
-				expect.objectContaining({
-					taskId: "task-failed",
-					outcome: "failed",
-					tokenUsage,
-					toolUsage,
-				}),
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+			expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
+				expect.stringContaining(
+					"Skipping task task-failed abort notification because automatic SMTP notifications are completion-only.",
+				),
 			)
 		})
 
-		test("maps user aborts to aborted notifications", () => {
+		test("does not send SMTP notifications for user aborts", () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const task = new Task({ ...defaultTaskOptions, taskId: "task-aborted", workspacePath: "/workspace" } as any)
 			const tokenUsage = createTokenUsage()
@@ -925,14 +923,7 @@ describe("ClineProvider", () => {
 			;(provider as any).taskCreationCallback(task)
 			task.emit(RooCodeEventName.TaskAborted)
 
-			expect(sendTaskNotification).toHaveBeenCalledWith(
-				expect.objectContaining({
-					taskId: "task-aborted",
-					outcome: "aborted",
-					tokenUsage,
-					toolUsage,
-				}),
-			)
+			expect(sendTaskNotification).not.toHaveBeenCalled()
 		})
 
 		test("suppresses non-user lifecycle abort notifications", () => {
@@ -1920,6 +1911,24 @@ describe("ClineProvider", () => {
 			targetAgentId: "dashboard-agent",
 			replyToId: question.id,
 		})
+		bus.publishCoordination("dashboard-agent", {
+			kind: "decision",
+			message: "Decision: src/dashboard.tsx exposes data-dashboard-root.",
+			targetAgentId: "styles-agent",
+			relatedFiles: ["src/dashboard.tsx"],
+		})
+		bus.publishCoordination("styles-agent", {
+			kind: "note",
+			message: "Assumption: compact styles target data-dashboard-root only.",
+			targetAgentId: "dashboard-agent",
+			relatedFiles: ["src/styles.css"],
+		})
+		bus.publishCoordination("dashboard-agent", {
+			kind: "blocker",
+			message: "Blocker: src/styles.css needs the dashboard root selector before final CSS.",
+			targetAgentId: "styles-agent",
+			relatedFiles: ["src/styles.css"],
+		})
 		bus.requestWriteIntent("dashboard-agent", "src/dashboard.tsx")
 		bus.markBlocked("styles-agent", "Waiting for DOM contract", [
 			{ agentId: "dashboard-agent", waitFor: "signal", signal: "dom-ready" },
@@ -1947,10 +1956,36 @@ describe("ClineProvider", () => {
 						message: "Expose data-dashboard-root for compact styles.",
 						replyToId: question.id,
 					}),
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						targetAgentId: "styles-agent",
+						kind: "decision",
+						source: "agent",
+						message: "Decision: src/dashboard.tsx exposes data-dashboard-root.",
+						relatedFiles: ["src/dashboard.tsx"],
+					}),
+					expect.objectContaining({
+						agentId: "styles-agent",
+						targetAgentId: "dashboard-agent",
+						kind: "note",
+						source: "agent",
+						message: "Assumption: compact styles target data-dashboard-root only.",
+						relatedFiles: ["src/styles.css"],
+					}),
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						targetAgentId: "styles-agent",
+						kind: "blocker",
+						source: "agent",
+						message: "Blocker: src/styles.css needs the dashboard root selector before final CSS.",
+						relatedFiles: ["src/styles.css"],
+					}),
 				]),
 			)
 			expect(
-				tool.agentCoordinationEvents?.every((event) => event.kind === "question" || event.kind === "answer"),
+				tool.agentCoordinationEvents?.every((event) =>
+					["question", "answer", "decision", "note", "blocker"].includes(event.kind),
+				),
 			).toBe(true)
 			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toMatch(
 				/I own|Team chat open|Shared context is in each agent task|waits for|I'm about to edit/i,

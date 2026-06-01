@@ -95,6 +95,54 @@ describe("CoordinateAgentsTool", () => {
 		expect(task.consecutiveMistakeCount).toBe(0)
 	})
 
+	it.each(["decision", "note", "blocker"] as const)(
+		"publishes %s messages for concrete integration coordination",
+		async (kind) => {
+			const tool = new CoordinateAgentsTool()
+			const { task, callbacks } = createCallbacks()
+			;(task.publishAgentCoordination as any).mockReturnValue({
+				id: `coord-${kind}`,
+				agentId: "agent-a",
+				kind,
+				source: "agent",
+				message: `${kind}: use data-testid=save-button.`,
+				targetAgentId: "agent-b",
+				relatedFiles: ["src/a.ts"],
+				ts: 4,
+			})
+
+			await tool.handle(
+				task as any,
+				{
+					type: "tool_use",
+					name: "coordinate_agents",
+					params: {},
+					nativeArgs: {
+						action: "publish",
+						kind,
+						message: `${kind}: use data-testid=save-button.`,
+						targetAgentId: "agent-b",
+						relatedFiles: ["src/a.ts"],
+					},
+				} as ToolUse<"coordinate_agents">,
+				callbacks as any,
+			)
+
+			expect(task.publishAgentCoordination).toHaveBeenCalledWith({
+				kind,
+				message: `${kind}: use data-testid=save-button.`,
+				targetAgentId: "agent-b",
+				relatedFiles: ["src/a.ts"],
+				replyToId: undefined,
+			})
+			expect(callbacks.pushToolResult).toHaveBeenCalledWith(
+				expect.stringContaining(`Published team chat message coord-${kind}.`),
+			)
+			expect(task.recordToolError).not.toHaveBeenCalled()
+			expect(task.consecutiveMistakeCount).toBe(0)
+		},
+	)
+
 	it("returns a non-fatal result when terminal agents try to publish", async () => {
 		const tool = new CoordinateAgentsTool()
 		const { task, callbacks } = createCallbacks()
@@ -266,7 +314,39 @@ describe("CoordinateAgentsTool", () => {
 		expect(task.getAgentCoordinationEvents).toHaveBeenCalledWith({ limit: 8 })
 	})
 
-	it("rejects ownership/status-only publish kinds before posting", async () => {
+	it("rejects unsupported publish kinds before posting", async () => {
+		const tool = new CoordinateAgentsTool()
+		const { task, callbacks } = createCallbacks()
+
+		await tool.handle(
+			task as any,
+			{
+				type: "tool_use",
+				name: "coordinate_agents",
+				params: {},
+				nativeArgs: {
+					action: "publish",
+					kind: "ownership" as any,
+					message: "Use data-testid=save-button for src/a.ts.",
+				},
+			} as ToolUse<"coordinate_agents">,
+			callbacks as any,
+		)
+
+		expect(task.publishAgentCoordination).not.toHaveBeenCalled()
+		expect(task.recordToolError).toHaveBeenCalledWith(
+			"coordinate_agents",
+			"Publish requires kind='question', kind='answer', kind='decision', kind='note', or kind='blocker' for active team coordination.",
+		)
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
+			expect.stringContaining(
+				"Publish a real integration question, answer, decision, assumption note, or blocker",
+			),
+		)
+		expect(task.consecutiveMistakeCount).toBe(1)
+	})
+
+	it("rejects generic ownership/status messages even for publishable kinds", async () => {
 		const tool = new CoordinateAgentsTool()
 		const { task, callbacks } = createCallbacks()
 
@@ -288,10 +368,10 @@ describe("CoordinateAgentsTool", () => {
 		expect(task.publishAgentCoordination).not.toHaveBeenCalled()
 		expect(task.recordToolError).toHaveBeenCalledWith(
 			"coordinate_agents",
-			"Publish requires kind='question' or kind='answer' for active team coordination.",
+			"Publish requires a concrete integration question, answer, decision, assumption note, or blocker; ownership/status-only team chat is not allowed.",
 		)
 		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
-			expect.stringContaining("Publish a real integration question or answer"),
+			expect.stringContaining("Do not post ownership introductions, status-only updates"),
 		)
 		expect(task.consecutiveMistakeCount).toBe(1)
 	})

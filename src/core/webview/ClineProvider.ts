@@ -28,6 +28,7 @@ import {
 	type ToolUsage,
 	type ExtensionMessage,
 	type ExtensionState,
+	type OpenAiCodexFastStatus,
 	type AgentEvent,
 	type AgentCompletionPacket,
 	type AgentDependency,
@@ -485,7 +486,7 @@ export class ClineProvider
 					this.removeBackgroundTask(instance)
 				}
 
-				this.notifyTaskCompleted(instance, "success", tokenUsage, toolUsage)
+				this.notifyTaskCompletion(instance, tokenUsage, toolUsage)
 
 				this.emit(RooCodeEventName.TaskCompleted, taskId, tokenUsage, toolUsage)
 			}
@@ -499,20 +500,8 @@ export class ClineProvider
 						return
 					}
 
-					const abortNotificationOutcome = this.getTaskAbortNotificationOutcome(instance)
-
-					if (!abortNotificationOutcome) {
-						this.log(
-							`[email-notifications] Skipping task ${instance.taskId} abort notification because it was not an explicit user cancellation or streaming failure.`,
-						)
-						return
-					}
-
-					this.notifyTaskCompleted(
-						instance,
-						abortNotificationOutcome,
-						instance.tokenUsage,
-						instance.toolUsage,
+					this.log(
+						`[email-notifications] Skipping task ${instance.taskId} abort notification because automatic SMTP notifications are completion-only.`,
 					)
 
 					// Only rehydrate on genuine streaming failures.
@@ -698,12 +687,7 @@ export class ClineProvider
 		}
 	}
 
-	private notifyTaskCompleted(
-		task: Task,
-		outcome: EmailNotificationOutcome,
-		tokenUsage?: TokenUsage,
-		toolUsage?: ToolUsage,
-	): void {
+	private notifyTaskCompletion(task: Task, tokenUsage?: TokenUsage, toolUsage?: ToolUsage): void {
 		if (task.background) {
 			this.log(`[email-notifications] Skipping task ${task.taskId} notification because it is a background task.`)
 			return
@@ -716,34 +700,32 @@ export class ClineProvider
 			return
 		}
 
-		const summary = this.getEmailNotificationSummary(task, outcome)
+		const summary = this.getEmailNotificationSummary(task)
 
-		if (outcome === "success") {
-			const historyItem = this.getEmailNotificationHistoryItem(task.taskId)
+		const historyItem = this.getEmailNotificationHistoryItem(task.taskId)
 
-			if (historyItem && this.hasDelegatedWorkflowNotificationMetadata(historyItem)) {
-				void this.notifyDelegatedWorkflowCompleted(
-					historyItem,
-					summary ?? historyItem.completionResultSummary ?? DEFAULT_COMPLETION_EMAIL_SUMMARY,
-					{
-						workspacePath: task.workspacePath,
-						mode: task.taskMode,
-						toolUsage,
-					},
-				).catch((error) => {
-					this.log(
-						`[email-notifications] Failed to prepare delegated parent completion notification for ${task.taskId}: ${this.sanitizeEmailNotificationLogMessage(
-							error,
-						)}`,
-					)
-				})
-				return
-			}
+		if (historyItem && this.hasDelegatedWorkflowNotificationMetadata(historyItem)) {
+			void this.notifyDelegatedWorkflowCompleted(
+				historyItem,
+				summary ?? historyItem.completionResultSummary ?? DEFAULT_COMPLETION_EMAIL_SUMMARY,
+				{
+					workspacePath: task.workspacePath,
+					mode: task.taskMode,
+					toolUsage,
+				},
+			).catch((error) => {
+				this.log(
+					`[email-notifications] Failed to prepare delegated parent completion notification for ${task.taskId}: ${this.sanitizeEmailNotificationLogMessage(
+						error,
+					)}`,
+				)
+			})
+			return
 		}
 
 		this.notifyTaskOutcome({
 			taskId: task.taskId,
-			outcome,
+			outcome: "success",
 			summary,
 			workspacePath: task.workspacePath,
 			mode: task.taskMode,
@@ -867,6 +849,13 @@ export class ClineProvider
 	}
 
 	private notifyTaskOutcome(payload: EmailNotificationPayload): void {
+		if (payload.outcome !== "success") {
+			this.log(
+				`[email-notifications] Skipping ${payload.outcome} notification for task ${payload.taskId}; automatic SMTP notifications are completion-only.`,
+			)
+			return
+		}
+
 		if (this.hasEmailNotificationTaskOutcomeBeenSent(payload.taskId, payload.outcome)) {
 			this.log(
 				`[email-notifications] Skipping ${payload.outcome} notification for task ${payload.taskId}; an equal or higher-precedence outcome was already sent.`,
@@ -983,18 +972,6 @@ export class ClineProvider
 		return messages.filter((message) => message.type === "say" && message.say === "api_req_started").length
 	}
 
-	private getTaskAbortNotificationOutcome(task: Task): EmailNotificationOutcome | undefined {
-		if (task.abortReason === "streaming_failed") {
-			return "failed"
-		}
-
-		if (task.abortReason === "user_cancelled" && task.abandoned !== true) {
-			return "aborted"
-		}
-
-		return undefined
-	}
-
 	private hasEmailNotificationTaskOutcomeBeenSent(taskId: string, outcome: EmailNotificationOutcome): boolean {
 		this.loadEmailNotificationTaskOutcomeState()
 
@@ -1096,11 +1073,7 @@ export class ClineProvider
 		return outcome === "success" || outcome === "failed" || outcome === "aborted"
 	}
 
-	private getEmailNotificationSummary(task: Task, outcome: EmailNotificationOutcome): string | undefined {
-		if (outcome !== "success") {
-			return undefined
-		}
-
+	private getEmailNotificationSummary(task: Task): string | undefined {
 		const completionResult = task.clineMessages
 			.slice()
 			.reverse()
@@ -2846,6 +2819,7 @@ export class ClineProvider
 			imageGenerationProvider,
 			openRouterImageApiKey,
 			openRouterImageGenerationSelectedModel,
+			openAiCodexFastStatus,
 			lockApiConfigAcrossModes,
 		} = await this.getState()
 
@@ -2967,6 +2941,7 @@ export class ClineProvider
 			imageGenerationProvider,
 			openRouterImageApiKey,
 			openRouterImageGenerationSelectedModel,
+			openAiCodexFastStatus: openAiCodexFastStatus ?? { state: "off" },
 			openAiCodexIsAuthenticated: await (async () => {
 				try {
 					const { openAiCodexOAuthManager } = await import("../../integrations/openai-codex/oauth")
@@ -3126,7 +3101,18 @@ export class ClineProvider
 			imageGenerationProvider: stateValues.imageGenerationProvider,
 			openRouterImageApiKey: stateValues.openRouterImageApiKey,
 			openRouterImageGenerationSelectedModel: stateValues.openRouterImageGenerationSelectedModel,
+			openAiCodexFastStatus: stateValues.openAiCodexFastStatus,
 		}
+	}
+
+	async updateOpenAiCodexFastStatus(status: OpenAiCodexFastStatus): Promise<void> {
+		const current = this.contextProxy.getGlobalState("openAiCodexFastStatus")
+		if (JSON.stringify(current) === JSON.stringify(status)) {
+			return
+		}
+
+		await this.contextProxy.updateGlobalState("openAiCodexFastStatus", status)
+		await this.postStateToWebviewWithoutClineMessages()
 	}
 
 	/**
@@ -5166,15 +5152,11 @@ export class ClineProvider
 	private shouldSuppressParallelAgentCoordinationEvent(
 		event: Omit<ParallelAgentCoordinationEvent, "ts"> & { ts?: number },
 	): boolean {
-		if (event.kind === "question" || event.kind === "answer") {
-			return false
-		}
-
 		if (event.kind === "shared-context" || event.kind === "ownership" || event.kind === "dependency") {
 			return true
 		}
 
-		return event.source === "system" && isGenericOwnershipCoordinationMessage(event.message)
+		return isGenericOwnershipCoordinationMessage(event.message)
 	}
 
 	private describeAgentDependency(dependency: AgentDependency): string {

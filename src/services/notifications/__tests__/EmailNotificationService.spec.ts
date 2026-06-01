@@ -226,15 +226,23 @@ describe("EmailNotificationService", () => {
 		expect(transportFactory).toHaveBeenCalledTimes(1)
 	})
 
-	it("sends failed and aborted notifications when failure notifications are enabled", async () => {
+	it("never sends failed or aborted notifications even when failure notifications are enabled", async () => {
 		const { service, sendMail } = createService(createContextProxy({ emailNotifyOnFailure: true }))
 
-		await service.sendTaskNotification({ ...payload, outcome: "failed" })
-		await service.sendTaskNotification({ ...payload, taskId: "task-2", outcome: "aborted" })
+		await expect(service.sendTaskNotification({ ...payload, outcome: "failed" })).resolves.toEqual({
+			attempted: false,
+			sent: false,
+			skippedReason: "completion-only",
+		})
+		await expect(
+			service.sendTaskNotification({ ...payload, taskId: "task-2", outcome: "aborted" }),
+		).resolves.toEqual({
+			attempted: false,
+			sent: false,
+			skippedReason: "completion-only",
+		})
 
-		expect(sendMail).toHaveBeenCalledTimes(2)
-		expect(sendMail.mock.calls[0][0].subject).toContain("failed")
-		expect(sendMail.mock.calls[1][0].subject).toContain("aborted")
+		expect(sendMail).not.toHaveBeenCalled()
 	})
 
 	it("does not create a transport when required SMTP configuration is invalid", async () => {

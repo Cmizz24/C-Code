@@ -14,6 +14,7 @@ import { modeConfigSchema } from "./mode.js"
 import { customModePromptsSchema, customSupportPromptsSchema } from "./mode.js"
 import { toolNamesSchema } from "./tool.js"
 import { languagesSchema } from "./vscode.js"
+import { openAiCodexFastStatusSchema } from "./providers/openai-codex.js"
 
 /**
  * Default delay in milliseconds after writes to allow diagnostics to detect potential problems.
@@ -112,6 +113,7 @@ export const globalSettingsSchema = z.object({
 	imageGenerationProvider: z.enum(["openrouter"]).optional(),
 	openRouterImageApiKey: z.string().optional(),
 	openRouterImageGenerationSelectedModel: z.string().optional(),
+	openAiCodexFastStatus: openAiCodexFastStatusSchema.optional(),
 
 	customCondensingPrompt: z.string().optional(),
 

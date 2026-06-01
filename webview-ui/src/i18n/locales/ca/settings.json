@@ -351,10 +351,12 @@
 			"label": "Activa Fast mode",
 			"description": "Utilitza el nivell de servei prioritari d'OpenAI per als models compatibles (GPT-5.5 i GPT-5.4). Fast mode pot consumir crèdits a un ritme més alt.",
 			"status": {
-				"active": "Fast mode està actiu per a {{modelId}}.",
 				"disabled": "Fast mode està disponible per a {{modelId}}, però ara està desactivat.",
 				"unsupported": "Fast mode no està disponible per a {{modelId}}.",
-				"signInRequired": "Fast mode està activat per a {{modelId}}, però cal iniciar sessió abans que es pugui executar."
+				"signInRequired": "Fast mode està activat per a {{modelId}}, però cal iniciar sessió abans que es pugui executar.",
+				"requested": "S'ha sol·licitat Fast mode per a {{modelId}}, però OpenAI encara no ha confirmat el nivell priority.",
+				"confirmed": "Fast mode està confirmat per a {{modelId}} al nivell priority d'OpenAI.",
+				"rejected": "S'ha sol·licitat Fast mode per a {{modelId}}, però OpenAI ha indicat el nivell de servei {{observedServiceTier}}."
 			}
 		},
 		"useCustomBaseUrl": "Utilitzar URL base personalitzada",

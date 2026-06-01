@@ -4,6 +4,7 @@ import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 
 import {
 	type ModelInfo,
+	type OpenAiCodexFastStatus,
 	type OpenAiCodexModelId,
 	type ProviderSettings,
 	openAiCodexDefaultModelId,
@@ -22,13 +23,17 @@ interface OpenAICodexProps {
 	setApiConfigurationField: (field: keyof ProviderSettings, value: ProviderSettings[keyof ProviderSettings]) => void
 	simplifySettings?: boolean
 	openAiCodexIsAuthenticated?: boolean
+	openAiCodexFastStatus?: OpenAiCodexFastStatus
 }
+
+type FastModeStatusKey = "disabled" | "unsupported" | "signInRequired" | "requested" | "confirmed" | "rejected"
 
 export const OpenAICodex: React.FC<OpenAICodexProps> = ({
 	apiConfiguration,
 	setApiConfigurationField,
 	simplifySettings,
 	openAiCodexIsAuthenticated = false,
+	openAiCodexFastStatus,
 }) => {
 	const { t } = useAppTranslation()
 	const selectedModelId = apiConfiguration.apiModelId ?? openAiCodexDefaultModelId
@@ -38,13 +43,17 @@ export const OpenAICodex: React.FC<OpenAICodexProps> = ({
 			: undefined
 	const fastModeEnabled = apiConfiguration.openAiCodexFastMode ?? false
 	const fastModeSupported = selectedModel?.supportsFastMode === true
-	const fastModeStatusKey = !fastModeSupported
+	const fastStatusMatchesSelectedModel = openAiCodexFastStatus?.modelId === selectedModelId
+	const fastModeStatusKey: FastModeStatusKey = !fastModeSupported
 		? "unsupported"
 		: !fastModeEnabled
 			? "disabled"
-			: openAiCodexIsAuthenticated
-				? "active"
-				: "signInRequired"
+			: !openAiCodexIsAuthenticated
+				? "signInRequired"
+				: fastStatusMatchesSelectedModel &&
+					  (openAiCodexFastStatus.state === "confirmed" || openAiCodexFastStatus.state === "rejected")
+					? openAiCodexFastStatus.state
+					: "requested"
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -92,6 +101,7 @@ export const OpenAICodex: React.FC<OpenAICodexProps> = ({
 					data-testid="openai-codex-fast-mode-status">
 					{t(`settings:providers.openAiCodexFastMode.status.${fastModeStatusKey}`, {
 						modelId: selectedModelId,
+						observedServiceTier: openAiCodexFastStatus?.observedServiceTier ?? "unknown",
 					})}
 				</p>
 			</div>

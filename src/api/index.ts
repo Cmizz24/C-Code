@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
-import { isRetiredProvider, type ProviderSettings, type ModelInfo } from "@roo-code/types"
+import { isRetiredProvider, type ProviderSettings, type ModelInfo, type OpenAiCodexFastStatus } from "@roo-code/types"
 
 import { ApiStream } from "./transform/stream"
 
@@ -103,6 +103,8 @@ export interface ApiHandler {
 	): ApiStream
 
 	getModel(): { id: string; info: ModelInfo }
+
+	getOpenAiCodexFastStatus?(): OpenAiCodexFastStatus | undefined
 
 	/**
 	 * Counts tokens for content blocks
