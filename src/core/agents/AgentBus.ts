@@ -170,10 +170,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 				continue
 			}
 
-			agent.status = this.areDependenciesSatisfied(agent.dependsOn) ? "pending" : "blocked"
-			if (agent.status === "blocked") {
-				this.blockedAgents.add(agent.id)
-			}
+			agent.status = "pending"
 		}
 
 		this.emit("plan", plan)
@@ -421,6 +418,9 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		}
 
 		if (agent) {
+			if (blockedOn?.length) {
+				agent.dependsOn = blockedOn
+			}
 			agent.status = "blocked"
 		}
 		this.blockedAgents.add(agentId)

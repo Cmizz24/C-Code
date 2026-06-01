@@ -886,7 +886,7 @@ export class ClineProvider
 					return
 				}
 
-				if (result?.sent ?? true) {
+				if (result?.sent === true) {
 					this.rememberEmailNotificationTaskOutcome(payload.taskId, payload.outcome)
 					this.log(`[email-notifications] Sent ${payload.outcome} notification for task ${payload.taskId}.`)
 					return

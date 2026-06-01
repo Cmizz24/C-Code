@@ -276,7 +276,7 @@ describe("OrchestratorEventLoop", () => {
 		}
 	})
 
-	it("includes dependency context without duplicating signal wording", async () => {
+	it("includes non-blocking dependency context without delaying child creation", async () => {
 		const provider = createProvider()
 		const plan = createTwoAgentPlan()
 		plan.agents[1] = {
@@ -289,13 +289,11 @@ describe("OrchestratorEventLoop", () => {
 					context: "Use the declared DOM and class names once signalled.",
 				},
 			],
-			status: "blocked",
+			status: "pending",
 		}
 
 		new OrchestratorEventLoop(provider, AgentBus.getInstance()).start(plan)
 
-		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(1))
-		AgentBus.getInstance().emitSignal("ui", "contract-ready", "UI contract is ready")
 		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(2))
 		const stylesCall = vi
 			.mocked(provider.createTask)
@@ -303,14 +301,18 @@ describe("OrchestratorEventLoop", () => {
 		expect(stylesCall).toBeDefined()
 		const [message, , , options] = stylesCall!
 
+		expect(message).toContain("Non-blocking dependency context:")
 		expect(message).toContain(
-			"- Wait for ui signal contract-ready: Use the declared DOM and class names once signalled.",
+			"- Coordinate with ui (signal contract-ready, non-blocking): Use the declared DOM and class names once signalled.",
 		)
 		expect(message).not.toContain("signal signal")
+		expect(message).not.toContain("Wait for ui")
+		expect(options?.systemPromptSuffix).toContain("Non-blocking dependency context:")
 		expect(options?.systemPromptSuffix).toContain(
-			"- Wait for ui signal contract-ready: Use the declared DOM and class names once signalled.",
+			"- Coordinate with ui (signal contract-ready, non-blocking): Use the declared DOM and class names once signalled.",
 		)
 		expect(options?.systemPromptSuffix).not.toContain("signal signal")
+		expect(options?.systemPromptSuffix).not.toContain("Wait for ui")
 	})
 
 	it("uses the original orchestrator task as the parent for every spawned agent", async () => {
@@ -432,7 +434,7 @@ describe("OrchestratorEventLoop", () => {
 		expect(AgentBus.getInstance().getAgent("agent-3")?.status).toBe("running")
 	})
 
-	it("preserves dependency blocking while filling available concurrency slots", async () => {
+	it("starts dependency-context agents within concurrency slots without hard blocking", async () => {
 		const spawnedTasks = new Map<string, TestTask>()
 		const plan = createMultiAgentPlan(3)
 		plan.agents[1].dependsOn = [{ agentId: "agent-1", waitFor: "complete" }]
@@ -450,17 +452,17 @@ describe("OrchestratorEventLoop", () => {
 		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(2))
 		expect(vi.mocked(provider.createTask).mock.calls.map((call) => call[3]?.agentId)).toEqual([
 			"agent-1",
-			"agent-3",
+			"agent-2",
 		])
-		expect(AgentBus.getInstance().getAgent("agent-2")?.status).toBe("blocked")
+		expect(AgentBus.getInstance().getAgent("agent-2")?.status).toBe("running")
 
 		spawnedTasks.get("agent-1")?.emit(RooCodeEventName.TaskCompleted)
 
 		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(3))
 		expect(vi.mocked(provider.createTask).mock.calls.map((call) => call[3]?.agentId)).toEqual([
 			"agent-1",
-			"agent-3",
 			"agent-2",
+			"agent-3",
 		])
 	})
 

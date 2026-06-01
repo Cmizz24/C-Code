@@ -286,7 +286,7 @@ describe("AgentBus", () => {
 		expect(bus.requestWriteIntent("agent-a", "src/forbidden.ts").approved).toBe(false)
 	})
 
-	it("unblocks agents when completion dependencies are satisfied", () => {
+	it("keeps plan dependencies non-blocking so dependents start pending", () => {
 		const plan = createPlan()
 		plan.agents[1].dependsOn = [{ agentId: "agent-a", waitFor: "complete" }]
 		bus.setExecutionPlan(plan)
@@ -294,11 +294,11 @@ describe("AgentBus", () => {
 		const unblocked = vi.fn()
 		bus.on("agentUnblocked", unblocked)
 
-		expect(bus.getAgent("agent-b")?.status).toBe("blocked")
+		expect(bus.getAgent("agent-b")?.status).toBe("pending")
 
 		bus.markComplete("agent-a", "done")
 
-		expect(unblocked).toHaveBeenCalledWith(expect.objectContaining({ id: "agent-b", status: "pending" }))
+		expect(unblocked).not.toHaveBeenCalled()
 		expect(bus.getAgent("agent-b")?.status).toBe("pending")
 	})
 
@@ -330,12 +330,14 @@ describe("AgentBus", () => {
 	})
 
 	it("unblocks agents when signal dependencies are satisfied", () => {
-		const plan = createPlan()
-		plan.agents[1].dependsOn = [{ agentId: "agent-a", waitFor: "signal", signal: "types-ready" }]
-		bus.setExecutionPlan(plan)
-
 		const unblocked = vi.fn()
 		bus.on("agentUnblocked", unblocked)
+
+		bus.markBlocked("agent-b", "Waiting for type contract", [
+			{ agentId: "agent-a", waitFor: "signal", signal: "types-ready" },
+		])
+
+		expect(bus.getAgent("agent-b")?.status).toBe("blocked")
 
 		bus.emitSignal("agent-a", "types-ready")
 
@@ -435,11 +437,9 @@ describe("AgentBus", () => {
 	})
 
 	it("fails blocked dependents when their dependency fails", () => {
-		const plan = createPlan()
-		plan.agents[1].dependsOn = [{ agentId: "agent-a", waitFor: "complete" }]
-		bus.setExecutionPlan(plan)
 		const events = vi.fn()
 		bus.on("event", events)
+		bus.markBlocked("agent-b", "Waiting for agent-a", [{ agentId: "agent-a", waitFor: "complete" }])
 
 		bus.markFailed("agent-a", "Agent failed")
 

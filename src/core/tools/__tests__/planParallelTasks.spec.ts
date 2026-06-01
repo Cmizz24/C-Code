@@ -224,7 +224,7 @@ describe("handlePlanParallelTasks", () => {
 		}
 	})
 
-	it("warns when a completion dependency blocks agents with non-conflicting ownership", () => {
+	it("warns when non-blocking completion dependency context duplicates non-conflicting ownership", () => {
 		const result = handlePlanParallelTasks(
 			{
 				goal: "Build a dashboard from agreed UI and styling contracts",
@@ -250,9 +250,9 @@ describe("handlePlanParallelTasks", () => {
 
 		expect(result.ok).toBe(true)
 		if (result.ok) {
-			expect(result.plan.agents.find((agent) => agent.id === "styles-agent")?.status).toBe("blocked")
+			expect(result.plan.agents.find((agent) => agent.id === "styles-agent")?.status).toBe("pending")
 			expect(result.warnings).toContain(
-				"Agent styles-agent waits for ui-agent to complete despite non-conflicting ownership. If this is only an interface or DOM/API contract, move that contract into sharedContext or the agent task and remove the dependency so both agents can run in parallel. Use a signal dependency for a narrow handoff instead of waiting for full completion.",
+				"Agent styles-agent references ui-agent completion despite non-conflicting ownership. Dependencies are non-blocking coordination context, so both agents will still start within concurrency limits. Move known interface or DOM/API contracts into sharedContext or the agent task so the agents can coordinate without waiting for full completion.",
 			)
 		}
 	})

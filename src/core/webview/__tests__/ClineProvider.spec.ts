@@ -32,6 +32,7 @@ import { ClineProvider } from "../ClineProvider"
 import { MessageManager } from "../../message-manager"
 import { AgentBus } from "../../agents/AgentBus"
 import { WorktreeMergeError } from "../../agents/WorktreeManager"
+import { EmailNotificationService } from "../../../services/notifications/EmailNotificationService"
 
 // Mock setup must come before imports.
 vi.mock("../../prompts/sections/custom-instructions")
@@ -653,7 +654,9 @@ describe("ClineProvider", () => {
 			read_file: { attempts: 2, failures: 1 },
 		}) as ToolUsage
 
-	const installEmailNotificationServiceMock = (sendTaskNotification = vi.fn().mockResolvedValue(undefined)) => {
+	const installEmailNotificationServiceMock = (
+		sendTaskNotification = vi.fn().mockResolvedValue({ attempted: true, sent: true }),
+	) => {
 		;(provider as any).emailNotificationService = { sendTaskNotification }
 		return sendTaskNotification
 	}
@@ -740,6 +743,111 @@ describe("ClineProvider", () => {
 				toolUsage,
 				requestCount: 2,
 			})
+		})
+
+		test("sends direct completion email through the same saved SMTP settings and SecretStorage password as Test SMTP", async () => {
+			await provider.contextProxy.setValues({
+				emailNotificationsEnabled: true,
+				emailNotifyOnSuccess: true,
+				emailNotifyOnFailure: false,
+				smtpHost: " smtp.example.com ",
+				smtpPort: 587,
+				smtpSecure: false,
+				smtpRequireTls: true,
+				smtpUsername: "smtp-user",
+				smtpPassword: "smtp-secret",
+				smtpFromAddress: "C Code <roo@example.com>",
+				smtpRecipients: [" dev@example.com ", "ops@example.com", "dev@example.com", ""],
+				smtpSubjectTemplate: "C task {{outcome}} for {{taskId}}",
+			} as any)
+
+			const sendMail = vi.fn().mockResolvedValue(undefined)
+			const transportFactory = vi.fn(() => ({ sendMail }))
+			;(provider as any).emailNotificationService = new EmailNotificationService(provider.contextProxy, {
+				log: (message) => provider.log(message),
+				transportFactory,
+			})
+
+			await expect(provider.testSmtpSettings()).resolves.toEqual({ attempted: true, sent: true })
+
+			expect(sendMail).toHaveBeenCalledTimes(1)
+			expect(transportFactory).toHaveBeenNthCalledWith(1, {
+				host: "smtp.example.com",
+				port: 587,
+				secure: false,
+				requireTLS: true,
+				auth: {
+					user: "smtp-user",
+					pass: "smtp-secret",
+				},
+			})
+
+			const task = new Task({
+				...defaultTaskOptions,
+				taskId: "smtp-parity-task",
+				workspacePath: "/workspace/project",
+			} as any)
+			;(task as any).taskMode = "code"
+			task.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "Full transcript content must never be emailed.",
+				ts: 1,
+			})
+			task.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Completed the saved SMTP notification path without leaking smtp-secret.",
+				ts: 2,
+			})
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, undefined as any, undefined as any)
+
+			await vi.waitFor(() => expect(sendMail).toHaveBeenCalledTimes(2))
+			expect(transportFactory).toHaveBeenNthCalledWith(2, {
+				host: "smtp.example.com",
+				port: 587,
+				secure: false,
+				requireTLS: true,
+				auth: {
+					user: "smtp-user",
+					pass: "smtp-secret",
+				},
+			})
+
+			const testMailOptions = sendMail.mock.calls[0][0]
+			const completionMailOptions = sendMail.mock.calls[1][0]
+			expect(testMailOptions.subject).toBe("C Code SMTP test")
+			expect(completionMailOptions).toEqual(
+				expect.objectContaining({
+					from: "C Code <roo@example.com>",
+					to: ["dev@example.com", "ops@example.com"],
+					subject: "C task success for smtp-parity-task",
+					text: expect.stringContaining("Task ID: smtp-parity-task"),
+					html: expect.stringContaining("Task ID"),
+				}),
+			)
+			expect(completionMailOptions.text).toContain("Total tokens: 0")
+			expect(completionMailOptions.text).toContain(
+				"Completion summary: Completed the saved SMTP notification path without leaking [redacted].",
+			)
+
+			const allMailText = sendMail.mock.calls.map(([mailOptions]) => JSON.stringify(mailOptions)).join("\n")
+			expect(allMailText).not.toContain("smtp-secret")
+			expect(allMailText).not.toContain("Full transcript content must never be emailed.")
+			expect(allMailText).not.toContain("apiConversationHistory")
+			expect(allMailText).not.toContain("clineMessages")
+
+			const outputLogText = (mockOutputChannel.appendLine as any).mock.calls.flat().join("\n")
+			expect(outputLogText).not.toContain("smtp-secret")
+			expect(outputLogText).not.toContain("Full transcript content must never be emailed.")
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, undefined as any, undefined as any)
+			expect(
+				sendMail.mock.calls.filter(([mailOptions]) => mailOptions.subject.includes("smtp-parity-task")),
+			).toHaveLength(1)
+			expect(sendMail).toHaveBeenCalledTimes(2)
 		})
 
 		test("sends direct completion notifications when usage stats are unavailable", () => {
@@ -1142,7 +1250,7 @@ describe("ClineProvider", () => {
 				"sidebar",
 				new ContextProxy(mockContext),
 			)
-			const reloadedSendTaskNotification = vi.fn().mockResolvedValue(undefined)
+			const reloadedSendTaskNotification = vi.fn().mockResolvedValue({ attempted: true, sent: true })
 			;(reloadedProvider as any).emailNotificationService = {
 				sendTaskNotification: reloadedSendTaskNotification,
 				sendTestNotification: vi.fn(),

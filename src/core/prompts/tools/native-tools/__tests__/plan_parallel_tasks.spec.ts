@@ -30,13 +30,13 @@ describe("createPlanParallelTasksTool", () => {
 		)
 		expect(tool.function.description).toContain("coordinate_agents for genuine targeted Q/A")
 		expect(tool.function.description).toContain("instead of guessing")
-		expect(tool.function.description).toContain("Add dependsOn only for true runtime blockers")
-		expect(tool.function.description).toContain("avoid waitFor=complete")
+		expect(tool.function.description).toContain("Use dependsOn only as non-blocking coordination metadata")
+		expect(tool.function.description).toContain("dependencies do not prevent an agent from starting")
 		expect(parameters.properties.sharedContext.description).toContain("planned interface contracts")
 		expect(parameters.properties.sharedContext.description).toContain("UI/CSS/component contracts")
 		expect(agentProperties.task.description).toContain("coordinate_agents Q/A instead of guessing")
-		expect(agentProperties.dependsOn.description).toContain("True blockers")
-		expect(agentProperties.dependsOn.description).toContain("planned contract")
+		expect(agentProperties.dependsOn.description).toContain("Non-blocking coordination context")
+		expect(agentProperties.dependsOn.description).toContain("do not prevent this agent from starting")
 	})
 
 	it("treats clean structured parallel evidence as sufficient verification", () => {

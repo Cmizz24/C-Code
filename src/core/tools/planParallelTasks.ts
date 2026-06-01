@@ -388,7 +388,7 @@ export function handlePlanParallelTasks(
 				!hasWritableOwnershipConflict(agent, dependencyAgent)
 			) {
 				warnings.push(
-					`Agent ${agent.id} waits for ${dependency.agentId} to complete despite non-conflicting ownership. If this is only an interface or DOM/API contract, move that contract into sharedContext or the agent task and remove the dependency so both agents can run in parallel. Use a signal dependency for a narrow handoff instead of waiting for full completion.`,
+					`Agent ${agent.id} references ${dependency.agentId} completion despite non-conflicting ownership. Dependencies are non-blocking coordination context, so both agents will still start within concurrency limits. Move known interface or DOM/API contracts into sharedContext or the agent task so the agents can coordinate without waiting for full completion.`,
 				)
 			}
 		}
@@ -438,7 +438,7 @@ export function handlePlanParallelTasks(
 		mustNotTouch: (agent.mustNotTouch ?? []).map(normalizePlanPath),
 		dependsOn: agent.dependsOn ?? [],
 		worktreePath: agent.worktreePath ?? path.join(repoRoot, ".roo", "parallel-worktrees", planId, agent.id),
-		status: (agent.dependsOn?.length ?? 0) > 0 ? "blocked" : "pending",
+		status: "pending",
 		signals: agent.signals ?? [],
 	}))
 

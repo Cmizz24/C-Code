@@ -324,20 +324,12 @@ export class OrchestratorEventLoop {
 	}
 
 	private buildAgentMessage(agent: AgentPlan, plan?: ExecutionPlan): string {
-		const dependencyContext = agent.dependsOn
-			.map((dependency) => {
-				const waitDescription =
-					dependency.waitFor === "signal"
-						? `signal${dependency.signal ? ` ${dependency.signal}` : ""}`
-						: "complete"
-				return `- Wait for ${dependency.agentId} ${waitDescription}${dependency.context ? `: ${dependency.context}` : ""}`
-			})
-			.join("\n")
+		const dependencyContext = this.buildDependencyContext(agent)
 
 		return [
 			`You are agent ${agent.id}, running a normal single ${agent.mode} specialist task.`,
 			plan?.sharedContext ? `Shared context:\n${plan.sharedContext}` : undefined,
-			dependencyContext ? `Dependency context:\n${dependencyContext}` : undefined,
+			dependencyContext ? `Non-blocking dependency context:\n${dependencyContext}` : undefined,
 			`Task:\n${agent.task}`,
 			`Your primary ownership scope (advisory — you may edit files outside this scope when needed, but prefer files in scope):\n${agent.owns.map((ownership) => `- ${ownership.path} (${ownership.mode})`).join("\n") || "- none"}`,
 			`Must not touch:\n${agent.mustNotTouch.map((filePath) => `- ${filePath}`).join("\n") || "- none"}`,
@@ -359,21 +351,13 @@ export class OrchestratorEventLoop {
 	}
 
 	private buildSystemPromptSuffix(agent: AgentPlan, plan?: ExecutionPlan): string {
-		const dependencyContext = agent.dependsOn
-			.map((dependency) => {
-				const waitDescription =
-					dependency.waitFor === "signal"
-						? `signal${dependency.signal ? ` ${dependency.signal}` : ""}`
-						: "complete"
-				return `- Wait for ${dependency.agentId} ${waitDescription}${dependency.context ? `: ${dependency.context}` : ""}`
-			})
-			.join("\n")
+		const dependencyContext = this.buildDependencyContext(agent)
 
 		return [
 			"Single-agent task guidance:",
 			`- Agent id: ${agent.id}`,
 			`- Execution plan: ${plan?.planId ?? "unknown"}`,
-			dependencyContext ? `- Dependency context:\n${dependencyContext}` : undefined,
+			dependencyContext ? `- Non-blocking dependency context:\n${dependencyContext}` : undefined,
 			"- Treat this as one normal specialist task with one ownership scope, not as a complex orchestration task.",
 			"- Use normal sequential tool calls: call one tool, wait for its result, then decide the next step.",
 			"- If another prompt mentions batching or parallelizing tools, this child task overrides it: use one tool call at a time unless the platform emits separate native tool calls.",
@@ -393,6 +377,18 @@ export class OrchestratorEventLoop {
 			"- Never put emojis, private reasoning, chain-of-thought, credentials, profile details, or user secrets in coordinate_agents messages.",
 		]
 			.filter(Boolean)
+			.join("\n")
+	}
+
+	private buildDependencyContext(agent: AgentPlan): string {
+		return agent.dependsOn
+			.map((dependency) => {
+				const coordinationPoint =
+					dependency.waitFor === "signal"
+						? `signal${dependency.signal ? ` ${dependency.signal}` : ""}`
+						: "completion context"
+				return `- Coordinate with ${dependency.agentId} (${coordinationPoint}, non-blocking)${dependency.context ? `: ${dependency.context}` : ""}`
+			})
 			.join("\n")
 	}
 }
