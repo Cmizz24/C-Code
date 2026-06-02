@@ -11,11 +11,13 @@ vi.mock("fs/promises", () => ({
 	default: {
 		mkdtemp: vi.fn().mockResolvedValue("C:/tmp/roo-parallel-baseline-1"),
 		rm: vi.fn().mockResolvedValue(undefined),
+		stat: vi.fn().mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" })),
 		readFile: vi.fn().mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" })),
 		writeFile: vi.fn().mockResolvedValue(undefined),
 	},
 	mkdtemp: vi.fn().mockResolvedValue("C:/tmp/roo-parallel-baseline-1"),
 	rm: vi.fn().mockResolvedValue(undefined),
+	stat: vi.fn().mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" })),
 	readFile: vi.fn().mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" })),
 	writeFile: vi.fn().mockResolvedValue(undefined),
 }))
@@ -39,6 +41,7 @@ describe("WorktreeManager", () => {
 		fsMock.mkdtemp.mockResolvedValue("C:/tmp/roo-parallel-baseline-1")
 		fsMock.rm.mockResolvedValue(undefined)
 		fsMock.readFile.mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" }))
+		fsMock.stat.mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" }))
 		fsMock.rm.mockClear()
 		fsMock.writeFile.mockClear()
 		fsMock.writeFile.mockResolvedValue(undefined)
@@ -449,7 +452,15 @@ describe("WorktreeManager", () => {
 				return { stdout: "C:/repo\n" }
 			}
 
-			if (command === 'git add -A -- "src/owned.ts" "src/owned-dir"') {
+			if (command === 'git diff --name-only -z HEAD -- "src/owned.ts" "src/owned-dir"') {
+				return { stdout: "src/owned.ts\0src/owned-dir/nested.ts\0src/unowned.ts\0" }
+			}
+
+			if (command === 'git ls-files --others --exclude-standard -z -- "src/owned.ts" "src/owned-dir"') {
+				return { stdout: "src/owned-dir/new.ts\0" }
+			}
+
+			if (command === 'git add -A -- "src/owned.ts" "src/owned-dir/nested.ts" "src/owned-dir/new.ts"') {
 				return { stdout: "" }
 			}
 
@@ -479,15 +490,141 @@ describe("WorktreeManager", () => {
 		expect(diff).toContain("src/owned.ts")
 		expect(execMock).toHaveBeenNthCalledWith(
 			1,
-			'git add -A -- "src/owned.ts" "src/owned-dir"',
+			'git diff --name-only -z HEAD -- "src/owned.ts" "src/owned-dir"',
 			expect.objectContaining({ cwd: "C:/repo/.roo/parallel-worktrees/plan/agent" }),
 			expect.any(Function),
 		)
 		expect(execMock).toHaveBeenNthCalledWith(
-			5,
+			7,
 			'git diff --binary HEAD..."roo/parallel/plan/agent" -- "src/owned.ts" "src/owned-dir"',
 			expect.objectContaining({ cwd: "C:/repo", maxBuffer: 50 * 1024 * 1024 }),
 			expect.any(Function),
+		)
+	})
+
+	it("does not stage raw missing owned pathspecs during merge review", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		const diagnostics = vi.fn()
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+
+			if (command === 'git diff --name-only -z HEAD -- "index.html" "styles.css" "app.js"') {
+				return { stdout: "" }
+			}
+
+			if (command === 'git ls-files --others --exclude-standard -z -- "index.html" "styles.css" "app.js"') {
+				return { stdout: "" }
+			}
+
+			if (
+				command === 'git diff --binary HEAD..."roo/parallel/plan/agent" -- "index.html" "styles.css" "app.js"'
+			) {
+				return { stdout: "" }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		const diff = await manager.prepareMergeReview({
+			agentId: "agent",
+			planId: "plan",
+			worktreePath: "C:/repo/.roo/parallel-worktrees/plan/agent",
+			branch: "roo/parallel/plan/agent",
+			ownedPaths: ["index.html", "styles.css", "app.js"],
+			onDiagnostics: diagnostics,
+		})
+
+		expect(diff).toBe("")
+		expect(
+			execMock.mock.calls.some(([command]) => command === 'git add -A -- "index.html" "styles.css" "app.js"'),
+		).toBe(false)
+		expect(diagnostics).toHaveBeenCalledWith(
+			expect.objectContaining({
+				planId: "plan",
+				agentId: "agent",
+				originalOwnedPaths: ["index.html", "styles.css", "app.js"],
+				normalizedOwnedPaths: ["index.html", "styles.css", "app.js"],
+				trackedChangedPaths: [],
+				untrackedChangedPaths: [],
+				stagedPaths: [],
+				result: "no-owned-worktree-changes",
+			}),
+		)
+	})
+
+	it("records merge-review path diagnostics without exposing file contents", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		const diagnostics = vi.fn()
+		fsMock.stat.mockImplementation(async (filePath) => {
+			if (String(filePath).replace(/\\/g, "/").endsWith("index.html")) {
+				return {} as Awaited<ReturnType<typeof fs.stat>>
+			}
+
+			throw Object.assign(new Error("missing"), { code: "ENOENT" })
+		})
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+
+			if (command === 'git diff --name-only -z HEAD -- "index.html" "styles.css"') {
+				return { stdout: "index.html\0" }
+			}
+
+			if (command === 'git ls-files --others --exclude-standard -z -- "index.html" "styles.css"') {
+				return { stdout: "" }
+			}
+
+			if (command === 'git add -A -- "index.html"') {
+				return { stdout: "" }
+			}
+
+			if (command === "git diff --cached --quiet --exit-code") {
+				return { error: Object.assign(new Error("changes staged"), { code: 1 }) }
+			}
+
+			if (command.includes("commit --no-verify")) {
+				return { stdout: "[roo/parallel/plan/agent abc123] changes\n" }
+			}
+
+			if (command === 'git diff --binary HEAD..."roo/parallel/plan/agent" -- "index.html" "styles.css"') {
+				return { stdout: "diff --git a/index.html b/index.html\n" }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await manager.prepareMergeReview({
+			agentId: "agent",
+			planId: "plan",
+			worktreePath: "C:/repo/.roo/parallel-worktrees/plan/agent",
+			branch: "roo/parallel/plan/agent",
+			ownedPaths: ["./index.html", "styles.css"],
+			onDiagnostics: diagnostics,
+		})
+
+		expect(diagnostics).toHaveBeenCalledWith(
+			expect.objectContaining({
+				pathDiagnostics: [
+					expect.objectContaining({
+						originalPath: "./index.html",
+						workspaceRelativePath: "index.html",
+						existsInWorktree: true,
+						existsInRootWorkspace: true,
+					}),
+					expect.objectContaining({
+						originalPath: "styles.css",
+						workspaceRelativePath: "styles.css",
+						existsInWorktree: false,
+						existsInRootWorkspace: false,
+					}),
+				],
+				stagedPaths: ["index.html"],
+				commitCreated: true,
+				result: "committed",
+			}),
 		)
 	})
 

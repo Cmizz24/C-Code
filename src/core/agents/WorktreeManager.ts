@@ -14,6 +14,43 @@ export type WorkspaceBaseline = {
 	commit: string
 }
 
+export type WorktreeMergeReviewPathDiagnostic = {
+	originalPath: string
+	workspaceRelativePath: string
+	worktreePath: string
+	rootWorkspacePath?: string
+	existsInWorktree: boolean
+	existsInRootWorkspace?: boolean
+}
+
+export type WorktreeMergeReviewDiagnostics = {
+	planId: string
+	agentId: string
+	branch: string
+	worktreePath: string
+	originalOwnedPaths?: string[]
+	normalizedOwnedPaths?: string[]
+	pathDiagnostics?: WorktreeMergeReviewPathDiagnostic[]
+	trackedChangedPaths?: string[]
+	untrackedChangedPaths?: string[]
+	stagedPaths?: string[]
+	commitCreated?: boolean
+	result:
+		| "all-worktree-changes-staged"
+		| "owned-changes-staged"
+		| "no-owned-worktree-changes"
+		| "no-staged-changes"
+		| "committed"
+}
+
+export type WorktreeMergeReviewDiagnosticsCallback = (diagnostics: WorktreeMergeReviewDiagnostics) => void
+
+type WorktreeChangedPathSet = {
+	trackedChangedPaths: string[]
+	untrackedChangedPaths: string[]
+	changedPaths: string[]
+}
+
 export class WorktreeManagerError extends Error {
 	constructor(message: string) {
 		super(message)
@@ -264,6 +301,7 @@ export class WorktreeManager {
 		worktreePath: string
 		branch: string
 		ownedPaths?: string[]
+		onDiagnostics?: WorktreeMergeReviewDiagnosticsCallback
 	}): Promise<string> {
 		const ownedPaths = params.ownedPaths?.map(normalizeGitPath).filter(Boolean)
 
@@ -271,7 +309,7 @@ export class WorktreeManager {
 			return ""
 		}
 
-		await this.commitPendingWorktreeChanges({ ...params, ownedPaths })
+		await this.commitPendingWorktreeChanges({ ...params, originalOwnedPaths: params.ownedPaths, ownedPaths })
 		return this.getBranchDiff(params.branch, ownedPaths, this.workspaceBaselines.get(params.planId)?.commit)
 	}
 
@@ -755,13 +793,61 @@ export class WorktreeManager {
 		planId: string
 		worktreePath: string
 		branch: string
+		originalOwnedPaths?: string[]
 		ownedPaths?: string[]
+		onDiagnostics?: WorktreeMergeReviewDiagnosticsCallback
 	}): Promise<void> {
-		const pathspec = this.formatPathspec(params.ownedPaths)
-		const addCommand = pathspec ? `git add -A -- ${pathspec}` : "git add -A -- ."
-		await execAsync(addCommand, { cwd: params.worktreePath })
+		let pathDiagnostics: WorktreeMergeReviewPathDiagnostic[] | undefined
+		let trackedChangedPaths: string[] | undefined
+		let untrackedChangedPaths: string[] | undefined
+		let stagedPaths: string[] | undefined
+		let commitCreated = false
+
+		const emitDiagnostics = (result: WorktreeMergeReviewDiagnostics["result"]): void => {
+			params.onDiagnostics?.({
+				planId: params.planId,
+				agentId: params.agentId,
+				branch: params.branch,
+				worktreePath: params.worktreePath,
+				originalOwnedPaths: params.originalOwnedPaths,
+				normalizedOwnedPaths: params.ownedPaths,
+				pathDiagnostics,
+				trackedChangedPaths,
+				untrackedChangedPaths,
+				stagedPaths,
+				commitCreated,
+				result,
+			})
+		}
+
+		if (params.ownedPaths?.length) {
+			pathDiagnostics = params.onDiagnostics
+				? await this.getMergeReviewPathDiagnostics(
+						params.worktreePath,
+						params.ownedPaths,
+						params.originalOwnedPaths,
+					)
+				: undefined
+
+			const changedPathSet = await this.getOwnedWorktreeChangedPaths(params.worktreePath, params.ownedPaths)
+			trackedChangedPaths = changedPathSet.trackedChangedPaths
+			untrackedChangedPaths = changedPathSet.untrackedChangedPaths
+			stagedPaths = changedPathSet.changedPaths
+
+			if (stagedPaths.length === 0) {
+				emitDiagnostics("no-owned-worktree-changes")
+				return
+			}
+
+			for (const chunk of this.chunkPathspecs(stagedPaths)) {
+				await execAsync(`git add -A -- ${this.formatPathspec(chunk)}`, { cwd: params.worktreePath })
+			}
+		} else {
+			await execAsync("git add -A -- .", { cwd: params.worktreePath })
+		}
 
 		if (!(await this.hasStagedChanges(params.worktreePath))) {
+			emitDiagnostics("no-staged-changes")
 			return
 		}
 
@@ -770,6 +856,81 @@ export class WorktreeManager {
 			`git -c user.name="Roo Parallel Agent" -c user.email="roo-parallel-agent@localhost" commit --no-verify -m ${shellQuote(commitMessage)}`,
 			{ cwd: params.worktreePath },
 		)
+		commitCreated = true
+		emitDiagnostics("committed")
+	}
+
+	private async getOwnedWorktreeChangedPaths(
+		worktreePath: string,
+		ownedPaths: string[],
+	): Promise<WorktreeChangedPathSet> {
+		const trackedChangedPaths = new Set<string>()
+		const untrackedChangedPaths = new Set<string>()
+
+		for (const chunk of this.chunkPathspecs(ownedPaths)) {
+			const pathspec = this.formatPathspec(chunk)
+			const trackedPaths = await this.getNullSeparatedGitOutput(
+				`git diff --name-only -z HEAD -- ${pathspec}`,
+				worktreePath,
+			)
+			const untrackedPaths = await this.getNullSeparatedGitOutput(
+				`git ls-files --others --exclude-standard -z -- ${pathspec}`,
+				worktreePath,
+			)
+
+			for (const filePath of trackedPaths) {
+				if (this.isPathWithinOwnedPaths(filePath, ownedPaths)) {
+					trackedChangedPaths.add(filePath)
+				}
+			}
+
+			for (const filePath of untrackedPaths) {
+				if (this.isPathWithinOwnedPaths(filePath, ownedPaths)) {
+					untrackedChangedPaths.add(filePath)
+				}
+			}
+		}
+
+		const changedPaths = Array.from(new Set([...trackedChangedPaths, ...untrackedChangedPaths]))
+		return {
+			trackedChangedPaths: Array.from(trackedChangedPaths),
+			untrackedChangedPaths: Array.from(untrackedChangedPaths),
+			changedPaths,
+		}
+	}
+
+	private async getMergeReviewPathDiagnostics(
+		worktreePath: string,
+		ownedPaths: string[],
+		originalOwnedPaths: string[] | undefined,
+	): Promise<WorktreeMergeReviewPathDiagnostic[]> {
+		const gitRoot = await this.resolveGitRoot().catch(() => undefined)
+
+		return Promise.all(
+			ownedPaths.map(async (workspaceRelativePath, index) => {
+				const originalPath = originalOwnedPaths?.[index] ?? workspaceRelativePath
+				const resolvedWorktreePath = path.join(worktreePath, workspaceRelativePath)
+				const rootWorkspacePath = gitRoot ? path.join(gitRoot, workspaceRelativePath) : undefined
+
+				return {
+					originalPath,
+					workspaceRelativePath,
+					worktreePath: resolvedWorktreePath,
+					rootWorkspacePath,
+					existsInWorktree: await this.pathExists(resolvedWorktreePath),
+					existsInRootWorkspace: rootWorkspacePath ? await this.pathExists(rootWorkspacePath) : undefined,
+				}
+			}),
+		)
+	}
+
+	private async pathExists(filePath: string): Promise<boolean> {
+		try {
+			await fs.stat(filePath)
+			return true
+		} catch {
+			return false
+		}
 	}
 
 	private async hasStagedChanges(worktreePath: string): Promise<boolean> {

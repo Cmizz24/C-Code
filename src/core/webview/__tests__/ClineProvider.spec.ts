@@ -968,6 +968,7 @@ describe("ClineProvider", () => {
 
 		test("parallel-agent parent workflow completion sends exactly one success notification", async () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
 			const parentTask = new Task({
 				...defaultTaskOptions,
 				taskId: "parallel-parent-success",
@@ -997,6 +998,8 @@ describe("ClineProvider", () => {
 				createTokenUsage(),
 				createToolUsage(),
 			)
+			;(provider as any).emailNotificationTaskOutcomes.set(backgroundTask.taskId, "success")
+			;(provider as any).emailNotificationTaskOutcomesInFlight.set(backgroundTask.taskId, "success")
 			parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, tokenUsage, toolUsage)
 			parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, tokenUsage, toolUsage)
 
@@ -1011,6 +1014,51 @@ describe("ClineProvider", () => {
 				toolUsage,
 				requestCount: 0,
 			})
+
+			const notificationDiagnostics = logSpy.mock.calls
+				.map(([message]) => String(message))
+				.filter((message) => message.startsWith("[email-notifications] diagnostics "))
+				.map(
+					(message) =>
+						JSON.parse(message.slice("[email-notifications] diagnostics ".length)) as Record<string, any>,
+				)
+
+			expect(notificationDiagnostics).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "completion-event-observed",
+						taskId: backgroundTask.taskId,
+						background: true,
+						agentId: "dashboard-agent",
+					}),
+					expect.objectContaining({
+						event: "completion-notification-decision",
+						taskId: backgroundTask.taskId,
+						decision: "skip-background-task",
+					}),
+					expect.objectContaining({
+						event: "completion-event-observed",
+						taskId: "parallel-parent-success",
+						background: false,
+						currentTaskId: "parallel-parent-success",
+					}),
+					expect.objectContaining({
+						event: "completion-notification-decision",
+						taskId: "parallel-parent-success",
+						decision: "send-top-level-success",
+					}),
+					expect.objectContaining({
+						event: "outcome-notification-decision",
+						taskId: "parallel-parent-success",
+						decision: "dispatch",
+						duplicateSent: false,
+						duplicateInFlight: false,
+					}),
+				]),
+			)
+			expect(JSON.stringify(notificationDiagnostics)).not.toContain(
+				"Parallel agents completed and the parent verified the workflow.",
+			)
 		})
 
 		test("sends one parent workflow success notification for delegated completion", async () => {
@@ -2652,10 +2700,38 @@ describe("ClineProvider", () => {
 		const parentTask = new Task(defaultTaskOptions)
 		await provider.addClineToStack(parentTask)
 		const plan = createExecutionPlan()
-		const prepareMergeReview = vi.fn(async ({ agentId }: { agentId: string }) =>
-			agentId === "dashboard-agent"
-				? "diff --git a/src/dashboard.tsx b/src/dashboard.tsx\n+const dashboard = true\n"
-				: "",
+		const logSpy = vi.spyOn(provider, "log")
+		const prepareMergeReview = vi.fn(
+			async ({ agentId, onDiagnostics }: { agentId: string; onDiagnostics?: (diagnostics: unknown) => void }) => {
+				const workspaceRelativePath = agentId === "dashboard-agent" ? "src/dashboard.tsx" : "src/styles.css"
+				onDiagnostics?.({
+					planId: "plan-webview-provider",
+					agentId,
+					branch: `roo/parallel/plan-webview-provider/${agentId}`,
+					worktreePath: `/tmp/${agentId}`,
+					originalOwnedPaths: agentId === "dashboard-agent" ? ["./src/dashboard.tsx"] : ["src/styles.css"],
+					normalizedOwnedPaths: [workspaceRelativePath],
+					pathDiagnostics: [
+						{
+							originalPath: agentId === "dashboard-agent" ? "./src/dashboard.tsx" : "src/styles.css",
+							workspaceRelativePath,
+							worktreePath: `/tmp/${agentId}/${workspaceRelativePath}`,
+							rootWorkspacePath: `/repo/${workspaceRelativePath}`,
+							existsInWorktree: agentId === "dashboard-agent",
+							existsInRootWorkspace: true,
+						},
+					],
+					trackedChangedPaths: agentId === "dashboard-agent" ? [workspaceRelativePath] : [],
+					untrackedChangedPaths: [],
+					stagedPaths: agentId === "dashboard-agent" ? [workspaceRelativePath] : [],
+					commitCreated: agentId === "dashboard-agent",
+					result: agentId === "dashboard-agent" ? "committed" : "no-owned-worktree-changes",
+				})
+
+				return agentId === "dashboard-agent"
+					? "diff --git a/src/dashboard.tsx b/src/dashboard.tsx\n+const dashboard = true\n"
+					: ""
+			},
 		)
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
@@ -2680,8 +2756,70 @@ describe("ClineProvider", () => {
 				worktreePath: "/tmp/dashboard-agent",
 				branch: "roo/parallel/plan-webview-provider/dashboard-agent",
 				ownedPaths: ["src/dashboard.tsx"],
+				onDiagnostics: expect.any(Function),
 			}),
 		)
+		const mergeReviewDiagnostics = logSpy.mock.calls
+			.map(([message]) => String(message))
+			.filter((message) => message.startsWith("[parallel-agents] merge-review-diagnostics "))
+			.map(
+				(message) =>
+					JSON.parse(message.slice("[parallel-agents] merge-review-diagnostics ".length)) as Record<
+						string,
+						any
+					>,
+			)
+
+		expect(mergeReviewDiagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					planId: "plan-webview-provider",
+					agentId: "dashboard-agent",
+					branch: "roo/parallel/plan-webview-provider/dashboard-agent",
+					worktreePath: "/tmp/dashboard-agent",
+					originalOwnedPaths: ["./src/dashboard.tsx"],
+					normalizedOwnedPaths: ["src/dashboard.tsx"],
+					pathDiagnostics: [
+						expect.objectContaining({
+							originalPath: "./src/dashboard.tsx",
+							workspaceRelativePath: "src/dashboard.tsx",
+							worktreePath: "/tmp/dashboard-agent/src/dashboard.tsx",
+							rootWorkspacePath: "/repo/src/dashboard.tsx",
+							existsInWorktree: true,
+							existsInRootWorkspace: true,
+						}),
+					],
+					trackedChangedPaths: ["src/dashboard.tsx"],
+					untrackedChangedPaths: [],
+					stagedPaths: ["src/dashboard.tsx"],
+					commitCreated: true,
+					result: "committed",
+				}),
+				expect.objectContaining({
+					planId: "plan-webview-provider",
+					agentId: "styles-agent",
+					originalOwnedPaths: ["src/styles.css"],
+					normalizedOwnedPaths: ["src/styles.css"],
+					pathDiagnostics: [
+						expect.objectContaining({
+							originalPath: "src/styles.css",
+							workspaceRelativePath: "src/styles.css",
+							worktreePath: "/tmp/styles-agent/src/styles.css",
+							rootWorkspacePath: "/repo/src/styles.css",
+							existsInWorktree: false,
+							existsInRootWorkspace: true,
+						}),
+					],
+					trackedChangedPaths: [],
+					untrackedChangedPaths: [],
+					stagedPaths: [],
+					commitCreated: false,
+					result: "no-owned-worktree-changes",
+				}),
+			]),
+		)
+		expect(JSON.stringify(mergeReviewDiagnostics)).not.toContain("diff --git")
+		expect(JSON.stringify(mergeReviewDiagnostics)).not.toContain("const dashboard = true")
 		expect(
 			mockPostMessage.mock.calls.some(([message]: [ExtensionMessage]) => message.type === "showMergeReview"),
 		).toBe(false)
@@ -2931,6 +3069,55 @@ describe("ClineProvider", () => {
 				planId: "plan-webview-provider",
 				parallelStatus: "merged",
 			}),
+		)
+
+		const materializationDiagnostics = logSpy.mock.calls
+			.map(([message]) => String(message))
+			.filter((message) => message.startsWith("[parallel-agents] merge-materialization "))
+			.map(
+				(message) =>
+					JSON.parse(message.slice("[parallel-agents] merge-materialization ".length)) as Record<string, any>,
+			)
+		expect(materializationDiagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					planId: "plan-webview-provider",
+					agentId: "dashboard-agent",
+					branch: "roo/parallel/plan-webview-provider/dashboard-agent",
+					worktreePath: "/tmp/dashboard-agent",
+					mergeStatus: "merged",
+					materialized: true,
+				}),
+				expect.objectContaining({
+					planId: "plan-webview-provider",
+					agentId: "styles-agent",
+					branch: "roo/parallel/plan-webview-provider/styles-agent",
+					worktreePath: "/tmp/styles-agent",
+					mergeStatus: "merged",
+					materialized: true,
+				}),
+			]),
+		)
+
+		const parentResumeDiagnostics = logSpy.mock.calls
+			.map(([message]) => String(message))
+			.filter((message) => message.startsWith("[parallel-agents] parent-resume-diagnostics "))
+			.map(
+				(message) =>
+					JSON.parse(message.slice("[parallel-agents] parent-resume-diagnostics ".length)) as Record<
+						string,
+						any
+					>,
+			)
+		expect(parentResumeDiagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					planId: "plan-webview-provider",
+					reason: "successful parallel merge",
+					result: "resumed",
+					taskId: parentTask.taskId,
+				}),
+			]),
 		)
 
 		const diagnosticLogText = logSpy.mock.calls.map(([message]) => String(message)).join("\n")
