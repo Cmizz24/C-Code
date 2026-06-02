@@ -1171,7 +1171,8 @@ describe("ClineProvider", () => {
 					expect.objectContaining({
 						event: "completion-notification-decision",
 						taskId: backgroundTask.taskId,
-						decision: "skip-background-task",
+						decision: "skip-background-task-covered-by-parallel-workflow",
+						coveredByWorkflowNotification: true,
 					}),
 					expect.objectContaining({
 						event: "completion-event-observed",
@@ -1198,32 +1199,45 @@ describe("ClineProvider", () => {
 			)
 		})
 
-		test("sends one parent workflow success notification for delegated completion", async () => {
+		test("sends one child workflow success notification for delegated completion metadata", async () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const logSpy = vi.spyOn(provider, "log")
 			const transcriptText = "Earlier parent transcript text that must not appear in notification payload"
+			const parentHistory = createHistoryItem({
+				id: "delegated-parent-success",
+				workspace: "/workspace",
+				mode: "code",
+				rootTaskId: "delegated-root-success",
+				childIds: ["delegated-child-success"],
+				completedByChildId: "delegated-child-success",
+			})
+			;(provider as any).getAggregatedTaskNotificationUsage = vi.fn().mockResolvedValue({
+				tokenUsage: {
+					totalTokensIn: 10,
+					totalTokensOut: 5,
+					totalCacheWrites: 2,
+					totalCacheReads: 3,
+					totalCost: 0.01,
+					contextTokens: 0,
+				},
+				requestCount: 1,
+			})
 
 			await (provider as any).notifyDelegatedWorkflowCompleted(
-				createHistoryItem({
-					id: "delegated-parent-success",
-					workspace: "/workspace",
-					mode: "code",
-					tokensIn: 10,
-					tokensOut: 5,
-					cacheWrites: 2,
-					cacheReads: 3,
-					totalCost: 0.01,
-				}),
+				parentHistory,
 				"Child completed delegated work.\nReady for parent follow-up.",
 			)
 
 			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
 			expect(sendTaskNotification).toHaveBeenCalledWith({
-				taskId: "delegated-parent-success",
+				taskId: "delegated-child-success",
 				outcome: "success",
 				summary: "Child completed delegated work. Ready for parent follow-up.",
 				workspacePath: "/workspace",
 				mode: "code",
+				notificationType: "delegated-child",
+				parentTaskId: "delegated-parent-success",
+				rootTaskId: "delegated-root-success",
 				tokenUsage: {
 					totalTokensIn: 10,
 					totalTokensOut: 5,
@@ -1241,17 +1255,20 @@ describe("ClineProvider", () => {
 						expect.objectContaining({
 							event: "delegated-workflow-notification-prepared",
 							taskId: "delegated-parent-success",
-							decision: "send-delegated-workflow-success",
+							childTaskId: "delegated-child-success",
+							decision: "send-delegated-child-success",
 							requestCount: 1,
 						}),
 						expect.objectContaining({
 							event: "outcome-notification-decision",
-							taskId: "delegated-parent-success",
+							taskId: "delegated-child-success",
 							decision: "dispatch",
+							notificationType: "delegated-child",
+							parentTaskId: "delegated-parent-success",
 						}),
 						expect.objectContaining({
 							event: "notification-send-result",
-							taskId: "delegated-parent-success",
+							taskId: "delegated-child-success",
 							decision: "sent",
 							attempted: true,
 							sent: true,
@@ -1271,6 +1288,9 @@ describe("ClineProvider", () => {
 					id: "delegated-parent-aggregation-fallback",
 					workspace: "/workspace",
 					mode: "code",
+					rootTaskId: "delegated-root-aggregation-fallback",
+					childIds: ["delegated-child-aggregation-fallback"],
+					completedByChildId: "delegated-child-aggregation-fallback",
 					tokensIn: Number.NaN,
 					tokensOut: undefined as any,
 					cacheWrites: undefined,
@@ -1282,11 +1302,14 @@ describe("ClineProvider", () => {
 
 			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
 			expect(sendTaskNotification).toHaveBeenCalledWith({
-				taskId: "delegated-parent-aggregation-fallback",
+				taskId: "delegated-child-aggregation-fallback",
 				outcome: "success",
 				summary: "Child completed after usage aggregation failed.",
 				workspacePath: "/workspace",
 				mode: "code",
+				notificationType: "delegated-child",
+				parentTaskId: "delegated-parent-aggregation-fallback",
+				rootTaskId: "delegated-root-aggregation-fallback",
 				tokenUsage: {
 					totalTokensIn: 0,
 					totalTokensOut: 0,
@@ -1299,12 +1322,12 @@ describe("ClineProvider", () => {
 			})
 			expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
 				expect.stringContaining(
-					"[email-notifications] Failed to aggregate delegated completion usage for task delegated-parent-aggregation-fallback; sending notification with fallback usage: usage failed",
+					"[email-notifications] Failed to aggregate delegated completion usage for child task delegated-child-aggregation-fallback; sending notification with fallback usage: usage failed",
 				),
 			)
 		})
 
-		test("aggregates delegated child usage totals for parent workflow completion notifications", async () => {
+		test("uses delegated child usage totals for delegated child completion notifications", async () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const fsUtils = await import("../../../utils/fs")
 			const fsPromises = await import("fs/promises")
@@ -1312,16 +1335,21 @@ describe("ClineProvider", () => {
 				id: "delegated-parent-usage",
 				workspace: "/workspace",
 				mode: "code",
+				rootTaskId: "delegated-root-usage",
 				tokensIn: 100,
 				tokensOut: 50,
 				cacheWrites: 10,
 				cacheReads: 20,
 				totalCost: 0.1,
 				childIds: ["delegated-child-usage"],
+				completedByChildId: "delegated-child-usage",
 			})
 			const childHistory = createHistoryItem({
 				id: "delegated-child-usage",
 				parentTaskId: "delegated-parent-usage",
+				rootTaskId: "delegated-root-usage",
+				workspace: "/workspace",
+				mode: "code",
 				tokensIn: 25,
 				tokensOut: 15,
 				cacheWrites: 5,
@@ -1353,19 +1381,22 @@ describe("ClineProvider", () => {
 
 			expect(sendTaskNotification).toHaveBeenCalledWith(
 				expect.objectContaining({
-					taskId: "delegated-parent-usage",
+					taskId: "delegated-child-usage",
 					outcome: "success",
 					workspacePath: "/workspace",
 					mode: "code",
+					notificationType: "delegated-child",
+					parentTaskId: "delegated-parent-usage",
+					rootTaskId: "delegated-root-usage",
 					tokenUsage: {
-						totalTokensIn: 125,
-						totalTokensOut: 65,
-						totalCacheWrites: 15,
-						totalCacheReads: 28,
-						totalCost: 0.12000000000000001,
+						totalTokensIn: 25,
+						totalTokensOut: 15,
+						totalCacheWrites: 5,
+						totalCacheReads: 8,
+						totalCost: 0.02,
 						contextTokens: 0,
 					},
-					requestCount: 2,
+					requestCount: 1,
 				}),
 			)
 			expect(JSON.stringify(sendTaskNotification.mock.calls[0][0])).not.toContain(
@@ -1373,20 +1404,29 @@ describe("ClineProvider", () => {
 			)
 		})
 
-		test("deduplicates delegated completion across child cleanup and parent resume", async () => {
+		test("deduplicates delegated child completion across child cleanup and parent resume", async () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
 			const historyItem = createHistoryItem({
 				id: "delegated-parent-dedupe",
 				workspace: "/workspace",
 				mode: "code",
+				childIds: ["delegated-child-dedupe"],
+				completedByChildId: "delegated-child-dedupe",
+				completionResultSummary: "Child finished delegated work.",
 			})
 			const parentTask = new Task({ ...defaultTaskOptions, taskId: "delegated-parent-dedupe" } as any)
+			const childTask = new Task({ ...defaultTaskOptions, taskId: "delegated-child-dedupe", parentTask } as any)
+			;(provider as any).taskHistoryStore.getAll = vi.fn(() => [historyItem])
 			;(provider as any).taskCreationCallback(parentTask)
-			await (provider as any).notifyDelegatedWorkflowCompleted(historyItem, "Child finished delegated work.")
-			await (provider as any).notifyDelegatedWorkflowCompleted(
-				historyItem,
-				"Duplicate child finish should be ignored.",
-			)
+			;(provider as any).taskCreationCallback(childTask)
+			childTask.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Child finished delegated work.",
+				ts: 2,
+			})
+			childTask.emit(RooCodeEventName.TaskCompleted, childTask.taskId, createTokenUsage(), createToolUsage())
 			;(parentTask as any).abandoned = true
 			parentTask.emit(RooCodeEventName.TaskAborted)
 			parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, createTokenUsage(), createToolUsage())
@@ -1394,10 +1434,22 @@ describe("ClineProvider", () => {
 			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
 			expect(sendTaskNotification).toHaveBeenCalledWith(
 				expect.objectContaining({
-					taskId: "delegated-parent-dedupe",
+					taskId: "delegated-child-dedupe",
 					outcome: "success",
 					summary: "Child finished delegated work.",
+					notificationType: "delegated-child",
+					parentTaskId: "delegated-parent-dedupe",
 				}),
+			)
+			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "completion-notification-decision",
+						taskId: "delegated-parent-dedupe",
+						decision: "skip-parent-delegated-workflow-covered-by-child-task",
+						inFlightChildTaskId: "delegated-child-dedupe",
+					}),
+				]),
 			)
 			expect(sendTaskNotification).not.toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -1407,7 +1459,7 @@ describe("ClineProvider", () => {
 			)
 		})
 
-		test("skips background and delegated child tasks", () => {
+		test("skips background tasks covered by workflow notification and sends delegated child tasks", () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const logSpy = vi.spyOn(provider, "log")
 			const backgroundTask = new Task({
@@ -1417,7 +1469,12 @@ describe("ClineProvider", () => {
 			} as any)
 			const parentTask = new Task({ ...defaultTaskOptions, taskId: "parent-task" } as any)
 			const childTask = new Task({ ...defaultTaskOptions, taskId: "child-task", parentTask } as any)
-
+			childTask.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Child task completed delegated work.",
+				ts: 2,
+			})
 			;(provider as any).taskCreationCallback(backgroundTask)
 			;(provider as any).taskCreationCallback(childTask)
 			backgroundTask.emit(
@@ -1428,18 +1485,29 @@ describe("ClineProvider", () => {
 			)
 			childTask.emit(RooCodeEventName.TaskCompleted, childTask.taskId, createTokenUsage(), createToolUsage())
 
-			expect(sendTaskNotification).not.toHaveBeenCalled()
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			expect(sendTaskNotification).toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "child-task",
+					outcome: "success",
+					summary: "Child task completed delegated work.",
+					notificationType: "delegated-child",
+					parentTaskId: "parent-task",
+					rootTaskId: "parent-task",
+				}),
+			)
 			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
 						event: "completion-notification-decision",
 						taskId: "background-task",
-						decision: "skip-background-task",
+						decision: "skip-background-task-covered-by-parallel-workflow",
+						coveredByWorkflowNotification: true,
 					}),
 					expect.objectContaining({
 						event: "completion-notification-decision",
 						taskId: "child-task",
-						decision: "skip-delegated-child-task",
+						decision: "send-delegated-child-success",
 					}),
 				]),
 			)
@@ -3429,6 +3497,7 @@ describe("ClineProvider", () => {
 				"Parallel agent workflow completed successfully; 2 approved agent branches were materialized into the workspace (2 planned agents).",
 			workspacePath: "/workspace",
 			mode: "code",
+			notificationType: "parallel-workflow",
 			tokenUsage,
 			toolUsage,
 			requestCount: 1,
@@ -3467,7 +3536,8 @@ describe("ClineProvider", () => {
 				expect.objectContaining({
 					event: "completion-notification-decision",
 					taskId: backgroundTask.taskId,
-					decision: "skip-background-task",
+					decision: "skip-background-task-covered-by-parallel-workflow",
+					coveredByWorkflowNotification: true,
 				}),
 				expect.objectContaining({
 					event: "parallel-merge-parent-notification-decision",

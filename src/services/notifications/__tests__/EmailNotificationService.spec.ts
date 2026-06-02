@@ -153,6 +153,61 @@ describe("EmailNotificationService", () => {
 		)
 	})
 
+	it("renders delegated and parallel workflow notification context rows and subject tokens", async () => {
+		const { service, sendMail } = createService(
+			createContextProxy({
+				smtpSubjectTemplate:
+					"{{notificationType}}|{{notificationLabel}}|{{parentTaskId}}|{{rootTaskId}}|{{agentId}}|{{taskId}}",
+			}),
+		)
+
+		await service.sendTaskNotification({
+			...payload,
+			taskId: "child-task-1",
+			notificationType: "delegated-child",
+			parentTaskId: "parent-smtp-secret",
+			rootTaskId: "root-task-1",
+			agentId: "agent-a",
+		})
+		await service.sendTaskNotification({
+			...payload,
+			taskId: "parallel-workflow-1",
+			notificationType: "parallel-workflow",
+			agentId: "merge-coordinator",
+		})
+
+		expect(sendMail).toHaveBeenCalledTimes(2)
+
+		const delegatedMailOptions = sendMail.mock.calls[0][0]
+		expect(delegatedMailOptions.subject).toBe(
+			"delegated-child|Delegated child task|parent-[redacted]|root-task-1|agent-a|child-task-1",
+		)
+		expect(delegatedMailOptions.text).toContain("Notification type: Delegated child task")
+		expect(delegatedMailOptions.text).toContain("Parent task ID: parent-[redacted]")
+		expect(delegatedMailOptions.text).toContain("Root task ID: root-task-1")
+		expect(delegatedMailOptions.text).toContain("Agent ID: agent-a")
+		expect(delegatedMailOptions.html).toContain("Notification type")
+		expect(delegatedMailOptions.html).toContain("Delegated child task")
+		expect(delegatedMailOptions.html).toContain("Parent task ID")
+		expect(delegatedMailOptions.html).toContain("parent-[redacted]")
+		expect(delegatedMailOptions.html).toContain("Root task ID")
+		expect(delegatedMailOptions.html).toContain("root-task-1")
+		expect(delegatedMailOptions.html).toContain("Agent ID")
+		expect(delegatedMailOptions.html).toContain("agent-a")
+		expect(delegatedMailOptions.text).not.toContain("smtp-secret")
+		expect(delegatedMailOptions.html).not.toContain("smtp-secret")
+
+		const parallelMailOptions = sendMail.mock.calls[1][0]
+		expect(parallelMailOptions.subject).toBe(
+			"parallel-workflow|Parallel agent workflow|||merge-coordinator|parallel-workflow-1",
+		)
+		expect(parallelMailOptions.text).toContain("Notification type: Parallel agent workflow")
+		expect(parallelMailOptions.text).toContain("Agent ID: merge-coordinator")
+		expect(parallelMailOptions.text).not.toContain("Parent task ID:")
+		expect(parallelMailOptions.text).not.toContain("Root task ID:")
+		expect(parallelMailOptions.html).toContain("Parallel agent workflow")
+	})
+
 	it("renders missing usage safely as zeros without n/a placeholders", async () => {
 		const { service, sendMail } = createService()
 

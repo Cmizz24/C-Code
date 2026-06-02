@@ -12,6 +12,10 @@ export type EmailNotificationPayload = {
 	summary?: string
 	workspacePath?: string
 	mode?: string
+	notificationType?: "delegated-child" | "parallel-workflow"
+	parentTaskId?: string
+	rootTaskId?: string
+	agentId?: string
 	tokenUsage?: TokenUsage
 	toolUsage?: ToolUsage
 	requestCount?: number
@@ -392,7 +396,11 @@ ${rowMarkup}
 		return [
 			{ label: "Task ID", value: payload.taskId },
 			{ label: "Status", value: tokens.status },
+			...(payload.notificationType ? [{ label: "Notification type", value: tokens.notificationLabel }] : []),
 			...(summary ? [{ label: "Completion summary", value: summary }] : []),
+			...(tokens.parentTaskId ? [{ label: "Parent task ID", value: tokens.parentTaskId }] : []),
+			...(tokens.rootTaskId ? [{ label: "Root task ID", value: tokens.rootTaskId }] : []),
+			...(tokens.agentId ? [{ label: "Agent ID", value: tokens.agentId }] : []),
 			{ label: "Workspace", value: tokens.workspace },
 			{ label: "Mode", value: tokens.mode },
 			{ label: "Requests", value: tokens.requests },
@@ -414,11 +422,17 @@ ${rowMarkup}
 		const workspace = payload.workspacePath || "Unknown workspace"
 		const summary = this.formatSummary(payload.summary) || ""
 		const totalTokens = tokenUsage.totalTokensIn + tokenUsage.totalTokensOut
+		const notificationType = payload.notificationType || "task"
 
 		return {
 			taskId: payload.taskId,
 			outcome: payload.outcome,
 			status: OUTCOME_LABELS[payload.outcome],
+			notificationType,
+			notificationLabel: this.getNotificationTypeLabel(notificationType),
+			parentTaskId: this.sanitizeNotificationText(payload.parentTaskId) || "",
+			rootTaskId: this.sanitizeNotificationText(payload.rootTaskId) || "",
+			agentId: this.sanitizeNotificationText(payload.agentId) || "",
 			summary,
 			completionSummary: summary,
 			workspace,
@@ -450,6 +464,17 @@ ${rowMarkup}
 
 	private normalizeTemplateTokenName(tokenName: string): string {
 		return tokenName.replaceAll("_", "").toLowerCase()
+	}
+
+	private getNotificationTypeLabel(notificationType: string): string {
+		switch (notificationType) {
+			case "delegated-child":
+				return "Delegated child task"
+			case "parallel-workflow":
+				return "Parallel agent workflow"
+			default:
+				return "Task"
+		}
 	}
 
 	private normalizeTokenUsage(tokenUsage: TokenUsage | undefined): TokenUsage {
