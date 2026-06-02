@@ -781,6 +781,97 @@ export class ClineProvider
 		})
 	}
 
+	private notifyParallelMergeWorkflowCompletion(
+		task: Task | undefined,
+		plan: ExecutionPlan,
+		approvedAgentIds: string[],
+		entries?: MergeReviewEntry[],
+	): void {
+		const mergedEntryCount =
+			entries?.filter((entry) => entry.mergeStatus === "merged").length ?? approvedAgentIds.length
+		const planDiagnostics = {
+			planId: plan.planId,
+			agentCount: plan.agents.length,
+			approvedAgentCount: approvedAgentIds.length,
+			mergedEntryCount,
+			reason: "successful parallel merge",
+		}
+
+		if (!task) {
+			this.logEmailNotificationDiagnostics("parallel-merge-parent-notification-decision", {
+				...planDiagnostics,
+				decision: "skip-no-current-task",
+			})
+			this.log(
+				`[email-notifications] Skipping parallel merge completion notification for plan ${plan.planId} because no current parent task is available.`,
+			)
+			return
+		}
+
+		const taskDiagnostics = this.getEmailNotificationTaskDiagnostics(task)
+		const duplicateDiagnostics = this.getEmailNotificationOutcomeDiagnostics(task.taskId, "success")
+
+		if (task.background) {
+			this.logEmailNotificationDiagnostics("parallel-merge-parent-notification-decision", {
+				...taskDiagnostics,
+				...planDiagnostics,
+				...duplicateDiagnostics,
+				decision: "skip-background-task",
+			})
+			this.log(
+				`[email-notifications] Skipping parallel merge completion notification for task ${task.taskId} because it is a background task.`,
+			)
+			return
+		}
+
+		if (task.parentTask || task.parentTaskId) {
+			this.logEmailNotificationDiagnostics("parallel-merge-parent-notification-decision", {
+				...taskDiagnostics,
+				...planDiagnostics,
+				...duplicateDiagnostics,
+				decision: "skip-delegated-child-task",
+			})
+			this.log(
+				`[email-notifications] Skipping parallel merge completion notification for task ${task.taskId} because it is a delegated child task.`,
+			)
+			return
+		}
+
+		const summary = this.buildParallelMergeNotificationSummary(plan, approvedAgentIds)
+		const requestCount = this.countApiRequestMessages(task.clineMessages)
+
+		this.logEmailNotificationDiagnostics("parallel-merge-parent-notification-decision", {
+			...taskDiagnostics,
+			...planDiagnostics,
+			...duplicateDiagnostics,
+			decision: "send-parallel-merge-workflow-success",
+			hasSummary: Boolean(summary),
+			summaryLength: summary.length,
+			requestCount,
+		})
+
+		this.notifyTaskOutcome({
+			taskId: task.taskId,
+			outcome: "success",
+			summary,
+			workspacePath: task.workspacePath,
+			mode: task.taskMode,
+			tokenUsage: task.tokenUsage,
+			toolUsage: task.toolUsage,
+			requestCount,
+		})
+	}
+
+	private buildParallelMergeNotificationSummary(plan: ExecutionPlan, approvedAgentIds: string[]): string {
+		const approvedAgentCount = approvedAgentIds.length
+		const approvedAgentLabel =
+			approvedAgentCount === 1 ? "1 approved agent branch" : `${approvedAgentCount} approved agent branches`
+		const materializedVerb = approvedAgentCount === 1 ? "was" : "were"
+		const plannedAgentLabel = plan.agents.length === 1 ? "1 planned agent" : `${plan.agents.length} planned agents`
+
+		return `Parallel agent workflow completed successfully; ${approvedAgentLabel} ${materializedVerb} materialized into the workspace (${plannedAgentLabel}).`
+	}
+
 	private getEmailNotificationTaskDiagnostics(task: Task): Record<string, unknown> {
 		const currentTask = this.getCurrentTask()
 
@@ -800,6 +891,18 @@ export class ClineProvider
 
 	private logEmailNotificationDiagnostics(event: string, diagnostics: Record<string, unknown>): void {
 		this.log(`[email-notifications] diagnostics ${JSON.stringify({ event, ...diagnostics })}`)
+	}
+
+	private getEmailNotificationOutcomeDiagnostics(
+		taskId: string,
+		outcome: EmailNotificationOutcome,
+	): Record<string, unknown> {
+		return {
+			sentOutcome: this.emailNotificationTaskOutcomes.get(taskId),
+			inFlightOutcome: this.emailNotificationTaskOutcomesInFlight.get(taskId),
+			duplicateSent: this.hasEmailNotificationTaskOutcomeBeenSent(taskId, outcome),
+			duplicateInFlight: this.hasEmailNotificationTaskOutcomeInFlight(taskId, outcome),
+		}
 	}
 
 	private async notifyDelegatedWorkflowCompleted(
@@ -4278,9 +4381,16 @@ export class ClineProvider
 		this.recordParallelAgentReviewSummary(plan, this.parallelMergeReviewEntries)
 		await this.updateParallelAgentStatusMessage("merged")
 		await this.appendParallelAgentOutcomeSummary(plan, "merged", this.parallelMergeReviewEntries)
+		const finalMergeReviewEntries = this.parallelMergeReviewEntries
 		await this.teardownParallelExecution({ resetBus: true })
 		await this.postMessageToWebview({ type: "mergeComplete" })
 		await this.postStateToWebviewWithoutClineMessages()
+		this.notifyParallelMergeWorkflowCompletion(
+			this.getCurrentTask(),
+			plan,
+			Array.from(approved),
+			finalMergeReviewEntries,
+		)
 		await this.resumeParentAfterParallelMerge("successful parallel merge", plan.planId)
 		return true
 	}
@@ -4291,6 +4401,11 @@ export class ClineProvider
 	): Promise<void> {
 		const task = this.getCurrentTask()
 		if (!task) {
+			this.logEmailNotificationDiagnostics("parallel-parent-resume-lifecycle", {
+				planId,
+				reason,
+				result: "skipped-no-current-task",
+			})
 			this.log(
 				`[parallel-agents] parent-resume-diagnostics ${JSON.stringify({
 					planId,
@@ -4303,6 +4418,13 @@ export class ClineProvider
 		}
 
 		if (task.background) {
+			this.logEmailNotificationDiagnostics("parallel-parent-resume-lifecycle", {
+				...this.getEmailNotificationTaskDiagnostics(task),
+				...this.getEmailNotificationOutcomeDiagnostics(task.taskId, "success"),
+				planId,
+				reason,
+				result: "skipped-current-task-background",
+			})
 			this.log(
 				`[parallel-agents] parent-resume-diagnostics ${JSON.stringify({
 					planId,
@@ -4320,6 +4442,14 @@ export class ClineProvider
 
 		const resumeKey = `${task.taskId}:${planId ?? "unknown-plan"}`
 		if (this.parallelParentResumeKey === resumeKey) {
+			this.logEmailNotificationDiagnostics("parallel-parent-resume-lifecycle", {
+				...this.getEmailNotificationTaskDiagnostics(task),
+				...this.getEmailNotificationOutcomeDiagnostics(task.taskId, "success"),
+				planId,
+				reason,
+				result: "skipped-duplicate",
+				resumeKey,
+			})
 			this.log(
 				`[parallel-agents] parent-resume-diagnostics ${JSON.stringify({
 					planId,
@@ -4336,9 +4466,25 @@ export class ClineProvider
 		this.parallelParentResumeKey = resumeKey
 
 		try {
+			this.logEmailNotificationDiagnostics("parallel-parent-resume-lifecycle", {
+				...this.getEmailNotificationTaskDiagnostics(task),
+				...this.getEmailNotificationOutcomeDiagnostics(task.taskId, "success"),
+				planId,
+				reason,
+				result: "resume-started",
+				resumeKey,
+			})
 			this.log(`[parallel-agents] Resuming parent task ${task.taskId} after ${reason}.`)
 			await task.resumeAfterParallelExecution()
 			this.logParallelApprovalDiagnostics("parent-resumed", planId)
+			this.logEmailNotificationDiagnostics("parallel-parent-resume-lifecycle", {
+				...this.getEmailNotificationTaskDiagnostics(task),
+				...this.getEmailNotificationOutcomeDiagnostics(task.taskId, "success"),
+				planId,
+				reason,
+				result: "resumed",
+				resumeKey,
+			})
 			this.log(
 				`[parallel-agents] parent-resume-diagnostics ${JSON.stringify({
 					planId,
@@ -4353,6 +4499,15 @@ export class ClineProvider
 			if (this.parallelParentResumeKey === resumeKey) {
 				this.parallelParentResumeKey = undefined
 			}
+			this.logEmailNotificationDiagnostics("parallel-parent-resume-lifecycle", {
+				...this.getEmailNotificationTaskDiagnostics(task),
+				...this.getEmailNotificationOutcomeDiagnostics(task.taskId, "success"),
+				planId,
+				reason,
+				result: "failed",
+				resumeKey,
+				error: this.sanitizeEmailNotificationLogMessage(error),
+			})
 			this.log(
 				`[parallel-agents] parent-resume-diagnostics ${JSON.stringify({
 					planId,

@@ -3358,6 +3358,149 @@ describe("ClineProvider", () => {
 		expect(diagnosticLogText).not.toContain("diff --git")
 	})
 
+	test("successful parallel merge sends one parent workflow notification and dedupes later parent completion", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const sendTaskNotification = installEmailNotificationServiceMock()
+		const logSpy = vi.spyOn(provider, "log")
+		const tokenUsage = createTokenUsage()
+		const toolUsage = createToolUsage()
+		const parentTask = new Task({
+			...defaultTaskOptions,
+			taskId: "parallel-parent-merge-success",
+			workspacePath: "/workspace",
+		} as any)
+		;(parentTask as any).taskMode = "code"
+		;(parentTask as any).tokenUsage = tokenUsage
+		;(parentTask as any).toolUsage = toolUsage
+		parentTask.clineMessages.push({
+			type: "say",
+			say: "api_req_started",
+			text: "Starting parent request",
+			ts: 1,
+		})
+		;(provider as any).taskCreationCallback(parentTask)
+		await provider.addClineToStack(parentTask)
+
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreePathsByAgentId.set("styles-agent", "/tmp/styles-agent")
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview: vi.fn(
+				async ({ agentId }: { agentId: string }) =>
+					`diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
+			),
+			mergeBranch: vi.fn().mockResolvedValue(undefined),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		const backgroundTask = await provider.createTask("agent completed work", undefined, parentTask, {
+			agentId: "dashboard-agent",
+			background: true,
+			workspacePath: "/tmp/dashboard-agent",
+			startTask: false,
+			mode: "code",
+		})
+		backgroundTask.emit(
+			RooCodeEventName.TaskCompleted,
+			backgroundTask.taskId,
+			createTokenUsage(),
+			createToolUsage(),
+		)
+
+		await expect(provider.mergeApprovedAgents(["dashboard-agent", "styles-agent"])).resolves.toBe(true)
+
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
+		expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+		expect(sendTaskNotification).toHaveBeenCalledWith({
+			taskId: "parallel-parent-merge-success",
+			outcome: "success",
+			summary:
+				"Parallel agent workflow completed successfully; 2 approved agent branches were materialized into the workspace (2 planned agents).",
+			workspacePath: "/workspace",
+			mode: "code",
+			tokenUsage,
+			toolUsage,
+			requestCount: 1,
+		})
+
+		await vi.waitFor(() => {
+			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "notification-send-result",
+						taskId: "parallel-parent-merge-success",
+						decision: "sent",
+					}),
+				]),
+			)
+		})
+
+		parentTask.clineMessages.push({
+			type: "say",
+			say: "completion_result",
+			text: "Parent emitted final completion after merge.",
+			ts: 2,
+		})
+		parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, createTokenUsage(), createToolUsage())
+
+		expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+		const notificationDiagnostics = getEmailNotificationDiagnostics(logSpy)
+		expect(notificationDiagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					event: "completion-event-observed",
+					taskId: backgroundTask.taskId,
+					background: true,
+					agentId: "dashboard-agent",
+				}),
+				expect.objectContaining({
+					event: "completion-notification-decision",
+					taskId: backgroundTask.taskId,
+					decision: "skip-background-task",
+				}),
+				expect.objectContaining({
+					event: "parallel-merge-parent-notification-decision",
+					taskId: "parallel-parent-merge-success",
+					planId: "plan-webview-provider",
+					decision: "send-parallel-merge-workflow-success",
+					duplicateSent: false,
+					duplicateInFlight: false,
+					requestCount: 1,
+				}),
+				expect.objectContaining({
+					event: "parallel-parent-resume-lifecycle",
+					taskId: "parallel-parent-merge-success",
+					planId: "plan-webview-provider",
+					result: "resumed",
+				}),
+				expect.objectContaining({
+					event: "completion-event-observed",
+					taskId: "parallel-parent-merge-success",
+					background: false,
+				}),
+				expect.objectContaining({
+					event: "outcome-notification-decision",
+					taskId: "parallel-parent-merge-success",
+					decision: "skip-duplicate-sent",
+					duplicateSent: true,
+				}),
+			]),
+		)
+		expect(JSON.stringify(notificationDiagnostics)).not.toContain("agent completed work")
+		expect(JSON.stringify(notificationDiagnostics)).not.toContain("Parent emitted final completion after merge")
+	})
+
 	test("auto-approves and merges the final review when both auto-approval settings are enabled", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const parentTask = new Task(defaultTaskOptions)
