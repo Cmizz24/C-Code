@@ -4066,6 +4066,22 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		return this.agentBus.getOpenCoordinationQuestions(this.agentId, options)
 	}
 
+	public acknowledgeAgentSharedContract(): AgentCoordinationEvent | undefined {
+		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
+			return undefined
+		}
+
+		return this.agentBus.acknowledgeSharedContract(this.agentId)
+	}
+
+	public hasAcknowledgedAgentSharedContract(): boolean {
+		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
+			return true
+		}
+
+		return this.agentBus.hasAgentAcknowledgedSharedContract(this.agentId)
+	}
+
 	public getAgentCompletionCoordinationGate(options?: { recordAttempt?: boolean }): AgentCompletionCoordinationGate {
 		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
 			return { approved: true, blockers: [], unanswerableQuestions: [] }

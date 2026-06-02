@@ -598,6 +598,65 @@ describe("attemptCompletionTool", () => {
 				)
 			})
 
+			it("blocks parallel agent completion until a shared contract is acknowledged", async () => {
+				const block: AttemptCompletionToolUse = {
+					type: "tool_use",
+					name: "attempt_completion",
+					params: { result: "Agent finished" },
+					nativeArgs: { result: "Agent finished" },
+					partial: false,
+				}
+				const parallelTask = mockTask as any
+				parallelTask.parentTaskId = "parent-task"
+				parallelTask.agentId = "ui-agent"
+				parallelTask.agentBus = {} as any
+				parallelTask.getAgentCompletionCoordinationGate = vi.fn(() => ({
+					approved: false,
+					blockers: [
+						{
+							type: "shared-contract-unacknowledged",
+							sharedContract:
+								"Use #dashboard-root, data-testid=dashboard-root, and .dashboard-card for cards.",
+						},
+					],
+					unanswerableQuestions: [],
+				}))
+
+				const callbacks: AttemptCompletionCallbacks = {
+					askApproval: mockAskApproval,
+					handleError: mockHandleError,
+					pushToolResult: mockPushToolResult,
+					askFinishSubTaskApproval: mockAskFinishSubTaskApproval,
+					toolDescription: mockToolDescription,
+				} as AttemptCompletionCallbacks
+
+				await attemptCompletionTool.handle(mockTask as Task, block, callbacks)
+
+				expect(parallelTask.getAgentCompletionCoordinationGate).toHaveBeenCalledWith({ recordAttempt: true })
+				expect(mockTask.say).not.toHaveBeenCalledWith("completion_result", expect.anything(), undefined, false)
+				expect(mockTask.emit).not.toHaveBeenCalledWith(
+					RooCodeEventName.TaskCompleted,
+					expect.anything(),
+					expect.anything(),
+					expect.anything(),
+				)
+				expect(mockTask.recordToolError).toHaveBeenCalledWith(
+					"attempt_completion",
+					"Open parallel-agent coordination questions are unresolved.",
+				)
+				expect(mockPushToolResult).toHaveBeenCalledWith(
+					expect.stringContaining("Shared contract acknowledgement is required before completion:"),
+				)
+				expect(mockPushToolResult).toHaveBeenCalledWith(
+					expect.stringContaining(
+						"Apply and acknowledge shared contract: Use #dashboard-root, data-testid=dashboard-root, and .dashboard-card for cards.",
+					),
+				)
+				expect(mockPushToolResult).toHaveBeenCalledWith(
+					expect.stringContaining("coordinate_agents with action='acknowledge_contract'"),
+				)
+			})
+
 			it("lets parallel agent children complete without visible approval or Boomerang delegation", async () => {
 				const block: AttemptCompletionToolUse = {
 					type: "tool_use",

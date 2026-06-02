@@ -85,6 +85,40 @@ describe("NativeToolCallParser", () => {
 					expect(sharedCtx).toContain("for all agents")
 				}
 			})
+
+			it("preserves sharedContract in parsed native args", () => {
+				const result = NativeToolCallParser.parseToolCall({
+					id: "toolu_plan_shared_contract",
+					name: "plan_parallel_tasks" as const,
+					arguments: JSON.stringify({
+						goal: "Build dashboard",
+						sharedContext: "Dashboard UI and styles must coordinate.",
+						sharedContract:
+							"Use #dashboard-root, data-testid=dashboard-root, and .dashboard-card for cards.",
+						expectedFiles: ["src/Dashboard.tsx", "src/dashboard.css"],
+						agents: [
+							{
+								id: "ui-agent",
+								mode: "ui-ux",
+								task: "Implement dashboard markup.",
+								owns: [{ path: "src/Dashboard.tsx", mode: "exclusive" }],
+							},
+						],
+					}),
+				})
+
+				expect(result).not.toBeNull()
+				expect(result?.type).toBe("tool_use")
+				if (result?.type === "tool_use") {
+					expect(result.nativeArgs).toMatchObject({
+						goal: "Build dashboard",
+						sharedContext: "Dashboard UI and styles must coordinate.",
+						sharedContract:
+							"Use #dashboard-root, data-testid=dashboard-root, and .dashboard-card for cards.",
+						expectedFiles: ["src/Dashboard.tsx", "src/dashboard.css"],
+					})
+				}
+			})
 		})
 
 		describe("read_file tool", () => {
@@ -462,6 +496,28 @@ describe("NativeToolCallParser", () => {
 				}
 			})
 
+			it("accepts acknowledge_contract payloads and sanitizes to acknowledgement args", () => {
+				const result = NativeToolCallParser.parseToolCall({
+					id: "toolu_coordinate_acknowledge_contract",
+					name: "coordinate_agents" as const,
+					arguments: JSON.stringify({
+						action: "acknowledge_contract",
+						kind: "note",
+						message: "I applied the dashboard selector contract.",
+						targetAgentId: "all",
+						relatedFiles: ["src/Dashboard.tsx"],
+						replyToId: "none",
+						limit: "6",
+					}),
+				})
+
+				expect(result).not.toBeNull()
+				expect(result?.type).toBe("tool_use")
+				if (result?.type === "tool_use") {
+					expect(result.nativeArgs).toEqual({ action: "acknowledge_contract", limit: 6 })
+				}
+			})
+
 			it("accepts reported publish payloads and normalizes broadcast/no-reply sentinels", () => {
 				const result = NativeToolCallParser.parseToolCall({
 					id: "toolu_coordinate_publish",
@@ -503,11 +559,22 @@ describe("NativeToolCallParser", () => {
 					name: "coordinate_agents" as const,
 					arguments: JSON.stringify({ action: "read", limit: 21 }),
 				})
+				const invalidAction = NativeToolCallParser.parseToolCall({
+					id: "toolu_coordinate_invalid_action",
+					name: "coordinate_agents" as const,
+					arguments: JSON.stringify({ action: "subscribe", limit: 8 }),
+				})
 				expect(invalidKind).toBeNull()
 				expect(invalidLimit).toBeNull()
+				expect(invalidAction).toBeNull()
 				expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("coordinate_agents kind must be one of"))
 				expect(errorSpy).toHaveBeenCalledWith(
 					expect.stringContaining("coordinate_agents limit must be between"),
+				)
+				expect(errorSpy).toHaveBeenCalledWith(
+					expect.stringContaining(
+						"coordinate_agents action must be 'publish', 'read', or 'acknowledge_contract'",
+					),
 				)
 
 				errorSpy.mockRestore()

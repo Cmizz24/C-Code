@@ -9,6 +9,7 @@ import {
 const createPlan = (): ExecutionPlan => ({
 	planId: "plan-packets",
 	sharedContext: "Coordinate API and UI contracts.",
+	sharedContract: "Use data-testid=dashboard-root and API shape { save(): Promise<void> }.",
 	fileOwnershipMap: {
 		"src/api.ts": "api-agent",
 		"src/ui.tsx": "ui-agent",
@@ -194,6 +195,7 @@ describe("completion packet helpers", () => {
 			expect.arrayContaining([
 				expect.objectContaining({ id: "assigned-task", status: "satisfied", label: "Implement API contract" }),
 				expect.objectContaining({ id: "shared-context", status: "satisfied" }),
+				expect.objectContaining({ id: "shared-contract", status: "satisfied" }),
 			]),
 		)
 		expect(packet.validation).toEqual(
@@ -272,6 +274,7 @@ describe("completion packet helpers", () => {
 		const packet = buildParallelPlanCompletionPacket(plan, [apiPacket, uiPacket], { ts: 300 })
 
 		expect(packet.status).toBe("failed")
+		expect(packet.sharedContract).toBe("Use data-testid=dashboard-root and API shape { save(): Promise<void> }.")
 		expect(packet.completedAgentCount).toBe(1)
 		expect(packet.failedAgentCount).toBe(1)
 		expect(packet.aggregateArtifactManifest).toEqual([

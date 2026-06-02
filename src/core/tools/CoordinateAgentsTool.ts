@@ -74,6 +74,23 @@ function formatTerminalPublishSuppression(
 	].join("\n")
 }
 
+function formatContractAcknowledgementResult(
+	event: NonNullable<ReturnType<Task["acknowledgeAgentSharedContract"]>> | undefined,
+	recent: ReturnType<Task["getAgentCoordinationEvents"]>,
+	openQuestions: ReturnType<Task["getAgentCoordinationEvents"]>,
+): string {
+	return [
+		event
+			? `Acknowledged shared contract for this agent (${event.id ?? event.ts}).`
+			: "No shared contract requires acknowledgement for this agent.",
+		...formatOpenQuestions(openQuestions),
+		recent.length ? "Recent team chat:" : "No recent team chat messages.",
+		...recent.map(formatCoordinationEvent),
+	]
+		.filter(Boolean)
+		.join("\n")
+}
+
 export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 	readonly name = "coordinate_agents" as const
 
@@ -86,6 +103,15 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 			pushToolResult(
 				formatResponse.toolError("coordinate_agents is only available to background parallel agents."),
 			)
+			return
+		}
+
+		if (params.action === "acknowledge_contract") {
+			task.consecutiveMistakeCount = 0
+			const event = task.acknowledgeAgentSharedContract()
+			const recent = task.getAgentCoordinationEvents({ limit: params.limit })
+			const openQuestions = task.getOpenAgentCoordinationQuestions({ limit: params.limit })
+			pushToolResult(formatContractAcknowledgementResult(event, recent, openQuestions))
 			return
 		}
 
@@ -200,7 +226,9 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 
 		task.consecutiveMistakeCount++
 		task.recordToolError("coordinate_agents", `Unsupported action: ${String(params.action)}`)
-		pushToolResult(formatResponse.toolError("coordinate_agents action must be 'publish' or 'read'."))
+		pushToolResult(
+			formatResponse.toolError("coordinate_agents action must be 'publish', 'read', or 'acknowledge_contract'."),
+		)
 	}
 }
 

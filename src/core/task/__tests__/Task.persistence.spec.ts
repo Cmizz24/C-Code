@@ -463,6 +463,7 @@ describe("Task persistence", () => {
 		const createPlan = (): ExecutionPlan => ({
 			planId: "plan-1",
 			sharedContext: "shared",
+			sharedContract: "",
 			fileOwnershipMap: { "src/a.ts": "agent-a" },
 			createdAt: 1,
 			agents: [

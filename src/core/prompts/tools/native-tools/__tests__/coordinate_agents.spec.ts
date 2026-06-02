@@ -11,6 +11,9 @@ describe("coordinate_agents native tool", () => {
 		expect(description).toContain("before completing")
 		expect(description).toContain("missing, ambiguous, or likely to affect another agent's work")
 		expect(description).toContain('{"action":"read","limit":8}')
+		expect(description).toContain('{"action":"acknowledge_contract","limit":8}')
+		expect(description).toContain("after you have read, applied")
+		expect(description).toContain("sharedContract")
 		expect(description).toContain(
 			'{"action":"publish","kind":"question","message":"...","targetAgentId":"agent-id"}',
 		)
@@ -48,9 +51,11 @@ describe("coordinate_agents native tool", () => {
 		expect(description).not.toMatch(/\p{Extended_Pictographic}/u)
 	})
 
-	it("keeps schema bounds strict while documenting clean read and publish shapes", () => {
+	it("keeps schema bounds strict while documenting clean read, acknowledgement, and publish shapes", () => {
 		const parameters = (coordinateAgentsTool as any).function.parameters
 
+		expect(parameters.properties.action.enum).toEqual(["publish", "read", "acknowledge_contract"])
+		expect(parameters.properties.action.description).toContain("acknowledge_contract")
 		expect(parameters.properties.kind.enum).toEqual(["question", "answer", "decision", "note", "blocker"])
 		expect(parameters.properties.kind.description).toContain("Ownership/status notes are not allowed")
 		expect(parameters.properties.message.maxLength).toBe(240)

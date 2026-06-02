@@ -11,6 +11,7 @@ function createPlan(): ExecutionPlan {
 	return {
 		planId: "plan-test",
 		sharedContext: "shared context",
+		sharedContract: "",
 		fileOwnershipMap: {
 			"src/a.ts": "agent-a",
 			"src/b.ts": "agent-b",
@@ -189,6 +190,58 @@ describe("AgentBus", () => {
 
 		bus.getCoordinationEvents("agent-a", { limit: 20 })
 		expect(bus.getAgentCompletionCoordinationGate("agent-a").approved).toBe(true)
+	})
+
+	it("blocks completion until an explicit shared contract is acknowledged", () => {
+		const contractPlan = createPlan()
+		contractPlan.sharedContract = "Use #dashboard-root, data-testid=dashboard-root, and initDashboard()."
+		bus.setExecutionPlan(contractPlan)
+
+		const seededEvents = bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })
+		expect(seededEvents).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "plan-test-shared-contract",
+					kind: "shared-contract",
+					source: "system",
+					message: "Shared contract: Use #dashboard-root, data-testid=dashboard-root, and initDashboard().",
+				}),
+			]),
+		)
+		expect(bus.hasAgentAcknowledgedSharedContract("agent-a")).toBe(false)
+
+		const blockedGate = bus.getAgentCompletionCoordinationGate("agent-a")
+		expect(blockedGate.approved).toBe(false)
+		expect(blockedGate.blockers).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "shared-contract-unacknowledged",
+					sharedContract: "Use #dashboard-root, data-testid=dashboard-root, and initDashboard().",
+				}),
+			]),
+		)
+
+		const acknowledgement = bus.acknowledgeSharedContract("agent-a")
+		expect(acknowledgement).toEqual(
+			expect.objectContaining({
+				agentId: "agent-a",
+				kind: "shared-contract",
+				source: "agent",
+				message: "Acknowledged shared contract for plan plan-test.",
+			}),
+		)
+		expect(bus.hasAgentAcknowledgedSharedContract("agent-a")).toBe(true)
+		expect(bus.getAgentCompletionCoordinationGate("agent-a").approved).toBe(true)
+	})
+
+	it("treats legacy persisted plans without sharedContract as having no contract", () => {
+		const legacyPlan = createPlan()
+		delete (legacyPlan as Partial<ExecutionPlan>).sharedContract
+		bus.setExecutionPlan(legacyPlan)
+
+		expect(bus.hasAgentAcknowledgedSharedContract("agent-a")).toBe(true)
+		expect(bus.getAgentCompletionCoordinationGate("agent-a").approved).toBe(true)
+		expect(bus.acknowledgeSharedContract("agent-a")).toBeUndefined()
 	})
 
 	it("uses bounded completion retries before converting unavailable outgoing answers to unanswerable", () => {

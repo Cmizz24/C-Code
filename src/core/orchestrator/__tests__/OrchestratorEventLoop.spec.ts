@@ -17,6 +17,7 @@ function createPlan(): ExecutionPlan {
 	return {
 		planId: "plan-test",
 		sharedContext: "Build the dashboard",
+		sharedContract: "Use #dashboard-root, data-testid=dashboard-root, and .dashboard-card for dashboard cards.",
 		fileOwnershipMap: { "src/Dashboard.tsx": "ui" },
 		agents: [
 			{
@@ -164,6 +165,9 @@ describe("OrchestratorEventLoop", () => {
 
 		expect(message).toContain("You are agent ui, running a normal single ui-ux specialist task.")
 		expect(message).toContain("Shared context:\nBuild the dashboard")
+		expect(message).toContain(
+			"Shared contract (must follow and acknowledge before completion):\nUse #dashboard-root, data-testid=dashboard-root, and .dashboard-card for dashboard cards.",
+		)
 		expect(message).toContain("Task:\nBuild the dashboard UI")
 		expect(message).toContain("Your primary ownership scope")
 		expect(message).toContain("Use normal sequential tool calls")
@@ -184,6 +188,9 @@ describe("OrchestratorEventLoop", () => {
 		expect(options?.systemPromptSuffix).toContain("Single-agent task guidance:")
 		expect(options?.systemPromptSuffix).toContain("- Agent id: ui")
 		expect(options?.systemPromptSuffix).toContain("- Execution plan: plan-test")
+		expect(options?.systemPromptSuffix).toContain(
+			"- Shared contract (must follow and acknowledge before completion):\nUse #dashboard-root, data-testid=dashboard-root, and .dashboard-card for dashboard cards.",
+		)
 		expect(options?.systemPromptSuffix).toContain("Use normal sequential tool calls")
 		expect(options?.systemPromptSuffix).toContain("Never concatenate multiple tool argument JSON objects")
 		expect(options?.systemPromptSuffix).toContain("prefer the normal write/edit tools available in this mode")
@@ -206,6 +213,7 @@ describe("OrchestratorEventLoop", () => {
 		expect(message).toContain("questions, answers, decisions, assumption notes, and blockers only")
 		expect(message).toContain("one short shared-contract question at a time")
 		expect(message).toContain("only the key hook, selector, variable, file, or decision")
+		expect(message).toContain("call coordinate_agents with action='acknowledge_contract'")
 		expect(message).toContain("Avoid manifest-style messages")
 		expect(message).toContain("Never include emojis")
 		expect(message).not.toContain("publish one concise operational update")
@@ -232,6 +240,7 @@ describe("OrchestratorEventLoop", () => {
 		expect(options?.systemPromptSuffix).toContain(
 			"answer with only the key hook, selector, variable, file, or decision",
 		)
+		expect(options?.systemPromptSuffix).toContain("call coordinate_agents with action='acknowledge_contract'")
 		expect(options?.systemPromptSuffix).toContain("Avoid manifest-style dumps")
 		expect(options?.systemPromptSuffix).toContain("CSS variables")
 		expect(options?.systemPromptSuffix).toContain("do not invent fake conversation")

@@ -582,6 +582,7 @@ describe("ClineProvider", () => {
 	const createExecutionPlan = (): ExecutionPlan => ({
 		planId: "plan-webview-provider",
 		sharedContext: "shared context",
+		sharedContract: "",
 		fileOwnershipMap: {
 			"src/dashboard.tsx": "dashboard-agent",
 			"src/styles.css": "styles-agent",
@@ -2995,6 +2996,7 @@ describe("ClineProvider", () => {
 			mockPostMessage.mock.calls.some(([message]: [ExtensionMessage]) => message.type === "showMergeReview"),
 		).toBe(false)
 		expect(mockPostMessage).not.toHaveBeenCalledWith({ type: "mergeComplete" })
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
 		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
 		expect(statusTool.parallelStatus).toBe("review")
 		expect(statusTool.mergeReviewEntries).toEqual(
@@ -3058,11 +3060,12 @@ describe("ClineProvider", () => {
 			expect.arrayContaining([
 				expect.objectContaining({
 					agentId: "styles-agent",
-					message: "Auto-merge skipped: styles-agent has a merge review error",
+					message: "Auto-merge skipped: styles-agent has a merge review error: Merge conflict during review",
 					kind: "wait",
 				}),
 			]),
 		)
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
 	})
 
 	test("failed merge attempts persist conflicted review state and keep the review actionable", async () => {
@@ -3448,6 +3451,7 @@ describe("ClineProvider", () => {
 				(message) => message.type === "say" && message.say === "user_feedback_diff",
 			),
 		).toHaveLength(0)
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
 	})
 
 	test("history restore resumes interrupted parallel agents instead of continuing the parent task", async () => {

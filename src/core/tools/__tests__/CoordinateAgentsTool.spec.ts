@@ -42,6 +42,15 @@ describe("CoordinateAgentsTool", () => {
 						ts: 3,
 					},
 				]),
+				acknowledgeAgentSharedContract: vi.fn(() => ({
+					id: "coord-contract",
+					agentId: "agent-a",
+					kind: "shared-contract" as const,
+					source: "agent" as const,
+					message: "Acknowledged shared contract for plan plan-test.",
+					ts: 4,
+				})),
+				hasAcknowledgedAgentSharedContract: vi.fn(() => false),
 				recordToolError: vi.fn(),
 			},
 			callbacks: {
@@ -250,6 +259,62 @@ describe("CoordinateAgentsTool", () => {
 		expect(task.getOpenAgentCoordinationQuestions).toHaveBeenCalledWith({ limit: 3 })
 		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining("Open questions for you:"))
 		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining("Recent team chat:"))
+	})
+
+	it("acknowledges the shared contract and returns current coordination state", async () => {
+		const tool = new CoordinateAgentsTool()
+		const { task, callbacks } = createCallbacks()
+		task.consecutiveMistakeCount = 3
+
+		await tool.handle(
+			task as any,
+			{
+				type: "tool_use",
+				name: "coordinate_agents",
+				params: {},
+				nativeArgs: { action: "acknowledge_contract", limit: 5 },
+			} as ToolUse<"coordinate_agents">,
+			callbacks as any,
+		)
+
+		expect(task.acknowledgeAgentSharedContract).toHaveBeenCalledTimes(1)
+		expect(task.publishAgentCoordination).not.toHaveBeenCalled()
+		expect(task.getAgentCoordinationEvents).toHaveBeenCalledWith({ limit: 5 })
+		expect(task.getOpenAgentCoordinationQuestions).toHaveBeenCalledWith({ limit: 5 })
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
+			expect.stringContaining("Acknowledged shared contract for this agent (coord-contract)."),
+		)
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining("Open questions for you:"))
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining("Recent team chat:"))
+		expect(task.recordToolError).not.toHaveBeenCalled()
+		expect(task.consecutiveMistakeCount).toBe(0)
+	})
+
+	it("reports when there is no shared contract to acknowledge", async () => {
+		const tool = new CoordinateAgentsTool()
+		const { task, callbacks } = createCallbacks()
+		;(task.acknowledgeAgentSharedContract as any).mockReturnValue(undefined)
+
+		await tool.handle(
+			task as any,
+			{
+				type: "tool_use",
+				name: "coordinate_agents",
+				params: {},
+				nativeArgs: { action: "acknowledge_contract", limit: 2 },
+			} as ToolUse<"coordinate_agents">,
+			callbacks as any,
+		)
+
+		expect(task.acknowledgeAgentSharedContract).toHaveBeenCalledTimes(1)
+		expect(task.publishAgentCoordination).not.toHaveBeenCalled()
+		expect(task.getAgentCoordinationEvents).toHaveBeenCalledWith({ limit: 2 })
+		expect(task.getOpenAgentCoordinationQuestions).toHaveBeenCalledWith({ limit: 2 })
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
+			expect.stringContaining("No shared contract requires acknowledgement for this agent."),
+		)
+		expect(task.recordToolError).not.toHaveBeenCalled()
+		expect(task.consecutiveMistakeCount).toBe(0)
 	})
 
 	it("ignores harmless publish-style fields on read calls", async () => {

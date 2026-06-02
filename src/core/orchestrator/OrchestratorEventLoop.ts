@@ -329,6 +329,9 @@ export class OrchestratorEventLoop {
 		return [
 			`You are agent ${agent.id}, running a normal single ${agent.mode} specialist task.`,
 			plan?.sharedContext ? `Shared context:\n${plan.sharedContext}` : undefined,
+			plan?.sharedContract
+				? `Shared contract (must follow and acknowledge before completion):\n${plan.sharedContract}`
+				: undefined,
 			dependencyContext ? `Non-blocking dependency context:\n${dependencyContext}` : undefined,
 			`Task:\n${agent.task}`,
 			`Your primary ownership scope (advisory — you may edit files outside this scope when needed, but prefer files in scope):\n${agent.owns.map((ownership) => `- ${ownership.path} (${ownership.mode})`).join("\n") || "- none"}`,
@@ -342,7 +345,7 @@ export class OrchestratorEventLoop {
 			"Publish coordinate_agents question/answer messages for targeted contract gaps. Publish kind='decision' when you choose or confirm a shared interface, kind='note' for a concrete integration assumption or discovery peers need, and kind='blocker' when a cross-agent integration issue blocks safe progress.",
 			"Publish a coordinate_agents question proactively when a shared integration contract is missing, ambiguous, or likely to affect another agent's work; do not guess UI/CSS/component interfaces, DOM structure, class names, selectors, IDs, data attributes, API shapes, file paths, user-facing names, or timing. Answer targeted open questions concisely with replyToId when available, even if your assigned edits are complete.",
 			"If you read an answer, decision, note, or blocker that affects your scope, adapt your files or final result around the answered hook, selector, variable, data attribute, public function, file contract, or user-facing name before finishing.",
-			"Before attempt_completion, read team chat again and resolve targeted open questions, newly published decisions/notes, or blockers relevant to your files. If you made a shared assumption or changed a shared contract, publish a short decision or note before finishing.",
+			"Before attempt_completion, read team chat again and resolve targeted open questions, newly published decisions/notes, or blockers relevant to your files. If the plan includes a Shared contract, apply it and call coordinate_agents with action='acknowledge_contract' before finishing. If you made a shared assumption or changed a shared contract, publish a short decision or note before finishing.",
 			"Do not post ownership or introduction messages such as 'I own <file>' or 'Agent <id> owns <file>'. coordinate_agents publish is for real questions, answers, decisions, assumption notes, and blockers only.",
 			"Do not post pre-planned, basic, or filler questions just to populate team chat. Ask one relevant agent one short shared-contract question at a time with targetAgentId where possible; answer with only the key hook, selector, variable, file, or decision needed.",
 			"After you call attempt_completion or receive a terminal completion result, do not publish more team-chat messages; final evidence belongs in structured completion status.",
@@ -359,6 +362,9 @@ export class OrchestratorEventLoop {
 			"Single-agent task guidance:",
 			`- Agent id: ${agent.id}`,
 			`- Execution plan: ${plan?.planId ?? "unknown"}`,
+			plan?.sharedContract
+				? `- Shared contract (must follow and acknowledge before completion):\n${plan.sharedContract}`
+				: undefined,
 			dependencyContext ? `- Non-blocking dependency context:\n${dependencyContext}` : undefined,
 			"- Treat this as one normal specialist task with one ownership scope, not as a complex orchestration task.",
 			"- Use normal sequential tool calls: call one tool, wait for its result, then decide the next step.",
@@ -372,7 +378,7 @@ export class OrchestratorEventLoop {
 			"- Publish coordinate_agents question/answer messages for targeted contract gaps. Publish kind='decision' when you choose or confirm a shared interface, kind='note' for a concrete integration assumption or discovery peers need, and kind='blocker' when a cross-agent integration issue blocks safe progress.",
 			"- Publish a coordinate_agents question proactively when a shared integration contract is missing, ambiguous, or likely to affect another agent's work; do not guess UI/CSS/component interfaces, DOM structure, class names, selectors, IDs, data attributes, API shapes, file paths, user-facing names, or timing. Answer targeted open questions concisely with replyToId when available, even if your assigned edits are complete.",
 			"- If you read an answer, decision, note, or blocker that affects your scope, adapt your files or final result around the answered hook, selector, variable, data attribute, public function, file contract, or user-facing name before finishing.",
-			"- Before attempt_completion, read team chat again and resolve targeted open questions, newly published decisions/notes, or blockers relevant to your files. If you made a shared assumption or changed a shared contract, publish a short decision or note before finishing.",
+			"- Before attempt_completion, read team chat again and resolve targeted open questions, newly published decisions/notes, or blockers relevant to your files. If the plan includes a Shared contract, apply it and call coordinate_agents with action='acknowledge_contract' before finishing. If you made a shared assumption or changed a shared contract, publish a short decision or note before finishing.",
 			"- Do not post ownership or introduction messages such as 'I own <file>' or 'Agent <id> owns <file>'. coordinate_agents publish is for real questions, answers, decisions, assumption notes, and blockers only.",
 			"- Do not post pre-planned, basic, or filler questions just to populate team chat. Ask one relevant agent one short shared-contract question at a time with targetAgentId where possible, and answer with only the key hook, selector, variable, file, or decision needed.",
 			"- After attempt_completion or terminal completion, stop publishing team-chat messages; final evidence belongs in structured completion status.",

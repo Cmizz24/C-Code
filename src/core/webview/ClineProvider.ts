@@ -263,6 +263,7 @@ export class ClineProvider
 	private parallelStatusUpdateQueue: Promise<void> = Promise.resolve()
 	private parallelStatusUpdatePromise?: Promise<void>
 	private parallelStatusUpdateRequested = false
+	private parallelParentResumeKey?: string
 	private readonly forwardAgentEvent = (event: AgentEvent): void => {
 		switch (event.type) {
 			case "STATUS":
@@ -3511,6 +3512,7 @@ export class ClineProvider
 		}
 
 		await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
+		this.parallelParentResumeKey = undefined
 		this.resetParallelAgentStatusState(plan.planId)
 
 		try {
@@ -3867,6 +3869,11 @@ export class ClineProvider
 
 		if (autoMergeDecision.enabled && autoMergeDecision.skipReasons.length === 0) {
 			await this.mergeApprovedAgents(autoMergeDecision.approvedAgentIds, { autoApproved: true })
+		} else {
+			const resumeReason = autoMergeDecision.enabled
+				? "parallel merge review after auto-merge was skipped"
+				: "parallel merge review awaiting manual action"
+			await this.resumeParentAfterParallelMerge(resumeReason, plan.planId)
 		}
 	}
 
@@ -3906,7 +3913,12 @@ export class ClineProvider
 			}
 
 			if (entry.mergeable === false || entry.reviewError || entry.mergeError || entry.mergeStatus === "failed") {
-				skipReasons.push({ agentId: agent.id, reason: `${agent.id} has a merge review error` })
+				const detail =
+					entry.reviewError ?? entry.mergeError ?? entry.autoMergeSkippedReason ?? entry.mergeStatus
+				skipReasons.push({
+					agentId: agent.id,
+					reason: `${agent.id} has a merge review error${detail ? `: ${detail}` : ""}`,
+				})
 				continue
 			}
 
@@ -3957,6 +3969,7 @@ export class ClineProvider
 				type: "mergeFailed",
 				gitOutput: "No active execution plan is available.",
 			})
+			await this.resumeParentAfterParallelMerge("manual merge failure: no active execution plan")
 			return false
 		}
 
@@ -3966,6 +3979,7 @@ export class ClineProvider
 				type: "mergeFailed",
 				gitOutput: "No agent branches were selected for merge.",
 			})
+			await this.resumeParentAfterParallelMerge("manual merge failure: no agent branches selected", plan.planId)
 			return false
 		}
 
@@ -3986,6 +4000,7 @@ export class ClineProvider
 				type: "mergeFailed",
 				gitOutput: `Cannot merge entries with unresolved review errors.\n${details}`,
 			})
+			await this.resumeParentAfterParallelMerge("manual merge failure: unresolved review errors", plan.planId)
 			return false
 		}
 
@@ -4069,10 +4084,13 @@ export class ClineProvider
 					agentId,
 					gitOutput,
 				})
-				await this.resumeParentAfterParallelMerge()
+				await this.resumeParentAfterParallelMerge("merge failure during workspace materialization", plan.planId)
 				return false
 			}
 		}
+
+		this.orchestratorEventLoop?.stop()
+		this.orchestratorEventLoop = undefined
 
 		for (const task of Array.from(this.backgroundTasks)) {
 			this.finalizeBackgroundAgentTask(task, "complete")
@@ -4104,21 +4122,45 @@ export class ClineProvider
 		await this.teardownParallelExecution({ resetBus: true })
 		await this.postMessageToWebview({ type: "mergeComplete" })
 		await this.postStateToWebviewWithoutClineMessages()
-		await this.resumeParentAfterParallelMerge()
+		await this.resumeParentAfterParallelMerge("successful parallel merge", plan.planId)
 		return true
 	}
 
-	private async resumeParentAfterParallelMerge(): Promise<void> {
+	private async resumeParentAfterParallelMerge(
+		reason: string = "parallel review/merge",
+		planId: string | undefined = this.activeExecutionPlan?.planId ?? this.parallelStatusPlanId,
+	): Promise<void> {
 		const task = this.getCurrentTask()
-		if (!task || task.background) {
+		if (!task) {
+			this.log(`[parallel-agents] Skipping parent resume after ${reason}: no current task is available.`)
 			return
 		}
 
-		try {
-			await task.resumeAfterParallelExecution()
-		} catch (error) {
+		if (task.background) {
 			this.log(
-				`[parallel-agents] Failed to resume parent task after merge: ${error instanceof Error ? error.message : String(error)}`,
+				`[parallel-agents] Skipping parent resume after ${reason}: current task ${task.taskId} is a background task.`,
+			)
+			return
+		}
+
+		const resumeKey = `${task.taskId}:${planId ?? "unknown-plan"}`
+		if (this.parallelParentResumeKey === resumeKey) {
+			this.log(`[parallel-agents] Skipping duplicate parent resume for task ${task.taskId} after ${reason}.`)
+			return
+		}
+
+		this.parallelParentResumeKey = resumeKey
+
+		try {
+			this.log(`[parallel-agents] Resuming parent task ${task.taskId} after ${reason}.`)
+			await task.resumeAfterParallelExecution()
+			this.log(`[parallel-agents] Parent task ${task.taskId} resumed after ${reason}.`)
+		} catch (error) {
+			if (this.parallelParentResumeKey === resumeKey) {
+				this.parallelParentResumeKey = undefined
+			}
+			this.log(
+				`[parallel-agents] Failed to resume parent task ${task.taskId} after ${reason}: ${error instanceof Error ? error.message : String(error)}`,
 			)
 		}
 	}
@@ -4134,6 +4176,7 @@ export class ClineProvider
 				type: "mergeFailed",
 				gitOutput: "No active execution plan is available.",
 			})
+			await this.resumeParentAfterParallelMerge("merge denial failure: no active execution plan")
 			return false
 		}
 
@@ -4167,6 +4210,7 @@ export class ClineProvider
 		await this.appendParallelAgentOutcomeSummary(plan, "cancelled", this.parallelMergeReviewEntries)
 		await this.teardownParallelExecution({ resetBus: true, cleanupWorktrees: true })
 		await this.postStateToWebviewWithoutClineMessages()
+		await this.resumeParentAfterParallelMerge("merge review denial", plan.planId)
 		return true
 	}
 

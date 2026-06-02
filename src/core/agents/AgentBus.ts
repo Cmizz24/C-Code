@@ -44,12 +44,25 @@ type CoordinationQuestionState = {
 	unanswerableReason?: string
 }
 
-export type AgentCompletionCoordinationBlocker = {
-	type: "incoming-question" | "outgoing-question" | "unread-answer"
-	question: AgentCoordinationEvent
-	answer?: AgentCoordinationEvent
-	retryCount?: number
-}
+export type AgentCompletionCoordinationBlocker =
+	| {
+			type: "incoming-question"
+			question: AgentCoordinationEvent
+	  }
+	| {
+			type: "outgoing-question"
+			question: AgentCoordinationEvent
+			retryCount?: number
+	  }
+	| {
+			type: "unread-answer"
+			question: AgentCoordinationEvent
+			answer?: AgentCoordinationEvent
+	  }
+	| {
+			type: "shared-contract-unacknowledged"
+			sharedContract: string
+	  }
 
 export type AgentCompletionCoordinationGate = {
 	approved: boolean
@@ -137,6 +150,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	private readonly blockedAgents = new Set<string>()
 	private readonly coordinationReadAgents = new Set<string>()
 	private readonly coordinationPublishedAgents = new Set<string>()
+	private readonly sharedContractAcknowledgedAgents = new Set<string>()
 	private readonly writeIntentEvidenceByAgent = new Map<string, AgentWriteIntentEvidence[]>()
 	private readonly completionPackets = new Map<string, AgentCompletionPacket>()
 	private readonly coordinationQuestions = new Map<string, CoordinationQuestionState>()
@@ -165,6 +179,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		this.blockedAgents.clear()
 		this.coordinationReadAgents.clear()
 		this.coordinationPublishedAgents.clear()
+		this.sharedContractAcknowledgedAgents.clear()
 		this.writeIntentEvidenceByAgent.clear()
 		this.completionPackets.clear()
 		this.coordinationQuestions.clear()
@@ -187,6 +202,16 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			}
 
 			agent.status = "pending"
+		}
+
+		const sharedContract = (plan.sharedContract ?? "").trim()
+		if (sharedContract) {
+			this.appendCoordinationEvent({
+				id: `${plan.planId}-shared-contract`,
+				message: `Shared contract: ${sharedContract}`,
+				kind: "shared-contract",
+				source: "system",
+			})
 		}
 
 		this.emit("plan", plan)
@@ -359,6 +384,30 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		return this.getOpenQuestionsForAgent(agentId).slice(-limit)
 	}
 
+	public acknowledgeSharedContract(agentId: string): AgentCoordinationEvent | undefined {
+		const agent = this.getAgent(agentId)
+		const sharedContract = (this.executionPlan?.sharedContract ?? "").trim()
+		if (!agent || !sharedContract) {
+			return undefined
+		}
+
+		this.sharedContractAcknowledgedAgents.add(agentId)
+		return this.appendCoordinationEvent({
+			agentId,
+			message: `Acknowledged shared contract for plan ${this.executionPlan?.planId ?? "unknown"}.`,
+			kind: "shared-contract",
+			source: "agent",
+		})
+	}
+
+	public hasAgentAcknowledgedSharedContract(agentId: string): boolean {
+		if (!(this.executionPlan?.sharedContract ?? "").trim()) {
+			return true
+		}
+
+		return this.sharedContractAcknowledgedAgents.has(agentId)
+	}
+
 	public getAgentCompletionCoordinationGate(
 		agentId: string,
 		options: { recordAttempt?: boolean } = {},
@@ -385,8 +434,9 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			answer,
 		}))
 		const unanswerableQuestions = this.getUnanswerableQuestionsForAgent(agentId)
+		const sharedContractBlockers = this.getSharedContractCompletionBlockers(agentId)
 
-		const blockers = [...incoming, ...outgoing, ...unreadAnswers]
+		const blockers = [...sharedContractBlockers, ...incoming, ...outgoing, ...unreadAnswers]
 		return { approved: blockers.length === 0, blockers, unanswerableQuestions }
 	}
 
@@ -988,6 +1038,15 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			})
 	}
 
+	private getSharedContractCompletionBlockers(agentId: string): AgentCompletionCoordinationBlocker[] {
+		const sharedContract = (this.executionPlan?.sharedContract ?? "").trim()
+		if (!sharedContract || this.hasAgentAcknowledgedSharedContract(agentId)) {
+			return []
+		}
+
+		return [{ type: "shared-contract-unacknowledged", sharedContract }]
+	}
+
 	private getUnanswerableQuestionsForAgent(agentId: string): AgentCoordinationEvent[] {
 		return this.getQuestionStates()
 			.map((state) => state.question)
@@ -1060,6 +1119,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			case "decision":
 			case "blocker":
 			case "note":
+			case "shared-contract":
 				return kind
 			default:
 				return "note"
