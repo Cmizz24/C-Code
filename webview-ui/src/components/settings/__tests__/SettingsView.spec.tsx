@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import { vscode } from "@/utils/vscode"
 import { ExtensionStateContextProvider } from "@src/context/ExtensionStateContext"
+import TranslationProvider from "@src/i18n/TranslationContext"
 
 import SettingsView from "../SettingsView"
 
@@ -340,6 +341,56 @@ const renderSettingsView = (initialState: Record<string, any> = {}) => {
 
 	return { onDone, activateTab, getSettingsContent }
 }
+
+const renderSettingsViewWithTranslations = (initialState: Record<string, any> = {}) => {
+	const onDone = vi.fn()
+	const queryClient = new QueryClient()
+
+	const renderTree = (
+		<ExtensionStateContextProvider>
+			<TranslationProvider>
+				<QueryClientProvider client={queryClient}>
+					<SettingsView onDone={onDone} />
+				</QueryClientProvider>
+			</TranslationProvider>
+		</ExtensionStateContextProvider>
+	)
+
+	const result = render(
+		<ExtensionStateContextProvider>
+			<TranslationProvider>
+				<QueryClientProvider client={queryClient}>{null}</QueryClientProvider>
+			</TranslationProvider>
+		</ExtensionStateContextProvider>,
+	)
+
+	// Hydrate extension state before SettingsView initializes its local cachedState and TranslationProvider reads language.
+	mockPostMessage({ language: "en", ...initialState })
+	result.rerender(renderTree)
+
+	return { ...result, onDone }
+}
+
+describe("SettingsView - Localization", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("renders settings labels through the real i18n provider without raw settings keys", () => {
+		const { container } = renderSettingsViewWithTranslations()
+
+		expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument()
+		expect(screen.getByTestId("save-button")).toHaveTextContent("Save")
+		expect(screen.getByText("Notifications")).toBeInTheDocument()
+		expect(within(screen.getByTestId("settings-content")).getByText("Providers")).toBeInTheDocument()
+		expect(within(screen.getByTestId("settings-content")).getByText("API Provider")).toBeInTheDocument()
+
+		expect(container).not.toHaveTextContent("settings:header.title")
+		expect(container).not.toHaveTextContent("settings:common.save")
+		expect(container).not.toHaveTextContent("settings:sections.providers")
+		expect(container).not.toHaveTextContent("settings:providers.apiProvider")
+	})
+})
 
 describe("SettingsView - Sound Settings", () => {
 	beforeEach(() => {

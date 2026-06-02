@@ -26,11 +26,17 @@ Object.entries(localeFiles).forEach(([path, module]) => {
 	}
 })
 
-console.log("Dynamically loaded translations:", Object.keys(translations))
+const namespaces = Array.from(new Set(Object.values(translations).flatMap((language) => Object.keys(language))))
+const defaultNamespace = namespaces.includes("common") ? "common" : (namespaces[0] ?? "common")
 
 // Initialize i18next for React
-// This will be initialized with the VSCode language in TranslationProvider
+// This will be initialized with the VSCode language in TranslationProvider.
+// Bundled resources are provided up front so first render can resolve namespaced keys like
+// `settings:header.title` instead of waiting for a post-mount effect.
 i18next.use(initReactI18next).init({
+	resources: translations,
+	ns: namespaces.length > 0 ? namespaces : ["common"],
+	defaultNS: defaultNamespace,
 	lng: "en", // Default language (will be overridden)
 	fallbackLng: "en",
 	debug: false,
@@ -39,16 +45,28 @@ i18next.use(initReactI18next).init({
 	},
 })
 
+let translationsLoaded = false
+
 export function loadTranslations() {
+	if (translationsLoaded) {
+		return
+	}
+
 	Object.entries(translations).forEach(([lang, namespaces]) => {
 		try {
 			Object.entries(namespaces).forEach(([namespace, resources]) => {
+				if (i18next.hasResourceBundle(lang, namespace)) {
+					return
+				}
+
 				i18next.addResourceBundle(lang, namespace, resources, true, true)
 			})
 		} catch (error) {
 			console.warn(`Could not load ${lang} translations:`, error)
 		}
 	})
+
+	translationsLoaded = true
 }
 
 export default i18next
