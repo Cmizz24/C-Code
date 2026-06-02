@@ -16,6 +16,7 @@ import {
 	type EditQueuedMessagePayload,
 	RooCodeSettings,
 	ExperimentId,
+	RooCodeEventName,
 	normalizeParallelTaskConcurrency,
 	checkoutDiffPayloadSchema,
 	checkoutRestorePayloadSchema,
@@ -648,6 +649,47 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				provider
 					.getCurrentTask()
 					?.handleWebviewAskResponse(message.askResponse!, resolved.text, resolved.images)
+			}
+			break
+
+		case "acceptCompletion":
+			{
+				const task = provider.getCurrentTask()
+
+				if (!task) {
+					provider.log("[completion-acceptance] No active task to accept completion for.")
+					await provider.postStateToWebview()
+					break
+				}
+
+				let completionObserved = false
+				const onTaskCompleted = (taskId: string) => {
+					if (taskId === task.taskId) {
+						completionObserved = true
+					}
+				}
+
+				task.on(RooCodeEventName.TaskCompleted, onTaskCompleted)
+
+				try {
+					task.handleWebviewAskResponse("yesButtonClicked")
+
+					try {
+						await pWaitFor(() => completionObserved, { timeout: 3_000, interval: 50 })
+					} catch (error) {
+						provider.log(
+							`[completion-acceptance] Timed out waiting for TaskCompleted before clearing task ${task.taskId}: ${
+								error instanceof Error ? error.message : String(error)
+							}`,
+						)
+						break
+					}
+				} finally {
+					task.off(RooCodeEventName.TaskCompleted, onTaskCompleted)
+				}
+
+				await provider.clearTask()
+				await provider.postStateToWebview()
 			}
 			break
 

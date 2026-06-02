@@ -38,6 +38,8 @@ vi.mock("../diagnosticsHandler", () => ({
 }))
 
 import type { ModelRecord } from "@roo-code/types"
+import { RooCodeEventName } from "@roo-code/types"
+import EventEmitter from "events"
 
 import { webviewMessageHandler } from "../webviewMessageHandler"
 import type { ClineProvider } from "../ClineProvider"
@@ -78,11 +80,17 @@ const mockClineProvider = {
 	getTaskWithId: vi.fn(),
 	createTask: vi.fn().mockResolvedValue({ taskId: "mock-task-id" }),
 	createTaskWithHistoryItem: vi.fn(),
+	clearTask: vi.fn(),
 	testSmtpSettings: vi.fn(),
 	getMcpHub: vi.fn(),
 	getSkillsManager: vi.fn(),
 	cwd: "/mock/workspace",
 } as unknown as ClineProvider
+
+type MockCompletionTask = EventEmitter & {
+	taskId: string
+	handleWebviewAskResponse: ReturnType<typeof vi.fn>
+}
 
 import { t } from "../../../i18n"
 
@@ -318,6 +326,71 @@ describe("webviewMessageHandler - image mentions", () => {
 		expect(mockHandleWebviewAskResponse).toHaveBeenCalledWith("messageResponse", "See @/img.png", [
 			"data:image/png;base64,from-mention",
 		])
+	})
+})
+
+describe("webviewMessageHandler - acceptCompletion", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		vi.useRealTimers()
+		vi.mocked(mockClineProvider.clearTask).mockResolvedValue(undefined)
+		vi.mocked(mockClineProvider.postStateToWebview).mockResolvedValue(undefined)
+	})
+
+	it("accepts completion and waits for TaskCompleted before clearing the task", async () => {
+		const calls: string[] = []
+		let task: MockCompletionTask
+
+		task = Object.assign(new EventEmitter(), {
+			taskId: "task-accept-completion",
+			handleWebviewAskResponse: vi.fn((response: string) => {
+				calls.push(`askResponse:${response}`)
+				setTimeout(() => task.emit(RooCodeEventName.TaskCompleted, task.taskId, undefined, undefined), 0)
+			}),
+		})
+
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(task as any)
+		vi.mocked(mockClineProvider.clearTask).mockImplementation(async () => {
+			calls.push("clearTask")
+		})
+		vi.mocked(mockClineProvider.postStateToWebview).mockImplementation(async () => {
+			calls.push("postState")
+		})
+
+		await webviewMessageHandler(mockClineProvider, { type: "acceptCompletion" } as any)
+
+		expect(task.handleWebviewAskResponse).toHaveBeenCalledWith("yesButtonClicked")
+		expect(mockClineProvider.clearTask).toHaveBeenCalledTimes(1)
+		expect(mockClineProvider.postStateToWebview).toHaveBeenCalledTimes(1)
+		expect(calls).toEqual(["askResponse:yesButtonClicked", "clearTask", "postState"])
+		expect(task.listenerCount(RooCodeEventName.TaskCompleted)).toBe(0)
+	})
+
+	it("does not clear the task if completion is not observed", async () => {
+		vi.useFakeTimers()
+		const task: MockCompletionTask = Object.assign(new EventEmitter(), {
+			taskId: "task-missing-completion-event",
+			handleWebviewAskResponse: vi.fn(),
+		})
+
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(task as any)
+
+		const handlerPromise = webviewMessageHandler(mockClineProvider, { type: "acceptCompletion" } as any)
+
+		await vi.runAllTimersAsync()
+		await handlerPromise
+
+		expect(task.handleWebviewAskResponse).toHaveBeenCalledWith("yesButtonClicked")
+		expect(mockClineProvider.clearTask).not.toHaveBeenCalled()
+		expect(mockClineProvider.postStateToWebview).not.toHaveBeenCalled()
+		expect(mockClineProvider.log).toHaveBeenCalledWith(
+			expect.stringContaining(
+				"Timed out waiting for TaskCompleted before clearing task task-missing-completion-event",
+			),
+		)
+		expect(task.listenerCount(RooCodeEventName.TaskCompleted)).toBe(0)
+
+		vi.useRealTimers()
 	})
 })
 

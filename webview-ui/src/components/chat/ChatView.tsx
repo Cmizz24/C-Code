@@ -816,6 +816,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		vscode.postMessage({ type: "clearTask" })
 	}, [])
 
+	const acceptCompletion = useCallback(() => {
+		setShowRetiredProviderWarning(false)
+		vscode.postMessage({ type: "acceptCompletion" })
+	}, [])
+
 	// Handle stop button click from textarea
 	const handleStopTask = useCallback(() => {
 		vscode.postMessage({ type: "cancelTask" })
@@ -904,8 +909,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					}
 					break
 				case "completion_result":
+					// Accept the live completion before clearing so backend completion events and notifications fire.
+					acceptCompletion()
+					break
 				case "resume_completed_task":
-					// Waiting for feedback, but we can just present a new task button
+					// Historical completed tasks have already finished; there is no live completion ask to accept.
 					startNewTask()
 					break
 				case "command_output":
@@ -919,7 +927,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			setPrimaryButtonText(undefined)
 			setSecondaryButtonText(undefined)
 		},
-		[clineAsk, startNewTask, currentTaskItem?.parentTaskId, pendingMergeReviewAction],
+		[clineAsk, startNewTask, acceptCompletion, currentTaskItem?.parentTaskId, pendingMergeReviewAction],
 	)
 
 	const handleSecondaryButtonClick = useCallback(

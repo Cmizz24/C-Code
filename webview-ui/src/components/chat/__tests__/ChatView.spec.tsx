@@ -538,6 +538,60 @@ describe("ChatView - Focus Grabbing Tests", () => {
 	})
 })
 
+describe("ChatView - Completion Acceptance Tests", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("accepts a completion before starting a new task", async () => {
+		renderChatView()
+
+		act(() => {
+			mockPostMessage({
+				clineMessages: [
+					{
+						type: "ask",
+						ask: "completion_result",
+						ts: Date.now(),
+						text: "Task complete",
+					},
+				],
+			})
+		})
+
+		const startNewTaskButton = await screen.findByRole("button", { name: "chat:startNewTask.title" })
+
+		fireEvent.click(startNewTaskButton)
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "acceptCompletion" })
+		expect(vscode.postMessage).not.toHaveBeenCalledWith({ type: "clearTask" })
+	})
+
+	it("clears a resumed completed task without re-accepting completion", async () => {
+		renderChatView()
+
+		act(() => {
+			mockPostMessage({
+				clineMessages: [
+					{
+						type: "ask",
+						ask: "resume_completed_task",
+						ts: Date.now(),
+						text: "Task complete",
+					},
+				],
+			})
+		})
+
+		const startNewTaskButton = await screen.findByRole("button", { name: "chat:startNewTask.title" })
+
+		fireEvent.click(startNewTaskButton)
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "clearTask" })
+		expect(vscode.postMessage).not.toHaveBeenCalledWith({ type: "acceptCompletion" })
+	})
+})
+
 describe("ChatView - Version Indicator Tests", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()

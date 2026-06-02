@@ -430,6 +430,7 @@ export interface WebviewMessage {
 		| "webviewDidLaunch"
 		| "newTask"
 		| "askResponse"
+		| "acceptCompletion"
 		| "terminalOperation"
 		| "clearTask"
 		| "didShowAnnouncement"

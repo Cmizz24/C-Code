@@ -662,6 +662,15 @@ describe("ClineProvider", () => {
 		return sendTaskNotification
 	}
 
+	const getEmailNotificationDiagnostics = (logSpy: any): Array<Record<string, any>> =>
+		(logSpy.mock.calls as Array<[unknown]>)
+			.map(([message]: [unknown]) => String(message))
+			.filter((message) => message.startsWith("[email-notifications] diagnostics "))
+			.map(
+				(message: string) =>
+					JSON.parse(message.slice("[email-notifications] diagnostics ".length)) as Record<string, any>,
+			)
+
 	const createParallelAgentToolMessage = (tool: ClineSayTool, ts = 1_700_000_001): ClineMessage => ({
 		type: "say",
 		say: "tool",
@@ -701,8 +710,9 @@ describe("ClineProvider", () => {
 	})
 
 	describe("email notification lifecycle dispatch", () => {
-		test("sends success notifications for top-level task completion", () => {
+		test("sends success notifications for top-level task completion", async () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
 			const task = new Task({ ...defaultTaskOptions, taskId: "task-success", workspacePath: "/workspace" } as any)
 			const tokenUsage = createTokenUsage()
 			const toolUsage = createToolUsage()
@@ -744,6 +754,40 @@ describe("ClineProvider", () => {
 				toolUsage,
 				requestCount: 2,
 			})
+			await vi.waitFor(() => {
+				expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+					expect.arrayContaining([
+						expect.objectContaining({
+							event: "completion-event-observed",
+							taskId: "task-success",
+							background: false,
+						}),
+						expect.objectContaining({
+							event: "completion-notification-decision",
+							taskId: "task-success",
+							decision: "send-top-level-success",
+							requestCount: 2,
+						}),
+						expect.objectContaining({
+							event: "outcome-notification-decision",
+							taskId: "task-success",
+							decision: "dispatch",
+							duplicateSent: false,
+							duplicateInFlight: false,
+						}),
+						expect.objectContaining({
+							event: "notification-send-result",
+							taskId: "task-success",
+							decision: "sent",
+							attempted: true,
+							sent: true,
+						}),
+					]),
+				)
+			})
+			expect(JSON.stringify(getEmailNotificationDiagnostics(logSpy))).not.toContain(
+				"Implemented SMTP completion notifications",
+			)
 		})
 
 		test("sends direct completion email through the same saved SMTP settings and SecretStorage password as Test SMTP", async () => {
@@ -891,6 +935,105 @@ describe("ClineProvider", () => {
 			)
 		})
 
+		test("logs disabled-settings diagnostics when completion email settings skip a visible completion", async () => {
+			await provider.contextProxy.setValues({
+				emailNotificationsEnabled: false,
+				emailNotifyOnSuccess: true,
+				smtpHost: "smtp.example.com",
+				smtpPort: 587,
+				smtpFromAddress: "roo@example.com",
+				smtpRecipients: ["dev@example.com"],
+			} as any)
+
+			const logSpy = vi.spyOn(provider, "log")
+			const sendMail = vi.fn().mockResolvedValue(undefined)
+			const transportFactory = vi.fn(() => ({ sendMail }))
+			;(provider as any).emailNotificationService = new EmailNotificationService(provider.contextProxy, {
+				log: (message) => provider.log(message),
+				transportFactory,
+			})
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-disabled-email-settings" } as any)
+
+			;(provider as any).taskCreationCallback(task)
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(transportFactory).not.toHaveBeenCalled()
+			await vi.waitFor(() => {
+				expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+					expect.arrayContaining([
+						expect.objectContaining({
+							event: "outcome-notification-decision",
+							taskId: "task-disabled-email-settings",
+							decision: "dispatch",
+						}),
+						expect.objectContaining({
+							event: "notification-send-result",
+							taskId: "task-disabled-email-settings",
+							decision: "service-skipped",
+							attempted: false,
+							sent: false,
+							skippedReason: "disabled",
+						}),
+						expect.objectContaining({
+							event: "notification-in-flight-cleared",
+							taskId: "task-disabled-email-settings",
+							decision: "cleared",
+						}),
+					]),
+				)
+			})
+			expect(mockContext.globalState.update).not.toHaveBeenCalledWith(
+				"emailNotificationTaskOutcomes.v1",
+				expect.anything(),
+			)
+		})
+
+		test("logs invalid-config diagnostics when SMTP settings are incomplete for a visible completion", async () => {
+			await provider.contextProxy.setValues({
+				emailNotificationsEnabled: true,
+				emailNotifyOnSuccess: true,
+				smtpHost: "smtp.example.com",
+				smtpPort: 587,
+				smtpFromAddress: "roo@example.com",
+				smtpRecipients: [],
+			} as any)
+
+			const logSpy = vi.spyOn(provider, "log")
+			const sendMail = vi.fn().mockResolvedValue(undefined)
+			const transportFactory = vi.fn(() => ({ sendMail }))
+			;(provider as any).emailNotificationService = new EmailNotificationService(provider.contextProxy, {
+				log: (message) => provider.log(message),
+				transportFactory,
+			})
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-invalid-email-settings" } as any)
+
+			;(provider as any).taskCreationCallback(task)
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(transportFactory).not.toHaveBeenCalled()
+			await vi.waitFor(() => {
+				expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+					expect.arrayContaining([
+						expect.objectContaining({
+							event: "notification-send-result",
+							taskId: "task-invalid-email-settings",
+							decision: "service-skipped",
+							attempted: false,
+							sent: false,
+							skippedReason: "invalid-config",
+						}),
+					]),
+				)
+			})
+			expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
+				expect.stringContaining("Email notifications are enabled but no SMTP recipients are configured."),
+			)
+			expect(mockContext.globalState.update).not.toHaveBeenCalledWith(
+				"emailNotificationTaskOutcomes.v1",
+				expect.anything(),
+			)
+		})
+
 		test("does not send SMTP notifications for streaming failure aborts", () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const task = new Task({ ...defaultTaskOptions, taskId: "task-failed", workspacePath: "/workspace" } as any)
@@ -1015,13 +1158,7 @@ describe("ClineProvider", () => {
 				requestCount: 0,
 			})
 
-			const notificationDiagnostics = logSpy.mock.calls
-				.map(([message]) => String(message))
-				.filter((message) => message.startsWith("[email-notifications] diagnostics "))
-				.map(
-					(message) =>
-						JSON.parse(message.slice("[email-notifications] diagnostics ".length)) as Record<string, any>,
-				)
+			const notificationDiagnostics = getEmailNotificationDiagnostics(logSpy)
 
 			expect(notificationDiagnostics).toEqual(
 				expect.arrayContaining([
@@ -1063,6 +1200,7 @@ describe("ClineProvider", () => {
 
 		test("sends one parent workflow success notification for delegated completion", async () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
 			const transcriptText = "Earlier parent transcript text that must not appear in notification payload"
 
 			await (provider as any).notifyDelegatedWorkflowCompleted(
@@ -1097,6 +1235,31 @@ describe("ClineProvider", () => {
 				requestCount: 1,
 			})
 			expect(JSON.stringify(sendTaskNotification.mock.calls[0][0])).not.toContain(transcriptText)
+			await vi.waitFor(() => {
+				expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+					expect.arrayContaining([
+						expect.objectContaining({
+							event: "delegated-workflow-notification-prepared",
+							taskId: "delegated-parent-success",
+							decision: "send-delegated-workflow-success",
+							requestCount: 1,
+						}),
+						expect.objectContaining({
+							event: "outcome-notification-decision",
+							taskId: "delegated-parent-success",
+							decision: "dispatch",
+						}),
+						expect.objectContaining({
+							event: "notification-send-result",
+							taskId: "delegated-parent-success",
+							decision: "sent",
+							attempted: true,
+							sent: true,
+						}),
+					]),
+				)
+			})
+			expect(JSON.stringify(getEmailNotificationDiagnostics(logSpy))).not.toContain(transcriptText)
 		})
 
 		test("falls back to basic usage and still sends delegated completion when aggregation fails", async () => {
@@ -1246,6 +1409,7 @@ describe("ClineProvider", () => {
 
 		test("skips background and delegated child tasks", () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
 			const backgroundTask = new Task({
 				...defaultTaskOptions,
 				taskId: "background-task",
@@ -1265,6 +1429,75 @@ describe("ClineProvider", () => {
 			childTask.emit(RooCodeEventName.TaskCompleted, childTask.taskId, createTokenUsage(), createToolUsage())
 
 			expect(sendTaskNotification).not.toHaveBeenCalled()
+			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "completion-notification-decision",
+						taskId: "background-task",
+						decision: "skip-background-task",
+					}),
+					expect.objectContaining({
+						event: "completion-notification-decision",
+						taskId: "child-task",
+						decision: "skip-delegated-child-task",
+					}),
+				]),
+			)
+		})
+
+		test("logs duplicate-sent diagnostics without dispatching another visible completion notification", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-duplicate-sent" } as any)
+			;(provider as any).emailNotificationTaskOutcomes.set(task.taskId, "success")
+			;(provider as any).taskCreationCallback(task)
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "completion-event-observed",
+						taskId: "task-duplicate-sent",
+					}),
+					expect.objectContaining({
+						event: "completion-notification-decision",
+						taskId: "task-duplicate-sent",
+						decision: "send-top-level-success",
+					}),
+					expect.objectContaining({
+						event: "outcome-notification-decision",
+						taskId: "task-duplicate-sent",
+						decision: "skip-duplicate-sent",
+						sentOutcome: "success",
+						duplicateSent: true,
+						duplicateInFlight: false,
+					}),
+				]),
+			)
+		})
+
+		test("logs duplicate-in-flight diagnostics without dispatching another visible completion notification", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-duplicate-in-flight" } as any)
+			;(provider as any).emailNotificationTaskOutcomesInFlight.set(task.taskId, "success")
+			;(provider as any).taskCreationCallback(task)
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "outcome-notification-decision",
+						taskId: "task-duplicate-in-flight",
+						decision: "skip-duplicate-in-flight",
+						inFlightOutcome: "success",
+						duplicateSent: false,
+						duplicateInFlight: true,
+					}),
+				]),
+			)
 		})
 
 		test("does not throw when notification dispatch rejects", () => {
