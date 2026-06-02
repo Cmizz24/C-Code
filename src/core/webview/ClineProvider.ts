@@ -3890,6 +3890,11 @@ export class ClineProvider
 		this.parallelParentResumeKey = undefined
 		this.resetParallelAgentStatusState(plan.planId)
 
+		const checkpointResult = await this.createParallelAgentStartCheckpoint(plan)
+		if (!checkpointResult.ok) {
+			return checkpointResult
+		}
+
 		try {
 			const worktreeManager = this.ensureWorktreeManager()
 			await worktreeManager.validateGitRepository()
@@ -3909,6 +3914,59 @@ export class ClineProvider
 		this.attachAgentBusForwarders(AgentBus.getInstance())
 		this.orchestratorEventLoop.start(plan)
 		return { ok: true }
+	}
+
+	private async createParallelAgentStartCheckpoint(plan: ExecutionPlan): Promise<PlanStartResult> {
+		const visibleTask = this.getCurrentTask()
+
+		if (!visibleTask || visibleTask.background) {
+			this.log(
+				`[parallel-agents] Skipping pre-start checkpoint for plan ${plan.planId}: no visible parent task is active.`,
+			)
+			return { ok: true }
+		}
+
+		const checkpointTask = visibleTask.rootTask ?? visibleTask
+
+		if (!checkpointTask.enableCheckpoints) {
+			this.log(
+				`[parallel-agents] Checkpoints are disabled for task ${checkpointTask.taskId}; starting plan ${plan.planId} without a pre-start checkpoint.`,
+			)
+			return { ok: true }
+		}
+
+		this.log(
+			`[parallel-agents] Creating checkpoint for task ${checkpointTask.taskId} before starting plan ${plan.planId}.`,
+		)
+
+		try {
+			const checkpoint = await checkpointTask.checkpointSave(true, false, { throwOnError: true })
+
+			if (checkpoint?.commit) {
+				this.log(
+					`[parallel-agents] Created checkpoint ${checkpoint.commit} for task ${checkpointTask.taskId} before starting plan ${plan.planId}.`,
+				)
+				return { ok: true }
+			}
+
+			if (!checkpointTask.enableCheckpoints) {
+				this.log(
+					`[parallel-agents] Checkpoints became unavailable for task ${checkpointTask.taskId}; starting plan ${plan.planId} without a pre-start checkpoint.`,
+				)
+				return { ok: true }
+			}
+
+			const message = `Unable to create a checkpoint before starting parallel agents for plan ${plan.planId}. Parallel agents were not started.`
+			this.log(`[parallel-agents] ${message}`)
+			vscode.window.showErrorMessage(message)
+			return { ok: false, error: message }
+		} catch (error) {
+			const reason = error instanceof Error && error.message ? error.message : String(error)
+			const message = `Failed to create a checkpoint before starting parallel agents for plan ${plan.planId}: ${reason}. Parallel agents were not started.`
+			this.log(`[parallel-agents] ${message}`)
+			vscode.window.showErrorMessage(message)
+			return { ok: false, error: message }
+		}
 	}
 
 	private async resumeRestoredParallelExecution(task: Task, agentIdsToRestart: string[]): Promise<void> {

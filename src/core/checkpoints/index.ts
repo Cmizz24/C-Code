@@ -3,7 +3,7 @@ import * as vscode from "vscode"
 
 import type { ClineApiReqInfo } from "@roo-code/types"
 
-import { Task } from "../task/Task"
+import type { Task } from "../task/Task"
 
 import { getWorkspacePath } from "../../utils/path"
 import { checkGitInstalled } from "../../utils/git"
@@ -208,10 +208,15 @@ async function checkGitInstallation(
 	}
 }
 
-export async function checkpointSave(task: Task, force = false, suppressMessage = false) {
+export async function checkpointSave(
+	task: Task,
+	force = false,
+	suppressMessage = false,
+	options: { throwOnError?: boolean } = {},
+) {
 	const service = await getCheckpointService(task)
 
-	if (!service) {
+	if (!service || !task.enableCheckpoints) {
 		return
 	}
 
@@ -221,6 +226,9 @@ export async function checkpointSave(task: Task, force = false, suppressMessage 
 		.catch((err) => {
 			console.error("[Task#checkpointSave] caught unexpected error, disabling checkpoints", err)
 			task.enableCheckpoints = false
+			if (options.throwOnError) {
+				throw err
+			}
 		})
 }
 

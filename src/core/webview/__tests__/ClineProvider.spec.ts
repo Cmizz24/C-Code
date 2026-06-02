@@ -212,6 +212,7 @@ vi.mock("../../task/Task", () => ({
 			setParentTask: vi.fn(),
 			setRootTask: vi.fn(),
 			start: vi.fn(),
+			checkpointSave: vi.fn().mockResolvedValue({ commit: "parallel-start-checkpoint" }),
 			taskId: options?.historyItem?.id || options?.taskId || "test-task-id",
 			instanceId: `test-instance-${options?.historyItem?.id || options?.taskId || options?.taskNumber || "new"}`,
 			rootTask: options?.rootTask,
@@ -219,6 +220,7 @@ vi.mock("../../task/Task", () => ({
 			rootTaskId: options?.historyItem?.rootTaskId ?? options?.rootTask?.taskId,
 			parentTaskId: options?.historyItem?.parentTaskId ?? options?.parentTask?.taskId,
 			background: options?.background ?? false,
+			enableCheckpoints: options?.enableCheckpoints ?? true,
 			abortReason: undefined,
 			abandoned: false,
 			abort: false,
@@ -428,6 +430,7 @@ describe("ClineProvider", () => {
 				setParentTask: vi.fn(),
 				setRootTask: vi.fn(),
 				start: vi.fn(),
+				checkpointSave: vi.fn().mockResolvedValue({ commit: "parallel-start-checkpoint" }),
 				taskId: options?.historyItem?.id || options?.taskId || "test-task-id",
 				instanceId: `test-instance-${options?.historyItem?.id || options?.taskId || options?.taskNumber || "new"}`,
 				rootTask: options?.rootTask,
@@ -436,7 +439,7 @@ describe("ClineProvider", () => {
 				parentTaskId: options?.historyItem?.parentTaskId ?? options?.parentTask?.taskId,
 				agentId: options?.agentId,
 				background: options?.background ?? false,
-				enableCheckpoints: options?.enableCheckpoints,
+				enableCheckpoints: options?.enableCheckpoints ?? true,
 				workspacePath: options?.workspacePath,
 				abortReason: undefined,
 				abandoned: false,
@@ -2132,6 +2135,89 @@ describe("ClineProvider", () => {
 			undefined,
 			undefined,
 			{ isNonInteractive: true },
+		)
+	})
+
+	test("approved execution plans create one parent checkpoint before worktrees start", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const worktreeManager = createWorktreeManagerMock()
+		;(provider as any).worktreeManager = worktreeManager
+		const plan = createExecutionPlan()
+
+		await provider.approveExecutionPlan(plan)
+
+		const getBackgroundTasks = () =>
+			vi
+				.mocked(Task)
+				.mock.results.map((result) => result.value as Task)
+				.filter((task) => task.background)
+
+		await vi.waitFor(() => expect(getBackgroundTasks()).toHaveLength(plan.agents.length))
+		expect(parentTask.checkpointSave).toHaveBeenCalledTimes(1)
+		expect(parentTask.checkpointSave).toHaveBeenCalledWith(true, false, { throwOnError: true })
+
+		const checkpointOrder = vi.mocked(parentTask.checkpointSave).mock.invocationCallOrder[0]
+		const createWorktreeOrder = worktreeManager.createWorktree.mock.invocationCallOrder[0]
+		expect(checkpointOrder).toBeLessThan(createWorktreeOrder)
+
+		for (const backgroundTask of getBackgroundTasks()) {
+			expect(backgroundTask.checkpointSave).not.toHaveBeenCalled()
+		}
+	})
+
+	test("approved execution plans continue when checkpoint initialization disables checkpoints", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		vi.mocked(parentTask.checkpointSave).mockImplementationOnce(async () => {
+			parentTask.enableCheckpoints = false
+			return undefined
+		})
+		await provider.addClineToStack(parentTask)
+		const worktreeManager = createWorktreeManagerMock()
+		;(provider as any).worktreeManager = worktreeManager
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+
+		await vi.waitFor(() => expect(worktreeManager.createWorktree).toHaveBeenCalled())
+		expect(parentTask.checkpointSave).toHaveBeenCalledTimes(1)
+		expect(parentTask.checkpointSave).toHaveBeenCalledWith(true, false, { throwOnError: true })
+		expect(vscode.window.showErrorMessage).not.toHaveBeenCalled()
+	})
+
+	test("approved execution plans continue without a checkpoint when parent checkpoints are disabled", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		parentTask.enableCheckpoints = false
+		await provider.addClineToStack(parentTask)
+		const worktreeManager = createWorktreeManagerMock()
+		;(provider as any).worktreeManager = worktreeManager
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+
+		await vi.waitFor(() => expect(worktreeManager.createWorktree).toHaveBeenCalled())
+		expect(parentTask.checkpointSave).not.toHaveBeenCalled()
+	})
+
+	test("approved execution plans do not start agents when the pre-start checkpoint fails", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		vi.mocked(parentTask.checkpointSave).mockRejectedValueOnce(new Error("Save failed"))
+		await provider.addClineToStack(parentTask)
+		const worktreeManager = createWorktreeManagerMock()
+		;(provider as any).worktreeManager = worktreeManager
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+
+		expect(parentTask.checkpointSave).toHaveBeenCalledTimes(1)
+		expect(parentTask.checkpointSave).toHaveBeenCalledWith(true, false, { throwOnError: true })
+		expect(worktreeManager.validateGitRepository).not.toHaveBeenCalled()
+		expect(worktreeManager.captureWorkspaceBaseline).not.toHaveBeenCalled()
+		expect(worktreeManager.createWorktree).not.toHaveBeenCalled()
+		expect(getParallelAgentToolMessages(parentTask)).toHaveLength(0)
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			"Failed to create a checkpoint before starting parallel agents for plan plan-webview-provider: Save failed. Parallel agents were not started.",
 		)
 	})
 

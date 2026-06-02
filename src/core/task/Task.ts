@@ -553,6 +553,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.enableCheckpoints = enableCheckpoints
 		this.checkpointTimeout = checkpointTimeout
 
+		this.rootTask = rootTask
 		this.parentTask = parentTask
 		this.taskNumber = taskNumber
 		this.initialStatus = initialStatus
@@ -4764,8 +4765,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	// Checkpoints
 
-	public async checkpointSave(force: boolean = false, suppressMessage: boolean = false) {
-		return checkpointSave(this, force, suppressMessage)
+	public async checkpointSave(
+		force: boolean = false,
+		suppressMessage: boolean = false,
+		options: { throwOnError?: boolean } = {},
+	) {
+		return checkpointSave(this, force, suppressMessage, options)
 	}
 
 	private buildCleanConversationHistory(
