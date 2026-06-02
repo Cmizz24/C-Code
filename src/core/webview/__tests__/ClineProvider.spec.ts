@@ -1,5 +1,10 @@
 // pnpm --filter roo-cline test core/webview/__tests__/ClineProvider.spec.ts
 
+vi.hoisted(() => {
+	vi.resetModules()
+})
+
+import * as path from "path"
 import Anthropic from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
 import axios from "axios"
@@ -121,52 +126,83 @@ vi.mock("@modelcontextprotocol/sdk/client/stdio.js", () => ({
 	})),
 }))
 
-vi.mock("vscode", () => ({
-	ExtensionContext: vi.fn(),
-	OutputChannel: vi.fn(),
-	WebviewView: vi.fn(),
-	Uri: {
-		joinPath: vi.fn(),
-		file: vi.fn(),
-	},
-	CodeActionKind: {
-		QuickFix: { value: "quickfix" },
-		RefactorRewrite: { value: "refactor.rewrite" },
-	},
-	commands: {
-		executeCommand: vi.fn().mockResolvedValue(undefined),
-	},
-	window: {
-		showInformationMessage: vi.fn(),
-		showWarningMessage: vi.fn(),
-		showErrorMessage: vi.fn(),
-		onDidChangeActiveTextEditor: vi.fn(() => ({ dispose: vi.fn() })),
-	},
-	workspace: {
-		getConfiguration: vi.fn().mockReturnValue({
-			get: vi.fn().mockReturnValue([]),
-			update: vi.fn(),
-		}),
-		onDidChangeConfiguration: vi.fn().mockImplementation(() => ({
-			dispose: vi.fn(),
-		})),
-		onDidSaveTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
-		onDidChangeTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
-		onDidOpenTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
-		onDidCloseTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
-	},
-	env: {
-		uriScheme: "vscode",
-		language: "en",
-		appName: "Visual Studio Code",
-	},
-	ExtensionMode: {
-		Production: 1,
-		Development: 2,
-		Test: 3,
-	},
-	version: "1.85.0",
-}))
+vi.mock("vscode", () => {
+	const file = vi.fn((fsPath: string) => ({
+		fsPath,
+		path: fsPath,
+		scheme: "file",
+		toString: () => `file://${fsPath}`,
+	}))
+	class MockEventEmitter<T = unknown> {
+		private listeners = new Set<(event: T) => unknown>()
+		event = (listener: (event: T) => unknown) => {
+			this.listeners.add(listener)
+			return { dispose: () => this.listeners.delete(listener) }
+		}
+		fire(event: T) {
+			for (const listener of this.listeners) {
+				listener(event)
+			}
+		}
+		dispose() {
+			this.listeners.clear()
+		}
+	}
+
+	return {
+		ExtensionContext: vi.fn(),
+		OutputChannel: vi.fn(),
+		WebviewView: vi.fn(),
+		EventEmitter: MockEventEmitter,
+		Uri: {
+			joinPath: vi.fn(),
+			file,
+		},
+		CodeActionKind: {
+			QuickFix: { value: "quickfix" },
+			RefactorRewrite: { value: "refactor.rewrite" },
+		},
+		commands: {
+			executeCommand: vi.fn().mockResolvedValue(undefined),
+		},
+		window: {
+			showInformationMessage: vi.fn(),
+			showWarningMessage: vi.fn(),
+			showErrorMessage: vi.fn(),
+			onDidChangeActiveTextEditor: vi.fn(() => ({ dispose: vi.fn() })),
+		},
+		workspace: {
+			textDocuments: [],
+			workspaceFolders: [{ uri: { fsPath: "/test/workspace" } }],
+			getConfiguration: vi.fn().mockReturnValue({
+				get: vi.fn().mockReturnValue([]),
+				update: vi.fn(),
+			}),
+			getWorkspaceFolder: vi.fn(),
+			openTextDocument: vi.fn(async (uriOrPath: string | { fsPath?: string; scheme?: string }) => ({
+				uri: typeof uriOrPath === "string" ? file(uriOrPath) : uriOrPath,
+			})),
+			onDidChangeConfiguration: vi.fn().mockImplementation(() => ({
+				dispose: vi.fn(),
+			})),
+			onDidSaveTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
+			onDidChangeTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
+			onDidOpenTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
+			onDidCloseTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
+		},
+		env: {
+			uriScheme: "vscode",
+			language: "en",
+			appName: "Visual Studio Code",
+		},
+		ExtensionMode: {
+			Production: 1,
+			Development: 2,
+			Test: 3,
+		},
+		version: "1.85.0",
+	}
+})
 
 vi.mock("../../../utils/tts", () => ({
 	setTtsEnabled: vi.fn(),
@@ -488,6 +524,14 @@ describe("ClineProvider", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		AgentBus.reset()
+		;(vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: "/test/workspace" } }]
+		;(vscode.workspace as any).textDocuments = []
+		;(vscode.workspace.getWorkspaceFolder as any).mockReturnValue({ uri: { fsPath: "/test/workspace" } })
+		;(vscode.workspace.openTextDocument as any).mockImplementation(
+			async (uriOrPath: string | { fsPath?: string; scheme?: string }) => ({
+				uri: typeof uriOrPath === "string" ? vscode.Uri.file(uriOrPath) : uriOrPath,
+			}),
+		)
 
 		const globalState: Record<string, unknown> = {
 			mode: "architect",
@@ -694,6 +738,42 @@ describe("ClineProvider", () => {
 		cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
 		...overrides,
 	})
+
+	const createTextDocument = (
+		relPath: string,
+		options: { isDirty?: boolean; saveResult?: boolean } = {},
+	): vscode.TextDocument => {
+		let isDirty = options.isDirty ?? false
+		const document = {
+			uri: vscode.Uri.file(path.resolve("/test/workspace", relPath)),
+			save: vi.fn(async () => {
+				const result = options.saveResult ?? true
+				if (result) {
+					isDirty = false
+				}
+				return result
+			}),
+		} as unknown as vscode.TextDocument
+
+		Object.defineProperty(document, "isDirty", {
+			get: () => isDirty,
+			set: (value: boolean) => {
+				isDirty = value
+			},
+			configurable: true,
+		})
+
+		return document
+	}
+
+	const getMergeDocumentSyncDiagnostics = (logSpy: any): Array<Record<string, any>> =>
+		(logSpy.mock.calls as Array<[unknown]>)
+			.map(([message]) => String(message))
+			.filter((message) => message.startsWith("[parallel-agents] merge-document-sync "))
+			.map(
+				(message) =>
+					JSON.parse(message.slice("[parallel-agents] merge-document-sync ".length)) as Record<string, any>,
+			)
 
 	const seedPersistedTaskMessages = async (messages: ClineMessage[]) => {
 		const fsUtils = await import("../../../utils/fs")
@@ -1730,7 +1810,7 @@ describe("ClineProvider", () => {
 
 		expect(mockWebviewView.webview.options).toEqual({
 			enableScripts: true,
-			localResourceRoots: [mockContext.extensionUri],
+			localResourceRoots: [mockContext.extensionUri, { fsPath: "/test/workspace" }],
 		})
 
 		expect(mockWebviewView.webview.html).toContain("<!DOCTYPE html>")
@@ -1749,7 +1829,7 @@ describe("ClineProvider", () => {
 
 		expect(mockWebviewView.webview.options).toEqual({
 			enableScripts: true,
-			localResourceRoots: [mockContext.extensionUri],
+			localResourceRoots: [mockContext.extensionUri, { fsPath: "/test/workspace" }],
 		})
 
 		expect(mockWebviewView.webview.html).toContain("<!DOCTYPE html>")
@@ -3311,6 +3391,280 @@ describe("ClineProvider", () => {
 		expect(cleanupPlanBaseline).toHaveBeenCalledWith("plan-webview-provider")
 		expect(mockPostMessage).toHaveBeenCalledWith({ type: "mergeComplete" })
 		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
+	})
+
+	test("manual merge saves affected dirty open documents before materialization and synchronizes them after", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const diff = "diff --git a/src/dashboard.tsx b/src/dashboard.tsx\n+done\n"
+		const dirtyDocument = createTextDocument("src/dashboard.tsx", { isDirty: true })
+		const unaffectedDirtyDocument = createTextDocument("src/other.ts", { isDirty: true })
+		;(vscode.workspace as any).textDocuments = [dirtyDocument, unaffectedDirtyDocument]
+		const prepareMergeReview = vi.fn().mockResolvedValue(diff)
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).parallelMergeReviewEntries = [
+			{
+				agentId: "dashboard-agent",
+				mode: "code",
+				task: "Build dashboard",
+				diff,
+				worktreePath: "/tmp/dashboard-agent",
+				branch: "roo/parallel/plan-webview-provider/dashboard-agent",
+				mergeStatus: "pending",
+			},
+		]
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreeManager = createWorktreeManagerMock({ prepareMergeReview, mergeBranch })
+		const logSpy = vi.spyOn(provider, "log")
+		;(vscode.workspace.openTextDocument as any).mockClear()
+		const affectedPaths = (provider as any).getMergeAffectedPaths((provider as any).parallelMergeReviewEntries[0], [
+			"src/dashboard.tsx",
+		])
+		expect(affectedPaths).toEqual(["src/dashboard.tsx"])
+		expect((provider as any).getAffectedOpenDocuments(affectedPaths)).toEqual([
+			expect.objectContaining({ relPath: "src/dashboard.tsx" }),
+		])
+
+		await expect(provider.mergeApprovedAgents(["dashboard-agent"])).resolves.toBe(true)
+
+		expect(dirtyDocument.save).toHaveBeenCalledTimes(1)
+		expect(unaffectedDirtyDocument.save).not.toHaveBeenCalled()
+		expect(mergeBranch).toHaveBeenCalledTimes(1)
+		expect((dirtyDocument.save as any).mock.invocationCallOrder[0]).toBeLessThan(
+			mergeBranch.mock.invocationCallOrder[0],
+		)
+		expect(vscode.workspace.openTextDocument).toHaveBeenCalledWith(dirtyDocument.uri)
+
+		const diagnostics = getMergeDocumentSyncDiagnostics(logSpy)
+		expect(diagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					stage: "pre-save",
+					result: "completed",
+					dirtyDocumentCount: 1,
+					savedDocumentCount: 1,
+					savedDocumentPaths: ["src/dashboard.tsx"],
+				}),
+				expect.objectContaining({
+					stage: "post-merge-sync",
+					result: "completed",
+					syncedDocumentCount: 1,
+					syncedDocumentPaths: ["src/dashboard.tsx"],
+				}),
+			]),
+		)
+		expect(logSpy.mock.calls.map(([message]) => String(message)).join("\n")).not.toContain("diff --git")
+	})
+
+	test("auto-approved merge saves dirty affected open documents and blocks workspace materialization", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const diff = "diff --git a/src/dashboard.tsx b/src/dashboard.tsx\n+done\n"
+		const dirtyDocument = createTextDocument("src/dashboard.tsx", { isDirty: true })
+		;(vscode.workspace as any).textDocuments = [dirtyDocument]
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).parallelMergeReviewEntries = [
+			{
+				agentId: "dashboard-agent",
+				mode: "code",
+				task: "Build dashboard",
+				diff,
+				worktreePath: "/tmp/dashboard-agent",
+				branch: "roo/parallel/plan-webview-provider/dashboard-agent",
+				mergeStatus: "pending",
+			},
+		]
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreeManager = createWorktreeManagerMock({
+			prepareMergeReview: vi.fn().mockResolvedValue(diff),
+			mergeBranch,
+		})
+		const logSpy = vi.spyOn(provider, "log")
+		const affectedPaths = (provider as any).getMergeAffectedPaths((provider as any).parallelMergeReviewEntries[0], [
+			"src/dashboard.tsx",
+		])
+		expect(affectedPaths).toEqual(["src/dashboard.tsx"])
+		expect((provider as any).getAffectedOpenDocuments(affectedPaths)).toEqual([
+			expect.objectContaining({ relPath: "src/dashboard.tsx" }),
+		])
+
+		await expect(provider.mergeApprovedAgents(["dashboard-agent"], { autoApproved: true })).resolves.toBe(false)
+
+		expect(dirtyDocument.save).toHaveBeenCalledTimes(1)
+		expect(mergeBranch).not.toHaveBeenCalled()
+		expect(vscode.workspace.openTextDocument).not.toHaveBeenCalledWith(dirtyDocument.uri)
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
+		expect((provider as any).parallelMergeReviewEntries[0]).toEqual(
+			expect.objectContaining({
+				mergeStatus: "skipped",
+				autoMergeSkippedReason: expect.stringContaining("Auto-merge blocked"),
+			}),
+		)
+
+		const diagnostics = getMergeDocumentSyncDiagnostics(logSpy)
+		expect(diagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					stage: "auto-approved-block",
+					result: "blocked",
+					autoApproved: true,
+					dirtyDocumentCount: 1,
+					savedDocumentCount: 1,
+				}),
+			]),
+		)
+		expect(mockPostMessage).not.toHaveBeenCalledWith({ type: "mergeComplete" })
+	})
+
+	test("merge approval fails safely when an affected dirty open document cannot be saved", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const diff = "diff --git a/src/dashboard.tsx b/src/dashboard.tsx\n+done\n"
+		const dirtyDocument = createTextDocument("src/dashboard.tsx", { isDirty: true, saveResult: false })
+		;(vscode.workspace as any).textDocuments = [dirtyDocument]
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).parallelMergeReviewEntries = [
+			{
+				agentId: "dashboard-agent",
+				mode: "code",
+				task: "Build dashboard",
+				diff,
+				worktreePath: "/tmp/dashboard-agent",
+				branch: "roo/parallel/plan-webview-provider/dashboard-agent",
+				mergeStatus: "pending",
+			},
+		]
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreeManager = createWorktreeManagerMock({
+			prepareMergeReview: vi.fn().mockResolvedValue(diff),
+			mergeBranch,
+		})
+		const logSpy = vi.spyOn(provider, "log")
+		const affectedPaths = (provider as any).getMergeAffectedPaths((provider as any).parallelMergeReviewEntries[0], [
+			"src/dashboard.tsx",
+		])
+		expect(affectedPaths).toEqual(["src/dashboard.tsx"])
+		expect((provider as any).getAffectedOpenDocuments(affectedPaths)).toEqual([
+			expect.objectContaining({ relPath: "src/dashboard.tsx" }),
+		])
+
+		await expect(provider.mergeApprovedAgents(["dashboard-agent"])).resolves.toBe(false)
+
+		expect(dirtyDocument.save).toHaveBeenCalledTimes(1)
+		expect(mergeBranch).not.toHaveBeenCalled()
+		expect(vscode.workspace.openTextDocument).not.toHaveBeenCalledWith(dirtyDocument.uri)
+		expect(mockPostMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "mergeFailed",
+				agentId: "dashboard-agent",
+				gitOutput: expect.stringContaining("Failed to save open document src/dashboard.tsx"),
+			}),
+		)
+		expect((provider as any).parallelMergeReviewEntries[0]).toEqual(
+			expect.objectContaining({
+				mergeStatus: "failed",
+				mergeError: expect.stringContaining("Failed to save open document src/dashboard.tsx"),
+			}),
+		)
+
+		const diagnostics = getMergeDocumentSyncDiagnostics(logSpy)
+		expect(diagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					stage: "pre-save",
+					result: "failed",
+					dirtyDocumentCount: 1,
+					failedPathCount: 1,
+					failedPaths: ["src/dashboard.tsx"],
+				}),
+			]),
+		)
+	})
+
+	test("merge approval synchronizes clean affected open documents after materialization", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const diff = "diff --git a/src/dashboard.tsx b/src/dashboard.tsx\n+done\n"
+		const cleanDocument = createTextDocument("src/dashboard.tsx", { isDirty: false })
+		;(vscode.workspace as any).textDocuments = [cleanDocument]
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).parallelMergeReviewEntries = [
+			{
+				agentId: "dashboard-agent",
+				mode: "code",
+				task: "Build dashboard",
+				diff,
+				worktreePath: "/tmp/dashboard-agent",
+				branch: "roo/parallel/plan-webview-provider/dashboard-agent",
+				mergeStatus: "pending",
+			},
+		]
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreeManager = createWorktreeManagerMock({
+			prepareMergeReview: vi.fn().mockResolvedValue(diff),
+			mergeBranch,
+		})
+		const logSpy = vi.spyOn(provider, "log")
+		;(vscode.workspace.openTextDocument as any).mockClear()
+		const affectedPaths = (provider as any).getMergeAffectedPaths((provider as any).parallelMergeReviewEntries[0], [
+			"src/dashboard.tsx",
+		])
+		expect(affectedPaths).toEqual(["src/dashboard.tsx"])
+		expect((provider as any).getAffectedOpenDocuments(affectedPaths)).toEqual([
+			expect.objectContaining({ relPath: "src/dashboard.tsx" }),
+		])
+
+		await expect(provider.mergeApprovedAgents(["dashboard-agent"])).resolves.toBe(true)
+
+		expect(cleanDocument.save).not.toHaveBeenCalled()
+		expect(mergeBranch).toHaveBeenCalledTimes(1)
+		expect(vscode.workspace.openTextDocument).toHaveBeenCalledWith(cleanDocument.uri)
+
+		const diagnostics = getMergeDocumentSyncDiagnostics(logSpy)
+		expect(diagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					stage: "post-merge-sync",
+					result: "completed",
+					openDocumentCount: 1,
+					dirtyDocumentCount: 0,
+					syncedDocumentCount: 1,
+					syncedDocumentPaths: ["src/dashboard.tsx"],
+				}),
+			]),
+		)
 	})
 
 	test("merge approval aborts and disposes completed background agents before deleting worktrees", async () => {

@@ -96,7 +96,7 @@ import {
 import { fileExistsAtPath } from "../../utils/fs"
 import { setTtsEnabled, setTtsSpeed } from "../../utils/tts"
 import { getWorkspaceGitInfo } from "../../utils/git"
-import { getWorkspacePath } from "../../utils/path"
+import { arePathsEqual, getWorkspacePath } from "../../utils/path"
 import { OrganizationAllowListViolationError } from "../../utils/errors"
 
 import { setPanel } from "../../activate/registerCommands"
@@ -170,6 +170,18 @@ type BackgroundAgentActivityDescriptionOptions = {
 }
 type MergeApprovedAgentsOptions = { autoApproved?: boolean }
 type AutoMergeReviewSkipReason = { agentId?: string; reason: string }
+type MergeAffectedOpenDocument = {
+	document: vscode.TextDocument
+	relPath: string
+	absolutePath: string
+}
+type MergeDocumentPreparationResult = {
+	affectedPaths: string[]
+	openDocuments: MergeAffectedOpenDocument[]
+	dirtyDocuments: MergeAffectedOpenDocument[]
+	savedDocuments: MergeAffectedOpenDocument[]
+}
+type MergeDocumentSyncStage = "pre-save" | "auto-approved-block" | "post-merge-sync"
 type ParallelParentVerificationDirective = {
 	sourceOfTruth: "structured_completion_packet"
 	evidenceStatus: "clean-merged" | "requires-attention"
@@ -4455,6 +4467,54 @@ export class ClineProvider
 				}
 
 				const ownedPaths = this.getAgentOwnedPaths(agent)
+				const affectedPaths = this.getMergeAffectedPaths(materializationEntry, ownedPaths)
+				const documentPreparation = await this.prepareAffectedOpenDocumentsForMerge(
+					plan.planId,
+					agentId,
+					affectedPaths,
+					{ autoApproved: options.autoApproved === true },
+				)
+
+				if (options.autoApproved === true && documentPreparation.dirtyDocuments.length > 0) {
+					const dirtyCount = documentPreparation.dirtyDocuments.length
+					const dirtyLabel =
+						dirtyCount === 1 ? "1 affected open document" : `${dirtyCount} affected open documents`
+					const reason = `Auto-merge blocked because ${dirtyLabel} had unsaved changes. Roo saved the open document${dirtyCount === 1 ? "" : "s"} so manual merge review can account for those edits.`
+					this.logMergeDocumentSyncDiagnostics(plan.planId, agentId, {
+						stage: "auto-approved-block",
+						result: "blocked",
+						autoApproved: true,
+						affectedPaths: documentPreparation.affectedPaths,
+						openDocumentPaths: documentPreparation.openDocuments.map((document) => document.relPath),
+						dirtyDocumentPaths: documentPreparation.dirtyDocuments.map((document) => document.relPath),
+						savedDocumentPaths: documentPreparation.savedDocuments.map((document) => document.relPath),
+					})
+					this.updateMergeReviewEntry(agentId, {
+						mergeStatus: "skipped",
+						mergeError: undefined,
+						conflictedFiles: undefined,
+						autoMergeSkippedReason: reason,
+					})
+					const skippedEntry = this.parallelMergeReviewEntries?.find((entry) => entry.agentId === agentId)
+					if (skippedEntry) {
+						this.updateParallelAgentPacketFromMergeEntry(plan, skippedEntry, {
+							readiness: "not-ready",
+							result: "skipped",
+							clean: true,
+							materialized: false,
+							autoApproved: true,
+							notes: [reason],
+						})
+					}
+					this.recordParallelAgentActivity(agentId, reason, "wait")
+					this.recordParallelAgentReviewSummary(plan, this.parallelMergeReviewEntries)
+					await this.updateParallelAgentStatusMessage("review", this.parallelMergeReviewEntries)
+					await this.appendParallelAgentOutcomeSummary(plan, "review", this.parallelMergeReviewEntries)
+					await this.postStateToWebviewWithoutClineMessages()
+					await this.resumeParentAfterParallelMerge("auto-merge blocked by dirty open document", plan.planId)
+					return false
+				}
+
 				this.recordParallelAgentActivity(agentId, `Applying branch ${branch} to the workspace.`, "file")
 				await this.ensureWorktreeManager().mergeBranch(branch, {
 					planId: plan.planId,
@@ -4462,6 +4522,7 @@ export class ClineProvider
 					ownedPaths,
 					autoApproved: options.autoApproved === true,
 				})
+				await this.synchronizeAffectedOpenDocumentsAfterMerge(plan.planId, agentId, documentPreparation)
 				this.updateMergeReviewEntry(agentId, {
 					mergeStatus: "merged",
 					mergeError: undefined,
@@ -6194,6 +6255,255 @@ export class ClineProvider
 
 	private getAgentOwnedPaths(agent: ExecutionPlan["agents"][number] | undefined): string[] | undefined {
 		return agent?.owns.filter((ownership) => ownership.mode !== "read-only").map((ownership) => ownership.path)
+	}
+
+	private getMergeAffectedPaths(entry: MergeReviewEntry | undefined, fallbackPaths: string[] | undefined): string[] {
+		const affectedPaths = new Set<string>()
+		const addPath = (filePath?: string) => {
+			const normalized = this.normalizeMergeAffectedPath(filePath)
+			if (normalized) {
+				affectedPaths.add(normalized)
+			}
+		}
+
+		if (entry?.diff?.trim()) {
+			for (const artifact of computeArtifactManifestFromDiff(entry.diff)) {
+				addPath(artifact.path)
+				addPath(artifact.previousPath)
+			}
+		}
+
+		if (affectedPaths.size === 0) {
+			for (const fallbackPath of fallbackPaths ?? []) {
+				addPath(fallbackPath)
+			}
+		}
+
+		return Array.from(affectedPaths)
+	}
+
+	private normalizeMergeAffectedPath(filePath: string | undefined): string | undefined {
+		const normalized = String(filePath ?? "")
+			.trim()
+			.replace(/^"|"$/g, "")
+			.replace(/\\/g, "/")
+
+		if (!normalized || normalized === "/dev/null") {
+			return undefined
+		}
+
+		const withoutDiffPrefix = normalized.replace(/^[ab]\//, "")
+		const relativePath = path.isAbsolute(withoutDiffPrefix)
+			? path.relative(this.cwd, withoutDiffPrefix)
+			: withoutDiffPrefix
+		const posixPath = relativePath.replace(/\\/g, "/")
+
+		if (!posixPath || posixPath === "." || posixPath === ".." || posixPath.startsWith("../")) {
+			return undefined
+		}
+
+		return posixPath
+	}
+
+	private getAffectedOpenDocuments(affectedPaths: string[]): MergeAffectedOpenDocument[] {
+		if (affectedPaths.length === 0) {
+			return []
+		}
+
+		const pathEntries = affectedPaths.map((relPath) => ({
+			relPath,
+			absolutePath: path.resolve(this.cwd, relPath),
+		}))
+		const openDocuments: MergeAffectedOpenDocument[] = []
+
+		for (const document of vscode.workspace.textDocuments ?? []) {
+			if (document.uri.scheme !== "file") {
+				continue
+			}
+
+			const match = pathEntries.find((entry) => arePathsEqual(document.uri.fsPath, entry.absolutePath))
+			if (!match) {
+				continue
+			}
+
+			if (
+				openDocuments.some((openDocument) =>
+					arePathsEqual(openDocument.document.uri.fsPath, document.uri.fsPath),
+				)
+			) {
+				continue
+			}
+
+			openDocuments.push({
+				document,
+				relPath: match.relPath,
+				absolutePath: match.absolutePath,
+			})
+		}
+
+		return openDocuments
+	}
+
+	private async prepareAffectedOpenDocumentsForMerge(
+		planId: string,
+		agentId: string,
+		affectedPaths: string[],
+		options: { autoApproved: boolean },
+	): Promise<MergeDocumentPreparationResult> {
+		const openDocuments = this.getAffectedOpenDocuments(affectedPaths)
+		const dirtyDocuments = openDocuments.filter(({ document }) => document.isDirty)
+		const savedDocuments: MergeAffectedOpenDocument[] = []
+
+		this.logMergeDocumentSyncDiagnostics(planId, agentId, {
+			stage: "pre-save",
+			result: "started",
+			autoApproved: options.autoApproved,
+			affectedPaths,
+			openDocumentPaths: openDocuments.map((document) => document.relPath),
+			dirtyDocumentPaths: dirtyDocuments.map((document) => document.relPath),
+		})
+
+		for (const openDocument of dirtyDocuments) {
+			let saved = false
+
+			try {
+				saved = await openDocument.document.save()
+			} catch {
+				this.logMergeDocumentSyncDiagnostics(planId, agentId, {
+					stage: "pre-save",
+					result: "failed",
+					autoApproved: options.autoApproved,
+					affectedPaths,
+					openDocumentPaths: openDocuments.map((document) => document.relPath),
+					dirtyDocumentPaths: dirtyDocuments.map((document) => document.relPath),
+					savedDocumentPaths: savedDocuments.map((document) => document.relPath),
+					failedPaths: [openDocument.relPath],
+				})
+				throw new Error(
+					`Failed to save open document ${openDocument.relPath} before parallel merge; workspace materialization was not applied.`,
+				)
+			}
+
+			if (!saved) {
+				this.logMergeDocumentSyncDiagnostics(planId, agentId, {
+					stage: "pre-save",
+					result: "failed",
+					autoApproved: options.autoApproved,
+					affectedPaths,
+					openDocumentPaths: openDocuments.map((document) => document.relPath),
+					dirtyDocumentPaths: dirtyDocuments.map((document) => document.relPath),
+					savedDocumentPaths: savedDocuments.map((document) => document.relPath),
+					failedPaths: [openDocument.relPath],
+				})
+				throw new Error(
+					`Failed to save open document ${openDocument.relPath} before parallel merge; workspace materialization was not applied.`,
+				)
+			}
+
+			savedDocuments.push(openDocument)
+		}
+
+		this.logMergeDocumentSyncDiagnostics(planId, agentId, {
+			stage: "pre-save",
+			result: "completed",
+			autoApproved: options.autoApproved,
+			affectedPaths,
+			openDocumentPaths: openDocuments.map((document) => document.relPath),
+			dirtyDocumentPaths: dirtyDocuments.map((document) => document.relPath),
+			savedDocumentPaths: savedDocuments.map((document) => document.relPath),
+		})
+
+		return { affectedPaths, openDocuments, dirtyDocuments, savedDocuments }
+	}
+
+	private async synchronizeAffectedOpenDocumentsAfterMerge(
+		planId: string,
+		agentId: string,
+		preparation: MergeDocumentPreparationResult,
+	): Promise<void> {
+		const syncedDocumentPaths: string[] = []
+		const skippedDirtyPaths: string[] = []
+		const failedPaths: string[] = []
+
+		for (const openDocument of preparation.openDocuments) {
+			if (openDocument.document.isDirty) {
+				skippedDirtyPaths.push(openDocument.relPath)
+				continue
+			}
+
+			try {
+				await vscode.workspace.openTextDocument(openDocument.document.uri)
+				syncedDocumentPaths.push(openDocument.relPath)
+			} catch {
+				failedPaths.push(openDocument.relPath)
+			}
+		}
+
+		this.logMergeDocumentSyncDiagnostics(planId, agentId, {
+			stage: "post-merge-sync",
+			result: failedPaths.length > 0 ? "partial" : "completed",
+			affectedPaths: preparation.affectedPaths,
+			openDocumentPaths: preparation.openDocuments.map((document) => document.relPath),
+			dirtyDocumentPaths: preparation.dirtyDocuments.map((document) => document.relPath),
+			savedDocumentPaths: preparation.savedDocuments.map((document) => document.relPath),
+			syncedDocumentPaths,
+			skippedDirtyPaths,
+			failedPaths,
+		})
+	}
+
+	private logMergeDocumentSyncDiagnostics(
+		planId: string,
+		agentId: string,
+		diagnostics: {
+			stage: MergeDocumentSyncStage
+			result: string
+			autoApproved?: boolean
+			affectedPaths?: string[]
+			openDocumentPaths?: string[]
+			dirtyDocumentPaths?: string[]
+			savedDocumentPaths?: string[]
+			syncedDocumentPaths?: string[]
+			skippedDirtyPaths?: string[]
+			failedPaths?: string[]
+		},
+	): void {
+		const pathSummary = (paths: string[] | undefined) => this.getDiagnosticPathSample(paths ?? [])
+
+		this.log(
+			`[parallel-agents] merge-document-sync ${JSON.stringify({
+				planId,
+				agentId,
+				stage: diagnostics.stage,
+				result: diagnostics.result,
+				autoApproved: diagnostics.autoApproved,
+				affectedPathCount: diagnostics.affectedPaths?.length ?? 0,
+				affectedPaths: pathSummary(diagnostics.affectedPaths),
+				openDocumentCount: diagnostics.openDocumentPaths?.length ?? 0,
+				openDocumentPaths: pathSummary(diagnostics.openDocumentPaths),
+				dirtyDocumentCount: diagnostics.dirtyDocumentPaths?.length ?? 0,
+				dirtyDocumentPaths: pathSummary(diagnostics.dirtyDocumentPaths),
+				savedDocumentCount: diagnostics.savedDocumentPaths?.length ?? 0,
+				savedDocumentPaths: pathSummary(diagnostics.savedDocumentPaths),
+				syncedDocumentCount: diagnostics.syncedDocumentPaths?.length ?? 0,
+				syncedDocumentPaths: pathSummary(diagnostics.syncedDocumentPaths),
+				skippedDirtyCount: diagnostics.skippedDirtyPaths?.length ?? 0,
+				skippedDirtyPaths: pathSummary(diagnostics.skippedDirtyPaths),
+				failedPathCount: diagnostics.failedPaths?.length ?? 0,
+				failedPaths: pathSummary(diagnostics.failedPaths),
+			})}`,
+		)
+	}
+
+	private getDiagnosticPathSample(paths: string[]): string[] {
+		const uniquePaths = Array.from(new Set(paths))
+		const maxPaths = 50
+
+		if (uniquePaths.length <= maxPaths) {
+			return uniquePaths
+		}
+
+		return [...uniquePaths.slice(0, maxPaths), `...${uniquePaths.length - maxPaths} more`]
 	}
 
 	private logMergeReviewDiagnostics(diagnostics: WorktreeMergeReviewDiagnostics): void {
