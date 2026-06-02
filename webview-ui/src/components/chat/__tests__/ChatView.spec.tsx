@@ -1467,6 +1467,95 @@ describe("ChatView - Parallel Agent Status Tests", () => {
 		})
 	})
 
+	it("does not re-enable stale merge review controls after newer parent activity", async () => {
+		renderChatView()
+
+		const now = Date.now()
+		const taskMessage: ClineMessage = {
+			type: "say",
+			say: "task",
+			ts: now - 3000,
+			text: "Initial task",
+		}
+		const staleReview = createParallelReviewMessage(
+			{
+				mergeReviewEntries: [
+					{
+						agentId: "agent-1",
+						mode: "code",
+						task: "Build UI",
+						diff: "",
+						worktreePath: "/tmp/agent-1",
+						branch: "roo/parallel/plan-chat-flow/agent-1",
+						mergeStatus: "failed",
+						mergeable: false,
+						mergeError: "CONFLICT",
+					},
+				],
+			},
+			now - 2000,
+		)
+
+		mockPostMessage({
+			clineMessages: [taskMessage, staleReview],
+		})
+
+		await waitFor(() => {
+			expect(screen.getByRole("button", { name: "chat:reject.title" })).toBeInTheDocument()
+		})
+
+		mockPostMessage({
+			clineMessages: [
+				taskMessage,
+				staleReview,
+				{
+					type: "say",
+					say: "api_req_started",
+					ts: now - 1000,
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(screen.queryByRole("button", { name: "chat:reject.title" })).not.toBeInTheDocument()
+			expect(
+				screen.queryByRole("button", { name: "chat:parallelAgents.mergeReview.mergeAllApproved" }),
+			).not.toBeInTheDocument()
+		})
+	})
+
+	it("keeps newer real tool approval controls when they supersede an older merge review", async () => {
+		renderChatView()
+
+		const now = Date.now()
+		mockPostMessage({
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: now - 3000,
+					text: "Initial task",
+				},
+				createParallelReviewMessage({}, now - 2000),
+				{
+					type: "ask",
+					ask: "tool",
+					ts: now - 1000,
+					text: JSON.stringify({
+						tool: "readFile",
+						batchFiles: [{ path: "src/a.ts" }, { path: "src/b.ts" }],
+					}),
+				},
+			],
+		})
+
+		await waitFor(() => {
+			expect(screen.getByRole("button", { name: "chat:read-batch.approve.title" })).toBeInTheDocument()
+			expect(screen.getByRole("button", { name: "chat:read-batch.deny.title" })).toBeInTheDocument()
+		})
+		expect(screen.queryByRole("button", { name: "chat:reject.title" })).not.toBeInTheDocument()
+	})
+
 	it("keeps denial available without showing an approval button when no review entries are selectable", async () => {
 		renderChatView()
 

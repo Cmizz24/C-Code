@@ -54,6 +54,7 @@ function createPlan(): ExecutionPlan {
 	return {
 		planId: "plan-test",
 		sharedContext: "Shared context",
+		sharedContract: "",
 		fileOwnershipMap: { "src/App.tsx": "ui-agent" },
 		agents: [
 			{

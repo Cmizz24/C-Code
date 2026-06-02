@@ -4154,6 +4154,7 @@ export class ClineProvider
 		try {
 			this.log(`[parallel-agents] Resuming parent task ${task.taskId} after ${reason}.`)
 			await task.resumeAfterParallelExecution()
+			this.logParallelApprovalDiagnostics("parent-resumed", planId)
 			this.log(`[parallel-agents] Parent task ${task.taskId} resumed after ${reason}.`)
 		} catch (error) {
 			if (this.parallelParentResumeKey === resumeKey) {
@@ -4163,6 +4164,103 @@ export class ClineProvider
 				`[parallel-agents] Failed to resume parent task ${task.taskId} after ${reason}: ${error instanceof Error ? error.message : String(error)}`,
 			)
 		}
+	}
+
+	private logParallelApprovalDiagnostics(stage: string, planId?: string): void {
+		const task = this.getCurrentTask()
+		const backgroundTasksWithPendingAsk = Array.from(this.backgroundTasks)
+			.map((backgroundTask) => ({
+				taskId: backgroundTask.taskId,
+				agentId: backgroundTask.agentId,
+				ask: this.describeApprovalDiagnosticMessage(backgroundTask.taskAsk),
+			}))
+			.filter((summary) => Boolean(summary.ask))
+
+		const diagnostics = {
+			stage,
+			planId: planId ?? this.activeExecutionPlan?.planId ?? this.parallelStatusPlanId,
+			activePlanId: this.activeExecutionPlan?.planId,
+			persistedStatusPlanId: this.parallelStatusPlanId,
+			pendingPlanApproval: Boolean(this.pendingPlanApproval),
+			backgroundTaskCount: this.backgroundTasks.size,
+			backgroundTasksWithPendingAsk,
+			parentTask: task
+				? {
+						taskId: task.taskId,
+						background: task.background === true,
+						taskStatus: task.taskStatus,
+						taskAsk: this.describeApprovalDiagnosticMessage(task.taskAsk),
+						latestUnansweredAsk: this.describeApprovalDiagnosticMessage(
+							this.findLatestUnansweredAskMessage(task),
+						),
+						latestParallelAgentsMessage: this.describeLatestParallelAgentStatusMessage(task),
+					}
+				: undefined,
+		}
+
+		this.log(`[parallel-agents] approval-state ${JSON.stringify(diagnostics)}`)
+	}
+
+	private findLatestUnansweredAskMessage(task?: Task): ClineMessage | undefined {
+		if (!task) {
+			return undefined
+		}
+
+		for (let index = task.clineMessages.length - 1; index >= 0; index -= 1) {
+			const message = task.clineMessages[index]
+			if (message.type === "ask" && !message.isAnswered) {
+				return message
+			}
+		}
+
+		return undefined
+	}
+
+	private describeApprovalDiagnosticMessage(message?: ClineMessage): Record<string, unknown> | undefined {
+		if (!message) {
+			return undefined
+		}
+
+		const tool =
+			message.text && (message.ask === "tool" || message.say === "tool")
+				? this.tryParseToolPayload(message.text)
+				: undefined
+		const parallelTool = tool?.tool === "parallelAgents" ? tool : undefined
+
+		return {
+			type: message.type,
+			ask: message.ask,
+			say: message.say,
+			partial: message.partial === true,
+			isAnswered: message.isAnswered === true,
+			tool: tool?.tool,
+			parallelStatus: parallelTool?.parallelStatus,
+			planId: parallelTool?.executionPlan?.planId,
+		}
+	}
+
+	private describeLatestParallelAgentStatusMessage(task?: Task): Record<string, unknown> | undefined {
+		if (!task) {
+			return undefined
+		}
+
+		for (let index = task.clineMessages.length - 1; index >= 0; index -= 1) {
+			const tool = this.tryParseParallelAgentToolMessage(task.clineMessages[index])
+			if (!tool) {
+				continue
+			}
+
+			return {
+				planId: tool.executionPlan?.planId,
+				parallelStatus: tool.parallelStatus,
+				mergeReviewEntryCount: tool.mergeReviewEntries?.length ?? 0,
+				agentStatusUpdateCount: tool.agentStatusUpdates?.length ?? 0,
+				agentActivityCount: tool.agentActivities?.length ?? 0,
+				agentCompletionPacketCount: tool.agentCompletionPackets?.length ?? 0,
+			}
+		}
+
+		return undefined
 	}
 
 	public async denyMergeReview(): Promise<boolean> {
@@ -4217,6 +4315,7 @@ export class ClineProvider
 	private async teardownParallelExecution(
 		options: { markCancelled?: boolean; resetBus?: boolean; cleanupWorktrees?: boolean } = {},
 	): Promise<void> {
+		const planId = this.activeExecutionPlan?.planId ?? this.parallelStatusPlanId
 		const hadParallelState = Boolean(
 			this.activeExecutionPlan ||
 				this.orchestratorEventLoop ||
@@ -4281,6 +4380,7 @@ export class ClineProvider
 
 		if (hadParallelState) {
 			this.log("[parallel-agents] Cleared active parallel execution state")
+			this.logParallelApprovalDiagnostics("parallel-cleanup", planId)
 		}
 	}
 

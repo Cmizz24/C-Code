@@ -2843,6 +2843,101 @@ describe("ClineProvider", () => {
 		expect((provider as any).backgroundTasks.size).toBe(0)
 	})
 
+	test("merge approval clears child approval state and logs safe diagnostics before parent resume", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreePathsByAgentId.set("styles-agent", "/tmp/styles-agent")
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview: vi.fn(
+				async ({ agentId }: { agentId: string }) =>
+					`diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
+			),
+			mergeBranch: vi.fn().mockResolvedValue(undefined),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		const backgroundTask = await provider.createTask("agent work", undefined, parentTask, {
+			agentId: "dashboard-agent",
+			background: true,
+			workspacePath: "/tmp/dashboard-agent",
+			startTask: false,
+		})
+		const childApproval: ClineMessage = {
+			type: "ask",
+			ask: "tool",
+			ts: 1_700_000_002,
+			text: JSON.stringify({ tool: "readFile", path: "src/secret.ts" }),
+		}
+		backgroundTask.clineMessages.push(childApproval)
+		Object.defineProperty(backgroundTask, "taskAsk", {
+			configurable: true,
+			get: () => childApproval,
+		})
+		backgroundTask.abortTask = vi.fn(async () => {}) as any
+
+		const logSpy = vi.spyOn(provider, "log")
+
+		await expect(provider.mergeApprovedAgents(["dashboard-agent", "styles-agent"])).resolves.toBe(true)
+
+		const latestParallelStatus = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask).at(-1)!)
+		expect(latestParallelStatus.parallelStatus).toBe("merged")
+		expect((provider as any).activeExecutionPlan).toBeUndefined()
+		expect((provider as any).backgroundTasks.size).toBe(0)
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
+
+		const approvalDiagnostics = logSpy.mock.calls
+			.map(([message]) => String(message))
+			.filter((message) => message.startsWith("[parallel-agents] approval-state "))
+			.map(
+				(message) =>
+					JSON.parse(message.slice("[parallel-agents] approval-state ".length)) as Record<string, any>,
+			)
+
+		expect(approvalDiagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					stage: "parallel-cleanup",
+					planId: "plan-webview-provider",
+					pendingPlanApproval: false,
+					backgroundTaskCount: 0,
+				}),
+				expect.objectContaining({
+					stage: "parent-resumed",
+					planId: "plan-webview-provider",
+					backgroundTaskCount: 0,
+				}),
+			]),
+		)
+
+		const resumeDiagnostics = approvalDiagnostics.find((payload) => payload.stage === "parent-resumed")
+		expect(resumeDiagnostics?.parentTask?.taskAsk).toBeUndefined()
+		expect(resumeDiagnostics?.parentTask?.latestUnansweredAsk).toBeUndefined()
+		expect(resumeDiagnostics?.parentTask?.latestParallelAgentsMessage).toEqual(
+			expect.objectContaining({
+				planId: "plan-webview-provider",
+				parallelStatus: "merged",
+			}),
+		)
+
+		const diagnosticLogText = logSpy.mock.calls.map(([message]) => String(message)).join("\n")
+		expect(diagnosticLogText).not.toContain("src/secret.ts")
+		expect(diagnosticLogText).not.toContain("diff --git")
+	})
+
 	test("auto-approves and merges the final review when both auto-approval settings are enabled", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const parentTask = new Task(defaultTaskOptions)

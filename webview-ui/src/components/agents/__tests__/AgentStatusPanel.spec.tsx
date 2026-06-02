@@ -65,6 +65,7 @@ function createPlan(): ExecutionPlan {
 	return {
 		planId: "plan-test",
 		sharedContext: "Build dashboard",
+		sharedContract: "",
 		fileOwnershipMap: {
 			"src/Dashboard.tsx": "ui-agent",
 			"src/dashboard.css": "styles-agent",
