@@ -207,7 +207,10 @@ describe("getRulesSection shell-aware command chaining", () => {
 		expect(result).toContain("`sed`, `grep`, `awk`, `cat`, `rm`, `cp`, `mv`")
 		expect(result).toContain("`type` for cat")
 		expect(result).toContain("`del` for rm")
-		expect(result).toContain("`find`/`findstr` for grep")
+		expect(result).toContain("use `findstr` only for short literal/simple patterns")
+		expect(result).toContain("avoid long `findstr` alternation patterns")
+		expect(result).toContain("PowerShell `Select-String`")
+		expect(result).toContain("`findstr` exit code 1 means no matches")
 	})
 
 	it("does not include Unix utility guidance for Unix shells", () => {

@@ -1,6 +1,6 @@
 {
 	"extension.displayName": "C Code",
-	"extension.description": "Osobisty fork Roo Code od Cmizz: pełny zespół programistów AI w twoim edytorze.",
+	"extension.description": "Fork Roo Code od Cmizz z równoległymi agentami, workflow MCP, trybem szybkim Codex, rollupami SMTP i narzędziami bezpiecznymi dla Windows.",
 	"command.newTask.title": "Nowe Zadanie",
 	"command.explainCode.title": "Wyjaśnij Kod",
 	"command.fixCode.title": "Napraw Kod",

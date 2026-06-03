@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react"
 import type { Worktree, WorktreeListResponse, WorktreeIncludeStatus } from "@roo-code/types"
 
 import { Badge, Button, StandardTooltip, ToggleSwitch } from "@/components/ui"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { vscode } from "@/utils/vscode"
 

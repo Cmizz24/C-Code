@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import type { SkillMetadata } from "@roo-code/types"
 
-import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
+import { ExtensionStateContextProvider } from "@src/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 
 import { SkillsSettings } from "../SkillsSettings"
@@ -161,7 +161,7 @@ const mockSkills: SkillMetadata[] = [
 let mockExtensionState: any = {}
 
 // Mock the useExtensionState hook
-vi.mock("@/context/ExtensionStateContext", () => ({
+vi.mock("@src/context/ExtensionStateContext", () => ({
 	ExtensionStateContextProvider: ({ children }: any) => children,
 	useExtensionState: () => mockExtensionState,
 }))

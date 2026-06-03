@@ -4,7 +4,7 @@ import React from "react"
 import { render, screen, fireEvent } from "@testing-library/react"
 
 import { CommandExecution } from "../CommandExecution"
-import { ExtensionStateContext } from "../../../context/ExtensionStateContext"
+import { ExtensionStateContext } from "@src/context/ExtensionStateContext"
 
 // Mock dependencies
 vi.mock("react-use", () => ({

@@ -347,6 +347,18 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Bật Fast mode",
+			"description": "Sử dụng priority service tier của OpenAI cho các mô hình được hỗ trợ (GPT-5.5 và GPT-5.4). Fast mode có thể dùng credits với tốc độ cao hơn.",
+			"status": {
+				"disabled": "Fast mode khả dụng cho {{modelId}}, nhưng hiện đang tắt.",
+				"unsupported": "Fast mode không khả dụng cho {{modelId}}.",
+				"signInRequired": "Fast mode đã bật cho {{modelId}}, nhưng bạn cần đăng nhập trước khi có thể chạy.",
+				"requested": "Fast mode đã được yêu cầu cho {{modelId}}, nhưng OpenAI chưa xác nhận tier priority.",
+				"confirmed": "Fast mode đã được xác nhận cho {{modelId}} trên tier priority của OpenAI.",
+				"rejected": "Fast mode đã được yêu cầu cho {{modelId}}, nhưng OpenAI báo cáo service tier {{observedServiceTier}}."
+			}
+		},
 		"useCustomBaseUrl": "Sử dụng URL cơ sở tùy chỉnh",
 		"useReasoning": "Bật lý luận",
 		"useHostHeader": "Sử dụng tiêu đề Host tùy chỉnh",
@@ -577,6 +589,67 @@
 			"label": "Bật chuyển văn bản thành giọng nói",
 			"description": "Khi được bật, Roo sẽ đọc to các phản hồi của nó bằng chức năng chuyển văn bản thành giọng nói.",
 			"speedLabel": "Tốc độ"
+		},
+		"email": {
+			"label": "Bật thông báo email",
+			"description": "Gửi thông báo email SMTP dạng HTML với fallback văn bản thuần khi tác vụ cấp cao nhất kết thúc. Bản ghi tác vụ không bao giờ được bao gồm.",
+			"notifyOnSuccess": {
+				"label": "Thông báo khi tác vụ hoàn tất thành công"
+			},
+			"notifyOnFailure": {
+				"label": "Thông báo khi tác vụ thất bại hoặc bị hủy",
+				"description": "Bao gồm lỗi streaming và tác vụ do người dùng hủy. Tác vụ nền và tác vụ con được ủy quyền sẽ bị bỏ qua."
+			},
+			"smtpHost": {
+				"label": "SMTP host",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "SMTP port"
+			},
+			"smtpSecure": {
+				"label": "Dùng TLS ngầm định",
+				"description": "Bật cho kết nối SMTPS, thường trên port 465. Tắt cho STARTTLS trên port 587."
+			},
+			"smtpRequireTls": {
+				"label": "Yêu cầu STARTTLS",
+				"description": "Yêu cầu máy chủ nâng cấp kết nối bằng STARTTLS trước khi gửi thông tin xác thực."
+			},
+			"smtpUsername": {
+				"label": "Tên người dùng SMTP",
+				"placeholder": "Tên người dùng tùy chọn"
+			},
+			"smtpPassword": {
+				"label": "Mật khẩu SMTP",
+				"placeholder": "Nhập mật khẩu SMTP",
+				"configuredPlaceholder": "Để trống để giữ mật khẩu đã lưu",
+				"description": "Được lưu trong VS Code secret storage và không bao giờ hiển thị lại.",
+				"configuredDescription": "Đã có mật khẩu được lưu. Chỉ nhập mật khẩu mới nếu bạn muốn thay thế."
+			},
+			"smtpFromAddress": {
+				"label": "Địa chỉ người gửi",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Người nhận",
+				"placeholder": "ban@example.com\nnhom@example.com",
+				"description": "Phân tách người nhận bằng dấu phẩy hoặc dòng mới."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Mẫu chủ đề",
+				"placeholder": "Tác vụ C {{outcome}}",
+				"description": "Tùy chọn. Tokens có sẵn: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens không phân biệt hoa thường, nên {{taskId}} và {{taskid}} đều hoạt động."
+			},
+			"test": {
+				"label": "Kiểm tra cài đặt SMTP",
+				"description": "Gửi email kiểm tra bằng cài đặt SMTP đã lưu. Các thay đổi chưa lưu và mật khẩu mới phải được lưu trước.",
+				"button": "Kiểm tra SMTP",
+				"sending": "Đang gửi...",
+				"success": "Email kiểm tra SMTP đã được gửi thành công.",
+				"failure": "Không thể gửi email kiểm tra SMTP.",
+				"invalidConfig": "Cài đặt SMTP chưa đầy đủ hoặc không hợp lệ. Kiểm tra output của tiện ích để biết chi tiết.",
+				"unsavedChanges": "Lưu cài đặt SMTP trước khi kiểm tra. Kiểm tra SMTP chỉ dùng cài đặt đã lưu và mật khẩu trong kho bí mật của VS Code."
+			}
 		}
 	},
 	"contextManagement": {

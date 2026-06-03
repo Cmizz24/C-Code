@@ -132,9 +132,16 @@ export interface ExtensionStateContextType extends ExtensionState {
 	showWorktreesInHomeScreen: boolean
 	setShowWorktreesInHomeScreen: (value: boolean) => void
 	skills?: SkillMetadata[]
+	smtpPassword?: string // Local-only pending password entry; never populated from extension state.
+	smtpRecipientsText?: string // Local-only textarea buffer mapped to smtpRecipients on save.
 }
 
-export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
+const extensionStateContextKey = Symbol.for("roo-code.webview.ExtensionStateContext")
+
+export const ExtensionStateContext = ((globalThis as Record<PropertyKey, unknown>)[extensionStateContextKey] ??=
+	createContext<ExtensionStateContextType | undefined>(undefined)) as React.Context<
+	ExtensionStateContextType | undefined
+>
 
 export const mergeExtensionState = (prevState: ExtensionState, newState: Partial<ExtensionState>) => {
 	const { customModePrompts: prevCustomModePrompts, experiments: prevExperiments, ...prevRest } = prevState
@@ -190,6 +197,18 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		soundVolume: 0.5,
 		ttsEnabled: false,
 		ttsSpeed: 1.0,
+		emailNotificationsEnabled: false,
+		emailNotifyOnSuccess: true,
+		emailNotifyOnFailure: false,
+		smtpHost: "",
+		smtpPort: 587,
+		smtpSecure: false,
+		smtpRequireTls: false,
+		smtpUsername: "",
+		smtpFromAddress: "",
+		smtpRecipients: [],
+		smtpSubjectTemplate: "",
+		smtpPasswordConfigured: false,
 		enableCheckpoints: true,
 		checkpointTimeout: DEFAULT_CHECKPOINT_TIMEOUT_SECONDS, // Default to 15 seconds
 		language: "en", // Default language code

@@ -111,6 +111,7 @@ export interface ExtensionMessage {
 		| "folderSelected"
 		| "skills"
 		| "fileContent"
+		| "smtpTestResult"
 	text?: string
 	/** For fileContent: { path, content, error? } */
 	fileContent?: { path: string; content: string | null; error?: string }
@@ -281,6 +282,17 @@ export type ExtensionState = Pick<
 	| "ttsSpeed"
 	| "soundEnabled"
 	| "soundVolume"
+	| "emailNotificationsEnabled"
+	| "emailNotifyOnSuccess"
+	| "emailNotifyOnFailure"
+	| "smtpHost"
+	| "smtpPort"
+	| "smtpSecure"
+	| "smtpRequireTls"
+	| "smtpUsername"
+	| "smtpFromAddress"
+	| "smtpRecipients"
+	| "smtpSubjectTemplate"
 	| "terminalOutputPreviewSize"
 	| "terminalShellIntegrationTimeout"
 	| "terminalShellIntegrationDisabled"
@@ -305,6 +317,7 @@ export type ExtensionState = Pick<
 	| "maxDiagnosticMessages"
 	| "imageGenerationProvider"
 	| "openRouterImageGenerationSelectedModel"
+	| "openAiCodexFastStatus"
 	| "includeTaskHistoryInEnhance"
 	| "reasoningBlockCollapsed"
 	| "enterBehavior"
@@ -359,6 +372,7 @@ export type ExtensionState = Pick<
 	profileThresholds: Record<string, number>
 	hasOpenedModeSelector: boolean
 	openRouterImageApiKey?: string
+	smtpPasswordConfigured?: boolean
 	messageQueue?: QueuedMessage[]
 	lastShownAnnouncementId?: string
 	apiModelId?: string
@@ -416,6 +430,7 @@ export interface WebviewMessage {
 		| "webviewDidLaunch"
 		| "newTask"
 		| "askResponse"
+		| "acceptCompletion"
 		| "terminalOperation"
 		| "clearTask"
 		| "didShowAnnouncement"
@@ -452,6 +467,9 @@ export interface WebviewMessage {
 		| "openKeyboardShortcuts"
 		| "openMcpSettings"
 		| "openProjectMcpSettings"
+		| "installMarketplaceMcp"
+		| "discoverMarketplaceMcp"
+		| "createMarketplaceMcpServer"
 		| "restartMcpServer"
 		| "refreshAllMcpServers"
 		| "toggleToolAlwaysAllow"
@@ -521,6 +539,7 @@ export interface WebviewMessage {
 		| "getDismissedUpsells"
 		| "openMarkdownPreview"
 		| "updateSettings"
+		| "testSmtpSettings"
 		| "allowedCommands"
 		| "getTaskWithAggregatedCosts"
 		| "deniedCommands"
@@ -595,6 +614,10 @@ export interface WebviewMessage {
 	timeout?: number
 	payload?: WebViewMessagePayload
 	source?: "global" | "project"
+	marketplaceMcpId?: string
+	marketplaceMcpScope?: "global" | "project"
+	marketplaceMcpDiscoveryRequest?: string
+	marketplaceMcpCreationRequest?: string
 	skillName?: string // For skill operations (createSkill, deleteSkill, moveSkill, openSkillFile)
 	/** @deprecated Use skillModeSlugs instead */
 	skillMode?: string // For skill operations (current mode restriction)

@@ -103,7 +103,7 @@ export class OrchestratorEventLoop {
 
 			if (options.abortSpawnedTasks) {
 				this.bus.markFailed(agentId, options.reason ?? "Parallel execution was cancelled.")
-				Promise.resolve(record.task.abortTask()).catch(() => {})
+				Promise.resolve(record.task.abortTask(true)).catch(() => {})
 			}
 		}
 	}
@@ -206,7 +206,7 @@ export class OrchestratorEventLoop {
 			})
 
 			if (!this.running) {
-				Promise.resolve(task.abortTask()).catch(() => {})
+				Promise.resolve(task.abortTask(true)).catch(() => {})
 				return
 			}
 
@@ -232,7 +232,7 @@ export class OrchestratorEventLoop {
 
 			if (!this.running) {
 				this.cleanupSpawnedTask(agent.id)
-				Promise.resolve(task.abortTask()).catch(() => {})
+				Promise.resolve(task.abortTask(true)).catch(() => {})
 				return
 			}
 
@@ -274,7 +274,7 @@ export class OrchestratorEventLoop {
 			this.cleanupSpawnedTask(agentId)
 			this.bus.markComplete(agentId)
 			task.approveAsk()
-			Promise.resolve(task.abortTask()).catch(() => {})
+			Promise.resolve(task.abortTask(true)).catch(() => {})
 			Promise.resolve(this.provider.postStateToWebview()).catch(() => {})
 			return
 		}
@@ -287,7 +287,7 @@ export class OrchestratorEventLoop {
 		} catch {
 			// Non-fatal: the ask may already have been cleared by the task.
 		}
-		Promise.resolve(task.abortTask()).catch(() => {})
+		Promise.resolve(task.abortTask(true)).catch(() => {})
 		Promise.resolve(this.provider.postStateToWebview()).catch(() => {})
 	}
 
@@ -324,20 +324,15 @@ export class OrchestratorEventLoop {
 	}
 
 	private buildAgentMessage(agent: AgentPlan, plan?: ExecutionPlan): string {
-		const dependencyContext = agent.dependsOn
-			.map((dependency) => {
-				const waitDescription =
-					dependency.waitFor === "signal"
-						? `signal${dependency.signal ? ` ${dependency.signal}` : ""}`
-						: "complete"
-				return `- Wait for ${dependency.agentId} ${waitDescription}${dependency.context ? `: ${dependency.context}` : ""}`
-			})
-			.join("\n")
+		const dependencyContext = this.buildDependencyContext(agent)
 
 		return [
 			`You are agent ${agent.id}, running a normal single ${agent.mode} specialist task.`,
 			plan?.sharedContext ? `Shared context:\n${plan.sharedContext}` : undefined,
-			dependencyContext ? `Dependency context:\n${dependencyContext}` : undefined,
+			plan?.sharedContract
+				? `Shared contract (must follow and acknowledge before completion):\n${plan.sharedContract}`
+				: undefined,
+			dependencyContext ? `Non-blocking dependency context:\n${dependencyContext}` : undefined,
 			`Task:\n${agent.task}`,
 			`Your primary ownership scope (advisory — you may edit files outside this scope when needed, but prefer files in scope):\n${agent.owns.map((ownership) => `- ${ownership.path} (${ownership.mode})`).join("\n") || "- none"}`,
 			`Must not touch:\n${agent.mustNotTouch.map((filePath) => `- ${filePath}`).join("\n") || "- none"}`,
@@ -345,11 +340,13 @@ export class OrchestratorEventLoop {
 			BACKGROUND_AGENT_FILE_WRITE_GUIDANCE,
 			"Prefer editing files in your ownership scope. You may edit files outside your scope when necessary for your task, but never edit mustNotTouch paths. Use attempt_completion when finished.",
 			"Complete your assigned scope directly; do not delegate, spawn, or orchestrate additional tasks.",
-			"IMPORTANT — Before editing any shared file (styles, layouts, shared components, shared configs, shared constants, or any file another agent may also edit), you MUST first use coordinate_agents to read team chat and check for existing contracts. If no contract exists for the shared resource, publish a coordinate_agents question to the relevant sibling agent proposing specific class names, selectors, variable names, file paths, or API shapes. Wait for an answer before proceeding. This prevents mismatched styles, layouts, and interfaces between agents.",
-			"Use coordinate_agents for genuine live coordination: read team chat when you need current coordination state, need to answer an open targeted question, or need to check whether an answer to your own question arrived.",
+			"IMPORTANT — Before editing any shared file (styles, layouts, shared components, shared configs, shared constants, or any file another agent may also edit), you MUST first use coordinate_agents to read team chat and check for existing contracts. If no contract exists for the shared resource, publish a coordinate_agents question to the relevant sibling agent proposing specific class names, selectors, variable names, file paths, or API shapes. Wait for an answer when a sibling owns the contract. This prevents mismatched styles, layouts, and interfaces between agents.",
+			"Use coordinate_agents for genuine live coordination: read team chat before shared edits, before attempt_completion, when you need current coordination state, need to answer an open targeted question, or need to check whether an answer to your own question arrived.",
+			"Publish coordinate_agents question/answer messages for targeted contract gaps. Publish kind='decision' when you choose or confirm a shared interface, kind='note' for a concrete integration assumption or discovery peers need, and kind='blocker' when a cross-agent integration issue blocks safe progress.",
 			"Publish a coordinate_agents question proactively when a shared integration contract is missing, ambiguous, or likely to affect another agent's work; do not guess UI/CSS/component interfaces, DOM structure, class names, selectors, IDs, data attributes, API shapes, file paths, user-facing names, or timing. Answer targeted open questions concisely with replyToId when available, even if your assigned edits are complete.",
-			"If you read an answer to your own question, adapt your files or final result around the answered hook, selector, variable, data attribute, public function, file contract, or user-facing name before finishing.",
-			"Do not post ownership or introduction messages such as 'I own <file>' or 'Agent <id> owns <file>'. coordinate_agents publish is for real question/answer coordination only.",
+			"If you read an answer, decision, note, or blocker that affects your scope, adapt your files or final result around the answered hook, selector, variable, data attribute, public function, file contract, or user-facing name before finishing.",
+			"Before attempt_completion, read team chat again and resolve targeted open questions, newly published decisions/notes, or blockers relevant to your files. If the plan includes a Shared contract, apply it and call coordinate_agents with action='acknowledge_contract' before finishing. If you made a shared assumption or changed a shared contract, publish a short decision or note before finishing.",
+			"Do not post ownership or introduction messages such as 'I own <file>' or 'Agent <id> owns <file>'. coordinate_agents publish is for real questions, answers, decisions, assumption notes, and blockers only.",
 			"Do not post pre-planned, basic, or filler questions just to populate team chat. Ask one relevant agent one short shared-contract question at a time with targetAgentId where possible; answer with only the key hook, selector, variable, file, or decision needed.",
 			"After you call attempt_completion or receive a terminal completion result, do not publish more team-chat messages; final evidence belongs in structured completion status.",
 			"Avoid manifest-style messages listing many selectors, classes, variables, hooks, files, or implementation details. Keep messages operational. Never include emojis, private reasoning, chain-of-thought, credentials, profile details, or user secrets.",
@@ -359,21 +356,16 @@ export class OrchestratorEventLoop {
 	}
 
 	private buildSystemPromptSuffix(agent: AgentPlan, plan?: ExecutionPlan): string {
-		const dependencyContext = agent.dependsOn
-			.map((dependency) => {
-				const waitDescription =
-					dependency.waitFor === "signal"
-						? `signal${dependency.signal ? ` ${dependency.signal}` : ""}`
-						: "complete"
-				return `- Wait for ${dependency.agentId} ${waitDescription}${dependency.context ? `: ${dependency.context}` : ""}`
-			})
-			.join("\n")
+		const dependencyContext = this.buildDependencyContext(agent)
 
 		return [
 			"Single-agent task guidance:",
 			`- Agent id: ${agent.id}`,
 			`- Execution plan: ${plan?.planId ?? "unknown"}`,
-			dependencyContext ? `- Dependency context:\n${dependencyContext}` : undefined,
+			plan?.sharedContract
+				? `- Shared contract (must follow and acknowledge before completion):\n${plan.sharedContract}`
+				: undefined,
+			dependencyContext ? `- Non-blocking dependency context:\n${dependencyContext}` : undefined,
 			"- Treat this as one normal specialist task with one ownership scope, not as a complex orchestration task.",
 			"- Use normal sequential tool calls: call one tool, wait for its result, then decide the next step.",
 			"- If another prompt mentions batching or parallelizing tools, this child task overrides it: use one tool call at a time unless the platform emits separate native tool calls.",
@@ -381,11 +373,13 @@ export class OrchestratorEventLoop {
 			`- ${BACKGROUND_AGENT_FILE_WRITE_GUIDANCE}`,
 			"- Complete your assigned scope directly; do not delegate, spawn, or orchestrate additional tasks.",
 			"- Ownership is advisory: you may write outside your primary scope when needed, but never edit mustNotTouch paths. Prefer files in your ownership scope.",
-			"- IMPORTANT: Before editing any shared file (styles, layouts, shared components, shared configs, constants, or files another agent may also edit), first read team chat with coordinate_agents and check for existing contracts. If no contract exists, publish a question proposing specific class names, selectors, variables, file paths, or API shapes and wait for an answer.",
-			"- Use coordinate_agents for genuine live coordination: read when you need current coordination state, need to answer an open targeted question, or need to check whether an answer to your own question arrived.",
+			"- IMPORTANT: Before editing any shared file (styles, layouts, shared components, shared configs, constants, or files another agent may also edit), first read team chat with coordinate_agents and check for existing contracts. If no contract exists, publish a question proposing specific class names, selectors, variables, file paths, or API shapes and wait for an answer when a sibling owns the contract.",
+			"- Use coordinate_agents for genuine live coordination: read before shared edits, before attempt_completion, when you need current coordination state, need to answer an open targeted question, or need to check whether an answer to your own question arrived.",
+			"- Publish coordinate_agents question/answer messages for targeted contract gaps. Publish kind='decision' when you choose or confirm a shared interface, kind='note' for a concrete integration assumption or discovery peers need, and kind='blocker' when a cross-agent integration issue blocks safe progress.",
 			"- Publish a coordinate_agents question proactively when a shared integration contract is missing, ambiguous, or likely to affect another agent's work; do not guess UI/CSS/component interfaces, DOM structure, class names, selectors, IDs, data attributes, API shapes, file paths, user-facing names, or timing. Answer targeted open questions concisely with replyToId when available, even if your assigned edits are complete.",
-			"- If you read an answer to your own question, adapt your files or final result around the answered hook, selector, variable, data attribute, public function, file contract, or user-facing name before finishing.",
-			"- Do not post ownership or introduction messages such as 'I own <file>' or 'Agent <id> owns <file>'. coordinate_agents publish is for real question/answer coordination only.",
+			"- If you read an answer, decision, note, or blocker that affects your scope, adapt your files or final result around the answered hook, selector, variable, data attribute, public function, file contract, or user-facing name before finishing.",
+			"- Before attempt_completion, read team chat again and resolve targeted open questions, newly published decisions/notes, or blockers relevant to your files. If the plan includes a Shared contract, apply it and call coordinate_agents with action='acknowledge_contract' before finishing. If you made a shared assumption or changed a shared contract, publish a short decision or note before finishing.",
+			"- Do not post ownership or introduction messages such as 'I own <file>' or 'Agent <id> owns <file>'. coordinate_agents publish is for real questions, answers, decisions, assumption notes, and blockers only.",
 			"- Do not post pre-planned, basic, or filler questions just to populate team chat. Ask one relevant agent one short shared-contract question at a time with targetAgentId where possible, and answer with only the key hook, selector, variable, file, or decision needed.",
 			"- After attempt_completion or terminal completion, stop publishing team-chat messages; final evidence belongs in structured completion status.",
 			"- If many details are truly needed, split them into multiple short messages. Avoid manifest-style dumps listing many selectors, classes, variables, hooks, files, or implementation details.",
@@ -393,6 +387,18 @@ export class OrchestratorEventLoop {
 			"- Never put emojis, private reasoning, chain-of-thought, credentials, profile details, or user secrets in coordinate_agents messages.",
 		]
 			.filter(Boolean)
+			.join("\n")
+	}
+
+	private buildDependencyContext(agent: AgentPlan): string {
+		return agent.dependsOn
+			.map((dependency) => {
+				const coordinationPoint =
+					dependency.waitFor === "signal"
+						? `signal${dependency.signal ? ` ${dependency.signal}` : ""}`
+						: "completion context"
+				return `- Coordinate with ${dependency.agentId} (${coordinationPoint}, non-blocking)${dependency.context ? `: ${dependency.context}` : ""}`
+			})
 			.join("\n")
 	}
 }

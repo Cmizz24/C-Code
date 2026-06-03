@@ -11,6 +11,7 @@ function createPlan(): ExecutionPlan {
 	return {
 		planId: "plan-test",
 		sharedContext: "shared context",
+		sharedContract: "",
 		fileOwnershipMap: {
 			"src/a.ts": "agent-a",
 			"src/b.ts": "agent-b",
@@ -191,6 +192,58 @@ describe("AgentBus", () => {
 		expect(bus.getAgentCompletionCoordinationGate("agent-a").approved).toBe(true)
 	})
 
+	it("blocks completion until an explicit shared contract is acknowledged", () => {
+		const contractPlan = createPlan()
+		contractPlan.sharedContract = "Use #dashboard-root, data-testid=dashboard-root, and initDashboard()."
+		bus.setExecutionPlan(contractPlan)
+
+		const seededEvents = bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })
+		expect(seededEvents).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "plan-test-shared-contract",
+					kind: "shared-contract",
+					source: "system",
+					message: "Shared contract: Use #dashboard-root, data-testid=dashboard-root, and initDashboard().",
+				}),
+			]),
+		)
+		expect(bus.hasAgentAcknowledgedSharedContract("agent-a")).toBe(false)
+
+		const blockedGate = bus.getAgentCompletionCoordinationGate("agent-a")
+		expect(blockedGate.approved).toBe(false)
+		expect(blockedGate.blockers).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "shared-contract-unacknowledged",
+					sharedContract: "Use #dashboard-root, data-testid=dashboard-root, and initDashboard().",
+				}),
+			]),
+		)
+
+		const acknowledgement = bus.acknowledgeSharedContract("agent-a")
+		expect(acknowledgement).toEqual(
+			expect.objectContaining({
+				agentId: "agent-a",
+				kind: "shared-contract",
+				source: "agent",
+				message: "Acknowledged shared contract for plan plan-test.",
+			}),
+		)
+		expect(bus.hasAgentAcknowledgedSharedContract("agent-a")).toBe(true)
+		expect(bus.getAgentCompletionCoordinationGate("agent-a").approved).toBe(true)
+	})
+
+	it("treats legacy persisted plans without sharedContract as having no contract", () => {
+		const legacyPlan = createPlan()
+		delete (legacyPlan as Partial<ExecutionPlan>).sharedContract
+		bus.setExecutionPlan(legacyPlan)
+
+		expect(bus.hasAgentAcknowledgedSharedContract("agent-a")).toBe(true)
+		expect(bus.getAgentCompletionCoordinationGate("agent-a").approved).toBe(true)
+		expect(bus.acknowledgeSharedContract("agent-a")).toBeUndefined()
+	})
+
 	it("uses bounded completion retries before converting unavailable outgoing answers to unanswerable", () => {
 		const question = bus.publishCoordination("agent-a", {
 			kind: "question",
@@ -266,12 +319,45 @@ describe("AgentBus", () => {
 		expect(permission.reason).toContain("locked by agent-a")
 	})
 
-	it("approves writes to paths owned by another agent with advisory warning", () => {
+	it("denies writes to paths owned by another agent", () => {
+		const events = vi.fn()
+		bus.on("event", events)
+
 		const permission = bus.requestWriteIntent("agent-a", "src/b.ts")
 
-		expect(permission.approved).toBe(true)
-		expect(permission.unownedWarning).toContain("owned by agent-b")
-		expect(permission.unownedWarning).toContain("advisory")
+		expect(permission.approved).toBe(false)
+		expect(permission.suggestWait).toBe(true)
+		expect(permission.reason).toContain("owned by agent-b")
+		expect(events).toHaveBeenCalledWith({
+			type: "CONFLICT_QUERY",
+			agentId: "agent-a",
+			path: "src/b.ts",
+			ownerAgentId: "agent-b",
+		})
+	})
+
+	it("denies writes below directories owned by another agent", () => {
+		const plan = createPlan()
+		plan.agents[1] = {
+			...plan.agents[1],
+			owns: [{ path: "src/services/", mode: "exclusive" }],
+		}
+		bus.setExecutionPlan(plan)
+
+		const permission = bus.requestWriteIntent("agent-a", "src/services/client.ts")
+
+		expect(permission.approved).toBe(false)
+		expect(permission.reason).toContain("owned by agent-b")
+	})
+
+	it("denies overlapping writes while another agent holds a parent path lock", () => {
+		expect(bus.requestWriteIntent("agent-a", "src/generated").approved).toBe(true)
+
+		const permission = bus.requestWriteIntent("agent-b", "src/generated/types.ts")
+
+		expect(permission.approved).toBe(false)
+		expect(permission.suggestWait).toBe(true)
+		expect(permission.reason).toContain("locked by agent-a")
 	})
 
 	it("allows unowned writes with a warning", () => {
@@ -286,7 +372,7 @@ describe("AgentBus", () => {
 		expect(bus.requestWriteIntent("agent-a", "src/forbidden.ts").approved).toBe(false)
 	})
 
-	it("unblocks agents when completion dependencies are satisfied", () => {
+	it("keeps plan dependencies non-blocking so dependents start pending", () => {
 		const plan = createPlan()
 		plan.agents[1].dependsOn = [{ agentId: "agent-a", waitFor: "complete" }]
 		bus.setExecutionPlan(plan)
@@ -294,11 +380,11 @@ describe("AgentBus", () => {
 		const unblocked = vi.fn()
 		bus.on("agentUnblocked", unblocked)
 
-		expect(bus.getAgent("agent-b")?.status).toBe("blocked")
+		expect(bus.getAgent("agent-b")?.status).toBe("pending")
 
 		bus.markComplete("agent-a", "done")
 
-		expect(unblocked).toHaveBeenCalledWith(expect.objectContaining({ id: "agent-b", status: "pending" }))
+		expect(unblocked).not.toHaveBeenCalled()
 		expect(bus.getAgent("agent-b")?.status).toBe("pending")
 	})
 
@@ -330,12 +416,14 @@ describe("AgentBus", () => {
 	})
 
 	it("unblocks agents when signal dependencies are satisfied", () => {
-		const plan = createPlan()
-		plan.agents[1].dependsOn = [{ agentId: "agent-a", waitFor: "signal", signal: "types-ready" }]
-		bus.setExecutionPlan(plan)
-
 		const unblocked = vi.fn()
 		bus.on("agentUnblocked", unblocked)
+
+		bus.markBlocked("agent-b", "Waiting for type contract", [
+			{ agentId: "agent-a", waitFor: "signal", signal: "types-ready" },
+		])
+
+		expect(bus.getAgent("agent-b")?.status).toBe("blocked")
 
 		bus.emitSignal("agent-a", "types-ready")
 
@@ -358,7 +446,7 @@ describe("AgentBus", () => {
 		bus.on("event", events)
 
 		expect(bus.requestWriteIntent("agent-a", "src/unowned.ts").approved).toBe(true)
-		expect(bus.requestWriteIntent("agent-a", "src/b.ts").approved).toBe(true)
+		expect(bus.requestWriteIntent("agent-a", "src/b.ts").approved).toBe(false)
 
 		bus.markComplete("agent-a", "A done")
 
@@ -372,17 +460,22 @@ describe("AgentBus", () => {
 				completionResult: "A done",
 			}),
 		)
-		expect(packet?.ownership.status).toBe("warning")
+		expect(packet?.ownership.status).toBe("violation")
 		expect(packet?.ownership.attemptedOutOfScopeWrites).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ path: "src/unowned.ts", approved: true }),
-				expect.objectContaining({ path: "src/b.ts", approved: true, ownerAgentId: "agent-b" }),
+				expect.objectContaining({ path: "src/b.ts", approved: false, ownerAgentId: "agent-b" }),
+			]),
+		)
+		expect(packet?.ownership.conflicts).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ path: "src/b.ts", approved: false, ownerAgentId: "agent-b" }),
 			]),
 		)
 		expect(packet?.validation).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ name: "agent-terminal-status", status: "passed" }),
-				expect.objectContaining({ name: "ownership-compliance", status: "warning" }),
+				expect.objectContaining({ name: "ownership-compliance", status: "failed" }),
 			]),
 		)
 		expect(events).toHaveBeenCalledWith({ type: "COMPLETION_PACKET", agentId: "agent-a", packet })
@@ -435,11 +528,9 @@ describe("AgentBus", () => {
 	})
 
 	it("fails blocked dependents when their dependency fails", () => {
-		const plan = createPlan()
-		plan.agents[1].dependsOn = [{ agentId: "agent-a", waitFor: "complete" }]
-		bus.setExecutionPlan(plan)
 		const events = vi.fn()
 		bus.on("event", events)
+		bus.markBlocked("agent-b", "Waiting for agent-a", [{ agentId: "agent-a", waitFor: "complete" }])
 
 		bus.markFailed("agent-a", "Agent failed")
 

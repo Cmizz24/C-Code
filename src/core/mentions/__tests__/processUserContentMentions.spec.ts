@@ -229,6 +229,68 @@ describe("processUserContentMentions", () => {
 	})
 
 	describe("slash command content processing", () => {
+		it.each([true, false])(
+			"should propagate OpenAI Codex Fast mode metadata value %s",
+			async (openAiCodexFastMode) => {
+				vi.mocked(parseMentions).mockResolvedValueOnce({
+					text: "parsed text",
+					mode: undefined,
+					openAiCodexFastMode,
+					contentBlocks: [],
+				})
+
+				const userContent = [
+					{
+						type: "text" as const,
+						text: "<user_message>Run command</user_message>",
+					},
+				]
+
+				const result = await processUserContentMentions({
+					userContent,
+					cwd: "/test",
+					fileContextTracker: mockFileContextTracker,
+				})
+
+				expect(result.openAiCodexFastMode).toBe(openAiCodexFastMode)
+			},
+		)
+
+		it("should preserve the first OpenAI Codex Fast mode metadata value across multiple parsed blocks", async () => {
+			vi.mocked(parseMentions)
+				.mockResolvedValueOnce({
+					text: "parsed first",
+					mode: undefined,
+					openAiCodexFastMode: false,
+					contentBlocks: [],
+				})
+				.mockResolvedValueOnce({
+					text: "parsed second",
+					mode: undefined,
+					openAiCodexFastMode: true,
+					contentBlocks: [],
+				})
+
+			const userContent = [
+				{
+					type: "text" as const,
+					text: "<user_message>First command</user_message>",
+				},
+				{
+					type: "text" as const,
+					text: "<user_message>Second command</user_message>",
+				},
+			]
+
+			const result = await processUserContentMentions({
+				userContent,
+				cwd: "/test",
+				fileContextTracker: mockFileContextTracker,
+			})
+
+			expect(result.openAiCodexFastMode).toBe(false)
+		})
+
 		it("should separate slash command content into a new block", async () => {
 			vi.mocked(parseMentions).mockResolvedValueOnce({
 				text: "parsed text",

@@ -7,7 +7,7 @@ import type { SkillMetadata } from "@roo-code/types"
 import { getAllModes } from "@roo/modes"
 
 import { useAppTranslation } from "@/i18n/TranslationContext"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 import {
 	AlertDialog,
 	AlertDialogAction,

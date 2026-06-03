@@ -60,5 +60,95 @@
 		"running": "Berjalan",
 		"completed": "Selesai",
 		"error": "Error"
+	},
+	"marketplace": {
+		"title": "MCP Marketplace",
+		"description": "Temukan server MCP tepercaya untuk pencarian, coding, docs, database, file, dan workflow tim. Pilih satu dan C akan menyiapkannya dalam task terpandu.",
+		"featuredCatalog": "Server MCP unggulan",
+		"stats": {
+			"servers": "Server terkurasi",
+			"installed": "Terinstal"
+		},
+		"search": {
+			"label": "Cari marketplace",
+			"placeholder": "Cari berdasarkan nama, kategori, paket, atau secret..."
+		},
+		"filters": {
+			"categoryLabel": "Filter berdasarkan kategori",
+			"all": "Semua kategori"
+		},
+		"resultsSummary": "Menampilkan {{shown}} dari {{total}} server",
+		"badges": {
+			"featured": "Unggulan",
+			"popular": "Populer"
+		},
+		"labels": {
+			"category": "Kategori",
+			"package": "Paket",
+			"source": "Sumber",
+			"transport": "Transport",
+			"requiredSecrets": "Secret yang diperlukan",
+			"prerequisites": "Prasyarat",
+			"suggestedScope": "Scope yang disarankan",
+			"scope": "Scope target",
+			"verification": "Verifikasi",
+			"riskNotes": "Catatan risiko"
+		},
+		"scope": {
+			"global": "Global",
+			"project": "Proyek"
+		},
+		"actions": {
+			"installWithAI": "Instal dengan AI",
+			"configureAgain": "Konfigurasi lagi",
+			"clearFilters": "Hapus filter",
+			"showDetails": "Detail",
+			"hideDetails": "Sembunyikan detail",
+			"openDocs": "Buka dokumentasi"
+		},
+		"customDiscovery": {
+			"title": "Tidak menemukan server MCP?",
+			"description": "Masukkan server MCP yang kamu inginkan dan C akan membuka tugas MCP Setup untuk menemukan dokumentasi resmi, mengusulkan konfigurasi aman, dan memverifikasinya dengan tool riset yang sudah terpasang.",
+			"mode": {
+				"label": "Aksi server MCP kustom",
+				"find": "Temukan yang ada",
+				"create": "Buat baru"
+			},
+			"inputLabel": "Nama atau deskripsi server MCP",
+			"placeholder": "Contoh: server MCP pencarian Perplexity",
+			"action": "Temukan dengan AI",
+			"validation": {
+				"empty": "Masukkan nama atau deskripsi server MCP sebelum memulai discovery."
+			},
+			"create": {
+				"description": "Jelaskan server MCP atau tooling yang kamu inginkan dan C akan membuka tugas MCP Setup untuk merancang, mengimplementasikan, mengonfigurasi, dan memverifikasi server lokal kustom.",
+				"inputLabel": "Apa yang harus dilakukan server MCP baru?",
+				"placeholder": "Contoh: tambahkan tool yang mencari dokumentasi paket internal dari workspace ini",
+				"action": "Buat dengan AI",
+				"recommendation": "Context7 dan pencarian web bisa membantu dengan dokumentasi, tapi pembuatan tidak diblokir jika belum terpasang.",
+				"validation": {
+					"empty": "Masukkan apa yang kamu ingin server MCP lakukan sebelum memulai pembuatan server MCP kustom."
+				}
+			},
+			"requirements": {
+				"context7": "Context7 terpasang",
+				"webSearch": "Pencarian web terpasang",
+				"missingBoth": "Instal Context7 dan setidaknya satu server MCP pencarian web sebelum memulai discovery MCP kustom.",
+				"missingContext7": "Instal Context7 sebelum memulai discovery MCP kustom.",
+				"missingWebSearch": "Instal setidaknya satu server MCP pencarian web, seperti Exa Web Search, Brave Search, Tavily Search, atau Firecrawl, sebelum memulai discovery MCP kustom."
+			}
+		},
+		"empty": {
+			"title": "Tidak ada server MCP ditemukan",
+			"description": "Coba istilah pencarian lain atau hapus filter kategori yang dipilih."
+		},
+		"status": {
+			"installed": "Terinstal"
+		},
+		"prerequisiteOverflow": "+{{count}} lagi",
+		"secretSummary": "{{count}} wajib",
+		"optionalSecretSummary": "{{count}} opsional",
+		"noSecrets": "Tidak ada secret",
+		"noneRequired": "Tidak ada yang diperlukan"
 	}
 }

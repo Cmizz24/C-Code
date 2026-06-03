@@ -1,4 +1,4 @@
-import type { HistoryItem } from "@roo-code/types"
+import type { HistoryItem, TokenUsage } from "@roo-code/types"
 
 export interface AggregatedCosts {
 	ownCost: number // This task's own API costs
@@ -13,7 +13,26 @@ export interface AggregatedCosts {
 export interface AggregateTaskCostsOptions {
 	/** Discover children linked by metadata, e.g. background parallel agents with parentTaskId. */
 	getChildTaskIds?: (parentId: string) => Promise<string[]>
+	/** Count API requests from persisted task messages when available. */
+	getTaskRequestCount?: (taskId: string) => Promise<number | undefined>
 }
+
+export interface AggregatedTokenUsage {
+	tokenUsage: TokenUsage
+	requestCount: number
+}
+
+const toFiniteNumber = (value: number | undefined): number =>
+	typeof value === "number" && Number.isFinite(value) ? value : 0
+
+const createEmptyTokenUsage = (): TokenUsage => ({
+	totalTokensIn: 0,
+	totalTokensOut: 0,
+	totalCacheWrites: 0,
+	totalCacheReads: 0,
+	totalCost: 0,
+	contextTokens: 0,
+})
 
 /**
  * Recursively aggregate costs for a task and all its subtasks.
@@ -80,4 +99,69 @@ export async function aggregateTaskCostsRecursive(
 	}
 
 	return result
+}
+
+export async function aggregateTaskTokenUsageRecursive(
+	taskId: string,
+	getTaskHistory: (id: string) => Promise<HistoryItem | undefined>,
+	optionsOrVisited: AggregateTaskCostsOptions | Set<string> = {},
+	visited: Set<string> = new Set(),
+): Promise<AggregatedTokenUsage> {
+	const options = optionsOrVisited instanceof Set ? {} : optionsOrVisited
+	const currentVisited = optionsOrVisited instanceof Set ? optionsOrVisited : visited
+
+	if (currentVisited.has(taskId)) {
+		console.warn(`[aggregateTaskTokenUsageRecursive] Circular reference detected: ${taskId}`)
+		return { tokenUsage: createEmptyTokenUsage(), requestCount: 0 }
+	}
+	currentVisited.add(taskId)
+
+	const history = await getTaskHistory(taskId)
+	if (!history) {
+		console.warn(`[aggregateTaskTokenUsageRecursive] Task ${taskId} not found`)
+		return { tokenUsage: createEmptyTokenUsage(), requestCount: 0 }
+	}
+
+	const tokenUsage: TokenUsage = {
+		totalTokensIn: toFiniteNumber(history.tokensIn),
+		totalTokensOut: toFiniteNumber(history.tokensOut),
+		totalCacheWrites: toFiniteNumber(history.cacheWrites),
+		totalCacheReads: toFiniteNumber(history.cacheReads),
+		totalCost: toFiniteNumber(history.totalCost),
+		contextTokens: 0,
+	}
+	const persistedRequestCount = await options.getTaskRequestCount?.(taskId)
+	let requestCount =
+		typeof persistedRequestCount === "number" && Number.isFinite(persistedRequestCount)
+			? persistedRequestCount
+			: tokenUsage.totalTokensIn > 0 || tokenUsage.totalTokensOut > 0 || tokenUsage.totalCost > 0
+				? 1
+				: 0
+	const childIds = new Set(history.childIds ?? [])
+
+	if (options.getChildTaskIds) {
+		for (const childId of await options.getChildTaskIds(taskId)) {
+			childIds.add(childId)
+		}
+	}
+
+	for (const childId of childIds) {
+		const childAggregated = await aggregateTaskTokenUsageRecursive(
+			childId,
+			getTaskHistory,
+			options,
+			new Set(currentVisited),
+		)
+
+		tokenUsage.totalTokensIn += childAggregated.tokenUsage.totalTokensIn
+		tokenUsage.totalTokensOut += childAggregated.tokenUsage.totalTokensOut
+		tokenUsage.totalCacheWrites =
+			toFiniteNumber(tokenUsage.totalCacheWrites) + toFiniteNumber(childAggregated.tokenUsage.totalCacheWrites)
+		tokenUsage.totalCacheReads =
+			toFiniteNumber(tokenUsage.totalCacheReads) + toFiniteNumber(childAggregated.tokenUsage.totalCacheReads)
+		tokenUsage.totalCost += childAggregated.tokenUsage.totalCost
+		requestCount += childAggregated.requestCount
+	}
+
+	return { tokenUsage, requestCount }
 }

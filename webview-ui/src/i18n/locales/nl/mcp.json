@@ -60,5 +60,95 @@
 		"running": "Wordt uitgevoerd",
 		"completed": "Voltooid",
 		"error": "Fout"
+	},
+	"marketplace": {
+		"title": "MCP Marketplace",
+		"description": "Ontdek vertrouwde MCP-servers voor zoeken, coderen, docs, databases, bestanden en teamworkflows. Kies er een en C stelt deze in via een begeleide taak.",
+		"featuredCatalog": "Uitgelichte MCP-servers",
+		"stats": {
+			"servers": "Gecureerde servers",
+			"installed": "Geïnstalleerd"
+		},
+		"search": {
+			"label": "Marketplace doorzoeken",
+			"placeholder": "Zoek op naam, categorie, pakket of secret..."
+		},
+		"filters": {
+			"categoryLabel": "Filteren op categorie",
+			"all": "Alle categorieën"
+		},
+		"resultsSummary": "Toont {{shown}} van {{total}} servers",
+		"badges": {
+			"featured": "Uitgelicht",
+			"popular": "Populair"
+		},
+		"labels": {
+			"category": "Categorie",
+			"package": "Pakket",
+			"source": "Bron",
+			"transport": "Transport",
+			"requiredSecrets": "Vereiste secrets",
+			"prerequisites": "Vereisten",
+			"suggestedScope": "Aanbevolen scope",
+			"scope": "Doelscope",
+			"verification": "Verificatie",
+			"riskNotes": "Risiconotities"
+		},
+		"scope": {
+			"global": "Global",
+			"project": "Project"
+		},
+		"actions": {
+			"installWithAI": "Installeren met AI",
+			"configureAgain": "Opnieuw configureren",
+			"clearFilters": "Filters wissen",
+			"showDetails": "Details",
+			"hideDetails": "Details verbergen",
+			"openDocs": "Documentatie openen"
+		},
+		"customDiscovery": {
+			"title": "Kun je de MCP-server niet vinden?",
+			"description": "Voer de MCP-server in die je wilt en C opent een MCP Setup-taak om officiële documentatie te vinden, veilige configuratie voor te stellen en die te verifiëren met je geïnstalleerde onderzoekstools.",
+			"mode": {
+				"label": "Aangepaste MCP-serveractie",
+				"find": "Bestaande vinden",
+				"create": "Nieuwe maken"
+			},
+			"inputLabel": "Naam of beschrijving van de MCP-server",
+			"placeholder": "Voorbeeld: Perplexity zoek-MCP-server",
+			"action": "Ontdekken met AI",
+			"validation": {
+				"empty": "Voer een naam of beschrijving van de MCP-server in voordat je de ontdekking start."
+			},
+			"create": {
+				"description": "Beschrijf de MCP-server of tooling die je wilt en C opent een MCP Setup-taak om een aangepaste lokale server te ontwerpen, implementeren, configureren en verifiëren.",
+				"inputLabel": "Wat moet de nieuwe MCP-server doen?",
+				"placeholder": "Voorbeeld: voeg een tool toe die interne pakketdocumentatie uit deze workspace opzoekt",
+				"action": "Maken met AI",
+				"recommendation": "Context7 en webzoekopdrachten kunnen helpen met documentatie, maar maken wordt niet geblokkeerd als ze niet zijn geïnstalleerd.",
+				"validation": {
+					"empty": "Voer in wat je wilt dat de MCP-server doet voordat je de aangepaste MCP-server maakt."
+				}
+			},
+			"requirements": {
+				"context7": "Context7 geïnstalleerd",
+				"webSearch": "Webzoekfunctie geïnstalleerd",
+				"missingBoth": "Installeer Context7 en minstens één webzoek-MCP-server voordat je aangepaste MCP-ontdekking start.",
+				"missingContext7": "Installeer Context7 voordat je aangepaste MCP-ontdekking start.",
+				"missingWebSearch": "Installeer minstens één webzoek-MCP-server, zoals Exa Web Search, Brave Search, Tavily Search of Firecrawl, voordat je aangepaste MCP-ontdekking start."
+			}
+		},
+		"empty": {
+			"title": "Geen MCP-servers gevonden",
+			"description": "Probeer een andere zoekterm of wis het geselecteerde categoriefilter."
+		},
+		"status": {
+			"installed": "Geïnstalleerd"
+		},
+		"prerequisiteOverflow": "+{{count}} meer",
+		"secretSummary": "{{count}} vereist",
+		"optionalSecretSummary": "{{count}} optioneel",
+		"noSecrets": "Geen secrets",
+		"noneRequired": "Niet vereist"
 	}
 }

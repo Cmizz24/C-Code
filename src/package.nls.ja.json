@@ -1,6 +1,6 @@
 {
 	"extension.displayName": "C Code",
-	"extension.description": "Cmizz の Roo Code 個人フォーク: エディタ内のAIエージェントによる開発チーム。",
+	"extension.description": "並列エージェント、MCPワークフロー、Codex高速モード、SMTPロールアップ、Windows対応の安全なツールを備えたCmizzのRoo Codeフォーク。",
 	"views.contextMenu.label": "C Code",
 	"views.terminalMenu.label": "C Code",
 	"views.activitybar.title": "C Code",

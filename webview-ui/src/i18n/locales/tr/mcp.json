@@ -60,5 +60,95 @@
 		"running": "Çalışıyor",
 		"completed": "Tamamlandı",
 		"error": "Hata"
+	},
+	"marketplace": {
+		"title": "MCP Marketplace",
+		"description": "Arama, kodlama, dokümantasyon, veritabanları, dosyalar ve ekip workflow'ları için güvenilir MCP sunucularını keşfet. Birini seç, C onu yönlendirmeli bir görevde kursun.",
+		"featuredCatalog": "Öne çıkan MCP sunucuları",
+		"stats": {
+			"servers": "Seçilmiş sunucular",
+			"installed": "Kurulu"
+		},
+		"search": {
+			"label": "Marketplace'te ara",
+			"placeholder": "Ada, kategoriye, pakete veya secret'a göre ara..."
+		},
+		"filters": {
+			"categoryLabel": "Kategoriye göre filtrele",
+			"all": "Tüm kategoriler"
+		},
+		"resultsSummary": "{{total}} sunucudan {{shown}} tanesi gösteriliyor",
+		"badges": {
+			"featured": "Öne çıkan",
+			"popular": "Popüler"
+		},
+		"labels": {
+			"category": "Kategori",
+			"package": "Paket",
+			"source": "Kaynak",
+			"transport": "Transport",
+			"requiredSecrets": "Gerekli secrets",
+			"prerequisites": "Ön koşullar",
+			"suggestedScope": "Önerilen kapsam",
+			"scope": "Hedef kapsam",
+			"verification": "Doğrulama",
+			"riskNotes": "Risk notları"
+		},
+		"scope": {
+			"global": "Global",
+			"project": "Proje"
+		},
+		"actions": {
+			"installWithAI": "AI ile kur",
+			"configureAgain": "Tekrar yapılandır",
+			"clearFilters": "Filtreleri temizle",
+			"showDetails": "Ayrıntılar",
+			"hideDetails": "Ayrıntıları gizle",
+			"openDocs": "Belgeleri aç"
+		},
+		"customDiscovery": {
+			"title": "MCP sunucusunu bulamıyor musun?",
+			"description": "İstediğin MCP sunucusunu gir; C resmi belgeleri bulmak, güvenli yapılandırma önermek ve kurulu araştırma araçlarınla doğrulamak için bir MCP Setup görevi açacak.",
+			"mode": {
+				"label": "Özel MCP sunucusu eylemi",
+				"find": "Mevcut olanı bul",
+				"create": "Yeni oluştur"
+			},
+			"inputLabel": "MCP sunucusu adı veya açıklaması",
+			"placeholder": "Örnek: Perplexity arama MCP sunucusu",
+			"action": "AI ile keşfet",
+			"validation": {
+				"empty": "Keşfi başlatmadan önce bir MCP sunucusu adı veya açıklaması gir."
+			},
+			"create": {
+				"description": "İstediğin MCP sunucusunu veya araçları açıkla; C özel bir yerel sunucu tasarlamak, uygulamak, yapılandırmak ve doğrulamak için bir MCP Setup görevi açacak.",
+				"inputLabel": "Yeni MCP sunucusu ne yapmalı?",
+				"placeholder": "Örnek: bu workspace'ten dahili paket belgelerini arayan bir araç ekle",
+				"action": "AI ile oluştur",
+				"recommendation": "Context7 ve web arama belgelerde yardımcı olabilir, ancak kurulu değillerse oluşturma engellenmez.",
+				"validation": {
+					"empty": "Özel MCP sunucusu oluşturmaya başlamadan önce MCP sunucusunun ne yapmasını istediğini gir."
+				}
+			},
+			"requirements": {
+				"context7": "Context7 kurulu",
+				"webSearch": "Web arama kurulu",
+				"missingBoth": "Özel MCP keşfini başlatmadan önce Context7 ve en az bir web arama MCP sunucusu kur.",
+				"missingContext7": "Özel MCP keşfini başlatmadan önce Context7 kur.",
+				"missingWebSearch": "Özel MCP keşfini başlatmadan önce Exa Web Search, Brave Search, Tavily Search veya Firecrawl gibi en az bir web arama MCP sunucusu kur."
+			}
+		},
+		"empty": {
+			"title": "MCP sunucusu bulunamadı",
+			"description": "Farklı bir arama terimi dene veya seçili kategori filtresini temizle."
+		},
+		"status": {
+			"installed": "Kurulu"
+		},
+		"prerequisiteOverflow": "+{{count}} daha",
+		"secretSummary": "{{count}} gerekli",
+		"optionalSecretSummary": "{{count}} isteğe bağlı",
+		"noSecrets": "Secret yok",
+		"noneRequired": "Gerekli değil"
 	}
 }

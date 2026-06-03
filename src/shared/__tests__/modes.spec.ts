@@ -486,6 +486,29 @@ describe("FileRestrictionError", () => {
 		})
 	})
 
+	describe("MCP setup mode", () => {
+		it("is configured for safe MCP installation and verification", () => {
+			const mcpSetupMode = modes.find((mode) => mode.slug === "mcp-setup")
+
+			expect(mcpSetupMode).toBeDefined()
+			expect(mcpSetupMode).toMatchObject({
+				slug: "mcp-setup",
+				name: "🔌 MCP Setup",
+				description: "Install and verify MCP servers",
+			})
+			expect(mcpSetupMode?.whenToUse).toContain("MCP server installation")
+			expect(mcpSetupMode?.groups).toContain("read")
+			expect(mcpSetupMode?.groups).toContain("command")
+			expect(mcpSetupMode?.groups).toContain("mcp")
+			expect(mcpSetupMode?.groups).toContainEqual([
+				"edit",
+				expect.objectContaining({ description: "MCP settings files only" }),
+			])
+			expect(mcpSetupMode?.customInstructions).toContain("Preserve all existing mcpServers entries")
+			expect(mcpSetupMode?.customInstructions).toContain("Never echo, log, or store literal secret values")
+		})
+	})
+
 	describe("getFullModeDetails", () => {
 		beforeEach(() => {
 			vi.clearAllMocks()

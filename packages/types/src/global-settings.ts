@@ -14,6 +14,7 @@ import { modeConfigSchema } from "./mode.js"
 import { customModePromptsSchema, customSupportPromptsSchema } from "./mode.js"
 import { toolNamesSchema } from "./tool.js"
 import { languagesSchema } from "./vscode.js"
+import { openAiCodexFastStatusSchema } from "./providers/openai-codex.js"
 
 /**
  * Default delay in milliseconds after writes to allow diagnostics to detect potential problems.
@@ -112,6 +113,7 @@ export const globalSettingsSchema = z.object({
 	imageGenerationProvider: z.enum(["openrouter"]).optional(),
 	openRouterImageApiKey: z.string().optional(),
 	openRouterImageGenerationSelectedModel: z.string().optional(),
+	openAiCodexFastStatus: openAiCodexFastStatusSchema.optional(),
 
 	customCondensingPrompt: z.string().optional(),
 
@@ -186,6 +188,18 @@ export const globalSettingsSchema = z.object({
 	ttsSpeed: z.number().optional(),
 	soundEnabled: z.boolean().optional(),
 	soundVolume: z.number().optional(),
+	emailNotificationsEnabled: z.boolean().optional(),
+	emailNotifyOnSuccess: z.boolean().optional(),
+	emailNotifyOnFailure: z.boolean().optional(),
+	smtpHost: z.string().optional(),
+	smtpPort: z.number().int().min(1).max(65535).optional(),
+	smtpSecure: z.boolean().optional(),
+	smtpRequireTls: z.boolean().optional(),
+	smtpUsername: z.string().optional(),
+	smtpPassword: z.string().optional(),
+	smtpFromAddress: z.string().optional(),
+	smtpRecipients: z.array(z.string()).optional(),
+	smtpSubjectTemplate: z.string().optional(),
 
 	maxOpenTabsContext: z.number().optional(),
 	maxWorkspaceFiles: z.number().optional(),
@@ -310,6 +324,7 @@ export const SECRET_STATE_KEYS = [
 // Global secrets that are part of GlobalSettings (not ProviderSettings)
 export const GLOBAL_SECRET_KEYS = [
 	"openRouterImageApiKey", // For image generation
+	"smtpPassword", // For SMTP email notifications
 ] as const
 
 // Type for the actual secret storage keys

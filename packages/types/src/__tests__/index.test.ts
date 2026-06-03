@@ -11,6 +11,7 @@ import {
 } from "../index.js"
 import {
 	getProviderDefaultModelId,
+	openAiCodexModels,
 	openAiNativeDefaultModelId,
 	xiaomiMiMoDefaultModelId,
 	xiaomiMiMoModels,
@@ -33,8 +34,33 @@ describe("GLOBAL_STATE_KEYS", () => {
 		expect(GLOBAL_STATE_KEYS).toContain("codebaseIndexOpenAiCompatibleBaseUrl")
 	})
 
+	it("should contain OpenAI Codex Fast mode setting", () => {
+		expect(GLOBAL_STATE_KEYS).toContain("openAiCodexFastMode")
+	})
+
 	it("should not contain OpenAI Compatible API key (secret)", () => {
 		expect(GLOBAL_STATE_KEYS).not.toContain("codebaseIndexOpenAiCompatibleApiKey")
+	})
+})
+
+describe("OpenAI Codex provider settings", () => {
+	it("should accept the persistent Fast mode setting", () => {
+		expect(
+			providerSettingsSchemaDiscriminated.safeParse({
+				apiProvider: "openai-codex",
+				apiModelId: "gpt-5.5",
+				openAiCodexFastMode: true,
+			}).success,
+		).toBe(true)
+	})
+
+	it("should only mark GPT-5.5 and GPT-5.4 as Fast mode supported", () => {
+		const supportedFastModeModels = Object.entries(openAiCodexModels)
+			.filter(([, model]) => (model as ModelInfo).supportsFastMode === true)
+			.map(([modelId]) => modelId)
+
+		expect(supportedFastModeModels).toEqual(["gpt-5.5", "gpt-5.4"])
+		expect((openAiCodexModels["gpt-5.3-codex-spark"] as ModelInfo).supportsFastMode).toBeUndefined()
 	})
 })
 
@@ -56,7 +82,7 @@ describe("Xiaomi MiMo provider settings", () => {
 	})
 
 	it("should accept both official Xiaomi MiMo base URLs", () => {
-		for (const xiaomiMiMoBaseUrl of ["https://api.xiaomimimo.com/v1", "https://token-plan-cn.xiaomimimo.com/v1"]) {
+		for (const xiaomiMiMoBaseUrl of ["https://api.xiaomimimo.com/v1", "https://token-plan-ams.xiaomimimo.com/v1"]) {
 			expect(
 				providerSettingsSchemaDiscriminated.safeParse({
 					apiProvider: "xiaomi-mimo",

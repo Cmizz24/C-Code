@@ -16,6 +16,7 @@ import {
 	type EditQueuedMessagePayload,
 	RooCodeSettings,
 	ExperimentId,
+	RooCodeEventName,
 	normalizeParallelTaskConcurrency,
 	checkoutDiffPayloadSchema,
 	checkoutRestorePayloadSchema,
@@ -62,7 +63,15 @@ import { resolveImageMentions } from "../mentions/resolveImageMentions"
 import { RooIgnoreController } from "../ignore/RooIgnoreController"
 import { getWorkspacePath } from "../../utils/path"
 import { isPathOutsideWorkspace } from "../../utils/pathUtils"
-import { Mode, defaultModeSlug } from "../../shared/modes"
+import {
+	buildMarketplaceMcpCreationPrompt,
+	buildMarketplaceMcpDiscoveryPrompt,
+	buildMarketplaceMcpSetupPrompt,
+	getMarketplaceMcpDiscoveryPrerequisiteStatus,
+	getMarketplaceMcpItem,
+	isMarketplaceMcpScope,
+} from "../../services/mcp/marketplaceCatalog"
+import { type Mode, defaultModeSlug, marketplaceMcpSetupModeSlug } from "../../shared/modes"
 import { getModels, flushModels } from "../../api/providers/fetchers/modelCache"
 import { GetModelsOptions } from "../../shared/api"
 import { generateSystemPrompt } from "./generateSystemPrompt"
@@ -94,6 +103,12 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 	const getCurrentCwd = () => {
 		return provider.getCurrentTask()?.cwd || provider.cwd
 	}
+
+	const getInstalledMcpServerNames = () =>
+		provider
+			.getMcpHub?.()
+			?.getAllServers?.()
+			?.map((server) => server.name) ?? []
 
 	const getCurrentMode = async (): Promise<string> => {
 		const currentTask = provider.getCurrentTask()
@@ -637,6 +652,47 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			}
 			break
 
+		case "acceptCompletion":
+			{
+				const task = provider.getCurrentTask()
+
+				if (!task) {
+					provider.log("[completion-acceptance] No active task to accept completion for.")
+					await provider.postStateToWebview()
+					break
+				}
+
+				let completionObserved = false
+				const onTaskCompleted = (taskId: string) => {
+					if (taskId === task.taskId) {
+						completionObserved = true
+					}
+				}
+
+				task.on(RooCodeEventName.TaskCompleted, onTaskCompleted)
+
+				try {
+					task.handleWebviewAskResponse("yesButtonClicked")
+
+					try {
+						await pWaitFor(() => completionObserved, { timeout: 3_000, interval: 50 })
+					} catch (error) {
+						provider.log(
+							`[completion-acceptance] Timed out waiting for TaskCompleted before clearing task ${task.taskId}: ${
+								error instanceof Error ? error.message : String(error)
+							}`,
+						)
+						break
+					}
+				} finally {
+					task.off(RooCodeEventName.TaskCompleted, onTaskCompleted)
+				}
+
+				await provider.clearTask()
+				await provider.postStateToWebview()
+			}
+			break
+
 		case "approvePlan":
 			if (message.executionPlan) {
 				await provider.approveExecutionPlan(message.executionPlan)
@@ -762,6 +818,27 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			}
 
 			break
+
+		case "testSmtpSettings": {
+			const result = await provider.testSmtpSettings()
+			await provider.postMessageToWebview({
+				type: "smtpTestResult",
+				success: result.sent,
+				text: result.sent ? "SMTP test email sent successfully." : undefined,
+				error: result.sent
+					? undefined
+					: (result.error ??
+						(result.skippedReason === "invalid-config"
+							? "SMTP settings are incomplete or invalid. Check the extension output for details."
+							: "SMTP test email could not be sent.")),
+				values: {
+					attempted: result.attempted,
+					sent: result.sent,
+					skippedReason: result.skippedReason,
+				},
+			})
+			break
+		}
 
 		case "terminalOperation":
 			if (message.terminalOperation) {
@@ -1394,6 +1471,146 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				await openFile(mcpPath)
 			} catch (error) {
 				vscode.window.showErrorMessage(t("mcp:errors.create_json", { error: `${error}` }))
+			}
+
+			break
+		}
+		case "installMarketplaceMcp": {
+			const catalogItem = getMarketplaceMcpItem(message.marketplaceMcpId)
+			const targetScope = message.marketplaceMcpScope ?? message.source
+
+			if (!message.marketplaceMcpId || !catalogItem) {
+				vscode.window.showErrorMessage(
+					`Unknown MCP marketplace item: ${message.marketplaceMcpId ?? "missing catalog id"}`,
+				)
+				break
+			}
+
+			if (!isMarketplaceMcpScope(targetScope)) {
+				vscode.window.showErrorMessage(
+					`Invalid MCP marketplace scope: ${String(targetScope ?? "missing scope")}`,
+				)
+				break
+			}
+
+			try {
+				const globalConfigPath =
+					targetScope === "global" ? await provider.getMcpHub?.()?.getMcpSettingsFilePath() : undefined
+				const projectConfigPath = path.join(getCurrentCwd(), ".roo", "mcp.json")
+				const prompt = buildMarketplaceMcpSetupPrompt(catalogItem, targetScope, {
+					globalConfigPath,
+					projectConfigPath,
+				})
+				const taskConfiguration = {
+					...(message.taskConfiguration ?? {}),
+					mode: marketplaceMcpSetupModeSlug,
+				}
+
+				await provider.createTask(
+					prompt,
+					undefined,
+					undefined,
+					{ mode: marketplaceMcpSetupModeSlug },
+					taskConfiguration,
+				)
+				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
+				await provider.postMessageToWebview({ type: "action", action: "switchTab", tab: "chat" })
+			} catch (error) {
+				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
+				vscode.window.showErrorMessage(
+					`Failed to create MCP marketplace setup task: ${error instanceof Error ? error.message : String(error)}`,
+				)
+			}
+
+			break
+		}
+		case "discoverMarketplaceMcp": {
+			const requestedServer = message.marketplaceMcpDiscoveryRequest?.trim()
+
+			if (!requestedServer) {
+				vscode.window.showErrorMessage("Enter an MCP server name or description before starting discovery.")
+				break
+			}
+
+			const installedServerNames = getInstalledMcpServerNames()
+			const prerequisiteStatus = getMarketplaceMcpDiscoveryPrerequisiteStatus(installedServerNames)
+
+			if (prerequisiteStatus.missing.length > 0) {
+				vscode.window.showErrorMessage(
+					"Install Context7 and at least one web search MCP server before starting custom MCP discovery.",
+				)
+				break
+			}
+
+			try {
+				const globalConfigPath = await provider.getMcpHub?.()?.getMcpSettingsFilePath?.()
+				const projectConfigPath = path.join(getCurrentCwd(), ".roo", "mcp.json")
+				const prompt = buildMarketplaceMcpDiscoveryPrompt(requestedServer, {
+					globalConfigPath,
+					projectConfigPath,
+					installedServerNames,
+				})
+				const taskConfiguration = {
+					...(message.taskConfiguration ?? {}),
+					mode: marketplaceMcpSetupModeSlug,
+				}
+
+				await provider.createTask(
+					prompt,
+					undefined,
+					undefined,
+					{ mode: marketplaceMcpSetupModeSlug },
+					taskConfiguration,
+				)
+				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
+				await provider.postMessageToWebview({ type: "action", action: "switchTab", tab: "chat" })
+			} catch (error) {
+				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
+				vscode.window.showErrorMessage(
+					`Failed to create custom MCP discovery task: ${error instanceof Error ? error.message : String(error)}`,
+				)
+			}
+
+			break
+		}
+		case "createMarketplaceMcpServer": {
+			const requestedCapability = message.marketplaceMcpCreationRequest?.trim()
+
+			if (!requestedCapability) {
+				vscode.window.showErrorMessage(
+					"Enter what you want the MCP server to do before starting custom MCP server creation.",
+				)
+				break
+			}
+
+			try {
+				const installedServerNames = getInstalledMcpServerNames()
+				const globalConfigPath = await provider.getMcpHub?.()?.getMcpSettingsFilePath?.()
+				const projectConfigPath = path.join(getCurrentCwd(), ".roo", "mcp.json")
+				const prompt = buildMarketplaceMcpCreationPrompt(requestedCapability, {
+					globalConfigPath,
+					projectConfigPath,
+					installedServerNames,
+				})
+				const taskConfiguration = {
+					...(message.taskConfiguration ?? {}),
+					mode: marketplaceMcpSetupModeSlug,
+				}
+
+				await provider.createTask(
+					prompt,
+					undefined,
+					undefined,
+					{ mode: marketplaceMcpSetupModeSlug },
+					taskConfiguration,
+				)
+				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
+				await provider.postMessageToWebview({ type: "action", action: "switchTab", tab: "chat" })
+			} catch (error) {
+				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
+				vscode.window.showErrorMessage(
+					`Failed to create custom MCP server task: ${error instanceof Error ? error.message : String(error)}`,
+				)
 			}
 
 			break

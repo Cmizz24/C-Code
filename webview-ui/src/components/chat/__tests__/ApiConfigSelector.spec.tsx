@@ -21,7 +21,7 @@ vi.mock("@/components/ui/hooks/useRooPortal", () => ({
 }))
 
 // Mock the ExtensionStateContext
-vi.mock("@/context/ExtensionStateContext", () => ({
+vi.mock("@src/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
 		apiConfiguration: {
 			apiProvider: "anthropic",

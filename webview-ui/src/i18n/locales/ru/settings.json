@@ -347,6 +347,18 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Включить Fast mode",
+			"description": "Использует priority service tier OpenAI для поддерживаемых моделей (GPT-5.5 и GPT-5.4). Fast mode может расходовать кредиты быстрее.",
+			"status": {
+				"disabled": "Fast mode доступен для {{modelId}}, но сейчас выключен.",
+				"unsupported": "Fast mode недоступен для {{modelId}}.",
+				"signInRequired": "Fast mode включён для {{modelId}}, но перед запуском нужно войти.",
+				"requested": "Fast mode запрошен для {{modelId}}, но OpenAI ещё не подтвердила tier priority.",
+				"confirmed": "Fast mode подтверждён для {{modelId}} на tier priority OpenAI.",
+				"rejected": "Fast mode запрошен для {{modelId}}, но OpenAI сообщила service tier {{observedServiceTier}}."
+			}
+		},
 		"useCustomBaseUrl": "Использовать пользовательский базовый URL",
 		"useReasoning": "Включить рассуждения",
 		"useHostHeader": "Использовать пользовательский Host-заголовок",
@@ -577,6 +589,67 @@
 			"label": "Включить озвучивание",
 			"description": "Если включено, Roo будет озвучивать свои ответы с помощью преобразования текста в речь.",
 			"speedLabel": "Скорость"
+		},
+		"email": {
+			"label": "Включить email-уведомления",
+			"description": "Отправляет HTML SMTP email-уведомления с fallback в виде обычного текста, когда задача верхнего уровня завершается. Транскрипты задач никогда не включаются.",
+			"notifyOnSuccess": {
+				"label": "Уведомлять, когда задачи успешно завершены"
+			},
+			"notifyOnFailure": {
+				"label": "Уведомлять, когда задачи завершаются с ошибкой или прерываются",
+				"description": "Включает ошибки streaming и задачи, прерванные пользователем. Фоновые задачи и делегированные дочерние задачи пропускаются."
+			},
+			"smtpHost": {
+				"label": "SMTP-хост",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "SMTP-порт"
+			},
+			"smtpSecure": {
+				"label": "Использовать неявный TLS",
+				"description": "Включи для SMTPS-подключений, обычно на порту 465. Оставь выключенным для STARTTLS на порту 587."
+			},
+			"smtpRequireTls": {
+				"label": "Требовать STARTTLS",
+				"description": "Требует, чтобы сервер обновил подключение через STARTTLS перед отправкой учетных данных."
+			},
+			"smtpUsername": {
+				"label": "Имя пользователя SMTP",
+				"placeholder": "Необязательное имя пользователя"
+			},
+			"smtpPassword": {
+				"label": "Пароль SMTP",
+				"placeholder": "Введи пароль SMTP",
+				"configuredPlaceholder": "Оставь пустым, чтобы сохранить текущий пароль",
+				"description": "Хранится в секретном хранилище VS Code и больше никогда не показывается.",
+				"configuredDescription": "Пароль уже сохранен. Введи новый пароль только если хочешь заменить его."
+			},
+			"smtpFromAddress": {
+				"label": "Адрес отправителя",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Получатели",
+				"placeholder": "you@example.com\nteam@example.com",
+				"description": "Разделяй получателей запятыми или новыми строками."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Шаблон темы",
+				"placeholder": "Задача C {{outcome}}",
+				"description": "Необязательно. Доступные tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens не учитывают регистр, поэтому {{taskId}} и {{taskid}} оба работают."
+			},
+			"test": {
+				"label": "Проверить настройки SMTP",
+				"description": "Отправляет тестовое письмо с сохраненными настройками SMTP. Несохраненные изменения и новые пароли нужно сначала сохранить.",
+				"button": "Проверить SMTP",
+				"sending": "Отправка...",
+				"success": "Тестовое письмо SMTP успешно отправлено.",
+				"failure": "Не удалось отправить тестовое письмо SMTP.",
+				"invalidConfig": "Настройки SMTP неполные или недействительные. Подробности смотри в выводе расширения.",
+				"unsavedChanges": "Сохрани настройки SMTP перед проверкой. Проверка SMTP использует только сохраненные настройки и пароль из секретного хранилища VS Code."
+			}
 		}
 	},
 	"contextManagement": {

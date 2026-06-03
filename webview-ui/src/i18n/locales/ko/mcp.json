@@ -60,5 +60,95 @@
 		"running": "실행 중",
 		"completed": "완료됨",
 		"error": "오류"
+	},
+	"marketplace": {
+		"title": "MCP Marketplace",
+		"description": "검색, 코딩, 문서, 데이터베이스, 파일, 팀 워크플로우를 위한 신뢰할 수 있는 MCP 서버를 찾아보세요. 하나를 선택하면 C가 안내형 작업에서 설정합니다.",
+		"featuredCatalog": "추천 MCP 서버",
+		"stats": {
+			"servers": "선별된 서버",
+			"installed": "설치됨"
+		},
+		"search": {
+			"label": "Marketplace 검색",
+			"placeholder": "이름, 카테고리, 패키지 또는 secret으로 검색..."
+		},
+		"filters": {
+			"categoryLabel": "카테고리로 필터링",
+			"all": "모든 카테고리"
+		},
+		"resultsSummary": "서버 {{total}}개 중 {{shown}}개 표시 중",
+		"badges": {
+			"featured": "추천",
+			"popular": "인기"
+		},
+		"labels": {
+			"category": "카테고리",
+			"package": "패키지",
+			"source": "소스",
+			"transport": "전송 방식",
+			"requiredSecrets": "필수 secret",
+			"prerequisites": "사전 요구 사항",
+			"suggestedScope": "권장 범위",
+			"scope": "대상 범위",
+			"verification": "검증",
+			"riskNotes": "위험 참고 사항"
+		},
+		"scope": {
+			"global": "전역",
+			"project": "프로젝트"
+		},
+		"actions": {
+			"installWithAI": "AI로 설치",
+			"configureAgain": "다시 구성",
+			"clearFilters": "필터 지우기",
+			"showDetails": "세부 정보",
+			"hideDetails": "세부 정보 숨기기",
+			"openDocs": "문서 열기"
+		},
+		"customDiscovery": {
+			"title": "MCP 서버를 찾을 수 없나요?",
+			"description": "원하는 MCP 서버를 입력하면 C가 MCP Setup 작업을 열어 공식 문서를 찾고, 안전한 구성을 제안하며, 설치된 조사 도구로 검증합니다.",
+			"mode": {
+				"label": "사용자 지정 MCP 서버 작업",
+				"find": "기존 서버 찾기",
+				"create": "새로 만들기"
+			},
+			"inputLabel": "MCP 서버 이름 또는 설명",
+			"placeholder": "예: Perplexity 검색 MCP 서버",
+			"action": "AI로 찾기",
+			"validation": {
+				"empty": "탐색을 시작하기 전에 MCP 서버 이름 또는 설명을 입력하세요."
+			},
+			"create": {
+				"description": "원하는 MCP 서버나 도구를 설명하면 C가 MCP Setup 작업을 열어 사용자 지정 로컬 서버를 설계, 구현, 구성, 검증합니다.",
+				"inputLabel": "새 MCP 서버가 무엇을 해야 하나요?",
+				"placeholder": "예: 이 워크스페이스에서 내부 패키지 문서를 조회하는 도구 추가",
+				"action": "AI로 만들기",
+				"recommendation": "Context7과 웹 검색은 문서 확인에 도움이 될 수 있지만, 설치되어 있지 않아도 생성은 차단되지 않습니다.",
+				"validation": {
+					"empty": "사용자 지정 MCP 서버 생성을 시작하기 전에 MCP 서버가 무엇을 해야 하는지 입력하세요."
+				}
+			},
+			"requirements": {
+				"context7": "Context7 설치됨",
+				"webSearch": "웹 검색 설치됨",
+				"missingBoth": "사용자 지정 MCP 탐색을 시작하기 전에 Context7과 하나 이상의 웹 검색 MCP 서버를 설치하세요.",
+				"missingContext7": "사용자 지정 MCP 탐색을 시작하기 전에 Context7을 설치하세요.",
+				"missingWebSearch": "사용자 지정 MCP 탐색을 시작하기 전에 Exa Web Search, Brave Search, Tavily Search 또는 Firecrawl 같은 웹 검색 MCP 서버를 하나 이상 설치하세요."
+			}
+		},
+		"empty": {
+			"title": "MCP 서버를 찾을 수 없음",
+			"description": "다른 검색어를 시도하거나 선택한 카테고리 필터를 지우세요."
+		},
+		"status": {
+			"installed": "설치됨"
+		},
+		"prerequisiteOverflow": "+{{count}}개 더",
+		"secretSummary": "{{count}}개 필수",
+		"optionalSecretSummary": "{{count}}개 선택 사항",
+		"noSecrets": "secret 없음",
+		"noneRequired": "필요 없음"
 	}
 }

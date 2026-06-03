@@ -272,6 +272,7 @@ const ApiOptions = ({
 	const {
 		organizationAllowList,
 		openAiCodexIsAuthenticated,
+		openAiCodexFastStatus,
 		routerModels: extensionRouterModels,
 	} = useExtensionState()
 
@@ -721,6 +722,7 @@ const ApiOptions = ({
 							setApiConfigurationField={setApiConfigurationField}
 							simplifySettings={fromWelcomeView}
 							openAiCodexIsAuthenticated={openAiCodexIsAuthenticated}
+							openAiCodexFastStatus={openAiCodexFastStatus}
 						/>
 					)}
 

@@ -347,6 +347,18 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Fast mode inschakelen",
+			"description": "Gebruikt de priority service tier van OpenAI voor ondersteunde modellen (GPT-5.5 en GPT-5.4). Fast mode kan credits sneller verbruiken.",
+			"status": {
+				"disabled": "Fast mode is beschikbaar voor {{modelId}}, maar staat momenteel uit.",
+				"unsupported": "Fast mode is niet beschikbaar voor {{modelId}}.",
+				"signInRequired": "Fast mode is ingeschakeld voor {{modelId}}, maar je moet inloggen voordat deze kan worden uitgevoerd.",
+				"requested": "Fast mode is aangevraagd voor {{modelId}}, maar OpenAI heeft de priority tier nog niet bevestigd.",
+				"confirmed": "Fast mode is bevestigd voor {{modelId}} op OpenAI's priority tier.",
+				"rejected": "Fast mode is aangevraagd voor {{modelId}}, maar OpenAI meldde de service tier {{observedServiceTier}}."
+			}
+		},
 		"useCustomBaseUrl": "Aangepaste basis-URL gebruiken",
 		"useReasoning": "Redenering inschakelen",
 		"useHostHeader": "Aangepaste Host-header gebruiken",
@@ -577,6 +589,67 @@
 			"label": "Tekst-naar-spraak inschakelen",
 			"description": "Indien ingeschakeld, leest Roo zijn antwoorden hardop voor via tekst-naar-spraak.",
 			"speedLabel": "Snelheid"
+		},
+		"email": {
+			"label": "E-mailmeldingen inschakelen",
+			"description": "Verstuur HTML SMTP-e-mailmeldingen met een platte-tekst fallback wanneer een taak op het hoogste niveau klaar is. Taaktranscripten worden nooit opgenomen.",
+			"notifyOnSuccess": {
+				"label": "Melden wanneer taken succesvol worden voltooid"
+			},
+			"notifyOnFailure": {
+				"label": "Melden wanneer taken mislukken of worden afgebroken",
+				"description": "Omvat streamingfouten en door de gebruiker afgebroken taken. Achtergrondtaken en gedelegeerde subtaken worden overgeslagen."
+			},
+			"smtpHost": {
+				"label": "SMTP-host",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "SMTP-poort"
+			},
+			"smtpSecure": {
+				"label": "Impliciete TLS gebruiken",
+				"description": "Schakel dit in voor SMTPS-verbindingen, meestal op poort 465. Laat uit voor STARTTLS op poort 587."
+			},
+			"smtpRequireTls": {
+				"label": "STARTTLS vereisen",
+				"description": "Vereist dat de server de verbinding met STARTTLS opwaardeert voordat referenties worden verzonden."
+			},
+			"smtpUsername": {
+				"label": "SMTP-gebruikersnaam",
+				"placeholder": "Optionele gebruikersnaam"
+			},
+			"smtpPassword": {
+				"label": "SMTP-wachtwoord",
+				"placeholder": "SMTP-wachtwoord invoeren",
+				"configuredPlaceholder": "Laat leeg om het opgeslagen wachtwoord te behouden",
+				"description": "Wordt opgeslagen in de geheime opslag van VS Code en nooit opnieuw weergegeven.",
+				"configuredDescription": "Er is al een wachtwoord opgeslagen. Voer alleen een nieuw wachtwoord in als je het wilt vervangen."
+			},
+			"smtpFromAddress": {
+				"label": "Afzenderadres",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Ontvangers",
+				"placeholder": "jij@example.com\nteam@example.com",
+				"description": "Scheid ontvangers met komma's of nieuwe regels."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Onderwerpsjabloon",
+				"placeholder": "C-taak {{outcome}}",
+				"description": "Optioneel. Beschikbare tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens zijn niet hoofdlettergevoelig, dus {{taskId}} en {{taskid}} werken allebei."
+			},
+			"test": {
+				"label": "SMTP-instellingen testen",
+				"description": "Verstuur een testmail met de opgeslagen SMTP-instellingen. Niet-opgeslagen wijzigingen en nieuwe wachtwoorden moeten eerst worden opgeslagen.",
+				"button": "SMTP testen",
+				"sending": "Bezig met verzenden...",
+				"success": "SMTP-testmail succesvol verzonden.",
+				"failure": "SMTP-testmail kon niet worden verzonden.",
+				"invalidConfig": "SMTP-instellingen zijn onvolledig of ongeldig. Controleer de uitvoer van de extensie voor details.",
+				"unsavedChanges": "Sla je SMTP-instellingen op voordat je test. SMTP testen gebruikt alleen opgeslagen instellingen en het wachtwoord in de geheime opslag van VS Code."
+			}
 		}
 	},
 	"contextManagement": {

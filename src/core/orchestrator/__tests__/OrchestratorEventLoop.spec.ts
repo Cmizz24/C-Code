@@ -17,6 +17,7 @@ function createPlan(): ExecutionPlan {
 	return {
 		planId: "plan-test",
 		sharedContext: "Build the dashboard",
+		sharedContract: "Use #dashboard-root, data-testid=dashboard-root, and .dashboard-card for dashboard cards.",
 		fileOwnershipMap: { "src/Dashboard.tsx": "ui" },
 		agents: [
 			{
@@ -164,6 +165,9 @@ describe("OrchestratorEventLoop", () => {
 
 		expect(message).toContain("You are agent ui, running a normal single ui-ux specialist task.")
 		expect(message).toContain("Shared context:\nBuild the dashboard")
+		expect(message).toContain(
+			"Shared contract (must follow and acknowledge before completion):\nUse #dashboard-root, data-testid=dashboard-root, and .dashboard-card for dashboard cards.",
+		)
 		expect(message).toContain("Task:\nBuild the dashboard UI")
 		expect(message).toContain("Your primary ownership scope")
 		expect(message).toContain("Use normal sequential tool calls")
@@ -184,6 +188,9 @@ describe("OrchestratorEventLoop", () => {
 		expect(options?.systemPromptSuffix).toContain("Single-agent task guidance:")
 		expect(options?.systemPromptSuffix).toContain("- Agent id: ui")
 		expect(options?.systemPromptSuffix).toContain("- Execution plan: plan-test")
+		expect(options?.systemPromptSuffix).toContain(
+			"- Shared contract (must follow and acknowledge before completion):\nUse #dashboard-root, data-testid=dashboard-root, and .dashboard-card for dashboard cards.",
+		)
 		expect(options?.systemPromptSuffix).toContain("Use normal sequential tool calls")
 		expect(options?.systemPromptSuffix).toContain("Never concatenate multiple tool argument JSON objects")
 		expect(options?.systemPromptSuffix).toContain("prefer the normal write/edit tools available in this mode")
@@ -192,36 +199,48 @@ describe("OrchestratorEventLoop", () => {
 		)
 		expect(options?.systemPromptSuffix).toContain("not for embedding large file contents")
 		expect(message).toContain("Use coordinate_agents for genuine live coordination")
-		expect(message).toContain("read team chat when you need current coordination state")
+		expect(message).toContain("read team chat before shared edits")
+		expect(message).toContain("before attempt_completion")
 		expect(message).toContain("Publish a coordinate_agents question proactively")
+		expect(message).toContain("Publish kind='decision'")
+		expect(message).toContain("kind='note'")
+		expect(message).toContain("kind='blocker'")
 		expect(message).toContain("shared integration contract is missing, ambiguous")
 		expect(message).toContain("do not guess UI/CSS/component interfaces")
 		expect(message).toContain("Do not post pre-planned, basic, or filler questions")
 		expect(message).toContain("adapt your files or final result")
 		expect(message).toContain("Do not post ownership or introduction messages")
-		expect(message).toContain("real question/answer coordination only")
+		expect(message).toContain("questions, answers, decisions, assumption notes, and blockers only")
 		expect(message).toContain("one short shared-contract question at a time")
 		expect(message).toContain("only the key hook, selector, variable, file, or decision")
+		expect(message).toContain("call coordinate_agents with action='acknowledge_contract'")
 		expect(message).toContain("Avoid manifest-style messages")
 		expect(message).toContain("Never include emojis")
 		expect(message).not.toContain("publish one concise operational update")
 		expect(message).not.toContain("what file you own")
 		expect(message).not.toContain("Before your first write")
-		expect(message).not.toContain("Before attempt_completion, read team chat again")
 		expect(message).not.toMatch(/\p{Extended_Pictographic}/u)
 		expect(options?.systemPromptSuffix).toContain("Use coordinate_agents for genuine live coordination")
+		expect(options?.systemPromptSuffix).toContain("read before shared edits")
+		expect(options?.systemPromptSuffix).toContain("before attempt_completion")
 		expect(options?.systemPromptSuffix).toContain("Publish a coordinate_agents question proactively")
+		expect(options?.systemPromptSuffix).toContain("Publish kind='decision'")
+		expect(options?.systemPromptSuffix).toContain("kind='note'")
+		expect(options?.systemPromptSuffix).toContain("kind='blocker'")
 		expect(options?.systemPromptSuffix).toContain("shared integration contract is missing, ambiguous")
 		expect(options?.systemPromptSuffix).toContain("do not guess UI/CSS/component interfaces")
 		expect(options?.systemPromptSuffix).toContain("Do not post pre-planned, basic, or filler questions")
 		expect(options?.systemPromptSuffix).toContain("After attempt_completion or terminal completion")
 		expect(options?.systemPromptSuffix).toContain("adapt your files or final result")
 		expect(options?.systemPromptSuffix).toContain("Do not post ownership or introduction messages")
-		expect(options?.systemPromptSuffix).toContain("real question/answer coordination only")
+		expect(options?.systemPromptSuffix).toContain(
+			"questions, answers, decisions, assumption notes, and blockers only",
+		)
 		expect(options?.systemPromptSuffix).toContain("one short shared-contract question at a time")
 		expect(options?.systemPromptSuffix).toContain(
 			"answer with only the key hook, selector, variable, file, or decision",
 		)
+		expect(options?.systemPromptSuffix).toContain("call coordinate_agents with action='acknowledge_contract'")
 		expect(options?.systemPromptSuffix).toContain("Avoid manifest-style dumps")
 		expect(options?.systemPromptSuffix).toContain("CSS variables")
 		expect(options?.systemPromptSuffix).toContain("do not invent fake conversation")
@@ -266,6 +285,11 @@ describe("OrchestratorEventLoop", () => {
 				"each native tool call must have exactly one JSON argument object",
 			)
 			expect(options?.systemPromptSuffix).toContain("Use coordinate_agents for genuine live coordination")
+			expect(options?.systemPromptSuffix).toContain("read before shared edits")
+			expect(options?.systemPromptSuffix).toContain("before attempt_completion")
+			expect(options?.systemPromptSuffix).toContain("Publish kind='decision'")
+			expect(options?.systemPromptSuffix).toContain("kind='note'")
+			expect(options?.systemPromptSuffix).toContain("kind='blocker'")
 			expect(options?.systemPromptSuffix).toContain("shared integration contract is missing, ambiguous")
 			expect(options?.systemPromptSuffix).toContain("do not guess UI/CSS/component interfaces")
 			expect(options?.systemPromptSuffix).toContain("Do not post pre-planned, basic, or filler questions")
@@ -276,7 +300,7 @@ describe("OrchestratorEventLoop", () => {
 		}
 	})
 
-	it("includes dependency context without duplicating signal wording", async () => {
+	it("includes non-blocking dependency context without delaying child creation", async () => {
 		const provider = createProvider()
 		const plan = createTwoAgentPlan()
 		plan.agents[1] = {
@@ -289,13 +313,11 @@ describe("OrchestratorEventLoop", () => {
 					context: "Use the declared DOM and class names once signalled.",
 				},
 			],
-			status: "blocked",
+			status: "pending",
 		}
 
 		new OrchestratorEventLoop(provider, AgentBus.getInstance()).start(plan)
 
-		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(1))
-		AgentBus.getInstance().emitSignal("ui", "contract-ready", "UI contract is ready")
 		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(2))
 		const stylesCall = vi
 			.mocked(provider.createTask)
@@ -303,14 +325,18 @@ describe("OrchestratorEventLoop", () => {
 		expect(stylesCall).toBeDefined()
 		const [message, , , options] = stylesCall!
 
+		expect(message).toContain("Non-blocking dependency context:")
 		expect(message).toContain(
-			"- Wait for ui signal contract-ready: Use the declared DOM and class names once signalled.",
+			"- Coordinate with ui (signal contract-ready, non-blocking): Use the declared DOM and class names once signalled.",
 		)
 		expect(message).not.toContain("signal signal")
+		expect(message).not.toContain("Wait for ui")
+		expect(options?.systemPromptSuffix).toContain("Non-blocking dependency context:")
 		expect(options?.systemPromptSuffix).toContain(
-			"- Wait for ui signal contract-ready: Use the declared DOM and class names once signalled.",
+			"- Coordinate with ui (signal contract-ready, non-blocking): Use the declared DOM and class names once signalled.",
 		)
 		expect(options?.systemPromptSuffix).not.toContain("signal signal")
+		expect(options?.systemPromptSuffix).not.toContain("Wait for ui")
 	})
 
 	it("uses the original orchestrator task as the parent for every spawned agent", async () => {
@@ -432,7 +458,7 @@ describe("OrchestratorEventLoop", () => {
 		expect(AgentBus.getInstance().getAgent("agent-3")?.status).toBe("running")
 	})
 
-	it("preserves dependency blocking while filling available concurrency slots", async () => {
+	it("starts dependency-context agents within concurrency slots without hard blocking", async () => {
 		const spawnedTasks = new Map<string, TestTask>()
 		const plan = createMultiAgentPlan(3)
 		plan.agents[1].dependsOn = [{ agentId: "agent-1", waitFor: "complete" }]
@@ -450,17 +476,17 @@ describe("OrchestratorEventLoop", () => {
 		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(2))
 		expect(vi.mocked(provider.createTask).mock.calls.map((call) => call[3]?.agentId)).toEqual([
 			"agent-1",
-			"agent-3",
+			"agent-2",
 		])
-		expect(AgentBus.getInstance().getAgent("agent-2")?.status).toBe("blocked")
+		expect(AgentBus.getInstance().getAgent("agent-2")?.status).toBe("running")
 
 		spawnedTasks.get("agent-1")?.emit(RooCodeEventName.TaskCompleted)
 
 		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(3))
 		expect(vi.mocked(provider.createTask).mock.calls.map((call) => call[3]?.agentId)).toEqual([
 			"agent-1",
-			"agent-3",
 			"agent-2",
+			"agent-3",
 		])
 	})
 
@@ -559,7 +585,7 @@ describe("OrchestratorEventLoop", () => {
 			expect(task.off).toHaveBeenCalledWith(RooCodeEventName.TaskInteractive, expect.any(Function))
 			expect(task.off).toHaveBeenCalledWith(RooCodeEventName.TaskResumable, expect.any(Function))
 			expect(task.off).toHaveBeenCalledWith(RooCodeEventName.TaskIdle, expect.any(Function))
-			expect(task.abortTask).toHaveBeenCalled()
+			expect(task.abortTask).toHaveBeenCalledWith(true)
 		}
 		expect(AgentBus.getInstance().getAgent("ui")?.status).toBe("failed")
 		expect(AgentBus.getInstance().getAgent("styles")?.status).toBe("failed")
@@ -588,7 +614,7 @@ describe("OrchestratorEventLoop", () => {
 		expect(spawnedTask?.denyAsk).toHaveBeenCalledWith({
 			text: "Agent task requires tool approval that cannot be surfaced from a background agent.",
 		})
-		expect(spawnedTask?.abortTask).toHaveBeenCalled()
+		expect(spawnedTask?.abortTask).toHaveBeenCalledWith(true)
 		expect(provider.postStateToWebview).toHaveBeenCalled()
 	})
 
@@ -614,7 +640,7 @@ describe("OrchestratorEventLoop", () => {
 		await vi.waitFor(() => expect(AgentBus.getInstance().getAgent("ui")?.status).toBe("complete"))
 		expect(spawnedTask?.approveAsk).toHaveBeenCalled()
 		expect(spawnedTask?.denyAsk).not.toHaveBeenCalled()
-		expect(spawnedTask?.abortTask).toHaveBeenCalled()
+		expect(spawnedTask?.abortTask).toHaveBeenCalledWith(true)
 		expect(provider.postStateToWebview).toHaveBeenCalled()
 	})
 

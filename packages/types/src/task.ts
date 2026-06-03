@@ -135,7 +135,7 @@ export interface TaskLike {
 	approveAsk(options?: { text?: string; images?: string[] }): void
 	denyAsk(options?: { text?: string; images?: string[] }): void
 	submitUserMessage(text: string, images?: string[], mode?: string, providerProfile?: string): Promise<void>
-	abortTask(): void
+	abortTask(isAbandoned?: boolean): void | Promise<void>
 }
 
 export type TaskEvents = {

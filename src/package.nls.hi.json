@@ -1,6 +1,6 @@
 {
 	"extension.displayName": "C Code",
-	"extension.description": "Cmizz का Roo Code का निजी fork: आपके एडिटर में एआई एजेंट्स की पूरी डेवलपमेंट टीम।",
+	"extension.description": "समानांतर एजेंट्स, MCP workflows, Codex fast mode, SMTP rollups और Windows-सुरक्षित tooling के साथ Cmizz का Roo Code fork.",
 	"command.newTask.title": "नया कार्य",
 	"command.explainCode.title": "कोड समझाएं",
 	"command.fixCode.title": "कोड ठीक करें",

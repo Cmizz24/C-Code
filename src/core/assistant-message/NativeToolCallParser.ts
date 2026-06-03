@@ -493,7 +493,14 @@ export class NativeToolCallParser {
 		return undefined
 	}
 
-	private static readonly coordinateAgentKindValues = new Set(["note", "question", "answer", "decision", "blocker"])
+	private static readonly coordinateAgentKindValues = new Set([
+		"note",
+		"question",
+		"answer",
+		"decision",
+		"blocker",
+		"shared-contract",
+	])
 	private static readonly coordinateAgentAllowedKeys = new Set([
 		"action",
 		"kind",
@@ -514,17 +521,17 @@ export class NativeToolCallParser {
 		}
 
 		if (typeof args.action !== "string") {
-			throw new Error("coordinate_agents action must be 'publish' or 'read'.")
+			throw new Error("coordinate_agents action must be 'publish', 'read', or 'acknowledge_contract'.")
 		}
 
 		const action = args.action.trim()
-		if (action !== "publish" && action !== "read") {
-			throw new Error("coordinate_agents action must be 'publish' or 'read'.")
+		if (action !== "publish" && action !== "read" && action !== "acknowledge_contract") {
+			throw new Error("coordinate_agents action must be 'publish', 'read', or 'acknowledge_contract'.")
 		}
 
 		const limit = this.normalizeCoordinateAgentsLimit(args.limit)
 
-		if (action === "read") {
+		if (action === "read" || action === "acknowledge_contract") {
 			this.normalizeCoordinateAgentsKind(args.kind)
 			this.normalizeCoordinateAgentsMessage(args.message)
 			this.normalizeCoordinateAgentsTargetAgentId(args.targetAgentId)
@@ -591,7 +598,9 @@ export class NativeToolCallParser {
 		}
 
 		if (!this.coordinateAgentKindValues.has(normalized)) {
-			throw new Error("coordinate_agents kind must be one of note, question, answer, decision, or blocker.")
+			throw new Error(
+				"coordinate_agents kind must be one of note, question, answer, decision, blocker, or shared-contract.",
+			)
 		}
 
 		return normalized as NativeToolArgs["coordinate_agents"]["kind"]
@@ -1063,6 +1072,7 @@ export class NativeToolCallParser {
 					nativeArgs = {
 						goal: partialArgs.goal,
 						sharedContext: partialArgs.sharedContext,
+						sharedContract: partialArgs.sharedContract,
 						expectedFiles: Array.isArray(partialArgs.expectedFiles) ? partialArgs.expectedFiles : [],
 						agents: Array.isArray(partialArgs.agents) ? partialArgs.agents : [],
 					}
@@ -1427,6 +1437,7 @@ export class NativeToolCallParser {
 						nativeArgs = {
 							goal: args.goal,
 							sharedContext: args.sharedContext,
+							sharedContract: args.sharedContract,
 							expectedFiles: args.expectedFiles,
 							agents: args.agents,
 						} as NativeArgsFor<TName>

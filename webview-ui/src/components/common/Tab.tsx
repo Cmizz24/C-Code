@@ -1,6 +1,6 @@
 import React, { HTMLAttributes, useCallback, forwardRef } from "react"
 
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 
 type TabProps = HTMLAttributes<HTMLDivElement>

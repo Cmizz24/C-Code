@@ -38,6 +38,8 @@ vi.mock("../diagnosticsHandler", () => ({
 }))
 
 import type { ModelRecord } from "@roo-code/types"
+import { RooCodeEventName } from "@roo-code/types"
+import EventEmitter from "events"
 
 import { webviewMessageHandler } from "../webviewMessageHandler"
 import type { ClineProvider } from "../ClineProvider"
@@ -76,10 +78,19 @@ const mockClineProvider = {
 	postStateToWebview: vi.fn(),
 	getCurrentTask: vi.fn(),
 	getTaskWithId: vi.fn(),
+	createTask: vi.fn().mockResolvedValue({ taskId: "mock-task-id" }),
 	createTaskWithHistoryItem: vi.fn(),
+	clearTask: vi.fn(),
+	testSmtpSettings: vi.fn(),
+	getMcpHub: vi.fn(),
 	getSkillsManager: vi.fn(),
 	cwd: "/mock/workspace",
 } as unknown as ClineProvider
+
+type MockCompletionTask = EventEmitter & {
+	taskId: string
+	handleWebviewAskResponse: ReturnType<typeof vi.fn>
+}
 
 import { t } from "../../../i18n"
 
@@ -163,6 +174,88 @@ vi.mock("../../mentions/resolveImageMentions", () => ({
 
 import { resolveImageMentions } from "../../mentions/resolveImageMentions"
 
+describe("webviewMessageHandler - testSmtpSettings", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("posts a successful SMTP test result without SMTP secrets", async () => {
+		vi.mocked(mockClineProvider.testSmtpSettings).mockResolvedValue({ attempted: true, sent: true })
+
+		await webviewMessageHandler(mockClineProvider, { type: "testSmtpSettings" } as any)
+
+		expect(mockClineProvider.testSmtpSettings).toHaveBeenCalledTimes(1)
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "smtpTestResult",
+			success: true,
+			text: "SMTP test email sent successfully.",
+			error: undefined,
+			values: {
+				attempted: true,
+				sent: true,
+				skippedReason: undefined,
+			},
+		})
+		expect(JSON.stringify(vi.mocked(mockClineProvider.postMessageToWebview).mock.calls)).not.toContain(
+			"smtp-secret",
+		)
+	})
+
+	it("posts invalid SMTP test configuration errors without accepting webview password input", async () => {
+		vi.mocked(mockClineProvider.testSmtpSettings).mockResolvedValue({
+			attempted: false,
+			sent: false,
+			skippedReason: "invalid-config",
+		})
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "testSmtpSettings",
+			values: { smtpPassword: "smtp-secret" },
+		} as any)
+
+		expect(mockClineProvider.testSmtpSettings).toHaveBeenCalledWith()
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "smtpTestResult",
+			success: false,
+			text: undefined,
+			error: "SMTP settings are incomplete or invalid. Check the extension output for details.",
+			values: {
+				attempted: false,
+				sent: false,
+				skippedReason: "invalid-config",
+			},
+		})
+		expect(JSON.stringify(vi.mocked(mockClineProvider.postMessageToWebview).mock.calls)).not.toContain(
+			"smtp-secret",
+		)
+	})
+
+	it("posts sanitized SMTP test send failures", async () => {
+		vi.mocked(mockClineProvider.testSmtpSettings).mockResolvedValue({
+			attempted: true,
+			sent: false,
+			error: "Authentication failed for [redacted]",
+		})
+
+		await webviewMessageHandler(mockClineProvider, { type: "testSmtpSettings" } as any)
+
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "smtpTestResult",
+			success: false,
+			text: undefined,
+			error: "Authentication failed for [redacted]",
+			values: {
+				attempted: true,
+				sent: false,
+				skippedReason: undefined,
+			},
+		})
+		expect(JSON.stringify(vi.mocked(mockClineProvider.postMessageToWebview).mock.calls)).not.toContain(
+			"smtp-secret",
+		)
+	})
+})
+
 describe("webviewMessageHandler - requestLmStudioModels", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -233,6 +326,71 @@ describe("webviewMessageHandler - image mentions", () => {
 		expect(mockHandleWebviewAskResponse).toHaveBeenCalledWith("messageResponse", "See @/img.png", [
 			"data:image/png;base64,from-mention",
 		])
+	})
+})
+
+describe("webviewMessageHandler - acceptCompletion", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		vi.useRealTimers()
+		vi.mocked(mockClineProvider.clearTask).mockResolvedValue(undefined)
+		vi.mocked(mockClineProvider.postStateToWebview).mockResolvedValue(undefined)
+	})
+
+	it("accepts completion and waits for TaskCompleted before clearing the task", async () => {
+		const calls: string[] = []
+		let task: MockCompletionTask
+
+		task = Object.assign(new EventEmitter(), {
+			taskId: "task-accept-completion",
+			handleWebviewAskResponse: vi.fn((response: string) => {
+				calls.push(`askResponse:${response}`)
+				setTimeout(() => task.emit(RooCodeEventName.TaskCompleted, task.taskId, undefined, undefined), 0)
+			}),
+		})
+
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(task as any)
+		vi.mocked(mockClineProvider.clearTask).mockImplementation(async () => {
+			calls.push("clearTask")
+		})
+		vi.mocked(mockClineProvider.postStateToWebview).mockImplementation(async () => {
+			calls.push("postState")
+		})
+
+		await webviewMessageHandler(mockClineProvider, { type: "acceptCompletion" } as any)
+
+		expect(task.handleWebviewAskResponse).toHaveBeenCalledWith("yesButtonClicked")
+		expect(mockClineProvider.clearTask).toHaveBeenCalledTimes(1)
+		expect(mockClineProvider.postStateToWebview).toHaveBeenCalledTimes(1)
+		expect(calls).toEqual(["askResponse:yesButtonClicked", "clearTask", "postState"])
+		expect(task.listenerCount(RooCodeEventName.TaskCompleted)).toBe(0)
+	})
+
+	it("does not clear the task if completion is not observed", async () => {
+		vi.useFakeTimers()
+		const task: MockCompletionTask = Object.assign(new EventEmitter(), {
+			taskId: "task-missing-completion-event",
+			handleWebviewAskResponse: vi.fn(),
+		})
+
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(task as any)
+
+		const handlerPromise = webviewMessageHandler(mockClineProvider, { type: "acceptCompletion" } as any)
+
+		await vi.runAllTimersAsync()
+		await handlerPromise
+
+		expect(task.handleWebviewAskResponse).toHaveBeenCalledWith("yesButtonClicked")
+		expect(mockClineProvider.clearTask).not.toHaveBeenCalled()
+		expect(mockClineProvider.postStateToWebview).not.toHaveBeenCalled()
+		expect(mockClineProvider.log).toHaveBeenCalledWith(
+			expect.stringContaining(
+				"Timed out waiting for TaskCompleted before clearing task task-missing-completion-event",
+			),
+		)
+		expect(task.listenerCount(RooCodeEventName.TaskCompleted)).toBe(0)
+
+		vi.useRealTimers()
 	})
 })
 
@@ -1080,5 +1238,265 @@ describe("webviewMessageHandler - downloadErrorDiagnostics", () => {
 
 		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("No active task to generate diagnostics for")
 		expect(generateErrorDiagnostics).not.toHaveBeenCalled()
+	})
+})
+
+describe("webviewMessageHandler - installMarketplaceMcp", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		vi.mocked(mockClineProvider.createTask).mockResolvedValue({ taskId: "marketplace-task-id" } as any)
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(null as any)
+		vi.mocked(mockClineProvider.getMcpHub).mockReturnValue({
+			getMcpSettingsFilePath: vi.fn().mockResolvedValue("/mock/global/mcp_settings.json"),
+		} as any)
+	})
+
+	it("creates a top-level setup task in MCP Setup mode for a valid marketplace item", async () => {
+		const taskConfiguration = { apiProvider: "openrouter", currentApiConfigName: "work-profile", mode: "code" }
+		const message = {
+			type: "installMarketplaceMcp",
+			marketplaceMcpId: "github",
+			marketplaceMcpScope: "global",
+			taskConfiguration,
+		} as any
+
+		await webviewMessageHandler(mockClineProvider, message)
+
+		expect(mockClineProvider.createTask).toHaveBeenCalledTimes(1)
+		const createTaskCall = vi.mocked(mockClineProvider.createTask).mock.calls[0]
+		const prompt = createTaskCall[0] as string
+		expect(prompt).toContain('Set up the "GitHub" MCP server')
+		expect(prompt).toContain("Target scope: global")
+		expect(prompt).toContain("GITHUB_PERSONAL_ACCESS_TOKEN")
+		expect(prompt).toContain("Optional secrets:\n- None")
+		expect(prompt).toContain("/mock/global/mcp_settings.json")
+		expect(prompt).toContain("dedicated MCP Setup mode")
+		expect(createTaskCall[2]).toBeUndefined()
+		expect(createTaskCall[3]).toEqual({ mode: "mcp-setup" })
+		expect(createTaskCall[4]).toEqual({
+			...taskConfiguration,
+			mode: "mcp-setup",
+		})
+		expect((createTaskCall[4] as any).mode).not.toBe("code")
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({ type: "invoke", invoke: "newChat" })
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "action",
+			action: "switchTab",
+			tab: "chat",
+		})
+	})
+
+	it("creates setup guidance for Context7 streamable HTTP marketplace installs", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "installMarketplaceMcp",
+			marketplaceMcpId: "context7",
+			marketplaceMcpScope: "global",
+		} as any)
+
+		const prompt = vi.mocked(mockClineProvider.createTask).mock.calls[0][0] as string
+		expect(prompt).toContain('Set up the "Context7" MCP server')
+		expect(prompt).toContain("Transport type: streamable-http")
+		expect(prompt).toContain("Optional secrets:\n- CONTEXT7_API_KEY")
+		expect(prompt).toContain('"type": "streamable-http"')
+		expect(prompt).toContain('"url": "https://mcp.context7.com/mcp"')
+	})
+
+	it("includes project scope config guidance when project is selected", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "installMarketplaceMcp",
+			marketplaceMcpId: "sqlite",
+			marketplaceMcpScope: "project",
+		} as any)
+
+		const prompt = vi.mocked(mockClineProvider.createTask).mock.calls[0][0] as string
+		expect(prompt).toContain("Target scope: project")
+		expect(prompt).toContain(".roo")
+		expect(prompt).toContain("mcp.json")
+		expect(prompt).toContain("sqlite")
+	})
+
+	it("rejects an unknown marketplace catalog id", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "installMarketplaceMcp",
+			marketplaceMcpId: "unknown-server",
+			marketplaceMcpScope: "global",
+		} as any)
+
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			expect.stringContaining("Unknown MCP marketplace item"),
+		)
+		expect(mockClineProvider.createTask).not.toHaveBeenCalled()
+	})
+
+	it("rejects an invalid marketplace scope", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "installMarketplaceMcp",
+			marketplaceMcpId: "github",
+			marketplaceMcpScope: "workspace",
+		} as any)
+
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			expect.stringContaining("Invalid MCP marketplace scope"),
+		)
+		expect(mockClineProvider.createTask).not.toHaveBeenCalled()
+	})
+})
+
+describe("webviewMessageHandler - discoverMarketplaceMcp", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		vi.mocked(mockClineProvider.createTask).mockResolvedValue({ taskId: "marketplace-discovery-task-id" } as any)
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(null as any)
+		vi.mocked(mockClineProvider.getMcpHub).mockReturnValue({
+			getMcpSettingsFilePath: vi.fn().mockResolvedValue("/mock/global/mcp_settings.json"),
+			getAllServers: vi.fn().mockReturnValue([{ name: "context7" }, { name: "exa" }]),
+		} as any)
+	})
+
+	it("creates a top-level custom discovery task in MCP Setup mode when prerequisites are installed", async () => {
+		const taskConfiguration = { apiProvider: "openrouter", currentApiConfigName: "work-profile", mode: "code" }
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "discoverMarketplaceMcp",
+			marketplaceMcpDiscoveryRequest: " Perplexity search MCP server ",
+			taskConfiguration,
+		} as any)
+
+		expect(mockClineProvider.createTask).toHaveBeenCalledTimes(1)
+		const createTaskCall = vi.mocked(mockClineProvider.createTask).mock.calls[0]
+		const prompt = createTaskCall[0] as string
+		expect(prompt).toContain("Find and set up the requested MCP server")
+		expect(prompt).toContain("Perplexity search MCP server")
+		expect(prompt).toContain("- context7")
+		expect(prompt).toContain("- exa")
+		expect(prompt).toContain("/mock/global/mcp_settings.json")
+		expect(prompt).toMatch(/[\\/]mock[\\/]workspace[\\/]\.roo[\\/]mcp\.json/)
+		expect(prompt).toContain("Use the installed Context7 MCP server")
+		expect(prompt).toContain("Use an installed web search MCP server")
+		expect(prompt).toContain("Verify the official source")
+		expect(prompt).toContain("Propose a safe MCP config")
+		expect(prompt).toContain("Do not echo, log, or store literal secret values")
+		expect(prompt).toContain("Request approval before running commands")
+		expect(prompt).toContain("Verify the server connects")
+		expect(createTaskCall[2]).toBeUndefined()
+		expect(createTaskCall[3]).toEqual({ mode: "mcp-setup" })
+		expect(createTaskCall[4]).toEqual({
+			...taskConfiguration,
+			mode: "mcp-setup",
+		})
+		expect((createTaskCall[4] as any).mode).not.toBe("code")
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({ type: "invoke", invoke: "newChat" })
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "action",
+			action: "switchTab",
+			tab: "chat",
+		})
+	})
+
+	it("rejects an empty custom discovery request", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "discoverMarketplaceMcp",
+			marketplaceMcpDiscoveryRequest: "  ",
+		} as any)
+
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			"Enter an MCP server name or description before starting discovery.",
+		)
+		expect(mockClineProvider.createTask).not.toHaveBeenCalled()
+	})
+
+	it("rejects custom discovery when Context7 is missing", async () => {
+		vi.mocked(mockClineProvider.getMcpHub).mockReturnValue({
+			getMcpSettingsFilePath: vi.fn().mockResolvedValue("/mock/global/mcp_settings.json"),
+			getAllServers: vi.fn().mockReturnValue([{ name: "exa" }]),
+		} as any)
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "discoverMarketplaceMcp",
+			marketplaceMcpDiscoveryRequest: "Perplexity search MCP server",
+		} as any)
+
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			"Install Context7 and at least one web search MCP server before starting custom MCP discovery.",
+		)
+		expect(mockClineProvider.createTask).not.toHaveBeenCalled()
+	})
+
+	it("rejects custom discovery when a web search server is missing", async () => {
+		vi.mocked(mockClineProvider.getMcpHub).mockReturnValue({
+			getMcpSettingsFilePath: vi.fn().mockResolvedValue("/mock/global/mcp_settings.json"),
+			getAllServers: vi.fn().mockReturnValue([{ name: "context7" }]),
+		} as any)
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "discoverMarketplaceMcp",
+			marketplaceMcpDiscoveryRequest: "Perplexity search MCP server",
+		} as any)
+
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			"Install Context7 and at least one web search MCP server before starting custom MCP discovery.",
+		)
+		expect(mockClineProvider.createTask).not.toHaveBeenCalled()
+	})
+})
+
+describe("webviewMessageHandler - createMarketplaceMcpServer", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		vi.mocked(mockClineProvider.createTask).mockResolvedValue({ taskId: "marketplace-creation-task-id" } as any)
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(null as any)
+		vi.mocked(mockClineProvider.getMcpHub).mockReturnValue({
+			getMcpSettingsFilePath: vi.fn().mockResolvedValue("/mock/global/mcp_settings.json"),
+			getAllServers: vi.fn().mockReturnValue([{ name: "context7" }]),
+		} as any)
+	})
+
+	it("creates a top-level custom creation task in MCP Setup mode without requiring web search prerequisites", async () => {
+		const taskConfiguration = { apiProvider: "openrouter", currentApiConfigName: "work-profile", mode: "code" }
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "createMarketplaceMcpServer",
+			marketplaceMcpCreationRequest: " Build a workspace docs lookup MCP server ",
+			taskConfiguration,
+		} as any)
+
+		expect(mockClineProvider.createTask).toHaveBeenCalledTimes(1)
+		const createTaskCall = vi.mocked(mockClineProvider.createTask).mock.calls[0]
+		const prompt = createTaskCall[0] as string
+		expect(prompt).toContain("Create a new custom MCP server")
+		expect(prompt).toContain("Build a workspace docs lookup MCP server")
+		expect(prompt).toContain("- context7")
+		expect(prompt).toContain("/mock/global/mcp_settings.json")
+		expect(prompt).toMatch(/[\\/]mock[\\/]workspace[\\/]\.roo[\\/]mcp\.json/)
+		expect(prompt).toContain("Prefer a simple local TypeScript/Node MCP server")
+		expect(prompt).toContain("Preserve all existing servers")
+		expect(prompt).toContain("Use environment variables")
+		expect(prompt).toContain("Verify the server connects")
+		expect(prompt).toContain("safe, non-destructive test call")
+		expect(createTaskCall[2]).toBeUndefined()
+		expect(createTaskCall[3]).toEqual({ mode: "mcp-setup" })
+		expect(createTaskCall[4]).toEqual({
+			...taskConfiguration,
+			mode: "mcp-setup",
+		})
+		expect((createTaskCall[4] as any).mode).not.toBe("code")
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({ type: "invoke", invoke: "newChat" })
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "action",
+			action: "switchTab",
+			tab: "chat",
+		})
+	})
+
+	it("rejects an empty custom creation request", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "createMarketplaceMcpServer",
+			marketplaceMcpCreationRequest: "  ",
+		} as any)
+
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			"Enter what you want the MCP server to do before starting custom MCP server creation.",
+		)
+		expect(mockClineProvider.createTask).not.toHaveBeenCalled()
 	})
 })

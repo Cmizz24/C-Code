@@ -1,10 +1,11 @@
 // pnpm --filter @roo-code/vscode-webview test src/components/settings/__tests__/SettingsView.spec.tsx
 
-import { render, screen, fireEvent, within } from "@/utils/test-utils"
+import { render, screen, fireEvent, within, act } from "@/utils/test-utils"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import { vscode } from "@/utils/vscode"
-import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
+import { ExtensionStateContextProvider } from "@src/context/ExtensionStateContext"
+import TranslationProvider from "@src/i18n/TranslationContext"
 
 import SettingsView from "../SettingsView"
 
@@ -164,8 +165,14 @@ vi.mock("@/components/ui", () => ({
 			data-testid={dataTestId}
 		/>
 	),
-	Button: ({ children, onClick, variant, className, "data-testid": dataTestId }: any) => (
-		<button onClick={onClick} data-variant={variant} className={className} data-testid={dataTestId}>
+	Button: ({ children, onClick, variant, className, disabled, type, "data-testid": dataTestId }: any) => (
+		<button
+			type={type}
+			onClick={onClick}
+			disabled={disabled}
+			data-variant={variant}
+			className={className}
+			data-testid={dataTestId}>
 			{children}
 		</button>
 	),
@@ -273,53 +280,60 @@ vi.mock("@/components/ui", () => ({
 
 // Mock window.postMessage to trigger state hydration
 const mockPostMessage = (state: any) => {
-	window.postMessage(
-		{
-			type: "state",
-			state: {
-				version: "1.0.0",
-				clineMessages: [],
-				taskHistory: [],
-				shouldShowAnnouncement: false,
-				allowedCommands: [],
-				alwaysAllowExecute: false,
-				ttsEnabled: false,
-				ttsSpeed: 1,
-				soundEnabled: false,
-				soundVolume: 0.5,
-				...state,
-			},
-		},
-		"*",
-	)
+	act(() => {
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				data: {
+					type: "state",
+					state: {
+						version: "1.0.0",
+						clineMessages: [],
+						taskHistory: [],
+						shouldShowAnnouncement: false,
+						allowedCommands: [],
+						alwaysAllowExecute: false,
+						ttsEnabled: false,
+						ttsSpeed: 1,
+						soundEnabled: false,
+						soundVolume: 0.5,
+						...state,
+					},
+				},
+			}),
+		)
+	})
 }
 
-const renderSettingsView = () => {
+const renderSettingsView = (initialState: Record<string, any> = {}) => {
 	const onDone = vi.fn()
 	const queryClient = new QueryClient()
+	const renderTree = (targetSection?: string) => (
+		<ExtensionStateContextProvider>
+			<QueryClientProvider client={queryClient}>
+				{targetSection ? (
+					<SettingsView onDone={onDone} targetSection={targetSection} />
+				) : (
+					<SettingsView onDone={onDone} />
+				)}
+			</QueryClientProvider>
+		</ExtensionStateContextProvider>
+	)
 
 	const result = render(
 		<ExtensionStateContextProvider>
-			<QueryClientProvider client={queryClient}>
-				<SettingsView onDone={onDone} />
-			</QueryClientProvider>
+			<QueryClientProvider client={queryClient}>{null}</QueryClientProvider>
 		</ExtensionStateContextProvider>,
 	)
 
-	// Hydrate initial state.
-	mockPostMessage({})
+	// Hydrate initial state before SettingsView initializes its local cachedState.
+	mockPostMessage(initialState)
+	result.rerender(renderTree())
 
 	// Helper function to activate a tab and ensure its content is visible
 	const activateTab = (tabId: string) => {
 		// Skip trying to find and click the tab, just directly render with the target section
 		// This bypasses the actual tab clicking mechanism but ensures the content is shown
-		result.rerender(
-			<ExtensionStateContextProvider>
-				<QueryClientProvider client={queryClient}>
-					<SettingsView onDone={onDone} targetSection={tabId} />
-				</QueryClientProvider>
-			</ExtensionStateContextProvider>,
-		)
+		result.rerender(renderTree(tabId))
 	}
 
 	// Helper to get elements within the settings content (not the indexing container)
@@ -327,6 +341,56 @@ const renderSettingsView = () => {
 
 	return { onDone, activateTab, getSettingsContent }
 }
+
+const renderSettingsViewWithTranslations = (initialState: Record<string, any> = {}) => {
+	const onDone = vi.fn()
+	const queryClient = new QueryClient()
+
+	const renderTree = (
+		<ExtensionStateContextProvider>
+			<TranslationProvider>
+				<QueryClientProvider client={queryClient}>
+					<SettingsView onDone={onDone} />
+				</QueryClientProvider>
+			</TranslationProvider>
+		</ExtensionStateContextProvider>
+	)
+
+	const result = render(
+		<ExtensionStateContextProvider>
+			<TranslationProvider>
+				<QueryClientProvider client={queryClient}>{null}</QueryClientProvider>
+			</TranslationProvider>
+		</ExtensionStateContextProvider>,
+	)
+
+	// Hydrate extension state before SettingsView initializes its local cachedState and TranslationProvider reads language.
+	mockPostMessage({ language: "en", ...initialState })
+	result.rerender(renderTree)
+
+	return { ...result, onDone }
+}
+
+describe("SettingsView - Localization", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("renders settings labels through the real i18n provider without raw settings keys", () => {
+		const { container } = renderSettingsViewWithTranslations()
+
+		expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument()
+		expect(screen.getByTestId("save-button")).toHaveTextContent("Save")
+		expect(screen.getByText("Notifications")).toBeInTheDocument()
+		expect(within(screen.getByTestId("settings-content")).getByText("Providers")).toBeInTheDocument()
+		expect(within(screen.getByTestId("settings-content")).getByText("API Provider")).toBeInTheDocument()
+
+		expect(container).not.toHaveTextContent("settings:header.title")
+		expect(container).not.toHaveTextContent("settings:common.save")
+		expect(container).not.toHaveTextContent("settings:sections.providers")
+		expect(container).not.toHaveTextContent("settings:providers.apiProvider")
+	})
+})
 
 describe("SettingsView - Sound Settings", () => {
 	beforeEach(() => {
@@ -515,6 +579,223 @@ describe("SettingsView - Sound Settings", () => {
 				}),
 			}),
 		)
+	})
+})
+
+describe("SettingsView - Email Notification Settings", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	const getUpdateSettingsMessage = () => {
+		const call = vi.mocked(vscode.postMessage).mock.calls.find(([message]) => message.type === "updateSettings")
+		return call?.[0]
+	}
+
+	const savedSmtpSettings = {
+		emailNotificationsEnabled: true,
+		smtpHost: "smtp.example.com",
+		smtpPort: 587,
+		smtpUsername: "smtp-user",
+		smtpPasswordConfigured: true,
+		smtpFromAddress: "C Code <roo@example.com>",
+		smtpRecipients: ["dev@example.com"],
+	}
+
+	const expectTestSmtpBlockedForUnsavedChanges = (content: HTMLElement) => {
+		fireEvent.click(within(content).getByTestId("test-smtp-button"))
+
+		expect(vscode.postMessage).not.toHaveBeenCalledWith({ type: "testSmtpSettings" })
+		expect(within(content).getByTestId("smtp-test-unsaved-warning")).toBeInTheDocument()
+		expect(within(content).getByTestId("smtp-test-result")).toHaveTextContent(
+			"settings:notifications.email.test.unsavedChanges",
+		)
+	}
+
+	it("saves SMTP settings with recipients as an array and omits blank passwords", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView()
+
+		activateTab("notifications")
+
+		const content = getSettingsContent()
+		fireEvent.click(within(content).getByTestId("email-notifications-enabled-checkbox"))
+		fireEvent.click(within(content).getByTestId("email-notify-failure-checkbox"))
+		fireEvent.change(within(content).getByTestId("smtp-host-input"), { target: { value: "smtp.example.com" } })
+		fireEvent.change(within(content).getByTestId("smtp-port-input"), { target: { value: "70000" } })
+		fireEvent.click(within(content).getByTestId("smtp-secure-checkbox"))
+		fireEvent.click(within(content).getByTestId("smtp-require-tls-checkbox"))
+		fireEvent.change(within(content).getByTestId("smtp-username-input"), { target: { value: "smtp-user" } })
+		fireEvent.change(within(content).getByTestId("smtp-from-input"), {
+			target: { value: "C Code <roo@example.com>" },
+		})
+		fireEvent.change(within(content).getByTestId("smtp-recipients-input"), {
+			target: { value: "dev@example.com, ops@example.com\nteam@example.com" },
+		})
+		fireEvent.change(within(content).getByTestId("smtp-subject-input"), {
+			target: { value: "C task {{outcome}}" },
+		})
+
+		fireEvent.click(screen.getByTestId("save-button"))
+
+		const updateSettingsMessage = getUpdateSettingsMessage()
+		expect(updateSettingsMessage).toEqual(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					emailNotificationsEnabled: true,
+					emailNotifyOnSuccess: true,
+					emailNotifyOnFailure: true,
+					smtpHost: "smtp.example.com",
+					smtpPort: 65535,
+					smtpSecure: true,
+					smtpRequireTls: true,
+					smtpUsername: "smtp-user",
+					smtpFromAddress: "C Code <roo@example.com>",
+					smtpRecipients: ["dev@example.com", "ops@example.com", "team@example.com"],
+					smtpSubjectTemplate: "C task {{outcome}}",
+				}),
+			}),
+		)
+		expect(updateSettingsMessage?.updatedSettings).not.toHaveProperty("smtpPassword")
+	})
+
+	it("shows saved password state and sends smtpPassword only when a replacement is entered", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			emailNotificationsEnabled: true,
+			smtpPasswordConfigured: true,
+			smtpRecipients: ["saved@example.com"],
+		})
+
+		activateTab("notifications")
+
+		const content = getSettingsContent()
+		const passwordInput = within(content).getByTestId("smtp-password-input")
+		expect(passwordInput.getAttribute("placeholder")).toMatch(/configuredPlaceholder|saved password/)
+		expect(within(content).getByText(/configuredDescription|password is already saved/)).toBeInTheDocument()
+		expect(within(content).getByTestId("smtp-recipients-input")).toHaveValue("saved@example.com")
+
+		fireEvent.change(passwordInput, { target: { value: "new-smtp-secret" } })
+		fireEvent.click(screen.getByTestId("save-button"))
+
+		const updateSettingsMessage = getUpdateSettingsMessage()
+		expect(updateSettingsMessage?.updatedSettings).toEqual(
+			expect.objectContaining({
+				smtpPassword: "new-smtp-secret",
+			}),
+		)
+	})
+
+	it("posts Test SMTP requests with saved settings and no SMTP password payload", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView(savedSmtpSettings)
+
+		activateTab("notifications")
+		vi.mocked(vscode.postMessage).mockClear()
+
+		fireEvent.click(within(getSettingsContent()).getByTestId("test-smtp-button"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "testSmtpSettings" })
+		expect(JSON.stringify(vi.mocked(vscode.postMessage).mock.calls)).not.toContain("smtpPassword")
+		expect(JSON.stringify(vi.mocked(vscode.postMessage).mock.calls)).not.toContain("smtp-secret")
+		expect(within(getSettingsContent()).getByTestId("test-smtp-button")).toBeDisabled()
+	})
+
+	it("blocks Test SMTP while SMTP edits or a replacement password are unsaved", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView(savedSmtpSettings)
+
+		activateTab("notifications")
+		const content = getSettingsContent()
+		vi.mocked(vscode.postMessage).mockClear()
+
+		fireEvent.change(within(content).getByTestId("smtp-password-input"), { target: { value: "new-smtp-secret" } })
+
+		expectTestSmtpBlockedForUnsavedChanges(content)
+	})
+
+	it("blocks Test SMTP while email notification enablement is unsaved", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			...savedSmtpSettings,
+			emailNotificationsEnabled: false,
+		})
+
+		activateTab("notifications")
+		let content = getSettingsContent()
+		vi.mocked(vscode.postMessage).mockClear()
+
+		fireEvent.click(within(content).getByTestId("email-notifications-enabled-checkbox"))
+		content = getSettingsContent()
+
+		expectTestSmtpBlockedForUnsavedChanges(content)
+	})
+
+	const unsavedNotificationSettingCases: Array<[string, (content: HTMLElement) => void]> = [
+		[
+			"success notification preference",
+			(content) => fireEvent.click(within(content).getByTestId("email-notify-success-checkbox")),
+		],
+		[
+			"failure notification preference",
+			(content) => fireEvent.click(within(content).getByTestId("email-notify-failure-checkbox")),
+		],
+		[
+			"subject template",
+			(content) =>
+				fireEvent.change(within(content).getByTestId("smtp-subject-input"), {
+					target: { value: "C task {{outcome}}" },
+				}),
+		],
+	]
+
+	it.each(unsavedNotificationSettingCases)("blocks Test SMTP while %s is unsaved", (_settingName, updateSetting) => {
+		const { activateTab, getSettingsContent } = renderSettingsView(savedSmtpSettings)
+
+		activateTab("notifications")
+		const content = getSettingsContent()
+		vi.mocked(vscode.postMessage).mockClear()
+
+		updateSetting(content)
+
+		expectTestSmtpBlockedForUnsavedChanges(content)
+	})
+
+	it("renders SMTP test success and invalid-configuration results from the extension host", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			emailNotificationsEnabled: true,
+			smtpHost: "smtp.example.com",
+			smtpPasswordConfigured: true,
+			smtpFromAddress: "C Code <roo@example.com>",
+			smtpRecipients: ["dev@example.com"],
+		})
+
+		activateTab("notifications")
+		const content = getSettingsContent()
+
+		act(() => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: { type: "smtpTestResult", success: true, text: "SMTP test email sent successfully." },
+				}),
+			)
+		})
+
+		expect(within(content).getByTestId("smtp-test-result")).toHaveTextContent("SMTP test email sent successfully.")
+
+		act(() => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "smtpTestResult",
+						success: false,
+						error: "Backend error should be replaced for invalid config",
+						values: { skippedReason: "invalid-config" },
+					},
+				}),
+			)
+		})
+
+		expect(within(content).getByTestId("smtp-test-result")).toHaveTextContent(
+			"settings:notifications.email.test.invalidConfig",
+		)
+		expect(within(content).getByTestId("smtp-test-result")).not.toHaveTextContent("smtp-secret")
 	})
 })
 

@@ -37,6 +37,7 @@ export interface AgentActivityEvent {
 
 export type AgentCoordinationKind =
 	| "shared-context"
+	| "shared-contract"
 	| "ownership"
 	| "dependency"
 	| "signal"
@@ -80,6 +81,7 @@ export interface AgentPlan {
 export interface ExecutionPlan {
 	planId: string
 	sharedContext: string
+	sharedContract: string
 	fileOwnershipMap: Record<string, string>
 	agents: AgentPlan[]
 	createdAt: number
@@ -146,7 +148,7 @@ export interface AgentDeliverableChecklistItem {
 	id: string
 	label: string
 	status: AgentDeliverableStatus
-	source: "assigned-task" | "shared-context" | "plan" | "agent" | "provider"
+	source: "assigned-task" | "shared-context" | "shared-contract" | "plan" | "agent" | "provider"
 	note?: string
 }
 
@@ -215,6 +217,7 @@ export interface ParallelPlanCompletionPacket {
 	planId: string
 	status: ParallelPlanCompletionStatus
 	sharedContext: string
+	sharedContract: string
 	agentCount: number
 	completedAgentCount: number
 	failedAgentCount: number
@@ -586,6 +589,17 @@ export function createAgentCompletionPacket(
 						},
 					]
 				: []),
+			...((plan.sharedContract ?? "").trim()
+				? [
+						{
+							id: "shared-contract",
+							label: "Plan shared contract acknowledged and applied",
+							status: deliverableStatus,
+							source: "shared-contract" as const,
+							note: plan.sharedContract,
+						},
+					]
+				: []),
 		],
 		validation,
 		merge: {
@@ -766,6 +780,7 @@ export function buildParallelPlanCompletionPacket(
 		planId: plan.planId,
 		status: options.status ?? derivedStatus,
 		sharedContext: plan.sharedContext,
+		sharedContract: plan.sharedContract ?? "",
 		agentCount: plan.agents.length,
 		completedAgentCount,
 		failedAgentCount,

@@ -2,7 +2,7 @@ import { render } from "@/utils/test-utils"
 
 import TranslationProvider, { useAppTranslation } from "../TranslationContext"
 
-vi.mock("@/context/ExtensionStateContext", () => ({
+vi.mock("@src/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
 		language: "en",
 	}),

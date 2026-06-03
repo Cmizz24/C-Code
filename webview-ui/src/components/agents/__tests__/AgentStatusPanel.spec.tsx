@@ -1,7 +1,7 @@
 import type { ClineSayTool, ExecutionPlan, ExtensionMessage } from "@roo-code/types"
 
 import { act, fireEvent, render, screen, within } from "@/utils/test-utils"
-import { ExtensionStateContext } from "@/context/ExtensionStateContext"
+import { ExtensionStateContext } from "@src/context/ExtensionStateContext"
 import { TranslationContext } from "@/i18n/TranslationContext"
 
 import { AgentStatusPanel } from "../AgentStatusPanel"
@@ -65,6 +65,7 @@ function createPlan(): ExecutionPlan {
 	return {
 		planId: "plan-test",
 		sharedContext: "Build dashboard",
+		sharedContract: "",
 		fileOwnershipMap: {
 			"src/Dashboard.tsx": "ui-agent",
 			"src/dashboard.css": "styles-agent",
@@ -377,7 +378,7 @@ describe("AgentStatusPanel", () => {
 
 		const feed = screen.getByTestId("agent-coordination-feed")
 		expect(feed).toHaveTextContent("Coordination")
-		expect(feed).toHaveTextContent("Team chat · short messages · latest 8")
+		expect(feed).toHaveTextContent("Team chat · decisions/questions/blockers · latest 8")
 		expect(screen.getAllByTestId("agent-coordination-message")).toHaveLength(2)
 		expect(feed).not.toHaveTextContent("Plan context")
 		expect(screen.queryByTestId("agent-coordination-context")).not.toBeInTheDocument()
@@ -418,7 +419,7 @@ describe("AgentStatusPanel", () => {
 		expect(within(feed).queryByRole("textbox")).not.toBeInTheDocument()
 	})
 
-	it("shows an empty team chat instead of setup coordination when no question/answer messages exist", () => {
+	it("shows an empty team chat instead of setup coordination when no meaningful messages exist", () => {
 		const plan = createPlan()
 		const tool: ClineSayTool = {
 			tool: "parallelAgents",
@@ -457,6 +458,62 @@ describe("AgentStatusPanel", () => {
 		expect(feed).not.toHaveTextContent("Plan context")
 		expect(screen.queryByTestId("agent-coordination-context")).not.toBeInTheDocument()
 		expect(feed).not.toHaveTextContent("src/Dashboard.tsx")
+		expectNoEmoji(feed)
+	})
+
+	it("renders decisions, assumption notes, and blockers as visible coordination", () => {
+		const plan = createPlan()
+		const tool: ClineSayTool = {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "running",
+			agentCoordinationEvents: [
+				{
+					id: "coord-decision",
+					agentId: "ui-agent",
+					targetAgentId: "styles-agent",
+					kind: "decision",
+					source: "agent",
+					message: "Use data-testid=dashboard-root as the shared DOM hook.",
+					relatedFiles: ["src/Dashboard.tsx"],
+					ts: 1_700_000_000_000,
+				},
+				{
+					id: "coord-note",
+					agentId: "styles-agent",
+					targetAgentId: "ui-agent",
+					kind: "note",
+					source: "agent",
+					message: "Assumption: compact spacing uses --dashboard-gap.",
+					relatedFiles: ["src/dashboard.css"],
+					ts: 1_700_000_000_100,
+				},
+				{
+					id: "coord-blocker",
+					agentId: "styles-agent",
+					targetAgentId: "ui-agent",
+					kind: "blocker",
+					source: "agent",
+					message: "Blocker: dashboard markup needs the shared root hook before CSS can finish.",
+					relatedFiles: ["src/Dashboard.tsx", "src/dashboard.css"],
+					ts: 1_700_000_000_200,
+				},
+			],
+		}
+
+		renderWithExtensionState(<AgentStatusPanel tool={tool} />, undefined)
+
+		const feed = screen.getByTestId("agent-coordination-feed")
+		expect(feed).toHaveTextContent("decision")
+		expect(feed).toHaveTextContent("note")
+		expect(feed).toHaveTextContent("blocker")
+		expect(feed).toHaveTextContent("Use data-testid=dashboard-root")
+		expect(feed).toHaveTextContent("Assumption: compact spacing")
+		expect(feed).toHaveTextContent("Blocker: dashboard markup")
+		expect(screen.getAllByTestId("agent-coordination-message")).toHaveLength(3)
+		expect(screen.getAllByTestId("agent-coordination-related-files-summary")[2]).toHaveTextContent(
+			"src/Dashboard.tsx +1",
+		)
 		expectNoEmoji(feed)
 	})
 
@@ -551,7 +608,7 @@ describe("AgentStatusPanel", () => {
 		}
 
 		const feed = screen.getByTestId("agent-coordination-feed")
-		expect(feed).toHaveTextContent("Team chat · short messages · latest 8")
+		expect(feed).toHaveTextContent("Team chat · decisions/questions/blockers · latest 8")
 		expect(feed).not.toHaveTextContent("Coordination 0")
 		expect(feed).not.toHaveTextContent("Coordination 1")
 		expect(feed).toHaveTextContent("Can you confirm the dashboard selector?")

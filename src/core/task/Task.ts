@@ -38,6 +38,7 @@ import {
 	type HistoryItem,
 	type CreateTaskOptions,
 	type ModelInfo,
+	type OpenAiCodexFastStatus,
 	type ClineApiReqCancelReason,
 	type ClineApiReqInfo,
 	RooCodeEventName,
@@ -552,6 +553,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.enableCheckpoints = enableCheckpoints
 		this.checkpointTimeout = checkpointTimeout
 
+		this.rootTask = rootTask
 		this.parentTask = parentTask
 		this.taskNumber = taskNumber
 		this.initialStatus = initialStatus
@@ -2678,6 +2680,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			includeFileDetails: boolean
 			retryAttempt?: number
 			userMessageWasRemoved?: boolean // Track if user message was removed due to empty response
+			openAiCodexFastMode?: boolean
 		}
 
 		const stack: StackItem[] = [{ userContent, includeFileDetails, retryAttempt: 0 }]
@@ -2766,7 +2769,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			const maxDiagnosticMessages = state?.maxDiagnosticMessages ?? 50
 			const currentMode = this.background ? await this.getTaskMode() : (state?.mode ?? defaultModeSlug)
 
-			const { content: parsedUserContent, mode: slashCommandMode } = await processUserContentMentions({
+			const {
+				content: parsedUserContent,
+				mode: slashCommandMode,
+				openAiCodexFastMode: parsedOpenAiCodexFastMode,
+			} = await processUserContentMentions({
 				userContent: currentUserContent,
 				cwd: this.cwd,
 				fileContextTracker: this.fileContextTracker,
@@ -2777,6 +2784,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				skillsManager: provider?.getSkillsManager(),
 				currentMode,
 			})
+			const openAiCodexFastMode = parsedOpenAiCodexFastMode ?? currentItem.openAiCodexFastMode
 
 			// Switch mode if specified in a slash command's frontmatter
 			if (slashCommandMode) {
@@ -2957,7 +2965,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				// Yields only if the first chunk is successful, otherwise will
 				// allow the user to retry the request (most likely due to rate
 				// limit error, which gets thrown on the first chunk).
-				const stream = this.attemptApiRequest(currentItem.retryAttempt ?? 0, { skipProviderRateLimit: true })
+				const stream = this.attemptApiRequest(currentItem.retryAttempt ?? 0, {
+					skipProviderRateLimit: true,
+					openAiCodexFastMode,
+				})
 				let assistantMessage = ""
 				let reasoningMessage = ""
 				let pendingGroundingSources: GroundingSource[] = []
@@ -3440,6 +3451,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 								userContent: currentUserContent,
 								includeFileDetails: false,
 								retryAttempt: (currentItem.retryAttempt ?? 0) + 1,
+								openAiCodexFastMode,
 							})
 
 							// Continue to retry the request
@@ -3773,6 +3785,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						stack.push({
 							userContent: [...this.userMessageContent], // Create a copy to avoid mutation issues
 							includeFileDetails: false, // Subsequent iterations don't need file details
+							openAiCodexFastMode,
 						})
 
 						// Add periodic yielding to prevent blocking
@@ -3833,6 +3846,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							includeFileDetails: false,
 							retryAttempt: (currentItem.retryAttempt ?? 0) + 1,
 							userMessageWasRemoved: true,
+							openAiCodexFastMode,
 						})
 
 						// Continue to retry the request
@@ -3852,6 +3866,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 								userContent: currentUserContent,
 								includeFileDetails: false,
 								retryAttempt: (currentItem.retryAttempt ?? 0) + 1,
+								openAiCodexFastMode,
 							})
 
 							// Continue to retry the request
@@ -4052,6 +4067,22 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		return this.agentBus.getOpenCoordinationQuestions(this.agentId, options)
 	}
 
+	public acknowledgeAgentSharedContract(): AgentCoordinationEvent | undefined {
+		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
+			return undefined
+		}
+
+		return this.agentBus.acknowledgeSharedContract(this.agentId)
+	}
+
+	public hasAcknowledgedAgentSharedContract(): boolean {
+		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
+			return true
+		}
+
+		return this.agentBus.hasAgentAcknowledgedSharedContract(this.agentId)
+	}
+
 	public getAgentCompletionCoordinationGate(options?: { recordAttempt?: boolean }): AgentCompletionCoordinationGate {
 		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
 			return { approved: true, blockers: [], unanswerableQuestions: [] }
@@ -4065,6 +4096,25 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			state?.listApiConfigMeta?.find((profile: any) => profile.name === state?.currentApiConfigName)?.id ??
 			"default"
 		)
+	}
+
+	private async persistOpenAiCodexFastStatus(): Promise<void> {
+		const status: OpenAiCodexFastStatus | undefined = this.api.getOpenAiCodexFastStatus?.()
+		if (!status) {
+			return
+		}
+
+		const provider = this.providerRef.deref()
+		if (!provider?.updateOpenAiCodexFastStatus) {
+			return
+		}
+
+		try {
+			await provider.updateOpenAiCodexFastStatus(status)
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			provider.log(`[openai-codex-fast] Failed to persist Fast status: ${errorMessage}`)
+		}
 	}
 
 	private async handleContextWindowExceededError(): Promise<void> {
@@ -4232,7 +4282,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	public async *attemptApiRequest(
 		retryAttempt: number = 0,
-		options: { skipProviderRateLimit?: boolean } = {},
+		options: { skipProviderRateLimit?: boolean; openAiCodexFastMode?: boolean } = {},
 	): ApiStream {
 		const state = await this.providerRef.deref()?.getState()
 
@@ -4340,6 +4390,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			const contextMgmtMetadata: ApiHandlerCreateMessageMetadata = {
 				mode: taskMode,
 				taskId: this.taskId,
+				...(options.openAiCodexFastMode !== undefined
+					? { openAiCodexFastMode: options.openAiCodexFastMode }
+					: {}),
 				...(contextMgmtTools.length > 0
 					? {
 							tools: contextMgmtTools,
@@ -4508,6 +4561,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			mode: taskMode,
 			taskId: this.taskId,
 			suppressPreviousResponseId: this.skipPrevResponseIdOnce,
+			...(options.openAiCodexFastMode !== undefined ? { openAiCodexFastMode: options.openAiCodexFastMode } : {}),
 			// Include tools whenever they are present.
 			...(shouldIncludeTools
 				? {
@@ -4558,11 +4612,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			})
 
 			const firstChunk = await Promise.race([firstChunkPromise, abortPromise])
+			await this.persistOpenAiCodexFastStatus()
 			yield firstChunk.value
 			this.isWaitingForFirstChunk = false
 		} catch (error) {
 			this.isWaitingForFirstChunk = false
 			this.currentRequestAbortController = undefined
+			await this.persistOpenAiCodexFastStatus()
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
 
 			// If it's a context window error and we haven't exceeded max retries for this error type
@@ -4574,7 +4630,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				)
 				await this.handleContextWindowExceededError()
 				// Retry the request after handling the context window error
-				yield* this.attemptApiRequest(retryAttempt + 1)
+				yield* this.attemptApiRequest(retryAttempt + 1, options)
 				return
 			}
 
@@ -4594,7 +4650,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 				// Delegate generator output from the recursive call with
 				// incremented retry count.
-				yield* this.attemptApiRequest(retryAttempt + 1)
+				yield* this.attemptApiRequest(retryAttempt + 1, options)
 
 				return
 			} else {
@@ -4612,7 +4668,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				await this.say("api_req_retried")
 
 				// Delegate generator output from the recursive call.
-				yield* this.attemptApiRequest()
+				yield* this.attemptApiRequest(0, options)
 				return
 			}
 		}
@@ -4625,7 +4681,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		// it's saying "yield all remaining values from this iterator". This
 		// effectively passes along all subsequent chunks from the original
 		// stream.
-		yield* iterator
+		try {
+			yield* iterator
+		} finally {
+			await this.persistOpenAiCodexFastStatus()
+		}
 	}
 
 	// Shared exponential backoff for retries (first-chunk and mid-stream)
@@ -4705,8 +4765,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	// Checkpoints
 
-	public async checkpointSave(force: boolean = false, suppressMessage: boolean = false) {
-		return checkpointSave(this, force, suppressMessage)
+	public async checkpointSave(
+		force: boolean = false,
+		suppressMessage: boolean = false,
+		options: { throwOnError?: boolean } = {},
+	) {
+		return checkpointSave(this, force, suppressMessage, options)
 	}
 
 	private buildCleanConversationHistory(

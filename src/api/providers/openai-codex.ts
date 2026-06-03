@@ -5,11 +5,13 @@ import OpenAI from "openai"
 
 import {
 	type ModelInfo,
+	type OpenAiCodexFastStatus,
 	openAiCodexDefaultModelId,
 	OpenAiCodexModelId,
 	openAiCodexModels,
 	type ReasoningEffort,
 	type ReasoningEffortExtended,
+	type ServiceTier,
 } from "@roo-code/types"
 
 import { Package } from "../../shared/package"
@@ -68,6 +70,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 	private sawTextDeltaInCurrentResponse = false
 	// Tracks tool call IDs emitted via streaming partial events to prevent done-event duplicates.
 	private streamedToolCallIds = new Set<string>()
+	private lastOpenAiCodexFastStatus: OpenAiCodexFastStatus | undefined
 
 	// Event types handled by the shared event processor
 	private readonly coreHandledEventTypes = new Set<string>([
@@ -160,16 +163,19 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		this.sawTextOutputInCurrentResponse = false
 		this.sawTextDeltaInCurrentResponse = false
 		this.streamedToolCallIds.clear()
+		this.beginOpenAiCodexFastStatus(model, metadata)
 
 		// Get access token from OAuth manager
 		let accessToken = await openAiCodexOAuthManager.getAccessToken()
 		if (!accessToken) {
-			throw new Error(
+			const error = new Error(
 				t("common:errors.openAiCodex.notAuthenticated", {
 					defaultValue:
 						"Not authenticated with OpenAI Codex. Please sign in using the OpenAI Codex OAuth flow.",
 				}),
 			)
+			this.markOpenAiCodexFastStatusRejected(error)
+			throw error
 		}
 
 		// Resolve reasoning effort
@@ -196,16 +202,19 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 					// Force refresh the token for retry
 					const refreshed = await openAiCodexOAuthManager.forceRefreshAccessToken()
 					if (!refreshed) {
-						throw new Error(
+						const authError = new Error(
 							t("common:errors.openAiCodex.notAuthenticated", {
 								defaultValue:
 									"Not authenticated with OpenAI Codex. Please sign in using the OpenAI Codex OAuth flow.",
 							}),
 						)
+						this.markOpenAiCodexFastStatusRejected(authError)
+						throw authError
 					}
 					accessToken = refreshed
 					continue
 				}
+				this.markOpenAiCodexFastStatusRejected(error)
 				throw error
 			}
 		}
@@ -283,6 +292,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 			model: string
 			input: Array<{ role: "user" | "assistant"; content: any[] } | { type: string; content: string }>
 			stream: boolean
+			service_tier?: "priority"
 			reasoning?: { effort?: ReasoningEffortExtended; summary?: "auto" }
 			temperature?: number
 			store?: boolean
@@ -305,6 +315,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 			model: model.id,
 			input: formattedInput,
 			stream: true,
+			...(this.shouldUseFastMode(model, metadata) ? { service_tier: "priority" as const } : {}),
 			store: false,
 			instructions: systemPrompt,
 			// Only include encrypted reasoning content when reasoning effort is set
@@ -336,6 +347,108 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		}
 
 		return body
+	}
+
+	private shouldUseFastMode(model: OpenAiCodexModel, metadata?: ApiHandlerCreateMessageMetadata): boolean {
+		const fastModeEnabled = metadata?.openAiCodexFastMode ?? this.options.openAiCodexFastMode
+		return fastModeEnabled === true && model.info.supportsFastMode === true
+	}
+
+	private beginOpenAiCodexFastStatus(model: OpenAiCodexModel, metadata?: ApiHandlerCreateMessageMetadata): void {
+		const fastModeEnabled = metadata?.openAiCodexFastMode ?? this.options.openAiCodexFastMode
+		const baseStatus = { modelId: model.id, updatedAt: Date.now() }
+
+		if (fastModeEnabled !== true) {
+			this.lastOpenAiCodexFastStatus = { state: "off", ...baseStatus }
+			return
+		}
+
+		if (model.info.supportsFastMode !== true) {
+			this.lastOpenAiCodexFastStatus = {
+				state: "unsupported",
+				requestedServiceTier: "priority",
+				...baseStatus,
+			}
+			return
+		}
+
+		this.lastOpenAiCodexFastStatus = {
+			state: "requested",
+			requestedServiceTier: "priority",
+			...baseStatus,
+		}
+	}
+
+	private normalizeOpenAiCodexServiceTier(value: unknown): ServiceTier | undefined {
+		return value === "default" || value === "flex" || value === "priority" ? value : undefined
+	}
+
+	private getObservedOpenAiCodexServiceTier(event: any): ServiceTier | undefined {
+		const candidates = [
+			event?.response?.service_tier,
+			event?.response?.serviceTier,
+			event?.response?.metadata?.service_tier,
+			event?.service_tier,
+			event?.serviceTier,
+			event?.metadata?.service_tier,
+			event?.body?.service_tier,
+			event?.data?.service_tier,
+		]
+
+		for (const candidate of candidates) {
+			const serviceTier = this.normalizeOpenAiCodexServiceTier(candidate)
+			if (serviceTier) {
+				return serviceTier
+			}
+		}
+
+		return undefined
+	}
+
+	private captureOpenAiCodexFastStatusFromEvent(event: any): void {
+		const observedServiceTier = this.getObservedOpenAiCodexServiceTier(event)
+		if (!observedServiceTier) {
+			return
+		}
+
+		const current = this.lastOpenAiCodexFastStatus
+		if (!current || current.state === "off" || current.state === "unsupported") {
+			return
+		}
+
+		const state = observedServiceTier === current.requestedServiceTier ? "confirmed" : "rejected"
+		const nextStatus: OpenAiCodexFastStatus = {
+			state,
+			modelId: current.modelId,
+			requestedServiceTier: current.requestedServiceTier,
+			observedServiceTier,
+			updatedAt: Date.now(),
+		}
+
+		if (state === "rejected") {
+			nextStatus.error = `Provider returned ${observedServiceTier} service tier instead of ${current.requestedServiceTier}.`
+		}
+
+		this.lastOpenAiCodexFastStatus = nextStatus
+	}
+
+	private markOpenAiCodexFastStatusRejected(error: unknown): void {
+		const current = this.lastOpenAiCodexFastStatus
+		if (!current || (current.state !== "requested" && current.state !== "confirmed")) {
+			return
+		}
+
+		this.lastOpenAiCodexFastStatus = {
+			...current,
+			state: "rejected",
+			error: this.sanitizeOpenAiCodexFastStatusError(error),
+			updatedAt: Date.now(),
+		}
+	}
+
+	private sanitizeOpenAiCodexFastStatusError(error: unknown): string {
+		const message = error instanceof Error ? error.message : typeof error === "string" ? error : "Unknown error"
+		return message.replace(/\s+/g, " ").trim().slice(0, 500)
 	}
 
 	private async *executeRequest(
@@ -569,16 +682,21 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 					errorMessage += ` - ${errorDetails}`
 				}
 
-				throw new Error(errorMessage)
+				const error = new Error(errorMessage)
+				this.markOpenAiCodexFastStatusRejected(error)
+				throw error
 			}
 
 			if (!response.body) {
-				throw new Error(t("common:errors.openAiCodex.noResponseBody"))
+				const error = new Error(t("common:errors.openAiCodex.noResponseBody"))
+				this.markOpenAiCodexFastStatusRejected(error)
+				throw error
 			}
 
 			yield* this.handleStreamResponse(response.body, model)
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
+			this.markOpenAiCodexFastStatusRejected(error)
 
 			if (error instanceof Error) {
 				if (error.message.includes("Codex API")) {
@@ -618,6 +736,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 
 						try {
 							const parsed = JSON.parse(data)
+							this.captureOpenAiCodexFastStatusFromEvent(parsed)
 
 							// Capture response metadata
 							if (parsed.response?.output && Array.isArray(parsed.response.output)) {
@@ -764,19 +883,23 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 								}
 							} else if (parsed.type === "response.error" || parsed.type === "error") {
 								if (parsed.error || parsed.message) {
-									throw new Error(
+									const error = new Error(
 										t("common:errors.openAiCodex.apiError", {
 											message: parsed.error?.message || parsed.message || "Unknown error",
 										}),
 									)
+									this.markOpenAiCodexFastStatusRejected(error)
+									throw error
 								}
 							} else if (parsed.type === "response.failed") {
 								if (parsed.error || parsed.message) {
-									throw new Error(
+									const error = new Error(
 										t("common:errors.openAiCodex.responseFailed", {
 											message: parsed.error?.message || parsed.message || "Unknown failure",
 										}),
 									)
+									this.markOpenAiCodexFastStatusRejected(error)
+									throw error
 								}
 							} else if (parsed.type === "response.completed" || parsed.type === "response.done") {
 								if (parsed.response?.output && Array.isArray(parsed.response.output)) {
@@ -854,6 +977,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 			}
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
+			this.markOpenAiCodexFastStatusRejected(error)
 
 			if (error instanceof Error) {
 				throw new Error(t("common:errors.openAiCodex.streamProcessingError", { message: error.message }))
@@ -865,6 +989,8 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 	}
 
 	private async *processEvent(event: any, model: OpenAiCodexModel): ApiStream {
+		this.captureOpenAiCodexFastStatusFromEvent(event)
+
 		if (event?.response?.output && Array.isArray(event.response.output)) {
 			this.lastResponseOutput = event.response.output
 		}
@@ -1145,21 +1271,28 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		return this.lastResponseId
 	}
 
+	getOpenAiCodexFastStatus(): OpenAiCodexFastStatus | undefined {
+		return this.lastOpenAiCodexFastStatus
+	}
+
 	async completePrompt(prompt: string): Promise<string> {
 		this.abortController = new AbortController()
 
 		try {
 			const model = this.getModel()
+			this.beginOpenAiCodexFastStatus(model)
 
 			// Get access token
 			const accessToken = await openAiCodexOAuthManager.getAccessToken()
 			if (!accessToken) {
-				throw new Error(
+				const error = new Error(
 					t("common:errors.openAiCodex.notAuthenticated", {
 						defaultValue:
 							"Not authenticated with OpenAI Codex. Please sign in using the OpenAI Codex OAuth flow.",
 					}),
 				)
+				this.markOpenAiCodexFastStatusRejected(error)
+				throw error
 			}
 
 			const reasoningEffort = this.getReasoningEffort(model)
@@ -1173,6 +1306,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 					},
 				],
 				stream: false,
+				...(this.shouldUseFastMode(model) ? { service_tier: "priority" as const } : {}),
 				store: false,
 				...(reasoningEffort ? { include: ["reasoning.encrypted_content"] } : {}),
 			}
@@ -1212,13 +1346,16 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 
 			if (!response.ok) {
 				const errorText = await response.text()
-				throw new Error(
+				const error = new Error(
 					t("common:errors.openAiCodex.genericError", { status: response.status }) +
 						(errorText ? `: ${errorText}` : ""),
 				)
+				this.markOpenAiCodexFastStatusRejected(error)
+				throw error
 			}
 
 			const responseData = await response.json()
+			this.captureOpenAiCodexFastStatusFromEvent(responseData)
 
 			if (responseData?.output && Array.isArray(responseData.output)) {
 				for (const outputItem of responseData.output) {
@@ -1240,6 +1377,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		} catch (error) {
 			const errorModel = this.getModel()
 			const errorMessage = error instanceof Error ? error.message : String(error)
+			this.markOpenAiCodexFastStatusRejected(error)
 
 			if (error instanceof Error) {
 				throw new Error(t("common:errors.openAiCodex.completionError", { message: error.message }))

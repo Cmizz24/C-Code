@@ -61,8 +61,13 @@ function formatCompletionCoordinationGate(task: Task): string | undefined {
 	const incoming = gate.blockers.filter((blocker) => blocker.type === "incoming-question")
 	const outgoing = gate.blockers.filter((blocker) => blocker.type === "outgoing-question")
 	const unreadAnswers = gate.blockers.filter((blocker) => blocker.type === "unread-answer")
+	const sharedContractBlockers = gate.blockers.filter((blocker) => blocker.type === "shared-contract-unacknowledged")
 	const lines = [
 		"Cannot complete yet because live parallel-agent coordination is unresolved.",
+		sharedContractBlockers.length ? "Shared contract acknowledgement is required before completion:" : undefined,
+		...sharedContractBlockers.map(
+			(blocker) => `- Apply and acknowledge shared contract: ${blocker.sharedContract}`,
+		),
 		incoming.length ? "Open questions for you to answer before completion:" : undefined,
 		...incoming.map(
 			(blocker) =>
@@ -75,7 +80,7 @@ function formatCompletionCoordinationGate(task: Task): string | undefined {
 			(blocker) =>
 				`- Read and adapt to answer ${blocker.answer?.id ?? "unknown"} for question ${blocker.question.id ?? "unknown"}: ${blocker.answer?.message ?? ""}`,
 		),
-		"Call coordinate_agents with action='read', answer relevant open questions, incorporate any answers into your files or final result, then attempt completion again.",
+		"Call coordinate_agents with action='read', answer relevant open questions, incorporate any answers into your files or final result, call coordinate_agents with action='acknowledge_contract' when a shared contract is listed, then attempt completion again.",
 	]
 
 	return lines.filter(Boolean).join("\n")

@@ -69,6 +69,7 @@ export const toolParamNames = [
 	"agents",
 	"expectedFiles",
 	"sharedContext",
+	"sharedContract",
 	"owns",
 	"mustNotTouch",
 	"dependsOn",
@@ -128,6 +129,7 @@ export type NativeToolArgs = {
 	plan_parallel_tasks: {
 		goal: string
 		sharedContext: string
+		sharedContract: string
 		expectedFiles: string[]
 		agents: Array<{
 			id: string
@@ -141,7 +143,7 @@ export type NativeToolArgs = {
 		}>
 	}
 	coordinate_agents: {
-		action: "publish" | "read"
+		action: "publish" | "read" | "acknowledge_contract"
 		kind?: AgentCoordinationKind
 		message?: string
 		targetAgentId?: string

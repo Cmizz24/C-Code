@@ -347,6 +347,18 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Activa Fast mode",
+			"description": "Utilitza el nivell de servei prioritari d'OpenAI per als models compatibles (GPT-5.5 i GPT-5.4). Fast mode pot consumir crèdits a un ritme més alt.",
+			"status": {
+				"disabled": "Fast mode està disponible per a {{modelId}}, però ara està desactivat.",
+				"unsupported": "Fast mode no està disponible per a {{modelId}}.",
+				"signInRequired": "Fast mode està activat per a {{modelId}}, però cal iniciar sessió abans que es pugui executar.",
+				"requested": "S'ha sol·licitat Fast mode per a {{modelId}}, però OpenAI encara no ha confirmat el nivell priority.",
+				"confirmed": "Fast mode està confirmat per a {{modelId}} al nivell priority d'OpenAI.",
+				"rejected": "S'ha sol·licitat Fast mode per a {{modelId}}, però OpenAI ha indicat el nivell de servei {{observedServiceTier}}."
+			}
+		},
 		"useCustomBaseUrl": "Utilitzar URL base personalitzada",
 		"useReasoning": "Activar raonament",
 		"useHostHeader": "Utilitzar capçalera Host personalitzada",
@@ -577,6 +589,67 @@
 			"label": "Habilitar text a veu",
 			"description": "Quan està habilitat, Roo llegirà en veu alta les seves respostes utilitzant text a veu.",
 			"speedLabel": "Velocitat"
+		},
+		"email": {
+			"label": "Activa les notificacions per email",
+			"description": "Envia notificacions per email SMTP en HTML amb alternativa de text pla quan finalitzi una tasca de nivell superior. Les transcripcions de tasques no s'inclouen mai.",
+			"notifyOnSuccess": {
+				"label": "Notifica quan les tasques es completin correctament"
+			},
+			"notifyOnFailure": {
+				"label": "Notifica quan les tasques fallin o s'avortin",
+				"description": "Inclou errors de transmissió i tasques avortades per l'usuari. Les tasques en segon pla i les tasques filles delegades s'ometen."
+			},
+			"smtpHost": {
+				"label": "Servidor SMTP",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "Port SMTP"
+			},
+			"smtpSecure": {
+				"label": "Usa TLS implícit",
+				"description": "Activa-ho per a connexions SMTPS, normalment al port 465. Deixa-ho desactivat per a STARTTLS al port 587."
+			},
+			"smtpRequireTls": {
+				"label": "Requereix STARTTLS",
+				"description": "Exigeix que el servidor actualitzi la connexió amb STARTTLS abans d'enviar credencials."
+			},
+			"smtpUsername": {
+				"label": "Nom d'usuari SMTP",
+				"placeholder": "Nom d'usuari opcional"
+			},
+			"smtpPassword": {
+				"label": "Contrasenya SMTP",
+				"placeholder": "Introdueix la contrasenya SMTP",
+				"configuredPlaceholder": "Deixa-ho en blanc per conservar la contrasenya desada",
+				"description": "S'emmagatzema a l'emmagatzematge secret de VS Code i no es torna a mostrar mai.",
+				"configuredDescription": "Ja hi ha una contrasenya desada. Introdueix-ne una de nova només si vols substituir-la."
+			},
+			"smtpFromAddress": {
+				"label": "Adreça del remitent",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Destinataris",
+				"placeholder": "tu@example.com\nequip@example.com",
+				"description": "Separa els destinataris amb comes o línies noves."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Plantilla de l'assumpte",
+				"placeholder": "Tasca C {{outcome}}",
+				"description": "Opcional. Tokens disponibles: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Els tokens no distingeixen majúscules i minúscules, així que {{taskId}} i {{taskid}} funcionen."
+			},
+			"test": {
+				"label": "Prova la configuració SMTP",
+				"description": "Envia un correu de prova amb la configuració SMTP desada. Els canvis sense desar i les contrasenyes noves s'han de desar primer.",
+				"button": "Prova SMTP",
+				"sending": "S'està enviant...",
+				"success": "El correu de prova SMTP s'ha enviat correctament.",
+				"failure": "No s'ha pogut enviar el correu de prova SMTP.",
+				"invalidConfig": "La configuració SMTP és incompleta o no és vàlida. Consulta la sortida de l'extensió per obtenir-ne detalls.",
+				"unsavedChanges": "Desa la configuració SMTP abans de provar-la. Prova SMTP només utilitza la configuració desada i la contrasenya a l'emmagatzematge secret de VS Code."
+			}
 		}
 	},
 	"contextManagement": {

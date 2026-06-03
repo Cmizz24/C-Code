@@ -60,5 +60,95 @@
 		"running": "実行中",
 		"completed": "完了",
 		"error": "エラー"
+	},
+	"marketplace": {
+		"title": "MCP Marketplace",
+		"description": "検索、コーディング、ドキュメント、データベース、ファイル、チームワークフロー向けの信頼できる MCP サーバーを見つけましょう。1つ選ぶと、C がガイド付きタスクでセットアップします。",
+		"featuredCatalog": "注目の MCP サーバー",
+		"stats": {
+			"servers": "厳選サーバー",
+			"installed": "インストール済み"
+		},
+		"search": {
+			"label": "Marketplace を検索",
+			"placeholder": "名前、カテゴリ、パッケージ、secret で検索..."
+		},
+		"filters": {
+			"categoryLabel": "カテゴリでフィルター",
+			"all": "すべてのカテゴリ"
+		},
+		"resultsSummary": "{{total}} 件中 {{shown}} 件のサーバーを表示",
+		"badges": {
+			"featured": "注目",
+			"popular": "人気"
+		},
+		"labels": {
+			"category": "カテゴリ",
+			"package": "パッケージ",
+			"source": "ソース",
+			"transport": "トランスポート",
+			"requiredSecrets": "必須 secret",
+			"prerequisites": "前提条件",
+			"suggestedScope": "推奨スコープ",
+			"scope": "対象スコープ",
+			"verification": "検証",
+			"riskNotes": "リスクメモ"
+		},
+		"scope": {
+			"global": "グローバル",
+			"project": "プロジェクト"
+		},
+		"actions": {
+			"installWithAI": "AI でインストール",
+			"configureAgain": "再設定",
+			"clearFilters": "フィルターをクリア",
+			"showDetails": "詳細",
+			"hideDetails": "詳細を隠す",
+			"openDocs": "ドキュメントを開く"
+		},
+		"customDiscovery": {
+			"title": "MCP サーバーが見つかりませんか？",
+			"description": "必要な MCP サーバーを入力すると、C が MCP Setup タスクを開き、公式ドキュメントの検出、安全な設定案の作成、インストール済みの調査ツールによる検証を行います。",
+			"mode": {
+				"label": "カスタム MCP サーバーのアクション",
+				"find": "既存を探す",
+				"create": "新規作成"
+			},
+			"inputLabel": "MCP サーバーの名前または説明",
+			"placeholder": "例: Perplexity 検索 MCP サーバー",
+			"action": "AI で探す",
+			"validation": {
+				"empty": "検出を開始する前に MCP サーバーの名前または説明を入力してください。"
+			},
+			"create": {
+				"description": "必要な MCP サーバーやツールを説明すると、C が MCP Setup タスクを開き、カスタムローカルサーバーの設計、実装、設定、検証を行います。",
+				"inputLabel": "新しい MCP サーバーで何を行いますか？",
+				"placeholder": "例: このワークスペースから内部パッケージドキュメントを検索するツールを追加する",
+				"action": "AI で作成",
+				"recommendation": "Context7 と Web 検索はドキュメント調査に役立ちますが、未インストールでも作成はブロックされません。",
+				"validation": {
+					"empty": "カスタム MCP サーバーの作成を開始する前に、MCP サーバーで何を行うかを入力してください。"
+				}
+			},
+			"requirements": {
+				"context7": "Context7 インストール済み",
+				"webSearch": "Web 検索インストール済み",
+				"missingBoth": "カスタム MCP 検出を開始する前に、Context7 と少なくとも 1 つの Web 検索 MCP サーバーをインストールしてください。",
+				"missingContext7": "カスタム MCP 検出を開始する前に Context7 をインストールしてください。",
+				"missingWebSearch": "カスタム MCP 検出を開始する前に、Exa Web Search、Brave Search、Tavily Search、Firecrawl など少なくとも 1 つの Web 検索 MCP サーバーをインストールしてください。"
+			}
+		},
+		"empty": {
+			"title": "MCP サーバーが見つかりません",
+			"description": "別の検索語を試すか、選択中のカテゴリフィルターをクリアしてください。"
+		},
+		"status": {
+			"installed": "インストール済み"
+		},
+		"prerequisiteOverflow": "+{{count}} 件",
+		"secretSummary": "{{count}} 件必須",
+		"optionalSecretSummary": "{{count}} 件任意",
+		"noSecrets": "secret なし",
+		"noneRequired": "不要"
 	}
 }

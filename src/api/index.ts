@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
-import { isRetiredProvider, type ProviderSettings, type ModelInfo } from "@roo-code/types"
+import { isRetiredProvider, type ProviderSettings, type ModelInfo, type OpenAiCodexFastStatus } from "@roo-code/types"
 
 import { ApiStream } from "./transform/stream"
 
@@ -87,6 +87,12 @@ export interface ApiHandlerCreateMessageMetadata {
 	 * Only applies to providers that support function calling restrictions (e.g., Gemini).
 	 */
 	allowedFunctionNames?: string[]
+	/**
+	 * Per-request override for OpenAI Codex Fast mode. When true, supported models
+	 * request the priority service tier; when false, it overrides a persisted
+	 * provider setting for the current request.
+	 */
+	openAiCodexFastMode?: boolean
 }
 
 export interface ApiHandler {
@@ -97,6 +103,8 @@ export interface ApiHandler {
 	): ApiStream
 
 	getModel(): { id: string; info: ModelInfo }
+
+	getOpenAiCodexFastStatus?(): OpenAiCodexFastStatus | undefined
 
 	/**
 	 * Counts tokens for content blocks

@@ -152,7 +152,7 @@ describe("XiaomiMiMoHandler", () => {
 		})
 
 		it("should use the official Token Plan base URL when configured", () => {
-			const tokenPlanBaseUrl = "https://token-plan-cn.xiaomimimo.com/v1"
+			const tokenPlanBaseUrl = "https://token-plan-ams.xiaomimimo.com/v1"
 			const handlerWithTokenPlanUrl = new XiaomiMiMoHandler({
 				...mockOptions,
 				xiaomiMiMoBaseUrl: tokenPlanBaseUrl,

@@ -2,7 +2,7 @@ import type { HistoryItem } from "@roo-code/types"
 
 import { render, screen, fireEvent } from "@/utils/test-utils"
 import { vscode } from "@/utils/vscode"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { useCopyToClipboard } from "@/utils/clipboard"
 
 import { TaskActions } from "../TaskActions"
@@ -18,7 +18,7 @@ vi.mock("@/utils/vscode", () => ({
 	},
 }))
 
-vi.mock("@/context/ExtensionStateContext", () => ({
+vi.mock("@src/context/ExtensionStateContext", () => ({
 	useExtensionState: vi.fn(),
 }))
 

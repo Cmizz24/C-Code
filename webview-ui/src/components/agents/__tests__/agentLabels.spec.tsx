@@ -1,7 +1,7 @@
 import type { ClineSayTool, ExecutionPlan, MergeReviewEntry } from "@roo-code/types"
 
 import { fireEvent, render, screen } from "@/utils/test-utils"
-import { ExtensionStateContext } from "@/context/ExtensionStateContext"
+import { ExtensionStateContext } from "@src/context/ExtensionStateContext"
 import { TranslationContext } from "@/i18n/TranslationContext"
 
 import { PlanPreviewModal } from "../PlanPreviewModal"
@@ -54,6 +54,7 @@ function createPlan(): ExecutionPlan {
 	return {
 		planId: "plan-test",
 		sharedContext: "Shared context",
+		sharedContract: "",
 		fileOwnershipMap: { "src/App.tsx": "ui-agent" },
 		agents: [
 			{

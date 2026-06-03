@@ -1,6 +1,6 @@
 {
 	"extension.displayName": "C Code",
-	"extension.description": "Cmizz의 Roo Code 개인 fork: 에디터에서 작동하는 AI 에이전트 개발팀.",
+	"extension.description": "병렬 에이전트, MCP workflow, Codex 빠른 모드, SMTP 롤업, Windows 안전 tooling을 갖춘 Cmizz의 Roo Code fork.",
 	"command.newTask.title": "새 작업",
 	"command.explainCode.title": "코드 설명",
 	"command.fixCode.title": "코드 수정",

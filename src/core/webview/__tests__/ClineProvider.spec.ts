@@ -1,5 +1,10 @@
 // pnpm --filter roo-cline test core/webview/__tests__/ClineProvider.spec.ts
 
+vi.hoisted(() => {
+	vi.resetModules()
+})
+
+import * as path from "path"
 import Anthropic from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
 import axios from "axios"
@@ -12,6 +17,8 @@ import {
 	type ExtensionMessage,
 	type ExtensionState,
 	type HistoryItem,
+	type TokenUsage,
+	type ToolUsage,
 	createAgentCompletionPacket,
 	buildParallelPlanCompletionPacket,
 	ORGANIZATION_ALLOW_ALL,
@@ -30,6 +37,7 @@ import { ClineProvider } from "../ClineProvider"
 import { MessageManager } from "../../message-manager"
 import { AgentBus } from "../../agents/AgentBus"
 import { WorktreeMergeError } from "../../agents/WorktreeManager"
+import { EmailNotificationService } from "../../../services/notifications/EmailNotificationService"
 
 // Mock setup must come before imports.
 vi.mock("../../prompts/sections/custom-instructions")
@@ -118,52 +126,83 @@ vi.mock("@modelcontextprotocol/sdk/client/stdio.js", () => ({
 	})),
 }))
 
-vi.mock("vscode", () => ({
-	ExtensionContext: vi.fn(),
-	OutputChannel: vi.fn(),
-	WebviewView: vi.fn(),
-	Uri: {
-		joinPath: vi.fn(),
-		file: vi.fn(),
-	},
-	CodeActionKind: {
-		QuickFix: { value: "quickfix" },
-		RefactorRewrite: { value: "refactor.rewrite" },
-	},
-	commands: {
-		executeCommand: vi.fn().mockResolvedValue(undefined),
-	},
-	window: {
-		showInformationMessage: vi.fn(),
-		showWarningMessage: vi.fn(),
-		showErrorMessage: vi.fn(),
-		onDidChangeActiveTextEditor: vi.fn(() => ({ dispose: vi.fn() })),
-	},
-	workspace: {
-		getConfiguration: vi.fn().mockReturnValue({
-			get: vi.fn().mockReturnValue([]),
-			update: vi.fn(),
-		}),
-		onDidChangeConfiguration: vi.fn().mockImplementation(() => ({
-			dispose: vi.fn(),
-		})),
-		onDidSaveTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
-		onDidChangeTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
-		onDidOpenTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
-		onDidCloseTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
-	},
-	env: {
-		uriScheme: "vscode",
-		language: "en",
-		appName: "Visual Studio Code",
-	},
-	ExtensionMode: {
-		Production: 1,
-		Development: 2,
-		Test: 3,
-	},
-	version: "1.85.0",
-}))
+vi.mock("vscode", () => {
+	const file = vi.fn((fsPath: string) => ({
+		fsPath,
+		path: fsPath,
+		scheme: "file",
+		toString: () => `file://${fsPath}`,
+	}))
+	class MockEventEmitter<T = unknown> {
+		private listeners = new Set<(event: T) => unknown>()
+		event = (listener: (event: T) => unknown) => {
+			this.listeners.add(listener)
+			return { dispose: () => this.listeners.delete(listener) }
+		}
+		fire(event: T) {
+			for (const listener of this.listeners) {
+				listener(event)
+			}
+		}
+		dispose() {
+			this.listeners.clear()
+		}
+	}
+
+	return {
+		ExtensionContext: vi.fn(),
+		OutputChannel: vi.fn(),
+		WebviewView: vi.fn(),
+		EventEmitter: MockEventEmitter,
+		Uri: {
+			joinPath: vi.fn(),
+			file,
+		},
+		CodeActionKind: {
+			QuickFix: { value: "quickfix" },
+			RefactorRewrite: { value: "refactor.rewrite" },
+		},
+		commands: {
+			executeCommand: vi.fn().mockResolvedValue(undefined),
+		},
+		window: {
+			showInformationMessage: vi.fn(),
+			showWarningMessage: vi.fn(),
+			showErrorMessage: vi.fn(),
+			onDidChangeActiveTextEditor: vi.fn(() => ({ dispose: vi.fn() })),
+		},
+		workspace: {
+			textDocuments: [],
+			workspaceFolders: [{ uri: { fsPath: "/test/workspace" } }],
+			getConfiguration: vi.fn().mockReturnValue({
+				get: vi.fn().mockReturnValue([]),
+				update: vi.fn(),
+			}),
+			getWorkspaceFolder: vi.fn(),
+			openTextDocument: vi.fn(async (uriOrPath: string | { fsPath?: string; scheme?: string }) => ({
+				uri: typeof uriOrPath === "string" ? file(uriOrPath) : uriOrPath,
+			})),
+			onDidChangeConfiguration: vi.fn().mockImplementation(() => ({
+				dispose: vi.fn(),
+			})),
+			onDidSaveTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
+			onDidChangeTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
+			onDidOpenTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
+			onDidCloseTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
+		},
+		env: {
+			uriScheme: "vscode",
+			language: "en",
+			appName: "Visual Studio Code",
+		},
+		ExtensionMode: {
+			Production: 1,
+			Development: 2,
+			Test: 3,
+		},
+		version: "1.85.0",
+	}
+})
 
 vi.mock("../../../utils/tts", () => ({
 	setTtsEnabled: vi.fn(),
@@ -202,12 +241,14 @@ vi.mock("../../task/Task", () => ({
 			overwriteClineMessages: vi.fn(),
 			overwriteApiConversationHistory: vi.fn(),
 			resumeAfterParallelExecution: vi.fn(),
+			resumeAfterDelegation: vi.fn(),
 			dispose: vi.fn(),
 			getTaskNumber: vi.fn().mockReturnValue(0),
 			setTaskNumber: vi.fn(),
 			setParentTask: vi.fn(),
 			setRootTask: vi.fn(),
 			start: vi.fn(),
+			checkpointSave: vi.fn().mockResolvedValue({ commit: "parallel-start-checkpoint" }),
 			taskId: options?.historyItem?.id || options?.taskId || "test-task-id",
 			instanceId: `test-instance-${options?.historyItem?.id || options?.taskId || options?.taskNumber || "new"}`,
 			rootTask: options?.rootTask,
@@ -215,6 +256,7 @@ vi.mock("../../task/Task", () => ({
 			rootTaskId: options?.historyItem?.rootTaskId ?? options?.rootTask?.taskId,
 			parentTaskId: options?.historyItem?.parentTaskId ?? options?.parentTask?.taskId,
 			background: options?.background ?? false,
+			enableCheckpoints: options?.enableCheckpoints ?? true,
 			abortReason: undefined,
 			abandoned: false,
 			abort: false,
@@ -410,6 +452,7 @@ describe("ClineProvider", () => {
 				}),
 				overwriteApiConversationHistory: vi.fn(),
 				resumeAfterParallelExecution: vi.fn(),
+				resumeAfterDelegation: vi.fn(),
 				restoreClineMessagesFromHistory: vi.fn(async () => {
 					await loadSavedMessages()
 				}),
@@ -423,6 +466,7 @@ describe("ClineProvider", () => {
 				setParentTask: vi.fn(),
 				setRootTask: vi.fn(),
 				start: vi.fn(),
+				checkpointSave: vi.fn().mockResolvedValue({ commit: "parallel-start-checkpoint" }),
 				taskId: options?.historyItem?.id || options?.taskId || "test-task-id",
 				instanceId: `test-instance-${options?.historyItem?.id || options?.taskId || options?.taskNumber || "new"}`,
 				rootTask: options?.rootTask,
@@ -431,7 +475,7 @@ describe("ClineProvider", () => {
 				parentTaskId: options?.historyItem?.parentTaskId ?? options?.parentTask?.taskId,
 				agentId: options?.agentId,
 				background: options?.background ?? false,
-				enableCheckpoints: options?.enableCheckpoints,
+				enableCheckpoints: options?.enableCheckpoints ?? true,
 				workspacePath: options?.workspacePath,
 				abortReason: undefined,
 				abandoned: false,
@@ -480,8 +524,16 @@ describe("ClineProvider", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		AgentBus.reset()
+		;(vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: "/test/workspace" } }]
+		;(vscode.workspace as any).textDocuments = []
+		;(vscode.workspace.getWorkspaceFolder as any).mockReturnValue({ uri: { fsPath: "/test/workspace" } })
+		;(vscode.workspace.openTextDocument as any).mockImplementation(
+			async (uriOrPath: string | { fsPath?: string; scheme?: string }) => ({
+				uri: typeof uriOrPath === "string" ? vscode.Uri.file(uriOrPath) : uriOrPath,
+			}),
+		)
 
-		const globalState: Record<string, string | undefined> = {
+		const globalState: Record<string, unknown> = {
 			mode: "architect",
 			currentApiConfigName: "current-config",
 		}
@@ -493,9 +545,7 @@ describe("ClineProvider", () => {
 			extensionUri: {} as vscode.Uri,
 			globalState: {
 				get: vi.fn().mockImplementation((key: string) => globalState[key]),
-				update: vi
-					.fn()
-					.mockImplementation((key: string, value: string | undefined) => (globalState[key] = value)),
+				update: vi.fn().mockImplementation((key: string, value: unknown) => (globalState[key] = value)),
 				keys: vi.fn().mockImplementation(() => Object.keys(globalState)),
 			},
 			secrets: {
@@ -579,6 +629,7 @@ describe("ClineProvider", () => {
 	const createExecutionPlan = (): ExecutionPlan => ({
 		planId: "plan-webview-provider",
 		sharedContext: "shared context",
+		sharedContract: "",
 		fileOwnershipMap: {
 			"src/dashboard.tsx": "dashboard-agent",
 			"src/styles.css": "styles-agent",
@@ -639,6 +690,35 @@ describe("ClineProvider", () => {
 		...overrides,
 	})
 
+	const createTokenUsage = (overrides: Partial<TokenUsage> = {}): TokenUsage => ({
+		totalTokensIn: 12,
+		totalTokensOut: 34,
+		totalCost: 0.12,
+		contextTokens: 2048,
+		...overrides,
+	})
+
+	const createToolUsage = (): ToolUsage =>
+		({
+			read_file: { attempts: 2, failures: 1 },
+		}) as ToolUsage
+
+	const installEmailNotificationServiceMock = (
+		sendTaskNotification = vi.fn().mockResolvedValue({ attempted: true, sent: true }),
+	) => {
+		;(provider as any).emailNotificationService = { sendTaskNotification }
+		return sendTaskNotification
+	}
+
+	const getEmailNotificationDiagnostics = (logSpy: any): Array<Record<string, any>> =>
+		(logSpy.mock.calls as Array<[unknown]>)
+			.map(([message]: [unknown]) => String(message))
+			.filter((message) => message.startsWith("[email-notifications] diagnostics "))
+			.map(
+				(message: string) =>
+					JSON.parse(message.slice("[email-notifications] diagnostics ".length)) as Record<string, any>,
+			)
+
 	const createParallelAgentToolMessage = (tool: ClineSayTool, ts = 1_700_000_001): ClineMessage => ({
 		type: "say",
 		say: "tool",
@@ -660,6 +740,42 @@ describe("ClineProvider", () => {
 		...overrides,
 	})
 
+	const createTextDocument = (
+		relPath: string,
+		options: { isDirty?: boolean; saveResult?: boolean } = {},
+	): vscode.TextDocument => {
+		let isDirty = options.isDirty ?? false
+		const document = {
+			uri: vscode.Uri.file(path.resolve("/test/workspace", relPath)),
+			save: vi.fn(async () => {
+				const result = options.saveResult ?? true
+				if (result) {
+					isDirty = false
+				}
+				return result
+			}),
+		} as unknown as vscode.TextDocument
+
+		Object.defineProperty(document, "isDirty", {
+			get: () => isDirty,
+			set: (value: boolean) => {
+				isDirty = value
+			},
+			configurable: true,
+		})
+
+		return document
+	}
+
+	const getMergeDocumentSyncDiagnostics = (logSpy: any): Array<Record<string, any>> =>
+		(logSpy.mock.calls as Array<[unknown]>)
+			.map(([message]) => String(message))
+			.filter((message) => message.startsWith("[parallel-agents] merge-document-sync "))
+			.map(
+				(message) =>
+					JSON.parse(message.slice("[parallel-agents] merge-document-sync ".length)) as Record<string, any>,
+			)
+
 	const seedPersistedTaskMessages = async (messages: ClineMessage[]) => {
 		const fsUtils = await import("../../../utils/fs")
 		const fsPromises = await import("fs/promises")
@@ -677,12 +793,1231 @@ describe("ClineProvider", () => {
 		expect(ClineProvider.getVisibleInstance()).toBe(provider)
 	})
 
+	describe("email notification lifecycle dispatch", () => {
+		test("sends success notifications for top-level task completion", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-success", workspacePath: "/workspace" } as any)
+			const tokenUsage = createTokenUsage()
+			const toolUsage = createToolUsage()
+			;(task as any).taskMode = "code"
+			task.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "Earlier transcript text that should not be included",
+				ts: 1,
+			})
+			task.clineMessages.push({
+				type: "say",
+				say: "api_req_started",
+				text: "Starting request 1",
+				ts: 1.5,
+			})
+			task.clineMessages.push({
+				type: "say",
+				say: "api_req_started",
+				text: "Starting request 2",
+				ts: 1.6,
+			})
+			task.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Implemented SMTP completion notifications.\nAdded regression tests.",
+				ts: 2,
+			})
+			;(provider as any).taskCreationCallback(task)
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, tokenUsage, toolUsage)
+
+			expect(sendTaskNotification).toHaveBeenCalledWith({
+				taskId: "task-success",
+				outcome: "success",
+				summary: "Implemented SMTP completion notifications. Added regression tests.",
+				usageScope: "Task only (live completion event)",
+				workspacePath: "/workspace",
+				mode: "code",
+				tokenUsage,
+				toolUsage,
+				requestCount: 2,
+			})
+			await vi.waitFor(() => {
+				expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+					expect.arrayContaining([
+						expect.objectContaining({
+							event: "completion-event-observed",
+							taskId: "task-success",
+							background: false,
+						}),
+						expect.objectContaining({
+							event: "completion-notification-decision",
+							taskId: "task-success",
+							decision: "send-top-level-success",
+							requestCount: 2,
+						}),
+						expect.objectContaining({
+							event: "outcome-notification-decision",
+							taskId: "task-success",
+							decision: "dispatch",
+							duplicateSent: false,
+							duplicateInFlight: false,
+						}),
+						expect.objectContaining({
+							event: "notification-send-result",
+							taskId: "task-success",
+							decision: "sent",
+							attempted: true,
+							sent: true,
+						}),
+					]),
+				)
+			})
+			expect(JSON.stringify(getEmailNotificationDiagnostics(logSpy))).not.toContain(
+				"Implemented SMTP completion notifications",
+			)
+		})
+
+		test("sends direct completion email through the same saved SMTP settings and SecretStorage password as Test SMTP", async () => {
+			await provider.contextProxy.setValues({
+				emailNotificationsEnabled: true,
+				emailNotifyOnSuccess: true,
+				emailNotifyOnFailure: false,
+				smtpHost: " smtp.example.com ",
+				smtpPort: 587,
+				smtpSecure: false,
+				smtpRequireTls: true,
+				smtpUsername: "smtp-user",
+				smtpPassword: "smtp-secret",
+				smtpFromAddress: "C Code <roo@example.com>",
+				smtpRecipients: [" dev@example.com ", "ops@example.com", "dev@example.com", ""],
+				smtpSubjectTemplate: "C task {{outcome}} for {{taskId}}",
+			} as any)
+
+			const sendMail = vi.fn().mockResolvedValue(undefined)
+			const transportFactory = vi.fn(() => ({ sendMail }))
+			;(provider as any).emailNotificationService = new EmailNotificationService(provider.contextProxy, {
+				log: (message) => provider.log(message),
+				transportFactory,
+			})
+
+			await expect(provider.testSmtpSettings()).resolves.toEqual({ attempted: true, sent: true })
+
+			expect(sendMail).toHaveBeenCalledTimes(1)
+			expect(transportFactory).toHaveBeenNthCalledWith(1, {
+				host: "smtp.example.com",
+				port: 587,
+				secure: false,
+				requireTLS: true,
+				auth: {
+					user: "smtp-user",
+					pass: "smtp-secret",
+				},
+			})
+
+			const task = new Task({
+				...defaultTaskOptions,
+				taskId: "smtp-parity-task",
+				workspacePath: "/workspace/project",
+			} as any)
+			;(task as any).taskMode = "code"
+			task.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "Full transcript content must never be emailed.",
+				ts: 1,
+			})
+			task.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Completed the saved SMTP notification path without leaking smtp-secret.",
+				ts: 2,
+			})
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, undefined as any, undefined as any)
+
+			await vi.waitFor(() => expect(sendMail).toHaveBeenCalledTimes(2))
+			expect(transportFactory).toHaveBeenNthCalledWith(2, {
+				host: "smtp.example.com",
+				port: 587,
+				secure: false,
+				requireTLS: true,
+				auth: {
+					user: "smtp-user",
+					pass: "smtp-secret",
+				},
+			})
+
+			const testMailOptions = sendMail.mock.calls[0][0]
+			const completionMailOptions = sendMail.mock.calls[1][0]
+			expect(testMailOptions.subject).toBe("C Code SMTP test")
+			expect(completionMailOptions).toEqual(
+				expect.objectContaining({
+					from: "C Code <roo@example.com>",
+					to: ["dev@example.com", "ops@example.com"],
+					subject: "C task success for smtp-parity-task",
+					text: expect.stringContaining("Task ID: smtp-parity-task"),
+					html: expect.stringContaining("Task ID"),
+				}),
+			)
+			expect(completionMailOptions.text).toContain("Total tokens: 0")
+			expect(completionMailOptions.text).toContain(
+				"Completion summary: Completed the saved SMTP notification path without leaking [redacted].",
+			)
+
+			const allMailText = sendMail.mock.calls.map(([mailOptions]) => JSON.stringify(mailOptions)).join("\n")
+			expect(allMailText).not.toContain("smtp-secret")
+			expect(allMailText).not.toContain("Full transcript content must never be emailed.")
+			expect(allMailText).not.toContain("apiConversationHistory")
+			expect(allMailText).not.toContain("clineMessages")
+
+			const outputLogText = (mockOutputChannel.appendLine as any).mock.calls.flat().join("\n")
+			expect(outputLogText).not.toContain("smtp-secret")
+			expect(outputLogText).not.toContain("Full transcript content must never be emailed.")
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, undefined as any, undefined as any)
+			expect(
+				sendMail.mock.calls.filter(([mailOptions]) => mailOptions.subject.includes("smtp-parity-task")),
+			).toHaveLength(1)
+			expect(sendMail).toHaveBeenCalledTimes(2)
+		})
+
+		test("sends direct completion notifications when usage stats are unavailable", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = new Task({
+				...defaultTaskOptions,
+				taskId: "task-missing-usage",
+				workspacePath: "/workspace",
+			} as any)
+			;(task as any).taskMode = "code"
+			task.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "Transcript content must not be copied into notification payload",
+				ts: 1,
+			})
+			task.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Completed without final usage stats.",
+				ts: 2,
+			})
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, undefined as any, undefined as any)
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			expect(sendTaskNotification).toHaveBeenCalledWith({
+				taskId: "task-missing-usage",
+				outcome: "success",
+				summary: "Completed without final usage stats.",
+				usageScope: "Task only (live completion event)",
+				workspacePath: "/workspace",
+				mode: "code",
+				tokenUsage: undefined,
+				toolUsage: undefined,
+				requestCount: 0,
+			})
+			expect(JSON.stringify(sendTaskNotification.mock.calls[0][0])).not.toContain(
+				"Transcript content must not be copied into notification payload",
+			)
+		})
+
+		test("logs disabled-settings diagnostics when completion email settings skip a visible completion", async () => {
+			await provider.contextProxy.setValues({
+				emailNotificationsEnabled: false,
+				emailNotifyOnSuccess: true,
+				smtpHost: "smtp.example.com",
+				smtpPort: 587,
+				smtpFromAddress: "roo@example.com",
+				smtpRecipients: ["dev@example.com"],
+			} as any)
+
+			const logSpy = vi.spyOn(provider, "log")
+			const sendMail = vi.fn().mockResolvedValue(undefined)
+			const transportFactory = vi.fn(() => ({ sendMail }))
+			;(provider as any).emailNotificationService = new EmailNotificationService(provider.contextProxy, {
+				log: (message) => provider.log(message),
+				transportFactory,
+			})
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-disabled-email-settings" } as any)
+
+			;(provider as any).taskCreationCallback(task)
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(transportFactory).not.toHaveBeenCalled()
+			await vi.waitFor(() => {
+				expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+					expect.arrayContaining([
+						expect.objectContaining({
+							event: "outcome-notification-decision",
+							taskId: "task-disabled-email-settings",
+							decision: "dispatch",
+						}),
+						expect.objectContaining({
+							event: "notification-send-result",
+							taskId: "task-disabled-email-settings",
+							decision: "service-skipped",
+							attempted: false,
+							sent: false,
+							skippedReason: "disabled",
+						}),
+						expect.objectContaining({
+							event: "notification-in-flight-cleared",
+							taskId: "task-disabled-email-settings",
+							decision: "cleared",
+						}),
+					]),
+				)
+			})
+			expect(mockContext.globalState.update).not.toHaveBeenCalledWith(
+				"emailNotificationTaskOutcomes.v1",
+				expect.anything(),
+			)
+		})
+
+		test("logs invalid-config diagnostics when SMTP settings are incomplete for a visible completion", async () => {
+			await provider.contextProxy.setValues({
+				emailNotificationsEnabled: true,
+				emailNotifyOnSuccess: true,
+				smtpHost: "smtp.example.com",
+				smtpPort: 587,
+				smtpFromAddress: "roo@example.com",
+				smtpRecipients: [],
+			} as any)
+
+			const logSpy = vi.spyOn(provider, "log")
+			const sendMail = vi.fn().mockResolvedValue(undefined)
+			const transportFactory = vi.fn(() => ({ sendMail }))
+			;(provider as any).emailNotificationService = new EmailNotificationService(provider.contextProxy, {
+				log: (message) => provider.log(message),
+				transportFactory,
+			})
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-invalid-email-settings" } as any)
+
+			;(provider as any).taskCreationCallback(task)
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(transportFactory).not.toHaveBeenCalled()
+			await vi.waitFor(() => {
+				expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+					expect.arrayContaining([
+						expect.objectContaining({
+							event: "notification-send-result",
+							taskId: "task-invalid-email-settings",
+							decision: "service-skipped",
+							attempted: false,
+							sent: false,
+							skippedReason: "invalid-config",
+						}),
+					]),
+				)
+			})
+			expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
+				expect.stringContaining("Email notifications are enabled but no SMTP recipients are configured."),
+			)
+			expect(mockContext.globalState.update).not.toHaveBeenCalledWith(
+				"emailNotificationTaskOutcomes.v1",
+				expect.anything(),
+			)
+		})
+
+		test("does not send SMTP notifications for streaming failure aborts", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-failed", workspacePath: "/workspace" } as any)
+			const tokenUsage = createTokenUsage()
+			const toolUsage = createToolUsage()
+			;(task as any).taskMode = "code"
+			;(task as any).abortReason = "streaming_failed"
+			;(task as any).tokenUsage = tokenUsage
+			;(task as any).toolUsage = toolUsage
+			;(provider as any).clineStack = [{ instanceId: "different-current-task" }]
+			;(provider as any).taskCreationCallback(task)
+			task.emit(RooCodeEventName.TaskAborted)
+
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+			expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
+				expect.stringContaining(
+					"Skipping task task-failed abort notification because automatic SMTP notifications are completion-only.",
+				),
+			)
+		})
+
+		test("does not send SMTP notifications for user aborts", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-aborted", workspacePath: "/workspace" } as any)
+			const tokenUsage = createTokenUsage()
+			const toolUsage = createToolUsage()
+			;(task as any).taskMode = "code"
+			;(task as any).abortReason = "user_cancelled"
+			;(task as any).tokenUsage = tokenUsage
+			;(task as any).toolUsage = toolUsage
+			;(provider as any).taskCreationCallback(task)
+			task.emit(RooCodeEventName.TaskAborted)
+
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+		})
+
+		test("suppresses non-user lifecycle abort notifications", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-lifecycle-cleanup" } as any)
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(RooCodeEventName.TaskAborted)
+
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+		})
+
+		test("suppresses abandoned cleanup abort notifications during delegation handoff", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = new Task({ ...defaultTaskOptions, taskId: "delegation-cleanup-parent" } as any)
+			;(task as any).abandoned = true
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(RooCodeEventName.TaskAborted)
+
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+		})
+
+		test("parallel-agent lifecycle aborts do not send false aborted notifications", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const parentTask = new Task({ ...defaultTaskOptions, taskId: "parallel-parent-cleanup" } as any)
+			;(provider as any).taskCreationCallback(parentTask)
+			await provider.addClineToStack(parentTask)
+
+			const backgroundTask = await provider.createTask("Run a specialist agent task", undefined, parentTask, {
+				agentId: "dashboard-agent",
+				background: true,
+				mode: "code",
+			})
+
+			backgroundTask.emit(RooCodeEventName.TaskAborted)
+			parentTask.emit(RooCodeEventName.TaskAborted)
+
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+		})
+
+		test("parallel-agent parent workflow completion sends exactly one success notification", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
+			const parentTask = new Task({
+				...defaultTaskOptions,
+				taskId: "parallel-parent-success",
+				workspacePath: "/workspace",
+			} as any)
+			const parentTokenUsage = createTokenUsage({
+				totalTokensIn: 100,
+				totalTokensOut: 40,
+				totalCacheWrites: 10,
+				totalCacheReads: 5,
+				totalCost: 0.1,
+			})
+			const parentToolUsage = createToolUsage()
+			const childTokenUsage = createTokenUsage({
+				totalTokensIn: 35,
+				totalTokensOut: 15,
+				totalCacheWrites: 3,
+				totalCacheReads: 7,
+				totalCost: 0.05,
+				contextTokens: 1024,
+			})
+			const childToolUsage = {
+				execute_command: { attempts: 1, failures: 0 },
+			} as ToolUsage
+			;(parentTask as any).taskMode = "code"
+			parentTask.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "Sensitive parent transcript content should not appear in diagnostics.",
+				ts: 1,
+			})
+			parentTask.clineMessages.push({
+				type: "say",
+				say: "api_req_started",
+				text: "Starting parent request",
+				ts: 1.5,
+			})
+			parentTask.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Parallel agents completed and the parent verified the workflow.",
+				ts: 2,
+			})
+			;(provider as any).taskCreationCallback(parentTask)
+			await provider.addClineToStack(parentTask)
+
+			const backgroundTask = await provider.createTask("Run a specialist agent task", undefined, parentTask, {
+				agentId: "dashboard-agent",
+				background: true,
+				mode: "code",
+			})
+			backgroundTask.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "Sensitive child transcript content should not appear in diagnostics.",
+				ts: 1,
+			})
+			backgroundTask.clineMessages.push({
+				type: "say",
+				say: "api_req_started",
+				text: "Starting child request",
+				ts: 1.5,
+			})
+
+			backgroundTask.emit(RooCodeEventName.TaskCompleted, backgroundTask.taskId, childTokenUsage, childToolUsage)
+			;(provider as any).emailNotificationTaskOutcomes.set(`task:${backgroundTask.taskId}`, "success")
+			;(provider as any).emailNotificationTaskOutcomesInFlight.set(`task:${backgroundTask.taskId}`, "success")
+			parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, parentTokenUsage, parentToolUsage)
+			parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, parentTokenUsage, parentToolUsage)
+
+			await vi.waitFor(() => expect(sendTaskNotification).toHaveBeenCalledTimes(1))
+			expect(sendTaskNotification).toHaveBeenCalledWith({
+				taskId: "parallel-parent-success",
+				outcome: "success",
+				summary: "Parallel agents completed and the parent verified the workflow.",
+				workflowSummary: expect.stringContaining(
+					'Overall workflow rollup: parent task parallel-parent-success completed with final result "Parallel agents completed and the parent verified the workflow."',
+				),
+				usageScope:
+					"Aggregated parent workflow usage from the parent task plus 1 child task, including delegated and background parallel-agent tasks discoverable from saved task metadata.",
+				workspacePath: "/workspace",
+				mode: "code",
+				tokenUsage: {
+					totalTokensIn: 135,
+					totalTokensOut: 55,
+					totalCacheWrites: 13,
+					totalCacheReads: 12,
+					totalCost: 0.15000000000000002,
+					contextTokens: 0,
+				},
+				toolUsage: {
+					read_file: { attempts: 2, failures: 1 },
+					execute_command: { attempts: 1, failures: 0 },
+				},
+				requestCount: 2,
+			})
+			expect(sendTaskNotification.mock.calls[0][0].workflowSummary).toContain(
+				`${backgroundTask.taskId}: agent dashboard-agent parallel/background task`,
+			)
+			expect(JSON.stringify(sendTaskNotification.mock.calls[0][0])).not.toContain(
+				"Sensitive parent transcript content",
+			)
+			expect(JSON.stringify(sendTaskNotification.mock.calls[0][0])).not.toContain(
+				"Sensitive child transcript content",
+			)
+
+			const notificationDiagnostics = getEmailNotificationDiagnostics(logSpy)
+
+			expect(notificationDiagnostics).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "completion-event-observed",
+						taskId: backgroundTask.taskId,
+						background: true,
+						agentId: "dashboard-agent",
+					}),
+					expect.objectContaining({
+						event: "completion-notification-decision",
+						taskId: backgroundTask.taskId,
+						decision: "skip-background-task-covered-by-parallel-workflow",
+						coveredByWorkflowNotification: true,
+					}),
+					expect.objectContaining({
+						event: "completion-event-observed",
+						taskId: "parallel-parent-success",
+						background: false,
+						currentTaskId: "parallel-parent-success",
+					}),
+					expect.objectContaining({
+						event: "completion-notification-decision",
+						taskId: "parallel-parent-success",
+						decision: "send-top-level-success",
+					}),
+					expect.objectContaining({
+						event: "completion-notification-aggregation",
+						taskId: "parallel-parent-success",
+						decision: "use-aggregated-workflow-usage",
+						usageAggregationSource: "live-root-with-discovered-children",
+						parentHistoryFound: false,
+						workflowChildTaskCount: 1,
+						requestCount: 2,
+						totalTokensIn: 135,
+						totalTokensOut: 55,
+						totalCacheWrites: 13,
+						totalCacheReads: 12,
+						totalCost: 0.15000000000000002,
+						toolAttempts: 3,
+						toolFailures: 1,
+					}),
+					expect.objectContaining({
+						event: "outcome-notification-decision",
+						taskId: "parallel-parent-success",
+						decision: "dispatch",
+						duplicateSent: false,
+						duplicateInFlight: false,
+					}),
+				]),
+			)
+			expect(JSON.stringify(notificationDiagnostics)).not.toContain(
+				"Parallel agents completed and the parent verified the workflow.",
+			)
+			expect(JSON.stringify(notificationDiagnostics)).not.toContain("Sensitive parent transcript content")
+			expect(JSON.stringify(notificationDiagnostics)).not.toContain("Sensitive child transcript content")
+		})
+
+		test("sends one child workflow success notification for delegated completion metadata", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
+			const transcriptText = "Earlier parent transcript text that must not appear in notification payload"
+			const parentHistory = createHistoryItem({
+				id: "delegated-parent-success",
+				workspace: "/workspace",
+				mode: "code",
+				rootTaskId: "delegated-root-success",
+				childIds: ["delegated-child-success"],
+				completedByChildId: "delegated-child-success",
+			})
+			;(provider as any).getAggregatedTaskNotificationUsage = vi.fn().mockResolvedValue({
+				tokenUsage: {
+					totalTokensIn: 10,
+					totalTokensOut: 5,
+					totalCacheWrites: 2,
+					totalCacheReads: 3,
+					totalCost: 0.01,
+					contextTokens: 0,
+				},
+				requestCount: 2,
+			})
+
+			await (provider as any).notifyDelegatedWorkflowCompleted(
+				parentHistory,
+				"Child completed delegated work.\nReady for parent follow-up.",
+			)
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			expect(sendTaskNotification).toHaveBeenCalledWith({
+				taskId: "delegated-child-success",
+				outcome: "success",
+				summary: "Child completed delegated work. Ready for parent follow-up.",
+				workspacePath: "/workspace",
+				mode: "code",
+				notificationType: "delegated-child",
+				parentTaskId: "delegated-parent-success",
+				rootTaskId: "delegated-root-success",
+				tokenUsage: {
+					totalTokensIn: 10,
+					totalTokensOut: 5,
+					totalCacheWrites: 2,
+					totalCacheReads: 3,
+					totalCost: 0.01,
+					contextTokens: 0,
+				},
+				requestCount: 2,
+			})
+			expect(JSON.stringify(sendTaskNotification.mock.calls[0][0])).not.toContain(transcriptText)
+			await vi.waitFor(() => {
+				expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+					expect.arrayContaining([
+						expect.objectContaining({
+							event: "delegated-workflow-notification-prepared",
+							taskId: "delegated-parent-success",
+							childTaskId: "delegated-child-success",
+							decision: "send-delegated-child-success",
+							requestCount: 2,
+						}),
+						expect.objectContaining({
+							event: "outcome-notification-decision",
+							taskId: "delegated-child-success",
+							decision: "dispatch",
+							notificationType: "delegated-child",
+							parentTaskId: "delegated-parent-success",
+						}),
+						expect.objectContaining({
+							event: "notification-send-result",
+							taskId: "delegated-child-success",
+							decision: "sent",
+							attempted: true,
+							sent: true,
+						}),
+					]),
+				)
+			})
+			expect(JSON.stringify(getEmailNotificationDiagnostics(logSpy))).not.toContain(transcriptText)
+		})
+
+		test("falls back to basic usage and still sends delegated completion when aggregation fails", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			;(provider as any).getAggregatedTaskNotificationUsage = vi.fn().mockRejectedValue(new Error("usage failed"))
+
+			await (provider as any).notifyDelegatedWorkflowCompleted(
+				createHistoryItem({
+					id: "delegated-parent-aggregation-fallback",
+					workspace: "/workspace",
+					mode: "code",
+					rootTaskId: "delegated-root-aggregation-fallback",
+					childIds: ["delegated-child-aggregation-fallback"],
+					completedByChildId: "delegated-child-aggregation-fallback",
+					tokensIn: Number.NaN,
+					tokensOut: undefined as any,
+					cacheWrites: undefined,
+					cacheReads: undefined,
+					totalCost: undefined as any,
+				}),
+				"Child completed after usage aggregation failed.",
+			)
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			expect(sendTaskNotification).toHaveBeenCalledWith({
+				taskId: "delegated-child-aggregation-fallback",
+				outcome: "success",
+				summary: "Child completed after usage aggregation failed.",
+				workspacePath: "/workspace",
+				mode: "code",
+				notificationType: "delegated-child",
+				parentTaskId: "delegated-parent-aggregation-fallback",
+				rootTaskId: "delegated-root-aggregation-fallback",
+				tokenUsage: {
+					totalTokensIn: 0,
+					totalTokensOut: 0,
+					totalCacheWrites: 0,
+					totalCacheReads: 0,
+					totalCost: 0,
+					contextTokens: 0,
+				},
+				requestCount: 0,
+			})
+			expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
+				expect.stringContaining(
+					"[email-notifications] Failed to aggregate delegated completion usage for child task delegated-child-aggregation-fallback; sending notification with fallback usage: usage failed",
+				),
+			)
+		})
+
+		test("uses delegated child usage totals for delegated child completion notifications", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const fsUtils = await import("../../../utils/fs")
+			const fsPromises = await import("fs/promises")
+			const parentHistory = createHistoryItem({
+				id: "delegated-parent-usage",
+				workspace: "/workspace",
+				mode: "code",
+				rootTaskId: "delegated-root-usage",
+				tokensIn: 100,
+				tokensOut: 50,
+				cacheWrites: 10,
+				cacheReads: 20,
+				totalCost: 0.1,
+				childIds: ["delegated-child-usage"],
+				completedByChildId: "delegated-child-usage",
+			})
+			const childHistory = createHistoryItem({
+				id: "delegated-child-usage",
+				parentTaskId: "delegated-parent-usage",
+				rootTaskId: "delegated-root-usage",
+				workspace: "/workspace",
+				mode: "code",
+				tokensIn: 25,
+				tokensOut: 15,
+				cacheWrites: 5,
+				cacheReads: 8,
+				totalCost: 0.02,
+				childIds: [],
+			})
+			;(provider as any).taskHistoryStore.getAll = vi.fn(() => [childHistory])
+			vi.spyOn(provider, "getTaskWithId").mockImplementation(async (id: string) => ({
+				historyItem: id === "delegated-child-usage" ? childHistory : parentHistory,
+				apiConversationHistory: [],
+				taskDirPath: "/test/task/path",
+				apiConversationHistoryFilePath: "/test/task/path/api_conversation_history.json",
+				uiMessagesFilePath: "/test/task/path/ui_messages.json",
+			}))
+			vi.spyOn(fsUtils, "fileExistsAtPath").mockResolvedValue(true)
+			;(vi.mocked(fsPromises.readFile) as any).mockImplementation(async (filePath: string) => {
+				if (filePath.includes("ui_messages.json")) {
+					return JSON.stringify([
+						{ type: "say", say: "api_req_started", ts: 1 },
+						{ type: "say", say: "text", text: "raw transcript should stay out of payload", ts: 2 },
+					])
+				}
+
+				return "[]"
+			})
+
+			await (provider as any).notifyDelegatedWorkflowCompleted(parentHistory, "Child completed delegated work.")
+
+			expect(sendTaskNotification).toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "delegated-child-usage",
+					outcome: "success",
+					workspacePath: "/workspace",
+					mode: "code",
+					notificationType: "delegated-child",
+					parentTaskId: "delegated-parent-usage",
+					rootTaskId: "delegated-root-usage",
+					tokenUsage: {
+						totalTokensIn: 25,
+						totalTokensOut: 15,
+						totalCacheWrites: 5,
+						totalCacheReads: 8,
+						totalCost: 0.02,
+						contextTokens: 0,
+					},
+					requestCount: 1,
+				}),
+			)
+			expect(JSON.stringify(sendTaskNotification.mock.calls[0][0])).not.toContain(
+				"raw transcript should stay out of payload",
+			)
+		})
+
+		test("sends delegated child completion and later final parent completion as separate notifications", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
+			const parentTokenUsage = createTokenUsage({
+				totalTokensIn: 50,
+				totalTokensOut: 20,
+				totalCacheWrites: 1,
+				totalCacheReads: 2,
+				totalCost: 0.08,
+			})
+			const childTokenUsage = createTokenUsage({
+				totalTokensIn: 25,
+				totalTokensOut: 15,
+				totalCacheWrites: 3,
+				totalCacheReads: 4,
+				totalCost: 0.04,
+			})
+			const historyItem = createHistoryItem({
+				id: "delegated-parent-dedupe",
+				workspace: "/workspace",
+				mode: "code",
+				childIds: ["delegated-child-dedupe"],
+				completedByChildId: "delegated-child-dedupe",
+				completionResultSummary: "Child finished delegated work.",
+			})
+			const parentTask = new Task({
+				...defaultTaskOptions,
+				taskId: "delegated-parent-dedupe",
+				workspacePath: "/workspace",
+			} as any)
+			const childTask = new Task({ ...defaultTaskOptions, taskId: "delegated-child-dedupe", parentTask } as any)
+			;(parentTask as any).taskMode = "code"
+			;(childTask as any).taskMode = "code"
+			;(provider as any).taskHistoryStore.getAll = vi.fn(() => [historyItem])
+			;(provider as any).taskCreationCallback(parentTask)
+			;(provider as any).taskCreationCallback(childTask)
+			parentTask.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "Sensitive delegated parent transcript must not leak.",
+				ts: 1,
+			})
+			parentTask.clineMessages.push({ type: "say", say: "api_req_started", text: "Parent request", ts: 1.5 })
+			childTask.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "Sensitive delegated child transcript must not leak.",
+				ts: 1,
+			})
+			childTask.clineMessages.push({ type: "say", say: "api_req_started", text: "Child request", ts: 1.5 })
+			childTask.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Child finished delegated work.",
+				ts: 2,
+			})
+			childTask.emit(RooCodeEventName.TaskCompleted, childTask.taskId, childTokenUsage, createToolUsage())
+			await vi.waitFor(() => {
+				expect(
+					(provider as any).emailNotificationTaskOutcomes.get("delegated-child:delegated-child-dedupe"),
+				).toBe("success")
+			})
+			;(parentTask as any).abandoned = true
+			parentTask.emit(RooCodeEventName.TaskAborted)
+			parentTask.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Parent completed final delegated workflow validation.",
+				ts: 3,
+			})
+			parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, parentTokenUsage, createToolUsage())
+
+			await vi.waitFor(() => expect(sendTaskNotification).toHaveBeenCalledTimes(2))
+			expect(sendTaskNotification).toHaveBeenNthCalledWith(
+				1,
+				expect.objectContaining({
+					taskId: "delegated-child-dedupe",
+					outcome: "success",
+					summary: "Child finished delegated work.",
+					notificationType: "delegated-child",
+					parentTaskId: "delegated-parent-dedupe",
+				}),
+			)
+			expect(sendTaskNotification).toHaveBeenNthCalledWith(
+				2,
+				expect.objectContaining({
+					taskId: "delegated-parent-dedupe",
+					outcome: "success",
+					summary: "Parent completed final delegated workflow validation.",
+					workflowSummary: expect.stringContaining(
+						'Overall workflow rollup: parent task delegated-parent-dedupe completed with final result "Parent completed final delegated workflow validation."',
+					),
+					usageScope:
+						"Aggregated parent workflow usage from the parent task plus 1 child task, including delegated and background parallel-agent tasks discoverable from saved task metadata.",
+					tokenUsage: {
+						totalTokensIn: 75,
+						totalTokensOut: 35,
+						totalCacheWrites: 4,
+						totalCacheReads: 6,
+						totalCost: 0.12,
+						contextTokens: 0,
+					},
+					toolUsage: {
+						read_file: { attempts: 4, failures: 2 },
+					},
+					requestCount: 2,
+				}),
+			)
+			expect(sendTaskNotification.mock.calls[1][0]).not.toHaveProperty("notificationType")
+			expect(sendTaskNotification.mock.calls[1][0].workflowSummary).toContain(
+				"delegated-child-dedupe: delegated task",
+			)
+			expect(JSON.stringify(sendTaskNotification.mock.calls[1][0])).not.toContain(
+				"Sensitive delegated parent transcript",
+			)
+			expect(JSON.stringify(sendTaskNotification.mock.calls[1][0])).not.toContain(
+				"Sensitive delegated child transcript",
+			)
+			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "completion-notification-decision",
+						taskId: "delegated-parent-dedupe",
+						decision: "send-top-level-success-after-delegated-child-notification",
+						coveredChildTaskId: "delegated-child-dedupe",
+					}),
+					expect.objectContaining({
+						event: "completion-notification-decision",
+						taskId: "delegated-parent-dedupe",
+						decision: "send-top-level-success-after-delegated-workflow",
+						notificationScope: "task",
+						notificationDedupeKey: "task:delegated-parent-dedupe",
+						coveredChildTaskId: "delegated-child-dedupe",
+					}),
+					expect.objectContaining({
+						event: "outcome-notification-decision",
+						taskId: "delegated-parent-dedupe",
+						decision: "dispatch",
+						notificationScope: "task",
+						notificationDedupeKey: "task:delegated-parent-dedupe",
+						duplicateSent: false,
+					}),
+				]),
+			)
+			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "completion-notification-aggregation",
+						taskId: "delegated-parent-dedupe",
+						decision: "use-aggregated-workflow-usage",
+						usageAggregationSource: "history-recursive",
+						workflowChildTaskCount: 1,
+						requestCount: 2,
+						totalTokensIn: 75,
+						totalTokensOut: 35,
+						totalCacheWrites: 4,
+						totalCacheReads: 6,
+						totalCost: 0.12,
+						toolAttempts: 4,
+						toolFailures: 2,
+					}),
+				]),
+			)
+			expect(JSON.stringify(getEmailNotificationDiagnostics(logSpy))).not.toContain(
+				"Sensitive delegated parent transcript",
+			)
+			expect(JSON.stringify(getEmailNotificationDiagnostics(logSpy))).not.toContain(
+				"Sensitive delegated child transcript",
+			)
+			expect(sendTaskNotification).not.toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "delegated-parent-dedupe",
+					outcome: "aborted",
+				}),
+			)
+		})
+
+		test("skips background tasks covered by workflow notification and sends delegated child tasks", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
+			const backgroundTask = new Task({
+				...defaultTaskOptions,
+				taskId: "background-task",
+				background: true,
+			} as any)
+			const parentTask = new Task({ ...defaultTaskOptions, taskId: "parent-task" } as any)
+			const childTask = new Task({ ...defaultTaskOptions, taskId: "child-task", parentTask } as any)
+			childTask.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Child task completed delegated work.",
+				ts: 2,
+			})
+			;(provider as any).taskCreationCallback(backgroundTask)
+			;(provider as any).taskCreationCallback(childTask)
+			backgroundTask.emit(
+				RooCodeEventName.TaskCompleted,
+				backgroundTask.taskId,
+				createTokenUsage(),
+				createToolUsage(),
+			)
+			childTask.emit(RooCodeEventName.TaskCompleted, childTask.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			expect(sendTaskNotification).toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "child-task",
+					outcome: "success",
+					summary: "Child task completed delegated work.",
+					notificationType: "delegated-child",
+					parentTaskId: "parent-task",
+					rootTaskId: "parent-task",
+				}),
+			)
+			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "completion-notification-decision",
+						taskId: "background-task",
+						decision: "skip-background-task-covered-by-parallel-workflow",
+						coveredByWorkflowNotification: true,
+					}),
+					expect.objectContaining({
+						event: "completion-notification-decision",
+						taskId: "child-task",
+						decision: "send-delegated-child-success",
+					}),
+				]),
+			)
+		})
+
+		test("logs duplicate-sent diagnostics without dispatching another visible completion notification", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-duplicate-sent" } as any)
+			;(provider as any).emailNotificationTaskOutcomes.set(`task:${task.taskId}`, "success")
+			;(provider as any).taskCreationCallback(task)
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "completion-event-observed",
+						taskId: "task-duplicate-sent",
+					}),
+					expect.objectContaining({
+						event: "completion-notification-decision",
+						taskId: "task-duplicate-sent",
+						decision: "send-top-level-success",
+					}),
+					expect.objectContaining({
+						event: "outcome-notification-decision",
+						taskId: "task-duplicate-sent",
+						decision: "skip-duplicate-sent",
+						notificationScope: "task",
+						notificationDedupeKey: "task:task-duplicate-sent",
+						sentOutcome: "success",
+						duplicateSent: true,
+						duplicateInFlight: false,
+					}),
+				]),
+			)
+		})
+
+		test("logs duplicate-in-flight diagnostics without dispatching another visible completion notification", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-duplicate-in-flight" } as any)
+			;(provider as any).emailNotificationTaskOutcomesInFlight.set(`task:${task.taskId}`, "success")
+			;(provider as any).taskCreationCallback(task)
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "outcome-notification-decision",
+						taskId: "task-duplicate-in-flight",
+						decision: "skip-duplicate-in-flight",
+						notificationScope: "task",
+						notificationDedupeKey: "task:task-duplicate-in-flight",
+						inFlightOutcome: "success",
+						duplicateSent: false,
+						duplicateInFlight: true,
+					}),
+				]),
+			)
+		})
+
+		test("does not throw when notification dispatch rejects", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock(
+				vi.fn().mockRejectedValue(new Error("SMTP down")),
+			)
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-notification-error" } as any)
+
+			;(provider as any).taskCreationCallback(task)
+
+			expect(() =>
+				task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage()),
+			).not.toThrow()
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+		})
+
+		test("does not persist completion de-duplication until notification dispatch succeeds", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock(
+				vi
+					.fn()
+					.mockResolvedValueOnce({ attempted: true, sent: false })
+					.mockResolvedValueOnce({ attempted: true, sent: true }),
+			)
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-retry-after-send-failure" } as any)
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			await vi.waitFor(() => {
+				expect((provider as any).emailNotificationTaskOutcomesInFlight.has(`task:${task.taskId}`)).toBe(false)
+			})
+			expect(mockContext.globalState.update).not.toHaveBeenCalledWith(
+				"emailNotificationTaskOutcomes.v1",
+				expect.anything(),
+			)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(2)
+			await vi.waitFor(() => {
+				expect(mockContext.globalState.update).toHaveBeenCalledWith("emailNotificationTaskOutcomes.v1", {
+					version: 1,
+					outcomes: [{ taskId: "task-retry-after-send-failure", outcome: "success" }],
+				})
+			})
+		})
+
+		test("does not persist completion de-duplication when notification dispatch is skipped", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock(
+				vi
+					.fn()
+					.mockResolvedValueOnce({ attempted: false, sent: false, skippedReason: "disabled" })
+					.mockResolvedValueOnce({ attempted: true, sent: true }),
+			)
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-retry-after-send-skip" } as any)
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			await vi.waitFor(() => {
+				expect((provider as any).emailNotificationTaskOutcomesInFlight.has(`task:${task.taskId}`)).toBe(false)
+			})
+			expect(mockContext.globalState.update).not.toHaveBeenCalledWith(
+				"emailNotificationTaskOutcomes.v1",
+				expect.anything(),
+			)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(2)
+			await vi.waitFor(() => {
+				expect(mockContext.globalState.update).toHaveBeenCalledWith("emailNotificationTaskOutcomes.v1", {
+					version: 1,
+					outcomes: [{ taskId: "task-retry-after-send-skip", outcome: "success" }],
+				})
+			})
+		})
+
+		test("completed task notification wins over a later abort cleanup event", () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-complete-then-abort" } as any)
+			const tokenUsage = createTokenUsage()
+			const toolUsage = createToolUsage()
+			;(task as any).tokenUsage = tokenUsage
+			;(task as any).toolUsage = toolUsage
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, tokenUsage, toolUsage)
+			task.emit(RooCodeEventName.TaskAborted)
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			expect(sendTaskNotification).toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "task-complete-then-abort",
+					outcome: "success",
+				}),
+			)
+		})
+
+		test("does not send again when reopening an already-completed historical task", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = await provider.createTaskWithHistoryItem(
+				createHistoryItem({ id: "historical-completed-task", status: "completed" }),
+			)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+		})
+
+		test("persists task-level success de-duplication across provider instances", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const task = new Task({ ...defaultTaskOptions, taskId: "persisted-success-task" } as any)
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			await vi.waitFor(() => {
+				expect(mockContext.globalState.update).toHaveBeenCalledWith("emailNotificationTaskOutcomes.v1", {
+					version: 1,
+					outcomes: [{ taskId: "persisted-success-task", outcome: "success" }],
+				})
+			})
+
+			const reloadedProvider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+			)
+			const reloadedSendTaskNotification = vi.fn().mockResolvedValue({ attempted: true, sent: true })
+			;(reloadedProvider as any).emailNotificationService = {
+				sendTaskNotification: reloadedSendTaskNotification,
+				sendTestNotification: vi.fn(),
+			}
+			const reloadedTask = new Task({
+				...defaultTaskOptions,
+				provider: reloadedProvider,
+				taskId: "persisted-success-task",
+			} as any)
+			;(reloadedProvider as any).taskCreationCallback(reloadedTask)
+
+			reloadedTask.emit(
+				RooCodeEventName.TaskCompleted,
+				reloadedTask.taskId,
+				createTokenUsage(),
+				createToolUsage(),
+			)
+
+			expect(reloadedSendTaskNotification).not.toHaveBeenCalled()
+		})
+	})
+
 	test("resolveWebviewView sets up webview correctly", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 
 		expect(mockWebviewView.webview.options).toEqual({
 			enableScripts: true,
-			localResourceRoots: [mockContext.extensionUri],
+			localResourceRoots: [mockContext.extensionUri, { fsPath: "/test/workspace" }],
 		})
 
 		expect(mockWebviewView.webview.html).toContain("<!DOCTYPE html>")
@@ -701,7 +2036,7 @@ describe("ClineProvider", () => {
 
 		expect(mockWebviewView.webview.options).toEqual({
 			enableScripts: true,
-			localResourceRoots: [mockContext.extensionUri],
+			localResourceRoots: [mockContext.extensionUri, { fsPath: "/test/workspace" }],
 		})
 
 		expect(mockWebviewView.webview.html).toContain("<!DOCTYPE html>")
@@ -1090,6 +2425,89 @@ describe("ClineProvider", () => {
 		)
 	})
 
+	test("approved execution plans create one parent checkpoint before worktrees start", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const worktreeManager = createWorktreeManagerMock()
+		;(provider as any).worktreeManager = worktreeManager
+		const plan = createExecutionPlan()
+
+		await provider.approveExecutionPlan(plan)
+
+		const getBackgroundTasks = () =>
+			vi
+				.mocked(Task)
+				.mock.results.map((result) => result.value as Task)
+				.filter((task) => task.background)
+
+		await vi.waitFor(() => expect(getBackgroundTasks()).toHaveLength(plan.agents.length))
+		expect(parentTask.checkpointSave).toHaveBeenCalledTimes(1)
+		expect(parentTask.checkpointSave).toHaveBeenCalledWith(true, false, { throwOnError: true })
+
+		const checkpointOrder = vi.mocked(parentTask.checkpointSave).mock.invocationCallOrder[0]
+		const createWorktreeOrder = worktreeManager.createWorktree.mock.invocationCallOrder[0]
+		expect(checkpointOrder).toBeLessThan(createWorktreeOrder)
+
+		for (const backgroundTask of getBackgroundTasks()) {
+			expect(backgroundTask.checkpointSave).not.toHaveBeenCalled()
+		}
+	})
+
+	test("approved execution plans continue when checkpoint initialization disables checkpoints", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		vi.mocked(parentTask.checkpointSave).mockImplementationOnce(async () => {
+			parentTask.enableCheckpoints = false
+			return undefined
+		})
+		await provider.addClineToStack(parentTask)
+		const worktreeManager = createWorktreeManagerMock()
+		;(provider as any).worktreeManager = worktreeManager
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+
+		await vi.waitFor(() => expect(worktreeManager.createWorktree).toHaveBeenCalled())
+		expect(parentTask.checkpointSave).toHaveBeenCalledTimes(1)
+		expect(parentTask.checkpointSave).toHaveBeenCalledWith(true, false, { throwOnError: true })
+		expect(vscode.window.showErrorMessage).not.toHaveBeenCalled()
+	})
+
+	test("approved execution plans continue without a checkpoint when parent checkpoints are disabled", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		parentTask.enableCheckpoints = false
+		await provider.addClineToStack(parentTask)
+		const worktreeManager = createWorktreeManagerMock()
+		;(provider as any).worktreeManager = worktreeManager
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+
+		await vi.waitFor(() => expect(worktreeManager.createWorktree).toHaveBeenCalled())
+		expect(parentTask.checkpointSave).not.toHaveBeenCalled()
+	})
+
+	test("approved execution plans do not start agents when the pre-start checkpoint fails", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		vi.mocked(parentTask.checkpointSave).mockRejectedValueOnce(new Error("Save failed"))
+		await provider.addClineToStack(parentTask)
+		const worktreeManager = createWorktreeManagerMock()
+		;(provider as any).worktreeManager = worktreeManager
+
+		await provider.approveExecutionPlan(createExecutionPlan())
+
+		expect(parentTask.checkpointSave).toHaveBeenCalledTimes(1)
+		expect(parentTask.checkpointSave).toHaveBeenCalledWith(true, false, { throwOnError: true })
+		expect(worktreeManager.validateGitRepository).not.toHaveBeenCalled()
+		expect(worktreeManager.captureWorkspaceBaseline).not.toHaveBeenCalled()
+		expect(worktreeManager.createWorktree).not.toHaveBeenCalled()
+		expect(getParallelAgentToolMessages(parentTask)).toHaveLength(0)
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			"Failed to create a checkpoint before starting parallel agents for plan plan-webview-provider: Save failed. Parallel agents were not started.",
+		)
+	})
+
 	test("AgentBus updates coalesce into the persisted parallelAgents tool message", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const parentTask = new Task(defaultTaskOptions)
@@ -1160,8 +2578,14 @@ describe("ClineProvider", () => {
 						status: "complete",
 						completionResult: "Dashboard done",
 						ownership: expect.objectContaining({
-							status: "warning",
-							conflicts: [],
+							status: "violation",
+							conflicts: expect.arrayContaining([
+								expect.objectContaining({
+									path: "src/styles.css",
+									approved: false,
+									ownerAgentId: "styles-agent",
+								}),
+							]),
 						}),
 					}),
 				]),
@@ -1170,7 +2594,7 @@ describe("ClineProvider", () => {
 				expect.objectContaining({
 					planId: "plan-webview-provider",
 					packetCount: 2,
-					ownership: expect.objectContaining({ status: "warning" }),
+					ownership: expect.objectContaining({ status: "violation" }),
 				}),
 			)
 		})
@@ -1216,6 +2640,24 @@ describe("ClineProvider", () => {
 			targetAgentId: "dashboard-agent",
 			replyToId: question.id,
 		})
+		bus.publishCoordination("dashboard-agent", {
+			kind: "decision",
+			message: "Decision: src/dashboard.tsx exposes data-dashboard-root.",
+			targetAgentId: "styles-agent",
+			relatedFiles: ["src/dashboard.tsx"],
+		})
+		bus.publishCoordination("styles-agent", {
+			kind: "note",
+			message: "Assumption: compact styles target data-dashboard-root only.",
+			targetAgentId: "dashboard-agent",
+			relatedFiles: ["src/styles.css"],
+		})
+		bus.publishCoordination("dashboard-agent", {
+			kind: "blocker",
+			message: "Blocker: src/styles.css needs the dashboard root selector before final CSS.",
+			targetAgentId: "styles-agent",
+			relatedFiles: ["src/styles.css"],
+		})
 		bus.requestWriteIntent("dashboard-agent", "src/dashboard.tsx")
 		bus.markBlocked("styles-agent", "Waiting for DOM contract", [
 			{ agentId: "dashboard-agent", waitFor: "signal", signal: "dom-ready" },
@@ -1243,10 +2685,36 @@ describe("ClineProvider", () => {
 						message: "Expose data-dashboard-root for compact styles.",
 						replyToId: question.id,
 					}),
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						targetAgentId: "styles-agent",
+						kind: "decision",
+						source: "agent",
+						message: "Decision: src/dashboard.tsx exposes data-dashboard-root.",
+						relatedFiles: ["src/dashboard.tsx"],
+					}),
+					expect.objectContaining({
+						agentId: "styles-agent",
+						targetAgentId: "dashboard-agent",
+						kind: "note",
+						source: "agent",
+						message: "Assumption: compact styles target data-dashboard-root only.",
+						relatedFiles: ["src/styles.css"],
+					}),
+					expect.objectContaining({
+						agentId: "dashboard-agent",
+						targetAgentId: "styles-agent",
+						kind: "blocker",
+						source: "agent",
+						message: "Blocker: src/styles.css needs the dashboard root selector before final CSS.",
+						relatedFiles: ["src/styles.css"],
+					}),
 				]),
 			)
 			expect(
-				tool.agentCoordinationEvents?.every((event) => event.kind === "question" || event.kind === "answer"),
+				tool.agentCoordinationEvents?.every((event) =>
+					["question", "answer", "decision", "note", "blocker"].includes(event.kind),
+				),
 			).toBe(true)
 			expect(JSON.stringify(tool.agentCoordinationEvents)).not.toMatch(
 				/I own|Team chat open|Shared context is in each agent task|waits for|I'm about to edit/i,
@@ -1906,10 +3374,38 @@ describe("ClineProvider", () => {
 		const parentTask = new Task(defaultTaskOptions)
 		await provider.addClineToStack(parentTask)
 		const plan = createExecutionPlan()
-		const prepareMergeReview = vi.fn(async ({ agentId }: { agentId: string }) =>
-			agentId === "dashboard-agent"
-				? "diff --git a/src/dashboard.tsx b/src/dashboard.tsx\n+const dashboard = true\n"
-				: "",
+		const logSpy = vi.spyOn(provider, "log")
+		const prepareMergeReview = vi.fn(
+			async ({ agentId, onDiagnostics }: { agentId: string; onDiagnostics?: (diagnostics: unknown) => void }) => {
+				const workspaceRelativePath = agentId === "dashboard-agent" ? "src/dashboard.tsx" : "src/styles.css"
+				onDiagnostics?.({
+					planId: "plan-webview-provider",
+					agentId,
+					branch: `roo/parallel/plan-webview-provider/${agentId}`,
+					worktreePath: `/tmp/${agentId}`,
+					originalOwnedPaths: agentId === "dashboard-agent" ? ["./src/dashboard.tsx"] : ["src/styles.css"],
+					normalizedOwnedPaths: [workspaceRelativePath],
+					pathDiagnostics: [
+						{
+							originalPath: agentId === "dashboard-agent" ? "./src/dashboard.tsx" : "src/styles.css",
+							workspaceRelativePath,
+							worktreePath: `/tmp/${agentId}/${workspaceRelativePath}`,
+							rootWorkspacePath: `/repo/${workspaceRelativePath}`,
+							existsInWorktree: agentId === "dashboard-agent",
+							existsInRootWorkspace: true,
+						},
+					],
+					trackedChangedPaths: agentId === "dashboard-agent" ? [workspaceRelativePath] : [],
+					untrackedChangedPaths: [],
+					stagedPaths: agentId === "dashboard-agent" ? [workspaceRelativePath] : [],
+					commitCreated: agentId === "dashboard-agent",
+					result: agentId === "dashboard-agent" ? "committed" : "no-owned-worktree-changes",
+				})
+
+				return agentId === "dashboard-agent"
+					? "diff --git a/src/dashboard.tsx b/src/dashboard.tsx\n+const dashboard = true\n"
+					: ""
+			},
 		)
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
@@ -1934,8 +3430,70 @@ describe("ClineProvider", () => {
 				worktreePath: "/tmp/dashboard-agent",
 				branch: "roo/parallel/plan-webview-provider/dashboard-agent",
 				ownedPaths: ["src/dashboard.tsx"],
+				onDiagnostics: expect.any(Function),
 			}),
 		)
+		const mergeReviewDiagnostics = logSpy.mock.calls
+			.map(([message]) => String(message))
+			.filter((message) => message.startsWith("[parallel-agents] merge-review-diagnostics "))
+			.map(
+				(message) =>
+					JSON.parse(message.slice("[parallel-agents] merge-review-diagnostics ".length)) as Record<
+						string,
+						any
+					>,
+			)
+
+		expect(mergeReviewDiagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					planId: "plan-webview-provider",
+					agentId: "dashboard-agent",
+					branch: "roo/parallel/plan-webview-provider/dashboard-agent",
+					worktreePath: "/tmp/dashboard-agent",
+					originalOwnedPaths: ["./src/dashboard.tsx"],
+					normalizedOwnedPaths: ["src/dashboard.tsx"],
+					pathDiagnostics: [
+						expect.objectContaining({
+							originalPath: "./src/dashboard.tsx",
+							workspaceRelativePath: "src/dashboard.tsx",
+							worktreePath: "/tmp/dashboard-agent/src/dashboard.tsx",
+							rootWorkspacePath: "/repo/src/dashboard.tsx",
+							existsInWorktree: true,
+							existsInRootWorkspace: true,
+						}),
+					],
+					trackedChangedPaths: ["src/dashboard.tsx"],
+					untrackedChangedPaths: [],
+					stagedPaths: ["src/dashboard.tsx"],
+					commitCreated: true,
+					result: "committed",
+				}),
+				expect.objectContaining({
+					planId: "plan-webview-provider",
+					agentId: "styles-agent",
+					originalOwnedPaths: ["src/styles.css"],
+					normalizedOwnedPaths: ["src/styles.css"],
+					pathDiagnostics: [
+						expect.objectContaining({
+							originalPath: "src/styles.css",
+							workspaceRelativePath: "src/styles.css",
+							worktreePath: "/tmp/styles-agent/src/styles.css",
+							rootWorkspacePath: "/repo/src/styles.css",
+							existsInWorktree: false,
+							existsInRootWorkspace: true,
+						}),
+					],
+					trackedChangedPaths: [],
+					untrackedChangedPaths: [],
+					stagedPaths: [],
+					commitCreated: false,
+					result: "no-owned-worktree-changes",
+				}),
+			]),
+		)
+		expect(JSON.stringify(mergeReviewDiagnostics)).not.toContain("diff --git")
+		expect(JSON.stringify(mergeReviewDiagnostics)).not.toContain("const dashboard = true")
 		expect(
 			mockPostMessage.mock.calls.some(([message]: [ExtensionMessage]) => message.type === "showMergeReview"),
 		).toBe(false)
@@ -2042,6 +3600,280 @@ describe("ClineProvider", () => {
 		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
 	})
 
+	test("manual merge saves affected dirty open documents before materialization and synchronizes them after", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const diff = "diff --git a/src/dashboard.tsx b/src/dashboard.tsx\n+done\n"
+		const dirtyDocument = createTextDocument("src/dashboard.tsx", { isDirty: true })
+		const unaffectedDirtyDocument = createTextDocument("src/other.ts", { isDirty: true })
+		;(vscode.workspace as any).textDocuments = [dirtyDocument, unaffectedDirtyDocument]
+		const prepareMergeReview = vi.fn().mockResolvedValue(diff)
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).parallelMergeReviewEntries = [
+			{
+				agentId: "dashboard-agent",
+				mode: "code",
+				task: "Build dashboard",
+				diff,
+				worktreePath: "/tmp/dashboard-agent",
+				branch: "roo/parallel/plan-webview-provider/dashboard-agent",
+				mergeStatus: "pending",
+			},
+		]
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreeManager = createWorktreeManagerMock({ prepareMergeReview, mergeBranch })
+		const logSpy = vi.spyOn(provider, "log")
+		;(vscode.workspace.openTextDocument as any).mockClear()
+		const affectedPaths = (provider as any).getMergeAffectedPaths((provider as any).parallelMergeReviewEntries[0], [
+			"src/dashboard.tsx",
+		])
+		expect(affectedPaths).toEqual(["src/dashboard.tsx"])
+		expect((provider as any).getAffectedOpenDocuments(affectedPaths)).toEqual([
+			expect.objectContaining({ relPath: "src/dashboard.tsx" }),
+		])
+
+		await expect(provider.mergeApprovedAgents(["dashboard-agent"])).resolves.toBe(true)
+
+		expect(dirtyDocument.save).toHaveBeenCalledTimes(1)
+		expect(unaffectedDirtyDocument.save).not.toHaveBeenCalled()
+		expect(mergeBranch).toHaveBeenCalledTimes(1)
+		expect((dirtyDocument.save as any).mock.invocationCallOrder[0]).toBeLessThan(
+			mergeBranch.mock.invocationCallOrder[0],
+		)
+		expect(vscode.workspace.openTextDocument).toHaveBeenCalledWith(dirtyDocument.uri)
+
+		const diagnostics = getMergeDocumentSyncDiagnostics(logSpy)
+		expect(diagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					stage: "pre-save",
+					result: "completed",
+					dirtyDocumentCount: 1,
+					savedDocumentCount: 1,
+					savedDocumentPaths: ["src/dashboard.tsx"],
+				}),
+				expect.objectContaining({
+					stage: "post-merge-sync",
+					result: "completed",
+					syncedDocumentCount: 1,
+					syncedDocumentPaths: ["src/dashboard.tsx"],
+				}),
+			]),
+		)
+		expect(logSpy.mock.calls.map(([message]) => String(message)).join("\n")).not.toContain("diff --git")
+	})
+
+	test("auto-approved merge saves dirty affected open documents and blocks workspace materialization", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const diff = "diff --git a/src/dashboard.tsx b/src/dashboard.tsx\n+done\n"
+		const dirtyDocument = createTextDocument("src/dashboard.tsx", { isDirty: true })
+		;(vscode.workspace as any).textDocuments = [dirtyDocument]
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).parallelMergeReviewEntries = [
+			{
+				agentId: "dashboard-agent",
+				mode: "code",
+				task: "Build dashboard",
+				diff,
+				worktreePath: "/tmp/dashboard-agent",
+				branch: "roo/parallel/plan-webview-provider/dashboard-agent",
+				mergeStatus: "pending",
+			},
+		]
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreeManager = createWorktreeManagerMock({
+			prepareMergeReview: vi.fn().mockResolvedValue(diff),
+			mergeBranch,
+		})
+		const logSpy = vi.spyOn(provider, "log")
+		const affectedPaths = (provider as any).getMergeAffectedPaths((provider as any).parallelMergeReviewEntries[0], [
+			"src/dashboard.tsx",
+		])
+		expect(affectedPaths).toEqual(["src/dashboard.tsx"])
+		expect((provider as any).getAffectedOpenDocuments(affectedPaths)).toEqual([
+			expect.objectContaining({ relPath: "src/dashboard.tsx" }),
+		])
+
+		await expect(provider.mergeApprovedAgents(["dashboard-agent"], { autoApproved: true })).resolves.toBe(false)
+
+		expect(dirtyDocument.save).toHaveBeenCalledTimes(1)
+		expect(mergeBranch).not.toHaveBeenCalled()
+		expect(vscode.workspace.openTextDocument).not.toHaveBeenCalledWith(dirtyDocument.uri)
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
+		expect((provider as any).parallelMergeReviewEntries[0]).toEqual(
+			expect.objectContaining({
+				mergeStatus: "skipped",
+				autoMergeSkippedReason: expect.stringContaining("Auto-merge blocked"),
+			}),
+		)
+
+		const diagnostics = getMergeDocumentSyncDiagnostics(logSpy)
+		expect(diagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					stage: "auto-approved-block",
+					result: "blocked",
+					autoApproved: true,
+					dirtyDocumentCount: 1,
+					savedDocumentCount: 1,
+				}),
+			]),
+		)
+		expect(mockPostMessage).not.toHaveBeenCalledWith({ type: "mergeComplete" })
+	})
+
+	test("merge approval fails safely when an affected dirty open document cannot be saved", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const diff = "diff --git a/src/dashboard.tsx b/src/dashboard.tsx\n+done\n"
+		const dirtyDocument = createTextDocument("src/dashboard.tsx", { isDirty: true, saveResult: false })
+		;(vscode.workspace as any).textDocuments = [dirtyDocument]
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).parallelMergeReviewEntries = [
+			{
+				agentId: "dashboard-agent",
+				mode: "code",
+				task: "Build dashboard",
+				diff,
+				worktreePath: "/tmp/dashboard-agent",
+				branch: "roo/parallel/plan-webview-provider/dashboard-agent",
+				mergeStatus: "pending",
+			},
+		]
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreeManager = createWorktreeManagerMock({
+			prepareMergeReview: vi.fn().mockResolvedValue(diff),
+			mergeBranch,
+		})
+		const logSpy = vi.spyOn(provider, "log")
+		const affectedPaths = (provider as any).getMergeAffectedPaths((provider as any).parallelMergeReviewEntries[0], [
+			"src/dashboard.tsx",
+		])
+		expect(affectedPaths).toEqual(["src/dashboard.tsx"])
+		expect((provider as any).getAffectedOpenDocuments(affectedPaths)).toEqual([
+			expect.objectContaining({ relPath: "src/dashboard.tsx" }),
+		])
+
+		await expect(provider.mergeApprovedAgents(["dashboard-agent"])).resolves.toBe(false)
+
+		expect(dirtyDocument.save).toHaveBeenCalledTimes(1)
+		expect(mergeBranch).not.toHaveBeenCalled()
+		expect(vscode.workspace.openTextDocument).not.toHaveBeenCalledWith(dirtyDocument.uri)
+		expect(mockPostMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "mergeFailed",
+				agentId: "dashboard-agent",
+				gitOutput: expect.stringContaining("Failed to save open document src/dashboard.tsx"),
+			}),
+		)
+		expect((provider as any).parallelMergeReviewEntries[0]).toEqual(
+			expect.objectContaining({
+				mergeStatus: "failed",
+				mergeError: expect.stringContaining("Failed to save open document src/dashboard.tsx"),
+			}),
+		)
+
+		const diagnostics = getMergeDocumentSyncDiagnostics(logSpy)
+		expect(diagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					stage: "pre-save",
+					result: "failed",
+					dirtyDocumentCount: 1,
+					failedPathCount: 1,
+					failedPaths: ["src/dashboard.tsx"],
+				}),
+			]),
+		)
+	})
+
+	test("merge approval synchronizes clean affected open documents after materialization", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		const diff = "diff --git a/src/dashboard.tsx b/src/dashboard.tsx\n+done\n"
+		const cleanDocument = createTextDocument("src/dashboard.tsx", { isDirty: false })
+		;(vscode.workspace as any).textDocuments = [cleanDocument]
+		const mergeBranch = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).parallelMergeReviewEntries = [
+			{
+				agentId: "dashboard-agent",
+				mode: "code",
+				task: "Build dashboard",
+				diff,
+				worktreePath: "/tmp/dashboard-agent",
+				branch: "roo/parallel/plan-webview-provider/dashboard-agent",
+				mergeStatus: "pending",
+			},
+		]
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreeManager = createWorktreeManagerMock({
+			prepareMergeReview: vi.fn().mockResolvedValue(diff),
+			mergeBranch,
+		})
+		const logSpy = vi.spyOn(provider, "log")
+		;(vscode.workspace.openTextDocument as any).mockClear()
+		const affectedPaths = (provider as any).getMergeAffectedPaths((provider as any).parallelMergeReviewEntries[0], [
+			"src/dashboard.tsx",
+		])
+		expect(affectedPaths).toEqual(["src/dashboard.tsx"])
+		expect((provider as any).getAffectedOpenDocuments(affectedPaths)).toEqual([
+			expect.objectContaining({ relPath: "src/dashboard.tsx" }),
+		])
+
+		await expect(provider.mergeApprovedAgents(["dashboard-agent"])).resolves.toBe(true)
+
+		expect(cleanDocument.save).not.toHaveBeenCalled()
+		expect(mergeBranch).toHaveBeenCalledTimes(1)
+		expect(vscode.workspace.openTextDocument).toHaveBeenCalledWith(cleanDocument.uri)
+
+		const diagnostics = getMergeDocumentSyncDiagnostics(logSpy)
+		expect(diagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					stage: "post-merge-sync",
+					result: "completed",
+					openDocumentCount: 1,
+					dirtyDocumentCount: 0,
+					syncedDocumentCount: 1,
+					syncedDocumentPaths: ["src/dashboard.tsx"],
+				}),
+			]),
+		)
+	})
+
 	test("merge approval aborts and disposes completed background agents before deleting worktrees", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const parentTask = new Task(defaultTaskOptions)
@@ -2095,6 +3927,352 @@ describe("ClineProvider", () => {
 		expect(disposeOrder).toContain("removeWorktree")
 		expect(disposeOrder.indexOf("removeWorktree")).toBeGreaterThan(disposeOrder.indexOf("dispose"))
 		expect((provider as any).backgroundTasks.size).toBe(0)
+	})
+
+	test("merge approval clears child approval state and logs safe diagnostics before parent resume", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreePathsByAgentId.set("styles-agent", "/tmp/styles-agent")
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview: vi.fn(
+				async ({ agentId }: { agentId: string }) =>
+					`diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
+			),
+			mergeBranch: vi.fn().mockResolvedValue(undefined),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		const backgroundTask = await provider.createTask("agent work", undefined, parentTask, {
+			agentId: "dashboard-agent",
+			background: true,
+			workspacePath: "/tmp/dashboard-agent",
+			startTask: false,
+		})
+		const childApproval: ClineMessage = {
+			type: "ask",
+			ask: "tool",
+			ts: 1_700_000_002,
+			text: JSON.stringify({ tool: "readFile", path: "src/secret.ts" }),
+		}
+		backgroundTask.clineMessages.push(childApproval)
+		Object.defineProperty(backgroundTask, "taskAsk", {
+			configurable: true,
+			get: () => childApproval,
+		})
+		backgroundTask.abortTask = vi.fn(async () => {}) as any
+
+		const logSpy = vi.spyOn(provider, "log")
+
+		await expect(provider.mergeApprovedAgents(["dashboard-agent", "styles-agent"])).resolves.toBe(true)
+
+		const latestParallelStatus = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask).at(-1)!)
+		expect(latestParallelStatus.parallelStatus).toBe("merged")
+		expect((provider as any).activeExecutionPlan).toBeUndefined()
+		expect((provider as any).backgroundTasks.size).toBe(0)
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
+
+		const approvalDiagnostics = logSpy.mock.calls
+			.map(([message]) => String(message))
+			.filter((message) => message.startsWith("[parallel-agents] approval-state "))
+			.map(
+				(message) =>
+					JSON.parse(message.slice("[parallel-agents] approval-state ".length)) as Record<string, any>,
+			)
+
+		expect(approvalDiagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					stage: "parallel-cleanup",
+					planId: "plan-webview-provider",
+					pendingPlanApproval: false,
+					backgroundTaskCount: 0,
+				}),
+				expect.objectContaining({
+					stage: "parent-resumed",
+					planId: "plan-webview-provider",
+					backgroundTaskCount: 0,
+				}),
+			]),
+		)
+
+		const resumeDiagnostics = approvalDiagnostics.find((payload) => payload.stage === "parent-resumed")
+		expect(resumeDiagnostics?.parentTask?.taskAsk).toBeUndefined()
+		expect(resumeDiagnostics?.parentTask?.latestUnansweredAsk).toBeUndefined()
+		expect(resumeDiagnostics?.parentTask?.latestParallelAgentsMessage).toEqual(
+			expect.objectContaining({
+				planId: "plan-webview-provider",
+				parallelStatus: "merged",
+			}),
+		)
+
+		const materializationDiagnostics = logSpy.mock.calls
+			.map(([message]) => String(message))
+			.filter((message) => message.startsWith("[parallel-agents] merge-materialization "))
+			.map(
+				(message) =>
+					JSON.parse(message.slice("[parallel-agents] merge-materialization ".length)) as Record<string, any>,
+			)
+		expect(materializationDiagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					planId: "plan-webview-provider",
+					agentId: "dashboard-agent",
+					branch: "roo/parallel/plan-webview-provider/dashboard-agent",
+					worktreePath: "/tmp/dashboard-agent",
+					mergeStatus: "merged",
+					materialized: true,
+				}),
+				expect.objectContaining({
+					planId: "plan-webview-provider",
+					agentId: "styles-agent",
+					branch: "roo/parallel/plan-webview-provider/styles-agent",
+					worktreePath: "/tmp/styles-agent",
+					mergeStatus: "merged",
+					materialized: true,
+				}),
+			]),
+		)
+
+		const parentResumeDiagnostics = logSpy.mock.calls
+			.map(([message]) => String(message))
+			.filter((message) => message.startsWith("[parallel-agents] parent-resume-diagnostics "))
+			.map(
+				(message) =>
+					JSON.parse(message.slice("[parallel-agents] parent-resume-diagnostics ".length)) as Record<
+						string,
+						any
+					>,
+			)
+		expect(parentResumeDiagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					planId: "plan-webview-provider",
+					reason: "successful parallel merge",
+					result: "resumed",
+					taskId: parentTask.taskId,
+				}),
+			]),
+		)
+
+		const diagnosticLogText = logSpy.mock.calls.map(([message]) => String(message)).join("\n")
+		expect(diagnosticLogText).not.toContain("src/secret.ts")
+		expect(diagnosticLogText).not.toContain("diff --git")
+	})
+
+	test("successful parallel merge sends workflow notification and later final parent completion separately", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const sendTaskNotification = installEmailNotificationServiceMock()
+		const logSpy = vi.spyOn(provider, "log")
+		const tokenUsage = createTokenUsage()
+		const toolUsage = createToolUsage()
+		const parentTask = new Task({
+			...defaultTaskOptions,
+			taskId: "parallel-parent-merge-success",
+			workspacePath: "/workspace",
+		} as any)
+		;(parentTask as any).taskMode = "code"
+		;(parentTask as any).tokenUsage = tokenUsage
+		;(parentTask as any).toolUsage = toolUsage
+		parentTask.clineMessages.push({
+			type: "say",
+			say: "api_req_started",
+			text: "Starting parent request",
+			ts: 1,
+		})
+		;(provider as any).taskCreationCallback(parentTask)
+		await provider.addClineToStack(parentTask)
+
+		const plan = createExecutionPlan()
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${agent.id}`,
+		}))
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		;(provider as any).worktreePathsByAgentId.set("styles-agent", "/tmp/styles-agent")
+		;(provider as any).worktreeManager = {
+			validateGitRepository: vi.fn().mockResolvedValue(undefined),
+			captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+			prepareMergeReview: vi.fn(
+				async ({ agentId }: { agentId: string }) =>
+					`diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
+			),
+			mergeBranch: vi.fn().mockResolvedValue(undefined),
+			removeWorktree: vi.fn().mockResolvedValue(undefined),
+			cleanup: vi.fn().mockResolvedValue(undefined),
+			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
+		}
+
+		const backgroundTask = await provider.createTask("agent completed work", undefined, parentTask, {
+			agentId: "dashboard-agent",
+			background: true,
+			workspacePath: "/tmp/dashboard-agent",
+			startTask: false,
+			mode: "code",
+		})
+		backgroundTask.emit(
+			RooCodeEventName.TaskCompleted,
+			backgroundTask.taskId,
+			createTokenUsage(),
+			createToolUsage(),
+		)
+
+		await expect(provider.mergeApprovedAgents(["dashboard-agent", "styles-agent"])).resolves.toBe(true)
+
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
+		expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+		expect(sendTaskNotification).toHaveBeenCalledWith({
+			taskId: "parallel-parent-merge-success",
+			outcome: "success",
+			summary:
+				"Parallel agent workflow completed successfully; 2 approved agent branches were materialized into the workspace (2 planned agents).",
+			workspacePath: "/workspace",
+			mode: "code",
+			notificationType: "parallel-workflow",
+			tokenUsage,
+			toolUsage,
+			requestCount: 1,
+		})
+
+		await vi.waitFor(() => {
+			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "notification-send-result",
+						taskId: "parallel-parent-merge-success",
+						decision: "sent",
+					}),
+				]),
+			)
+		})
+
+		parentTask.clineMessages.push({
+			type: "say",
+			say: "completion_result",
+			text: "Parent emitted final completion after merge.",
+			ts: 2,
+		})
+		const finalTokenUsage = createTokenUsage()
+		const finalToolUsage = createToolUsage()
+		parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, finalTokenUsage, finalToolUsage)
+
+		await vi.waitFor(() => expect(sendTaskNotification).toHaveBeenCalledTimes(2))
+		expect(sendTaskNotification).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				taskId: "parallel-parent-merge-success",
+				outcome: "success",
+				summary: "Parent emitted final completion after merge.",
+				workflowSummary: expect.stringContaining(
+					'Overall workflow rollup: parent task parallel-parent-merge-success completed with final result "Parent emitted final completion after merge."',
+				),
+				usageScope:
+					"Aggregated parent workflow usage from the parent task plus 1 child task, including delegated and background parallel-agent tasks discoverable from saved task metadata.",
+				workspacePath: "/workspace",
+				mode: "code",
+				tokenUsage: {
+					totalTokensIn: 24,
+					totalTokensOut: 68,
+					totalCacheWrites: 0,
+					totalCacheReads: 0,
+					totalCost: 0.24,
+					contextTokens: 0,
+				},
+				toolUsage: {
+					read_file: { attempts: 4, failures: 2 },
+				},
+				requestCount: 2,
+			}),
+		)
+		expect(sendTaskNotification.mock.calls[1][0]).not.toHaveProperty("notificationType")
+		expect(sendTaskNotification.mock.calls[1][0].workflowSummary).toContain(
+			`${backgroundTask.taskId}: agent dashboard-agent parallel/background task`,
+		)
+		const notificationDiagnostics = getEmailNotificationDiagnostics(logSpy)
+		expect(notificationDiagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					event: "completion-event-observed",
+					taskId: backgroundTask.taskId,
+					background: true,
+					agentId: "dashboard-agent",
+				}),
+				expect.objectContaining({
+					event: "completion-notification-decision",
+					taskId: backgroundTask.taskId,
+					decision: "skip-background-task-covered-by-parallel-workflow",
+					coveredByWorkflowNotification: true,
+				}),
+				expect.objectContaining({
+					event: "parallel-merge-parent-notification-decision",
+					taskId: "parallel-parent-merge-success",
+					planId: "plan-webview-provider",
+					decision: "send-parallel-merge-workflow-success",
+					notificationScope: "parallel-workflow",
+					notificationDedupeKey: "parallel-workflow:parallel-parent-merge-success",
+					duplicateSent: false,
+					duplicateInFlight: false,
+					requestCount: 1,
+				}),
+				expect.objectContaining({
+					event: "parallel-parent-resume-lifecycle",
+					taskId: "parallel-parent-merge-success",
+					planId: "plan-webview-provider",
+					result: "resumed",
+				}),
+				expect.objectContaining({
+					event: "completion-event-observed",
+					taskId: "parallel-parent-merge-success",
+					background: false,
+				}),
+				expect.objectContaining({
+					event: "completion-notification-decision",
+					taskId: "parallel-parent-merge-success",
+					decision: "send-top-level-success",
+					notificationScope: "task",
+					notificationDedupeKey: "task:parallel-parent-merge-success",
+				}),
+				expect.objectContaining({
+					event: "completion-notification-aggregation",
+					taskId: "parallel-parent-merge-success",
+					decision: "use-aggregated-workflow-usage",
+					usageAggregationSource: "live-root-with-discovered-children",
+					workflowChildTaskCount: 1,
+					requestCount: 2,
+					totalTokensIn: 24,
+					totalTokensOut: 68,
+					totalCost: 0.24,
+					toolAttempts: 4,
+					toolFailures: 2,
+				}),
+				expect.objectContaining({
+					event: "outcome-notification-decision",
+					taskId: "parallel-parent-merge-success",
+					decision: "dispatch",
+					notificationScope: "task",
+					notificationDedupeKey: "task:parallel-parent-merge-success",
+					duplicateSent: false,
+				}),
+			]),
+		)
+		expect(JSON.stringify(notificationDiagnostics)).not.toContain("agent completed work")
+		expect(JSON.stringify(notificationDiagnostics)).not.toContain("Parent emitted final completion after merge")
 	})
 
 	test("auto-approves and merges the final review when both auto-approval settings are enabled", async () => {
@@ -2250,6 +4428,7 @@ describe("ClineProvider", () => {
 			mockPostMessage.mock.calls.some(([message]: [ExtensionMessage]) => message.type === "showMergeReview"),
 		).toBe(false)
 		expect(mockPostMessage).not.toHaveBeenCalledWith({ type: "mergeComplete" })
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
 		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
 		expect(statusTool.parallelStatus).toBe("review")
 		expect(statusTool.mergeReviewEntries).toEqual(
@@ -2313,16 +4492,23 @@ describe("ClineProvider", () => {
 			expect.arrayContaining([
 				expect.objectContaining({
 					agentId: "styles-agent",
-					message: "Auto-merge skipped: styles-agent has a merge review error",
+					message: "Auto-merge skipped: styles-agent has a merge review error: Merge conflict during review",
 					kind: "wait",
 				}),
 			]),
 		)
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
 	})
 
 	test("failed merge attempts persist conflicted review state and keep the review actionable", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
-		const parentTask = new Task(defaultTaskOptions)
+		const sendTaskNotification = installEmailNotificationServiceMock()
+		const parentTask = new Task({
+			...defaultTaskOptions,
+			taskId: "parallel-parent-merge-failure",
+			workspacePath: "/workspace",
+		} as any)
+		;(parentTask as any).taskMode = "code"
 		parentTask.apiConversationHistory = [
 			{
 				role: "user",
@@ -2332,6 +4518,7 @@ describe("ClineProvider", () => {
 		parentTask.overwriteApiConversationHistory = vi.fn(async (history) => {
 			parentTask.apiConversationHistory = history as any
 		})
+		;(provider as any).taskCreationCallback(parentTask)
 		await provider.addClineToStack(parentTask)
 		const plan = createExecutionPlan()
 		plan.agents = plan.agents.map((agent) => ({
@@ -2375,6 +4562,7 @@ describe("ClineProvider", () => {
 
 		await expect(provider.mergeApprovedAgents(["dashboard-agent"])).resolves.toBe(false)
 
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
 		expect(mergeBranch).toHaveBeenCalledWith("roo/parallel/plan-webview-provider/dashboard-agent", {
 			planId: "plan-webview-provider",
 			worktreePath: "/tmp/dashboard-agent",
@@ -2448,6 +4636,31 @@ describe("ClineProvider", () => {
 				(message) => message.type === "say" && message.say === "user_feedback_diff",
 			),
 		).toHaveLength(0)
+		expect(sendTaskNotification).not.toHaveBeenCalled()
+
+		const tokenUsage = createTokenUsage()
+		const toolUsage = createToolUsage()
+		parentTask.clineMessages.push({
+			type: "say",
+			say: "completion_result",
+			text: "Parent handled the failed parallel merge and reported actionable recovery steps.",
+			ts: 2,
+		})
+		parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, tokenUsage, toolUsage)
+		parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, tokenUsage, toolUsage)
+
+		expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+		expect(sendTaskNotification).toHaveBeenCalledWith({
+			taskId: "parallel-parent-merge-failure",
+			outcome: "success",
+			summary: "Parent handled the failed parallel merge and reported actionable recovery steps.",
+			usageScope: "Task only (live completion event)",
+			workspacePath: "/workspace",
+			mode: "code",
+			tokenUsage,
+			toolUsage,
+			requestCount: 0,
+		})
 	})
 
 	test("merge approval restores persisted review state when live parallel agents are gone", async () => {
@@ -2671,6 +4884,7 @@ describe("ClineProvider", () => {
 				(message) => message.type === "say" && message.say === "user_feedback_diff",
 			),
 		).toHaveLength(0)
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
 	})
 
 	test("history restore resumes interrupted parallel agents instead of continuing the parent task", async () => {
@@ -5767,7 +7981,7 @@ describe("ClineProvider - Comprehensive Edit/Delete Edge Cases", () => {
 	})
 
 	describe("getTaskWithId", () => {
-		it("returns empty apiConversationHistory when file is missing", async () => {
+		it("returns empty apiConversationHistory without warning when only api history is missing", async () => {
 			const historyItem = { id: "missing-api-file-task", task: "test task", ts: Date.now() }
 			vi.mocked(mockContext.globalState.get).mockImplementation((key: string) => {
 				if (key === "taskHistory") {
@@ -5776,13 +7990,51 @@ describe("ClineProvider - Comprehensive Edit/Delete Edge Cases", () => {
 				return undefined
 			})
 
+			const fsUtils = await import("../../../utils/fs")
+			const fileExistsSpy = vi
+				.spyOn(fsUtils, "fileExistsAtPath")
+				.mockImplementation(async (filePath: string) => filePath.endsWith("ui_messages.json"))
+			const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
 			const deleteTaskSpy = vi.spyOn(provider, "deleteTaskFromState")
 
 			const result = await (provider as any).getTaskWithId("missing-api-file-task")
 
 			expect(result.historyItem).toEqual(historyItem)
 			expect(result.apiConversationHistory).toEqual([])
+			expect(warnSpy).not.toHaveBeenCalled()
 			expect(deleteTaskSpy).not.toHaveBeenCalled()
+
+			fileExistsSpy.mockRestore()
+			warnSpy.mockRestore()
+		})
+
+		it("warns when both api history and UI messages are missing", async () => {
+			const historyItem = { id: "stale-history-task", task: "test task", ts: Date.now() }
+			vi.mocked(mockContext.globalState.get).mockImplementation((key: string) => {
+				if (key === "taskHistory") {
+					return [historyItem]
+				}
+				return undefined
+			})
+
+			const fsUtils = await import("../../../utils/fs")
+			const fileExistsSpy = vi.spyOn(fsUtils, "fileExistsAtPath").mockResolvedValue(false)
+			const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+			const deleteTaskSpy = vi.spyOn(provider, "deleteTaskFromState")
+
+			const result = await (provider as any).getTaskWithId("stale-history-task")
+
+			expect(result.historyItem).toEqual(historyItem)
+			expect(result.apiConversationHistory).toEqual([])
+			expect(warnSpy).toHaveBeenCalledWith(
+				expect.stringContaining(
+					"api_conversation_history.json missing for task stale-history-task and ui_messages.json is also missing",
+				),
+			)
+			expect(deleteTaskSpy).not.toHaveBeenCalled()
+
+			fileExistsSpy.mockRestore()
+			warnSpy.mockRestore()
 		})
 
 		it("returns empty apiConversationHistory when file contains invalid JSON", async () => {
@@ -5796,22 +8048,26 @@ describe("ClineProvider - Comprehensive Edit/Delete Edge Cases", () => {
 
 			// Make fileExistsAtPath return true so the read path is exercised
 			const fsUtils = await import("../../../utils/fs")
-			vi.spyOn(fsUtils, "fileExistsAtPath").mockResolvedValue(true)
+			const fileExistsSpy = vi.spyOn(fsUtils, "fileExistsAtPath").mockResolvedValue(true)
 
 			// Make readFile return corrupted JSON
 			const fsp = await import("fs/promises")
 			vi.mocked(fsp.readFile).mockResolvedValueOnce("{not valid json!!!" as never)
 
+			const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
 			const deleteTaskSpy = vi.spyOn(provider, "deleteTaskFromState")
 
 			const result = await (provider as any).getTaskWithId("corrupt-api-task")
 
 			expect(result.historyItem).toEqual(historyItem)
 			expect(result.apiConversationHistory).toEqual([])
+			expect(warnSpy).toHaveBeenCalledWith(
+				expect.stringContaining("api_conversation_history.json corrupted for task corrupt-api-task"),
+			)
 			expect(deleteTaskSpy).not.toHaveBeenCalled()
 
-			// Restore the spy
-			vi.mocked(fsUtils.fileExistsAtPath).mockRestore()
+			fileExistsSpy.mockRestore()
+			warnSpy.mockRestore()
 		})
 	})
 })

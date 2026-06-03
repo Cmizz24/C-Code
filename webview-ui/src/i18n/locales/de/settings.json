@@ -347,6 +347,18 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Fast mode aktivieren",
+			"description": "Verwendet den Priority-Service-Tier von OpenAI für unterstützte Modelle (GPT-5.5 und GPT-5.4). Fast mode kann Credits schneller verbrauchen.",
+			"status": {
+				"disabled": "Fast mode ist für {{modelId}} verfügbar, aber derzeit ausgeschaltet.",
+				"unsupported": "Fast mode ist für {{modelId}} nicht verfügbar.",
+				"signInRequired": "Fast mode ist für {{modelId}} aktiviert, aber du musst dich anmelden, bevor er ausgeführt werden kann.",
+				"requested": "Fast mode wurde für {{modelId}} angefordert, aber OpenAI hat den priority tier noch nicht bestätigt.",
+				"confirmed": "Fast mode ist für {{modelId}} im priority tier von OpenAI bestätigt.",
+				"rejected": "Fast mode wurde für {{modelId}} angefordert, aber OpenAI hat den Service-Tier {{observedServiceTier}} gemeldet."
+			}
+		},
 		"useCustomBaseUrl": "Benutzerdefinierte Basis-URL verwenden",
 		"useReasoning": "Reasoning aktivieren",
 		"useHostHeader": "Benutzerdefinierten Host-Header verwenden",
@@ -577,6 +589,67 @@
 			"label": "Text-zu-Sprache aktivieren",
 			"description": "Wenn aktiviert, liest Roo seine Antworten mit Text-zu-Sprache laut vor.",
 			"speedLabel": "Geschwindigkeit"
+		},
+		"email": {
+			"label": "E-Mail-Benachrichtigungen aktivieren",
+			"description": "Sendet HTML-SMTP-E-Mail-Benachrichtigungen mit Nur-Text-Fallback, wenn eine Top-Level-Aufgabe abgeschlossen ist. Aufgaben-Transkripte werden nie eingefügt.",
+			"notifyOnSuccess": {
+				"label": "Benachrichtigen, wenn Aufgaben erfolgreich abgeschlossen werden"
+			},
+			"notifyOnFailure": {
+				"label": "Benachrichtigen, wenn Aufgaben fehlschlagen oder abgebrochen werden",
+				"description": "Umfasst Streaming-Fehler und von dir abgebrochene Aufgaben. Hintergrundaufgaben und delegierte untergeordnete Aufgaben werden übersprungen."
+			},
+			"smtpHost": {
+				"label": "SMTP-Host",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "SMTP-Port"
+			},
+			"smtpSecure": {
+				"label": "Implizites TLS verwenden",
+				"description": "Für SMTPS-Verbindungen aktivieren, normalerweise auf Port 465. Für STARTTLS auf Port 587 deaktiviert lassen."
+			},
+			"smtpRequireTls": {
+				"label": "STARTTLS verlangen",
+				"description": "Verlangt, dass der Server die Verbindung per STARTTLS aktualisiert, bevor Zugangsdaten gesendet werden."
+			},
+			"smtpUsername": {
+				"label": "SMTP-Benutzername",
+				"placeholder": "Optionaler Benutzername"
+			},
+			"smtpPassword": {
+				"label": "SMTP-Passwort",
+				"placeholder": "SMTP-Passwort eingeben",
+				"configuredPlaceholder": "Leer lassen, um das gespeicherte Passwort beizubehalten",
+				"description": "Wird im geheimen Speicher von VS Code gespeichert und nie wieder angezeigt.",
+				"configuredDescription": "Ein Passwort ist bereits gespeichert. Gib nur dann ein neues Passwort ein, wenn du es ersetzen möchtest."
+			},
+			"smtpFromAddress": {
+				"label": "Absenderadresse",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Empfänger",
+				"placeholder": "du@example.com\nteam@example.com",
+				"description": "Trenne Empfänger mit Kommas oder neuen Zeilen."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Betreffvorlage",
+				"placeholder": "C-Aufgabe {{outcome}}",
+				"description": "Optional. Verfügbare Tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens ignorieren Groß-/Kleinschreibung, also funktionieren {{taskId}} und {{taskid}} beide."
+			},
+			"test": {
+				"label": "SMTP-Einstellungen testen",
+				"description": "Sende eine Test-E-Mail mit den gespeicherten SMTP-Einstellungen. Ungespeicherte Änderungen und neue Passwörter müssen zuerst gespeichert werden.",
+				"button": "SMTP testen",
+				"sending": "Wird gesendet...",
+				"success": "SMTP-Test-E-Mail erfolgreich gesendet.",
+				"failure": "SMTP-Test-E-Mail konnte nicht gesendet werden.",
+				"invalidConfig": "SMTP-Einstellungen sind unvollständig oder ungültig. Details findest du in der Extension-Ausgabe.",
+				"unsavedChanges": "Speichere deine SMTP-Einstellungen vor dem Testen. SMTP testen verwendet nur gespeicherte Einstellungen und das Passwort im geheimen Speicher von VS Code."
+			}
 		}
 	},
 	"contextManagement": {

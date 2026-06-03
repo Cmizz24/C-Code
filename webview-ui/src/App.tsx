@@ -4,10 +4,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import { type ExecutionPlan, type ExtensionMessage } from "@roo-code/types"
 
-import TranslationProvider from "./i18n/TranslationContext"
+import TranslationProvider from "@src/i18n/TranslationContext"
 import { vscode } from "./utils/vscode"
 import { initializeSourceMaps, exposeSourceMapsForDebugging } from "./utils/sourceMapInitializer"
-import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
+import { ExtensionStateContextProvider, useExtensionState } from "@src/context/ExtensionStateContext"
 import ChatView, { ChatViewRef } from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
 import SettingsView, { SettingsViewRef } from "./components/settings/SettingsView"

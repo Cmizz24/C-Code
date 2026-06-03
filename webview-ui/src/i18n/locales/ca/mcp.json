@@ -60,5 +60,95 @@
 		"running": "En execució",
 		"completed": "Completat",
 		"error": "Error"
+	},
+	"marketplace": {
+		"title": "MCP Marketplace",
+		"description": "Descobreix servidors MCP de confiança per a cerca, codi, documentació, bases de dades, fitxers i fluxos de treball d'equip. Tria'n un i C el configurarà en una tasca guiada.",
+		"featuredCatalog": "Servidors MCP destacats",
+		"stats": {
+			"servers": "Servidors seleccionats",
+			"installed": "Instal·lats"
+		},
+		"search": {
+			"label": "Cerca al Marketplace",
+			"placeholder": "Cerca per nom, categoria, paquet o secret..."
+		},
+		"filters": {
+			"categoryLabel": "Filtra per categoria",
+			"all": "Totes les categories"
+		},
+		"resultsSummary": "Mostrant {{shown}} de {{total}} servidors",
+		"badges": {
+			"featured": "Destacat",
+			"popular": "Popular"
+		},
+		"labels": {
+			"category": "Categoria",
+			"package": "Paquet",
+			"source": "Font",
+			"transport": "Transport",
+			"requiredSecrets": "Secrets necessaris",
+			"prerequisites": "Requisits previs",
+			"suggestedScope": "Àmbit suggerit",
+			"scope": "Àmbit de destinació",
+			"verification": "Verificació",
+			"riskNotes": "Notes de risc"
+		},
+		"scope": {
+			"global": "Global",
+			"project": "Projecte"
+		},
+		"actions": {
+			"installWithAI": "Instal·la amb AI",
+			"configureAgain": "Configura de nou",
+			"clearFilters": "Esborra filtres",
+			"showDetails": "Detalls",
+			"hideDetails": "Amaga detalls",
+			"openDocs": "Obre la documentació"
+		},
+		"customDiscovery": {
+			"title": "No trobes el servidor MCP?",
+			"description": "Introdueix el servidor MCP que vols i C obrirà una tasca de configuració MCP per descobrir la documentació oficial, proposar una configuració segura i verificar-la amb les teves eines de recerca instal·lades.",
+			"mode": {
+				"label": "Acció del servidor MCP personalitzat",
+				"find": "Troba'n un d'existent",
+				"create": "Crea'n un de nou"
+			},
+			"inputLabel": "Nom o descripció del servidor MCP",
+			"placeholder": "Exemple: servidor MCP de cerca Perplexity",
+			"action": "Descobreix amb AI",
+			"validation": {
+				"empty": "Introdueix un nom o una descripció del servidor MCP abans d'iniciar el descobriment."
+			},
+			"create": {
+				"description": "Descriu el servidor MCP o les eines que vols i C obrirà una tasca MCP Setup per dissenyar, implementar, configurar i verificar un servidor local personalitzat.",
+				"inputLabel": "Què hauria de fer el nou servidor MCP?",
+				"placeholder": "Exemple: afegeix una eina que cerqui documentació interna dels paquets d'aquest espai de treball",
+				"action": "Crea amb AI",
+				"recommendation": "Context7 i la cerca web poden ajudar amb la documentació, però la creació no es bloqueja si no estan instal·lats.",
+				"validation": {
+					"empty": "Introdueix què vols que faci el servidor MCP abans d'iniciar la creació del servidor MCP personalitzat."
+				}
+			},
+			"requirements": {
+				"context7": "Context7 instal·lat",
+				"webSearch": "Cerca web instal·lada",
+				"missingBoth": "Instal·la Context7 i almenys un servidor MCP de cerca web abans d'iniciar el descobriment MCP personalitzat.",
+				"missingContext7": "Instal·la Context7 abans d'iniciar el descobriment MCP personalitzat.",
+				"missingWebSearch": "Instal·la almenys un servidor MCP de cerca web, com ara Exa Web Search, Brave Search, Tavily Search o Firecrawl, abans d'iniciar el descobriment MCP personalitzat."
+			}
+		},
+		"empty": {
+			"title": "No s'han trobat servidors MCP",
+			"description": "Prova un altre terme de cerca o esborra el filtre de categoria seleccionat."
+		},
+		"status": {
+			"installed": "Instal·lat"
+		},
+		"prerequisiteOverflow": "+{{count}} més",
+		"secretSummary": "{{count}} necessaris",
+		"optionalSecretSummary": "{{count}} opcionals",
+		"noSecrets": "Cap secret",
+		"noneRequired": "Cap necessari"
 	}
 }

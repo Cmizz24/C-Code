@@ -46,6 +46,29 @@ describe("handlePlanParallelTasks", () => {
 		}
 	})
 
+	it("returns validation errors when sharedContract is not a string", () => {
+		const result = handlePlanParallelTasks(
+			{
+				goal: "Split implementation work",
+				sharedContract: { selector: "#dashboard-root" },
+				agents: [
+					{
+						id: "ui-agent",
+						mode: "ui-ux",
+						task: "Implement dashboard markup.",
+						owns: [{ path: "src/Dashboard.tsx", mode: "exclusive" }],
+					},
+				],
+			},
+			"/repo",
+		)
+
+		expect(result.ok).toBe(false)
+		if (!result.ok) {
+			expect(result.errors).toContain("sharedContract must be a string when provided.")
+		}
+	})
+
 	it("rejects plans with more agents than the configured maximum", () => {
 		const result = handlePlanParallelTasks(
 			{
@@ -94,6 +117,34 @@ describe("handlePlanParallelTasks", () => {
 		expect(result.ok).toBe(false)
 		if (!result.ok) {
 			expect(result.errors).toContain("Ownership conflict for src/shared.ts between agent-a and agent-b.")
+		}
+	})
+
+	it("rejects overlapping directory and file writable ownership", () => {
+		const result = handlePlanParallelTasks(
+			{
+				goal: "Split implementation work",
+				agents: [
+					{
+						id: "agent-a",
+						mode: "component",
+						task: "Edit files under src",
+						owns: [{ path: "src", mode: "exclusive" }],
+					},
+					{
+						id: "agent-b",
+						mode: "api",
+						task: "Edit one file under src",
+						owns: [{ path: "./src/shared.ts", mode: "exclusive" }],
+					},
+				],
+			},
+			"/repo",
+		)
+
+		expect(result.ok).toBe(false)
+		if (!result.ok) {
+			expect(result.errors).toContain("Ownership conflict for src between agent-a and agent-b.")
 		}
 	})
 
@@ -155,6 +206,8 @@ describe("handlePlanParallelTasks", () => {
 				goal: "Build a dashboard from agreed UI and styling contracts",
 				sharedContext:
 					"UI owns src/Dashboard.tsx. Styles owns src/dashboard.css. Use data-testid=dashboard-root and CSS variables documented here as the interface contract.",
+				sharedContract:
+					"Use #dashboard-root, data-testid=dashboard-root, .dashboard-card, and CSS variable --dashboard-gap.",
 				agents: [
 					{
 						id: "ui-agent",
@@ -176,6 +229,9 @@ describe("handlePlanParallelTasks", () => {
 		expect(result.ok).toBe(true)
 		if (result.ok) {
 			expect(result.plan.sharedContext).toContain("interface contract")
+			expect(result.plan.sharedContract).toBe(
+				"Use #dashboard-root, data-testid=dashboard-root, .dashboard-card, and CSS variable --dashboard-gap.",
+			)
 			expect(result.plan.agents.map((agent) => [agent.id, agent.status])).toEqual([
 				["ui-agent", "pending"],
 				["styles-agent", "pending"],
@@ -224,11 +280,12 @@ describe("handlePlanParallelTasks", () => {
 		}
 	})
 
-	it("warns when a completion dependency blocks agents with non-conflicting ownership", () => {
+	it("warns when non-blocking completion dependency context duplicates non-conflicting ownership", () => {
 		const result = handlePlanParallelTasks(
 			{
 				goal: "Build a dashboard from agreed UI and styling contracts",
 				sharedContext: "Use the planned DOM and CSS contract instead of waiting for full UI completion.",
+				sharedContract: "Use #dashboard-root and .dashboard-card as the DOM/CSS contract.",
 				agents: [
 					{
 						id: "ui-agent",
@@ -250,9 +307,10 @@ describe("handlePlanParallelTasks", () => {
 
 		expect(result.ok).toBe(true)
 		if (result.ok) {
-			expect(result.plan.agents.find((agent) => agent.id === "styles-agent")?.status).toBe("blocked")
+			expect(result.plan.agents.find((agent) => agent.id === "styles-agent")?.status).toBe("pending")
+			expect(result.plan.sharedContract).toBe("Use #dashboard-root and .dashboard-card as the DOM/CSS contract.")
 			expect(result.warnings).toContain(
-				"Agent styles-agent waits for ui-agent to complete despite non-conflicting ownership. If this is only an interface or DOM/API contract, move that contract into sharedContext or the agent task and remove the dependency so both agents can run in parallel. Use a signal dependency for a narrow handoff instead of waiting for full completion.",
+				"Agent styles-agent references ui-agent completion despite non-conflicting ownership. Dependencies are non-blocking coordination context, so both agents will still start within concurrency limits. Move known interface or DOM/API contracts into sharedContract or the agent task so the agents can coordinate without waiting for full completion.",
 			)
 		}
 	})

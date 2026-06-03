@@ -10,7 +10,7 @@ import { appendImages } from "@src/utils/imageUtils"
 import { getCostBreakdownIfNeeded } from "@src/utils/costFormatting"
 import { batchConsecutive } from "@src/utils/batchConsecutive"
 
-import type { ClineAsk, ClineSayTool, ClineMessage, ExtensionMessage, AudioType } from "@roo-code/types"
+import type { ClineAsk, ClineSay, ClineSayTool, ClineMessage, ExtensionMessage, AudioType } from "@roo-code/types"
 import { isRetiredProvider } from "@roo-code/types"
 
 import { findLast } from "@roo/array"
@@ -64,6 +64,33 @@ type PendingMergeReviewAction = {
 	planId?: string
 }
 
+const mergeReviewSupersedingSayTypes = new Set<ClineSay>([
+	"api_req_started",
+	"api_req_finished",
+	"api_req_retried",
+	"api_req_retry_delayed",
+	"api_req_rate_limit_wait",
+	"api_req_deleted",
+	"text",
+	"image",
+	"reasoning",
+	"completion_result",
+	"user_feedback",
+	"user_feedback_diff",
+	"command_output",
+	"mcp_server_request_started",
+	"mcp_server_response",
+	"subtask_result",
+	"diff_error",
+	"condense_context",
+	"condense_context_error",
+	"sliding_window_truncation",
+	"codebase_search_result",
+	"user_edit_todos",
+	"too_many_tools_warning",
+	"error",
+])
+
 const getParallelAgentToolFromMessage = (message: ClineMessage): ClineSayTool | undefined => {
 	if (message.type !== "say" || message.say !== "tool" || !message.text) {
 		return undefined
@@ -71,6 +98,26 @@ const getParallelAgentToolFromMessage = (message: ClineMessage): ClineSayTool | 
 
 	const tool = safeJsonParse<ClineSayTool>(message.text)
 	return tool?.tool === "parallelAgents" ? tool : undefined
+}
+
+const isMergeReviewSupersedingMessage = (message: ClineMessage, parallelAgentTool?: ClineSayTool): boolean => {
+	if (parallelAgentTool) {
+		return parallelAgentTool.parallelStatus !== "review"
+	}
+
+	if (message.type === "ask") {
+		return true
+	}
+
+	if (message.type !== "say") {
+		return false
+	}
+
+	if (message.say === "tool") {
+		return true
+	}
+
+	return message.say ? mergeReviewSupersedingSayTypes.has(message.say) : false
 }
 
 const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewProps> = (
@@ -226,13 +273,15 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const secondLastMessage = useMemo(() => messages.at(-2), [messages])
 	const pendingMergeReviewAction = useMemo<PendingMergeReviewAction | undefined>(() => {
 		for (let index = messages.length - 1; index >= 0; index -= 1) {
-			const tool = getParallelAgentToolFromMessage(messages[index])
-			if (!tool) {
-				continue
+			const message = messages[index]
+			const tool = getParallelAgentToolFromMessage(message)
+
+			if (isMergeReviewSupersedingMessage(message, tool)) {
+				return undefined
 			}
 
-			if (tool.parallelStatus !== "review") {
-				return undefined
+			if (!tool) {
+				continue
 			}
 
 			const agentIds = getSelectableMergeReviewAgentIds(tool.mergeReviewEntries ?? [])
@@ -767,6 +816,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		vscode.postMessage({ type: "clearTask" })
 	}, [])
 
+	const acceptCompletion = useCallback(() => {
+		setShowRetiredProviderWarning(false)
+		vscode.postMessage({ type: "acceptCompletion" })
+	}, [])
+
 	// Handle stop button click from textarea
 	const handleStopTask = useCallback(() => {
 		vscode.postMessage({ type: "cancelTask" })
@@ -855,8 +909,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					}
 					break
 				case "completion_result":
+					// Accept the live completion before clearing so backend completion events and notifications fire.
+					acceptCompletion()
+					break
 				case "resume_completed_task":
-					// Waiting for feedback, but we can just present a new task button
+					// Historical completed tasks have already finished; there is no live completion ask to accept.
 					startNewTask()
 					break
 				case "command_output":
@@ -870,7 +927,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			setPrimaryButtonText(undefined)
 			setSecondaryButtonText(undefined)
 		},
-		[clineAsk, startNewTask, currentTaskItem?.parentTaskId, pendingMergeReviewAction],
+		[clineAsk, startNewTask, acceptCompletion, currentTaskItem?.parentTaskId, pendingMergeReviewAction],
 	)
 
 	const handleSecondaryButtonClick = useCallback(

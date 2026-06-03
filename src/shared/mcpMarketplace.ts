@@ -1,0 +1,1594 @@
+export type MarketplaceMcpScope = "global" | "project"
+
+export type MarketplaceMcpTransport = "stdio" | "streamable-http" | "sse"
+
+export interface MarketplaceMcpCatalogItem {
+	id: string
+	serverName: string
+	name: string
+	featured?: boolean
+	popular?: boolean
+	category: string
+	description: string
+	packageName: string
+	source: string
+	sourceUrl: string
+	documentationUrl?: string
+	transportType: MarketplaceMcpTransport
+	recommendedScope: MarketplaceMcpScope
+	requiredSecrets: string[]
+	optionalSecrets?: string[]
+	prerequisites: string[]
+	verificationApproach: string
+	riskNotes: string
+	setupNotes: string[]
+	sampleConfig: Record<string, unknown>
+}
+
+export const marketplaceMcpCatalog = [
+	{
+		id: "filesystem",
+		serverName: "filesystem",
+		name: "Filesystem",
+		popular: true,
+		category: "Local files",
+		description: "Read and manage files inside explicitly approved directories.",
+		packageName: "@modelcontextprotocol/server-filesystem",
+		source: "npm package from the Model Context Protocol project",
+		sourceUrl: "https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: [],
+		prerequisites: ["Node.js", "One or more explicit directories the server may access"],
+		verificationApproach: "List allowed directories or read a small known file from an approved directory.",
+		riskNotes:
+			"Can expose local file contents within configured directories; restrict paths to the smallest safe scope.",
+		setupNotes: [
+			"Confirm the exact directory or directories the user wants to expose before writing config.",
+			"Use absolute paths where possible and avoid broad roots such as the user home directory unless explicitly requested.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@modelcontextprotocol/server-filesystem", "<workspace-or-approved-directory>"],
+		},
+	},
+	{
+		id: "github",
+		serverName: "github",
+		name: "GitHub",
+		featured: true,
+		popular: true,
+		category: "Developer tools",
+		description:
+			"Work with GitHub repositories, issues, pull requests, and code search using a personal access token.",
+		packageName: "@modelcontextprotocol/server-github",
+		source: "npm package from the Model Context Protocol project",
+		sourceUrl: "https://www.npmjs.com/package/@modelcontextprotocol/server-github",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/github",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["GITHUB_PERSONAL_ACCESS_TOKEN"],
+		prerequisites: ["Node.js", "GitHub personal access token with the minimum repo scopes needed"],
+		verificationApproach:
+			"Call a read-only GitHub tool such as listing the authenticated user or a known repository.",
+		riskNotes:
+			"Token permissions may allow repository reads or writes; use a least-privilege token and avoid echoing it.",
+		setupNotes: [
+			"Ask for the token only if it is not already available as an environment variable or secret placeholder.",
+			"Prefer environment placeholders in MCP config instead of literal token values.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@modelcontextprotocol/server-github"],
+			env: {
+				GITHUB_PERSONAL_ACCESS_TOKEN: "${env:GITHUB_PERSONAL_ACCESS_TOKEN}",
+			},
+		},
+	},
+	{
+		id: "notion",
+		serverName: "notionApi",
+		name: "Notion",
+		featured: true,
+		popular: true,
+		category: "Knowledge & productivity",
+		description: "Search, read, and update Notion workspace content through Notion's MCP server.",
+		packageName: "@notionhq/notion-mcp-server",
+		source: "official npm package from Notion",
+		sourceUrl: "https://www.npmjs.com/package/@notionhq/notion-mcp-server",
+		documentationUrl: "https://developers.notion.com/docs/mcp",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["NOTION_TOKEN"],
+		optionalSecrets: ["OPENAPI_MCP_HEADERS"],
+		prerequisites: [
+			"Node.js",
+			"Notion integration token or approved Notion MCP OAuth setup",
+			"Pages connected to the Notion integration",
+		],
+		verificationApproach:
+			"Run a read-only search or retrieve a known non-sensitive page that has been explicitly shared with the integration.",
+		riskNotes:
+			"Can read or update connected Notion pages depending on integration capabilities; use least-privilege permissions and avoid broad workspace access.",
+		setupNotes: [
+			"Inspect current Notion MCP documentation before deciding between remote OAuth setup and the local npm package.",
+			"Ask for NOTION_TOKEN only if the user chooses the local package and it is not already available as an environment variable or secret placeholder.",
+			"Confirm which pages or workspaces are connected to the Notion integration before verifying access.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@notionhq/notion-mcp-server"],
+			env: {
+				NOTION_TOKEN: "${env:NOTION_TOKEN}",
+			},
+		},
+	},
+	{
+		id: "linear",
+		serverName: "linear",
+		name: "Linear",
+		popular: true,
+		category: "Project management",
+		description: "Manage Linear issues, projects, and teams through a token-backed MCP server.",
+		packageName: "linear-mcp",
+		source: "community npm package from dvcrn",
+		sourceUrl: "https://www.npmjs.com/package/linear-mcp",
+		documentationUrl: "https://github.com/dvcrn/linear-mcp",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["LINEAR_ACCESS_TOKEN"],
+		prerequisites: ["Node.js", "Linear developer token with the minimum scopes needed"],
+		verificationApproach:
+			"List teams or fetch a known public-safe issue first; avoid creating or updating issues during setup verification.",
+		riskNotes:
+			"Linear tokens can expose or modify planning data; use a least-privilege token and avoid destructive issue or project changes.",
+		setupNotes: [
+			"Ask for the Linear token only if LINEAR_ACCESS_TOKEN is not already available as an environment variable or secret placeholder.",
+			"For multiple workspaces, configure unique server names and tool prefixes rather than reusing the same server name.",
+			"Use read-only verification until the user explicitly asks to create or edit Linear records.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "linear-mcp"],
+			env: {
+				LINEAR_ACCESS_TOKEN: "${env:LINEAR_ACCESS_TOKEN}",
+			},
+		},
+	},
+	{
+		id: "context7",
+		serverName: "context7",
+		name: "Context7",
+		featured: true,
+		popular: true,
+		category: "Documentation",
+		description:
+			"Fetch up-to-date, version-specific library documentation and code examples directly into MCP context.",
+		packageName: "@upstash/context7-mcp",
+		source: "hosted Context7 MCP endpoint and npm package from Upstash",
+		sourceUrl: "https://www.npmjs.com/package/@upstash/context7-mcp",
+		documentationUrl: "https://github.com/upstash/context7",
+		transportType: "streamable-http",
+		recommendedScope: "global",
+		requiredSecrets: [],
+		optionalSecrets: ["CONTEXT7_API_KEY"],
+		prerequisites: [
+			"Network access to https://mcp.context7.com/mcp",
+			"Optional Context7 API key for higher rate limits or private repositories",
+		],
+		verificationApproach:
+			"Resolve a public library such as Next.js and query a small, non-sensitive documentation topic.",
+		riskNotes:
+			"Documentation queries are sent to Context7; avoid private package names unless using an approved account and API key.",
+		setupNotes: [
+			"Inspect the current Context7 MCP documentation before choosing hosted streamable HTTP versus the npx stdio package.",
+			"The API key is optional for basic public documentation use; if supplied, reference it through an environment placeholder or header rather than a literal value.",
+			"Recommend adding a lightweight usage rule so coding questions can opt into Context7 when fresh docs are needed.",
+		],
+		sampleConfig: {
+			type: "streamable-http",
+			url: "https://mcp.context7.com/mcp",
+		},
+	},
+	{
+		id: "exa-web-search",
+		serverName: "exa",
+		name: "Exa Web Search",
+		featured: true,
+		popular: true,
+		category: "Search",
+		description: "Run real-time web search and fetch clean page content through Exa's MCP server.",
+		packageName: "exa-mcp-server",
+		source: "npm package and hosted MCP service from Exa",
+		sourceUrl: "https://www.npmjs.com/package/exa-mcp-server",
+		documentationUrl: "https://docs.exa.ai/reference/exa-mcp",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["EXA_API_KEY"],
+		prerequisites: ["Node.js", "Exa API key"],
+		verificationApproach:
+			"Run a read-only search for a public, non-sensitive query and confirm result titles and URLs are returned.",
+		riskNotes: "Search queries and fetched URLs are sent to Exa; avoid private terms, secrets, and internal URLs.",
+		setupNotes: [
+			"Ask for the API key only if EXA_API_KEY is not already available as an environment variable or secret placeholder.",
+			"Prefer the documented local npm command when the user wants a key-backed setup; consider hosted streamable HTTP only if current docs and Roo support the required authentication flow.",
+			"Use generic public verification queries that do not reveal project details.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "exa-mcp-server"],
+			env: {
+				EXA_API_KEY: "${env:EXA_API_KEY}",
+			},
+		},
+	},
+	{
+		id: "google-drive",
+		serverName: "gdrive",
+		name: "Google Drive",
+		popular: true,
+		category: "Cloud files",
+		description: "Search, list, and read Google Drive files after a local OAuth setup.",
+		packageName: "@modelcontextprotocol/server-gdrive",
+		source: "npm package from the Model Context Protocol project",
+		sourceUrl: "https://www.npmjs.com/package/@modelcontextprotocol/server-gdrive",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/gdrive",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: [],
+		prerequisites: [
+			"Node.js",
+			"Google Cloud OAuth desktop client with readonly Drive scope",
+			"Completed local OAuth credential flow",
+		],
+		verificationApproach:
+			"Run a read-only file search for a generic term or list accessible files without opening sensitive documents.",
+		riskNotes:
+			"Can expose accessible Google Drive filenames and file contents; use readonly scopes and avoid indexing or opening private documents during setup.",
+		setupNotes: [
+			"Confirm the user has completed the OAuth client and credential setup before adding the server.",
+			"If credentials are missing, guide the user through OAuth setup before attempting to verify MCP tools.",
+			"Use the documented npx config once credentials are already available locally.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@modelcontextprotocol/server-gdrive"],
+		},
+	},
+	{
+		id: "sentry",
+		serverName: "sentry",
+		name: "Sentry",
+		featured: true,
+		popular: true,
+		category: "Observability",
+		description: "Investigate Sentry issues, errors, and project context through Sentry's official MCP server.",
+		packageName: "@sentry/mcp-server",
+		source: "official npm package and hosted MCP service from Sentry",
+		sourceUrl: "https://www.npmjs.com/package/@sentry/mcp-server",
+		documentationUrl: "https://docs.sentry.io/ai/mcp/",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: [],
+		optionalSecrets: ["SENTRY_ACCESS_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"],
+		prerequisites: [
+			"Node.js",
+			"Sentry account for device-code authentication or a self-hosted Sentry token",
+			"Optional embedded agent provider configuration for AI-powered search tools",
+		],
+		verificationApproach:
+			"Authenticate with Sentry, then list organizations or projects before reading a non-sensitive issue summary.",
+		riskNotes:
+			"May expose production errors, stack traces, user data, or project metadata; use least-privilege access and avoid pasting sensitive event payloads.",
+		setupNotes: [
+			"Inspect current Sentry MCP docs before deciding between hosted remote MCP and local stdio setup.",
+			"For sentry.io, prefer device-code authentication instead of manually collecting a token when the environment is interactive.",
+			"For self-hosted Sentry, use SENTRY_ACCESS_TOKEN and SENTRY_HOST placeholders rather than literal values.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@sentry/mcp-server@latest"],
+		},
+	},
+	{
+		id: "memory",
+		serverName: "memory",
+		name: "Memory",
+		popular: true,
+		category: "Knowledge & memory",
+		description: "Maintain a local knowledge graph of durable facts that can be reused across conversations.",
+		packageName: "@modelcontextprotocol/server-memory",
+		source: "npm package from the Model Context Protocol project",
+		sourceUrl: "https://www.npmjs.com/package/@modelcontextprotocol/server-memory",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: [],
+		prerequisites: ["Node.js", "Agreement on what kinds of facts are safe to store"],
+		verificationApproach:
+			"List or search the knowledge graph with a harmless query, or create only a clearly disposable test entity if the user approves.",
+		riskNotes:
+			"May persist sensitive personal or project facts locally; establish clear boundaries and avoid storing secrets or credentials.",
+		setupNotes: [
+			"Confirm whether the user wants global memory or project-specific memory before writing config.",
+			"Avoid seeding memory with sensitive facts during setup; prefer read-only verification if possible.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@modelcontextprotocol/server-memory"],
+		},
+	},
+	{
+		id: "sequential-thinking",
+		serverName: "sequential-thinking",
+		name: "Sequential Thinking",
+		popular: true,
+		category: "Reasoning",
+		description: "Expose a structured thinking tool for breaking down complex problems step by step.",
+		packageName: "@modelcontextprotocol/server-sequential-thinking",
+		source: "npm package from the Model Context Protocol project",
+		sourceUrl: "https://www.npmjs.com/package/@modelcontextprotocol/server-sequential-thinking",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: [],
+		prerequisites: ["Node.js"],
+		verificationApproach: "Run a short, non-sensitive one-step reasoning check and confirm the tool responds.",
+		riskNotes:
+			"Reasoning traces may include user-provided details; do not include secrets, credentials, or private data in verification prompts.",
+		setupNotes: [
+			"Use the documented npx command and keep the setup global unless the user wants project-local behavior.",
+			"Verify with a simple public puzzle or planning example rather than private project data.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+		},
+	},
+	{
+		id: "sqlite",
+		serverName: "sqlite",
+		name: "SQLite",
+		category: "Databases",
+		description: "Inspect and query a local SQLite database file.",
+		packageName: "@modelcontextprotocol/server-sqlite",
+		source: "npm package from the Model Context Protocol project",
+		sourceUrl: "https://www.npmjs.com/package/@modelcontextprotocol/server-sqlite",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/sqlite",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: [],
+		prerequisites: ["Node.js", "Path to a SQLite database file"],
+		verificationApproach:
+			"Run a read-only schema inspection or a harmless SELECT query against the configured database.",
+		riskNotes: "May expose local database contents; verify with read-only queries and avoid modifying tables.",
+		setupNotes: [
+			"Confirm the database file path before writing config.",
+			"Use read-only verification queries unless the user explicitly asks for writes.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@modelcontextprotocol/server-sqlite", "<path-to-database.sqlite>"],
+		},
+	},
+	{
+		id: "postgresql",
+		serverName: "postgres",
+		name: "PostgreSQL",
+		category: "Databases",
+		description: "Inspect schemas and run SQL queries against a PostgreSQL database.",
+		packageName: "@modelcontextprotocol/server-postgres",
+		source: "npm package from the Model Context Protocol project",
+		sourceUrl: "https://www.npmjs.com/package/@modelcontextprotocol/server-postgres",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: ["POSTGRES_CONNECTION_STRING"],
+		prerequisites: [
+			"Node.js",
+			"Network access to PostgreSQL",
+			"Connection string with least-privilege credentials",
+		],
+		verificationApproach: "Run a read-only connection check such as SELECT version() or schema listing.",
+		riskNotes:
+			"Database credentials may allow sensitive reads or writes; use least-privilege credentials and read-only checks.",
+		setupNotes: [
+			"Ask for the connection string only if it is not already available through an environment variable or placeholder.",
+			"Do not run destructive SQL during setup or verification.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@modelcontextprotocol/server-postgres", "${env:POSTGRES_CONNECTION_STRING}"],
+			env: {
+				POSTGRES_CONNECTION_STRING: "${env:POSTGRES_CONNECTION_STRING}",
+			},
+		},
+	},
+	{
+		id: "playwright",
+		serverName: "playwright",
+		name: "Playwright",
+		featured: true,
+		popular: true,
+		category: "Browser automation",
+		description: "Automate browser interactions for inspection, screenshots, and end-to-end verification.",
+		packageName: "@playwright/mcp",
+		source: "npm package from Microsoft Playwright",
+		sourceUrl: "https://www.npmjs.com/package/@playwright/mcp",
+		documentationUrl: "https://github.com/microsoft/playwright-mcp",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: [],
+		prerequisites: ["Node.js", "Browser binaries installed by Playwright if required"],
+		verificationApproach:
+			"Open a harmless public page or local dev URL and read the page title without submitting data.",
+		riskNotes:
+			"Browser automation can interact with websites; avoid logging into accounts or submitting forms during verification.",
+		setupNotes: [
+			"Inspect current @playwright/mcp documentation for the recommended launch command before writing config.",
+			"If browser binaries are missing, install only the required browser dependencies after approval.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@playwright/mcp"],
+		},
+	},
+	{
+		id: "brave-search",
+		serverName: "brave-search",
+		name: "Brave Search",
+		popular: true,
+		category: "Search",
+		description: "Search the web through the Brave Search API.",
+		packageName: "@modelcontextprotocol/server-brave-search",
+		source: "npm package from the Model Context Protocol project",
+		sourceUrl: "https://www.npmjs.com/package/@modelcontextprotocol/server-brave-search",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["BRAVE_API_KEY"],
+		prerequisites: ["Node.js", "Brave Search API key"],
+		verificationApproach: "Run a low-risk read-only search query and confirm results are returned.",
+		riskNotes: "Search queries are sent to Brave; avoid private or secret terms in verification queries.",
+		setupNotes: [
+			"Ask for the API key only if it is not already available as an environment variable or secret placeholder.",
+			"Use a generic verification query that does not include private project details.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@modelcontextprotocol/server-brave-search"],
+			env: {
+				BRAVE_API_KEY: "${env:BRAVE_API_KEY}",
+			},
+		},
+	},
+	{
+		id: "tavily-search",
+		serverName: "tavily",
+		name: "Tavily Search",
+		popular: true,
+		category: "Search",
+		description: "Search and extract web content through Tavily's research-focused search API.",
+		packageName: "tavily-mcp",
+		source: "npm package from Tavily",
+		sourceUrl: "https://www.npmjs.com/package/tavily-mcp",
+		documentationUrl: "https://github.com/tavily-ai/tavily-mcp",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["TAVILY_API_KEY"],
+		prerequisites: ["Node.js", "Tavily API key"],
+		verificationApproach:
+			"Run a read-only search for a public, generic query and confirm source URLs are returned.",
+		riskNotes: "Search queries are sent to Tavily; avoid private project names, credentials, or internal URLs.",
+		setupNotes: [
+			"Ask for the API key only if TAVILY_API_KEY is not already available as an environment variable or secret placeholder.",
+			"Use generic public verification queries and avoid crawling private or authenticated pages.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "tavily-mcp"],
+			env: {
+				TAVILY_API_KEY: "${env:TAVILY_API_KEY}",
+			},
+		},
+	},
+	{
+		id: "firecrawl",
+		serverName: "firecrawl",
+		name: "Firecrawl",
+		popular: true,
+		category: "Web scraping",
+		description: "Scrape, search, and extract structured content from public web pages with Firecrawl.",
+		packageName: "firecrawl-mcp",
+		source: "npm package from Firecrawl",
+		sourceUrl: "https://www.npmjs.com/package/firecrawl-mcp",
+		documentationUrl: "https://github.com/firecrawl/firecrawl-mcp-server",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["FIRECRAWL_API_KEY"],
+		optionalSecrets: ["FIRECRAWL_API_URL"],
+		prerequisites: [
+			"Node.js",
+			"Firecrawl API key for cloud usage",
+			"Optional Firecrawl API URL for self-hosted instances",
+		],
+		verificationApproach:
+			"Scrape a small public documentation page or run a generic public search without submitting private URLs.",
+		riskNotes:
+			"Scraping can send target URLs and page content to Firecrawl; respect site policies and avoid private or authenticated pages.",
+		setupNotes: [
+			"Ask for the API key only if FIRECRAWL_API_KEY is not already available as an environment variable or secret placeholder.",
+			"If the user uses a self-hosted Firecrawl instance, verify FIRECRAWL_API_URL and authentication requirements before writing config.",
+			"Use low-volume public verification to avoid consuming unnecessary credits.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "firecrawl-mcp"],
+			env: {
+				FIRECRAWL_API_KEY: "${env:FIRECRAWL_API_KEY}",
+			},
+		},
+	},
+	{
+		id: "git",
+		serverName: "git",
+		name: "Git",
+		popular: true,
+		category: "Developer tools",
+		description: "Inspect Git history, branches, and diffs for a local repository.",
+		packageName: "mcp-server-git",
+		source: "Python package from the Model Context Protocol project",
+		sourceUrl: "https://pypi.org/project/mcp-server-git/",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/git",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: [],
+		prerequisites: ["Python with uvx", "Path to the Git repository to expose"],
+		verificationApproach: "Run a read-only status, branch list, or log query against the configured repository.",
+		riskNotes: "Can expose repository history, diffs, and file paths; avoid repositories containing secrets.",
+		setupNotes: [
+			"Confirm the repository path before adding it to config.",
+			"Use read-only Git queries during setup and do not create commits, branches, or tags unless requested.",
+		],
+		sampleConfig: {
+			command: "uvx",
+			args: ["mcp-server-git", "--repository", "<path-to-repository>"],
+		},
+	},
+	{
+		id: "fetch",
+		serverName: "fetch",
+		name: "Fetch",
+		popular: true,
+		category: "Web content",
+		description: "Fetch and convert public web pages into model-readable content.",
+		packageName: "mcp-server-fetch",
+		source: "Python package from the Model Context Protocol project",
+		sourceUrl: "https://pypi.org/project/mcp-server-fetch/",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: [],
+		prerequisites: ["Python with uvx", "Network access to the URLs being fetched"],
+		verificationApproach: "Fetch a small public documentation page and confirm title or text extraction works.",
+		riskNotes: "Requested URLs and returned content are exposed to the model; avoid private or authenticated URLs.",
+		setupNotes: [
+			"Use a generic public page for verification.",
+			"Respect robots.txt, terms of service, and private network boundaries.",
+		],
+		sampleConfig: {
+			command: "uvx",
+			args: ["mcp-server-fetch"],
+		},
+	},
+	{
+		id: "time",
+		serverName: "time",
+		name: "Time",
+		category: "Utilities",
+		description: "Provide current time, timezone conversion, and scheduling-safe time utilities.",
+		packageName: "mcp-server-time",
+		source: "Python package from the Model Context Protocol project",
+		sourceUrl: "https://pypi.org/project/mcp-server-time/",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/time",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: [],
+		prerequisites: ["Python with uvx"],
+		verificationApproach: "Ask for current time in a harmless timezone conversion query.",
+		riskNotes:
+			"Low risk; avoid using time output as a source of truth for legal or financial deadlines without user confirmation.",
+		setupNotes: ["Configure globally unless a workspace has a specific timezone need."],
+		sampleConfig: {
+			command: "uvx",
+			args: ["mcp-server-time"],
+		},
+	},
+	{
+		id: "puppeteer",
+		serverName: "puppeteer",
+		name: "Puppeteer",
+		category: "Browser automation",
+		description: "Drive Chromium with Puppeteer for screenshots, page inspection, and lightweight browser checks.",
+		packageName: "@modelcontextprotocol/server-puppeteer",
+		source: "npm package from the Model Context Protocol project",
+		sourceUrl: "https://www.npmjs.com/package/@modelcontextprotocol/server-puppeteer",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/puppeteer",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: [],
+		prerequisites: ["Node.js", "Chromium dependencies available on the machine"],
+		verificationApproach: "Open a harmless public page or local dev URL and read the page title.",
+		riskNotes:
+			"Browser automation can interact with websites; do not log into accounts or submit forms during setup.",
+		setupNotes: [
+			"Prefer Playwright for new browser automation unless Puppeteer-specific behavior is needed.",
+			"Use non-authenticated pages for setup verification.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@modelcontextprotocol/server-puppeteer"],
+		},
+	},
+	{
+		id: "slack",
+		serverName: "slack",
+		name: "Slack",
+		popular: true,
+		category: "Collaboration",
+		description: "Read Slack channels and messages through a bot token-backed MCP server.",
+		packageName: "@modelcontextprotocol/server-slack",
+		source: "npm package from the Model Context Protocol project",
+		sourceUrl: "https://www.npmjs.com/package/@modelcontextprotocol/server-slack",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/slack",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["SLACK_BOT_TOKEN", "SLACK_TEAM_ID"],
+		optionalSecrets: ["SLACK_CHANNEL_IDS"],
+		prerequisites: ["Node.js", "Slack app bot token", "Slack team id", "Optional allowlisted channel ids"],
+		verificationApproach:
+			"List channels or read a known non-sensitive channel after confirming the bot has access.",
+		riskNotes: "Can expose workplace conversations; restrict channel access and use read-only verification.",
+		setupNotes: [
+			"Ask for Slack identifiers only if they are not already available as environment variables.",
+			"Encourage channel allowlisting when possible.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@modelcontextprotocol/server-slack"],
+			env: {
+				SLACK_BOT_TOKEN: "${env:SLACK_BOT_TOKEN}",
+				SLACK_TEAM_ID: "${env:SLACK_TEAM_ID}",
+			},
+		},
+	},
+	{
+		id: "google-maps",
+		serverName: "google-maps",
+		name: "Google Maps",
+		category: "Location",
+		description: "Use Google Maps APIs for geocoding, places, directions, and location lookups.",
+		packageName: "@modelcontextprotocol/server-google-maps",
+		source: "npm package from the Model Context Protocol project",
+		sourceUrl: "https://www.npmjs.com/package/@modelcontextprotocol/server-google-maps",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["GOOGLE_MAPS_API_KEY"],
+		prerequisites: ["Node.js", "Google Maps API key with only the APIs needed enabled"],
+		verificationApproach: "Run a read-only geocode or place lookup for a public landmark.",
+		riskNotes:
+			"Location queries are sent to Google and may incur billing; avoid private addresses in verification.",
+		setupNotes: [
+			"Use a least-privilege API key with billing and quota controls.",
+			"Verify with a public landmark.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@modelcontextprotocol/server-google-maps"],
+			env: {
+				GOOGLE_MAPS_API_KEY: "${env:GOOGLE_MAPS_API_KEY}",
+			},
+		},
+	},
+	{
+		id: "redis",
+		serverName: "redis",
+		name: "Redis",
+		category: "Databases",
+		description: "Inspect keys and values in a Redis instance through MCP.",
+		packageName: "@modelcontextprotocol/server-redis",
+		source: "npm package from the Model Context Protocol project",
+		sourceUrl: "https://www.npmjs.com/package/@modelcontextprotocol/server-redis",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/redis",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: ["REDIS_URL"],
+		prerequisites: ["Node.js", "Redis URL with least-privilege credentials"],
+		verificationApproach: "Connect and run a read-only ping or keyspace metadata query.",
+		riskNotes: "Redis may contain sensitive cache/session data; avoid broad key scans and writes during setup.",
+		setupNotes: [
+			"Ask for REDIS_URL only if it is not already available as an environment placeholder.",
+			"Prefer a development or read-only Redis instance for verification.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@modelcontextprotocol/server-redis", "${env:REDIS_URL}"],
+			env: {
+				REDIS_URL: "${env:REDIS_URL}",
+			},
+		},
+	},
+	{
+		id: "gitlab",
+		serverName: "gitlab",
+		name: "GitLab",
+		popular: true,
+		category: "Developer tools",
+		description: "Work with GitLab projects, issues, merge requests, and repository metadata.",
+		packageName: "@modelcontextprotocol/server-gitlab",
+		source: "npm package from the Model Context Protocol project",
+		sourceUrl: "https://www.npmjs.com/package/@modelcontextprotocol/server-gitlab",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/gitlab",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["GITLAB_PERSONAL_ACCESS_TOKEN"],
+		optionalSecrets: ["GITLAB_API_URL"],
+		prerequisites: ["Node.js", "GitLab personal access token with minimum required scopes"],
+		verificationApproach:
+			"List the authenticated user or a known project without creating issues or merge requests.",
+		riskNotes: "Token permissions may allow repository and issue reads or writes; use least-privilege scopes.",
+		setupNotes: ["Use GITLAB_API_URL for self-managed GitLab instances.", "Keep verification read-only."],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@modelcontextprotocol/server-gitlab"],
+			env: {
+				GITLAB_PERSONAL_ACCESS_TOKEN: "${env:GITLAB_PERSONAL_ACCESS_TOKEN}",
+			},
+		},
+	},
+	{
+		id: "aws-kb-retrieval",
+		serverName: "aws-kb-retrieval",
+		name: "AWS Knowledge Base Retrieval",
+		category: "Cloud & infrastructure",
+		description: "Query Amazon Bedrock Knowledge Bases from MCP.",
+		packageName: "@modelcontextprotocol/server-aws-kb-retrieval",
+		source: "npm package from the Model Context Protocol project",
+		sourceUrl: "https://www.npmjs.com/package/@modelcontextprotocol/server-aws-kb-retrieval",
+		documentationUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/aws-kb-retrieval-server",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION", "KNOWLEDGE_BASE_ID"],
+		prerequisites: ["Node.js", "AWS credentials", "Bedrock Knowledge Base id", "Configured AWS region"],
+		verificationApproach:
+			"Run a harmless query against an approved knowledge base and confirm citations are returned.",
+		riskNotes: "Can expose knowledge base contents and consume AWS resources; use least-privilege IAM credentials.",
+		setupNotes: [
+			"Prefer existing AWS profile or environment variables.",
+			"Verify against non-sensitive knowledge base content.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@modelcontextprotocol/server-aws-kb-retrieval"],
+			env: {
+				AWS_ACCESS_KEY_ID: "${env:AWS_ACCESS_KEY_ID}",
+				AWS_SECRET_ACCESS_KEY: "${env:AWS_SECRET_ACCESS_KEY}",
+				AWS_REGION: "${env:AWS_REGION}",
+				KNOWLEDGE_BASE_ID: "${env:KNOWLEDGE_BASE_ID}",
+			},
+		},
+	},
+	{
+		id: "docker",
+		serverName: "docker",
+		name: "Docker",
+		category: "DevOps",
+		description: "Inspect local Docker containers, images, volumes, and logs through MCP.",
+		packageName: "mcp-server-docker",
+		source: "community MCP server package",
+		sourceUrl: "https://pypi.org/project/mcp-server-docker/",
+		documentationUrl: "https://github.com/QuantGeekDev/docker-mcp",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: [],
+		prerequisites: ["Python with uvx", "Docker daemon access"],
+		verificationApproach: "List containers or images without starting, stopping, or deleting anything.",
+		riskNotes:
+			"Docker access can expose container environment variables, logs, and volumes; avoid destructive operations.",
+		setupNotes: [
+			"Confirm Docker daemon permissions before use.",
+			"Keep setup verification to read-only listing commands.",
+		],
+		sampleConfig: {
+			command: "uvx",
+			args: ["mcp-server-docker"],
+		},
+	},
+	{
+		id: "kubernetes",
+		serverName: "kubernetes",
+		name: "Kubernetes",
+		category: "DevOps",
+		description: "Inspect Kubernetes clusters, namespaces, pods, services, and events through MCP.",
+		packageName: "mcp-server-kubernetes",
+		source: "community MCP server package",
+		sourceUrl: "https://www.npmjs.com/package/mcp-server-kubernetes",
+		documentationUrl: "https://github.com/Flux159/mcp-server-kubernetes",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: [],
+		optionalSecrets: ["KUBECONFIG"],
+		prerequisites: ["Node.js", "kubectl-compatible kubeconfig with least-privilege access"],
+		verificationApproach:
+			"List namespaces or pods in an approved namespace without applying manifests or deleting resources.",
+		riskNotes:
+			"Cluster credentials may permit production changes; use readonly contexts and avoid mutating resources.",
+		setupNotes: [
+			"Confirm the active kube context before writing config.",
+			"Prefer project scope for cluster-specific setups.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "mcp-server-kubernetes"],
+		},
+	},
+	{
+		id: "aws-documentation",
+		serverName: "aws-docs",
+		name: "AWS Documentation",
+		popular: true,
+		category: "Documentation",
+		description: "Search and fetch AWS documentation through the AWS Labs documentation MCP server.",
+		packageName: "awslabs.aws-documentation-mcp-server",
+		source: "AWS Labs MCP server package",
+		sourceUrl: "https://github.com/awslabs/mcp/tree/main/src/aws-documentation-mcp-server",
+		documentationUrl: "https://github.com/awslabs/mcp/tree/main/src/aws-documentation-mcp-server",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: [],
+		prerequisites: ["Python with uvx", "Network access to AWS documentation"],
+		verificationApproach: "Search for a public AWS service documentation page and fetch a short excerpt.",
+		riskNotes:
+			"Documentation queries are sent to AWS documentation services; avoid private account identifiers in queries.",
+		setupNotes: [
+			"Use public AWS documentation topics for verification.",
+			"No AWS account credentials should be required for docs-only use.",
+		],
+		sampleConfig: {
+			command: "uvx",
+			args: ["awslabs.aws-documentation-mcp-server@latest"],
+		},
+	},
+	{
+		id: "azure",
+		serverName: "azure",
+		name: "Azure",
+		category: "Cloud & infrastructure",
+		description: "Query Azure resources and documentation through Microsoft's Azure MCP server.",
+		packageName: "@azure/mcp",
+		source: "official npm package from Microsoft Azure",
+		sourceUrl: "https://www.npmjs.com/package/@azure/mcp",
+		documentationUrl: "https://github.com/Azure/azure-mcp",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: [],
+		optionalSecrets: ["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"],
+		prerequisites: ["Node.js", "Azure CLI login or service principal credentials with least privilege"],
+		verificationApproach: "List subscriptions or fetch docs metadata without changing Azure resources.",
+		riskNotes: "Azure credentials may expose or modify cloud resources; use least-privilege readonly credentials.",
+		setupNotes: [
+			"Prefer existing Azure CLI authentication if available.",
+			"Confirm tenant/subscription before verification.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@azure/mcp@latest", "server", "start"],
+		},
+	},
+	{
+		id: "supabase",
+		serverName: "supabase",
+		name: "Supabase",
+		featured: true,
+		popular: true,
+		category: "Databases",
+		description: "Manage Supabase projects, Postgres schemas, logs, and edge functions through MCP.",
+		packageName: "@supabase/mcp-server-supabase",
+		source: "official npm package from Supabase",
+		sourceUrl: "https://www.npmjs.com/package/@supabase/mcp-server-supabase",
+		documentationUrl: "https://supabase.com/docs/guides/getting-started/mcp",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: ["SUPABASE_ACCESS_TOKEN"],
+		optionalSecrets: ["SUPABASE_PROJECT_REF"],
+		prerequisites: ["Node.js", "Supabase access token", "Optional project ref for project-scoped use"],
+		verificationApproach: "List projects or inspect schemas with a read-only query before making changes.",
+		riskNotes:
+			"Supabase access can expose or modify databases and project settings; use scoped tokens and readonly checks.",
+		setupNotes: [
+			"Ask for the project ref only when the user wants to bind setup to a specific project.",
+			"Do not run migrations during verification.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@supabase/mcp-server-supabase"],
+			env: {
+				SUPABASE_ACCESS_TOKEN: "${env:SUPABASE_ACCESS_TOKEN}",
+			},
+		},
+	},
+	{
+		id: "stripe",
+		serverName: "stripe",
+		name: "Stripe",
+		popular: true,
+		category: "Payments",
+		description: "Inspect Stripe customers, products, prices, charges, and payment metadata through MCP.",
+		packageName: "@stripe/mcp",
+		source: "official npm package from Stripe",
+		sourceUrl: "https://www.npmjs.com/package/@stripe/mcp",
+		documentationUrl: "https://docs.stripe.com/mcp",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["STRIPE_SECRET_KEY"],
+		prerequisites: ["Node.js", "Stripe restricted key or secret key with minimum scopes"],
+		verificationApproach: "List products or account metadata in test mode before touching live data.",
+		riskNotes:
+			"Stripe keys can expose financial/customer data or mutate billing resources; prefer restricted test-mode keys.",
+		setupNotes: [
+			"Use test mode for verification whenever possible.",
+			"Never paste or store literal Stripe secret keys.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@stripe/mcp"],
+			env: {
+				STRIPE_SECRET_KEY: "${env:STRIPE_SECRET_KEY}",
+			},
+		},
+	},
+	{
+		id: "shopify",
+		serverName: "shopify-dev",
+		name: "Shopify Dev",
+		category: "Commerce",
+		description:
+			"Access Shopify developer docs, APIs, and app-development helpers through Shopify's dev MCP server.",
+		packageName: "@shopify/dev-mcp",
+		source: "official npm package from Shopify",
+		sourceUrl: "https://www.npmjs.com/package/@shopify/dev-mcp",
+		documentationUrl: "https://shopify.dev/docs/apps/build/dev-mcp",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: [],
+		optionalSecrets: ["SHOPIFY_ACCESS_TOKEN", "SHOPIFY_STORE_DOMAIN"],
+		prerequisites: ["Node.js", "Optional Shopify store credentials for store-specific tools"],
+		verificationApproach: "Query public Shopify developer documentation or inspect non-sensitive app metadata.",
+		riskNotes:
+			"Store credentials can expose commerce/customer data; keep docs-only verification separate from store access.",
+		setupNotes: [
+			"Start with documentation-only verification when no store credentials are needed.",
+			"Use environment placeholders for store credentials.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@shopify/dev-mcp"],
+		},
+	},
+	{
+		id: "browserbase",
+		serverName: "browserbase",
+		name: "Browserbase",
+		category: "Browser automation",
+		description: "Run cloud browser sessions through Browserbase for browsing, screenshots, and QA workflows.",
+		packageName: "@browserbasehq/mcp-server-browserbase",
+		source: "official npm package from Browserbase",
+		sourceUrl: "https://www.npmjs.com/package/@browserbasehq/mcp-server-browserbase",
+		documentationUrl: "https://docs.browserbase.com/integrations/mcp/introduction",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"],
+		prerequisites: ["Node.js", "Browserbase API key", "Browserbase project id"],
+		verificationApproach:
+			"Open a public page in a disposable cloud session and read the title or take a screenshot.",
+		riskNotes:
+			"Cloud browser sessions can visit URLs and handle credentials; avoid authenticated sessions during setup.",
+		setupNotes: ["Use a disposable public page for verification.", "Confirm project id before writing config."],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@browserbasehq/mcp-server-browserbase"],
+			env: {
+				BROWSERBASE_API_KEY: "${env:BROWSERBASE_API_KEY}",
+				BROWSERBASE_PROJECT_ID: "${env:BROWSERBASE_PROJECT_ID}",
+			},
+		},
+	},
+	{
+		id: "figma",
+		serverName: "figma",
+		name: "Figma",
+		popular: true,
+		category: "Design",
+		description: "Read Figma files, frames, and design metadata for implementation planning.",
+		packageName: "figma-developer-mcp",
+		source: "community npm package for Figma MCP access",
+		sourceUrl: "https://www.npmjs.com/package/figma-developer-mcp",
+		documentationUrl: "https://github.com/GLips/Figma-Context-MCP",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["FIGMA_API_KEY"],
+		prerequisites: ["Node.js", "Figma personal access token", "Access to the target Figma file"],
+		verificationApproach: "Fetch metadata for a known non-sensitive Figma file or frame.",
+		riskNotes:
+			"Figma tokens can expose design files and comments; use minimum scopes and avoid private files in verification.",
+		setupNotes: [
+			"Confirm file access separately from token setup.",
+			"Use environment placeholders for Figma tokens.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "figma-developer-mcp", "--stdio"],
+			env: {
+				FIGMA_API_KEY: "${env:FIGMA_API_KEY}",
+			},
+		},
+	},
+	{
+		id: "atlassian",
+		serverName: "atlassian",
+		name: "Atlassian",
+		popular: true,
+		category: "Project management",
+		description: "Search and inspect Jira issues and Confluence pages through an Atlassian MCP server.",
+		packageName: "mcp-atlassian",
+		source: "community Python package for Atlassian MCP access",
+		sourceUrl: "https://pypi.org/project/mcp-atlassian/",
+		documentationUrl: "https://github.com/sooperset/mcp-atlassian",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["ATLASSIAN_SITE_URL", "ATLASSIAN_USERNAME", "ATLASSIAN_API_TOKEN"],
+		prerequisites: ["Python with uvx", "Atlassian Cloud site URL", "User email", "API token"],
+		verificationApproach: "Search for a known public-safe issue or Confluence page without editing it.",
+		riskNotes: "Can expose tickets, docs, and customer data; restrict permissions and keep verification read-only.",
+		setupNotes: [
+			"Use Jira/Confluence allowlists when available.",
+			"Do not create or edit issues during setup verification.",
+		],
+		sampleConfig: {
+			command: "uvx",
+			args: ["mcp-atlassian"],
+			env: {
+				ATLASSIAN_SITE_URL: "${env:ATLASSIAN_SITE_URL}",
+				ATLASSIAN_USERNAME: "${env:ATLASSIAN_USERNAME}",
+				ATLASSIAN_API_TOKEN: "${env:ATLASSIAN_API_TOKEN}",
+			},
+		},
+	},
+	{
+		id: "gmail",
+		serverName: "gmail",
+		name: "Gmail",
+		category: "Communication",
+		description: "Search and read Gmail messages after local OAuth authorization.",
+		packageName: "@gongrzhe/server-gmail-autoauth-mcp",
+		source: "community npm package for Gmail MCP access",
+		sourceUrl: "https://www.npmjs.com/package/@gongrzhe/server-gmail-autoauth-mcp",
+		documentationUrl: "https://github.com/GongRzhe/Gmail-MCP-Server",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: [],
+		optionalSecrets: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+		prerequisites: ["Node.js", "Google OAuth desktop app credentials", "Completed local OAuth authorization"],
+		verificationApproach:
+			"Search for a harmless label or list message metadata without opening sensitive email content.",
+		riskNotes:
+			"Can expose private email contents; use minimal scopes and avoid reading messages during verification.",
+		setupNotes: ["Guide the user through OAuth only after approval.", "Prefer metadata-only verification first."],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@gongrzhe/server-gmail-autoauth-mcp"],
+		},
+	},
+	{
+		id: "google-calendar",
+		serverName: "google-calendar",
+		name: "Google Calendar",
+		category: "Calendar",
+		description: "Read and manage Google Calendar events after OAuth setup.",
+		packageName: "@cocal/google-calendar-mcp",
+		source: "community npm package for Google Calendar MCP access",
+		sourceUrl: "https://www.npmjs.com/package/@cocal/google-calendar-mcp",
+		documentationUrl: "https://github.com/nspady/google-calendar-mcp",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: [],
+		optionalSecrets: ["GOOGLE_OAUTH_CREDENTIALS"],
+		prerequisites: ["Node.js", "Google OAuth credentials", "Completed local OAuth authorization"],
+		verificationApproach: "List calendar names or free/busy metadata without creating or modifying events.",
+		riskNotes: "Calendar access may expose schedules and attendees; keep verification metadata-only.",
+		setupNotes: [
+			"Confirm desired calendar scopes before OAuth.",
+			"Avoid creating test events unless the user explicitly approves.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@cocal/google-calendar-mcp"],
+		},
+	},
+	{
+		id: "google-sheets",
+		serverName: "google-sheets",
+		name: "Google Sheets",
+		category: "Spreadsheets",
+		description: "Read and update approved Google Sheets through MCP after credential setup.",
+		packageName: "google-sheets-mcp",
+		source: "community MCP server package",
+		sourceUrl: "https://www.npmjs.com/package/google-sheets-mcp",
+		documentationUrl: "https://github.com/xing5/mcp-google-sheets",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: ["GOOGLE_SERVICE_ACCOUNT_KEY"],
+		optionalSecrets: ["GOOGLE_SHEETS_SPREADSHEET_ID"],
+		prerequisites: [
+			"Node.js",
+			"Google service account or OAuth credentials",
+			"Spreadsheet shared with the credential",
+		],
+		verificationApproach: "Read a small approved range from a non-sensitive sheet.",
+		riskNotes: "Can expose spreadsheet data and may update cells; use readonly credentials when possible.",
+		setupNotes: [
+			"Confirm spreadsheet id and worksheet range before verification.",
+			"Avoid edits unless explicitly requested.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "google-sheets-mcp"],
+			env: {
+				GOOGLE_SERVICE_ACCOUNT_KEY: "${env:GOOGLE_SERVICE_ACCOUNT_KEY}",
+			},
+		},
+	},
+	{
+		id: "bigquery",
+		serverName: "bigquery",
+		name: "BigQuery",
+		category: "Databases",
+		description: "Inspect BigQuery datasets, tables, and query results through MCP.",
+		packageName: "mcp-server-bigquery",
+		source: "community Python package for BigQuery MCP access",
+		sourceUrl: "https://pypi.org/project/mcp-server-bigquery/",
+		documentationUrl: "https://github.com/ergut/mcp-bigquery-server",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: ["GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT"],
+		prerequisites: [
+			"Python with uvx",
+			"Google Cloud project",
+			"Service account with least-privilege BigQuery access",
+		],
+		verificationApproach: "List datasets or run a small dry-run or metadata query.",
+		riskNotes: "BigQuery queries can expose sensitive data and incur costs; avoid full table scans.",
+		setupNotes: [
+			"Use dataset/table allowlists where possible.",
+			"Prefer dry-run or metadata checks for verification.",
+		],
+		sampleConfig: {
+			command: "uvx",
+			args: ["mcp-server-bigquery"],
+			env: {
+				GOOGLE_APPLICATION_CREDENTIALS: "${env:GOOGLE_APPLICATION_CREDENTIALS}",
+				GOOGLE_CLOUD_PROJECT: "${env:GOOGLE_CLOUD_PROJECT}",
+			},
+		},
+	},
+	{
+		id: "snowflake",
+		serverName: "snowflake",
+		name: "Snowflake",
+		category: "Databases",
+		description: "Inspect Snowflake warehouses, databases, schemas, and query results through MCP.",
+		packageName: "mcp-server-snowflake",
+		source: "community MCP server package",
+		sourceUrl: "https://pypi.org/project/mcp-server-snowflake/",
+		documentationUrl: "https://github.com/isaacwasserman/mcp-snowflake-server",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: ["SNOWFLAKE_CONNECTION_STRING"],
+		prerequisites: ["Python with uvx", "Snowflake connection details with least-privilege access"],
+		verificationApproach: "Run SELECT CURRENT_VERSION() or list schemas in an approved database.",
+		riskNotes: "Warehouse queries can expose sensitive data and incur compute costs; keep verification minimal.",
+		setupNotes: ["Prefer readonly roles and small warehouses.", "Do not run DDL or DML during setup verification."],
+		sampleConfig: {
+			command: "uvx",
+			args: ["mcp-server-snowflake"],
+			env: {
+				SNOWFLAKE_CONNECTION_STRING: "${env:SNOWFLAKE_CONNECTION_STRING}",
+			},
+		},
+	},
+	{
+		id: "mongodb",
+		serverName: "mongodb",
+		name: "MongoDB",
+		popular: true,
+		category: "Databases",
+		description: "Inspect MongoDB databases, collections, indexes, and documents through MCP.",
+		packageName: "mongodb-mcp-server",
+		source: "MongoDB MCP server package",
+		sourceUrl: "https://www.npmjs.com/package/mongodb-mcp-server",
+		documentationUrl: "https://github.com/mongodb-js/mongodb-mcp-server",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: ["MDB_MCP_CONNECTION_STRING"],
+		prerequisites: ["Node.js", "MongoDB connection string with least-privilege credentials"],
+		verificationApproach: "List databases or collections and read only schema-like metadata.",
+		riskNotes: "Database access can expose documents and secrets; use readonly users and avoid writes.",
+		setupNotes: [
+			"Ask for the connection string only as an environment placeholder.",
+			"Avoid sampling production documents during verification.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "mongodb-mcp-server"],
+			env: {
+				MDB_MCP_CONNECTION_STRING: "${env:MDB_MCP_CONNECTION_STRING}",
+			},
+		},
+	},
+	{
+		id: "elasticsearch",
+		serverName: "elasticsearch",
+		name: "Elasticsearch",
+		category: "Search",
+		description: "Inspect Elasticsearch clusters, indices, mappings, and search results through MCP.",
+		packageName: "@elastic/mcp-server-elasticsearch",
+		source: "Elastic MCP server package",
+		sourceUrl: "https://www.npmjs.com/package/@elastic/mcp-server-elasticsearch",
+		documentationUrl: "https://github.com/elastic/mcp-server-elasticsearch",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: ["ELASTICSEARCH_URL", "ELASTICSEARCH_API_KEY"],
+		prerequisites: ["Node.js", "Elasticsearch endpoint", "API key with minimum privileges"],
+		verificationApproach: "Run cluster info or index mapping queries before searching data.",
+		riskNotes: "Search indices may contain sensitive logs or documents; use metadata checks first.",
+		setupNotes: ["Confirm target cluster and allowed indices.", "Use readonly API keys for verification."],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@elastic/mcp-server-elasticsearch"],
+			env: {
+				ELASTICSEARCH_URL: "${env:ELASTICSEARCH_URL}",
+				ELASTICSEARCH_API_KEY: "${env:ELASTICSEARCH_API_KEY}",
+			},
+		},
+	},
+	{
+		id: "qdrant",
+		serverName: "qdrant",
+		name: "Qdrant",
+		category: "Vector databases",
+		description: "Inspect Qdrant collections and run approved vector-search workflows through MCP.",
+		packageName: "@qdrant/mcp-server-qdrant",
+		source: "Qdrant MCP server package",
+		sourceUrl: "https://www.npmjs.com/package/@qdrant/mcp-server-qdrant",
+		documentationUrl: "https://github.com/qdrant/mcp-server-qdrant",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: ["QDRANT_URL"],
+		optionalSecrets: ["QDRANT_API_KEY"],
+		prerequisites: ["Node.js", "Qdrant URL", "Optional API key for secured clusters"],
+		verificationApproach: "List collections or inspect collection metadata without upserting vectors.",
+		riskNotes: "Vector collections can contain embedded sensitive text; avoid reading payloads until approved.",
+		setupNotes: ["Use metadata-only verification first.", "Use project scope for project-specific vector stores."],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@qdrant/mcp-server-qdrant"],
+			env: {
+				QDRANT_URL: "${env:QDRANT_URL}",
+			},
+		},
+	},
+	{
+		id: "chroma",
+		serverName: "chroma",
+		name: "Chroma",
+		category: "Vector databases",
+		description: "Connect to Chroma collections for local or hosted vector-search workflows.",
+		packageName: "chroma-mcp",
+		source: "community MCP server package",
+		sourceUrl: "https://pypi.org/project/chroma-mcp/",
+		documentationUrl: "https://github.com/chroma-core/chroma-mcp",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: [],
+		optionalSecrets: ["CHROMA_HOST", "CHROMA_PORT", "CHROMA_API_KEY"],
+		prerequisites: ["Python with uvx", "Local or hosted Chroma instance"],
+		verificationApproach: "List collections or inspect metadata without adding or deleting embeddings.",
+		riskNotes: "Collections may include embedded private content; avoid payload reads unless explicitly approved.",
+		setupNotes: [
+			"Confirm whether the user wants local persistent Chroma or a hosted endpoint.",
+			"Keep verification read-only.",
+		],
+		sampleConfig: {
+			command: "uvx",
+			args: ["chroma-mcp"],
+		},
+	},
+	{
+		id: "datadog",
+		serverName: "datadog",
+		name: "Datadog",
+		category: "Observability",
+		description: "Inspect Datadog monitors, dashboards, metrics, logs, and incidents through MCP.",
+		packageName: "datadog-mcp-server",
+		source: "community MCP server package",
+		sourceUrl: "https://www.npmjs.com/package/datadog-mcp-server",
+		documentationUrl: "https://github.com/williamchong/datadog-mcp-server",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["DATADOG_API_KEY", "DATADOG_APP_KEY"],
+		optionalSecrets: ["DATADOG_SITE"],
+		prerequisites: ["Node.js", "Datadog API key", "Datadog application key"],
+		verificationApproach: "List monitors or dashboards without editing them.",
+		riskNotes:
+			"Observability data may contain production logs, traces, and customer metadata; use read-only scopes.",
+		setupNotes: [
+			"Confirm Datadog site such as datadoghq.com or datadoghq.eu.",
+			"Avoid log searches containing secrets.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "datadog-mcp-server"],
+			env: {
+				DATADOG_API_KEY: "${env:DATADOG_API_KEY}",
+				DATADOG_APP_KEY: "${env:DATADOG_APP_KEY}",
+			},
+		},
+	},
+	{
+		id: "grafana",
+		serverName: "grafana",
+		name: "Grafana",
+		popular: true,
+		category: "Observability",
+		description: "Inspect Grafana dashboards, datasources, alerts, and metrics context through MCP.",
+		packageName: "mcp-grafana",
+		source: "Grafana Labs MCP server package",
+		sourceUrl: "https://github.com/grafana/mcp-grafana",
+		documentationUrl: "https://github.com/grafana/mcp-grafana",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["GRAFANA_URL", "GRAFANA_API_KEY"],
+		prerequisites: [
+			"Go binary, Docker image, or package runner supported by mcp-grafana",
+			"Grafana service account token",
+		],
+		verificationApproach: "List dashboards or datasources without editing panels or alerts.",
+		riskNotes: "Dashboards and queries may reveal infrastructure and customer data; use readonly service accounts.",
+		setupNotes: [
+			"Inspect current mcp-grafana installation docs before choosing binary, Docker, or package runner.",
+			"Use metadata-only verification first.",
+		],
+		sampleConfig: {
+			command: "mcp-grafana",
+			env: {
+				GRAFANA_URL: "${env:GRAFANA_URL}",
+				GRAFANA_API_KEY: "${env:GRAFANA_API_KEY}",
+			},
+		},
+	},
+	{
+		id: "prometheus",
+		serverName: "prometheus",
+		name: "Prometheus",
+		category: "Observability",
+		description: "Query Prometheus metrics and metadata through MCP.",
+		packageName: "prometheus-mcp-server",
+		source: "community MCP server package",
+		sourceUrl: "https://pypi.org/project/prometheus-mcp-server/",
+		documentationUrl: "https://github.com/pab1it0/prometheus-mcp-server",
+		transportType: "stdio",
+		recommendedScope: "project",
+		requiredSecrets: ["PROMETHEUS_URL"],
+		optionalSecrets: ["PROMETHEUS_TOKEN"],
+		prerequisites: ["Python with uvx", "Prometheus base URL", "Optional bearer token"],
+		verificationApproach: "Run a metadata query such as label names or a tiny instant query.",
+		riskNotes:
+			"Metrics can expose service names, traffic patterns, and incidents; avoid broad or expensive queries.",
+		setupNotes: ["Confirm Prometheus URL and authentication style.", "Use narrow queries during verification."],
+		sampleConfig: {
+			command: "uvx",
+			args: ["prometheus-mcp-server"],
+			env: {
+				PROMETHEUS_URL: "${env:PROMETHEUS_URL}",
+			},
+		},
+	},
+	{
+		id: "logfire",
+		serverName: "logfire",
+		name: "Logfire",
+		category: "Observability",
+		description: "Inspect Pydantic Logfire projects, traces, logs, and metrics through MCP.",
+		packageName: "logfire-mcp",
+		source: "MCP server package from Pydantic Logfire",
+		sourceUrl: "https://pypi.org/project/logfire-mcp/",
+		documentationUrl: "https://logfire.pydantic.dev/docs/how-to-guides/mcp/",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["LOGFIRE_TOKEN"],
+		prerequisites: ["Python with uvx", "Logfire token with appropriate project access"],
+		verificationApproach: "List accessible projects or fetch a small non-sensitive trace summary.",
+		riskNotes: "Observability data can contain production payloads and user data; use least-privilege tokens.",
+		setupNotes: [
+			"Use environment placeholders for tokens.",
+			"Avoid querying trace attributes that may contain secrets.",
+		],
+		sampleConfig: {
+			command: "uvx",
+			args: ["logfire-mcp"],
+			env: {
+				LOGFIRE_TOKEN: "${env:LOGFIRE_TOKEN}",
+			},
+		},
+	},
+	{
+		id: "airtable",
+		serverName: "airtable",
+		name: "Airtable",
+		category: "Databases",
+		description: "Read Airtable bases, tables, and records through a token-backed MCP server.",
+		packageName: "airtable-mcp-server",
+		source: "community MCP server package",
+		sourceUrl: "https://www.npmjs.com/package/airtable-mcp-server",
+		documentationUrl: "https://github.com/domdomegg/airtable-mcp-server",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["AIRTABLE_API_KEY"],
+		optionalSecrets: ["AIRTABLE_BASE_ID"],
+		prerequisites: ["Node.js", "Airtable personal access token", "Optional base id allowlist"],
+		verificationApproach: "List bases or tables without creating or updating records.",
+		riskNotes: "Airtable bases may include customer or operational data; use read-only scopes and base allowlists.",
+		setupNotes: [
+			"Prefer base-specific tokens and project scope for app-specific bases.",
+			"Do not create test records during setup.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "airtable-mcp-server"],
+			env: {
+				AIRTABLE_API_KEY: "${env:AIRTABLE_API_KEY}",
+			},
+		},
+	},
+	{
+		id: "hubspot",
+		serverName: "hubspot",
+		name: "HubSpot",
+		category: "CRM",
+		description: "Inspect HubSpot CRM contacts, companies, deals, and marketing metadata through MCP.",
+		packageName: "@hubspot/mcp-server",
+		source: "HubSpot MCP server package",
+		sourceUrl: "https://www.npmjs.com/package/@hubspot/mcp-server",
+		documentationUrl: "https://developers.hubspot.com/docs/guides/apps/mcp-server",
+		transportType: "stdio",
+		recommendedScope: "global",
+		requiredSecrets: ["HUBSPOT_ACCESS_TOKEN"],
+		prerequisites: ["Node.js", "HubSpot private app access token with minimum scopes"],
+		verificationApproach: "List account metadata or object schemas without reading individual customer records.",
+		riskNotes:
+			"CRM data may contain personal data and commercial information; use minimum scopes and metadata-only verification.",
+		setupNotes: [
+			"Confirm which CRM objects are needed before choosing scopes.",
+			"Avoid modifying contacts, companies, or deals during setup.",
+		],
+		sampleConfig: {
+			command: "npx",
+			args: ["-y", "@hubspot/mcp-server"],
+			env: {
+				HUBSPOT_ACCESS_TOKEN: "${env:HUBSPOT_ACCESS_TOKEN}",
+			},
+		},
+	},
+] as const satisfies readonly MarketplaceMcpCatalogItem[]
+
+export type MarketplaceMcpCatalogId = (typeof marketplaceMcpCatalog)[number]["id"]
+
+export const marketplaceMcpCatalogById = Object.fromEntries(
+	marketplaceMcpCatalog.map((item) => [item.id, item]),
+) as Record<string, MarketplaceMcpCatalogItem>
+
+export const getMarketplaceMcpCatalogItem = (id: string | undefined) => {
+	return id ? marketplaceMcpCatalogById[id] : undefined
+}
+
+export const isMarketplaceMcpScope = (scope: unknown): scope is MarketplaceMcpScope => {
+	return scope === "global" || scope === "project"
+}
+
+const normalizeMarketplaceMcpIdentifier = (value: string) =>
+	value
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]/g, "")
+
+const marketplaceMcpDiscoveryContext7CatalogIds: readonly MarketplaceMcpCatalogId[] = ["context7"]
+
+const marketplaceMcpDiscoveryWebSearchCatalogIds: readonly MarketplaceMcpCatalogId[] = [
+	"exa-web-search",
+	"brave-search",
+	"tavily-search",
+	"firecrawl",
+]
+
+export type MarketplaceMcpDiscoveryMissingPrerequisite = "context7" | "webSearch"
+
+export interface MarketplaceMcpDiscoveryPrerequisiteStatus {
+	hasContext7: boolean
+	hasWebSearch: boolean
+	missing: MarketplaceMcpDiscoveryMissingPrerequisite[]
+}
+
+const getMarketplaceMcpIdentifierAliases = (item: MarketplaceMcpCatalogItem) => [
+	item.id,
+	item.serverName,
+	item.name,
+	item.packageName,
+	...item.packageName.split(/[\s/]+/),
+]
+
+const doesMarketplaceMcpIdentifierMatchItem = (identifier: string | undefined, item: MarketplaceMcpCatalogItem) => {
+	if (!identifier) {
+		return false
+	}
+
+	const normalizedIdentifier = normalizeMarketplaceMcpIdentifier(identifier)
+
+	return getMarketplaceMcpIdentifierAliases(item).some(
+		(alias) => normalizeMarketplaceMcpIdentifier(alias) === normalizedIdentifier,
+	)
+}
+
+export const isMarketplaceMcpCatalogItemInstalled = (
+	item: MarketplaceMcpCatalogItem,
+	installedServerIdentifiers: readonly (string | undefined)[],
+) => installedServerIdentifiers.some((identifier) => doesMarketplaceMcpIdentifierMatchItem(identifier, item))
+
+const isMarketplaceMcpContext7CatalogItem = (item: MarketplaceMcpCatalogItem) =>
+	marketplaceMcpDiscoveryContext7CatalogIds.includes(item.id as MarketplaceMcpCatalogId)
+
+const isMarketplaceMcpWebSearchCatalogItem = (item: MarketplaceMcpCatalogItem) => {
+	if (marketplaceMcpDiscoveryWebSearchCatalogIds.includes(item.id as MarketplaceMcpCatalogId)) {
+		return true
+	}
+
+	const normalizedSearchText = normalizeMarketplaceMcpIdentifier(
+		[item.id, item.serverName, item.name, item.category, item.description, item.packageName].join(" "),
+	)
+
+	return normalizedSearchText.includes("perplexity") || normalizedSearchText.includes("websearch")
+}
+
+export const isMarketplaceMcpContext7ServerIdentifier = (identifier: string | undefined) =>
+	marketplaceMcpCatalog
+		.filter(isMarketplaceMcpContext7CatalogItem)
+		.some((item) => doesMarketplaceMcpIdentifierMatchItem(identifier, item))
+
+export const isMarketplaceMcpWebSearchServerIdentifier = (identifier: string | undefined) =>
+	marketplaceMcpCatalog
+		.filter(isMarketplaceMcpWebSearchCatalogItem)
+		.some((item) => doesMarketplaceMcpIdentifierMatchItem(identifier, item))
+
+export const getMarketplaceMcpDiscoveryPrerequisiteStatus = (
+	installedServerIdentifiers: readonly (string | undefined)[],
+): MarketplaceMcpDiscoveryPrerequisiteStatus => {
+	const hasContext7 = installedServerIdentifiers.some(isMarketplaceMcpContext7ServerIdentifier)
+	const hasWebSearch = installedServerIdentifiers.some(isMarketplaceMcpWebSearchServerIdentifier)
+
+	return {
+		hasContext7,
+		hasWebSearch,
+		missing: [...(hasContext7 ? [] : (["context7"] as const)), ...(hasWebSearch ? [] : (["webSearch"] as const))],
+	}
+}

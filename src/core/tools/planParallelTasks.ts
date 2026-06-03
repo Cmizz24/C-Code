@@ -19,6 +19,7 @@ export type PlanParallelTasksInput = {
 	agents: PlanParallelTasksInputAgent[]
 	expectedFiles?: string[]
 	sharedContext?: string
+	sharedContract?: string
 }
 
 export type PlanParallelTasksResult =
@@ -66,6 +67,22 @@ function normalizePlanPath(filePath: string): string {
 	return filePath.replace(/\\/g, "/").replace(/^\.\//, "")
 }
 
+function trimPlanPath(filePath: string): string {
+	return normalizePlanPath(filePath).replace(/\/+$/, "")
+}
+
+function planPathsOverlap(leftPath: string, rightPath: string): boolean {
+	const normalizedLeft = trimPlanPath(leftPath)
+	const normalizedRight = trimPlanPath(rightPath)
+
+	return (
+		Boolean(normalizedLeft && normalizedRight) &&
+		(normalizedLeft === normalizedRight ||
+			normalizedLeft.startsWith(`${normalizedRight}/`) ||
+			normalizedRight.startsWith(`${normalizedLeft}/`))
+	)
+}
+
 function ownershipsConflict(left: FileOwnership, right: FileOwnership): boolean {
 	if (left.mode === "shared" || right.mode === "shared") {
 		return false
@@ -75,7 +92,7 @@ function ownershipsConflict(left: FileOwnership, right: FileOwnership): boolean 
 		return false
 	}
 
-	return normalizePlanPath(left.path) === normalizePlanPath(right.path)
+	return planPathsOverlap(left.path, right.path)
 }
 
 function hasWritableOwnershipConflict(left: PlanParallelTasksInputAgent, right: PlanParallelTasksInputAgent): boolean {
@@ -89,7 +106,7 @@ function hasWritableOwnershipConflict(left: PlanParallelTasksInputAgent, right: 
 				continue
 			}
 
-			if (normalizePlanPath(leftOwnership.path) === normalizePlanPath(rightOwnership.path)) {
+			if (planPathsOverlap(leftOwnership.path, rightOwnership.path)) {
 				return true
 			}
 		}
@@ -201,8 +218,12 @@ export function handlePlanParallelTasks(
 
 	const goal = typeof input.goal === "string" ? input.goal : ""
 	const sharedContext = typeof input.sharedContext === "string" ? input.sharedContext : undefined
+	const sharedContract = typeof input.sharedContract === "string" ? input.sharedContract : undefined
 	if (input.sharedContext !== undefined && typeof input.sharedContext !== "string") {
 		errors.push("sharedContext must be a string when provided.")
+	}
+	if (input.sharedContract !== undefined && typeof input.sharedContract !== "string") {
+		errors.push("sharedContract must be a string when provided.")
 	}
 
 	let expectedFiles: string[] = []
@@ -368,7 +389,7 @@ export function handlePlanParallelTasks(
 			}
 			if (dependencyAgent && shouldRemoveDocumentationDependency(agent, dependencyAgent)) {
 				warnings.push(
-					`Agent ${agent.id} dependency on documentation/onboarding agent ${dependencyAgent.id} was removed so independent implementation work can start in parallel. Move required README, documentation, or onboarding context into sharedContext, or generate it before creating the parallel plan.`,
+					`Agent ${agent.id} dependency on documentation/onboarding agent ${dependencyAgent.id} was removed so independent implementation work can start in parallel. Move required README, documentation, onboarding context, or enforceable interface details into sharedContext/sharedContract, or generate it before creating the parallel plan.`,
 				)
 				continue
 			}
@@ -388,7 +409,7 @@ export function handlePlanParallelTasks(
 				!hasWritableOwnershipConflict(agent, dependencyAgent)
 			) {
 				warnings.push(
-					`Agent ${agent.id} waits for ${dependency.agentId} to complete despite non-conflicting ownership. If this is only an interface or DOM/API contract, move that contract into sharedContext or the agent task and remove the dependency so both agents can run in parallel. Use a signal dependency for a narrow handoff instead of waiting for full completion.`,
+					`Agent ${agent.id} references ${dependency.agentId} completion despite non-conflicting ownership. Dependencies are non-blocking coordination context, so both agents will still start within concurrency limits. Move known interface or DOM/API contracts into sharedContract or the agent task so the agents can coordinate without waiting for full completion.`,
 				)
 			}
 		}
@@ -438,7 +459,7 @@ export function handlePlanParallelTasks(
 		mustNotTouch: (agent.mustNotTouch ?? []).map(normalizePlanPath),
 		dependsOn: agent.dependsOn ?? [],
 		worktreePath: agent.worktreePath ?? path.join(repoRoot, ".roo", "parallel-worktrees", planId, agent.id),
-		status: (agent.dependsOn?.length ?? 0) > 0 ? "blocked" : "pending",
+		status: "pending",
 		signals: agent.signals ?? [],
 	}))
 
@@ -454,6 +475,7 @@ export function handlePlanParallelTasks(
 	const plan: ExecutionPlan = {
 		planId,
 		sharedContext: sharedContext ?? goal,
+		sharedContract: sharedContract ?? "",
 		fileOwnershipMap,
 		agents: agentPlans,
 		createdAt: Date.now(),

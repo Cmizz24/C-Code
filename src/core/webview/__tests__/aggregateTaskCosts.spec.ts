@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { aggregateTaskCostsRecursive } from "../aggregateTaskCosts.js"
+import { aggregateTaskCostsRecursive, aggregateTaskTokenUsageRecursive } from "../aggregateTaskCosts.js"
 import type { HistoryItem } from "@roo-code/types"
 
 describe("aggregateTaskCostsRecursive", () => {
@@ -381,5 +381,132 @@ describe("aggregateTaskCostsRecursive", () => {
 		expect(result.childrenCost).toBe(0.5)
 		expect(result.totalCost).toBe(1.5)
 		expect(Object.keys(result.childBreakdown || {})).toEqual(["child"])
+	})
+})
+
+describe("aggregateTaskTokenUsageRecursive", () => {
+	let consoleWarnSpy: ReturnType<typeof vi.spyOn>
+
+	beforeEach(() => {
+		consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+	})
+
+	it("aggregates parent and child token, cache, cost, and request totals", async () => {
+		const mockHistory: Record<string, HistoryItem> = {
+			parent: {
+				id: "parent",
+				tokensIn: 100,
+				tokensOut: 50,
+				cacheWrites: 10,
+				cacheReads: 20,
+				totalCost: 0.1,
+				childIds: ["child-1"],
+			} as unknown as HistoryItem,
+			"child-1": {
+				id: "child-1",
+				tokensIn: 25,
+				tokensOut: 15,
+				cacheWrites: 5,
+				cacheReads: 8,
+				totalCost: 0.02,
+				childIds: [],
+			} as unknown as HistoryItem,
+		}
+		const getTaskHistory = vi.fn(async (id: string) => mockHistory[id])
+		const getTaskRequestCount = vi.fn(async (taskId: string) => (taskId === "parent" ? 2 : 3))
+
+		const result = await aggregateTaskTokenUsageRecursive("parent", getTaskHistory, { getTaskRequestCount })
+
+		expect(result.tokenUsage).toEqual({
+			totalTokensIn: 125,
+			totalTokensOut: 65,
+			totalCacheWrites: 15,
+			totalCacheReads: 28,
+			totalCost: 0.12000000000000001,
+			contextTokens: 0,
+		})
+		expect(result.tokenUsage.totalCost).toBeCloseTo(0.12)
+		expect(result.requestCount).toBe(5)
+	})
+
+	it("aggregates children discovered by parentTaskId without double counting", async () => {
+		const mockHistory: Record<string, HistoryItem> = {
+			parent: {
+				id: "parent",
+				tokensIn: 10,
+				tokensOut: 5,
+				totalCost: 0.01,
+				childIds: ["child"],
+			} as unknown as HistoryItem,
+			child: {
+				id: "child",
+				parentTaskId: "parent",
+				tokensIn: 20,
+				tokensOut: 10,
+				cacheWrites: 2,
+				cacheReads: 3,
+				totalCost: 0.02,
+				childIds: [],
+			} as unknown as HistoryItem,
+			"background-agent": {
+				id: "background-agent",
+				parentTaskId: "parent",
+				tokensIn: 30,
+				tokensOut: 15,
+				cacheWrites: 4,
+				cacheReads: 6,
+				totalCost: 0.03,
+				childIds: [],
+			} as unknown as HistoryItem,
+		}
+		const getTaskHistory = vi.fn(async (id: string) => mockHistory[id])
+		const getChildTaskIds = vi.fn(async (parentId: string) =>
+			Object.values(mockHistory)
+				.filter((item) => item.parentTaskId === parentId)
+				.map((item) => item.id),
+		)
+
+		const result = await aggregateTaskTokenUsageRecursive("parent", getTaskHistory, { getChildTaskIds })
+
+		expect(result.tokenUsage.totalTokensIn).toBe(60)
+		expect(result.tokenUsage.totalTokensOut).toBe(30)
+		expect(result.tokenUsage.totalCacheWrites).toBe(6)
+		expect(result.tokenUsage.totalCacheReads).toBe(9)
+		expect(result.tokenUsage.totalCost).toBeCloseTo(0.06)
+		expect(result.requestCount).toBe(3)
+	})
+
+	it("handles circular references, missing tasks, and invalid usage safely", async () => {
+		const mockHistory: Record<string, HistoryItem> = {
+			"task-a": {
+				id: "task-a",
+				tokensIn: Number.NaN,
+				tokensOut: undefined,
+				cacheWrites: undefined,
+				cacheReads: 4,
+				totalCost: Number.POSITIVE_INFINITY,
+				childIds: ["task-b", "missing-task"],
+			} as unknown as HistoryItem,
+			"task-b": {
+				id: "task-b",
+				tokensIn: 5,
+				tokensOut: 6,
+				totalCost: 0.02,
+				childIds: ["task-a"],
+			} as unknown as HistoryItem,
+		}
+		const getTaskHistory = vi.fn(async (id: string) => mockHistory[id])
+		const getTaskRequestCount = vi.fn(async (taskId: string) => (taskId === "task-b" ? Number.NaN : undefined))
+
+		const result = await aggregateTaskTokenUsageRecursive("task-a", getTaskHistory, { getTaskRequestCount })
+
+		expect(result.tokenUsage.totalTokensIn).toBe(5)
+		expect(result.tokenUsage.totalTokensOut).toBe(6)
+		expect(result.tokenUsage.totalCacheWrites).toBe(0)
+		expect(result.tokenUsage.totalCacheReads).toBe(4)
+		expect(result.tokenUsage.totalCost).toBeCloseTo(0.02)
+		expect(result.requestCount).toBe(1)
+		expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining("Circular reference detected: task-a"))
+		expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining("Task missing-task not found"))
 	})
 })

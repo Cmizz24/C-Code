@@ -474,20 +474,21 @@ export async function executeCommandInTerminal(
 		]
 	} else if (completed || exitDetails) {
 		const currentWorkingDir = terminal.getCurrentWorkingDirectory().toPosix()
-		const shellWriteRecoveryGuidance = getShellWriteRecoveryGuidance(task, command, result, exitDetails)
+		const commandRecoveryGuidance = getCommandRecoveryGuidance(task, command, result, exitDetails)
 
 		// Use persisted output format when output was truncated and spilled to disk
 		if (persistedResult?.truncated) {
-			const persistedShellWriteRecoveryGuidance =
-				shellWriteRecoveryGuidance ||
-				getShellWriteRecoveryGuidance(task, command, persistedResult.preview, exitDetails)
+			const persistedCommandRecoveryGuidance =
+				commandRecoveryGuidance ||
+				getCommandRecoveryGuidance(task, command, persistedResult.preview, exitDetails)
 			return [
 				false,
 				formatPersistedOutput(
 					persistedResult,
 					exitDetails,
 					currentWorkingDir,
-					persistedShellWriteRecoveryGuidance,
+					persistedCommandRecoveryGuidance,
+					command,
 				),
 			]
 		}
@@ -496,28 +497,17 @@ export async function executeCommandInTerminal(
 		let exitStatus: string = ""
 
 		if (exitDetails !== undefined) {
-			if (exitDetails.signalName) {
-				exitStatus = `Process terminated by signal ${exitDetails.signalName}`
-
-				if (exitDetails.coreDumpPossible) {
-					exitStatus += " - core dump possible"
-				}
-			} else if (exitDetails.exitCode === undefined) {
+			if (!exitDetails.signalName && exitDetails.exitCode === undefined) {
 				result += "<VSCE exit code is undefined: terminal output and command execution status is unknown.>"
-				exitStatus = `Exit code: <undefined, notify user>`
-			} else {
-				if (exitDetails.exitCode !== 0) {
-					exitStatus += "Command execution was not successful, inspect the cause and adjust as needed.\n"
-				}
-
-				exitStatus += `Exit code: ${exitDetails.exitCode}`
 			}
+
+			exitStatus = formatExitStatus(exitDetails, { command, output: result })
 		} else {
 			result += "<VSCE exitDetails == undefined: terminal output and command execution status is unknown.>"
-			exitStatus = `Exit code: <undefined, notify user>`
+			exitStatus = formatExitStatus(undefined, { command, output: result })
 		}
 
-		const statusWithGuidance = [exitStatus, shellWriteRecoveryGuidance].filter(Boolean).join("\n")
+		const statusWithGuidance = [exitStatus, commandRecoveryGuidance].filter(Boolean).join("\n")
 
 		return [
 			false,
@@ -538,7 +528,10 @@ export async function executeCommandInTerminal(
 /**
  * Format exit status from ExitCodeDetails
  */
-function formatExitStatus(exitDetails: ExitCodeDetails | undefined): string {
+function formatExitStatus(
+	exitDetails: ExitCodeDetails | undefined,
+	context: { command?: string; output?: string } = {},
+): string {
 	if (exitDetails === undefined) {
 		return "Exit code: <undefined, notify user>"
 	}
@@ -555,6 +548,10 @@ function formatExitStatus(exitDetails: ExitCodeDetails | undefined): string {
 		return "Exit code: <undefined, notify user>"
 	}
 
+	if (isFindstrNoMatches(context.command ?? "", context.output ?? "", exitDetails)) {
+		return FINDSTR_NO_MATCH_GUIDANCE
+	}
+
 	let status = ""
 	if (exitDetails.exitCode !== 0) {
 		status += "Command execution was not successful, inspect the cause and adjust as needed.\n"
@@ -566,7 +563,52 @@ function formatExitStatus(exitDetails: ExitCodeDetails | undefined): string {
 const SHELL_WRITE_RECOVERY_GUIDANCE =
 	"If this command was attempting to create or edit file contents, retry with the normal write/edit tools available to this mode (for example write_to_file, apply_patch, apply_diff, edit, edit_file, or search_replace) instead of shell here-strings, heredocs, or echo chains. Use execute_command for commands, tests, builds, package managers, scripts, or shell operations, not for embedding file contents."
 
+const FINDSTR_NO_MATCH_GUIDANCE =
+	"findstr returned no matches (exit code 1). Treat this as an empty search result, not a command failure."
+
+const FINDSTR_SEARCH_RECOVERY_GUIDANCE =
+	"findstr failed because Windows findstr/cmd.exe cannot handle long search strings or broken pipe searches reliably. Retry with the dedicated search tools when searching the workspace, split the search into short patterns, or use PowerShell Select-String with manageable pattern arrays."
+
 const WINDOWS_SHELL_COMMAND_LENGTH_SOFT_LIMIT = 8_000
+
+function getCommandRecoveryGuidance(
+	task: Pick<Task, "background" | "agentId">,
+	command: string,
+	output: string,
+	exitDetails: ExitCodeDetails | undefined,
+): string {
+	return [
+		getFindstrRecoveryGuidance(command, output, exitDetails),
+		getShellWriteRecoveryGuidance(task, command, output, exitDetails),
+	]
+		.filter(Boolean)
+		.join("\n")
+}
+
+function getFindstrRecoveryGuidance(command: string, output: string, exitDetails: ExitCodeDetails | undefined): string {
+	if (!looksLikeFindstrCommand(command) || exitDetails?.exitCode === 0) {
+		return ""
+	}
+
+	if (looksLikeFindstrError(output) || (exitDetails?.exitCode ?? 0) > 1) {
+		return FINDSTR_SEARCH_RECOVERY_GUIDANCE
+	}
+
+	return ""
+}
+
+function isFindstrNoMatches(command: string, output: string, exitDetails: ExitCodeDetails): boolean {
+	return looksLikeFindstrCommand(command) && exitDetails.exitCode === 1 && !looksLikeFindstrError(output)
+}
+
+function looksLikeFindstrCommand(command: string): boolean {
+	return /\bfindstr(?:\.exe)?\b/i.test(command)
+}
+
+function looksLikeFindstrError(output: string): boolean {
+	const text = output.toLowerCase()
+	return text.includes("findstr:") || text.includes("search string too long") || text.includes("nonexistent pipe")
+}
 
 function getPreExecutionShellWriteRecoveryGuidance(
 	task: Pick<Task, "background" | "agentId">,
@@ -723,12 +765,13 @@ function formatPersistedOutput(
 	result: PersistedCommandOutput,
 	exitDetails: ExitCodeDetails | undefined,
 	workingDir: string,
-	shellWriteRecoveryGuidance = "",
+	commandRecoveryGuidance = "",
+	command = "",
 ): string {
-	const exitStatus = formatExitStatus(exitDetails)
+	const exitStatus = formatExitStatus(exitDetails, { command, output: result.preview })
 	const sizeStr = formatBytes(result.totalBytes)
 	const artifactId = result.artifactPath ? path.basename(result.artifactPath) : ""
-	const statusWithGuidance = [exitStatus, shellWriteRecoveryGuidance].filter(Boolean).join("\n")
+	const statusWithGuidance = [exitStatus, commandRecoveryGuidance].filter(Boolean).join("\n")
 
 	return [
 		`Command executed in '${workingDir}'. ${statusWithGuidance}`,

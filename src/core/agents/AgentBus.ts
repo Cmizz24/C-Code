@@ -44,12 +44,25 @@ type CoordinationQuestionState = {
 	unanswerableReason?: string
 }
 
-export type AgentCompletionCoordinationBlocker = {
-	type: "incoming-question" | "outgoing-question" | "unread-answer"
-	question: AgentCoordinationEvent
-	answer?: AgentCoordinationEvent
-	retryCount?: number
-}
+export type AgentCompletionCoordinationBlocker =
+	| {
+			type: "incoming-question"
+			question: AgentCoordinationEvent
+	  }
+	| {
+			type: "outgoing-question"
+			question: AgentCoordinationEvent
+			retryCount?: number
+	  }
+	| {
+			type: "unread-answer"
+			question: AgentCoordinationEvent
+			answer?: AgentCoordinationEvent
+	  }
+	| {
+			type: "shared-contract-unacknowledged"
+			sharedContract: string
+	  }
 
 export type AgentCompletionCoordinationGate = {
 	approved: boolean
@@ -111,6 +124,22 @@ function pathMatches(ownedPath: string, requestedPath: string): boolean {
 	)
 }
 
+function trimTrailingPathSeparator(filePath: string): string {
+	return normalizePath(filePath).replace(/\/+$/, "")
+}
+
+function pathsOverlap(leftPath: string, rightPath: string): boolean {
+	const normalizedLeft = trimTrailingPathSeparator(leftPath)
+	const normalizedRight = trimTrailingPathSeparator(rightPath)
+
+	return (
+		Boolean(normalizedLeft && normalizedRight) &&
+		(normalizedLeft === normalizedRight ||
+			normalizedLeft.startsWith(`${normalizedRight}/`) ||
+			normalizedRight.startsWith(`${normalizedLeft}/`))
+	)
+}
+
 export class AgentBus extends EventEmitter<AgentBusEvents> {
 	private static instance: AgentBus | undefined
 
@@ -121,6 +150,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	private readonly blockedAgents = new Set<string>()
 	private readonly coordinationReadAgents = new Set<string>()
 	private readonly coordinationPublishedAgents = new Set<string>()
+	private readonly sharedContractAcknowledgedAgents = new Set<string>()
 	private readonly writeIntentEvidenceByAgent = new Map<string, AgentWriteIntentEvidence[]>()
 	private readonly completionPackets = new Map<string, AgentCompletionPacket>()
 	private readonly coordinationQuestions = new Map<string, CoordinationQuestionState>()
@@ -149,6 +179,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		this.blockedAgents.clear()
 		this.coordinationReadAgents.clear()
 		this.coordinationPublishedAgents.clear()
+		this.sharedContractAcknowledgedAgents.clear()
 		this.writeIntentEvidenceByAgent.clear()
 		this.completionPackets.clear()
 		this.coordinationQuestions.clear()
@@ -170,10 +201,17 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 				continue
 			}
 
-			agent.status = this.areDependenciesSatisfied(agent.dependsOn) ? "pending" : "blocked"
-			if (agent.status === "blocked") {
-				this.blockedAgents.add(agent.id)
-			}
+			agent.status = "pending"
+		}
+
+		const sharedContract = (plan.sharedContract ?? "").trim()
+		if (sharedContract) {
+			this.appendCoordinationEvent({
+				id: `${plan.planId}-shared-contract`,
+				message: `Shared contract: ${sharedContract}`,
+				kind: "shared-contract",
+				source: "system",
+			})
 		}
 
 		this.emit("plan", plan)
@@ -212,7 +250,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		const normalizedPath = normalizePath(filePath)
 		const agent = this.getAgent(agentId)
 		const ownerAgentId = this.findOwnerAgentId(normalizedPath)
-		const activeWriter = this.activeWrites.get(normalizedPath)
+		const activeWriter = this.findActiveWriter(normalizedPath)
 		const incomingQuestionBlockers = this.getBlockingIncomingQuestions(agentId).filter((question) =>
 			this.isQuestionRelevantToPath(question, normalizedPath),
 		)
@@ -222,16 +260,19 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			permission = { approved: true, unownedWarning: "No active execution plan is available for this agent." }
 		} else if (agent.mustNotTouch.some((blockedPath) => pathMatches(blockedPath, normalizedPath))) {
 			permission = { approved: false, reason: `${normalizedPath} is listed in mustNotTouch for ${agentId}.` }
-		} else if (activeWriter && activeWriter !== agentId) {
+		} else if (activeWriter && activeWriter.agentId !== agentId) {
 			permission = {
 				approved: false,
-				reason: `${normalizedPath} is currently locked by ${activeWriter}.`,
+				reason: `${normalizedPath} is currently locked by ${activeWriter.agentId}${
+					activeWriter.path === normalizedPath ? "" : ` through overlapping write ${activeWriter.path}`
+				}.`,
 				suggestWait: true,
 			}
 		} else if (ownerAgentId && ownerAgentId !== agentId) {
 			permission = {
-				approved: true,
-				unownedWarning: `${normalizedPath} is owned by ${ownerAgentId} (advisory only).`,
+				approved: false,
+				reason: `${normalizedPath} is owned by ${ownerAgentId}. Coordinate with the owning agent or update the execution plan before writing.`,
+				suggestWait: true,
 			}
 		} else if (
 			agent.owns.some(
@@ -343,6 +384,30 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		return this.getOpenQuestionsForAgent(agentId).slice(-limit)
 	}
 
+	public acknowledgeSharedContract(agentId: string): AgentCoordinationEvent | undefined {
+		const agent = this.getAgent(agentId)
+		const sharedContract = (this.executionPlan?.sharedContract ?? "").trim()
+		if (!agent || !sharedContract) {
+			return undefined
+		}
+
+		this.sharedContractAcknowledgedAgents.add(agentId)
+		return this.appendCoordinationEvent({
+			agentId,
+			message: `Acknowledged shared contract for plan ${this.executionPlan?.planId ?? "unknown"}.`,
+			kind: "shared-contract",
+			source: "agent",
+		})
+	}
+
+	public hasAgentAcknowledgedSharedContract(agentId: string): boolean {
+		if (!(this.executionPlan?.sharedContract ?? "").trim()) {
+			return true
+		}
+
+		return this.sharedContractAcknowledgedAgents.has(agentId)
+	}
+
 	public getAgentCompletionCoordinationGate(
 		agentId: string,
 		options: { recordAttempt?: boolean } = {},
@@ -369,8 +434,9 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			answer,
 		}))
 		const unanswerableQuestions = this.getUnanswerableQuestionsForAgent(agentId)
+		const sharedContractBlockers = this.getSharedContractCompletionBlockers(agentId)
 
-		const blockers = [...incoming, ...outgoing, ...unreadAnswers]
+		const blockers = [...sharedContractBlockers, ...incoming, ...outgoing, ...unreadAnswers]
 		return { approved: blockers.length === 0, blockers, unanswerableQuestions }
 	}
 
@@ -421,6 +487,9 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		}
 
 		if (agent) {
+			if (blockedOn?.length) {
+				agent.dependsOn = blockedOn
+			}
 			agent.status = "blocked"
 		}
 		this.blockedAgents.add(agentId)
@@ -969,6 +1038,15 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			})
 	}
 
+	private getSharedContractCompletionBlockers(agentId: string): AgentCompletionCoordinationBlocker[] {
+		const sharedContract = (this.executionPlan?.sharedContract ?? "").trim()
+		if (!sharedContract || this.hasAgentAcknowledgedSharedContract(agentId)) {
+			return []
+		}
+
+		return [{ type: "shared-contract-unacknowledged", sharedContract }]
+	}
+
 	private getUnanswerableQuestionsForAgent(agentId: string): AgentCoordinationEvent[] {
 		return this.getQuestionStates()
 			.map((state) => state.question)
@@ -1041,6 +1119,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			case "decision":
 			case "blocker":
 			case "note":
+			case "shared-contract":
 				return kind
 			default:
 				return "note"
@@ -1136,16 +1215,36 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	}
 
 	private findOwnerAgentId(filePath: string): string | undefined {
+		const normalizedPath = normalizePath(filePath)
+
 		for (const agent of this.executionPlan?.agents ?? []) {
 			const ownership = agent.owns.find(
-				(candidate) => candidate.mode !== "shared" && pathMatches(candidate.path, filePath),
+				(candidate) => candidate.mode !== "shared" && pathMatches(candidate.path, normalizedPath),
 			)
 			if (ownership) {
 				return agent.id
 			}
 		}
 
-		return this.executionPlan?.fileOwnershipMap[normalizePath(filePath)]
+		for (const [ownedPath, agentId] of Object.entries(this.executionPlan?.fileOwnershipMap ?? {})) {
+			if (pathMatches(ownedPath, normalizedPath)) {
+				return agentId
+			}
+		}
+
+		return undefined
+	}
+
+	private findActiveWriter(filePath: string): { path: string; agentId: string } | undefined {
+		const normalizedPath = normalizePath(filePath)
+
+		for (const [activePath, activeAgentId] of this.activeWrites.entries()) {
+			if (pathsOverlap(activePath, normalizedPath)) {
+				return { path: activePath, agentId: activeAgentId }
+			}
+		}
+
+		return undefined
 	}
 
 	private areDependenciesSatisfied(dependsOn: AgentDependency[]): boolean {

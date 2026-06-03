@@ -100,6 +100,7 @@ describe("Single-open-task invariant", () => {
 			// Methods used by createTaskWithHistoryItem for pending edit cleanup
 			getPendingEditOperation: vi.fn().mockReturnValue(undefined),
 			clearPendingEditOperation: vi.fn(),
+			restorePersistedParallelResumeState: vi.fn().mockResolvedValue({ status: "none" }),
 			context: { extension: { packageJSON: {} }, globalStorageUri: { fsPath: "/tmp" } },
 			contextProxy: {
 				extensionUri: {},

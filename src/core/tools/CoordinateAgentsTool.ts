@@ -1,4 +1,5 @@
 import type { NativeToolArgs } from "../../shared/tools"
+import { isGenericOwnershipCoordinationMessage } from "../agents/AgentBus"
 import { formatResponse } from "../prompts/responses"
 import { Task } from "../task/Task"
 
@@ -8,6 +9,7 @@ type CoordinateAgentsParams = NativeToolArgs["coordinate_agents"]
 
 const BROADCAST_TARGET_SENTINELS = new Set(["all", "none"])
 const NO_REPLY_SENTINELS = new Set(["none"])
+const PUBLISHABLE_COORDINATION_KINDS = new Set(["question", "answer", "decision", "note", "blocker"])
 
 function normalizeOptionalCoordinationString(
 	value: string | undefined,
@@ -72,6 +74,23 @@ function formatTerminalPublishSuppression(
 	].join("\n")
 }
 
+function formatContractAcknowledgementResult(
+	event: NonNullable<ReturnType<Task["acknowledgeAgentSharedContract"]>> | undefined,
+	recent: ReturnType<Task["getAgentCoordinationEvents"]>,
+	openQuestions: ReturnType<Task["getAgentCoordinationEvents"]>,
+): string {
+	return [
+		event
+			? `Acknowledged shared contract for this agent (${event.id ?? event.ts}).`
+			: "No shared contract requires acknowledgement for this agent.",
+		...formatOpenQuestions(openQuestions),
+		recent.length ? "Recent team chat:" : "No recent team chat messages.",
+		...recent.map(formatCoordinationEvent),
+	]
+		.filter(Boolean)
+		.join("\n")
+}
+
 export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 	readonly name = "coordinate_agents" as const
 
@@ -84,6 +103,15 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 			pushToolResult(
 				formatResponse.toolError("coordinate_agents is only available to background parallel agents."),
 			)
+			return
+		}
+
+		if (params.action === "acknowledge_contract") {
+			task.consecutiveMistakeCount = 0
+			const event = task.acknowledgeAgentSharedContract()
+			const recent = task.getAgentCoordinationEvents({ limit: params.limit })
+			const openQuestions = task.getOpenAgentCoordinationQuestions({ limit: params.limit })
+			pushToolResult(formatContractAcknowledgementResult(event, recent, openQuestions))
 			return
 		}
 
@@ -114,15 +142,29 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 				return
 			}
 
-			if (params.kind !== "question" && params.kind !== "answer") {
+			if (!PUBLISHABLE_COORDINATION_KINDS.has(params.kind ?? "")) {
 				task.consecutiveMistakeCount++
 				task.recordToolError(
 					"coordinate_agents",
-					"Publish requires kind='question' or kind='answer' for active team coordination.",
+					"Publish requires kind='question', kind='answer', kind='decision', kind='note', or kind='blocker' for active team coordination.",
 				)
 				pushToolResult(
 					formatResponse.toolError(
-						"Publish a real integration question or answer. Do not post ownership/status-only team chat.",
+						"Publish a real integration question, answer, decision, assumption note, or blocker. Do not post ownership/status-only team chat.",
+					),
+				)
+				return
+			}
+
+			if (isGenericOwnershipCoordinationMessage(params.message)) {
+				task.consecutiveMistakeCount++
+				task.recordToolError(
+					"coordinate_agents",
+					"Publish requires a concrete integration question, answer, decision, assumption note, or blocker; ownership/status-only team chat is not allowed.",
+				)
+				pushToolResult(
+					formatResponse.toolError(
+						"Publish concrete integration coordination only. Do not post ownership introductions, status-only updates, or generic team-chat setup messages.",
 					),
 				)
 				return
@@ -184,7 +226,9 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 
 		task.consecutiveMistakeCount++
 		task.recordToolError("coordinate_agents", `Unsupported action: ${String(params.action)}`)
-		pushToolResult(formatResponse.toolError("coordinate_agents action must be 'publish' or 'read'."))
+		pushToolResult(
+			formatResponse.toolError("coordinate_agents action must be 'publish', 'read', or 'acknowledge_contract'."),
+		)
 	}
 }
 

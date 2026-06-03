@@ -1,6 +1,15 @@
 import React from "react"
 
-import { type ProviderSettings, openAiCodexDefaultModelId, openAiCodexModels } from "@roo-code/types"
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+
+import {
+	type ModelInfo,
+	type OpenAiCodexFastStatus,
+	type OpenAiCodexModelId,
+	type ProviderSettings,
+	openAiCodexDefaultModelId,
+	openAiCodexModels,
+} from "@roo-code/types"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Button } from "@src/components/ui"
@@ -14,15 +23,37 @@ interface OpenAICodexProps {
 	setApiConfigurationField: (field: keyof ProviderSettings, value: ProviderSettings[keyof ProviderSettings]) => void
 	simplifySettings?: boolean
 	openAiCodexIsAuthenticated?: boolean
+	openAiCodexFastStatus?: OpenAiCodexFastStatus
 }
+
+type FastModeStatusKey = "disabled" | "unsupported" | "signInRequired" | "requested" | "confirmed" | "rejected"
 
 export const OpenAICodex: React.FC<OpenAICodexProps> = ({
 	apiConfiguration,
 	setApiConfigurationField,
 	simplifySettings,
 	openAiCodexIsAuthenticated = false,
+	openAiCodexFastStatus,
 }) => {
 	const { t } = useAppTranslation()
+	const selectedModelId = apiConfiguration.apiModelId ?? openAiCodexDefaultModelId
+	const selectedModel =
+		selectedModelId in openAiCodexModels
+			? (openAiCodexModels[selectedModelId as OpenAiCodexModelId] as ModelInfo)
+			: undefined
+	const fastModeEnabled = apiConfiguration.openAiCodexFastMode ?? false
+	const fastModeSupported = selectedModel?.supportsFastMode === true
+	const fastStatusMatchesSelectedModel = openAiCodexFastStatus?.modelId === selectedModelId
+	const fastModeStatusKey: FastModeStatusKey = !fastModeSupported
+		? "unsupported"
+		: !fastModeEnabled
+			? "disabled"
+			: !openAiCodexIsAuthenticated
+				? "signInRequired"
+				: fastStatusMatchesSelectedModel &&
+					  (openAiCodexFastStatus.state === "confirmed" || openAiCodexFastStatus.state === "rejected")
+					? openAiCodexFastStatus.state
+					: "requested"
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -53,6 +84,27 @@ export const OpenAICodex: React.FC<OpenAICodexProps> = ({
 
 			{/* Rate Limit Dashboard - only shown when authenticated */}
 			<OpenAICodexRateLimitDashboard isAuthenticated={openAiCodexIsAuthenticated} />
+
+			<div className="flex flex-col gap-1">
+				<VSCodeCheckbox
+					checked={fastModeEnabled}
+					onChange={(event: any) => {
+						setApiConfigurationField("openAiCodexFastMode", event.target.checked)
+					}}>
+					<span className="font-medium">{t("settings:providers.openAiCodexFastMode.label")}</span>
+				</VSCodeCheckbox>
+				<p className="m-0 text-sm text-vscode-descriptionForeground">
+					{t("settings:providers.openAiCodexFastMode.description")}
+				</p>
+				<p
+					className="m-0 text-sm text-vscode-descriptionForeground"
+					data-testid="openai-codex-fast-mode-status">
+					{t(`settings:providers.openAiCodexFastMode.status.${fastModeStatusKey}`, {
+						modelId: selectedModelId,
+						observedServiceTier: openAiCodexFastStatus?.observedServiceTier ?? "unknown",
+					})}
+				</p>
+			</div>
 
 			{/* Model Picker */}
 			<ModelPicker

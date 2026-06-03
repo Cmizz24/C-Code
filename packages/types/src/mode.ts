@@ -165,6 +165,8 @@ export type CustomSupportPrompts = z.infer<typeof customSupportPromptsSchema>
  * DEFAULT_MODES
  */
 
+export const MCP_SETUP_MODE_SLUG = "mcp-setup"
+
 export const DEFAULT_MODE_GROUPS = {
 	defaults: { label: "Defaults", slugs: ["architect", "code", "debug", "orchestrator"] },
 	frontend: { label: "Frontend", slugs: ["ui-ux", "component", "css-styling", "accessibility", "animation"] },
@@ -172,6 +174,7 @@ export const DEFAULT_MODE_GROUPS = {
 	fullstack: { label: "Fullstack", slugs: ["integration", "realtime"] },
 	quality: { label: "Quality", slugs: ["review", "test", "security", "performance", "refactor"] },
 	planning: { label: "Planning", slugs: ["spec", "explain", "memory", "diagram", "migration", "onboarding"] },
+	configuration: { label: "Configuration", slugs: [MCP_SETUP_MODE_SLUG] },
 	devops: { label: "DevOps", slugs: ["devops"] },
 	platform: { label: "Platform", slugs: ["mobile", "cli-tools", "browser-extension"] },
 } as const
@@ -187,6 +190,7 @@ const INFRA_FILE_REGEX =
 	"(^|/)(\\.github|\\.vscode|scripts|deploy|infra|ops|k8s|docker|helm)(/|$)|(^|/)(Dockerfile|docker-compose[^/]*|.*\\.(yml|yaml|toml|json|sh|ps1|tf|hcl))$"
 const TEST_FILE_REGEX = "(^|/)(__tests__|__snapshots__|tests?|specs?)(/|$)|\\.(test|spec)\\.(ts|tsx|js|jsx|mjs|cjs|py)$"
 const MARKDOWN_FILE_REGEX = "\\.(md|mdx)$"
+const MCP_CONFIG_FILE_REGEX = "(^|[\\\\/])(\\.roo[\\\\/]mcp\\.json|mcp_settings\\.json)$"
 
 export const DEFAULT_MODES: readonly ModeConfig[] = [
 	{
@@ -611,6 +615,23 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 		],
 		customInstructions:
 			"Favor practical, verified steps. Keep docs accurate to the current repository, avoid speculation, and include commands only after checking the relevant package or workspace context.",
+	},
+	{
+		slug: MCP_SETUP_MODE_SLUG,
+		name: "🔌 MCP Setup",
+		roleDefinition:
+			"You are Roo, an MCP setup specialist who installs, configures, troubleshoots, and verifies Model Context Protocol servers while preserving existing user configuration and secret boundaries.",
+		whenToUse:
+			"Use this mode for MCP server installation, marketplace setup tasks, MCP settings updates, connection troubleshooting, and safe capability verification.",
+		description: "Install and verify MCP servers",
+		groups: [
+			"read",
+			["edit", { fileRegex: MCP_CONFIG_FILE_REGEX, description: "MCP settings files only" }],
+			"command",
+			"mcp",
+		],
+		customInstructions:
+			"Stay focused on MCP server setup, configuration, and verification. Inspect the current MCP config and upstream server documentation before choosing commands or final config. Never echo, log, or store literal secret values; use environment placeholders such as ${env:SECRET_NAME}. Preserve all existing mcpServers entries and unrelated settings when editing config. Request approval before running package installs, writing files, refreshing servers, or using MCP tools that can modify external systems. Prefer read-only verification and avoid destructive actions in repositories, databases, browsers, SaaS apps, or local files unless the user explicitly asks. Report the configured server name, target scope, config path, observed tools/resources, and any follow-up the user must complete.",
 	},
 	{
 		slug: "devops",

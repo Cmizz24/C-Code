@@ -60,5 +60,95 @@
 		"running": "執行中",
 		"completed": "已完成",
 		"error": "錯誤"
+	},
+	"marketplace": {
+		"title": "MCP Marketplace",
+		"description": "探索適用於搜尋、編碼、文件、資料庫、檔案和團隊工作流程的可信 MCP 伺服器。選擇一個，C 會在引導式任務中完成設定。",
+		"featuredCatalog": "精選 MCP 伺服器",
+		"stats": {
+			"servers": "精選伺服器",
+			"installed": "已安裝"
+		},
+		"search": {
+			"label": "搜尋 Marketplace",
+			"placeholder": "依名稱、類別、套件或 secret 搜尋..."
+		},
+		"filters": {
+			"categoryLabel": "依類別篩選",
+			"all": "所有類別"
+		},
+		"resultsSummary": "正在顯示 {{shown}} / {{total}} 個伺服器",
+		"badges": {
+			"featured": "精選",
+			"popular": "熱門"
+		},
+		"labels": {
+			"category": "類別",
+			"package": "套件",
+			"source": "來源",
+			"transport": "傳輸方式",
+			"requiredSecrets": "必要 secret",
+			"prerequisites": "先決條件",
+			"suggestedScope": "建議範圍",
+			"scope": "目標範圍",
+			"verification": "驗證",
+			"riskNotes": "風險說明"
+		},
+		"scope": {
+			"global": "全域",
+			"project": "專案"
+		},
+		"actions": {
+			"installWithAI": "使用 AI 安裝",
+			"configureAgain": "重新設定",
+			"clearFilters": "清除篩選",
+			"showDetails": "詳細資料",
+			"hideDetails": "隱藏詳細資料",
+			"openDocs": "開啟文件"
+		},
+		"customDiscovery": {
+			"title": "找不到 MCP 伺服器？",
+			"description": "輸入你想要的 MCP 伺服器，C 會開啟一個 MCP 設定任務，用已安裝的研究工具尋找官方文件、提出安全設定並進行驗證。",
+			"mode": {
+				"label": "自訂 MCP 伺服器動作",
+				"find": "尋找現有伺服器",
+				"create": "建立新伺服器"
+			},
+			"inputLabel": "MCP 伺服器名稱或描述",
+			"placeholder": "範例：Perplexity 搜尋 MCP 伺服器",
+			"action": "使用 AI 探索",
+			"validation": {
+				"empty": "開始探索前，請輸入 MCP 伺服器名稱或描述。"
+			},
+			"create": {
+				"description": "描述你想要的 MCP 伺服器或工具，C 會開啟一個 MCP Setup 任務來設計、實作、設定並驗證自訂本機伺服器。",
+				"inputLabel": "新的 MCP 伺服器應該做什麼？",
+				"placeholder": "範例：新增一個從此工作區查詢內部套件文件的工具",
+				"action": "使用 AI 建立",
+				"recommendation": "Context7 和 Web 搜尋可以協助查找文件，但即使未安裝它們，也不會阻止建立。",
+				"validation": {
+					"empty": "開始建立自訂 MCP 伺服器前，請輸入你希望 MCP 伺服器執行的操作。"
+				}
+			},
+			"requirements": {
+				"context7": "Context7 已安裝",
+				"webSearch": "Web 搜尋已安裝",
+				"missingBoth": "開始自訂 MCP 探索前，請安裝 Context7 和至少一個 Web 搜尋 MCP 伺服器。",
+				"missingContext7": "開始自訂 MCP 探索前，請安裝 Context7。",
+				"missingWebSearch": "開始自訂 MCP 探索前，請安裝至少一個 Web 搜尋 MCP 伺服器，例如 Exa Web Search、Brave Search、Tavily Search 或 Firecrawl。"
+			}
+		},
+		"empty": {
+			"title": "找不到 MCP 伺服器",
+			"description": "請嘗試其他搜尋詞，或清除所選類別篩選。"
+		},
+		"status": {
+			"installed": "已安裝"
+		},
+		"prerequisiteOverflow": "+{{count}} 個更多",
+		"secretSummary": "{{count}} 個必要",
+		"optionalSecretSummary": "{{count}} 個選用",
+		"noSecrets": "無 secret",
+		"noneRequired": "不需要"
 	}
 }

@@ -347,6 +347,18 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Activer Fast mode",
+			"description": "Utilise le niveau de service prioritaire d'OpenAI pour les modèles compatibles (GPT-5.5 et GPT-5.4). Fast mode peut consommer des crédits plus rapidement.",
+			"status": {
+				"disabled": "Fast mode est disponible pour {{modelId}}, mais il est actuellement désactivé.",
+				"unsupported": "Fast mode n'est pas disponible pour {{modelId}}.",
+				"signInRequired": "Fast mode est activé pour {{modelId}}, mais tu dois te connecter avant qu'il puisse s'exécuter.",
+				"requested": "Fast mode a été demandé pour {{modelId}}, mais OpenAI n'a pas encore confirmé le niveau priority.",
+				"confirmed": "Fast mode est confirmé pour {{modelId}} sur le niveau priority d'OpenAI.",
+				"rejected": "Fast mode a été demandé pour {{modelId}}, mais OpenAI a indiqué le niveau de service {{observedServiceTier}}."
+			}
+		},
 		"useCustomBaseUrl": "Utiliser une URL de base personnalisée",
 		"useReasoning": "Activer le raisonnement",
 		"useHostHeader": "Utiliser un en-tête Host personnalisé",
@@ -577,6 +589,67 @@
 			"label": "Activer la synthèse vocale",
 			"description": "Lorsque cette option est activée, Roo lira ses réponses à haute voix en utilisant la synthèse vocale.",
 			"speedLabel": "Vitesse"
+		},
+		"email": {
+			"label": "Activer les notifications par email",
+			"description": "Envoie des notifications par email SMTP en HTML avec une version de secours en texte brut lorsqu'une tâche de premier niveau se termine. Les transcriptions de tâches ne sont jamais incluses.",
+			"notifyOnSuccess": {
+				"label": "Notifier quand les tâches se terminent avec succès"
+			},
+			"notifyOnFailure": {
+				"label": "Notifier quand les tâches échouent ou sont abandonnées",
+				"description": "Inclut les échecs de streaming et les tâches abandonnées par l'utilisateur. Les tâches en arrière-plan et les tâches enfants déléguées sont ignorées."
+			},
+			"smtpHost": {
+				"label": "Hôte SMTP",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "Port SMTP"
+			},
+			"smtpSecure": {
+				"label": "Utiliser le TLS implicite",
+				"description": "Active-le pour les connexions SMTPS, généralement sur le port 465. Laisse-le désactivé pour STARTTLS sur le port 587."
+			},
+			"smtpRequireTls": {
+				"label": "Exiger STARTTLS",
+				"description": "Exige que le serveur mette à niveau la connexion avec STARTTLS avant d'envoyer les identifiants."
+			},
+			"smtpUsername": {
+				"label": "Nom d'utilisateur SMTP",
+				"placeholder": "Nom d'utilisateur facultatif"
+			},
+			"smtpPassword": {
+				"label": "Mot de passe SMTP",
+				"placeholder": "Saisis le mot de passe SMTP",
+				"configuredPlaceholder": "Laisse vide pour conserver le mot de passe enregistré",
+				"description": "Stocké dans le stockage secret de VS Code et jamais réaffiché.",
+				"configuredDescription": "Un mot de passe est déjà enregistré. Saisis un nouveau mot de passe uniquement si tu veux le remplacer."
+			},
+			"smtpFromAddress": {
+				"label": "Adresse d'expéditeur",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Destinataires",
+				"placeholder": "toi@example.com\nequipe@example.com",
+				"description": "Sépare les destinataires par des virgules ou des retours à la ligne."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Modèle d'objet",
+				"placeholder": "Tâche C {{outcome}}",
+				"description": "Facultatif. Tokens disponibles : {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Les tokens ne tiennent pas compte de la casse, donc {{taskId}} et {{taskid}} fonctionnent tous les deux."
+			},
+			"test": {
+				"label": "Tester les paramètres SMTP",
+				"description": "Envoie un e-mail de test avec les paramètres SMTP enregistrés. Les modifications non enregistrées et les nouveaux mots de passe doivent d'abord être enregistrés.",
+				"button": "Tester SMTP",
+				"sending": "Envoi...",
+				"success": "E-mail de test SMTP envoyé avec succès.",
+				"failure": "Impossible d'envoyer l'e-mail de test SMTP.",
+				"invalidConfig": "Les paramètres SMTP sont incomplets ou invalides. Consulte la sortie de l'extension pour plus de détails.",
+				"unsavedChanges": "Enregistre tes paramètres SMTP avant de tester. Tester SMTP utilise uniquement les paramètres enregistrés et le mot de passe du stockage secret de VS Code."
+			}
 		}
 	},
 	"contextManagement": {

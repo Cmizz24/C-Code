@@ -1,7 +1,7 @@
 import React, { createContext, useContext, ReactNode, useEffect, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import i18next, { loadTranslations } from "./setup"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 
 // Create context for translations
 export const TranslationContext = createContext<{

@@ -28,6 +28,7 @@ import {
 	type ToolUsage,
 	type ExtensionMessage,
 	type ExtensionState,
+	type OpenAiCodexFastStatus,
 	type AgentEvent,
 	type AgentCompletionPacket,
 	type AgentDependency,
@@ -56,7 +57,11 @@ import {
 	getModelId,
 	isRetiredProvider,
 } from "@roo-code/types"
-import { aggregateTaskCostsRecursive, type AggregatedCosts } from "./aggregateTaskCosts"
+import {
+	aggregateTaskCostsRecursive,
+	aggregateTaskTokenUsageRecursive,
+	type AggregatedCosts,
+} from "./aggregateTaskCosts"
 
 import { Package } from "../../shared/package"
 import { findLast } from "../../shared/array"
@@ -81,11 +86,17 @@ import { ShadowCheckpointService } from "../../services/checkpoints/ShadowCheckp
 import { CodeIndexManager } from "../../services/code-index/manager"
 import type { IndexProgressUpdate } from "../../services/code-index/interfaces/manager"
 import { SkillsManager } from "../../services/skills/SkillsManager"
+import {
+	EmailNotificationService,
+	type EmailNotificationOutcome,
+	type EmailNotificationPayload,
+	type EmailNotificationSendResult,
+} from "../../services/notifications/EmailNotificationService"
 
 import { fileExistsAtPath } from "../../utils/fs"
 import { setTtsEnabled, setTtsSpeed } from "../../utils/tts"
 import { getWorkspaceGitInfo } from "../../utils/git"
-import { getWorkspacePath } from "../../utils/path"
+import { arePathsEqual, getWorkspacePath } from "../../utils/path"
 import { OrganizationAllowListViolationError } from "../../utils/errors"
 
 import { setPanel } from "../../activate/registerCommands"
@@ -109,7 +120,12 @@ import { getUri } from "./getUri"
 import { REQUESTY_BASE_URL } from "../../shared/utils/requesty"
 import { validateAndFixToolResultIds } from "../task/validateToolResultIds"
 import { AgentBus, isGenericOwnershipCoordinationMessage } from "../agents/AgentBus"
-import { getWorktreeManagerErrorMessage, WorktreeManager, WorktreeMergeError } from "../agents/WorktreeManager"
+import {
+	getWorktreeManagerErrorMessage,
+	WorktreeManager,
+	WorktreeMergeError,
+	type WorktreeMergeReviewDiagnostics,
+} from "../agents/WorktreeManager"
 import { OrchestratorEventLoop } from "../orchestrator/OrchestratorEventLoop"
 
 /**
@@ -154,6 +170,18 @@ type BackgroundAgentActivityDescriptionOptions = {
 }
 type MergeApprovedAgentsOptions = { autoApproved?: boolean }
 type AutoMergeReviewSkipReason = { agentId?: string; reason: string }
+type MergeAffectedOpenDocument = {
+	document: vscode.TextDocument
+	relPath: string
+	absolutePath: string
+}
+type MergeDocumentPreparationResult = {
+	affectedPaths: string[]
+	openDocuments: MergeAffectedOpenDocument[]
+	dirtyDocuments: MergeAffectedOpenDocument[]
+	savedDocuments: MergeAffectedOpenDocument[]
+}
+type MergeDocumentSyncStage = "pre-save" | "auto-approved-block" | "post-merge-sync"
 type ParallelParentVerificationDirective = {
 	sourceOfTruth: "structured_completion_packet"
 	evidenceStatus: "clean-merged" | "requires-attention"
@@ -192,9 +220,39 @@ type AutoMergeReviewDecision = {
 	skipReasons: AutoMergeReviewSkipReason[]
 }
 
+type EmailNotificationTaskOutcomeState = {
+	version: 1
+	outcomes: Array<{
+		taskId: string
+		outcome: EmailNotificationOutcome
+		notificationType?: EmailNotificationTaskOutcomeScope
+	}>
+}
+
+type EmailNotificationTaskOutcomeScope = NonNullable<EmailNotificationPayload["notificationType"]> | "task"
+
+type EmailNotificationTaskContext = {
+	parentTaskId?: string
+	rootTaskId?: string
+	agentId?: string
+	background: boolean
+	mode?: string
+	workspacePath?: string
+	lifecycle?: "created" | "completed"
+}
+
+type EmailNotificationUsageHistoryItem = Pick<
+	HistoryItem,
+	"id" | "tokensIn" | "tokensOut" | "cacheWrites" | "cacheReads" | "totalCost" | "childIds" | "completedByChildId"
+>
+
 const PARALLEL_AGENT_ACTIVITY_LIMIT = 50
 const PARALLEL_AGENT_COORDINATION_LIMIT = 24
 const PARALLEL_REVIEW_SUMMARY_PATH = ".roo/parallel-agent-review.md"
+const EMAIL_NOTIFICATION_TASK_OUTCOME_STATE_KEY = "emailNotificationTaskOutcomes.v1"
+const MAX_EMAIL_NOTIFICATION_TASK_OUTCOMES = 500
+const MAX_EMAIL_NOTIFICATION_SUMMARY_LENGTH = 600
+const DEFAULT_COMPLETION_EMAIL_SUMMARY = "Task completed successfully."
 
 export class ClineProvider
 	extends EventEmitter<TaskProviderEvents>
@@ -237,9 +295,14 @@ export class ClineProvider
 	private parallelPlanCompletionPacket?: ParallelPlanCompletionPacket
 	private parallelUsageSummary?: ParallelAgentUsageSummary
 	private parallelReviewSummary?: ParallelAgentReviewSummary
+	private readonly emailNotificationTaskTokenUsage = new Map<string, TokenUsage>()
+	private readonly emailNotificationTaskToolUsage = new Map<string, ToolUsage>()
+	private readonly emailNotificationTaskRequestCounts = new Map<string, number>()
+	private readonly emailNotificationTaskContexts = new Map<string, EmailNotificationTaskContext>()
 	private parallelStatusUpdateQueue: Promise<void> = Promise.resolve()
 	private parallelStatusUpdatePromise?: Promise<void>
 	private parallelStatusUpdateRequested = false
+	private parallelParentResumeKey?: string
 	private readonly forwardAgentEvent = (event: AgentEvent): void => {
 		switch (event.type) {
 			case "STATUS":
@@ -373,6 +436,11 @@ export class ClineProvider
 	private recentTasksCache?: string[]
 	public readonly taskHistoryStore: TaskHistoryStore
 	private taskHistoryStoreInitialized = false
+	private readonly emailNotificationService: EmailNotificationService
+	private readonly emailNotificationTaskOutcomes = new Map<string, EmailNotificationOutcome>()
+	private readonly emailNotificationTaskOutcomesInFlight = new Map<string, EmailNotificationOutcome>()
+	private readonly emailNotificationTaskOutcomeOrder: string[] = []
+	private emailNotificationTaskOutcomeStateLoaded = false
 	private globalStateWriteThroughTimer: ReturnType<typeof setTimeout> | null = null
 	private static readonly GLOBAL_STATE_WRITE_THROUGH_DEBOUNCE_MS = 5000 // 5 seconds
 	private pendingOperations: Map<string, PendingEditOperation> = new Map()
@@ -399,6 +467,10 @@ export class ClineProvider
 		super()
 		this.currentWorkspacePath = getWorkspacePath()
 		this.worktreeManager = new WorktreeManager(this.currentWorkspacePath)
+		this.emailNotificationService = new EmailNotificationService(this.contextProxy, {
+			log: (message) => this.log(message),
+		})
+		this.loadEmailNotificationTaskOutcomeState()
 
 		ClineProvider.activeInstances.add(this)
 
@@ -443,16 +515,31 @@ export class ClineProvider
 		// Forward <most> task events to the provider.
 		// We do something fairly similar for the IPC-based API.
 		this.taskCreationCallback = (instance: Task) => {
+			this.rememberEmailNotificationTaskContext(instance, "created")
 			this.emit(RooCodeEventName.TaskCreated, instance)
 
 			// Create named listener functions so we can remove them later.
 			const onTaskStarted = () => this.emit(RooCodeEventName.TaskStarted, instance.taskId)
 			const onTaskCompleted = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) => {
+				this.logEmailNotificationDiagnostics("completion-event-observed", {
+					taskId,
+					instanceTaskId: instance.taskId,
+					background: instance.background === true,
+					hasParentTask: Boolean(instance.parentTask),
+					parentTaskId: instance.parentTaskId,
+					rootTaskId: instance.rootTaskId,
+					agentId: instance.agentId,
+					taskStatus: instance.taskStatus,
+					currentTaskId: this.getCurrentTask()?.taskId,
+				})
+
 				if (instance.background) {
 					this.postBackgroundAgentUsage(instance, tokenUsage)
 					this.finalizeBackgroundAgentTask(instance, "complete")
 					this.removeBackgroundTask(instance)
 				}
+
+				this.notifyTaskCompletion(instance, tokenUsage, toolUsage)
 
 				this.emit(RooCodeEventName.TaskCompleted, taskId, tokenUsage, toolUsage)
 			}
@@ -465,6 +552,10 @@ export class ClineProvider
 						this.removeBackgroundTask(instance)
 						return
 					}
+
+					this.log(
+						`[email-notifications] Skipping task ${instance.taskId} abort notification because automatic SMTP notifications are completion-only.`,
+					)
 
 					// Only rehydrate on genuine streaming failures.
 					// User-initiated cancels are handled by cancelTask().
@@ -505,6 +596,12 @@ export class ClineProvider
 				this.handleBackgroundAgentMessage(instance, action, message)
 			}
 			const onTaskTokenUsageUpdated = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) => {
+				this.rememberEmailNotificationTaskUsage(
+					taskId,
+					tokenUsage,
+					toolUsage,
+					this.countApiRequestMessages(instance.clineMessages),
+				)
 				this.postBackgroundAgentUsage(instance, tokenUsage)
 				this.emit(RooCodeEventName.TaskTokenUsageUpdated, taskId, tokenUsage, toolUsage)
 			}
@@ -647,6 +744,1262 @@ export class ClineProvider
 				`[background-task] Failed to dispose task ${task.taskId}.${task.instanceId}: ${error instanceof Error ? error.message : String(error)}`,
 			)
 		}
+	}
+
+	private notifyTaskCompletion(task: Task, tokenUsage?: TokenUsage, toolUsage?: ToolUsage): void {
+		this.rememberEmailNotificationTaskContext(task, "completed")
+
+		const taskDiagnostics = this.getEmailNotificationTaskDiagnostics(task)
+		const summary = this.getEmailNotificationSummary(task)
+		const requestCount = this.countApiRequestMessages(task.clineMessages)
+		this.rememberEmailNotificationTaskUsage(task.taskId, tokenUsage, toolUsage, requestCount)
+
+		if (task.background) {
+			this.logEmailNotificationDiagnostics("completion-notification-decision", {
+				...taskDiagnostics,
+				decision: "skip-background-task-covered-by-parallel-workflow",
+				coveredByWorkflowNotification: true,
+				hasSummary: Boolean(summary),
+				summaryLength: summary?.length ?? 0,
+				requestCount,
+			})
+			this.log(
+				`[email-notifications] Skipping task ${task.taskId} notification because background parallel agents are covered by the parent workflow completion notification.`,
+			)
+			return
+		}
+
+		if (task.parentTask || task.parentTaskId) {
+			this.logEmailNotificationDiagnostics("completion-notification-decision", {
+				...taskDiagnostics,
+				decision: "send-delegated-child-success",
+				hasSummary: Boolean(summary),
+				summaryLength: summary?.length ?? 0,
+				requestCount,
+			})
+
+			this.notifyTaskOutcome({
+				taskId: task.taskId,
+				outcome: "success",
+				summary,
+				workspacePath: task.workspacePath,
+				mode: task.taskMode,
+				notificationType: "delegated-child",
+				parentTaskId: this.getEmailNotificationParentTaskId(task),
+				rootTaskId: this.getEmailNotificationRootTaskId(task),
+				agentId: task.agentId,
+				tokenUsage,
+				toolUsage,
+				requestCount,
+			})
+			return
+		}
+
+		const historyItem = this.getEmailNotificationHistoryItem(task.taskId)
+		const topLevelNotificationDedupeKey = this.getEmailNotificationTaskOutcomeKey(task.taskId)
+		const hasDelegatedWorkflowMetadata = Boolean(
+			historyItem && this.hasDelegatedWorkflowNotificationMetadata(historyItem),
+		)
+		let childTaskIds = this.getEmailNotificationWorkflowChildTaskIds(task.taskId, historyItem)
+		let coveredChildTaskId: string | undefined
+		let inFlightChildTaskId: string | undefined
+
+		if (historyItem && hasDelegatedWorkflowMetadata) {
+			childTaskIds = Array.from(
+				new Set([...childTaskIds, ...this.getDelegatedWorkflowNotificationChildIds(historyItem)]),
+			)
+			coveredChildTaskId = childTaskIds.find((childTaskId) =>
+				this.hasEmailNotificationTaskOutcomeBeenSent(childTaskId, "success", "delegated-child"),
+			)
+			inFlightChildTaskId = childTaskIds.find((childTaskId) =>
+				this.hasEmailNotificationTaskOutcomeInFlight(childTaskId, "success", "delegated-child"),
+			)
+
+			if (coveredChildTaskId || inFlightChildTaskId) {
+				this.logEmailNotificationDiagnostics("completion-notification-decision", {
+					...taskDiagnostics,
+					decision: "send-top-level-success-after-delegated-child-notification",
+					notificationScope: "task",
+					notificationDedupeKey: topLevelNotificationDedupeKey,
+					hasSummary: Boolean(summary),
+					summaryLength: summary?.length ?? 0,
+					hasDelegatedWorkflowMetadata: true,
+					childTaskIds,
+					coveredChildTaskId,
+					inFlightChildTaskId,
+					requestCount,
+				})
+				this.log(
+					`[email-notifications] Sending final parent task ${task.taskId} notification separately from delegated child task ${
+						coveredChildTaskId ?? inFlightChildTaskId
+					} notification.`,
+				)
+			} else if (childTaskIds.length > 0) {
+				this.logEmailNotificationDiagnostics("completion-notification-decision", {
+					...taskDiagnostics,
+					decision: "prepare-delegated-child-workflow-success-and-send-top-level-success",
+					notificationScope: "task",
+					notificationDedupeKey: topLevelNotificationDedupeKey,
+					hasSummary: Boolean(summary),
+					summaryLength: summary?.length ?? 0,
+					hasDelegatedWorkflowMetadata: true,
+					childTaskIds,
+					requestCount,
+				})
+				void this.notifyDelegatedWorkflowCompleted(
+					historyItem,
+					summary ?? historyItem.completionResultSummary ?? DEFAULT_COMPLETION_EMAIL_SUMMARY,
+					{
+						workspacePath: task.workspacePath,
+						mode: task.taskMode,
+						toolUsage,
+					},
+				).catch((error) => {
+					this.log(
+						`[email-notifications] Failed to prepare delegated child completion notification for ${task.taskId}: ${this.sanitizeEmailNotificationLogMessage(
+							error,
+						)}`,
+					)
+				})
+			} else {
+				this.logEmailNotificationDiagnostics("completion-notification-decision", {
+					...taskDiagnostics,
+					decision: "send-top-level-success-no-delegated-child-id",
+					notificationScope: "task",
+					notificationDedupeKey: topLevelNotificationDedupeKey,
+					hasSummary: Boolean(summary),
+					summaryLength: summary?.length ?? 0,
+					hasDelegatedWorkflowMetadata: true,
+					requestCount,
+				})
+			}
+		}
+
+		this.logEmailNotificationDiagnostics("completion-notification-decision", {
+			...taskDiagnostics,
+			decision: hasDelegatedWorkflowMetadata
+				? "send-top-level-success-after-delegated-workflow"
+				: "send-top-level-success",
+			notificationScope: "task",
+			notificationDedupeKey: topLevelNotificationDedupeKey,
+			hasSummary: Boolean(summary),
+			summaryLength: summary?.length ?? 0,
+			hasDelegatedWorkflowMetadata,
+			childTaskIds,
+			coveredChildTaskId,
+			inFlightChildTaskId,
+			requestCount,
+		})
+
+		const usageHistoryItem = this.getEmailNotificationUsageHistoryItem(
+			task.taskId,
+			historyItem,
+			tokenUsage,
+			childTaskIds,
+		)
+
+		if (!historyItem && childTaskIds.length === 0) {
+			this.logEmailNotificationDiagnostics("completion-notification-aggregation", {
+				...taskDiagnostics,
+				decision: "use-live-task-usage",
+				usageAggregationSource: "live-task-event",
+				parentHistoryFound: false,
+				workflowChildTaskCount: 0,
+				requestCount,
+				hasTokenUsage: Boolean(tokenUsage),
+				totalTokensIn: this.toFiniteEmailNotificationNumber(tokenUsage?.totalTokensIn),
+				totalTokensOut: this.toFiniteEmailNotificationNumber(tokenUsage?.totalTokensOut),
+				totalCost: this.toFiniteEmailNotificationNumber(tokenUsage?.totalCost),
+			})
+
+			this.notifyTaskOutcome({
+				taskId: task.taskId,
+				outcome: "success",
+				summary,
+				workspacePath: task.workspacePath,
+				mode: task.taskMode,
+				tokenUsage,
+				toolUsage,
+				requestCount,
+				usageScope: "Task only (live completion event)",
+			})
+			return
+		}
+
+		void this.notifyTopLevelTaskCompletionWithWorkflowUsage({
+			task,
+			taskDiagnostics,
+			summary,
+			historyItem,
+			usageHistoryItem,
+			childTaskIds,
+			tokenUsage,
+			toolUsage,
+			requestCount,
+		}).catch((error: unknown) => {
+			this.log(
+				`[email-notifications] Failed to prepare final parent workflow usage for task ${task.taskId}; sending notification with live usage: ${this.sanitizeEmailNotificationLogMessage(
+					error,
+				)}`,
+			)
+
+			this.notifyTaskOutcome({
+				taskId: task.taskId,
+				outcome: "success",
+				summary,
+				workspacePath: task.workspacePath,
+				mode: task.taskMode,
+				tokenUsage,
+				toolUsage,
+				requestCount,
+				usageScope: "Task only (live completion event)",
+			})
+		})
+	}
+
+	private notifyParallelMergeWorkflowCompletion(
+		task: Task | undefined,
+		plan: ExecutionPlan,
+		approvedAgentIds: string[],
+		entries?: MergeReviewEntry[],
+	): void {
+		const mergedEntryCount =
+			entries?.filter((entry) => entry.mergeStatus === "merged").length ?? approvedAgentIds.length
+		const planDiagnostics = {
+			planId: plan.planId,
+			agentCount: plan.agents.length,
+			approvedAgentCount: approvedAgentIds.length,
+			mergedEntryCount,
+			reason: "successful parallel merge",
+		}
+
+		if (!task) {
+			this.logEmailNotificationDiagnostics("parallel-merge-parent-notification-decision", {
+				...planDiagnostics,
+				decision: "skip-no-current-task",
+			})
+			this.log(
+				`[email-notifications] Skipping parallel merge completion notification for plan ${plan.planId} because no current parent task is available.`,
+			)
+			return
+		}
+
+		const taskDiagnostics = this.getEmailNotificationTaskDiagnostics(task)
+		const duplicateDiagnostics = this.getEmailNotificationOutcomeDiagnostics(
+			task.taskId,
+			"success",
+			"parallel-workflow",
+		)
+
+		if (task.background) {
+			this.logEmailNotificationDiagnostics("parallel-merge-parent-notification-decision", {
+				...taskDiagnostics,
+				...planDiagnostics,
+				...duplicateDiagnostics,
+				decision: "skip-background-task",
+			})
+			this.log(
+				`[email-notifications] Skipping parallel merge completion notification for task ${task.taskId} because it is a background task.`,
+			)
+			return
+		}
+
+		if (task.parentTask || task.parentTaskId) {
+			this.logEmailNotificationDiagnostics("parallel-merge-parent-notification-decision", {
+				...taskDiagnostics,
+				...planDiagnostics,
+				...duplicateDiagnostics,
+				decision: "skip-delegated-child-task",
+			})
+			this.log(
+				`[email-notifications] Skipping parallel merge completion notification for task ${task.taskId} because it is a delegated child task.`,
+			)
+			return
+		}
+
+		const summary = this.buildParallelMergeNotificationSummary(plan, approvedAgentIds)
+		const requestCount = this.countApiRequestMessages(task.clineMessages)
+
+		this.logEmailNotificationDiagnostics("parallel-merge-parent-notification-decision", {
+			...taskDiagnostics,
+			...planDiagnostics,
+			...duplicateDiagnostics,
+			decision: "send-parallel-merge-workflow-success",
+			hasSummary: Boolean(summary),
+			summaryLength: summary.length,
+			requestCount,
+		})
+
+		this.notifyTaskOutcome({
+			taskId: task.taskId,
+			outcome: "success",
+			summary,
+			workspacePath: task.workspacePath,
+			mode: task.taskMode,
+			notificationType: "parallel-workflow",
+			tokenUsage: task.tokenUsage,
+			toolUsage: task.toolUsage,
+			requestCount,
+		})
+	}
+
+	private buildParallelMergeNotificationSummary(plan: ExecutionPlan, approvedAgentIds: string[]): string {
+		const approvedAgentCount = approvedAgentIds.length
+		const approvedAgentLabel =
+			approvedAgentCount === 1 ? "1 approved agent branch" : `${approvedAgentCount} approved agent branches`
+		const materializedVerb = approvedAgentCount === 1 ? "was" : "were"
+		const plannedAgentLabel = plan.agents.length === 1 ? "1 planned agent" : `${plan.agents.length} planned agents`
+
+		return `Parallel agent workflow completed successfully; ${approvedAgentLabel} ${materializedVerb} materialized into the workspace (${plannedAgentLabel}).`
+	}
+
+	private getEmailNotificationTaskDiagnostics(task: Task): Record<string, unknown> {
+		const currentTask = this.getCurrentTask()
+
+		return {
+			taskId: task.taskId,
+			background: task.background === true,
+			hasParentTask: Boolean(task.parentTask),
+			parentTaskId: task.parentTaskId,
+			rootTaskId: task.rootTaskId,
+			agentId: task.agentId,
+			taskStatus: task.taskStatus,
+			isCurrentTask: currentTask?.taskId === task.taskId,
+			currentTaskId: currentTask?.taskId,
+			currentTaskBackground: currentTask?.background === true,
+		}
+	}
+
+	private getEmailNotificationParentTaskId(task: Task): string | undefined {
+		return task.parentTaskId ?? task.parentTask?.taskId
+	}
+
+	private getEmailNotificationRootTaskId(task: Task): string | undefined {
+		return task.rootTaskId ?? task.parentTask?.rootTaskId ?? this.getEmailNotificationParentTaskId(task)
+	}
+
+	private getDelegatedWorkflowNotificationChildIds(
+		historyItem: Pick<HistoryItem, "childIds" | "completedByChildId">,
+	): string[] {
+		return Array.from(
+			new Set(
+				[historyItem.completedByChildId, ...(historyItem.childIds ?? [])].filter(
+					(childTaskId): childTaskId is string => typeof childTaskId === "string" && childTaskId.length > 0,
+				),
+			),
+		)
+	}
+
+	private logEmailNotificationDiagnostics(event: string, diagnostics: Record<string, unknown>): void {
+		this.log(`[email-notifications] diagnostics ${JSON.stringify({ event, ...diagnostics })}`)
+	}
+
+	private getEmailNotificationOutcomeDiagnostics(
+		taskId: string,
+		outcome: EmailNotificationOutcome,
+		notificationType?: EmailNotificationPayload["notificationType"],
+	): Record<string, unknown> {
+		const notificationDedupeKey = this.getEmailNotificationTaskOutcomeKey(taskId, notificationType)
+
+		return {
+			notificationDedupeKey,
+			notificationScope: this.getEmailNotificationTaskOutcomeScope(notificationType),
+			sentOutcome: this.emailNotificationTaskOutcomes.get(notificationDedupeKey),
+			inFlightOutcome: this.emailNotificationTaskOutcomesInFlight.get(notificationDedupeKey),
+			duplicateSent: this.hasEmailNotificationTaskOutcomeBeenSent(taskId, outcome, notificationType),
+			duplicateInFlight: this.hasEmailNotificationTaskOutcomeInFlight(taskId, outcome, notificationType),
+		}
+	}
+
+	private async notifyDelegatedWorkflowCompleted(
+		historyItem: Pick<
+			HistoryItem,
+			| "id"
+			| "workspace"
+			| "mode"
+			| "rootTaskId"
+			| "tokensIn"
+			| "tokensOut"
+			| "cacheWrites"
+			| "cacheReads"
+			| "totalCost"
+			| "childIds"
+			| "completedByChildId"
+		>,
+		completionResultSummary: string,
+		options: Pick<EmailNotificationPayload, "workspacePath" | "mode" | "toolUsage"> = {},
+	): Promise<void> {
+		const childTaskId = this.getDelegatedWorkflowNotificationChildIds(historyItem)[0]
+
+		if (!childTaskId) {
+			this.logEmailNotificationDiagnostics("delegated-workflow-notification-prepared", {
+				taskId: historyItem.id,
+				decision: "skip-no-delegated-child-task-id",
+				hasSummary: Boolean(completionResultSummary),
+				summaryLength: completionResultSummary.length,
+			})
+			return
+		}
+
+		if (this.hasEmailNotificationTaskOutcomeBeenSent(childTaskId, "success", "delegated-child")) {
+			this.logEmailNotificationDiagnostics("delegated-workflow-notification-prepared", {
+				taskId: historyItem.id,
+				childTaskId,
+				decision: "skip-child-duplicate-sent",
+				notificationType: "delegated-child",
+				notificationDedupeKey: this.getEmailNotificationTaskOutcomeKey(childTaskId, "delegated-child"),
+			})
+			return
+		}
+
+		if (this.hasEmailNotificationTaskOutcomeInFlight(childTaskId, "success", "delegated-child")) {
+			this.logEmailNotificationDiagnostics("delegated-workflow-notification-prepared", {
+				taskId: historyItem.id,
+				childTaskId,
+				decision: "skip-child-duplicate-in-flight",
+				notificationType: "delegated-child",
+				notificationDedupeKey: this.getEmailNotificationTaskOutcomeKey(childTaskId, "delegated-child"),
+			})
+			return
+		}
+
+		const childHistoryItem = this.getEmailNotificationHistoryItem(childTaskId)
+		const usageHistoryItem = childHistoryItem ?? historyItem
+		const usage = await this.getAggregatedTaskNotificationUsage(usageHistoryItem).catch((error) => {
+			this.log(
+				`[email-notifications] Failed to aggregate delegated completion usage for child task ${childTaskId}; sending notification with fallback usage: ${this.sanitizeEmailNotificationLogMessage(
+					error,
+				)}`,
+			)
+
+			return this.getFallbackTaskNotificationUsage(usageHistoryItem)
+		})
+
+		this.logEmailNotificationDiagnostics("delegated-workflow-notification-prepared", {
+			taskId: historyItem.id,
+			childTaskId,
+			decision: "send-delegated-child-success",
+			hasSummary: Boolean(completionResultSummary),
+			summaryLength: completionResultSummary.length,
+			workspacePath: options.workspacePath ?? childHistoryItem?.workspace ?? historyItem.workspace,
+			mode:
+				options.mode ??
+				(typeof childHistoryItem?.mode === "string"
+					? childHistoryItem.mode
+					: typeof historyItem.mode === "string"
+						? historyItem.mode
+						: undefined),
+			parentTaskId: historyItem.id,
+			rootTaskId: childHistoryItem?.rootTaskId ?? historyItem.rootTaskId ?? historyItem.id,
+			requestCount: usage.requestCount,
+			hasTokenUsage: Boolean(usage.tokenUsage),
+		})
+
+		this.notifyTaskOutcome({
+			taskId: childTaskId,
+			outcome: "success",
+			summary: this.formatEmailNotificationSummary(completionResultSummary) ?? DEFAULT_COMPLETION_EMAIL_SUMMARY,
+			workspacePath: options.workspacePath ?? childHistoryItem?.workspace ?? historyItem.workspace,
+			mode:
+				options.mode ??
+				(typeof childHistoryItem?.mode === "string"
+					? childHistoryItem.mode
+					: typeof historyItem.mode === "string"
+						? historyItem.mode
+						: undefined),
+			notificationType: "delegated-child",
+			parentTaskId: historyItem.id,
+			rootTaskId: childHistoryItem?.rootTaskId ?? historyItem.rootTaskId ?? historyItem.id,
+			toolUsage: options.toolUsage,
+			...usage,
+		})
+	}
+
+	private async notifyTopLevelTaskCompletionWithWorkflowUsage({
+		task,
+		taskDiagnostics,
+		summary,
+		historyItem,
+		usageHistoryItem,
+		childTaskIds,
+		tokenUsage,
+		toolUsage,
+		requestCount,
+	}: {
+		task: Task
+		taskDiagnostics: Record<string, unknown>
+		summary?: string
+		historyItem?: HistoryItem
+		usageHistoryItem: EmailNotificationUsageHistoryItem
+		childTaskIds: string[]
+		tokenUsage?: TokenUsage
+		toolUsage?: ToolUsage
+		requestCount: number
+	}): Promise<void> {
+		const usage = await this.getAggregatedTaskNotificationUsage(usageHistoryItem).catch((error) => {
+			this.log(
+				`[email-notifications] Failed to aggregate final parent workflow usage for task ${task.taskId}; sending notification with fallback usage: ${this.sanitizeEmailNotificationLogMessage(
+					error,
+				)}`,
+			)
+
+			return this.getFallbackTaskNotificationUsage(usageHistoryItem)
+		})
+		const aggregatedRequestCount = Math.max(usage.requestCount ?? 0, requestCount)
+		const workflowToolUsage = this.getEmailNotificationWorkflowToolUsage(task.taskId, toolUsage, childTaskIds)
+		const workflowSummary = this.buildEmailNotificationWorkflowSummary(task, summary, childTaskIds, historyItem)
+		const usageScope = this.buildEmailNotificationUsageScope(childTaskIds.length)
+
+		this.logEmailNotificationDiagnostics("completion-notification-aggregation", {
+			...taskDiagnostics,
+			decision: "use-aggregated-workflow-usage",
+			usageAggregationSource: historyItem ? "history-recursive" : "live-root-with-discovered-children",
+			parentHistoryFound: Boolean(historyItem),
+			workflowChildTaskCount: childTaskIds.length,
+			requestCount: aggregatedRequestCount,
+			hasTokenUsage: Boolean(usage.tokenUsage),
+			totalTokensIn: this.toFiniteEmailNotificationNumber(usage.tokenUsage?.totalTokensIn),
+			totalTokensOut: this.toFiniteEmailNotificationNumber(usage.tokenUsage?.totalTokensOut),
+			totalCacheWrites: this.toFiniteEmailNotificationNumber(usage.tokenUsage?.totalCacheWrites),
+			totalCacheReads: this.toFiniteEmailNotificationNumber(usage.tokenUsage?.totalCacheReads),
+			totalCost: this.toFiniteEmailNotificationNumber(usage.tokenUsage?.totalCost),
+			hasWorkflowToolUsage: Boolean(workflowToolUsage),
+			toolAttempts: this.countEmailNotificationToolUsage(workflowToolUsage).attempts,
+			toolFailures: this.countEmailNotificationToolUsage(workflowToolUsage).failures,
+		})
+
+		this.notifyTaskOutcome({
+			taskId: task.taskId,
+			outcome: "success",
+			summary,
+			workflowSummary,
+			usageScope,
+			workspacePath: task.workspacePath,
+			mode: task.taskMode,
+			tokenUsage: usage.tokenUsage ?? tokenUsage,
+			toolUsage: workflowToolUsage ?? toolUsage,
+			requestCount: aggregatedRequestCount,
+		})
+	}
+
+	private rememberEmailNotificationTaskContext(task: Task, lifecycle: "created" | "completed"): void {
+		this.emailNotificationTaskContexts.set(task.taskId, {
+			parentTaskId: this.getEmailNotificationParentTaskId(task),
+			rootTaskId: this.getEmailNotificationRootTaskId(task),
+			agentId: task.agentId,
+			background: task.background === true,
+			mode: task.taskMode,
+			workspacePath: task.workspacePath,
+			lifecycle,
+		})
+	}
+
+	private rememberEmailNotificationTaskUsage(
+		taskId: string,
+		tokenUsage?: TokenUsage,
+		toolUsage?: ToolUsage,
+		requestCount?: number,
+	): void {
+		if (tokenUsage) {
+			this.emailNotificationTaskTokenUsage.set(taskId, tokenUsage)
+		}
+
+		if (toolUsage) {
+			this.emailNotificationTaskToolUsage.set(taskId, toolUsage)
+		}
+
+		if (typeof requestCount === "number" && Number.isFinite(requestCount)) {
+			this.emailNotificationTaskRequestCounts.set(taskId, requestCount)
+		}
+	}
+
+	private getEmailNotificationTaskUsageHistoryItem(taskId: string): EmailNotificationUsageHistoryItem | undefined {
+		const historyItem = this.getEmailNotificationHistoryItem(taskId)
+		const tokenUsage = this.emailNotificationTaskTokenUsage.get(taskId)
+		const childTaskIds = this.getEmailNotificationWorkflowChildTaskIds(taskId, historyItem)
+
+		if (historyItem || tokenUsage || this.emailNotificationTaskContexts.has(taskId) || childTaskIds.length > 0) {
+			return this.getEmailNotificationUsageHistoryItem(taskId, historyItem, tokenUsage, childTaskIds)
+		}
+
+		return undefined
+	}
+
+	private getEmailNotificationWorkflowChildTaskIds(taskId: string, historyItem?: HistoryItem): string[] {
+		const childTaskIds = new Set<string>()
+
+		for (const childTaskId of historyItem?.childIds ?? []) {
+			childTaskIds.add(childTaskId)
+		}
+
+		if (historyItem?.completedByChildId) {
+			childTaskIds.add(historyItem.completedByChildId)
+		}
+
+		for (const childTaskId of this.getChildTaskIds(taskId)) {
+			childTaskIds.add(childTaskId)
+		}
+
+		for (const [candidateTaskId, context] of this.emailNotificationTaskContexts) {
+			if (context.parentTaskId === taskId) {
+				childTaskIds.add(candidateTaskId)
+			}
+		}
+
+		childTaskIds.delete(taskId)
+		return Array.from(childTaskIds)
+	}
+
+	private getEmailNotificationUsageHistoryItem(
+		taskId: string,
+		historyItem: HistoryItem | undefined,
+		tokenUsage: TokenUsage | undefined,
+		childTaskIds: string[],
+	): EmailNotificationUsageHistoryItem {
+		return {
+			id: taskId,
+			tokensIn: Math.max(
+				this.toFiniteEmailNotificationNumber(historyItem?.tokensIn),
+				this.toFiniteEmailNotificationNumber(tokenUsage?.totalTokensIn),
+			),
+			tokensOut: Math.max(
+				this.toFiniteEmailNotificationNumber(historyItem?.tokensOut),
+				this.toFiniteEmailNotificationNumber(tokenUsage?.totalTokensOut),
+			),
+			cacheWrites: Math.max(
+				this.toFiniteEmailNotificationNumber(historyItem?.cacheWrites),
+				this.toFiniteEmailNotificationNumber(tokenUsage?.totalCacheWrites),
+			),
+			cacheReads: Math.max(
+				this.toFiniteEmailNotificationNumber(historyItem?.cacheReads),
+				this.toFiniteEmailNotificationNumber(tokenUsage?.totalCacheReads),
+			),
+			totalCost: Math.max(
+				this.toFiniteEmailNotificationNumber(historyItem?.totalCost),
+				this.toFiniteEmailNotificationNumber(tokenUsage?.totalCost),
+			),
+			childIds: childTaskIds,
+			completedByChildId: historyItem?.completedByChildId,
+		}
+	}
+
+	private getEmailNotificationWorkflowToolUsage(
+		rootTaskId: string,
+		rootToolUsage: ToolUsage | undefined,
+		directChildTaskIds: string[],
+	): ToolUsage | undefined {
+		const mergedToolUsage = this.mergeEmailNotificationToolUsage(
+			undefined,
+			this.emailNotificationTaskToolUsage.get(rootTaskId) ?? rootToolUsage,
+		)
+		const visited = new Set<string>([rootTaskId])
+		const visitChild = (taskId: string): ToolUsage | undefined => {
+			if (visited.has(taskId)) {
+				return undefined
+			}
+
+			visited.add(taskId)
+			let childToolUsage = this.emailNotificationTaskToolUsage.get(taskId)
+			const childHistory = this.getEmailNotificationHistoryItem(taskId)
+			for (const nestedChildTaskId of this.getEmailNotificationWorkflowChildTaskIds(taskId, childHistory)) {
+				childToolUsage = this.mergeEmailNotificationToolUsage(childToolUsage, visitChild(nestedChildTaskId))
+			}
+
+			return childToolUsage
+		}
+		let workflowToolUsage = mergedToolUsage
+
+		for (const childTaskId of directChildTaskIds) {
+			workflowToolUsage = this.mergeEmailNotificationToolUsage(workflowToolUsage, visitChild(childTaskId))
+		}
+
+		return workflowToolUsage
+	}
+
+	private mergeEmailNotificationToolUsage(left?: ToolUsage, right?: ToolUsage): ToolUsage | undefined {
+		if (!left && !right) {
+			return undefined
+		}
+
+		const merged: Record<string, { attempts: number; failures: number }> = {}
+		for (const usage of [left, right]) {
+			if (!usage || typeof usage !== "object") {
+				continue
+			}
+
+			for (const [toolName, counts] of Object.entries(usage)) {
+				const existing = merged[toolName] ?? { attempts: 0, failures: 0 }
+				merged[toolName] = {
+					attempts: existing.attempts + this.toFiniteEmailNotificationNumber(counts?.attempts),
+					failures: existing.failures + this.toFiniteEmailNotificationNumber(counts?.failures),
+				}
+			}
+		}
+
+		return merged as ToolUsage
+	}
+
+	private countEmailNotificationToolUsage(toolUsage?: ToolUsage): { attempts: number; failures: number } {
+		if (!toolUsage || typeof toolUsage !== "object") {
+			return { attempts: 0, failures: 0 }
+		}
+
+		return Object.values(toolUsage).reduce(
+			(counts, usage) => ({
+				attempts: counts.attempts + this.toFiniteEmailNotificationNumber(usage?.attempts),
+				failures: counts.failures + this.toFiniteEmailNotificationNumber(usage?.failures),
+			}),
+			{ attempts: 0, failures: 0 },
+		)
+	}
+
+	private buildEmailNotificationUsageScope(childTaskCount: number): string {
+		if (childTaskCount === 0) {
+			return "Aggregated parent workflow usage from the parent task history."
+		}
+
+		const childTaskLabel = childTaskCount === 1 ? "1 child task" : `${childTaskCount} child tasks`
+		return `Aggregated parent workflow usage from the parent task plus ${childTaskLabel}, including delegated and background parallel-agent tasks discoverable from saved task metadata.`
+	}
+
+	private buildEmailNotificationWorkflowSummary(
+		task: Task,
+		summary: string | undefined,
+		childTaskIds: string[],
+		historyItem?: HistoryItem,
+	): string | undefined {
+		if (childTaskIds.length === 0) {
+			return undefined
+		}
+
+		const childDetails = childTaskIds.slice(0, 5).map((childTaskId) => {
+			const childHistory = this.getEmailNotificationHistoryItem(childTaskId)
+			const childContext = this.emailNotificationTaskContexts.get(childTaskId)
+			const agentLabel = childContext?.agentId ? ` agent ${childContext.agentId}` : ""
+			const taskKind = childContext?.background
+				? "parallel/background"
+				: childContext?.parentTaskId
+					? "delegated"
+					: "child"
+			const statusLabel = childHistory?.status ? ` status ${childHistory.status}` : ""
+			const childSummary = this.formatEmailNotificationSummary(childHistory?.completionResultSummary)
+
+			return `${childTaskId}:${agentLabel} ${taskKind} task${statusLabel}${childSummary ? `; ${childSummary}` : ""}`
+		})
+		const remainingChildCount = Math.max(childTaskIds.length - childDetails.length, 0)
+		const childSummaryLine = [
+			...childDetails,
+			...(remainingChildCount > 0
+				? [`${remainingChildCount} additional child task(s) included in usage totals`]
+				: []),
+		].join(" | ")
+		const parentSummary = summary ?? historyItem?.completionResultSummary ?? DEFAULT_COMPLETION_EMAIL_SUMMARY
+		const childTaskLabel = childTaskIds.length === 1 ? "1 child/subtask" : `${childTaskIds.length} child/subtasks`
+
+		return this.formatEmailNotificationSummary(
+			`Overall workflow rollup: parent task ${task.taskId} completed with final result "${parentSummary}". Usage totals include the parent plus ${childTaskLabel}. Included child context: ${childSummaryLine}`,
+		)
+	}
+
+	private getEmailNotificationHistoryItem(taskId: string): HistoryItem | undefined {
+		const historyById = new Map<string, HistoryItem>()
+
+		for (const item of this.getGlobalState("taskHistory") ?? []) {
+			historyById.set(item.id, item)
+		}
+
+		for (const item of this.taskHistoryStore.getAll()) {
+			historyById.set(item.id, item)
+		}
+
+		return historyById.get(taskId)
+	}
+
+	private hasDelegatedWorkflowNotificationMetadata(
+		historyItem: Pick<HistoryItem, "childIds" | "completedByChildId" | "completionResultSummary">,
+	): boolean {
+		return (
+			(historyItem.childIds?.length ?? 0) > 0 ||
+			typeof historyItem.completedByChildId === "string" ||
+			typeof historyItem.completionResultSummary === "string"
+		)
+	}
+
+	private async getAggregatedTaskNotificationUsage(
+		historyItem: Pick<
+			HistoryItem,
+			"id" | "tokensIn" | "tokensOut" | "cacheWrites" | "cacheReads" | "totalCost" | "childIds"
+		>,
+	): Promise<Pick<EmailNotificationPayload, "tokenUsage" | "requestCount">> {
+		return aggregateTaskTokenUsageRecursive(
+			historyItem.id,
+			async (id: string) => {
+				if (id === historyItem.id) {
+					return historyItem as HistoryItem
+				}
+
+				const inMemoryUsageHistoryItem = this.getEmailNotificationTaskUsageHistoryItem(id)
+
+				if (inMemoryUsageHistoryItem) {
+					return inMemoryUsageHistoryItem as HistoryItem
+				}
+
+				try {
+					const result = await this.getTaskWithId(id)
+					const loadedHistoryItem = result.historyItem
+					return this.getEmailNotificationUsageHistoryItem(
+						id,
+						loadedHistoryItem,
+						this.emailNotificationTaskTokenUsage.get(id),
+						this.getEmailNotificationWorkflowChildTaskIds(id, loadedHistoryItem),
+					) as HistoryItem
+				} catch (error) {
+					this.log(
+						`[email-notifications] Failed to load usage history for task ${id}: ${
+							error instanceof Error ? error.message : String(error)
+						}`,
+					)
+					return undefined
+				}
+			},
+			{
+				getChildTaskIds: async (parentId: string) => this.getChildTaskIds(parentId),
+				getTaskRequestCount: async (id: string) => this.getEmailNotificationTaskRequestCount(id),
+			},
+		)
+	}
+
+	private getFallbackTaskNotificationUsage(
+		historyItem: Pick<HistoryItem, "tokensIn" | "tokensOut" | "cacheWrites" | "cacheReads" | "totalCost">,
+	): Pick<EmailNotificationPayload, "tokenUsage" | "requestCount"> {
+		return {
+			tokenUsage: {
+				totalTokensIn: this.toFiniteEmailNotificationNumber(historyItem.tokensIn),
+				totalTokensOut: this.toFiniteEmailNotificationNumber(historyItem.tokensOut),
+				totalCacheWrites: this.toFiniteEmailNotificationNumber(historyItem.cacheWrites),
+				totalCacheReads: this.toFiniteEmailNotificationNumber(historyItem.cacheReads),
+				totalCost: this.toFiniteEmailNotificationNumber(historyItem.totalCost),
+				contextTokens: 0,
+			},
+			requestCount: 0,
+		}
+	}
+
+	private toFiniteEmailNotificationNumber(value: number | undefined): number {
+		return typeof value === "number" && Number.isFinite(value) ? value : 0
+	}
+
+	private notifyTaskOutcome(payload: EmailNotificationPayload): void {
+		const notificationDedupeKey = this.getEmailNotificationTaskOutcomeKey(payload.taskId, payload.notificationType)
+		const notificationScope = this.getEmailNotificationTaskOutcomeScope(payload.notificationType)
+		const buildDiagnostics = (decision: string): Record<string, unknown> => ({
+			decision,
+			taskId: payload.taskId,
+			outcome: payload.outcome,
+			notificationType: payload.notificationType,
+			notificationScope,
+			notificationDedupeKey,
+			parentTaskId: payload.parentTaskId,
+			rootTaskId: payload.rootTaskId,
+			agentId: payload.agentId,
+			sentOutcome: this.emailNotificationTaskOutcomes.get(notificationDedupeKey),
+			inFlightOutcome: this.emailNotificationTaskOutcomesInFlight.get(notificationDedupeKey),
+			duplicateSent: this.hasEmailNotificationTaskOutcomeBeenSent(
+				payload.taskId,
+				payload.outcome,
+				payload.notificationType,
+			),
+			duplicateInFlight: this.hasEmailNotificationTaskOutcomeInFlight(
+				payload.taskId,
+				payload.outcome,
+				payload.notificationType,
+			),
+			hasSummary: Boolean(payload.summary),
+			summaryLength: payload.summary?.length ?? 0,
+			workspacePath: payload.workspacePath,
+			mode: payload.mode,
+			requestCount: payload.requestCount,
+			hasTokenUsage: Boolean(payload.tokenUsage),
+			hasToolUsage: Boolean(payload.toolUsage),
+		})
+
+		if (payload.outcome !== "success") {
+			this.logEmailNotificationDiagnostics(
+				"outcome-notification-decision",
+				buildDiagnostics("skip-completion-only"),
+			)
+			this.log(
+				`[email-notifications] Skipping ${payload.outcome} notification for task ${payload.taskId}; automatic SMTP notifications are completion-only.`,
+			)
+			return
+		}
+
+		if (this.hasEmailNotificationTaskOutcomeBeenSent(payload.taskId, payload.outcome, payload.notificationType)) {
+			this.logEmailNotificationDiagnostics(
+				"outcome-notification-decision",
+				buildDiagnostics("skip-duplicate-sent"),
+			)
+			this.log(
+				`[email-notifications] Skipping ${payload.outcome} ${notificationScope} notification for task ${payload.taskId}; an equal or higher-precedence outcome was already sent for this notification scope.`,
+			)
+			return
+		}
+
+		if (this.hasEmailNotificationTaskOutcomeInFlight(payload.taskId, payload.outcome, payload.notificationType)) {
+			this.logEmailNotificationDiagnostics(
+				"outcome-notification-decision",
+				buildDiagnostics("skip-duplicate-in-flight"),
+			)
+			this.log(
+				`[email-notifications] Skipping ${payload.outcome} ${notificationScope} notification for task ${payload.taskId}; an equal or higher-precedence outcome is already in flight for this notification scope.`,
+			)
+			return
+		}
+
+		this.logEmailNotificationDiagnostics("outcome-notification-decision", buildDiagnostics("dispatch"))
+		this.emailNotificationTaskOutcomesInFlight.set(notificationDedupeKey, payload.outcome)
+		this.log(
+			`[email-notifications] Dispatching ${payload.outcome} ${notificationScope} notification for task ${payload.taskId}.`,
+		)
+
+		this.emailNotificationService
+			.sendTaskNotification(payload)
+			.then((result) => {
+				if (this.emailNotificationTaskOutcomesInFlight.get(notificationDedupeKey) !== payload.outcome) {
+					this.logEmailNotificationDiagnostics("notification-send-result", {
+						...buildDiagnostics("stale-in-flight-result"),
+						attempted: result?.attempted,
+						sent: result?.sent,
+						skippedReason: result?.skippedReason,
+					})
+					return
+				}
+
+				if (result?.sent === true) {
+					this.rememberEmailNotificationTaskOutcome(payload.taskId, payload.outcome, payload.notificationType)
+					this.logEmailNotificationDiagnostics("notification-send-result", {
+						...buildDiagnostics("sent"),
+						attempted: result.attempted,
+						sent: result.sent,
+					})
+					this.log(
+						`[email-notifications] Sent ${payload.outcome} ${notificationScope} notification for task ${payload.taskId}.`,
+					)
+					return
+				}
+
+				if (result?.skippedReason) {
+					this.logEmailNotificationDiagnostics("notification-send-result", {
+						...buildDiagnostics("service-skipped"),
+						attempted: result.attempted,
+						sent: result.sent,
+						skippedReason: result.skippedReason,
+					})
+					this.log(
+						`[email-notifications] Notification for task ${payload.taskId} was skipped by service: ${result.skippedReason}.`,
+					)
+					return
+				}
+
+				const sanitizedResultError = result?.error
+					? this.sanitizeEmailNotificationLogMessage(result.error)
+					: undefined
+
+				this.logEmailNotificationDiagnostics("notification-send-result", {
+					...buildDiagnostics("not-sent"),
+					attempted: result?.attempted,
+					sent: result?.sent,
+					error: sanitizedResultError,
+				})
+				this.log(
+					`[email-notifications] Notification for task ${payload.taskId} was not sent${
+						sanitizedResultError ? `: ${sanitizedResultError}` : "."
+					}`,
+				)
+			})
+			.catch((error) => {
+				this.logEmailNotificationDiagnostics("notification-send-result", {
+					...buildDiagnostics("unexpected-error"),
+					error: this.sanitizeEmailNotificationLogMessage(error),
+				})
+				this.log(
+					`[email-notifications] Unexpected notification error: ${this.sanitizeEmailNotificationLogMessage(error)}`,
+				)
+			})
+			.finally(() => {
+				if (this.emailNotificationTaskOutcomesInFlight.get(notificationDedupeKey) === payload.outcome) {
+					this.emailNotificationTaskOutcomesInFlight.delete(notificationDedupeKey)
+					this.logEmailNotificationDiagnostics("notification-in-flight-cleared", buildDiagnostics("cleared"))
+				}
+			})
+	}
+
+	private sanitizeEmailNotificationLogMessage(error: unknown): string {
+		const password = this.contextProxy.getSecret("smtpPassword")
+		const message = error instanceof Error ? error.message : String(error)
+
+		return password ? message.replaceAll(password, "[redacted]") : message
+	}
+
+	public async testSmtpSettings(): Promise<EmailNotificationSendResult> {
+		return this.emailNotificationService.sendTestNotification()
+	}
+
+	private getChildTaskIds(parentId: string): string[] {
+		const historyById = new Map<string, HistoryItem>()
+
+		for (const item of this.getGlobalState("taskHistory") ?? []) {
+			historyById.set(item.id, item)
+		}
+
+		for (const item of this.taskHistoryStore.getAll()) {
+			historyById.set(item.id, item)
+		}
+
+		return Array.from(historyById.values())
+			.filter((item) => item.parentTaskId === parentId)
+			.map((item) => item.id)
+	}
+
+	private async getPersistedTaskRequestCount(taskId: string): Promise<number | undefined> {
+		try {
+			const { getTaskDirectoryPath } = await import("../../utils/storage")
+			const taskDirPath = await getTaskDirectoryPath(this.contextProxy.globalStorageUri.fsPath, taskId)
+			const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
+
+			if (!(await fileExistsAtPath(uiMessagesFilePath))) {
+				return undefined
+			}
+
+			const messages = await readTaskMessages({
+				taskId,
+				globalStoragePath: this.contextProxy.globalStorageUri.fsPath,
+			})
+
+			return this.countApiRequestMessages(messages)
+		} catch (error) {
+			this.log(
+				`[email-notifications] Failed to load request count for task ${taskId}: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			)
+			return undefined
+		}
+	}
+
+	private async getEmailNotificationTaskRequestCount(taskId: string): Promise<number | undefined> {
+		const liveRequestCount = this.emailNotificationTaskRequestCounts.get(taskId)
+		const persistedRequestCount = await this.getPersistedTaskRequestCount(taskId)
+
+		if (persistedRequestCount === undefined) {
+			return liveRequestCount
+		}
+
+		if (liveRequestCount === undefined) {
+			return persistedRequestCount
+		}
+
+		return Math.max(persistedRequestCount, liveRequestCount)
+	}
+
+	private countApiRequestMessages(messages: ClineMessage[]): number {
+		return messages.filter((message) => message.type === "say" && message.say === "api_req_started").length
+	}
+
+	private getEmailNotificationTaskOutcomeScope(
+		notificationType?: EmailNotificationPayload["notificationType"],
+	): EmailNotificationTaskOutcomeScope {
+		return notificationType ?? "task"
+	}
+
+	private getEmailNotificationTaskOutcomeKey(
+		taskId: string,
+		notificationType?: EmailNotificationPayload["notificationType"],
+	): string {
+		return `${this.getEmailNotificationTaskOutcomeScope(notificationType)}:${taskId}`
+	}
+
+	private normalizeEmailNotificationTaskOutcomeType(
+		notificationType: unknown,
+	): EmailNotificationPayload["notificationType"] | undefined {
+		if (notificationType === "delegated-child" || notificationType === "parallel-workflow") {
+			return notificationType
+		}
+
+		return undefined
+	}
+
+	private getEmailNotificationTaskOutcomeStateRecord(
+		notificationDedupeKey: string,
+		outcome: EmailNotificationOutcome,
+	): EmailNotificationTaskOutcomeState["outcomes"][number] {
+		const separatorIndex = notificationDedupeKey.indexOf(":")
+		const notificationScope = notificationDedupeKey.slice(0, separatorIndex)
+		const taskId = notificationDedupeKey.slice(separatorIndex + 1)
+
+		if (separatorIndex > 0 && taskId && this.isEmailNotificationTaskOutcomeScope(notificationScope)) {
+			return {
+				taskId,
+				outcome,
+				...(notificationScope === "task" ? {} : { notificationType: notificationScope }),
+			}
+		}
+
+		return { taskId: notificationDedupeKey, outcome }
+	}
+
+	private isEmailNotificationTaskOutcomeScope(value: unknown): value is EmailNotificationTaskOutcomeScope {
+		return value === "task" || value === "delegated-child" || value === "parallel-workflow"
+	}
+
+	private hasEmailNotificationTaskOutcomeBeenSent(
+		taskId: string,
+		outcome: EmailNotificationOutcome,
+		notificationType?: EmailNotificationPayload["notificationType"],
+	): boolean {
+		this.loadEmailNotificationTaskOutcomeState()
+
+		const previousOutcome = this.emailNotificationTaskOutcomes.get(
+			this.getEmailNotificationTaskOutcomeKey(taskId, notificationType),
+		)
+
+		if (!previousOutcome) {
+			return false
+		}
+
+		if (previousOutcome === "success") {
+			return true
+		}
+
+		return outcome !== "success"
+	}
+
+	private hasEmailNotificationTaskOutcomeInFlight(
+		taskId: string,
+		outcome: EmailNotificationOutcome,
+		notificationType?: EmailNotificationPayload["notificationType"],
+	): boolean {
+		const previousOutcome = this.emailNotificationTaskOutcomesInFlight.get(
+			this.getEmailNotificationTaskOutcomeKey(taskId, notificationType),
+		)
+
+		if (!previousOutcome) {
+			return false
+		}
+
+		if (previousOutcome === "success") {
+			return true
+		}
+
+		return outcome !== "success"
+	}
+
+	private rememberEmailNotificationTaskOutcome(
+		taskId: string,
+		outcome: EmailNotificationOutcome,
+		notificationType?: EmailNotificationPayload["notificationType"],
+	): void {
+		this.loadEmailNotificationTaskOutcomeState()
+		const notificationDedupeKey = this.getEmailNotificationTaskOutcomeKey(taskId, notificationType)
+
+		if (!this.emailNotificationTaskOutcomes.has(notificationDedupeKey)) {
+			this.emailNotificationTaskOutcomeOrder.push(notificationDedupeKey)
+		}
+
+		this.emailNotificationTaskOutcomes.set(notificationDedupeKey, outcome)
+
+		while (this.emailNotificationTaskOutcomeOrder.length > MAX_EMAIL_NOTIFICATION_TASK_OUTCOMES) {
+			const oldestKey = this.emailNotificationTaskOutcomeOrder.shift()
+
+			if (oldestKey) {
+				this.emailNotificationTaskOutcomes.delete(oldestKey)
+			}
+		}
+
+		this.persistEmailNotificationTaskOutcomeState()
+	}
+
+	private loadEmailNotificationTaskOutcomeState(): void {
+		if (this.emailNotificationTaskOutcomeStateLoaded) {
+			return
+		}
+
+		this.emailNotificationTaskOutcomeStateLoaded = true
+
+		const state = this.context.globalState.get<EmailNotificationTaskOutcomeState>(
+			EMAIL_NOTIFICATION_TASK_OUTCOME_STATE_KEY,
+		)
+		const outcomes = Array.isArray(state?.outcomes)
+			? state.outcomes.slice(-MAX_EMAIL_NOTIFICATION_TASK_OUTCOMES)
+			: []
+
+		for (const record of outcomes) {
+			if (!record || typeof record.taskId !== "string" || !this.isEmailNotificationOutcome(record.outcome)) {
+				continue
+			}
+
+			const notificationType = this.normalizeEmailNotificationTaskOutcomeType(record.notificationType)
+			const notificationDedupeKey = this.getEmailNotificationTaskOutcomeKey(record.taskId, notificationType)
+
+			if (!this.emailNotificationTaskOutcomes.has(notificationDedupeKey)) {
+				this.emailNotificationTaskOutcomeOrder.push(notificationDedupeKey)
+			}
+
+			this.emailNotificationTaskOutcomes.set(notificationDedupeKey, record.outcome)
+		}
+	}
+
+	private persistEmailNotificationTaskOutcomeState(): void {
+		const state: EmailNotificationTaskOutcomeState = {
+			version: 1,
+			outcomes: this.emailNotificationTaskOutcomeOrder.flatMap((notificationDedupeKey) => {
+				const outcome = this.emailNotificationTaskOutcomes.get(notificationDedupeKey)
+				return outcome ? [this.getEmailNotificationTaskOutcomeStateRecord(notificationDedupeKey, outcome)] : []
+			}),
+		}
+
+		Promise.resolve(this.context.globalState.update(EMAIL_NOTIFICATION_TASK_OUTCOME_STATE_KEY, state)).catch(
+			(error) => {
+				this.log(
+					`[email-notifications] Failed to persist notification state: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			},
+		)
+	}
+
+	private isEmailNotificationOutcome(outcome: unknown): outcome is EmailNotificationOutcome {
+		return outcome === "success" || outcome === "failed" || outcome === "aborted"
+	}
+
+	private getEmailNotificationSummary(task: Task): string | undefined {
+		const completionResult = task.clineMessages
+			.slice()
+			.reverse()
+			.find(
+				(message) =>
+					message.type === "say" &&
+					message.say === "completion_result" &&
+					typeof message.text === "string" &&
+					message.text.trim().length > 0,
+			)?.text
+
+		return this.formatEmailNotificationSummary(completionResult) ?? DEFAULT_COMPLETION_EMAIL_SUMMARY
+	}
+
+	private formatEmailNotificationSummary(summary: string | undefined): string | undefined {
+		const normalizedSummary = summary?.replace(/\s+/g, " ").trim()
+
+		if (!normalizedSummary) {
+			return undefined
+		}
+
+		if (normalizedSummary.length <= MAX_EMAIL_NOTIFICATION_SUMMARY_LENGTH) {
+			return normalizedSummary
+		}
+
+		return `${normalizedSummary.slice(0, MAX_EMAIL_NOTIFICATION_SUMMARY_LENGTH - 1).trimEnd()}…`
 	}
 
 	async performPreparationTasks(cline: Task) {
@@ -1144,8 +2497,20 @@ export class ClineProvider
 		const isRehydratingCurrentTask = currentTask && currentTask.taskId === historyItem.id
 
 		if (!isRehydratingCurrentTask) {
-			await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
+			try {
+				await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
+			} catch (error) {
+				this.log(
+					`[createTaskWithHistoryItem] Failed to teardown parallel execution before opening history task ${historyItem.id} (non-fatal): ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			}
 			await this.removeClineFromStack()
+		}
+
+		if (historyItem.status === "completed") {
+			this.rememberEmailNotificationTaskOutcome(historyItem.id, "success")
 		}
 
 		// If the history item has a saved mode, restore it and its associated API configuration.
@@ -1990,11 +3355,11 @@ export class ClineProvider
 		const taskDirPath = await getTaskDirectoryPath(globalStoragePath, id)
 		const apiConversationHistoryFilePath = path.join(taskDirPath, GlobalFileNames.apiConversationHistory)
 		const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
-		const fileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
+		const apiHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
 
 		let apiConversationHistory: Anthropic.MessageParam[] = []
 
-		if (fileExists) {
+		if (apiHistoryFileExists) {
 			try {
 				apiConversationHistory = JSON.parse(await fs.readFile(apiConversationHistoryFilePath, "utf8"))
 			} catch (error) {
@@ -2002,9 +3367,9 @@ export class ClineProvider
 					`[getTaskWithId] api_conversation_history.json corrupted for task ${id}, returning empty history: ${error instanceof Error ? error.message : String(error)}`,
 				)
 			}
-		} else {
+		} else if (!(await fileExistsAtPath(uiMessagesFilePath))) {
 			console.warn(
-				`[getTaskWithId] api_conversation_history.json missing for task ${id}, returning empty history`,
+				`[getTaskWithId] api_conversation_history.json missing for task ${id} and ui_messages.json is also missing; task history entry may be stale, returning empty history`,
 			)
 		}
 
@@ -2030,21 +3395,7 @@ export class ClineProvider
 				return result.historyItem
 			},
 			{
-				getChildTaskIds: async (parentId: string) => {
-					const historyById = new Map<string, HistoryItem>()
-
-					for (const item of this.getGlobalState("taskHistory") ?? []) {
-						historyById.set(item.id, item)
-					}
-
-					for (const item of this.taskHistoryStore.getAll()) {
-						historyById.set(item.id, item)
-					}
-
-					return Array.from(historyById.values())
-						.filter((item) => item.parentTaskId === parentId)
-						.map((item) => item.id)
-				},
+				getChildTaskIds: async (parentId: string) => this.getChildTaskIds(parentId),
 			},
 		)
 
@@ -2313,6 +3664,18 @@ export class ClineProvider
 			soundEnabled,
 			ttsEnabled,
 			ttsSpeed,
+			emailNotificationsEnabled,
+			emailNotifyOnSuccess,
+			emailNotifyOnFailure,
+			smtpHost,
+			smtpPort,
+			smtpSecure,
+			smtpRequireTls,
+			smtpUsername,
+			smtpFromAddress,
+			smtpRecipients,
+			smtpSubjectTemplate,
+			smtpPasswordConfigured,
 			enableCheckpoints,
 			checkpointTimeout,
 			taskHistory,
@@ -2364,6 +3727,7 @@ export class ClineProvider
 			imageGenerationProvider,
 			openRouterImageApiKey,
 			openRouterImageGenerationSelectedModel,
+			openAiCodexFastStatus,
 			lockApiConfigAcrossModes,
 		} = await this.getState()
 
@@ -2401,6 +3765,18 @@ export class ClineProvider
 			soundEnabled: soundEnabled ?? false,
 			ttsEnabled: ttsEnabled ?? false,
 			ttsSpeed: ttsSpeed ?? 1.0,
+			emailNotificationsEnabled: emailNotificationsEnabled ?? false,
+			emailNotifyOnSuccess: emailNotifyOnSuccess ?? true,
+			emailNotifyOnFailure: emailNotifyOnFailure ?? false,
+			smtpHost: smtpHost ?? "",
+			smtpPort: smtpPort ?? 587,
+			smtpSecure: smtpSecure ?? false,
+			smtpRequireTls: smtpRequireTls ?? false,
+			smtpUsername: smtpUsername ?? "",
+			smtpFromAddress: smtpFromAddress ?? "",
+			smtpRecipients: smtpRecipients ?? [],
+			smtpSubjectTemplate: smtpSubjectTemplate ?? "",
+			smtpPasswordConfigured: smtpPasswordConfigured ?? false,
 			enableCheckpoints: enableCheckpoints ?? true,
 			checkpointTimeout: checkpointTimeout ?? DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
@@ -2473,6 +3849,7 @@ export class ClineProvider
 			imageGenerationProvider,
 			openRouterImageApiKey,
 			openRouterImageGenerationSelectedModel,
+			openAiCodexFastStatus: openAiCodexFastStatus ?? { state: "off" },
 			openAiCodexIsAuthenticated: await (async () => {
 				try {
 					const { openAiCodexOAuthManager } = await import("../../integrations/openai-codex/oauth")
@@ -2550,6 +3927,18 @@ export class ClineProvider
 			soundEnabled: stateValues.soundEnabled ?? false,
 			ttsEnabled: stateValues.ttsEnabled ?? false,
 			ttsSpeed: stateValues.ttsSpeed ?? 1.0,
+			emailNotificationsEnabled: stateValues.emailNotificationsEnabled ?? false,
+			emailNotifyOnSuccess: stateValues.emailNotifyOnSuccess ?? true,
+			emailNotifyOnFailure: stateValues.emailNotifyOnFailure ?? false,
+			smtpHost: stateValues.smtpHost ?? "",
+			smtpPort: stateValues.smtpPort ?? 587,
+			smtpSecure: stateValues.smtpSecure ?? false,
+			smtpRequireTls: stateValues.smtpRequireTls ?? false,
+			smtpUsername: stateValues.smtpUsername ?? "",
+			smtpFromAddress: stateValues.smtpFromAddress ?? "",
+			smtpRecipients: stateValues.smtpRecipients ?? [],
+			smtpSubjectTemplate: stateValues.smtpSubjectTemplate ?? "",
+			smtpPasswordConfigured: Boolean(this.contextProxy.getSecret("smtpPassword")),
 			enableCheckpoints: stateValues.enableCheckpoints ?? true,
 			checkpointTimeout: stateValues.checkpointTimeout ?? DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 			soundVolume: stateValues.soundVolume,
@@ -2620,7 +4009,18 @@ export class ClineProvider
 			imageGenerationProvider: stateValues.imageGenerationProvider,
 			openRouterImageApiKey: stateValues.openRouterImageApiKey,
 			openRouterImageGenerationSelectedModel: stateValues.openRouterImageGenerationSelectedModel,
+			openAiCodexFastStatus: stateValues.openAiCodexFastStatus,
 		}
+	}
+
+	async updateOpenAiCodexFastStatus(status: OpenAiCodexFastStatus): Promise<void> {
+		const current = this.contextProxy.getGlobalState("openAiCodexFastStatus")
+		if (JSON.stringify(current) === JSON.stringify(status)) {
+			return
+		}
+
+		await this.contextProxy.updateGlobalState("openAiCodexFastStatus", status)
+		await this.postStateToWebviewWithoutClineMessages()
 	}
 
 	/**
@@ -2960,6 +4360,15 @@ export class ClineProvider
 		if (!parentTask && !options.background) {
 			try {
 				await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
+			} catch (error) {
+				this.log(
+					`[createTask] Failed to teardown parallel execution before opening a new task (non-fatal): ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			}
+
+			try {
 				await this.removeClineFromStack()
 			} catch {
 				// Non-fatal
@@ -3019,7 +4428,13 @@ export class ClineProvider
 		}
 
 		await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
+		this.parallelParentResumeKey = undefined
 		this.resetParallelAgentStatusState(plan.planId)
+
+		const checkpointResult = await this.createParallelAgentStartCheckpoint(plan)
+		if (!checkpointResult.ok) {
+			return checkpointResult
+		}
 
 		try {
 			const worktreeManager = this.ensureWorktreeManager()
@@ -3040,6 +4455,59 @@ export class ClineProvider
 		this.attachAgentBusForwarders(AgentBus.getInstance())
 		this.orchestratorEventLoop.start(plan)
 		return { ok: true }
+	}
+
+	private async createParallelAgentStartCheckpoint(plan: ExecutionPlan): Promise<PlanStartResult> {
+		const visibleTask = this.getCurrentTask()
+
+		if (!visibleTask || visibleTask.background) {
+			this.log(
+				`[parallel-agents] Skipping pre-start checkpoint for plan ${plan.planId}: no visible parent task is active.`,
+			)
+			return { ok: true }
+		}
+
+		const checkpointTask = visibleTask.rootTask ?? visibleTask
+
+		if (!checkpointTask.enableCheckpoints) {
+			this.log(
+				`[parallel-agents] Checkpoints are disabled for task ${checkpointTask.taskId}; starting plan ${plan.planId} without a pre-start checkpoint.`,
+			)
+			return { ok: true }
+		}
+
+		this.log(
+			`[parallel-agents] Creating checkpoint for task ${checkpointTask.taskId} before starting plan ${plan.planId}.`,
+		)
+
+		try {
+			const checkpoint = await checkpointTask.checkpointSave(true, false, { throwOnError: true })
+
+			if (checkpoint?.commit) {
+				this.log(
+					`[parallel-agents] Created checkpoint ${checkpoint.commit} for task ${checkpointTask.taskId} before starting plan ${plan.planId}.`,
+				)
+				return { ok: true }
+			}
+
+			if (!checkpointTask.enableCheckpoints) {
+				this.log(
+					`[parallel-agents] Checkpoints became unavailable for task ${checkpointTask.taskId}; starting plan ${plan.planId} without a pre-start checkpoint.`,
+				)
+				return { ok: true }
+			}
+
+			const message = `Unable to create a checkpoint before starting parallel agents for plan ${plan.planId}. Parallel agents were not started.`
+			this.log(`[parallel-agents] ${message}`)
+			vscode.window.showErrorMessage(message)
+			return { ok: false, error: message }
+		} catch (error) {
+			const reason = error instanceof Error && error.message ? error.message : String(error)
+			const message = `Failed to create a checkpoint before starting parallel agents for plan ${plan.planId}: ${reason}. Parallel agents were not started.`
+			this.log(`[parallel-agents] ${message}`)
+			vscode.window.showErrorMessage(message)
+			return { ok: false, error: message }
+		}
 	}
 
 	private async resumeRestoredParallelExecution(task: Task, agentIdsToRestart: string[]): Promise<void> {
@@ -3375,6 +4843,11 @@ export class ClineProvider
 
 		if (autoMergeDecision.enabled && autoMergeDecision.skipReasons.length === 0) {
 			await this.mergeApprovedAgents(autoMergeDecision.approvedAgentIds, { autoApproved: true })
+		} else {
+			const resumeReason = autoMergeDecision.enabled
+				? "parallel merge review after auto-merge was skipped"
+				: "parallel merge review awaiting manual action"
+			await this.resumeParentAfterParallelMerge(resumeReason, plan.planId)
 		}
 	}
 
@@ -3414,7 +4887,12 @@ export class ClineProvider
 			}
 
 			if (entry.mergeable === false || entry.reviewError || entry.mergeError || entry.mergeStatus === "failed") {
-				skipReasons.push({ agentId: agent.id, reason: `${agent.id} has a merge review error` })
+				const detail =
+					entry.reviewError ?? entry.mergeError ?? entry.autoMergeSkippedReason ?? entry.mergeStatus
+				skipReasons.push({
+					agentId: agent.id,
+					reason: `${agent.id} has a merge review error${detail ? `: ${detail}` : ""}`,
+				})
 				continue
 			}
 
@@ -3465,6 +4943,7 @@ export class ClineProvider
 				type: "mergeFailed",
 				gitOutput: "No active execution plan is available.",
 			})
+			await this.resumeParentAfterParallelMerge("manual merge failure: no active execution plan")
 			return false
 		}
 
@@ -3474,6 +4953,7 @@ export class ClineProvider
 				type: "mergeFailed",
 				gitOutput: "No agent branches were selected for merge.",
 			})
+			await this.resumeParentAfterParallelMerge("manual merge failure: no agent branches selected", plan.planId)
 			return false
 		}
 
@@ -3494,6 +4974,7 @@ export class ClineProvider
 				type: "mergeFailed",
 				gitOutput: `Cannot merge entries with unresolved review errors.\n${details}`,
 			})
+			await this.resumeParentAfterParallelMerge("manual merge failure: unresolved review errors", plan.planId)
 			return false
 		}
 
@@ -3503,15 +4984,66 @@ export class ClineProvider
 			const reviewEntry = entryByAgentId.get(agentId)
 			const worktreePath =
 				this.worktreePathsByAgentId.get(agentId) ?? agent?.worktreePath ?? reviewEntry?.worktreePath
+			let materializationEntry = reviewEntry
 
 			try {
 				this.recordParallelAgentActivity(agentId, `Preparing branch ${branch} for merge.`, "tool")
 
 				if (worktreePath) {
 					await this.prepareAgentBranchForReview(plan, agentId, branch, worktreePath)
+					materializationEntry =
+						this.parallelMergeReviewEntries?.find((entry) => entry.agentId === agentId) ?? reviewEntry
 				}
 
 				const ownedPaths = this.getAgentOwnedPaths(agent)
+				const affectedPaths = this.getMergeAffectedPaths(materializationEntry, ownedPaths)
+				const documentPreparation = await this.prepareAffectedOpenDocumentsForMerge(
+					plan.planId,
+					agentId,
+					affectedPaths,
+					{ autoApproved: options.autoApproved === true },
+				)
+
+				if (options.autoApproved === true && documentPreparation.dirtyDocuments.length > 0) {
+					const dirtyCount = documentPreparation.dirtyDocuments.length
+					const dirtyLabel =
+						dirtyCount === 1 ? "1 affected open document" : `${dirtyCount} affected open documents`
+					const reason = `Auto-merge blocked because ${dirtyLabel} had unsaved changes. Roo saved the open document${dirtyCount === 1 ? "" : "s"} so manual merge review can account for those edits.`
+					this.logMergeDocumentSyncDiagnostics(plan.planId, agentId, {
+						stage: "auto-approved-block",
+						result: "blocked",
+						autoApproved: true,
+						affectedPaths: documentPreparation.affectedPaths,
+						openDocumentPaths: documentPreparation.openDocuments.map((document) => document.relPath),
+						dirtyDocumentPaths: documentPreparation.dirtyDocuments.map((document) => document.relPath),
+						savedDocumentPaths: documentPreparation.savedDocuments.map((document) => document.relPath),
+					})
+					this.updateMergeReviewEntry(agentId, {
+						mergeStatus: "skipped",
+						mergeError: undefined,
+						conflictedFiles: undefined,
+						autoMergeSkippedReason: reason,
+					})
+					const skippedEntry = this.parallelMergeReviewEntries?.find((entry) => entry.agentId === agentId)
+					if (skippedEntry) {
+						this.updateParallelAgentPacketFromMergeEntry(plan, skippedEntry, {
+							readiness: "not-ready",
+							result: "skipped",
+							clean: true,
+							materialized: false,
+							autoApproved: true,
+							notes: [reason],
+						})
+					}
+					this.recordParallelAgentActivity(agentId, reason, "wait")
+					this.recordParallelAgentReviewSummary(plan, this.parallelMergeReviewEntries)
+					await this.updateParallelAgentStatusMessage("review", this.parallelMergeReviewEntries)
+					await this.appendParallelAgentOutcomeSummary(plan, "review", this.parallelMergeReviewEntries)
+					await this.postStateToWebviewWithoutClineMessages()
+					await this.resumeParentAfterParallelMerge("auto-merge blocked by dirty open document", plan.planId)
+					return false
+				}
+
 				this.recordParallelAgentActivity(agentId, `Applying branch ${branch} to the workspace.`, "file")
 				await this.ensureWorktreeManager().mergeBranch(branch, {
 					planId: plan.planId,
@@ -3519,6 +5051,7 @@ export class ClineProvider
 					ownedPaths,
 					autoApproved: options.autoApproved === true,
 				})
+				await this.synchronizeAffectedOpenDocumentsAfterMerge(plan.planId, agentId, documentPreparation)
 				this.updateMergeReviewEntry(agentId, {
 					mergeStatus: "merged",
 					mergeError: undefined,
@@ -3526,6 +5059,16 @@ export class ClineProvider
 					autoMergeSkippedReason: undefined,
 				})
 				const mergedEntry = this.parallelMergeReviewEntries?.find((entry) => entry.agentId === agentId)
+				this.logMergeMaterializationDiagnostics(
+					plan.planId,
+					agentId,
+					mergedEntry ?? materializationEntry,
+					"merged",
+					{
+						branch,
+						worktreePath,
+					},
+				)
 				if (mergedEntry) {
 					this.updateParallelAgentPacketFromMergeEntry(plan, mergedEntry, {
 						readiness: "ready",
@@ -3551,6 +5094,17 @@ export class ClineProvider
 					conflictedFiles: error instanceof WorktreeMergeError ? error.conflictedFiles : undefined,
 				})
 				const failedEntry = this.parallelMergeReviewEntries?.find((entry) => entry.agentId === agentId)
+				this.logMergeMaterializationDiagnostics(
+					plan.planId,
+					agentId,
+					failedEntry ?? materializationEntry,
+					"failed",
+					{
+						branch,
+						worktreePath,
+					},
+					error,
+				)
 				if (failedEntry) {
 					this.updateParallelAgentPacketFromMergeEntry(plan, failedEntry, {
 						readiness: "not-ready",
@@ -3577,9 +5131,13 @@ export class ClineProvider
 					agentId,
 					gitOutput,
 				})
+				await this.resumeParentAfterParallelMerge("merge failure during workspace materialization", plan.planId)
 				return false
 			}
 		}
+
+		this.orchestratorEventLoop?.stop()
+		this.orchestratorEventLoop = undefined
 
 		for (const task of Array.from(this.backgroundTasks)) {
 			this.finalizeBackgroundAgentTask(task, "complete")
@@ -3608,26 +5166,244 @@ export class ClineProvider
 		this.recordParallelAgentReviewSummary(plan, this.parallelMergeReviewEntries)
 		await this.updateParallelAgentStatusMessage("merged")
 		await this.appendParallelAgentOutcomeSummary(plan, "merged", this.parallelMergeReviewEntries)
+		const finalMergeReviewEntries = this.parallelMergeReviewEntries
 		await this.teardownParallelExecution({ resetBus: true })
 		await this.postMessageToWebview({ type: "mergeComplete" })
 		await this.postStateToWebviewWithoutClineMessages()
-		await this.resumeParentAfterParallelMerge()
+		this.notifyParallelMergeWorkflowCompletion(
+			this.getCurrentTask(),
+			plan,
+			Array.from(approved),
+			finalMergeReviewEntries,
+		)
+		await this.resumeParentAfterParallelMerge("successful parallel merge", plan.planId)
 		return true
 	}
 
-	private async resumeParentAfterParallelMerge(): Promise<void> {
+	private async resumeParentAfterParallelMerge(
+		reason: string = "parallel review/merge",
+		planId: string | undefined = this.activeExecutionPlan?.planId ?? this.parallelStatusPlanId,
+	): Promise<void> {
 		const task = this.getCurrentTask()
-		if (!task || task.background) {
+		if (!task) {
+			this.logEmailNotificationDiagnostics("parallel-parent-resume-lifecycle", {
+				planId,
+				reason,
+				result: "skipped-no-current-task",
+			})
+			this.log(
+				`[parallel-agents] parent-resume-diagnostics ${JSON.stringify({
+					planId,
+					reason,
+					result: "skipped-no-current-task",
+				})}`,
+			)
+			this.log(`[parallel-agents] Skipping parent resume after ${reason}: no current task is available.`)
 			return
 		}
 
-		try {
-			await task.resumeAfterParallelExecution()
-		} catch (error) {
+		if (task.background) {
+			this.logEmailNotificationDiagnostics("parallel-parent-resume-lifecycle", {
+				...this.getEmailNotificationTaskDiagnostics(task),
+				...this.getEmailNotificationOutcomeDiagnostics(task.taskId, "success"),
+				planId,
+				reason,
+				result: "skipped-current-task-background",
+			})
 			this.log(
-				`[parallel-agents] Failed to resume parent task after merge: ${error instanceof Error ? error.message : String(error)}`,
+				`[parallel-agents] parent-resume-diagnostics ${JSON.stringify({
+					planId,
+					reason,
+					result: "skipped-current-task-background",
+					taskId: task.taskId,
+					agentId: task.agentId,
+				})}`,
+			)
+			this.log(
+				`[parallel-agents] Skipping parent resume after ${reason}: current task ${task.taskId} is a background task.`,
+			)
+			return
+		}
+
+		const resumeKey = `${task.taskId}:${planId ?? "unknown-plan"}`
+		if (this.parallelParentResumeKey === resumeKey) {
+			this.logEmailNotificationDiagnostics("parallel-parent-resume-lifecycle", {
+				...this.getEmailNotificationTaskDiagnostics(task),
+				...this.getEmailNotificationOutcomeDiagnostics(task.taskId, "success"),
+				planId,
+				reason,
+				result: "skipped-duplicate",
+				resumeKey,
+			})
+			this.log(
+				`[parallel-agents] parent-resume-diagnostics ${JSON.stringify({
+					planId,
+					reason,
+					result: "skipped-duplicate",
+					taskId: task.taskId,
+					resumeKey,
+				})}`,
+			)
+			this.log(`[parallel-agents] Skipping duplicate parent resume for task ${task.taskId} after ${reason}.`)
+			return
+		}
+
+		this.parallelParentResumeKey = resumeKey
+
+		try {
+			this.logEmailNotificationDiagnostics("parallel-parent-resume-lifecycle", {
+				...this.getEmailNotificationTaskDiagnostics(task),
+				...this.getEmailNotificationOutcomeDiagnostics(task.taskId, "success"),
+				planId,
+				reason,
+				result: "resume-started",
+				resumeKey,
+			})
+			this.log(`[parallel-agents] Resuming parent task ${task.taskId} after ${reason}.`)
+			await task.resumeAfterParallelExecution()
+			this.logParallelApprovalDiagnostics("parent-resumed", planId)
+			this.logEmailNotificationDiagnostics("parallel-parent-resume-lifecycle", {
+				...this.getEmailNotificationTaskDiagnostics(task),
+				...this.getEmailNotificationOutcomeDiagnostics(task.taskId, "success"),
+				planId,
+				reason,
+				result: "resumed",
+				resumeKey,
+			})
+			this.log(
+				`[parallel-agents] parent-resume-diagnostics ${JSON.stringify({
+					planId,
+					reason,
+					result: "resumed",
+					taskId: task.taskId,
+					resumeKey,
+				})}`,
+			)
+			this.log(`[parallel-agents] Parent task ${task.taskId} resumed after ${reason}.`)
+		} catch (error) {
+			if (this.parallelParentResumeKey === resumeKey) {
+				this.parallelParentResumeKey = undefined
+			}
+			this.logEmailNotificationDiagnostics("parallel-parent-resume-lifecycle", {
+				...this.getEmailNotificationTaskDiagnostics(task),
+				...this.getEmailNotificationOutcomeDiagnostics(task.taskId, "success"),
+				planId,
+				reason,
+				result: "failed",
+				resumeKey,
+				error: this.sanitizeEmailNotificationLogMessage(error),
+			})
+			this.log(
+				`[parallel-agents] parent-resume-diagnostics ${JSON.stringify({
+					planId,
+					reason,
+					result: "failed",
+					taskId: task.taskId,
+					resumeKey,
+					error: error instanceof Error ? error.message : String(error),
+				})}`,
+			)
+			this.log(
+				`[parallel-agents] Failed to resume parent task ${task.taskId} after ${reason}: ${error instanceof Error ? error.message : String(error)}`,
 			)
 		}
+	}
+
+	private logParallelApprovalDiagnostics(stage: string, planId?: string): void {
+		const task = this.getCurrentTask()
+		const backgroundTasksWithPendingAsk = Array.from(this.backgroundTasks)
+			.map((backgroundTask) => ({
+				taskId: backgroundTask.taskId,
+				agentId: backgroundTask.agentId,
+				ask: this.describeApprovalDiagnosticMessage(backgroundTask.taskAsk),
+			}))
+			.filter((summary) => Boolean(summary.ask))
+
+		const diagnostics = {
+			stage,
+			planId: planId ?? this.activeExecutionPlan?.planId ?? this.parallelStatusPlanId,
+			activePlanId: this.activeExecutionPlan?.planId,
+			persistedStatusPlanId: this.parallelStatusPlanId,
+			pendingPlanApproval: Boolean(this.pendingPlanApproval),
+			backgroundTaskCount: this.backgroundTasks.size,
+			backgroundTasksWithPendingAsk,
+			parentTask: task
+				? {
+						taskId: task.taskId,
+						background: task.background === true,
+						taskStatus: task.taskStatus,
+						taskAsk: this.describeApprovalDiagnosticMessage(task.taskAsk),
+						latestUnansweredAsk: this.describeApprovalDiagnosticMessage(
+							this.findLatestUnansweredAskMessage(task),
+						),
+						latestParallelAgentsMessage: this.describeLatestParallelAgentStatusMessage(task),
+					}
+				: undefined,
+		}
+
+		this.log(`[parallel-agents] approval-state ${JSON.stringify(diagnostics)}`)
+	}
+
+	private findLatestUnansweredAskMessage(task?: Task): ClineMessage | undefined {
+		if (!task) {
+			return undefined
+		}
+
+		for (let index = task.clineMessages.length - 1; index >= 0; index -= 1) {
+			const message = task.clineMessages[index]
+			if (message.type === "ask" && !message.isAnswered) {
+				return message
+			}
+		}
+
+		return undefined
+	}
+
+	private describeApprovalDiagnosticMessage(message?: ClineMessage): Record<string, unknown> | undefined {
+		if (!message) {
+			return undefined
+		}
+
+		const tool =
+			message.text && (message.ask === "tool" || message.say === "tool")
+				? this.tryParseToolPayload(message.text)
+				: undefined
+		const parallelTool = tool?.tool === "parallelAgents" ? tool : undefined
+
+		return {
+			type: message.type,
+			ask: message.ask,
+			say: message.say,
+			partial: message.partial === true,
+			isAnswered: message.isAnswered === true,
+			tool: tool?.tool,
+			parallelStatus: parallelTool?.parallelStatus,
+			planId: parallelTool?.executionPlan?.planId,
+		}
+	}
+
+	private describeLatestParallelAgentStatusMessage(task?: Task): Record<string, unknown> | undefined {
+		if (!task) {
+			return undefined
+		}
+
+		for (let index = task.clineMessages.length - 1; index >= 0; index -= 1) {
+			const tool = this.tryParseParallelAgentToolMessage(task.clineMessages[index])
+			if (!tool) {
+				continue
+			}
+
+			return {
+				planId: tool.executionPlan?.planId,
+				parallelStatus: tool.parallelStatus,
+				mergeReviewEntryCount: tool.mergeReviewEntries?.length ?? 0,
+				agentStatusUpdateCount: tool.agentStatusUpdates?.length ?? 0,
+				agentActivityCount: tool.agentActivities?.length ?? 0,
+				agentCompletionPacketCount: tool.agentCompletionPackets?.length ?? 0,
+			}
+		}
+
+		return undefined
 	}
 
 	public async denyMergeReview(): Promise<boolean> {
@@ -3641,6 +5417,7 @@ export class ClineProvider
 				type: "mergeFailed",
 				gitOutput: "No active execution plan is available.",
 			})
+			await this.resumeParentAfterParallelMerge("merge denial failure: no active execution plan")
 			return false
 		}
 
@@ -3674,12 +5451,14 @@ export class ClineProvider
 		await this.appendParallelAgentOutcomeSummary(plan, "cancelled", this.parallelMergeReviewEntries)
 		await this.teardownParallelExecution({ resetBus: true, cleanupWorktrees: true })
 		await this.postStateToWebviewWithoutClineMessages()
+		await this.resumeParentAfterParallelMerge("merge review denial", plan.planId)
 		return true
 	}
 
 	private async teardownParallelExecution(
 		options: { markCancelled?: boolean; resetBus?: boolean; cleanupWorktrees?: boolean } = {},
 	): Promise<void> {
+		const planId = this.activeExecutionPlan?.planId ?? this.parallelStatusPlanId
 		const hadParallelState = Boolean(
 			this.activeExecutionPlan ||
 				this.orchestratorEventLoop ||
@@ -3744,6 +5523,7 @@ export class ClineProvider
 
 		if (hadParallelState) {
 			this.log("[parallel-agents] Cleared active parallel execution state")
+			this.logParallelApprovalDiagnostics("parallel-cleanup", planId)
 		}
 	}
 
@@ -4660,15 +6440,11 @@ export class ClineProvider
 	private shouldSuppressParallelAgentCoordinationEvent(
 		event: Omit<ParallelAgentCoordinationEvent, "ts"> & { ts?: number },
 	): boolean {
-		if (event.kind === "question" || event.kind === "answer") {
-			return false
-		}
-
 		if (event.kind === "shared-context" || event.kind === "ownership" || event.kind === "dependency") {
 			return true
 		}
 
-		return event.source === "system" && isGenericOwnershipCoordinationMessage(event.message)
+		return isGenericOwnershipCoordinationMessage(event.message)
 	}
 
 	private describeAgentDependency(dependency: AgentDependency): string {
@@ -5010,6 +6786,280 @@ export class ClineProvider
 		return agent?.owns.filter((ownership) => ownership.mode !== "read-only").map((ownership) => ownership.path)
 	}
 
+	private getMergeAffectedPaths(entry: MergeReviewEntry | undefined, fallbackPaths: string[] | undefined): string[] {
+		const affectedPaths = new Set<string>()
+		const addPath = (filePath?: string) => {
+			const normalized = this.normalizeMergeAffectedPath(filePath)
+			if (normalized) {
+				affectedPaths.add(normalized)
+			}
+		}
+
+		if (entry?.diff?.trim()) {
+			for (const artifact of computeArtifactManifestFromDiff(entry.diff)) {
+				addPath(artifact.path)
+				addPath(artifact.previousPath)
+			}
+		}
+
+		if (affectedPaths.size === 0) {
+			for (const fallbackPath of fallbackPaths ?? []) {
+				addPath(fallbackPath)
+			}
+		}
+
+		return Array.from(affectedPaths)
+	}
+
+	private normalizeMergeAffectedPath(filePath: string | undefined): string | undefined {
+		const normalized = String(filePath ?? "")
+			.trim()
+			.replace(/^"|"$/g, "")
+			.replace(/\\/g, "/")
+
+		if (!normalized || normalized === "/dev/null") {
+			return undefined
+		}
+
+		const withoutDiffPrefix = normalized.replace(/^[ab]\//, "")
+		const relativePath = path.isAbsolute(withoutDiffPrefix)
+			? path.relative(this.cwd, withoutDiffPrefix)
+			: withoutDiffPrefix
+		const posixPath = relativePath.replace(/\\/g, "/")
+
+		if (!posixPath || posixPath === "." || posixPath === ".." || posixPath.startsWith("../")) {
+			return undefined
+		}
+
+		return posixPath
+	}
+
+	private getAffectedOpenDocuments(affectedPaths: string[]): MergeAffectedOpenDocument[] {
+		if (affectedPaths.length === 0) {
+			return []
+		}
+
+		const pathEntries = affectedPaths.map((relPath) => ({
+			relPath,
+			absolutePath: path.resolve(this.cwd, relPath),
+		}))
+		const openDocuments: MergeAffectedOpenDocument[] = []
+
+		for (const document of vscode.workspace.textDocuments ?? []) {
+			if (document.uri.scheme !== "file") {
+				continue
+			}
+
+			const match = pathEntries.find((entry) => arePathsEqual(document.uri.fsPath, entry.absolutePath))
+			if (!match) {
+				continue
+			}
+
+			if (
+				openDocuments.some((openDocument) =>
+					arePathsEqual(openDocument.document.uri.fsPath, document.uri.fsPath),
+				)
+			) {
+				continue
+			}
+
+			openDocuments.push({
+				document,
+				relPath: match.relPath,
+				absolutePath: match.absolutePath,
+			})
+		}
+
+		return openDocuments
+	}
+
+	private async prepareAffectedOpenDocumentsForMerge(
+		planId: string,
+		agentId: string,
+		affectedPaths: string[],
+		options: { autoApproved: boolean },
+	): Promise<MergeDocumentPreparationResult> {
+		const openDocuments = this.getAffectedOpenDocuments(affectedPaths)
+		const dirtyDocuments = openDocuments.filter(({ document }) => document.isDirty)
+		const savedDocuments: MergeAffectedOpenDocument[] = []
+
+		this.logMergeDocumentSyncDiagnostics(planId, agentId, {
+			stage: "pre-save",
+			result: "started",
+			autoApproved: options.autoApproved,
+			affectedPaths,
+			openDocumentPaths: openDocuments.map((document) => document.relPath),
+			dirtyDocumentPaths: dirtyDocuments.map((document) => document.relPath),
+		})
+
+		for (const openDocument of dirtyDocuments) {
+			let saved = false
+
+			try {
+				saved = await openDocument.document.save()
+			} catch {
+				this.logMergeDocumentSyncDiagnostics(planId, agentId, {
+					stage: "pre-save",
+					result: "failed",
+					autoApproved: options.autoApproved,
+					affectedPaths,
+					openDocumentPaths: openDocuments.map((document) => document.relPath),
+					dirtyDocumentPaths: dirtyDocuments.map((document) => document.relPath),
+					savedDocumentPaths: savedDocuments.map((document) => document.relPath),
+					failedPaths: [openDocument.relPath],
+				})
+				throw new Error(
+					`Failed to save open document ${openDocument.relPath} before parallel merge; workspace materialization was not applied.`,
+				)
+			}
+
+			if (!saved) {
+				this.logMergeDocumentSyncDiagnostics(planId, agentId, {
+					stage: "pre-save",
+					result: "failed",
+					autoApproved: options.autoApproved,
+					affectedPaths,
+					openDocumentPaths: openDocuments.map((document) => document.relPath),
+					dirtyDocumentPaths: dirtyDocuments.map((document) => document.relPath),
+					savedDocumentPaths: savedDocuments.map((document) => document.relPath),
+					failedPaths: [openDocument.relPath],
+				})
+				throw new Error(
+					`Failed to save open document ${openDocument.relPath} before parallel merge; workspace materialization was not applied.`,
+				)
+			}
+
+			savedDocuments.push(openDocument)
+		}
+
+		this.logMergeDocumentSyncDiagnostics(planId, agentId, {
+			stage: "pre-save",
+			result: "completed",
+			autoApproved: options.autoApproved,
+			affectedPaths,
+			openDocumentPaths: openDocuments.map((document) => document.relPath),
+			dirtyDocumentPaths: dirtyDocuments.map((document) => document.relPath),
+			savedDocumentPaths: savedDocuments.map((document) => document.relPath),
+		})
+
+		return { affectedPaths, openDocuments, dirtyDocuments, savedDocuments }
+	}
+
+	private async synchronizeAffectedOpenDocumentsAfterMerge(
+		planId: string,
+		agentId: string,
+		preparation: MergeDocumentPreparationResult,
+	): Promise<void> {
+		const syncedDocumentPaths: string[] = []
+		const skippedDirtyPaths: string[] = []
+		const failedPaths: string[] = []
+
+		for (const openDocument of preparation.openDocuments) {
+			if (openDocument.document.isDirty) {
+				skippedDirtyPaths.push(openDocument.relPath)
+				continue
+			}
+
+			try {
+				await vscode.workspace.openTextDocument(openDocument.document.uri)
+				syncedDocumentPaths.push(openDocument.relPath)
+			} catch {
+				failedPaths.push(openDocument.relPath)
+			}
+		}
+
+		this.logMergeDocumentSyncDiagnostics(planId, agentId, {
+			stage: "post-merge-sync",
+			result: failedPaths.length > 0 ? "partial" : "completed",
+			affectedPaths: preparation.affectedPaths,
+			openDocumentPaths: preparation.openDocuments.map((document) => document.relPath),
+			dirtyDocumentPaths: preparation.dirtyDocuments.map((document) => document.relPath),
+			savedDocumentPaths: preparation.savedDocuments.map((document) => document.relPath),
+			syncedDocumentPaths,
+			skippedDirtyPaths,
+			failedPaths,
+		})
+	}
+
+	private logMergeDocumentSyncDiagnostics(
+		planId: string,
+		agentId: string,
+		diagnostics: {
+			stage: MergeDocumentSyncStage
+			result: string
+			autoApproved?: boolean
+			affectedPaths?: string[]
+			openDocumentPaths?: string[]
+			dirtyDocumentPaths?: string[]
+			savedDocumentPaths?: string[]
+			syncedDocumentPaths?: string[]
+			skippedDirtyPaths?: string[]
+			failedPaths?: string[]
+		},
+	): void {
+		const pathSummary = (paths: string[] | undefined) => this.getDiagnosticPathSample(paths ?? [])
+
+		this.log(
+			`[parallel-agents] merge-document-sync ${JSON.stringify({
+				planId,
+				agentId,
+				stage: diagnostics.stage,
+				result: diagnostics.result,
+				autoApproved: diagnostics.autoApproved,
+				affectedPathCount: diagnostics.affectedPaths?.length ?? 0,
+				affectedPaths: pathSummary(diagnostics.affectedPaths),
+				openDocumentCount: diagnostics.openDocumentPaths?.length ?? 0,
+				openDocumentPaths: pathSummary(diagnostics.openDocumentPaths),
+				dirtyDocumentCount: diagnostics.dirtyDocumentPaths?.length ?? 0,
+				dirtyDocumentPaths: pathSummary(diagnostics.dirtyDocumentPaths),
+				savedDocumentCount: diagnostics.savedDocumentPaths?.length ?? 0,
+				savedDocumentPaths: pathSummary(diagnostics.savedDocumentPaths),
+				syncedDocumentCount: diagnostics.syncedDocumentPaths?.length ?? 0,
+				syncedDocumentPaths: pathSummary(diagnostics.syncedDocumentPaths),
+				skippedDirtyCount: diagnostics.skippedDirtyPaths?.length ?? 0,
+				skippedDirtyPaths: pathSummary(diagnostics.skippedDirtyPaths),
+				failedPathCount: diagnostics.failedPaths?.length ?? 0,
+				failedPaths: pathSummary(diagnostics.failedPaths),
+			})}`,
+		)
+	}
+
+	private getDiagnosticPathSample(paths: string[]): string[] {
+		const uniquePaths = Array.from(new Set(paths))
+		const maxPaths = 50
+
+		if (uniquePaths.length <= maxPaths) {
+			return uniquePaths
+		}
+
+		return [...uniquePaths.slice(0, maxPaths), `...${uniquePaths.length - maxPaths} more`]
+	}
+
+	private logMergeReviewDiagnostics(diagnostics: WorktreeMergeReviewDiagnostics): void {
+		this.log(`[parallel-agents] merge-review-diagnostics ${JSON.stringify(diagnostics)}`)
+	}
+
+	private logMergeMaterializationDiagnostics(
+		planId: string,
+		agentId: string,
+		entry: MergeReviewEntry | undefined,
+		result: "merged" | "failed",
+		options: { branch?: string; worktreePath?: string } = {},
+		error?: unknown,
+	): void {
+		this.log(
+			`[parallel-agents] merge-materialization ${JSON.stringify({
+				planId,
+				agentId,
+				branch: entry?.branch ?? options.branch,
+				worktreePath: entry?.worktreePath ?? options.worktreePath,
+				mergeStatus: result,
+				materialized: result === "merged",
+				error: error instanceof Error ? error.message : error ? String(error) : undefined,
+			})}`,
+		)
+	}
+
 	private tryParseActivityToolPayload(text: string): ActivityToolPayload | undefined {
 		try {
 			return JSON.parse(text) as ActivityToolPayload
@@ -5106,6 +7156,7 @@ export class ClineProvider
 			worktreePath,
 			branch,
 			ownedPaths,
+			onDiagnostics: (diagnostics) => this.logMergeReviewDiagnostics(diagnostics),
 		})
 		this.log(
 			`[parallel-agents] Merge-review diff for ${agentId}: ${diff.trim() ? "changes detected" : "no changes detected"}`,
@@ -5589,6 +7640,11 @@ export class ClineProvider
 			childIds,
 		}
 		await this.updateTaskHistory(updatedHistory)
+		if (typeof this.log === "function") {
+			this.log(
+				`[email-notifications] Recorded delegated child ${childTaskId} completion for parent ${parentTaskId}; child completion notifications represent delegated workflow completion.`,
+			)
+		}
 
 		// 6) Emit TaskDelegationCompleted (provider-level)
 		try {

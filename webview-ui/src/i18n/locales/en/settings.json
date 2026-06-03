@@ -409,6 +409,18 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Enable Fast mode",
+			"description": "Uses OpenAI priority service tier for supported models (GPT-5.5 and GPT-5.4). Fast mode may use credits at a higher rate.",
+			"status": {
+				"disabled": "Fast mode is available for {{modelId}} but currently off.",
+				"unsupported": "Fast mode is not available for {{modelId}}.",
+				"signInRequired": "Fast mode is enabled for {{modelId}}, but sign in is required before it can run.",
+				"requested": "Fast mode was requested for {{modelId}}, but OpenAI has not confirmed the priority tier yet.",
+				"confirmed": "Fast mode is confirmed for {{modelId}} on OpenAI's priority tier.",
+				"rejected": "Fast mode was requested for {{modelId}}, but OpenAI reported the {{observedServiceTier}} service tier."
+			}
+		},
 		"useCustomBaseUrl": "Use custom base URL",
 		"useReasoning": "Enable reasoning",
 		"useHostHeader": "Use custom Host header",
@@ -639,6 +651,67 @@
 			"label": "Enable text-to-speech",
 			"description": "When enabled, C will read aloud its responses using text-to-speech.",
 			"speedLabel": "Speed"
+		},
+		"email": {
+			"label": "Enable email notifications",
+			"description": "Send HTML SMTP email notifications with a plain-text fallback when a top-level task finishes. Task transcripts are never included.",
+			"notifyOnSuccess": {
+				"label": "Notify when tasks complete successfully"
+			},
+			"notifyOnFailure": {
+				"label": "Notify when tasks fail or are aborted",
+				"description": "Includes streaming failures and user-aborted tasks. Background and delegated child tasks are skipped."
+			},
+			"smtpHost": {
+				"label": "SMTP host",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "SMTP port"
+			},
+			"smtpSecure": {
+				"label": "Use implicit TLS",
+				"description": "Enable for SMTPS connections, usually on port 465. Leave off for STARTTLS on port 587."
+			},
+			"smtpRequireTls": {
+				"label": "Require STARTTLS",
+				"description": "Require the server to upgrade the connection with STARTTLS before sending credentials."
+			},
+			"smtpUsername": {
+				"label": "SMTP username",
+				"placeholder": "Optional username"
+			},
+			"smtpPassword": {
+				"label": "SMTP password",
+				"placeholder": "Enter SMTP password",
+				"configuredPlaceholder": "Leave blank to keep the saved password",
+				"description": "Stored in VS Code secret storage and never shown again.",
+				"configuredDescription": "A password is already saved. Enter a new password only if you want to replace it."
+			},
+			"smtpFromAddress": {
+				"label": "From address",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Recipients",
+				"placeholder": "you@example.com\nteam@example.com",
+				"description": "Separate recipients with commas or new lines."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Subject template",
+				"placeholder": "C task {{outcome}}",
+				"description": "Optional. Available tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens are case-insensitive, so {{taskId}} and {{taskid}} both work."
+			},
+			"test": {
+				"label": "Test SMTP settings",
+				"description": "Send a test email using the saved SMTP settings. Unsaved changes and new passwords must be saved first.",
+				"button": "Test SMTP",
+				"sending": "Sending...",
+				"success": "SMTP test email sent successfully.",
+				"failure": "SMTP test email could not be sent.",
+				"invalidConfig": "SMTP settings are incomplete or invalid. Check the extension output for details.",
+				"unsavedChanges": "Save your SMTP settings before testing. Test SMTP only uses saved settings and the password in VS Code secret storage."
+			}
 		}
 	},
 	"contextManagement": {

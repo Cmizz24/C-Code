@@ -357,6 +357,18 @@
 				"minutes": "{{minutes}} 分鐘限制"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "啟用 Fast mode",
+			"description": "對支援的模型（GPT-5.5 和 GPT-5.4）使用 OpenAI priority service tier。Fast mode 可能會以較高速度消耗 credits。",
+			"status": {
+				"disabled": "{{modelId}} 可使用 Fast mode，但目前已關閉。",
+				"unsupported": "{{modelId}} 不支援 Fast mode。",
+				"signInRequired": "{{modelId}} 的 Fast mode 已啟用，但執行前需要先登入。",
+				"requested": "已為 {{modelId}} 要求 Fast mode，但 OpenAI 尚未確認 priority tier。",
+				"confirmed": "已確認 {{modelId}} 使用 OpenAI 的 priority tier 執行 Fast mode。",
+				"rejected": "已為 {{modelId}} 要求 Fast mode，但 OpenAI 回報了 {{observedServiceTier}} service tier。"
+			}
+		},
 		"useCustomBaseUrl": "使用自訂基礎 URL",
 		"useReasoning": "啟用推理",
 		"useHostHeader": "使用自訂 Host 標頭",
@@ -587,6 +599,67 @@
 			"label": "啟用文字轉語音",
 			"description": "啟用後，Roo 將使用文字轉語音功能朗讀其回應。",
 			"speedLabel": "速度"
+		},
+		"email": {
+			"label": "啟用 email 通知",
+			"description": "頂層任務結束時傳送含純文字 fallback 的 HTML SMTP email 通知。絕不包含任務 transcript。",
+			"notifyOnSuccess": {
+				"label": "任務成功完成時通知"
+			},
+			"notifyOnFailure": {
+				"label": "任務失敗或中止時通知",
+				"description": "包含 streaming 失敗和使用者中止的任務。會略過背景任務和委派的子任務。"
+			},
+			"smtpHost": {
+				"label": "SMTP host",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "SMTP port"
+			},
+			"smtpSecure": {
+				"label": "使用隱含 TLS",
+				"description": "為 SMTPS 連線啟用，通常使用 port 465。STARTTLS 使用 port 587 時保持關閉。"
+			},
+			"smtpRequireTls": {
+				"label": "要求 STARTTLS",
+				"description": "要求伺服器在傳送憑證前使用 STARTTLS 升級連線。"
+			},
+			"smtpUsername": {
+				"label": "SMTP 使用者名稱",
+				"placeholder": "選填使用者名稱"
+			},
+			"smtpPassword": {
+				"label": "SMTP 密碼",
+				"placeholder": "輸入 SMTP 密碼",
+				"configuredPlaceholder": "留空以保留已儲存的密碼",
+				"description": "儲存在 VS Code secret storage 中，之後不會再次顯示。",
+				"configuredDescription": "已儲存密碼。只有想替換時才輸入新密碼。"
+			},
+			"smtpFromAddress": {
+				"label": "寄件者地址",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "收件者",
+				"placeholder": "you@example.com\nteam@example.com",
+				"description": "用逗號或換行分隔收件者。"
+			},
+			"smtpSubjectTemplate": {
+				"label": "主旨範本",
+				"placeholder": "C task {{outcome}}",
+				"description": "選填。可用 tokens：{{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}。Tokens 不區分大小寫，因此 {{taskId}} 和 {{taskid}} 都可用。"
+			},
+			"test": {
+				"label": "測試 SMTP 設定",
+				"description": "使用已儲存的 SMTP 設定傳送測試郵件。未儲存的變更和新密碼必須先儲存。",
+				"button": "測試 SMTP",
+				"sending": "正在傳送...",
+				"success": "SMTP 測試郵件已成功傳送。",
+				"failure": "無法傳送 SMTP 測試郵件。",
+				"invalidConfig": "SMTP 設定不完整或無效。請查看擴充功能輸出以取得詳細資訊。",
+				"unsavedChanges": "測試前請儲存 SMTP 設定。測試 SMTP 只使用已儲存的設定和 VS Code secret storage 中的密碼。"
+			}
 		}
 	},
 	"contextManagement": {

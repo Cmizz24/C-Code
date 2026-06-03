@@ -4,6 +4,8 @@ const EXECUTE_COMMAND_DESCRIPTION = `Request to execute a CLI command on the sys
 
 For creating or editing file contents, prefer the normal write/edit tools available to the current mode (for example write_to_file, apply_patch, apply_diff, edit, edit_file, or search_replace) instead of embedding file contents in execute_command with shell here-strings, heredocs, or echo chains. Use execute_command for shell operations, not as the primary way to write file contents.
 
+For repository or code searches, prefer the dedicated search tools over shell text-search commands when available. On Windows/cmd.exe, avoid long findstr search strings, large alternation patterns, and pipelines like type file | findstr /N "a\|b\|..." because findstr has short pattern limits and can break pipes. If shell search is necessary, split searches into short patterns or use PowerShell Select-String with manageable pattern arrays. Treat findstr exit code 1 as "no matches" rather than a workflow-breaking error when there is no findstr error output.
+
 Parameters:
 - command: (required) The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
 - cwd: (optional) The working directory to execute the command in

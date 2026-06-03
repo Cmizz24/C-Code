@@ -347,6 +347,18 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Fast modeを有効にする",
+			"description": "対応モデル（GPT-5.5とGPT-5.4）でOpenAIのpriority service tierを使用します。Fast modeではクレジットの消費速度が高くなる場合があります。",
+			"status": {
+				"disabled": "{{modelId}}ではFast modeを利用できますが、現在はオフです。",
+				"unsupported": "{{modelId}}ではFast modeを利用できません。",
+				"signInRequired": "{{modelId}}でFast modeが有効ですが、実行する前にサインインが必要です。",
+				"requested": "{{modelId}}でFast modeをリクエストしましたが、OpenAIはpriority tierをまだ確認していません。",
+				"confirmed": "{{modelId}}でOpenAIのpriority tierによるFast modeが確認されました。",
+				"rejected": "{{modelId}}でFast modeをリクエストしましたが、OpenAIは{{observedServiceTier}} service tierを報告しました。"
+			}
+		},
 		"useCustomBaseUrl": "カスタムベースURLを使用",
 		"useReasoning": "推論を有効化",
 		"useHostHeader": "カスタムHostヘッダーを使用",
@@ -577,6 +589,67 @@
 			"label": "音声合成を有効化",
 			"description": "有効にすると、Rooは音声合成を使用して応答を音声で読み上げます。",
 			"speedLabel": "速度"
+		},
+		"email": {
+			"label": "email通知を有効にする",
+			"description": "最上位タスクの完了時に、プレーンテキストのフォールバック付きHTML SMTP email通知を送信します。タスクのトランスクリプトは含まれません。",
+			"notifyOnSuccess": {
+				"label": "タスクが正常に完了したら通知する"
+			},
+			"notifyOnFailure": {
+				"label": "タスクが失敗または中止されたら通知する",
+				"description": "ストリーミング失敗とユーザーが中止したタスクを含みます。バックグラウンドタスクと委任された子タスクはスキップされます。"
+			},
+			"smtpHost": {
+				"label": "SMTPホスト",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "SMTPポート"
+			},
+			"smtpSecure": {
+				"label": "暗黙的TLSを使用",
+				"description": "通常ポート465のSMTPS接続で有効にします。ポート587のSTARTTLSではオフのままにします。"
+			},
+			"smtpRequireTls": {
+				"label": "STARTTLSを必須にする",
+				"description": "認証情報を送信する前に、サーバーがSTARTTLSで接続をアップグレードすることを必須にします。"
+			},
+			"smtpUsername": {
+				"label": "SMTPユーザー名",
+				"placeholder": "任意のユーザー名"
+			},
+			"smtpPassword": {
+				"label": "SMTPパスワード",
+				"placeholder": "SMTPパスワードを入力",
+				"configuredPlaceholder": "保存済みパスワードを保持するには空欄のままにする",
+				"description": "VS Codeのシークレットストレージに保存され、二度と表示されません。",
+				"configuredDescription": "パスワードはすでに保存されています。置き換える場合のみ新しいパスワードを入力してください。"
+			},
+			"smtpFromAddress": {
+				"label": "送信元アドレス",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "受信者",
+				"placeholder": "you@example.com\nteam@example.com",
+				"description": "受信者はカンマまたは改行で区切ってください。"
+			},
+			"smtpSubjectTemplate": {
+				"label": "件名テンプレート",
+				"placeholder": "C task {{outcome}}",
+				"description": "任意。利用可能なtokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}。Tokensは大文字と小文字を区別しないため、{{taskId}} と {{taskid}} の両方が使えます。"
+			},
+			"test": {
+				"label": "SMTP設定をテスト",
+				"description": "保存済みのSMTP設定を使ってテストメールを送信します。未保存の変更や新しいパスワードは先に保存する必要があります。",
+				"button": "SMTPをテスト",
+				"sending": "送信中...",
+				"success": "SMTPテストメールを正常に送信しました。",
+				"failure": "SMTPテストメールを送信できませんでした。",
+				"invalidConfig": "SMTP設定が不完全または無効です。詳細は拡張機能の出力を確認してください。",
+				"unsavedChanges": "テストする前にSMTP設定を保存してください。SMTPテストは保存済みの設定とVS Code secret storage内のパスワードのみを使用します。"
+			}
 		}
 	},
 	"contextManagement": {

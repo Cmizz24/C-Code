@@ -60,5 +60,95 @@
 		"running": "Đang chạy",
 		"completed": "Hoàn thành",
 		"error": "Lỗi"
+	},
+	"marketplace": {
+		"title": "MCP Marketplace",
+		"description": "Khám phá các server MCP đáng tin cậy cho tìm kiếm, coding, docs, cơ sở dữ liệu, tệp và workflow nhóm. Chọn một server và C sẽ thiết lập nó trong một task có hướng dẫn.",
+		"featuredCatalog": "Server MCP nổi bật",
+		"stats": {
+			"servers": "Server được tuyển chọn",
+			"installed": "Đã cài đặt"
+		},
+		"search": {
+			"label": "Tìm kiếm marketplace",
+			"placeholder": "Tìm theo tên, danh mục, gói hoặc secret..."
+		},
+		"filters": {
+			"categoryLabel": "Lọc theo danh mục",
+			"all": "Tất cả danh mục"
+		},
+		"resultsSummary": "Đang hiển thị {{shown}} trong số {{total}} server",
+		"badges": {
+			"featured": "Nổi bật",
+			"popular": "Phổ biến"
+		},
+		"labels": {
+			"category": "Danh mục",
+			"package": "Gói",
+			"source": "Nguồn",
+			"transport": "Transport",
+			"requiredSecrets": "Secret bắt buộc",
+			"prerequisites": "Điều kiện tiên quyết",
+			"suggestedScope": "Phạm vi đề xuất",
+			"scope": "Phạm vi đích",
+			"verification": "Xác minh",
+			"riskNotes": "Ghi chú rủi ro"
+		},
+		"scope": {
+			"global": "Global",
+			"project": "Dự án"
+		},
+		"actions": {
+			"installWithAI": "Cài đặt bằng AI",
+			"configureAgain": "Cấu hình lại",
+			"clearFilters": "Xóa bộ lọc",
+			"showDetails": "Chi tiết",
+			"hideDetails": "Ẩn chi tiết",
+			"openDocs": "Mở tài liệu"
+		},
+		"customDiscovery": {
+			"title": "Không tìm thấy máy chủ MCP?",
+			"description": "Nhập máy chủ MCP bạn muốn và C sẽ mở một tác vụ thiết lập MCP để tìm tài liệu chính thức, đề xuất cấu hình an toàn và xác minh bằng các công cụ nghiên cứu đã cài đặt.",
+			"mode": {
+				"label": "Hành động máy chủ MCP tùy chỉnh",
+				"find": "Tìm máy chủ có sẵn",
+				"create": "Tạo mới"
+			},
+			"inputLabel": "Tên hoặc mô tả máy chủ MCP",
+			"placeholder": "Ví dụ: máy chủ MCP tìm kiếm Perplexity",
+			"action": "Khám phá bằng AI",
+			"validation": {
+				"empty": "Nhập tên hoặc mô tả máy chủ MCP trước khi bắt đầu khám phá."
+			},
+			"create": {
+				"description": "Mô tả máy chủ MCP hoặc bộ công cụ bạn muốn và C sẽ mở một tác vụ MCP Setup để thiết kế, triển khai, cấu hình và xác minh một máy chủ cục bộ tùy chỉnh.",
+				"inputLabel": "Máy chủ MCP mới nên làm gì?",
+				"placeholder": "Ví dụ: thêm một công cụ tra cứu tài liệu gói nội bộ từ workspace này",
+				"action": "Tạo bằng AI",
+				"recommendation": "Context7 và tìm kiếm web có thể hỗ trợ tài liệu, nhưng việc tạo sẽ không bị chặn nếu chúng chưa được cài đặt.",
+				"validation": {
+					"empty": "Nhập điều bạn muốn máy chủ MCP làm trước khi bắt đầu tạo máy chủ MCP tùy chỉnh."
+				}
+			},
+			"requirements": {
+				"context7": "Đã cài Context7",
+				"webSearch": "Đã cài tìm kiếm web",
+				"missingBoth": "Cài Context7 và ít nhất một máy chủ MCP tìm kiếm web trước khi bắt đầu khám phá MCP tùy chỉnh.",
+				"missingContext7": "Cài Context7 trước khi bắt đầu khám phá MCP tùy chỉnh.",
+				"missingWebSearch": "Cài ít nhất một máy chủ MCP tìm kiếm web, như Exa Web Search, Brave Search, Tavily Search hoặc Firecrawl, trước khi bắt đầu khám phá MCP tùy chỉnh."
+			}
+		},
+		"empty": {
+			"title": "Không tìm thấy server MCP",
+			"description": "Thử một cụm từ tìm kiếm khác hoặc xóa bộ lọc danh mục đã chọn."
+		},
+		"status": {
+			"installed": "Đã cài đặt"
+		},
+		"prerequisiteOverflow": "+{{count}} nữa",
+		"secretSummary": "{{count}} bắt buộc",
+		"optionalSecretSummary": "{{count}} tùy chọn",
+		"noSecrets": "Không có secret",
+		"noneRequired": "Không yêu cầu"
 	}
 }

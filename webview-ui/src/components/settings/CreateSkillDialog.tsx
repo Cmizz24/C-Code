@@ -4,7 +4,7 @@ import { validateSkillName as validateSkillNameShared, SkillNameValidationError 
 import { getAllModes } from "@roo/modes"
 
 import { useAppTranslation } from "@/i18n/TranslationContext"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 import {
 	Button,
 	Checkbox,

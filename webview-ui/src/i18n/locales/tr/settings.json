@@ -347,6 +347,18 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
+		"openAiCodexFastMode": {
+			"label": "Fast mode'u etkinleştir",
+			"description": "Desteklenen modeller (GPT-5.5 ve GPT-5.4) için OpenAI priority service tier kullanır. Fast mode kredileri daha yüksek hızda tüketebilir.",
+			"status": {
+				"disabled": "Fast mode {{modelId}} için kullanılabilir, ancak şu anda kapalı.",
+				"unsupported": "Fast mode {{modelId}} için kullanılamaz.",
+				"signInRequired": "Fast mode {{modelId}} için etkin, ancak çalışmadan önce oturum açman gerekiyor.",
+				"requested": "Fast mode {{modelId}} için istendi, ancak OpenAI priority tier'ı henüz onaylamadı.",
+				"confirmed": "Fast mode {{modelId}} için OpenAI priority tier'ında onaylandı.",
+				"rejected": "Fast mode {{modelId}} için istendi, ancak OpenAI {{observedServiceTier}} service tier'ını bildirdi."
+			}
+		},
 		"useCustomBaseUrl": "Özel temel URL kullan",
 		"useReasoning": "Akıl yürütmeyi etkinleştir",
 		"useHostHeader": "Özel Host başlığı kullan",
@@ -577,6 +589,67 @@
 			"label": "Metinden sese özelliğini etkinleştir",
 			"description": "Etkinleştirildiğinde, Roo yanıtlarını metinden sese teknolojisi kullanarak sesli okuyacaktır.",
 			"speedLabel": "Hız"
+		},
+		"email": {
+			"label": "email bildirimlerini etkinleştir",
+			"description": "Üst düzey bir görev bittiğinde düz metin fallback'i olan HTML SMTP email bildirimleri gönder. Görev transcript'leri asla dahil edilmez.",
+			"notifyOnSuccess": {
+				"label": "Görevler başarıyla tamamlandığında bildir"
+			},
+			"notifyOnFailure": {
+				"label": "Görevler başarısız olduğunda veya iptal edildiğinde bildir",
+				"description": "Streaming hatalarını ve kullanıcı tarafından iptal edilen görevleri içerir. Arka plan görevleri ve devredilmiş alt görevler atlanır."
+			},
+			"smtpHost": {
+				"label": "SMTP host",
+				"placeholder": "smtp.example.com"
+			},
+			"smtpPort": {
+				"label": "SMTP port"
+			},
+			"smtpSecure": {
+				"label": "Örtük TLS kullan",
+				"description": "Genellikle 465 portundaki SMTPS bağlantıları için etkinleştir. 587 portundaki STARTTLS için kapalı bırak."
+			},
+			"smtpRequireTls": {
+				"label": "STARTTLS gerekli olsun",
+				"description": "Kimlik bilgilerini göndermeden önce sunucunun bağlantıyı STARTTLS ile yükseltmesini gerektir."
+			},
+			"smtpUsername": {
+				"label": "SMTP kullanıcı adı",
+				"placeholder": "İsteğe bağlı kullanıcı adı"
+			},
+			"smtpPassword": {
+				"label": "SMTP parolası",
+				"placeholder": "SMTP parolasını gir",
+				"configuredPlaceholder": "Kaydedilen parolayı korumak için boş bırak",
+				"description": "VS Code secret storage içinde saklanır ve bir daha gösterilmez.",
+				"configuredDescription": "Bir parola zaten kayıtlı. Yalnızca değiştirmek istiyorsan yeni parola gir."
+			},
+			"smtpFromAddress": {
+				"label": "Gönderen adresi",
+				"placeholder": "C <roo@example.com>"
+			},
+			"smtpRecipients": {
+				"label": "Alıcılar",
+				"placeholder": "sen@example.com\ntakim@example.com",
+				"description": "Alıcıları virgül veya yeni satırlarla ayır."
+			},
+			"smtpSubjectTemplate": {
+				"label": "Konu şablonu",
+				"placeholder": "C görevi {{outcome}}",
+				"description": "İsteğe bağlı. Kullanılabilir tokens: {{taskId}}, {{outcome}}, {{status}}, {{workspacePath}}, {{mode}}, {{totalTokens}}. Tokens büyük/küçük harfe duyarlı değildir; bu yüzden {{taskId}} ve {{taskid}} ikisi de çalışır."
+			},
+			"test": {
+				"label": "SMTP ayarlarını test et",
+				"description": "Kaydedilmiş SMTP ayarlarını kullanarak bir test e-postası gönder. Kaydedilmemiş değişiklikler ve yeni parolalar önce kaydedilmelidir.",
+				"button": "SMTP'yi test et",
+				"sending": "Gönderiliyor...",
+				"success": "SMTP test e-postası başarıyla gönderildi.",
+				"failure": "SMTP test e-postası gönderilemedi.",
+				"invalidConfig": "SMTP ayarları eksik veya geçersiz. Ayrıntılar için eklenti çıktısını kontrol et.",
+				"unsavedChanges": "Test etmeden önce SMTP ayarlarını kaydet. SMTP testi yalnızca kaydedilmiş ayarları ve VS Code gizli depolamasındaki parolayı kullanır."
+			}
 		}
 	},
 	"contextManagement": {

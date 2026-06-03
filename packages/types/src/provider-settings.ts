@@ -287,7 +287,8 @@ const geminiCliSchema = apiModelIdProviderModelSchema.extend({
 })
 
 const openAiCodexSchema = apiModelIdProviderModelSchema.extend({
-	// No additional settings needed - uses OAuth authentication
+	// OpenAI Codex Fast mode requests priority service tier for supported ChatGPT Plus/Pro models.
+	openAiCodexFastMode: z.boolean().optional(),
 })
 
 const openAiNativeSchema = apiModelIdProviderModelSchema.extend({
@@ -329,7 +330,7 @@ const minimaxSchema = apiModelIdProviderModelSchema.extend({
 
 const xiaomiMiMoSchema = apiModelIdProviderModelSchema.extend({
 	xiaomiMiMoBaseUrl: z
-		.union([z.literal("https://api.xiaomimimo.com/v1"), z.literal("https://token-plan-cn.xiaomimimo.com/v1")])
+		.union([z.literal("https://api.xiaomimimo.com/v1"), z.literal("https://token-plan-ams.xiaomimimo.com/v1")])
 		.optional(),
 	xiaomiMiMoApiKey: z.string().optional(),
 })

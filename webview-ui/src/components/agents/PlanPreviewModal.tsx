@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import type { AgentPlan, ExecutionPlan } from "@roo-code/types"
 
 import { Button, Textarea } from "@/components/ui"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 
 import { getAgentModeLabel } from "./agentDisplay"

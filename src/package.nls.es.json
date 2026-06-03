@@ -1,6 +1,6 @@
 {
 	"extension.displayName": "C Code",
-	"extension.description": "El fork personal de Roo Code de Cmizz: un equipo completo de desarrollo de agentes de IA en tu editor.",
+	"extension.description": "El fork de Roo Code de Cmizz con agentes paralelos, workflows MCP, modo rápido de Codex, resúmenes SMTP y herramientas seguras para Windows.",
 	"command.newTask.title": "Nueva Tarea",
 	"command.explainCode.title": "Explicar Código",
 	"command.fixCode.title": "Corregir Código",

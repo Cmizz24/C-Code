@@ -60,5 +60,95 @@
 		"running": "Ejecutando",
 		"completed": "Completado",
 		"error": "Error"
+	},
+	"marketplace": {
+		"title": "MCP Marketplace",
+		"description": "Descubre servidores MCP de confianza para búsqueda, código, documentación, bases de datos, archivos y flujos de trabajo de equipo. Elige uno y C lo configurará en una tarea guiada.",
+		"featuredCatalog": "Servidores MCP destacados",
+		"stats": {
+			"servers": "Servidores seleccionados",
+			"installed": "Instalados"
+		},
+		"search": {
+			"label": "Buscar en Marketplace",
+			"placeholder": "Busca por nombre, categoría, paquete o secreto..."
+		},
+		"filters": {
+			"categoryLabel": "Filtrar por categoría",
+			"all": "Todas las categorías"
+		},
+		"resultsSummary": "Mostrando {{shown}} de {{total}} servidores",
+		"badges": {
+			"featured": "Destacado",
+			"popular": "Popular"
+		},
+		"labels": {
+			"category": "Categoría",
+			"package": "Paquete",
+			"source": "Fuente",
+			"transport": "Transport",
+			"requiredSecrets": "Secretos obligatorios",
+			"prerequisites": "Requisitos previos",
+			"suggestedScope": "Ámbito sugerido",
+			"scope": "Ámbito de destino",
+			"verification": "Verificación",
+			"riskNotes": "Notas de riesgo"
+		},
+		"scope": {
+			"global": "Global",
+			"project": "Proyecto"
+		},
+		"actions": {
+			"installWithAI": "Instalar con IA",
+			"configureAgain": "Configurar de nuevo",
+			"clearFilters": "Borrar filtros",
+			"showDetails": "Detalles",
+			"hideDetails": "Ocultar detalles",
+			"openDocs": "Abrir documentación"
+		},
+		"customDiscovery": {
+			"title": "¿No encuentras el servidor MCP?",
+			"description": "Introduce el servidor MCP que quieres y C abrirá una tarea de configuración MCP para descubrir documentación oficial, proponer una configuración segura y verificarla con tus herramientas de investigación instaladas.",
+			"mode": {
+				"label": "Acción del servidor MCP personalizado",
+				"find": "Encontrar existente",
+				"create": "Crear nuevo"
+			},
+			"inputLabel": "Nombre o descripción del servidor MCP",
+			"placeholder": "Ejemplo: servidor MCP de búsqueda Perplexity",
+			"action": "Descubrir con IA",
+			"validation": {
+				"empty": "Introduce un nombre o una descripción del servidor MCP antes de iniciar el descubrimiento."
+			},
+			"create": {
+				"description": "Describe el servidor MCP o las herramientas que quieres y C abrirá una tarea MCP Setup para diseñar, implementar, configurar y verificar un servidor local personalizado.",
+				"inputLabel": "¿Qué debería hacer el nuevo servidor MCP?",
+				"placeholder": "Ejemplo: añade una herramienta que busque documentación interna de paquetes en este espacio de trabajo",
+				"action": "Crear con IA",
+				"recommendation": "Context7 y la búsqueda web pueden ayudar con la documentación, pero la creación no se bloquea si no están instalados.",
+				"validation": {
+					"empty": "Introduce qué quieres que haga el servidor MCP antes de iniciar la creación del servidor MCP personalizado."
+				}
+			},
+			"requirements": {
+				"context7": "Context7 instalado",
+				"webSearch": "Búsqueda web instalada",
+				"missingBoth": "Instala Context7 y al menos un servidor MCP de búsqueda web antes de iniciar el descubrimiento MCP personalizado.",
+				"missingContext7": "Instala Context7 antes de iniciar el descubrimiento MCP personalizado.",
+				"missingWebSearch": "Instala al menos un servidor MCP de búsqueda web, como Exa Web Search, Brave Search, Tavily Search o Firecrawl, antes de iniciar el descubrimiento MCP personalizado."
+			}
+		},
+		"empty": {
+			"title": "No se encontraron servidores MCP",
+			"description": "Prueba otro término de búsqueda o borra el filtro de categoría seleccionado."
+		},
+		"status": {
+			"installed": "Instalado"
+		},
+		"prerequisiteOverflow": "+{{count}} más",
+		"secretSummary": "{{count}} obligatorios",
+		"optionalSecretSummary": "{{count}} opcionales",
+		"noSecrets": "Sin secretos",
+		"noneRequired": "Ninguno obligatorio"
 	}
 }
