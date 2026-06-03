@@ -21,6 +21,8 @@ export type EmailNotificationPayload = {
 	requestCount?: number
 }
 
+type EmailNotificationScope = NonNullable<EmailNotificationPayload["notificationType"]> | "task"
+
 export type EmailNotificationSendResult = {
 	attempted: boolean
 	sent: boolean
@@ -540,7 +542,7 @@ ${rowMarkup}
 	}
 
 	private hasNotificationBeenSent(payload: EmailNotificationPayload): boolean {
-		const previousOutcome = this.sentTaskOutcomes.get(payload.taskId)
+		const previousOutcome = this.sentTaskOutcomes.get(this.getNotificationKey(payload))
 
 		if (!previousOutcome) {
 			return false
@@ -554,11 +556,13 @@ ${rowMarkup}
 	}
 
 	private rememberNotification(payload: EmailNotificationPayload): void {
-		if (!this.sentTaskOutcomes.has(payload.taskId)) {
-			this.sentTaskOutcomeOrder.push(payload.taskId)
+		const notificationKey = this.getNotificationKey(payload)
+
+		if (!this.sentTaskOutcomes.has(notificationKey)) {
+			this.sentTaskOutcomeOrder.push(notificationKey)
 		}
 
-		this.sentTaskOutcomes.set(payload.taskId, payload.outcome)
+		this.sentTaskOutcomes.set(notificationKey, payload.outcome)
 
 		while (this.sentTaskOutcomeOrder.length > MAX_SENT_NOTIFICATION_KEYS) {
 			const oldestKey = this.sentTaskOutcomeOrder.shift()
@@ -567,6 +571,16 @@ ${rowMarkup}
 				this.sentTaskOutcomes.delete(oldestKey)
 			}
 		}
+	}
+
+	private getNotificationKey(payload: Pick<EmailNotificationPayload, "taskId" | "notificationType">): string {
+		return `${this.getNotificationScope(payload.notificationType)}:${payload.taskId}`
+	}
+
+	private getNotificationScope(
+		notificationType: EmailNotificationPayload["notificationType"],
+	): EmailNotificationScope {
+		return notificationType ?? "task"
 	}
 
 	private escapeHtml(value: string): string {

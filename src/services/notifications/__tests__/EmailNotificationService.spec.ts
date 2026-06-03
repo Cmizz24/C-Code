@@ -402,6 +402,45 @@ describe("EmailNotificationService", () => {
 		expect(sendMail).toHaveBeenCalledTimes(1)
 	})
 
+	it("scopes duplicate suppression by notification type", async () => {
+		const { service, sendMail } = createService(
+			createContextProxy({
+				smtpSubjectTemplate: "{{notificationType}}|{{notificationLabel}}|{{taskId}}",
+			}),
+		)
+		const workflowPayload = {
+			...payload,
+			taskId: "shared-parent-task",
+			summary: "Parallel workflow completed before final parent completion.",
+			notificationType: "parallel-workflow" as const,
+		}
+		const finalParentPayload = {
+			...payload,
+			taskId: "shared-parent-task",
+			summary: "Final visible parent task completed.",
+		}
+
+		await expect(service.sendTaskNotification(workflowPayload)).resolves.toEqual({ attempted: true, sent: true })
+		await expect(service.sendTaskNotification(finalParentPayload)).resolves.toEqual({ attempted: true, sent: true })
+		await expect(service.sendTaskNotification(finalParentPayload)).resolves.toEqual({
+			attempted: false,
+			sent: false,
+			skippedReason: "duplicate",
+		})
+		await expect(service.sendTaskNotification(workflowPayload)).resolves.toEqual({
+			attempted: false,
+			sent: false,
+			skippedReason: "duplicate",
+		})
+
+		expect(sendMail).toHaveBeenCalledTimes(2)
+		expect(sendMail.mock.calls[0][0].subject).toBe("parallel-workflow|Parallel agent workflow|shared-parent-task")
+		expect(sendMail.mock.calls[0][0].text).toContain("Notification type: Parallel agent workflow")
+		expect(sendMail.mock.calls[1][0].subject).toBe("task|Task|shared-parent-task")
+		expect(sendMail.mock.calls[1][0].text).toContain("Task ID: shared-parent-task")
+		expect(sendMail.mock.calls[1][0].text).not.toContain("Notification type:")
+	})
+
 	it("does not send an aborted notification after a successful completion was already sent", async () => {
 		const { service, sendMail } = createService(createContextProxy({ emailNotifyOnFailure: true }))
 
