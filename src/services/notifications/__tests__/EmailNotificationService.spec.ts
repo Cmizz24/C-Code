@@ -136,6 +136,39 @@ describe("EmailNotificationService", () => {
 		expect(mailOptions.html).not.toContain("smtp-secret")
 	})
 
+	it("renders workflow summary and usage scope rows with sanitized subject template tokens", async () => {
+		const { service, sendMail } = createService(
+			createContextProxy({
+				smtpSubjectTemplate: "{{workflowSummary}} :: {{usageScope}} :: {{taskId}}",
+			}),
+		)
+
+		await service.sendTaskNotification({
+			...payload,
+			taskId: "workflow-rollup-task",
+			workflowSummary: "Overall workflow <child> rollup used smtp-secret and excluded transcripts.",
+			usageScope: "Aggregated parent workflow usage from parent plus 2 child tasks using smtp-secret.",
+		})
+
+		const mailOptions = sendMail.mock.calls[0][0]
+		expect(mailOptions.subject).toBe(
+			"Overall workflow <child> rollup used [redacted] and excluded transcripts. :: Aggregated parent workflow usage from parent plus 2 child tasks using [redacted]. :: workflow-rollup-task",
+		)
+		expect(mailOptions.text).toContain(
+			"Workflow summary: Overall workflow <child> rollup used [redacted] and excluded transcripts.",
+		)
+		expect(mailOptions.text).toContain(
+			"Usage scope: Aggregated parent workflow usage from parent plus 2 child tasks using [redacted].",
+		)
+		expect(mailOptions.html).toContain("Workflow summary")
+		expect(mailOptions.html).toContain("Overall workflow &lt;child&gt; rollup used [redacted]")
+		expect(mailOptions.html).toContain("Usage scope")
+		expect(mailOptions.html).toContain(
+			"Aggregated parent workflow usage from parent plus 2 child tasks using [redacted].",
+		)
+		expect(JSON.stringify(mailOptions)).not.toContain("smtp-secret")
+	})
+
 	it("replaces subject template tokens case-insensitively including lowercase taskid", async () => {
 		const { service, sendMail } = createService(
 			createContextProxy({

@@ -10,6 +10,8 @@ export type EmailNotificationPayload = {
 	taskId: string
 	outcome: EmailNotificationOutcome
 	summary?: string
+	workflowSummary?: string
+	usageScope?: string
 	workspacePath?: string
 	mode?: string
 	notificationType?: "delegated-child" | "parallel-workflow"
@@ -394,12 +396,16 @@ ${rowMarkup}
 	private getBodyRows(payload: EmailNotificationPayload): NotificationBodyRow[] {
 		const tokens = this.getTemplateTokens(payload)
 		const summary = this.formatSummary(payload.summary)
+		const workflowSummary = this.formatSummary(payload.workflowSummary)
+		const usageScope = this.formatSummary(payload.usageScope)
 
 		return [
 			{ label: "Task ID", value: payload.taskId },
 			{ label: "Status", value: tokens.status },
 			...(payload.notificationType ? [{ label: "Notification type", value: tokens.notificationLabel }] : []),
 			...(summary ? [{ label: "Completion summary", value: summary }] : []),
+			...(workflowSummary ? [{ label: "Workflow summary", value: workflowSummary }] : []),
+			...(usageScope ? [{ label: "Usage scope", value: usageScope }] : []),
 			...(tokens.parentTaskId ? [{ label: "Parent task ID", value: tokens.parentTaskId }] : []),
 			...(tokens.rootTaskId ? [{ label: "Root task ID", value: tokens.rootTaskId }] : []),
 			...(tokens.agentId ? [{ label: "Agent ID", value: tokens.agentId }] : []),
@@ -423,6 +429,8 @@ ${rowMarkup}
 		const toolCounts = this.getToolUsageCounts(payload.toolUsage)
 		const workspace = payload.workspacePath || "Unknown workspace"
 		const summary = this.formatSummary(payload.summary) || ""
+		const workflowSummary = this.formatSummary(payload.workflowSummary) || ""
+		const usageScope = this.formatSummary(payload.usageScope) || ""
 		const totalTokens = tokenUsage.totalTokensIn + tokenUsage.totalTokensOut
 		const notificationType = payload.notificationType || "task"
 
@@ -437,6 +445,8 @@ ${rowMarkup}
 			agentId: this.sanitizeNotificationText(payload.agentId) || "",
 			summary,
 			completionSummary: summary,
+			workflowSummary,
+			usageScope,
 			workspace,
 			workspacePath: workspace,
 			mode: payload.mode || "unknown",

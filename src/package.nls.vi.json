@@ -1,6 +1,6 @@
 {
 	"extension.displayName": "C Code",
-	"extension.description": "Fork Roo Code cá nhân của Cmizz: một đội ngũ phát triển các tác nhân AI hoàn chỉnh trong trình soạn thảo của bạn.",
+	"extension.description": "Fork Roo Code của Cmizz với agent song song, workflow MCP, chế độ nhanh Codex, rollup SMTP và tooling an toàn cho Windows.",
 	"command.newTask.title": "Tác Vụ Mới",
 	"command.explainCode.title": "Giải Thích Mã",
 	"command.fixCode.title": "Sửa Mã",

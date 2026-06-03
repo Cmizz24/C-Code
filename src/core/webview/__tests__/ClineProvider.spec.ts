@@ -690,11 +690,12 @@ describe("ClineProvider", () => {
 		...overrides,
 	})
 
-	const createTokenUsage = (): TokenUsage => ({
+	const createTokenUsage = (overrides: Partial<TokenUsage> = {}): TokenUsage => ({
 		totalTokensIn: 12,
 		totalTokensOut: 34,
 		totalCost: 0.12,
 		contextTokens: 2048,
+		...overrides,
 	})
 
 	const createToolUsage = (): ToolUsage =>
@@ -831,6 +832,7 @@ describe("ClineProvider", () => {
 				taskId: "task-success",
 				outcome: "success",
 				summary: "Implemented SMTP completion notifications. Added regression tests.",
+				usageScope: "Task only (live completion event)",
 				workspacePath: "/workspace",
 				mode: "code",
 				tokenUsage,
@@ -1007,6 +1009,7 @@ describe("ClineProvider", () => {
 				taskId: "task-missing-usage",
 				outcome: "success",
 				summary: "Completed without final usage stats.",
+				usageScope: "Task only (live completion event)",
 				workspacePath: "/workspace",
 				mode: "code",
 				tokenUsage: undefined,
@@ -1200,9 +1203,38 @@ describe("ClineProvider", () => {
 				taskId: "parallel-parent-success",
 				workspacePath: "/workspace",
 			} as any)
-			const tokenUsage = createTokenUsage()
-			const toolUsage = createToolUsage()
+			const parentTokenUsage = createTokenUsage({
+				totalTokensIn: 100,
+				totalTokensOut: 40,
+				totalCacheWrites: 10,
+				totalCacheReads: 5,
+				totalCost: 0.1,
+			})
+			const parentToolUsage = createToolUsage()
+			const childTokenUsage = createTokenUsage({
+				totalTokensIn: 35,
+				totalTokensOut: 15,
+				totalCacheWrites: 3,
+				totalCacheReads: 7,
+				totalCost: 0.05,
+				contextTokens: 1024,
+			})
+			const childToolUsage = {
+				execute_command: { attempts: 1, failures: 0 },
+			} as ToolUsage
 			;(parentTask as any).taskMode = "code"
+			parentTask.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "Sensitive parent transcript content should not appear in diagnostics.",
+				ts: 1,
+			})
+			parentTask.clineMessages.push({
+				type: "say",
+				say: "api_req_started",
+				text: "Starting parent request",
+				ts: 1.5,
+			})
 			parentTask.clineMessages.push({
 				type: "say",
 				say: "completion_result",
@@ -1217,29 +1249,60 @@ describe("ClineProvider", () => {
 				background: true,
 				mode: "code",
 			})
+			backgroundTask.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "Sensitive child transcript content should not appear in diagnostics.",
+				ts: 1,
+			})
+			backgroundTask.clineMessages.push({
+				type: "say",
+				say: "api_req_started",
+				text: "Starting child request",
+				ts: 1.5,
+			})
 
-			backgroundTask.emit(
-				RooCodeEventName.TaskCompleted,
-				backgroundTask.taskId,
-				createTokenUsage(),
-				createToolUsage(),
-			)
+			backgroundTask.emit(RooCodeEventName.TaskCompleted, backgroundTask.taskId, childTokenUsage, childToolUsage)
 			;(provider as any).emailNotificationTaskOutcomes.set(`task:${backgroundTask.taskId}`, "success")
 			;(provider as any).emailNotificationTaskOutcomesInFlight.set(`task:${backgroundTask.taskId}`, "success")
-			parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, tokenUsage, toolUsage)
-			parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, tokenUsage, toolUsage)
+			parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, parentTokenUsage, parentToolUsage)
+			parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, parentTokenUsage, parentToolUsage)
 
-			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			await vi.waitFor(() => expect(sendTaskNotification).toHaveBeenCalledTimes(1))
 			expect(sendTaskNotification).toHaveBeenCalledWith({
 				taskId: "parallel-parent-success",
 				outcome: "success",
 				summary: "Parallel agents completed and the parent verified the workflow.",
+				workflowSummary: expect.stringContaining(
+					'Overall workflow rollup: parent task parallel-parent-success completed with final result "Parallel agents completed and the parent verified the workflow."',
+				),
+				usageScope:
+					"Aggregated parent workflow usage from the parent task plus 1 child task, including delegated and background parallel-agent tasks discoverable from saved task metadata.",
 				workspacePath: "/workspace",
 				mode: "code",
-				tokenUsage,
-				toolUsage,
-				requestCount: 0,
+				tokenUsage: {
+					totalTokensIn: 135,
+					totalTokensOut: 55,
+					totalCacheWrites: 13,
+					totalCacheReads: 12,
+					totalCost: 0.15000000000000002,
+					contextTokens: 0,
+				},
+				toolUsage: {
+					read_file: { attempts: 2, failures: 1 },
+					execute_command: { attempts: 1, failures: 0 },
+				},
+				requestCount: 2,
 			})
+			expect(sendTaskNotification.mock.calls[0][0].workflowSummary).toContain(
+				`${backgroundTask.taskId}: agent dashboard-agent parallel/background task`,
+			)
+			expect(JSON.stringify(sendTaskNotification.mock.calls[0][0])).not.toContain(
+				"Sensitive parent transcript content",
+			)
+			expect(JSON.stringify(sendTaskNotification.mock.calls[0][0])).not.toContain(
+				"Sensitive child transcript content",
+			)
 
 			const notificationDiagnostics = getEmailNotificationDiagnostics(logSpy)
 
@@ -1269,6 +1332,22 @@ describe("ClineProvider", () => {
 						decision: "send-top-level-success",
 					}),
 					expect.objectContaining({
+						event: "completion-notification-aggregation",
+						taskId: "parallel-parent-success",
+						decision: "use-aggregated-workflow-usage",
+						usageAggregationSource: "live-root-with-discovered-children",
+						parentHistoryFound: false,
+						workflowChildTaskCount: 1,
+						requestCount: 2,
+						totalTokensIn: 135,
+						totalTokensOut: 55,
+						totalCacheWrites: 13,
+						totalCacheReads: 12,
+						totalCost: 0.15000000000000002,
+						toolAttempts: 3,
+						toolFailures: 1,
+					}),
+					expect.objectContaining({
 						event: "outcome-notification-decision",
 						taskId: "parallel-parent-success",
 						decision: "dispatch",
@@ -1280,6 +1359,8 @@ describe("ClineProvider", () => {
 			expect(JSON.stringify(notificationDiagnostics)).not.toContain(
 				"Parallel agents completed and the parent verified the workflow.",
 			)
+			expect(JSON.stringify(notificationDiagnostics)).not.toContain("Sensitive parent transcript content")
+			expect(JSON.stringify(notificationDiagnostics)).not.toContain("Sensitive child transcript content")
 		})
 
 		test("sends one child workflow success notification for delegated completion metadata", async () => {
@@ -1303,7 +1384,7 @@ describe("ClineProvider", () => {
 					totalCost: 0.01,
 					contextTokens: 0,
 				},
-				requestCount: 1,
+				requestCount: 2,
 			})
 
 			await (provider as any).notifyDelegatedWorkflowCompleted(
@@ -1329,7 +1410,7 @@ describe("ClineProvider", () => {
 					totalCost: 0.01,
 					contextTokens: 0,
 				},
-				requestCount: 1,
+				requestCount: 2,
 			})
 			expect(JSON.stringify(sendTaskNotification.mock.calls[0][0])).not.toContain(transcriptText)
 			await vi.waitFor(() => {
@@ -1340,7 +1421,7 @@ describe("ClineProvider", () => {
 							taskId: "delegated-parent-success",
 							childTaskId: "delegated-child-success",
 							decision: "send-delegated-child-success",
-							requestCount: 1,
+							requestCount: 2,
 						}),
 						expect.objectContaining({
 							event: "outcome-notification-decision",
@@ -1490,6 +1571,20 @@ describe("ClineProvider", () => {
 		test("sends delegated child completion and later final parent completion as separate notifications", async () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const logSpy = vi.spyOn(provider, "log")
+			const parentTokenUsage = createTokenUsage({
+				totalTokensIn: 50,
+				totalTokensOut: 20,
+				totalCacheWrites: 1,
+				totalCacheReads: 2,
+				totalCost: 0.08,
+			})
+			const childTokenUsage = createTokenUsage({
+				totalTokensIn: 25,
+				totalTokensOut: 15,
+				totalCacheWrites: 3,
+				totalCacheReads: 4,
+				totalCost: 0.04,
+			})
 			const historyItem = createHistoryItem({
 				id: "delegated-parent-dedupe",
 				workspace: "/workspace",
@@ -1498,18 +1593,38 @@ describe("ClineProvider", () => {
 				completedByChildId: "delegated-child-dedupe",
 				completionResultSummary: "Child finished delegated work.",
 			})
-			const parentTask = new Task({ ...defaultTaskOptions, taskId: "delegated-parent-dedupe" } as any)
+			const parentTask = new Task({
+				...defaultTaskOptions,
+				taskId: "delegated-parent-dedupe",
+				workspacePath: "/workspace",
+			} as any)
 			const childTask = new Task({ ...defaultTaskOptions, taskId: "delegated-child-dedupe", parentTask } as any)
+			;(parentTask as any).taskMode = "code"
+			;(childTask as any).taskMode = "code"
 			;(provider as any).taskHistoryStore.getAll = vi.fn(() => [historyItem])
 			;(provider as any).taskCreationCallback(parentTask)
 			;(provider as any).taskCreationCallback(childTask)
+			parentTask.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "Sensitive delegated parent transcript must not leak.",
+				ts: 1,
+			})
+			parentTask.clineMessages.push({ type: "say", say: "api_req_started", text: "Parent request", ts: 1.5 })
+			childTask.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "Sensitive delegated child transcript must not leak.",
+				ts: 1,
+			})
+			childTask.clineMessages.push({ type: "say", say: "api_req_started", text: "Child request", ts: 1.5 })
 			childTask.clineMessages.push({
 				type: "say",
 				say: "completion_result",
 				text: "Child finished delegated work.",
 				ts: 2,
 			})
-			childTask.emit(RooCodeEventName.TaskCompleted, childTask.taskId, createTokenUsage(), createToolUsage())
+			childTask.emit(RooCodeEventName.TaskCompleted, childTask.taskId, childTokenUsage, createToolUsage())
 			await vi.waitFor(() => {
 				expect(
 					(provider as any).emailNotificationTaskOutcomes.get("delegated-child:delegated-child-dedupe"),
@@ -1517,9 +1632,15 @@ describe("ClineProvider", () => {
 			})
 			;(parentTask as any).abandoned = true
 			parentTask.emit(RooCodeEventName.TaskAborted)
-			parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, createTokenUsage(), createToolUsage())
+			parentTask.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Parent completed final delegated workflow validation.",
+				ts: 3,
+			})
+			parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, parentTokenUsage, createToolUsage())
 
-			expect(sendTaskNotification).toHaveBeenCalledTimes(2)
+			await vi.waitFor(() => expect(sendTaskNotification).toHaveBeenCalledTimes(2))
 			expect(sendTaskNotification).toHaveBeenNthCalledWith(
 				1,
 				expect.objectContaining({
@@ -1535,10 +1656,36 @@ describe("ClineProvider", () => {
 				expect.objectContaining({
 					taskId: "delegated-parent-dedupe",
 					outcome: "success",
-					summary: "Task completed successfully.",
+					summary: "Parent completed final delegated workflow validation.",
+					workflowSummary: expect.stringContaining(
+						'Overall workflow rollup: parent task delegated-parent-dedupe completed with final result "Parent completed final delegated workflow validation."',
+					),
+					usageScope:
+						"Aggregated parent workflow usage from the parent task plus 1 child task, including delegated and background parallel-agent tasks discoverable from saved task metadata.",
+					tokenUsage: {
+						totalTokensIn: 75,
+						totalTokensOut: 35,
+						totalCacheWrites: 4,
+						totalCacheReads: 6,
+						totalCost: 0.12,
+						contextTokens: 0,
+					},
+					toolUsage: {
+						read_file: { attempts: 4, failures: 2 },
+					},
+					requestCount: 2,
 				}),
 			)
 			expect(sendTaskNotification.mock.calls[1][0]).not.toHaveProperty("notificationType")
+			expect(sendTaskNotification.mock.calls[1][0].workflowSummary).toContain(
+				"delegated-child-dedupe: delegated task",
+			)
+			expect(JSON.stringify(sendTaskNotification.mock.calls[1][0])).not.toContain(
+				"Sensitive delegated parent transcript",
+			)
+			expect(JSON.stringify(sendTaskNotification.mock.calls[1][0])).not.toContain(
+				"Sensitive delegated child transcript",
+			)
 			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
@@ -1564,6 +1711,31 @@ describe("ClineProvider", () => {
 						duplicateSent: false,
 					}),
 				]),
+			)
+			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "completion-notification-aggregation",
+						taskId: "delegated-parent-dedupe",
+						decision: "use-aggregated-workflow-usage",
+						usageAggregationSource: "history-recursive",
+						workflowChildTaskCount: 1,
+						requestCount: 2,
+						totalTokensIn: 75,
+						totalTokensOut: 35,
+						totalCacheWrites: 4,
+						totalCacheReads: 6,
+						totalCost: 0.12,
+						toolAttempts: 4,
+						toolFailures: 2,
+					}),
+				]),
+			)
+			expect(JSON.stringify(getEmailNotificationDiagnostics(logSpy))).not.toContain(
+				"Sensitive delegated parent transcript",
+			)
+			expect(JSON.stringify(getEmailNotificationDiagnostics(logSpy))).not.toContain(
+				"Sensitive delegated child transcript",
 			)
 			expect(sendTaskNotification).not.toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -4000,21 +4172,38 @@ describe("ClineProvider", () => {
 		const finalToolUsage = createToolUsage()
 		parentTask.emit(RooCodeEventName.TaskCompleted, parentTask.taskId, finalTokenUsage, finalToolUsage)
 
-		expect(sendTaskNotification).toHaveBeenCalledTimes(2)
+		await vi.waitFor(() => expect(sendTaskNotification).toHaveBeenCalledTimes(2))
 		expect(sendTaskNotification).toHaveBeenNthCalledWith(
 			2,
 			expect.objectContaining({
 				taskId: "parallel-parent-merge-success",
 				outcome: "success",
 				summary: "Parent emitted final completion after merge.",
+				workflowSummary: expect.stringContaining(
+					'Overall workflow rollup: parent task parallel-parent-merge-success completed with final result "Parent emitted final completion after merge."',
+				),
+				usageScope:
+					"Aggregated parent workflow usage from the parent task plus 1 child task, including delegated and background parallel-agent tasks discoverable from saved task metadata.",
 				workspacePath: "/workspace",
 				mode: "code",
-				tokenUsage: finalTokenUsage,
-				toolUsage: finalToolUsage,
-				requestCount: 1,
+				tokenUsage: {
+					totalTokensIn: 24,
+					totalTokensOut: 68,
+					totalCacheWrites: 0,
+					totalCacheReads: 0,
+					totalCost: 0.24,
+					contextTokens: 0,
+				},
+				toolUsage: {
+					read_file: { attempts: 4, failures: 2 },
+				},
+				requestCount: 2,
 			}),
 		)
 		expect(sendTaskNotification.mock.calls[1][0]).not.toHaveProperty("notificationType")
+		expect(sendTaskNotification.mock.calls[1][0].workflowSummary).toContain(
+			`${backgroundTask.taskId}: agent dashboard-agent parallel/background task`,
+		)
 		const notificationDiagnostics = getEmailNotificationDiagnostics(logSpy)
 		expect(notificationDiagnostics).toEqual(
 			expect.arrayContaining([
@@ -4058,6 +4247,19 @@ describe("ClineProvider", () => {
 					decision: "send-top-level-success",
 					notificationScope: "task",
 					notificationDedupeKey: "task:parallel-parent-merge-success",
+				}),
+				expect.objectContaining({
+					event: "completion-notification-aggregation",
+					taskId: "parallel-parent-merge-success",
+					decision: "use-aggregated-workflow-usage",
+					usageAggregationSource: "live-root-with-discovered-children",
+					workflowChildTaskCount: 1,
+					requestCount: 2,
+					totalTokensIn: 24,
+					totalTokensOut: 68,
+					totalCost: 0.24,
+					toolAttempts: 4,
+					toolFailures: 2,
 				}),
 				expect.objectContaining({
 					event: "outcome-notification-decision",
@@ -4452,6 +4654,7 @@ describe("ClineProvider", () => {
 			taskId: "parallel-parent-merge-failure",
 			outcome: "success",
 			summary: "Parent handled the failed parallel merge and reported actionable recovery steps.",
+			usageScope: "Task only (live completion event)",
 			workspacePath: "/workspace",
 			mode: "code",
 			tokenUsage,

@@ -1,6 +1,6 @@
 {
 	"extension.displayName": "C Code",
-	"extension.description": "Личный fork Roo Code от Cmizz: целая команда ИИ-разработчиков в вашем редакторе.",
+	"extension.description": "Fork Roo Code от Cmizz с параллельными агентами, MCP-workflow, быстрым режимом Codex, SMTP-rollup и безопасными для Windows инструментами.",
 	"views.contextMenu.label": "C Code",
 	"views.terminalMenu.label": "C Code",
 	"views.activitybar.title": "C Code",

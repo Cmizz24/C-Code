@@ -1,6 +1,13 @@
-# Roo Code Changelog
+# C Code Changelog
 
 ## 3.53.0
+
+### C Code Stable Release Notes
+
+- Publish C Code as Cmizz's stable fork release with refreshed GitHub and extension README descriptions for the C Code feature set.
+- Add SMTP completion notification workflow rollups so final parent task emails report the overall task result plus recursively aggregated child/background task requests, token usage, cost, and tool usage.
+- Keep MCP Marketplace discovery/setup/create flows, parallel agents with checkpointed worktree merge review, OpenAI Codex fast-mode/status support, Xiaomi MiMo AMS defaults, Windows-safe command behavior, and Settings/i18n fixes documented as core fork features.
+- Keep 3.53.0 as the latest stable C Code release line and remove stale 3.54.0 changeset metadata that conflicted with the fork feature set.
 
 ### Minor Changes
 

@@ -1,6 +1,6 @@
 {
 	"extension.displayName": "C Code",
-	"extension.description": "Fork pribadi Roo Code milik Cmizz: tim pengembang AI lengkap di editor kamu.",
+	"extension.description": "Fork Roo Code Cmizz dengan agen paralel, workflow MCP, mode cepat Codex, rollup SMTP, dan tooling yang aman untuk Windows.",
 	"views.contextMenu.label": "C Code",
 	"views.terminalMenu.label": "C Code",
 	"views.activitybar.title": "C Code",

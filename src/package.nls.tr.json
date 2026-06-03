@@ -1,6 +1,6 @@
 {
 	"extension.displayName": "C Code",
-	"extension.description": "Cmizz'ın kişisel Roo Code fork'u: düzenleyicinde tam bir AI ajanları geliştirme ekibi.",
+	"extension.description": "Cmizz'in paralel ajanlar, MCP workflow'ları, Codex hızlı modu, SMTP rollup'ları ve Windows-güvenli tooling içeren Roo Code fork'u.",
 	"command.newTask.title": "Yeni Görev",
 	"command.explainCode.title": "Kodu Açıkla",
 	"command.fixCode.title": "Kodu Düzelt",

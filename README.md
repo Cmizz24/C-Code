@@ -1,18 +1,23 @@
 # C Code
 
-> Cmizz's personal fork of Roo Code — an AI-powered coding assistant for VS Code, shaped for my own workflow.
+> Cmizz's personal Roo Code fork for VS Code: an AI dev team in your editor with parallel agents, MCP workflows, Codex fast mode, SMTP completion rollups, and Windows-safe tooling.
 
-C Code is my personal fork of the original [Roo Code](https://github.com/RooCodeInc/Roo-Code) extension. It keeps the core idea I liked from Roo Code — an agentic AI dev workflow inside VS Code — while giving the project its own name, wording, GitHub home, and direction.
+C Code is Cmizz's independently maintained fork of the original [Roo Code](https://github.com/RooCodeInc/Roo-Code) extension. It keeps the agentic coding workflow that made Roo Code useful while giving the project its own name, repository, release path, and fork-specific features.
 
-This fork exists so I can keep using, learning from, and adapting the Roo Code experience after the original project was sunset, while still keeping clear respect and attribution for the team and community that built it.
+This fork is built for practical day-to-day development: planning, coding, debugging, coordinating agents, connecting MCP tools, and finishing work with safer status reporting.
 
 ---
 
-## Why this fork exists
+## Highlights in the C Code fork
 
-Roo Code was shut down on May 15th. Roo Code, Inc. stated that the extension should continue to work indefinitely, but that it would no longer receive bug fixes, new features, or model updates from the original team.
-
-C Code is my way of keeping that work alive for my own setup. It is not intended to erase where the project came from. Roo Code deserves full credit for the foundation this fork is built on.
+- **Parallel agents for larger workflows** — split complex work across coordinated background agents, track per-agent status, checkpoint before execution, review worktree output, and merge approved agent results back into the parent task.
+- **MCP Marketplace and setup flows** — discover trusted MCP servers for search, code, docs, databases, files, and team workflows; launch guided MCP setup tasks; and create custom local MCP servers from natural language requirements.
+- **SMTP completion notifications** — send task outcome emails using saved SMTP settings, including final parent workflow rollups with overall task summaries, child-task context, requests, token usage, cost, and tool attempt/failure counts without exposing transcripts or secrets.
+- **OpenAI Codex / ChatGPT Plus/Pro workflow support** — use the OpenAI Codex provider with fast-mode controls, authentication/status reporting, and model defaults designed for ChatGPT subscription-backed coding sessions.
+- **Xiaomi MiMo provider support** — includes Xiaomi MiMo AMS model support and fork defaults for that provider path.
+- **Windows-safe command behavior** — command guidance and execution handling are tuned for Windows shells while preserving normal cross-platform development workflows.
+- **Settings and i18n reliability fixes** — settings views, cached state handling, startup localization, provider composition, and translated UI paths have fork-specific fixes and tests.
+- **Mode-based development** — Code, Architect, Ask, Debug, Orchestrator, Issue/PR helpers, translation, docs, merge resolution, and custom modes remain available for different tasks.
 
 ---
 
@@ -21,13 +26,24 @@ C Code is my way of keeping that work alive for my own setup. It is not intended
 C Code brings an AI coding assistant into VS Code that can help with:
 
 - Writing and editing code from natural language instructions
-- Refactoring existing files
-- Debugging and explaining problems
-- Reading project context
-- Updating documentation
-- Automating repetitive development tasks
-- Working through multi-step coding workflows
-- Using different modes for different kinds of work
+- Refactoring existing files and improving project structure
+- Debugging errors, tracing root causes, and explaining behavior
+- Reading project context and summarizing relevant files
+- Updating documentation, release notes, and configuration
+- Automating repetitive development tasks through tools and terminal commands
+- Coordinating delegated subtasks and parallel agent workflows
+- Connecting MCP servers and external development tooling
+
+---
+
+## Stable release
+
+- **Current stable C Code version:** 3.53.0
+- **Publisher / publication identity:** Cmizz
+- **Package name:** `c-code`
+- **Stable VSIX artifact:** `bin/c-code-3.53.0.vsix`
+
+Version 3.53.0 is kept as the latest stable C Code release line unless a future release intentionally bumps the extension version.
 
 ---
 
@@ -37,25 +53,18 @@ C Code keeps the mode-based workflow from Roo Code and adapts it for day-to-day 
 
 - **Code Mode** — make edits, write code, and work directly with files
 - **Architect Mode** — plan features, designs, migrations, and larger changes
-- **Explain Mode** — explain code, answer questions, and inspect the project
+- **Ask Mode** — explain code, answer questions, and inspect the project
 - **Debug Mode** — investigate errors, trace issues, and find root causes
+- **Orchestrator Mode** — coordinate multi-step projects and delegate subtasks
 - **Custom Modes** — create specialized workflows for different tasks
 
 ---
 
 ## Project status
 
-This is a personal fork maintained by Cmizz.
+C Code is a personal fork maintained by Cmizz. The goal is to keep the extension useful, understandable, and actively adaptable for Cmizz's workflow while preserving the original Roo Code foundation.
 
-The goal is to keep the extension useful, personal, and understandable while preserving the original Roo Code foundation. Changes in this fork may include:
-
-- Personal branding and wording
-- Fork-specific documentation
-- Updated repository links
-- Adjusted provider headers and extension metadata
-- Future fixes or experiments that fit my own workflow
-
-This fork is experimental and provided as-is.
+This project is independent, experimental, and provided as-is.
 
 ---
 
