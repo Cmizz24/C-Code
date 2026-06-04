@@ -224,6 +224,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	)
 	const autoApproveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 	const userRespondedRef = useRef<boolean>(false)
+	const completionUiVisibleNotificationRef = useRef<Set<string>>(new Set())
 	const [currentFollowUpTs, setCurrentFollowUpTs] = useState<number | null>(null)
 	const [aggregatedCostsMap, setAggregatedCostsMap] = useState<
 		Map<
@@ -575,6 +576,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	useEffect(() => {
 		setExpandedRows({})
 		everVisibleMessagesTsRef.current.clear()
+		completionUiVisibleNotificationRef.current.clear()
 		setCurrentFollowUpTs(null)
 		setIsCondensing(false)
 
@@ -586,6 +588,54 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	}, [task?.ts])
 
 	const taskTs = task?.ts
+
+	useEffect(() => {
+		const taskId = currentTaskItem?.id
+		const completionTs = lastMessage?.ts
+		const startNewTaskButtonText = t("chat:startNewTask.title")
+
+		if (
+			isHidden ||
+			!taskId ||
+			currentTaskItem?.parentTaskId ||
+			clineAsk !== "completion_result" ||
+			!enableButtons ||
+			primaryButtonText !== startNewTaskButtonText ||
+			lastMessage?.type !== "ask" ||
+			lastMessage.ask !== "completion_result" ||
+			lastMessage.partial === true
+		) {
+			return
+		}
+
+		const notificationKey = `${taskId}:${completionTs ?? taskTs ?? "unknown"}`
+
+		if (completionUiVisibleNotificationRef.current.has(notificationKey)) {
+			return
+		}
+
+		completionUiVisibleNotificationRef.current.add(notificationKey)
+		vscode.postMessage({
+			type: "taskCompletionUiVisible",
+			taskId,
+			values: {
+				ask: lastMessage.ask,
+				taskTs,
+				completionTs,
+			},
+		})
+	}, [
+		clineAsk,
+		currentTaskItem?.id,
+		currentTaskItem?.parentTaskId,
+		enableButtons,
+		isHidden,
+		lastMessage,
+		primaryButtonText,
+		t,
+		taskTs,
+	])
+
 	const childCostSignature = useMemo(() => {
 		if (!currentTaskItem?.id) {
 			return ""

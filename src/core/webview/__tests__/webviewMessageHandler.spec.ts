@@ -82,6 +82,7 @@ const mockClineProvider = {
 	createTaskWithHistoryItem: vi.fn(),
 	clearTask: vi.fn(),
 	notifyAcceptedFinalParentCompletion: vi.fn(),
+	notifyFinalParentCompletionUiVisible: vi.fn(),
 	testSmtpSettings: vi.fn(),
 	getMcpHub: vi.fn(),
 	getSkillsManager: vi.fn(),
@@ -254,6 +255,32 @@ describe("webviewMessageHandler - testSmtpSettings", () => {
 		expect(JSON.stringify(vi.mocked(mockClineProvider.postMessageToWebview).mock.calls)).not.toContain(
 			"smtp-secret",
 		)
+	})
+})
+
+describe("webviewMessageHandler - taskCompletionUiVisible", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("forwards the visible completed parent task signal to the provider without accepting or clearing the task", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "taskCompletionUiVisible",
+			taskId: "visible-parent-task",
+			values: {
+				ask: "completion_result",
+				taskTs: 100,
+				completionTs: 200,
+			},
+		} as any)
+
+		expect(mockClineProvider.notifyFinalParentCompletionUiVisible).toHaveBeenCalledWith("visible-parent-task", {
+			ask: "completion_result",
+			taskTs: 100,
+			completionTs: 200,
+		})
+		expect(mockClineProvider.notifyAcceptedFinalParentCompletion).not.toHaveBeenCalled()
+		expect(mockClineProvider.clearTask).not.toHaveBeenCalled()
 	})
 })
 

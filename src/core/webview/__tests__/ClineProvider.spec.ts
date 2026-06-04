@@ -1183,6 +1183,198 @@ describe("ClineProvider", () => {
 			})
 		})
 
+		test("UI-visible final parent completion sends once when the Start New Task completion state appears", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
+			const task = new Task({
+				...defaultTaskOptions,
+				taskId: "ui-visible-parent-fallback",
+				workspacePath: "/workspace",
+			} as any)
+			const tokenUsage = createTokenUsage()
+			const toolUsage = createToolUsage()
+			;(task as any).taskMode = "code"
+			;(task as any).tokenUsage = tokenUsage
+			;(task as any).toolUsage = toolUsage
+			task.clineMessages.push({ type: "say", say: "api_req_started", text: "Parent request", ts: 1 })
+			task.clineMessages.push({
+				type: "ask",
+				ask: "completion_result",
+				text: "UI-visible parent completion fallback sent.",
+				partial: false,
+				ts: 2,
+			})
+			await provider.addClineToStack(task)
+
+			await provider.notifyFinalParentCompletionUiVisible("ui-visible-parent-fallback", {
+				ask: "completion_result",
+				taskTs: 1,
+				completionTs: 2,
+			})
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			expect(sendTaskNotification).toHaveBeenCalledWith({
+				taskId: "ui-visible-parent-fallback",
+				outcome: "success",
+				summary: "UI-visible parent completion fallback sent.",
+				notificationType: "final-parent",
+				usageScope: "Task only (live completion event)",
+				workspacePath: "/workspace",
+				mode: "code",
+				tokenUsage,
+				toolUsage,
+				requestCount: 1,
+			})
+
+			await provider.notifyFinalParentCompletionUiVisible("ui-visible-parent-fallback", {
+				ask: "completion_result",
+				taskTs: 1,
+				completionTs: 2,
+			})
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "ui-visible-final-parent-completion-decision",
+						taskId: "ui-visible-parent-fallback",
+						decision: "send-top-level-success-after-ui-visible",
+						uiAsk: "completion_result",
+						uiVisibleKey: "ui-visible-parent-fallback:2",
+					}),
+					expect.objectContaining({
+						event: "ui-visible-final-parent-completion-decision",
+						taskId: "ui-visible-parent-fallback",
+						decision: "skip-duplicate-final-parent",
+						notificationScope: "final-parent",
+						notificationDedupeKey: "final-parent:ui-visible-parent-fallback",
+					}),
+				]),
+			)
+		})
+
+		test("UI-visible final parent completion remains one-shot when the SMTP service skips the send", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock(
+				vi.fn().mockResolvedValue({ attempted: false, sent: false, skippedReason: "disabled" }),
+			)
+			const logSpy = vi.spyOn(provider, "log")
+			const task = new Task({ ...defaultTaskOptions, taskId: "ui-visible-service-skipped" } as any)
+			task.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "UI-visible fallback was skipped by settings.",
+				ts: 2,
+			})
+			;(task as any).tokenUsage = createTokenUsage()
+			;(task as any).toolUsage = createToolUsage()
+			await provider.addClineToStack(task)
+
+			await provider.notifyFinalParentCompletionUiVisible("ui-visible-service-skipped", {
+				ask: "completion_result",
+				taskTs: 1,
+				completionTs: 2,
+			})
+			await provider.notifyFinalParentCompletionUiVisible("ui-visible-service-skipped", {
+				ask: "completion_result",
+				taskTs: 1,
+				completionTs: 2,
+			})
+
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "notification-send-result",
+						taskId: "ui-visible-service-skipped",
+						decision: "service-skipped",
+						skippedReason: "disabled",
+					}),
+					expect.objectContaining({
+						event: "ui-visible-final-parent-completion-decision",
+						taskId: "ui-visible-service-skipped",
+						decision: "skip-ui-visible-already-observed",
+						uiVisibleKey: "ui-visible-service-skipped:2",
+					}),
+				]),
+			)
+		})
+
+		test("UI-visible final parent completion skips child, background, and historical completed tasks", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
+
+			const parentTask = new Task({ ...defaultTaskOptions, taskId: "ui-visible-parent" } as any)
+			const childTask = new Task({ ...defaultTaskOptions, taskId: "ui-visible-child", parentTask } as any)
+			childTask.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Child task completion should not send final parent email.",
+				ts: 2,
+			})
+			await provider.addClineToStack(childTask)
+			await provider.notifyFinalParentCompletionUiVisible("ui-visible-child", {
+				ask: "completion_result",
+				taskTs: 1,
+				completionTs: 2,
+			})
+
+			const backgroundTask = new Task({
+				...defaultTaskOptions,
+				taskId: "ui-visible-background",
+				background: true,
+			} as any)
+			backgroundTask.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Background task completion should not send final parent email.",
+				ts: 3,
+			})
+			await provider.addClineToStack(backgroundTask)
+			await provider.notifyFinalParentCompletionUiVisible("ui-visible-background", {
+				ask: "completion_result",
+				taskTs: 1,
+				completionTs: 3,
+			})
+
+			const historicalTask = await provider.createTaskWithHistoryItem(
+				createHistoryItem({ id: "ui-visible-historical-completed", status: "completed" }),
+				{ startTask: false },
+			)
+			historicalTask.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Historical completed task should not resend final parent email.",
+				ts: 4,
+			})
+			await provider.notifyFinalParentCompletionUiVisible("ui-visible-historical-completed", {
+				ask: "completion_result",
+				taskTs: 1,
+				completionTs: 4,
+			})
+
+			expect(sendTaskNotification).not.toHaveBeenCalled()
+			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "ui-visible-final-parent-completion-decision",
+						taskId: "ui-visible-child",
+						decision: "skip-delegated-child-task",
+					}),
+					expect.objectContaining({
+						event: "ui-visible-final-parent-completion-decision",
+						taskId: "ui-visible-background",
+						decision: "skip-background-task",
+					}),
+					expect.objectContaining({
+						event: "ui-visible-final-parent-completion-decision",
+						taskId: "ui-visible-historical-completed",
+						decision: "skip-duplicate-final-parent",
+						notificationDedupeKey: "final-parent:ui-visible-historical-completed",
+					}),
+				]),
+			)
+		})
+
 		test("logs disabled-settings diagnostics when completion email settings skip a visible completion", async () => {
 			await provider.contextProxy.setValues({
 				emailNotificationsEnabled: false,
@@ -4521,12 +4713,44 @@ describe("ClineProvider", () => {
 		}
 
 		const backgroundTask = await provider.createTask("agent completed work", undefined, parentTask, {
+			taskId: "parallel-background-dashboard-task",
 			agentId: "dashboard-agent",
 			background: true,
 			workspacePath: "/tmp/dashboard-agent",
 			startTask: false,
 			mode: "code",
+		} as any)
+		backgroundTask.clineMessages.push({
+			type: "say",
+			say: "api_req_started",
+			text: "Starting background agent request",
+			ts: 1.5,
 		})
+		const nestedBackgroundTask = await provider.createTask(
+			"nested agent completed work",
+			undefined,
+			backgroundTask,
+			{
+				taskId: "parallel-background-dashboard-nested-task",
+				agentId: "nested-dashboard-agent",
+				background: true,
+				workspacePath: "/tmp/dashboard-agent/nested",
+				startTask: false,
+				mode: "code",
+			} as any,
+		)
+		nestedBackgroundTask.clineMessages.push({
+			type: "say",
+			say: "api_req_started",
+			text: "Starting nested background agent request",
+			ts: 1.75,
+		})
+		nestedBackgroundTask.emit(
+			RooCodeEventName.TaskCompleted,
+			nestedBackgroundTask.taskId,
+			createTokenUsage(),
+			createToolUsage(),
+		)
 		backgroundTask.emit(
 			RooCodeEventName.TaskCompleted,
 			backgroundTask.taskId,
@@ -4537,7 +4761,7 @@ describe("ClineProvider", () => {
 		await expect(provider.mergeApprovedAgents(["dashboard-agent", "styles-agent"])).resolves.toBe(true)
 
 		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
-		expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+		await vi.waitFor(() => expect(sendTaskNotification).toHaveBeenCalledTimes(1))
 		expect(sendTaskNotification).toHaveBeenCalledWith({
 			taskId: "parallel-parent-merge-success",
 			outcome: "success",
@@ -4546,9 +4770,20 @@ describe("ClineProvider", () => {
 			workspacePath: "/workspace",
 			mode: "code",
 			notificationType: "parallel-workflow",
-			tokenUsage,
-			toolUsage,
-			requestCount: 1,
+			tokenUsage: {
+				totalTokensIn: 36,
+				totalTokensOut: 102,
+				totalCacheWrites: 0,
+				totalCacheReads: 0,
+				totalCost: 0.36,
+				contextTokens: 0,
+			},
+			toolUsage: {
+				read_file: { attempts: 6, failures: 3 },
+			},
+			requestCount: 3,
+			usageScope:
+				"Aggregated parent workflow usage from the parent task plus 1 child task, including delegated and background parallel-agent tasks discoverable from saved task metadata.",
 		})
 
 		await vi.waitFor(() => {
@@ -4589,17 +4824,17 @@ describe("ClineProvider", () => {
 				mode: "code",
 				notificationType: "final-parent",
 				tokenUsage: {
-					totalTokensIn: 24,
-					totalTokensOut: 68,
+					totalTokensIn: 36,
+					totalTokensOut: 102,
 					totalCacheWrites: 0,
 					totalCacheReads: 0,
-					totalCost: 0.24,
+					totalCost: 0.36,
 					contextTokens: 0,
 				},
 				toolUsage: {
-					read_file: { attempts: 4, failures: 2 },
+					read_file: { attempts: 6, failures: 3 },
 				},
-				requestCount: 2,
+				requestCount: 3,
 			}),
 		)
 		expect(sendTaskNotification.mock.calls[1][0]).toHaveProperty("notificationType", "final-parent")
@@ -4609,6 +4844,12 @@ describe("ClineProvider", () => {
 		const notificationDiagnostics = getEmailNotificationDiagnostics(logSpy)
 		expect(notificationDiagnostics).toEqual(
 			expect.arrayContaining([
+				expect.objectContaining({
+					event: "completion-event-observed",
+					taskId: nestedBackgroundTask.taskId,
+					background: true,
+					agentId: "nested-dashboard-agent",
+				}),
 				expect.objectContaining({
 					event: "completion-event-observed",
 					taskId: backgroundTask.taskId,
@@ -4631,6 +4872,22 @@ describe("ClineProvider", () => {
 					duplicateSent: false,
 					duplicateInFlight: false,
 					requestCount: 1,
+					workflowChildTaskCount: 1,
+					workflowDescendantIdsCount: 2,
+				}),
+				expect.objectContaining({
+					event: "parallel-merge-parent-notification-aggregation",
+					taskId: "parallel-parent-merge-success",
+					decision: "use-aggregated-workflow-usage",
+					usageAggregationSource: "live-root-with-discovered-children",
+					workflowChildTaskCount: 1,
+					workflowDescendantIdsCount: 2,
+					requestCount: 3,
+					totalTokensIn: 36,
+					totalTokensOut: 102,
+					totalCost: 0.36,
+					toolAttempts: 6,
+					toolFailures: 3,
 				}),
 				expect.objectContaining({
 					event: "parallel-parent-resume-lifecycle",
@@ -4657,12 +4914,12 @@ describe("ClineProvider", () => {
 					decision: "use-aggregated-workflow-usage",
 					usageAggregationSource: "live-root-with-discovered-children",
 					workflowChildTaskCount: 1,
-					requestCount: 2,
-					totalTokensIn: 24,
-					totalTokensOut: 68,
-					totalCost: 0.24,
-					toolAttempts: 4,
-					toolFailures: 2,
+					requestCount: 3,
+					totalTokensIn: 36,
+					totalTokensOut: 102,
+					totalCost: 0.36,
+					toolAttempts: 6,
+					toolFailures: 3,
 				}),
 				expect.objectContaining({
 					event: "outcome-notification-decision",

@@ -654,6 +654,10 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			}
 			break
 
+		case "taskCompletionUiVisible":
+			await provider.notifyFinalParentCompletionUiVisible(message.taskId, message.values)
+			break
+
 		case "acceptCompletion":
 			{
 				const task = provider.getCurrentTask()
