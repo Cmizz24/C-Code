@@ -230,6 +230,7 @@ vi.mock("../../../integrations/workspace/WorkspaceTracker", () => {
 vi.mock("../../task/Task", () => ({
 	Task: vi.fn().mockImplementation((options: any) => {
 		const listeners = new Map<string, Set<(...args: any[]) => unknown>>()
+		let taskMode = options?.mode ?? options?.historyItem?.mode ?? "code"
 		const task: any = {
 			api: undefined,
 			apiConfiguration: options?.apiConfiguration,
@@ -249,6 +250,7 @@ vi.mock("../../task/Task", () => ({
 			setRootTask: vi.fn(),
 			start: vi.fn(),
 			checkpointSave: vi.fn().mockResolvedValue({ commit: "parallel-start-checkpoint" }),
+			getTaskMode: vi.fn().mockResolvedValue(taskMode),
 			taskId: options?.historyItem?.id || options?.taskId || "test-task-id",
 			instanceId: `test-instance-${options?.historyItem?.id || options?.taskId || options?.taskNumber || "new"}`,
 			rootTask: options?.rootTask,
@@ -281,6 +283,15 @@ vi.mock("../../task/Task", () => ({
 				return true
 			}),
 		}
+
+		Object.defineProperty(task, "taskMode", {
+			get: () => taskMode,
+			set: (mode: string) => {
+				taskMode = mode
+				task.getTaskMode.mockResolvedValue(taskMode)
+			},
+			configurable: true,
+		})
 
 		options?.onCreated?.(task)
 
@@ -409,6 +420,7 @@ describe("ClineProvider", () => {
 	beforeAll(() => {
 		vi.mocked(Task).mockImplementation((options: any) => {
 			const listeners = new Map<string, Set<(...args: any[]) => unknown>>()
+			let taskMode = options?.mode ?? options?.historyItem?.mode ?? "code"
 			const loadSavedMessages = async () => {
 				const [{ readFile }, { fileExistsAtPath }] = await Promise.all([
 					import("fs/promises"),
@@ -467,6 +479,7 @@ describe("ClineProvider", () => {
 				setRootTask: vi.fn(),
 				start: vi.fn(),
 				checkpointSave: vi.fn().mockResolvedValue({ commit: "parallel-start-checkpoint" }),
+				getTaskMode: vi.fn().mockResolvedValue(taskMode),
 				taskId: options?.historyItem?.id || options?.taskId || "test-task-id",
 				instanceId: `test-instance-${options?.historyItem?.id || options?.taskId || options?.taskNumber || "new"}`,
 				rootTask: options?.rootTask,
@@ -501,6 +514,15 @@ describe("ClineProvider", () => {
 					return true
 				}),
 			}
+
+			Object.defineProperty(task, "taskMode", {
+				get: () => taskMode,
+				set: (mode: string) => {
+					taskMode = mode
+					task.getTaskMode.mockResolvedValue(taskMode)
+				},
+				configurable: true,
+			})
 
 			Object.defineProperty(task, "messageManager", {
 				get: () => new MessageManager(task),
@@ -2333,6 +2355,88 @@ describe("ClineProvider", () => {
 		expect(backgroundTask.emit).not.toHaveBeenCalledWith(RooCodeEventName.TaskFocused)
 		expect(focusedTaskIds).toEqual([])
 		expect((provider as any).backgroundTasks.has(backgroundTask)).toBe(true)
+	})
+
+	test("createTask does not synchronously read taskMode before initialization", async () => {
+		let returnedTask: any
+
+		vi.mocked(Task).mockImplementationOnce((options: any) => {
+			const listeners = new Map<string, Set<(...args: any[]) => unknown>>()
+			const task: any = {
+				api: undefined,
+				apiConfiguration: options?.apiConfiguration,
+				abortTask: vi.fn(),
+				cancelCurrentRequest: vi.fn(),
+				handleWebviewAskResponse: vi.fn(),
+				clineMessages: [],
+				apiConversationHistory: [],
+				overwriteClineMessages: vi.fn(),
+				overwriteApiConversationHistory: vi.fn(),
+				resumeAfterParallelExecution: vi.fn(),
+				resumeAfterDelegation: vi.fn(),
+				dispose: vi.fn(),
+				getTaskNumber: vi.fn().mockReturnValue(0),
+				setTaskNumber: vi.fn(),
+				setParentTask: vi.fn(),
+				setRootTask: vi.fn(),
+				start: vi.fn(),
+				checkpointSave: vi.fn().mockResolvedValue({ commit: "parallel-start-checkpoint" }),
+				getTaskMode: vi.fn().mockResolvedValue("architect"),
+				taskId: options?.taskId || "async-mode-task-id",
+				instanceId: "test-instance-async-mode-task-id",
+				rootTask: options?.rootTask,
+				parentTask: options?.parentTask,
+				rootTaskId: options?.rootTask?.taskId,
+				parentTaskId: options?.parentTask?.taskId,
+				agentId: options?.agentId,
+				background: options?.background ?? false,
+				enableCheckpoints: options?.enableCheckpoints ?? true,
+				workspacePath: options?.workspacePath,
+				abortReason: undefined,
+				abandoned: false,
+				abort: false,
+				isStreaming: false,
+				didFinishAbortingStream: false,
+				isWaitingForFirstChunk: false,
+				on: vi.fn((event: string, listener: (...args: any[]) => unknown) => {
+					const key = String(event)
+					const eventListeners = listeners.get(key) ?? new Set<(...args: any[]) => unknown>()
+					eventListeners.add(listener)
+					listeners.set(key, eventListeners)
+					return task
+				}),
+				off: vi.fn((event: string, listener: (...args: any[]) => unknown) => {
+					listeners.get(String(event))?.delete(listener)
+					return task
+				}),
+				emit: vi.fn((event: string, ...args: any[]) => {
+					for (const listener of listeners.get(String(event)) ?? []) {
+						void listener(...args)
+					}
+					return true
+				}),
+			}
+
+			Object.defineProperty(task, "taskMode", {
+				get: () => {
+					throw new Error(
+						"Task mode accessed before initialization. Use getTaskMode() or wait for taskModeReady.",
+					)
+				},
+				configurable: true,
+			})
+
+			returnedTask = task
+			options?.onCreated?.(task)
+
+			return task
+		})
+
+		const createdTask = await provider.createTask("Task created while mode initializes", undefined, undefined)
+
+		expect(createdTask.taskId).toBe("async-mode-task-id")
+		expect(returnedTask.taskId).toBe("async-mode-task-id")
+		expect(returnedTask.getTaskMode).toHaveBeenCalled()
 	})
 
 	test("createTask can delay background agent start until lifecycle listeners are attached", async () => {

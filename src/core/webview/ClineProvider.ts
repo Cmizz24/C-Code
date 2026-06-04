@@ -1288,10 +1288,28 @@ export class ClineProvider
 			rootTaskId: this.getEmailNotificationRootTaskId(task),
 			agentId: task.agentId,
 			background: task.background === true,
-			mode: task.taskMode,
 			workspacePath: task.workspacePath,
 			lifecycle,
 		})
+
+		void task
+			.getTaskMode()
+			.then((mode) => {
+				const context = this.emailNotificationTaskContexts.get(task.taskId)
+
+				if (!context) {
+					return
+				}
+
+				this.emailNotificationTaskContexts.set(task.taskId, { ...context, mode })
+			})
+			.catch((error) => {
+				this.log(
+					`[email-notifications] Failed to resolve mode for task ${task.taskId}: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			})
 	}
 
 	private rememberEmailNotificationTaskUsage(
