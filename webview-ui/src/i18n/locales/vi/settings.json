@@ -351,11 +351,11 @@
 			"label": "Bật Fast mode",
 			"description": "Sử dụng priority service tier của OpenAI cho các mô hình được hỗ trợ (GPT-5.5 và GPT-5.4). Fast mode có thể dùng credits với tốc độ cao hơn.",
 			"status": {
-				"disabled": "Fast mode khả dụng cho {{modelId}}, nhưng hiện đang tắt.",
+				"disabled": "Fast mode đang tắt cho {{modelId}}.",
 				"unsupported": "Fast mode không khả dụng cho {{modelId}}.",
-				"signInRequired": "Fast mode đã bật cho {{modelId}}, nhưng bạn cần đăng nhập trước khi có thể chạy.",
-				"requested": "Fast mode đã được yêu cầu cho {{modelId}}, nhưng OpenAI chưa xác nhận tier priority.",
-				"confirmed": "Fast mode đã được xác nhận cho {{modelId}} trên tier priority của OpenAI.",
+				"signInRequired": "Fast mode đang bật cho {{modelId}}, nhưng bạn cần đăng nhập trước khi Codex có thể dùng.",
+				"active": "Fast mode đang bật cho {{modelId}} và sẽ dùng định tuyến Codex Fast cho các yêu cầu được hỗ trợ.",
+				"confirmed": "Fast mode đang bật cho {{modelId}}; OpenAI đã báo cáo service tier Fast cho yêu cầu gần nhất.",
 				"rejected": "Fast mode đã được yêu cầu cho {{modelId}}, nhưng OpenAI báo cáo service tier {{observedServiceTier}}."
 			}
 		},

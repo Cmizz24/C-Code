@@ -351,12 +351,12 @@
 			"label": "Fast mode सक्षम करें",
 			"description": "समर्थित मॉडलों (GPT-5.5 और GPT-5.4) के लिए OpenAI priority service tier का उपयोग करता है। Fast mode अधिक दर से credits का उपयोग कर सकता है।",
 			"status": {
-				"disabled": "{{modelId}} के लिए Fast mode उपलब्ध है, लेकिन अभी बंद है।",
+				"disabled": "{{modelId}} के लिए Fast mode बंद है।",
 				"unsupported": "{{modelId}} के लिए Fast mode उपलब्ध नहीं है।",
-				"signInRequired": "{{modelId}} के लिए Fast mode सक्षम है, लेकिन इसे चलाने से पहले साइन इन करना ज़रूरी है।",
-				"requested": "{{modelId}} के लिए Fast mode अनुरोध किया गया है, लेकिन OpenAI ने अभी तक priority tier की पुष्टि नहीं की है।",
-				"confirmed": "{{modelId}} के लिए OpenAI के priority tier पर Fast mode की पुष्टि हो गई है।",
-				"rejected": "{{modelId}} के लिए Fast mode अनुरोध किया गया था, लेकिन OpenAI ने {{observedServiceTier}} service tier बताया।"
+				"signInRequired": "{{modelId}} के लिए Fast mode चालू है, लेकिन Codex इसका उपयोग कर सके उससे पहले तुम्हें साइन इन करना होगा।",
+				"active": "{{modelId}} के लिए Fast mode चालू है और समर्थित अनुरोधों पर Codex Fast routing का उपयोग करेगा।",
+				"confirmed": "{{modelId}} के लिए Fast mode चालू है; OpenAI ने पिछले अनुरोध के लिए Fast service tier रिपोर्ट किया।",
+				"rejected": "{{modelId}} के लिए Fast mode अनुरोध किया गया था, लेकिन OpenAI ने {{observedServiceTier}} service tier रिपोर्ट किया।"
 			}
 		},
 		"useCustomBaseUrl": "कस्टम बेस URL का उपयोग करें",

@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { parseOpenAiCodexUsagePayload } from "../rate-limits"
+import { fetchOpenAiCodexRateLimitInfo, parseOpenAiCodexUsagePayload } from "../rate-limits"
 
 describe("parseOpenAiCodexUsagePayload()", () => {
 	it("maps primary/secondary windows", () => {
@@ -43,5 +43,36 @@ describe("parseOpenAiCodexUsagePayload()", () => {
 		expect(out.primary?.usedPercent).toBe(100)
 		expect(out.secondary?.usedPercent).toBe(0)
 		expect(out.fetchedAt).toBe(fetchedAt)
+	})
+})
+
+describe("fetchOpenAiCodexRateLimitInfo()", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals()
+	})
+
+	it("throws a friendly session-expired error for invalidated Codex tokens", async () => {
+		const createTokenInvalidatedResponse = () =>
+			new Response(
+				JSON.stringify({
+					error: {
+						message: "Your authentication token has been invalidated. Please try signing in again.",
+						code: "token_invalidated",
+					},
+					status: 401,
+				}),
+				{ status: 401, statusText: "Unauthorized" },
+			)
+
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockImplementation(() => Promise.resolve(createTokenInvalidatedResponse())),
+		)
+
+		await expect(fetchOpenAiCodexRateLimitInfo("token")).rejects.toThrow(
+			"OpenAI Codex session expired. Please sign in again to refresh usage limits.",
+		)
+
+		await expect(fetchOpenAiCodexRateLimitInfo("token")).rejects.not.toThrow("token_invalidated")
 	})
 })

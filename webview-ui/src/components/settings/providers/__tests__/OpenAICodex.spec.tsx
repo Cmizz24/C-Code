@@ -20,7 +20,23 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 
 vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
-		t: (key: string, options?: Record<string, any>) => (options?.modelId ? `${key}:${options.modelId}` : key),
+		t: (key: string, options?: Record<string, any>) => {
+			const translations: Record<string, string> = {
+				"settings:providers.openAiCodexFastMode.status.disabled": "Fast mode is off for {{modelId}}.",
+				"settings:providers.openAiCodexFastMode.status.unsupported":
+					"Fast mode is not available for {{modelId}}.",
+				"settings:providers.openAiCodexFastMode.status.signInRequired":
+					"Fast mode is on for {{modelId}}, but you need to sign in before Codex can use it.",
+				"settings:providers.openAiCodexFastMode.status.active":
+					"Fast mode is on for {{modelId}} and will use Codex Fast routing on supported requests.",
+				"settings:providers.openAiCodexFastMode.status.confirmed":
+					"Fast mode is on for {{modelId}}; OpenAI reported the Fast service tier for the last request.",
+				"settings:providers.openAiCodexFastMode.status.rejected":
+					"Fast mode was requested for {{modelId}}, but OpenAI reported the {{observedServiceTier}} service tier.",
+			}
+
+			return (translations[key] ?? key).replace(/{{(\w+)}}/g, (_, name) => String(options?.[name] ?? ""))
+		},
 	}),
 }))
 
@@ -58,6 +74,12 @@ describe("OpenAICodex", () => {
 			/>,
 		)
 
+	const expectFastModeIndicator = (severity: "green" | "amber" | "red", className: string) => {
+		const indicator = screen.getByTestId("openai-codex-fast-mode-indicator")
+		expect(indicator).toHaveAttribute("data-severity", severity)
+		expect(indicator).toHaveClass(className)
+	}
+
 	beforeEach(() => {
 		vi.clearAllMocks()
 	})
@@ -81,12 +103,16 @@ describe("OpenAICodex", () => {
 		expect(screen.getByTestId("openai-codex-fast-mode-checkbox-input")).toBeChecked()
 	})
 
-	it("shows Fast mode as requested when enabled for a supported authenticated model without provider confirmation", () => {
+	it("shows Fast mode as active with a green indicator when enabled without provider confirmation", () => {
 		renderOpenAICodex({ apiModelId: "gpt-5.5", openAiCodexFastMode: true }, { openAiCodexIsAuthenticated: true })
 
 		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
-			"settings:providers.openAiCodexFastMode.status.requested:gpt-5.5",
+			"Fast mode is on for gpt-5.5 and will use Codex Fast routing on supported requests.",
 		)
+		expect(screen.getByTestId("openai-codex-fast-mode-status")).not.toHaveTextContent(
+			"OpenAI has not confirmed the priority tier yet",
+		)
+		expectFastModeIndicator("green", "bg-vscode-charts-green")
 	})
 
 	it("shows Fast mode as confirmed when the provider echoes the requested priority tier", () => {
@@ -104,8 +130,9 @@ describe("OpenAICodex", () => {
 		)
 
 		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
-			"settings:providers.openAiCodexFastMode.status.confirmed:gpt-5.5",
+			"Fast mode is on for gpt-5.5; OpenAI reported the Fast service tier for the last request.",
 		)
+		expectFastModeIndicator("green", "bg-vscode-charts-green")
 	})
 
 	it("shows Fast mode as rejected when the provider returns a different service tier", () => {
@@ -123,8 +150,9 @@ describe("OpenAICodex", () => {
 		)
 
 		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
-			"settings:providers.openAiCodexFastMode.status.rejected:gpt-5.5",
+			"Fast mode was requested for gpt-5.5, but OpenAI reported the default service tier.",
 		)
+		expectFastModeIndicator("red", "bg-vscode-errorForeground")
 	})
 
 	it("ignores stale Fast status from a different selected model", () => {
@@ -142,16 +170,16 @@ describe("OpenAICodex", () => {
 		)
 
 		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
-			"settings:providers.openAiCodexFastMode.status.requested:gpt-5.5",
+			"Fast mode is on for gpt-5.5 and will use Codex Fast routing on supported requests.",
 		)
+		expectFastModeIndicator("green", "bg-vscode-charts-green")
 	})
 
 	it("shows Fast mode as disabled when the supported model can use it but the toggle is off", () => {
 		renderOpenAICodex({ apiModelId: "gpt-5.4", openAiCodexFastMode: false }, { openAiCodexIsAuthenticated: true })
 
-		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
-			"settings:providers.openAiCodexFastMode.status.disabled:gpt-5.4",
-		)
+		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent("Fast mode is off for gpt-5.4.")
+		expectFastModeIndicator("red", "bg-vscode-errorForeground")
 	})
 
 	it("shows Fast mode as unsupported for models that cannot use the priority tier", () => {
@@ -161,16 +189,18 @@ describe("OpenAICodex", () => {
 		)
 
 		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
-			"settings:providers.openAiCodexFastMode.status.unsupported:gpt-5.4-mini",
+			"Fast mode is not available for gpt-5.4-mini.",
 		)
+		expectFastModeIndicator("red", "bg-vscode-errorForeground")
 	})
 
 	it("shows sign-in required when Fast mode is enabled but OpenAI Codex is not authenticated", () => {
 		renderOpenAICodex({ apiModelId: "gpt-5.5", openAiCodexFastMode: true })
 
 		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
-			"settings:providers.openAiCodexFastMode.status.signInRequired:gpt-5.5",
+			"Fast mode is on for gpt-5.5, but you need to sign in before Codex can use it.",
 		)
+		expectFastModeIndicator("amber", "bg-vscode-charts-yellow")
 	})
 
 	it.each([
