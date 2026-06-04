@@ -353,7 +353,7 @@ describe("webviewMessageHandler - acceptCompletion", () => {
 		})
 
 		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(task as any)
-		vi.mocked(mockClineProvider.notifyAcceptedFinalParentCompletion).mockImplementation(() => {
+		vi.mocked(mockClineProvider.notifyAcceptedFinalParentCompletion).mockImplementation(async () => {
 			calls.push("notifyAcceptedFinalParentCompletion")
 		})
 		vi.mocked(mockClineProvider.clearTask).mockImplementation(async () => {
@@ -372,6 +372,55 @@ describe("webviewMessageHandler - acceptCompletion", () => {
 		expect(calls).toEqual([
 			"askResponse:yesButtonClicked",
 			"notifyAcceptedFinalParentCompletion",
+			"clearTask",
+			"postState",
+		])
+		expect(task.listenerCount(RooCodeEventName.TaskCompleted)).toBe(0)
+	})
+
+	it("waits for accepted final parent notification work before clearing the task", async () => {
+		const calls: string[] = []
+		let resolveNotification!: () => void
+		const notificationPromise = new Promise<void>((resolve) => {
+			resolveNotification = resolve
+		})
+		let task: MockCompletionTask
+		const tokenUsage = { totalTokensIn: 12, totalTokensOut: 34, totalCost: 0.12, contextTokens: 2048 }
+		const toolUsage = { read_file: { attempts: 1, failures: 0 } }
+
+		task = Object.assign(new EventEmitter(), {
+			taskId: "task-accept-completion-await-notification",
+			handleWebviewAskResponse: vi.fn((response: string) => {
+				calls.push(`askResponse:${response}`)
+				setTimeout(() => task.emit(RooCodeEventName.TaskCompleted, task.taskId, tokenUsage, toolUsage), 0)
+			}),
+		})
+
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(task as any)
+		vi.mocked(mockClineProvider.notifyAcceptedFinalParentCompletion).mockImplementation(() => {
+			calls.push("notifyAcceptedFinalParentCompletion:start")
+			return notificationPromise as any
+		})
+		vi.mocked(mockClineProvider.clearTask).mockImplementation(async () => {
+			calls.push("clearTask")
+		})
+		vi.mocked(mockClineProvider.postStateToWebview).mockImplementation(async () => {
+			calls.push("postState")
+		})
+
+		const handlerPromise = webviewMessageHandler(mockClineProvider, { type: "acceptCompletion" } as any)
+
+		await vi.waitFor(() => expect(calls).toContain("notifyAcceptedFinalParentCompletion:start"))
+		expect(calls).not.toContain("clearTask")
+
+		calls.push("notifyAcceptedFinalParentCompletion:resolved")
+		resolveNotification()
+		await handlerPromise
+
+		expect(calls).toEqual([
+			"askResponse:yesButtonClicked",
+			"notifyAcceptedFinalParentCompletion:start",
+			"notifyAcceptedFinalParentCompletion:resolved",
 			"clearTask",
 			"postState",
 		])

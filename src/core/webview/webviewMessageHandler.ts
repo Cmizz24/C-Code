@@ -694,7 +694,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					task.off(RooCodeEventName.TaskCompleted, onTaskCompleted)
 				}
 
-				provider.notifyAcceptedFinalParentCompletion(task, completionTokenUsage, completionToolUsage)
+				await provider.notifyAcceptedFinalParentCompletion(task, completionTokenUsage, completionToolUsage)
 				await provider.clearTask()
 				await provider.postStateToWebview()
 			}

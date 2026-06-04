@@ -854,6 +854,7 @@ describe("ClineProvider", () => {
 				taskId: "task-success",
 				outcome: "success",
 				summary: "Implemented SMTP completion notifications. Added regression tests.",
+				notificationType: "final-parent",
 				usageScope: "Task only (live completion event)",
 				workspacePath: "/workspace",
 				mode: "code",
@@ -1031,6 +1032,7 @@ describe("ClineProvider", () => {
 				taskId: "task-missing-usage",
 				outcome: "success",
 				summary: "Completed without final usage stats.",
+				notificationType: "final-parent",
 				usageScope: "Task only (live completion event)",
 				workspacePath: "/workspace",
 				mode: "code",
@@ -1043,7 +1045,7 @@ describe("ClineProvider", () => {
 			)
 		})
 
-		test("accepted final parent completion sends when provider completion listener was not observed", () => {
+		test("accepted final parent completion sends when provider completion listener was not observed", async () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const logSpy = vi.spyOn(provider, "log")
 			const task = new Task({
@@ -1068,13 +1070,14 @@ describe("ClineProvider", () => {
 				ts: 2,
 			})
 
-			provider.notifyAcceptedFinalParentCompletion(task, tokenUsage, toolUsage)
+			await provider.notifyAcceptedFinalParentCompletion(task, tokenUsage, toolUsage)
 
 			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
 			expect(sendTaskNotification).toHaveBeenCalledWith({
 				taskId: "accepted-parent-fallback",
 				outcome: "success",
 				summary: "Accepted parent completion fallback sent.",
+				notificationType: "final-parent",
 				usageScope: "Task only (live completion event)",
 				workspacePath: "/workspace",
 				mode: "code",
@@ -1094,8 +1097,8 @@ describe("ClineProvider", () => {
 						event: "completion-notification-decision",
 						taskId: "accepted-parent-fallback",
 						decision: "send-top-level-success",
-						notificationScope: "task",
-						notificationDedupeKey: "task:accepted-parent-fallback",
+						notificationScope: "final-parent",
+						notificationDedupeKey: "final-parent:accepted-parent-fallback",
 					}),
 				]),
 			)
@@ -1104,7 +1107,7 @@ describe("ClineProvider", () => {
 			)
 		})
 
-		test("accepted final parent completion does not duplicate when provider completion listener already handled it", () => {
+		test("accepted final parent completion does not duplicate when provider completion listener already handled it", async () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const logSpy = vi.spyOn(provider, "log")
 			const task = new Task({ ...defaultTaskOptions, taskId: "accepted-parent-observed" } as any)
@@ -1117,7 +1120,7 @@ describe("ClineProvider", () => {
 			;(provider as any).taskCreationCallback(task)
 
 			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
-			provider.notifyAcceptedFinalParentCompletion(task, createTokenUsage(), createToolUsage())
+			await provider.notifyAcceptedFinalParentCompletion(task, createTokenUsage(), createToolUsage())
 
 			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
 			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
@@ -1130,6 +1133,54 @@ describe("ClineProvider", () => {
 					}),
 				]),
 			)
+		})
+
+		test("accepted final parent completion retries when provider observed completion but no parent notification is tracked", async () => {
+			const sendTaskNotification = installEmailNotificationServiceMock()
+			const logSpy = vi.spyOn(provider, "log")
+			const task = new Task({
+				...defaultTaskOptions,
+				taskId: "accepted-parent-observed-without-outcome",
+				workspacePath: "/workspace",
+			} as any)
+			const tokenUsage = createTokenUsage()
+			const toolUsage = createToolUsage()
+			;(task as any).taskMode = "code"
+			task.clineMessages.push({
+				type: "say",
+				say: "completion_result",
+				text: "Accepted parent fallback retried after provider observation only.",
+				ts: 2,
+			})
+			;(provider as any).emailNotificationCompletionEventsObserved.add(`${task.taskId}:${task.instanceId}`)
+
+			await provider.notifyAcceptedFinalParentCompletion(task, tokenUsage, toolUsage)
+
+			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						event: "accepted-final-parent-completion-state",
+						taskId: "accepted-parent-observed-without-outcome",
+						providerCompletionEventObserved: true,
+						providerCompletionObservedWithoutTrackedOutcome: true,
+						duplicateSent: false,
+						duplicateInFlight: false,
+					}),
+				]),
+			)
+			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
+			expect(sendTaskNotification).toHaveBeenCalledWith({
+				taskId: "accepted-parent-observed-without-outcome",
+				outcome: "success",
+				summary: "Accepted parent fallback retried after provider observation only.",
+				notificationType: "final-parent",
+				usageScope: "Task only (live completion event)",
+				workspacePath: "/workspace",
+				mode: "code",
+				tokenUsage,
+				toolUsage,
+				requestCount: 0,
+			})
 		})
 
 		test("logs disabled-settings diagnostics when completion email settings skip a visible completion", async () => {
@@ -1384,6 +1435,7 @@ describe("ClineProvider", () => {
 				taskId: "parallel-parent-success",
 				outcome: "success",
 				summary: "Parallel agents completed and the parent verified the workflow.",
+				notificationType: "final-parent",
 				workflowSummary: expect.stringContaining(
 					'Overall workflow rollup: parent task parallel-parent-success completed with final result "Parallel agents completed and the parent verified the workflow."',
 				),
@@ -1768,6 +1820,7 @@ describe("ClineProvider", () => {
 					taskId: "delegated-parent-dedupe",
 					outcome: "success",
 					summary: "Parent completed final delegated workflow validation.",
+					notificationType: "final-parent",
 					workflowSummary: expect.stringContaining(
 						'Overall workflow rollup: parent task delegated-parent-dedupe completed with final result "Parent completed final delegated workflow validation."',
 					),
@@ -1787,7 +1840,7 @@ describe("ClineProvider", () => {
 					requestCount: 2,
 				}),
 			)
-			expect(sendTaskNotification.mock.calls[1][0]).not.toHaveProperty("notificationType")
+			expect(sendTaskNotification.mock.calls[1][0]).toHaveProperty("notificationType", "final-parent")
 			expect(sendTaskNotification.mock.calls[1][0].workflowSummary).toContain(
 				"delegated-child-dedupe: delegated task",
 			)
@@ -1809,16 +1862,16 @@ describe("ClineProvider", () => {
 						event: "completion-notification-decision",
 						taskId: "delegated-parent-dedupe",
 						decision: "send-top-level-success-after-delegated-workflow",
-						notificationScope: "task",
-						notificationDedupeKey: "task:delegated-parent-dedupe",
+						notificationScope: "final-parent",
+						notificationDedupeKey: "final-parent:delegated-parent-dedupe",
 						coveredChildTaskId: "delegated-child-dedupe",
 					}),
 					expect.objectContaining({
 						event: "outcome-notification-decision",
 						taskId: "delegated-parent-dedupe",
 						decision: "dispatch",
-						notificationScope: "task",
-						notificationDedupeKey: "task:delegated-parent-dedupe",
+						notificationScope: "final-parent",
+						notificationDedupeKey: "final-parent:delegated-parent-dedupe",
 						duplicateSent: false,
 					}),
 				]),
@@ -1856,7 +1909,7 @@ describe("ClineProvider", () => {
 			)
 		})
 
-		test("accepted final parent completion sends after delegated child notification using task scope", async () => {
+		test("accepted final parent completion sends after delegated child notification using final parent scope", async () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const logSpy = vi.spyOn(provider, "log")
 			const parentTokenUsage = createTokenUsage({
@@ -1913,7 +1966,7 @@ describe("ClineProvider", () => {
 				text: "Accepted parent completed delegated validation.",
 				ts: 4,
 			})
-			provider.notifyAcceptedFinalParentCompletion(parentTask, parentTokenUsage, createToolUsage())
+			await provider.notifyAcceptedFinalParentCompletion(parentTask, parentTokenUsage, createToolUsage())
 
 			await vi.waitFor(() => expect(sendTaskNotification).toHaveBeenCalledTimes(2))
 			expect(sendTaskNotification).toHaveBeenNthCalledWith(
@@ -1930,6 +1983,7 @@ describe("ClineProvider", () => {
 					taskId: "accepted-delegated-parent",
 					outcome: "success",
 					summary: "Accepted parent completed delegated validation.",
+					notificationType: "final-parent",
 					usageScope:
 						"Aggregated parent workflow usage from the parent task plus 1 child task, including delegated and background parallel-agent tasks discoverable from saved task metadata.",
 					tokenUsage: expect.objectContaining({
@@ -1940,7 +1994,7 @@ describe("ClineProvider", () => {
 					requestCount: 2,
 				}),
 			)
-			expect(sendTaskNotification.mock.calls[1][0]).not.toHaveProperty("notificationType")
+			expect(sendTaskNotification.mock.calls[1][0]).toHaveProperty("notificationType", "final-parent")
 			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
@@ -1952,8 +2006,8 @@ describe("ClineProvider", () => {
 						event: "outcome-notification-decision",
 						taskId: "accepted-delegated-parent",
 						decision: "dispatch",
-						notificationScope: "task",
-						notificationDedupeKey: "task:accepted-delegated-parent",
+						notificationScope: "final-parent",
+						notificationDedupeKey: "final-parent:accepted-delegated-parent",
 						duplicateSent: false,
 					}),
 				]),
@@ -2018,7 +2072,7 @@ describe("ClineProvider", () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const logSpy = vi.spyOn(provider, "log")
 			const task = new Task({ ...defaultTaskOptions, taskId: "task-duplicate-sent" } as any)
-			;(provider as any).emailNotificationTaskOutcomes.set(`task:${task.taskId}`, "success")
+			;(provider as any).emailNotificationTaskOutcomes.set(`final-parent:${task.taskId}`, "success")
 			;(provider as any).taskCreationCallback(task)
 			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
 
@@ -2038,8 +2092,8 @@ describe("ClineProvider", () => {
 						event: "outcome-notification-decision",
 						taskId: "task-duplicate-sent",
 						decision: "skip-duplicate-sent",
-						notificationScope: "task",
-						notificationDedupeKey: "task:task-duplicate-sent",
+						notificationScope: "final-parent",
+						notificationDedupeKey: "final-parent:task-duplicate-sent",
 						sentOutcome: "success",
 						duplicateSent: true,
 						duplicateInFlight: false,
@@ -2052,7 +2106,7 @@ describe("ClineProvider", () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const logSpy = vi.spyOn(provider, "log")
 			const task = new Task({ ...defaultTaskOptions, taskId: "task-duplicate-in-flight" } as any)
-			;(provider as any).emailNotificationTaskOutcomesInFlight.set(`task:${task.taskId}`, "success")
+			;(provider as any).emailNotificationTaskOutcomesInFlight.set(`final-parent:${task.taskId}`, "success")
 			;(provider as any).taskCreationCallback(task)
 			task.emit(RooCodeEventName.TaskCompleted, task.taskId, createTokenUsage(), createToolUsage())
 
@@ -2063,8 +2117,8 @@ describe("ClineProvider", () => {
 						event: "outcome-notification-decision",
 						taskId: "task-duplicate-in-flight",
 						decision: "skip-duplicate-in-flight",
-						notificationScope: "task",
-						notificationDedupeKey: "task:task-duplicate-in-flight",
+						notificationScope: "final-parent",
+						notificationDedupeKey: "final-parent:task-duplicate-in-flight",
 						inFlightOutcome: "success",
 						duplicateSent: false,
 						duplicateInFlight: true,
@@ -2101,7 +2155,9 @@ describe("ClineProvider", () => {
 
 			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
 			await vi.waitFor(() => {
-				expect((provider as any).emailNotificationTaskOutcomesInFlight.has(`task:${task.taskId}`)).toBe(false)
+				expect((provider as any).emailNotificationTaskOutcomesInFlight.has(`final-parent:${task.taskId}`)).toBe(
+					false,
+				)
 			})
 			expect(mockContext.globalState.update).not.toHaveBeenCalledWith(
 				"emailNotificationTaskOutcomes.v1",
@@ -2114,7 +2170,13 @@ describe("ClineProvider", () => {
 			await vi.waitFor(() => {
 				expect(mockContext.globalState.update).toHaveBeenCalledWith("emailNotificationTaskOutcomes.v1", {
 					version: 1,
-					outcomes: [{ taskId: "task-retry-after-send-failure", outcome: "success" }],
+					outcomes: [
+						{
+							taskId: "task-retry-after-send-failure",
+							outcome: "success",
+							notificationType: "final-parent",
+						},
+					],
 				})
 			})
 		})
@@ -2133,7 +2195,9 @@ describe("ClineProvider", () => {
 
 			expect(sendTaskNotification).toHaveBeenCalledTimes(1)
 			await vi.waitFor(() => {
-				expect((provider as any).emailNotificationTaskOutcomesInFlight.has(`task:${task.taskId}`)).toBe(false)
+				expect((provider as any).emailNotificationTaskOutcomesInFlight.has(`final-parent:${task.taskId}`)).toBe(
+					false,
+				)
 			})
 			expect(mockContext.globalState.update).not.toHaveBeenCalledWith(
 				"emailNotificationTaskOutcomes.v1",
@@ -2146,7 +2210,9 @@ describe("ClineProvider", () => {
 			await vi.waitFor(() => {
 				expect(mockContext.globalState.update).toHaveBeenCalledWith("emailNotificationTaskOutcomes.v1", {
 					version: 1,
-					outcomes: [{ taskId: "task-retry-after-send-skip", outcome: "success" }],
+					outcomes: [
+						{ taskId: "task-retry-after-send-skip", outcome: "success", notificationType: "final-parent" },
+					],
 				})
 			})
 		})
@@ -2196,7 +2262,7 @@ describe("ClineProvider", () => {
 				ts: 2,
 			})
 
-			provider.notifyAcceptedFinalParentCompletion(task, createTokenUsage(), createToolUsage())
+			await provider.notifyAcceptedFinalParentCompletion(task, createTokenUsage(), createToolUsage())
 
 			expect(sendTaskNotification).not.toHaveBeenCalled()
 			expect(getEmailNotificationDiagnostics(logSpy)).toEqual(
@@ -2211,8 +2277,8 @@ describe("ClineProvider", () => {
 						event: "outcome-notification-decision",
 						taskId: "historical-completed-accepted-task",
 						decision: "skip-duplicate-sent",
-						notificationScope: "task",
-						notificationDedupeKey: "task:historical-completed-accepted-task",
+						notificationScope: "final-parent",
+						notificationDedupeKey: "final-parent:historical-completed-accepted-task",
 						duplicateSent: true,
 					}),
 				]),
@@ -2230,7 +2296,9 @@ describe("ClineProvider", () => {
 			await vi.waitFor(() => {
 				expect(mockContext.globalState.update).toHaveBeenCalledWith("emailNotificationTaskOutcomes.v1", {
 					version: 1,
-					outcomes: [{ taskId: "persisted-success-task", outcome: "success" }],
+					outcomes: [
+						{ taskId: "persisted-success-task", outcome: "success", notificationType: "final-parent" },
+					],
 				})
 			})
 
@@ -4503,7 +4571,7 @@ describe("ClineProvider", () => {
 		})
 		const finalTokenUsage = createTokenUsage()
 		const finalToolUsage = createToolUsage()
-		provider.notifyAcceptedFinalParentCompletion(parentTask, finalTokenUsage, finalToolUsage)
+		await provider.notifyAcceptedFinalParentCompletion(parentTask, finalTokenUsage, finalToolUsage)
 
 		await vi.waitFor(() => expect(sendTaskNotification).toHaveBeenCalledTimes(2))
 		expect(sendTaskNotification).toHaveBeenNthCalledWith(
@@ -4519,6 +4587,7 @@ describe("ClineProvider", () => {
 					"Aggregated parent workflow usage from the parent task plus 1 child task, including delegated and background parallel-agent tasks discoverable from saved task metadata.",
 				workspacePath: "/workspace",
 				mode: "code",
+				notificationType: "final-parent",
 				tokenUsage: {
 					totalTokensIn: 24,
 					totalTokensOut: 68,
@@ -4533,7 +4602,7 @@ describe("ClineProvider", () => {
 				requestCount: 2,
 			}),
 		)
-		expect(sendTaskNotification.mock.calls[1][0]).not.toHaveProperty("notificationType")
+		expect(sendTaskNotification.mock.calls[1][0]).toHaveProperty("notificationType", "final-parent")
 		expect(sendTaskNotification.mock.calls[1][0].workflowSummary).toContain(
 			`${backgroundTask.taskId}: agent dashboard-agent parallel/background task`,
 		)
@@ -4579,8 +4648,8 @@ describe("ClineProvider", () => {
 					event: "completion-notification-decision",
 					taskId: "parallel-parent-merge-success",
 					decision: "send-top-level-success",
-					notificationScope: "task",
-					notificationDedupeKey: "task:parallel-parent-merge-success",
+					notificationScope: "final-parent",
+					notificationDedupeKey: "final-parent:parallel-parent-merge-success",
 				}),
 				expect.objectContaining({
 					event: "completion-notification-aggregation",
@@ -4599,8 +4668,8 @@ describe("ClineProvider", () => {
 					event: "outcome-notification-decision",
 					taskId: "parallel-parent-merge-success",
 					decision: "dispatch",
-					notificationScope: "task",
-					notificationDedupeKey: "task:parallel-parent-merge-success",
+					notificationScope: "final-parent",
+					notificationDedupeKey: "final-parent:parallel-parent-merge-success",
 					duplicateSent: false,
 				}),
 			]),
@@ -4991,6 +5060,7 @@ describe("ClineProvider", () => {
 			usageScope: "Task only (live completion event)",
 			workspacePath: "/workspace",
 			mode: "code",
+			notificationType: "final-parent",
 			tokenUsage,
 			toolUsage,
 			requestCount: 0,
