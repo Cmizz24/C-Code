@@ -1,6 +1,6 @@
 import { memo } from "react"
 import { ChevronRight } from "lucide-react"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { cn } from "@/lib/utils"
 
 interface SubtaskCollapsibleRowProps {

@@ -2,7 +2,7 @@ import type { ClineSayTool, ExecutionPlan, MergeReviewEntry } from "@roo-code/ty
 
 import { fireEvent, render, screen } from "@/utils/test-utils"
 import { ExtensionStateContext } from "@src/context/ExtensionStateContext"
-import { TranslationContext } from "@/i18n/TranslationContext"
+import { TranslationContext } from "@src/i18n/TranslationContext"
 
 import { PlanPreviewModal } from "../PlanPreviewModal"
 import { AgentStatusPanel } from "../AgentStatusPanel"

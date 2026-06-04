@@ -8,8 +8,8 @@ vi.mock("@/utils/vscode", () => ({
 	vscode: { postMessage: vi.fn() },
 }))
 
-vi.mock("@/i18n/TranslationContext", () => {
-	const actual = vi.importActual("@/i18n/TranslationContext")
+vi.mock("@src/i18n/TranslationContext", () => {
+	const actual = vi.importActual("@src/i18n/TranslationContext")
 	return {
 		...actual,
 		useAppTranslation: () => ({

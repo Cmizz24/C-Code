@@ -16,7 +16,7 @@ import {
 	SelectValue,
 	StandardTooltip,
 } from "@/components/ui"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 
 import { Tab, TabContent, TabHeader } from "../common/Tab"
 import { useTaskSearch } from "./useTaskSearch"

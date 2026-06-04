@@ -5,7 +5,7 @@ import type { IndexingStatus, IndexingStatusUpdateMessage } from "@roo-code/type
 
 import { cn } from "@src/lib/utils"
 import { vscode } from "@src/utils/vscode"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { PopoverTrigger, StandardTooltip, Button } from "@src/components/ui"

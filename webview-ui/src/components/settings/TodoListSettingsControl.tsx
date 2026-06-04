@@ -1,5 +1,5 @@
 import React, { useCallback } from "react"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 
 interface TodoListSettingsControlProps {

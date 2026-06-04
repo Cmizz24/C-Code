@@ -26,6 +26,7 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("../setup", () => ({
 	default: {
+		language: "en",
 		t: (key: string, options?: Record<string, any>) => {
 			// Mock specific translations used in tests
 			if (key === "settings.autoApprove.title") return "Auto-Approve"
@@ -34,6 +35,8 @@ vi.mock("../setup", () => ({
 			}
 			return key
 		},
+		on: vi.fn(),
+		off: vi.fn(),
 		changeLanguage: vi.fn(),
 	},
 	loadTranslations: vi.fn(),

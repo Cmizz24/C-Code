@@ -1,4 +1,4 @@
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 
 import { Slider } from "@/components/ui"
 

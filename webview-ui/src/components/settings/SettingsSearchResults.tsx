@@ -1,7 +1,7 @@
 import { useMemo } from "react"
 import type { LucideIcon } from "lucide-react"
 
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { cn } from "@/lib/utils"
 
 import { SectionName } from "./SettingsView"

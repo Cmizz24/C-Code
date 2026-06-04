@@ -1,5 +1,5 @@
 import React from "react"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 
 export const ProfileViolationWarning: React.FC = () => {
 	const { t } = useAppTranslation()

@@ -5,7 +5,7 @@ import { RefreshCw, Loader2, FileCode } from "lucide-react"
 
 import type { SerializedCustomToolDefinition } from "@roo-code/types"
 
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 
 import { vscode } from "@/utils/vscode"
 

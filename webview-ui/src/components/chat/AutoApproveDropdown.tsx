@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 
 import { useAutoApprovalToggles } from "@/hooks/useAutoApprovalToggles"
 import { useAutoApprovalState } from "@/hooks/useAutoApprovalState"

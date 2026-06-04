@@ -20,7 +20,7 @@ vi.mock("@src/context/ExtensionStateContext", () => ({
 }))
 
 // Mock i18n TranslationContext
-vi.mock("@/i18n/TranslationContext", () => ({
+vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string, params?: Record<string, any>) => {
 			if (key === "chat:tooManyTools.title") {
