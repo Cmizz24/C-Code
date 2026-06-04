@@ -440,6 +440,7 @@ export class ClineProvider
 	private readonly emailNotificationTaskOutcomes = new Map<string, EmailNotificationOutcome>()
 	private readonly emailNotificationTaskOutcomesInFlight = new Map<string, EmailNotificationOutcome>()
 	private readonly emailNotificationTaskOutcomeOrder: string[] = []
+	private readonly emailNotificationCompletionEventsObserved = new Set<string>()
 	private emailNotificationTaskOutcomeStateLoaded = false
 	private globalStateWriteThroughTimer: ReturnType<typeof setTimeout> | null = null
 	private static readonly GLOBAL_STATE_WRITE_THROUGH_DEBOUNCE_MS = 5000 // 5 seconds
@@ -521,6 +522,7 @@ export class ClineProvider
 			// Create named listener functions so we can remove them later.
 			const onTaskStarted = () => this.emit(RooCodeEventName.TaskStarted, instance.taskId)
 			const onTaskCompleted = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) => {
+				this.emailNotificationCompletionEventsObserved.add(this.getEmailNotificationTaskInstanceKey(instance))
 				this.logEmailNotificationDiagnostics("completion-event-observed", {
 					taskId,
 					instanceTaskId: instance.taskId,
@@ -729,6 +731,8 @@ export class ClineProvider
 		if (!this.backgroundTasks.delete(task)) {
 			return
 		}
+
+		this.emailNotificationCompletionEventsObserved.delete(this.getEmailNotificationTaskInstanceKey(task))
 
 		const cleanupFunctions = this.taskEventListeners.get(task)
 
@@ -955,6 +959,53 @@ export class ClineProvider
 				usageScope: "Task only (live completion event)",
 			})
 		})
+	}
+
+	public notifyAcceptedFinalParentCompletion(task: Task, tokenUsage?: TokenUsage, toolUsage?: ToolUsage): void {
+		const taskDiagnostics = this.getEmailNotificationTaskDiagnostics(task)
+		const duplicateDiagnostics = this.getEmailNotificationOutcomeDiagnostics(task.taskId, "success")
+		const providerCompletionEventObserved = this.emailNotificationCompletionEventsObserved.has(
+			this.getEmailNotificationTaskInstanceKey(task),
+		)
+
+		if (task.background) {
+			this.logEmailNotificationDiagnostics("accepted-final-parent-completion-decision", {
+				...taskDiagnostics,
+				...duplicateDiagnostics,
+				decision: "skip-background-task",
+				providerCompletionEventObserved,
+			})
+			return
+		}
+
+		if (task.parentTask || task.parentTaskId) {
+			this.logEmailNotificationDiagnostics("accepted-final-parent-completion-decision", {
+				...taskDiagnostics,
+				...duplicateDiagnostics,
+				decision: "skip-delegated-child-task",
+				providerCompletionEventObserved,
+			})
+			return
+		}
+
+		if (providerCompletionEventObserved) {
+			this.logEmailNotificationDiagnostics("accepted-final-parent-completion-decision", {
+				...taskDiagnostics,
+				...duplicateDiagnostics,
+				decision: "skip-provider-completion-event-observed",
+				providerCompletionEventObserved,
+			})
+			return
+		}
+
+		this.logEmailNotificationDiagnostics("accepted-final-parent-completion-decision", {
+			...taskDiagnostics,
+			...duplicateDiagnostics,
+			decision: "send-top-level-success-after-acceptance",
+			providerCompletionEventObserved,
+		})
+
+		this.notifyTaskCompletion(task, tokenUsage, toolUsage)
 	}
 
 	private notifyParallelMergeWorkflowCompletion(
@@ -1837,6 +1888,10 @@ export class ClineProvider
 		return `${this.getEmailNotificationTaskOutcomeScope(notificationType)}:${taskId}`
 	}
 
+	private getEmailNotificationTaskInstanceKey(task: Task): string {
+		return `${task.taskId}:${task.instanceId}`
+	}
+
 	private normalizeEmailNotificationTaskOutcomeType(
 		notificationType: unknown,
 	): EmailNotificationPayload["notificationType"] | undefined {
@@ -2053,6 +2108,7 @@ export class ClineProvider
 			// is async and the task reference is cleared afterwards.
 			const childTaskId = task.taskId
 			const parentTaskId = task.parentTaskId
+			this.emailNotificationCompletionEventsObserved.delete(this.getEmailNotificationTaskInstanceKey(task))
 
 			task.emit(RooCodeEventName.TaskUnfocused)
 

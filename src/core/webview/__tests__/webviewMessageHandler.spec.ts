@@ -81,6 +81,7 @@ const mockClineProvider = {
 	createTask: vi.fn().mockResolvedValue({ taskId: "mock-task-id" }),
 	createTaskWithHistoryItem: vi.fn(),
 	clearTask: vi.fn(),
+	notifyAcceptedFinalParentCompletion: vi.fn(),
 	testSmtpSettings: vi.fn(),
 	getMcpHub: vi.fn(),
 	getSkillsManager: vi.fn(),
@@ -340,16 +341,21 @@ describe("webviewMessageHandler - acceptCompletion", () => {
 	it("accepts completion and waits for TaskCompleted before clearing the task", async () => {
 		const calls: string[] = []
 		let task: MockCompletionTask
+		const tokenUsage = { totalTokensIn: 12, totalTokensOut: 34, totalCost: 0.12, contextTokens: 2048 }
+		const toolUsage = { read_file: { attempts: 1, failures: 0 } }
 
 		task = Object.assign(new EventEmitter(), {
 			taskId: "task-accept-completion",
 			handleWebviewAskResponse: vi.fn((response: string) => {
 				calls.push(`askResponse:${response}`)
-				setTimeout(() => task.emit(RooCodeEventName.TaskCompleted, task.taskId, undefined, undefined), 0)
+				setTimeout(() => task.emit(RooCodeEventName.TaskCompleted, task.taskId, tokenUsage, toolUsage), 0)
 			}),
 		})
 
 		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(task as any)
+		vi.mocked(mockClineProvider.notifyAcceptedFinalParentCompletion).mockImplementation(() => {
+			calls.push("notifyAcceptedFinalParentCompletion")
+		})
 		vi.mocked(mockClineProvider.clearTask).mockImplementation(async () => {
 			calls.push("clearTask")
 		})
@@ -360,9 +366,15 @@ describe("webviewMessageHandler - acceptCompletion", () => {
 		await webviewMessageHandler(mockClineProvider, { type: "acceptCompletion" } as any)
 
 		expect(task.handleWebviewAskResponse).toHaveBeenCalledWith("yesButtonClicked")
+		expect(mockClineProvider.notifyAcceptedFinalParentCompletion).toHaveBeenCalledWith(task, tokenUsage, toolUsage)
 		expect(mockClineProvider.clearTask).toHaveBeenCalledTimes(1)
 		expect(mockClineProvider.postStateToWebview).toHaveBeenCalledTimes(1)
-		expect(calls).toEqual(["askResponse:yesButtonClicked", "clearTask", "postState"])
+		expect(calls).toEqual([
+			"askResponse:yesButtonClicked",
+			"notifyAcceptedFinalParentCompletion",
+			"clearTask",
+			"postState",
+		])
 		expect(task.listenerCount(RooCodeEventName.TaskCompleted)).toBe(0)
 	})
 
@@ -381,6 +393,7 @@ describe("webviewMessageHandler - acceptCompletion", () => {
 		await handlerPromise
 
 		expect(task.handleWebviewAskResponse).toHaveBeenCalledWith("yesButtonClicked")
+		expect(mockClineProvider.notifyAcceptedFinalParentCompletion).not.toHaveBeenCalled()
 		expect(mockClineProvider.clearTask).not.toHaveBeenCalled()
 		expect(mockClineProvider.postStateToWebview).not.toHaveBeenCalled()
 		expect(mockClineProvider.log).toHaveBeenCalledWith(
