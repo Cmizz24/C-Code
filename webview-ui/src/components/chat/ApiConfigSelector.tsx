@@ -4,7 +4,7 @@ import { Fzf } from "fzf"
 import { cn } from "@/lib/utils"
 import { useRooPortal } from "@/components/ui/hooks/useRooPortal"
 import { Popover, PopoverContent, PopoverTrigger, StandardTooltip } from "@/components/ui"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { vscode } from "@/utils/vscode"
 import { Button } from "@/components/ui"
 

@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { vscode } from "@/utils/vscode"
 import { ExtensionStateContextProvider } from "@src/context/ExtensionStateContext"
 import TranslationProvider from "@src/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 
 import SettingsView from "../SettingsView"
 
@@ -13,11 +14,16 @@ vi.mock("@src/utils/vscode", () => ({ vscode: { postMessage: vi.fn() } }))
 
 vi.mock("../ApiConfigManager", () => ({
 	__esModule: true,
-	default: ({ currentApiConfigName }: any) => (
-		<div data-testid="api-config-management">
-			<span>Current config: {currentApiConfigName}</span>
-		</div>
-	),
+	default: function MockApiConfigManager({ currentApiConfigName }: any) {
+		const { t } = useAppTranslation()
+
+		return (
+			<div data-testid="api-config-management">
+				<span>{t("settings:providers.configProfile")}</span>
+				<span>Current config: {currentApiConfigName}</span>
+			</div>
+		)
+	},
 }))
 
 vi.mock("@vscode/webview-ui-toolkit/react", () => ({
@@ -383,12 +389,49 @@ describe("SettingsView - Localization", () => {
 		expect(screen.getByTestId("save-button")).toHaveTextContent("Save")
 		expect(screen.getByText("Notifications")).toBeInTheDocument()
 		expect(within(screen.getByTestId("settings-content")).getByText("Providers")).toBeInTheDocument()
+		expect(within(screen.getByTestId("settings-content")).getByText("Configuration Profile")).toBeInTheDocument()
 		expect(within(screen.getByTestId("settings-content")).getByText("API Provider")).toBeInTheDocument()
 
 		expect(container).not.toHaveTextContent("settings:header.title")
 		expect(container).not.toHaveTextContent("settings:common.save")
 		expect(container).not.toHaveTextContent("settings:sections.providers")
+		expect(container).not.toHaveTextContent("settings:providers.configProfile")
 		expect(container).not.toHaveTextContent("settings:providers.apiProvider")
+	})
+
+	it("renders OpenAI Codex Settings labels through the real i18n provider without raw settings keys", async () => {
+		const { container } = renderSettingsViewWithTranslations({
+			openAiCodexIsAuthenticated: true,
+			apiConfiguration: {
+				apiProvider: "openai-codex",
+				apiModelId: "gpt-5.5",
+				openAiCodexFastMode: true,
+			},
+		})
+
+		act(() => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "openAiCodexRateLimits",
+						values: {
+							planType: "Plus",
+							primary: {
+								usedPercent: 10,
+								windowMinutes: 300,
+								resetsAt: Date.now() + 60_000,
+							},
+						},
+					},
+				}),
+			)
+		})
+
+		expect(await screen.findByText("Enable Fast mode")).toBeInTheDocument()
+		expect(await screen.findByText("Usage Limits for Codex (Plus)")).toBeInTheDocument()
+
+		expect(container).not.toHaveTextContent("settings:providers.openAiCodexFastMode.label")
+		expect(container).not.toHaveTextContent("settings:providers.openAiCodexRateLimits.title")
 	})
 })
 

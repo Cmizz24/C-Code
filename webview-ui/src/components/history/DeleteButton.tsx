@@ -1,7 +1,7 @@
 import { useCallback } from "react"
 
 import { Button, StandardTooltip } from "@/components/ui"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { vscode } from "@/utils/vscode"
 
 type DeleteButtonProps = {

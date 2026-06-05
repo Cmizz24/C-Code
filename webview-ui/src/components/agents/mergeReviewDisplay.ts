@@ -1,6 +1,6 @@
 import { computeMergeReviewChangeStats, type MergeReviewChangeStats, type MergeReviewEntry } from "@roo-code/types"
 
-import type { useAppTranslation } from "@/i18n/TranslationContext"
+import type { useAppTranslation } from "@src/i18n/TranslationContext"
 
 type TranslationFn = ReturnType<typeof useAppTranslation>["t"]
 

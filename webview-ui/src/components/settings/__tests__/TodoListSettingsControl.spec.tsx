@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react"
 import { TodoListSettingsControl } from "../TodoListSettingsControl"
 
 // Mock the translation hook
-vi.mock("@/i18n/TranslationContext", () => ({
+vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string) => {
 			const translations: Record<string, string> = {

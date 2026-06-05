@@ -4,7 +4,7 @@ import prettyBytes from "pretty-bytes"
 import type { WorktreeDefaultsResponse, BranchInfo, WorktreeIncludeStatus } from "@roo-code/types"
 
 import { vscode } from "@/utils/vscode"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Button, Input } from "@/components/ui"
 import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/searchable-select"
 import { CornerDownRight, Folder, FolderSearch, Info } from "lucide-react"

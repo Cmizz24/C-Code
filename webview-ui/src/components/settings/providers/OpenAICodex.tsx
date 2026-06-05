@@ -26,7 +26,19 @@ interface OpenAICodexProps {
 	openAiCodexFastStatus?: OpenAiCodexFastStatus
 }
 
-type FastModeStatusKey = "disabled" | "unsupported" | "signInRequired" | "requested" | "confirmed" | "rejected"
+type FastModeStatusKey = "disabled" | "unsupported" | "signInRequired" | "active" | "confirmed" | "rejected"
+type FastModeStatusSeverity = "green" | "amber" | "red"
+
+type FastModeStatusView = {
+	key: FastModeStatusKey
+	severity: FastModeStatusSeverity
+}
+
+const fastModeIndicatorClassNames: Record<FastModeStatusSeverity, string> = {
+	green: "bg-vscode-charts-green",
+	amber: "bg-vscode-charts-yellow",
+	red: "bg-vscode-errorForeground",
+}
 
 export const OpenAICodex: React.FC<OpenAICodexProps> = ({
 	apiConfiguration,
@@ -44,16 +56,17 @@ export const OpenAICodex: React.FC<OpenAICodexProps> = ({
 	const fastModeEnabled = apiConfiguration.openAiCodexFastMode ?? false
 	const fastModeSupported = selectedModel?.supportsFastMode === true
 	const fastStatusMatchesSelectedModel = openAiCodexFastStatus?.modelId === selectedModelId
-	const fastModeStatusKey: FastModeStatusKey = !fastModeSupported
-		? "unsupported"
+	const fastModeStatus: FastModeStatusView = !fastModeSupported
+		? { key: "unsupported", severity: "red" }
 		: !fastModeEnabled
-			? "disabled"
+			? { key: "disabled", severity: "red" }
 			: !openAiCodexIsAuthenticated
-				? "signInRequired"
-				: fastStatusMatchesSelectedModel &&
-					  (openAiCodexFastStatus.state === "confirmed" || openAiCodexFastStatus.state === "rejected")
-					? openAiCodexFastStatus.state
-					: "requested"
+				? { key: "signInRequired", severity: "amber" }
+				: fastStatusMatchesSelectedModel && openAiCodexFastStatus.state === "rejected"
+					? { key: "rejected", severity: "red" }
+					: fastStatusMatchesSelectedModel && openAiCodexFastStatus.state === "confirmed"
+						? { key: "confirmed", severity: "green" }
+						: { key: "active", severity: "green" }
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -96,14 +109,22 @@ export const OpenAICodex: React.FC<OpenAICodexProps> = ({
 				<p className="m-0 text-sm text-vscode-descriptionForeground">
 					{t("settings:providers.openAiCodexFastMode.description")}
 				</p>
-				<p
-					className="m-0 text-sm text-vscode-descriptionForeground"
-					data-testid="openai-codex-fast-mode-status">
-					{t(`settings:providers.openAiCodexFastMode.status.${fastModeStatusKey}`, {
-						modelId: selectedModelId,
-						observedServiceTier: openAiCodexFastStatus?.observedServiceTier ?? "unknown",
-					})}
-				</p>
+				<div className="flex items-start gap-2" data-testid="openai-codex-fast-mode-status-row">
+					<span
+						className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${fastModeIndicatorClassNames[fastModeStatus.severity]}`}
+						data-severity={fastModeStatus.severity}
+						data-testid="openai-codex-fast-mode-indicator"
+						aria-hidden="true"
+					/>
+					<p
+						className="m-0 text-sm text-vscode-descriptionForeground"
+						data-testid="openai-codex-fast-mode-status">
+						{t(`settings:providers.openAiCodexFastMode.status.${fastModeStatus.key}`, {
+							modelId: selectedModelId,
+							observedServiceTier: openAiCodexFastStatus?.observedServiceTier ?? "unknown",
+						})}
+					</p>
+				</div>
 			</div>
 
 			{/* Model Picker */}

@@ -2,7 +2,7 @@ import { useCallback } from "react"
 
 import { useClipboard } from "@/components/ui/hooks"
 import { Button, StandardTooltip } from "@/components/ui"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { cn } from "@/lib/utils"
 
 type CopyButtonProps = {

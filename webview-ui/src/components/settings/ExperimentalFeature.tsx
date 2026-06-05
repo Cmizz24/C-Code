@@ -1,5 +1,5 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 
 interface ExperimentalFeatureProps {
 	enabled: boolean

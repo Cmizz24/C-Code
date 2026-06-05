@@ -351,11 +351,11 @@
 			"label": "Fast mode 활성화",
 			"description": "지원되는 모델(GPT-5.5 및 GPT-5.4)에 OpenAI priority service tier를 사용합니다. Fast mode는 크레딧을 더 빠른 속도로 사용할 수 있습니다.",
 			"status": {
-				"disabled": "{{modelId}}에서 Fast mode를 사용할 수 있지만 현재 꺼져 있습니다.",
+				"disabled": "{{modelId}}에서 Fast mode가 꺼져 있습니다.",
 				"unsupported": "{{modelId}}에서는 Fast mode를 사용할 수 없습니다.",
-				"signInRequired": "{{modelId}}에서 Fast mode가 활성화되어 있지만 실행하려면 먼저 로그인해야 합니다.",
-				"requested": "{{modelId}}에 Fast mode를 요청했지만 OpenAI가 아직 priority tier를 확인하지 않았습니다.",
-				"confirmed": "{{modelId}}에서 OpenAI priority tier의 Fast mode가 확인되었습니다.",
+				"signInRequired": "{{modelId}}에서 Fast mode가 켜져 있지만 Codex가 사용하려면 먼저 로그인해야 합니다.",
+				"active": "{{modelId}}에서 Fast mode가 켜져 있으며 지원되는 요청에 Codex Fast 라우팅을 사용합니다.",
+				"confirmed": "{{modelId}}에서 Fast mode가 켜져 있습니다. OpenAI가 마지막 요청에 Fast service tier를 보고했습니다.",
 				"rejected": "{{modelId}}에 Fast mode를 요청했지만 OpenAI가 {{observedServiceTier}} service tier를 보고했습니다."
 			}
 		},

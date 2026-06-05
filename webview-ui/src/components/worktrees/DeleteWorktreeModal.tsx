@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react"
 import type { Worktree } from "@roo-code/types"
 
 import { vscode } from "@/utils/vscode"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Button, Checkbox } from "@/components/ui"
 import { Folder, GitBranch, TriangleAlert } from "lucide-react"
 

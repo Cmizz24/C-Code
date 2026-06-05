@@ -37,3 +37,24 @@ describe("ExtensionStateContext imports", () => {
 		expect(nonCanonicalImports).toEqual([])
 	})
 })
+
+describe("TranslationContext imports", () => {
+	it("use the canonical @src alias to keep one context module identity in debug/HMR", () => {
+		const files = findSourceFiles(srcDir).filter((file) => !file.endsWith("ExtensionStateContext.imports.spec.ts"))
+
+		const nonCanonicalImports = files.flatMap((file) => {
+			const contents = fs.readFileSync(file, "utf8")
+			const matches = [...contents.matchAll(/from\s+["']([^"']*TranslationContext)["']/g)]
+
+			return matches
+				.map((match) => match[1])
+				.filter(
+					(specifier) =>
+						specifier.endsWith("i18n/TranslationContext") && specifier !== "@src/i18n/TranslationContext",
+				)
+				.map((specifier) => `${path.relative(srcDir, file).replace(/\\/g, "/")}: ${specifier}`)
+		})
+
+		expect(nonCanonicalImports).toEqual([])
+	})
+})

@@ -6,7 +6,7 @@ import { BatchDeleteTaskDialog } from "../BatchDeleteTaskDialog"
 
 vi.mock("@/utils/vscode")
 
-vi.mock("@/i18n/TranslationContext", () => ({
+vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string, options?: Record<string, any>) => {
 			const translations: Record<string, string> = {

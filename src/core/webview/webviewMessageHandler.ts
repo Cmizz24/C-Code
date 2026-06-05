@@ -14,6 +14,8 @@ import {
 	type Command as SlashCommand,
 	type WebviewMessage,
 	type EditQueuedMessagePayload,
+	type TokenUsage,
+	type ToolUsage,
 	RooCodeSettings,
 	ExperimentId,
 	RooCodeEventName,
@@ -652,6 +654,10 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			}
 			break
 
+		case "taskCompletionUiVisible":
+			await provider.notifyFinalParentCompletionUiVisible(message.taskId, message.values)
+			break
+
 		case "acceptCompletion":
 			{
 				const task = provider.getCurrentTask()
@@ -663,9 +669,13 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				}
 
 				let completionObserved = false
-				const onTaskCompleted = (taskId: string) => {
+				let completionTokenUsage: TokenUsage | undefined
+				let completionToolUsage: ToolUsage | undefined
+				const onTaskCompleted = (taskId: string, tokenUsage?: TokenUsage, toolUsage?: ToolUsage) => {
 					if (taskId === task.taskId) {
 						completionObserved = true
+						completionTokenUsage = tokenUsage
+						completionToolUsage = toolUsage
 					}
 				}
 
@@ -688,6 +698,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					task.off(RooCodeEventName.TaskCompleted, onTaskCompleted)
 				}
 
+				await provider.notifyAcceptedFinalParentCompletion(task, completionTokenUsage, completionToolUsage)
 				await provider.clearTask()
 				await provider.postStateToWebview()
 			}

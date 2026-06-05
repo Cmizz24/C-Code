@@ -18,6 +18,16 @@ type WhamUsageResponse = {
 	plan_type?: string
 }
 
+type WhamUsageErrorResponse = {
+	error?: {
+		message?: unknown
+		code?: unknown
+	}
+}
+
+const TOKEN_INVALIDATED_RATE_LIMIT_MESSAGE =
+	"OpenAI Codex session expired. Please sign in again to refresh usage limits."
+
 function clampPercent(value: number): number {
 	if (!Number.isFinite(value)) return 0
 	return Math.max(0, Math.min(100, value))
@@ -25,6 +35,33 @@ function clampPercent(value: number): number {
 
 function secondsToMs(value: number | undefined): number | undefined {
 	return typeof value === "number" && Number.isFinite(value) ? Math.round(value * 1000) : undefined
+}
+
+function parseWhamUsageErrorPayload(text: string): WhamUsageErrorResponse | undefined {
+	if (!text.trim()) {
+		return undefined
+	}
+
+	try {
+		const payload = JSON.parse(text) as unknown
+		return payload && typeof payload === "object" ? (payload as WhamUsageErrorResponse) : undefined
+	} catch {
+		return undefined
+	}
+}
+
+function formatWhamUsageError(response: Response, text: string): string {
+	const payload = parseWhamUsageErrorPayload(text)
+	const errorCode = typeof payload?.error?.code === "string" ? payload.error.code : undefined
+	const errorMessage = typeof payload?.error?.message === "string" ? payload.error.message : undefined
+
+	if (response.status === 401 || errorCode === "token_invalidated") {
+		return TOKEN_INVALIDATED_RATE_LIMIT_MESSAGE
+	}
+
+	const statusText = response.statusText ? ` ${response.statusText}` : ""
+	const sanitizedMessage = errorMessage?.replace(/\s+/g, " ").trim()
+	return `OpenAI Codex usage request failed: ${response.status}${statusText}${sanitizedMessage ? ` - ${sanitizedMessage}` : ""}`
 }
 
 export function parseOpenAiCodexUsagePayload(payload: unknown, fetchedAt: number): OpenAiCodexRateLimitInfo {
@@ -82,9 +119,7 @@ export async function fetchOpenAiCodexRateLimitInfo(
 	const response = await fetch(WHAM_USAGE_URL, { method: "GET", headers })
 	if (!response.ok) {
 		const text = await response.text().catch(() => "")
-		throw new Error(
-			`OpenAI Codex WHAM usage request failed: ${response.status} ${response.statusText}${text ? ` - ${text}` : ""}`,
-		)
+		throw new Error(formatWhamUsageError(response, text))
 	}
 
 	const json = (await response.json()) as unknown

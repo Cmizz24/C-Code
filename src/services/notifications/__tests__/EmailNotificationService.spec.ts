@@ -474,6 +474,47 @@ describe("EmailNotificationService", () => {
 		expect(sendMail.mock.calls[1][0].text).not.toContain("Notification type:")
 	})
 
+	it("renders final parent workflow notification type separately from parallel workflow notifications", async () => {
+		const { service, sendMail } = createService(
+			createContextProxy({
+				smtpSubjectTemplate: "{{notificationType}}|{{notificationLabel}}|{{taskId}}",
+			}),
+		)
+		const workflowPayload = {
+			...payload,
+			taskId: "shared-final-parent-task",
+			summary: "Parallel workflow completed before final parent completion.",
+			notificationType: "parallel-workflow" as const,
+		}
+		const finalParentPayload = {
+			...payload,
+			taskId: "shared-final-parent-task",
+			summary: "Final visible parent workflow completed.",
+			workflowSummary: "Overall parent workflow rollup includes child tasks and parallel agents.",
+			usageScope: "Aggregated final parent workflow usage.",
+			notificationType: "final-parent" as any,
+		}
+
+		await expect(service.sendTaskNotification(workflowPayload)).resolves.toEqual({ attempted: true, sent: true })
+		await expect(service.sendTaskNotification(finalParentPayload)).resolves.toEqual({ attempted: true, sent: true })
+		await expect(service.sendTaskNotification(finalParentPayload)).resolves.toEqual({
+			attempted: false,
+			sent: false,
+			skippedReason: "duplicate",
+		})
+
+		expect(sendMail).toHaveBeenCalledTimes(2)
+		expect(sendMail.mock.calls[0][0].subject).toBe(
+			"parallel-workflow|Parallel agent workflow|shared-final-parent-task",
+		)
+		expect(sendMail.mock.calls[1][0].subject).toBe(
+			"final-parent|Final parent task workflow|shared-final-parent-task",
+		)
+		expect(sendMail.mock.calls[1][0].text).toContain("Notification type: Final parent task workflow")
+		expect(sendMail.mock.calls[1][0].text).toContain("Workflow summary: Overall parent workflow rollup")
+		expect(sendMail.mock.calls[1][0].text).toContain("Usage scope: Aggregated final parent workflow usage.")
+	})
+
 	it("does not send an aborted notification after a successful completion was already sent", async () => {
 		const { service, sendMail } = createService(createContextProxy({ emailNotifyOnFailure: true }))
 

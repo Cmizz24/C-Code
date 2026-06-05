@@ -1,5 +1,5 @@
 import React, { useCallback } from "react"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { useTooManyTools } from "@src/hooks/useTooManyTools"
 import WarningRow from "./WarningRow"
 

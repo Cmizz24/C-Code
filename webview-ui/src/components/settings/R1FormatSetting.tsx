@@ -1,6 +1,6 @@
 import { Checkbox } from "vscrui"
 
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 
 interface R1FormatSettingProps {
 	onChange: (value: boolean) => void

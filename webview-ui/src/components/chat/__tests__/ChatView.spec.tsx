@@ -543,6 +543,113 @@ describe("ChatView - Completion Acceptance Tests", () => {
 		vi.clearAllMocks()
 	})
 
+	it("notifies the backend once when the live parent completion Start New Task UI becomes visible", async () => {
+		renderChatView()
+
+		const taskTs = Date.now() - 2000
+		const completionTs = Date.now()
+		const completedState = {
+			currentTaskItem: { id: "visible-parent-task" },
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: taskTs,
+					text: "Initial task",
+				},
+				{
+					type: "ask",
+					ask: "completion_result",
+					ts: completionTs,
+					text: "Task complete",
+					partial: false,
+				},
+			],
+		} satisfies Partial<ExtensionState>
+
+		act(() => {
+			mockPostMessage(completedState)
+		})
+
+		await screen.findByRole("button", { name: "chat:startNewTask.title" })
+		await waitFor(() => {
+			expect(vscode.postMessage).toHaveBeenCalledWith({
+				type: "taskCompletionUiVisible",
+				taskId: "visible-parent-task",
+				values: {
+					ask: "completion_result",
+					taskTs,
+					completionTs,
+				},
+			})
+		})
+
+		const visibleNotificationCalls = vi
+			.mocked(vscode.postMessage)
+			.mock.calls.filter(([message]) => message.type === "taskCompletionUiVisible")
+
+		act(() => {
+			mockPostMessage(completedState)
+		})
+
+		expect(
+			vi.mocked(vscode.postMessage).mock.calls.filter(([message]) => message.type === "taskCompletionUiVisible"),
+		).toHaveLength(visibleNotificationCalls.length)
+	})
+
+	it("does not notify the backend for completed child task Start New Task UI", async () => {
+		renderChatView()
+
+		act(() => {
+			mockPostMessage({
+				currentTaskItem: { id: "child-task", parentTaskId: "parent-task" },
+				clineMessages: [
+					{
+						type: "say",
+						say: "task",
+						ts: Date.now() - 2000,
+						text: "Initial child task",
+					},
+					{
+						type: "ask",
+						ask: "completion_result",
+						ts: Date.now(),
+						text: "Child task complete",
+						partial: false,
+					},
+				],
+			})
+		})
+
+		await screen.findByRole("button", { name: "chat:startNewTask.title" })
+		expect(vscode.postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({ type: "taskCompletionUiVisible" }),
+		)
+	})
+
+	it("does not notify the backend when reopening completed task history", async () => {
+		renderChatView()
+
+		act(() => {
+			mockPostMessage({
+				currentTaskItem: { id: "historical-completed-task" },
+				clineMessages: [
+					{
+						type: "ask",
+						ask: "resume_completed_task",
+						ts: Date.now(),
+						text: "Task complete",
+					},
+				],
+			})
+		})
+
+		await screen.findByRole("button", { name: "chat:startNewTask.title" })
+		expect(vscode.postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({ type: "taskCompletionUiVisible" }),
+		)
+	})
+
 	it("accepts a completion before starting a new task", async () => {
 		renderChatView()
 

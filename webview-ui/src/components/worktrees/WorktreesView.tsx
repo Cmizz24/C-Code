@@ -4,7 +4,7 @@ import type { Worktree, WorktreeListResponse, WorktreeIncludeStatus } from "@roo
 
 import { Badge, Button, StandardTooltip, ToggleSwitch } from "@/components/ui"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { vscode } from "@/utils/vscode"
 
 import { SectionHeader } from "../settings/SectionHeader"

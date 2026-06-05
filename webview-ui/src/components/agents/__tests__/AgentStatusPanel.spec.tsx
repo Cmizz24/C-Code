@@ -2,7 +2,7 @@ import type { ClineSayTool, ExecutionPlan, ExtensionMessage } from "@roo-code/ty
 
 import { act, fireEvent, render, screen, within } from "@/utils/test-utils"
 import { ExtensionStateContext } from "@src/context/ExtensionStateContext"
-import { TranslationContext } from "@/i18n/TranslationContext"
+import { TranslationContext } from "@src/i18n/TranslationContext"
 
 import { AgentStatusPanel } from "../AgentStatusPanel"
 

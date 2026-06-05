@@ -11,7 +11,7 @@ vi.mock("@/utils/vscode", () => ({
 }))
 
 // Mock i18n TranslationContext
-vi.mock("@/i18n/TranslationContext", () => ({
+vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string) => {
 			const map: Record<string, string> = {

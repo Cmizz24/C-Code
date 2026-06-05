@@ -68,7 +68,7 @@ vi.mock("@src/context/ExtensionStateContext", () => ({
 }))
 
 // Mock TranslationContext to provide t function directly
-vi.mock("@/i18n/TranslationContext", () => ({
+vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string, params?: any) => {
 			// Remove namespace prefix if present

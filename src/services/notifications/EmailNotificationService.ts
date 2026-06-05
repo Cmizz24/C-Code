@@ -14,7 +14,7 @@ export type EmailNotificationPayload = {
 	usageScope?: string
 	workspacePath?: string
 	mode?: string
-	notificationType?: "delegated-child" | "parallel-workflow"
+	notificationType?: "delegated-child" | "parallel-workflow" | "final-parent"
 	parentTaskId?: string
 	rootTaskId?: string
 	agentId?: string
@@ -484,6 +484,8 @@ ${rowMarkup}
 				return "Delegated child task"
 			case "parallel-workflow":
 				return "Parallel agent workflow"
+			case "final-parent":
+				return "Final parent task workflow"
 			default:
 				return "Task"
 		}

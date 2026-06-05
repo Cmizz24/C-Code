@@ -9,7 +9,7 @@ import {
 	normalizeParallelTaskConcurrency,
 } from "@roo-code/types"
 
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { vscode } from "@/utils/vscode"
 import { Button, Input, Slider } from "@/components/ui"

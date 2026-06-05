@@ -1,6 +1,6 @@
 import React from "react"
 import { TriangleAlert, BookOpenText } from "lucide-react"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { vscode } from "@src/utils/vscode"
 
 export interface WarningRowProps {

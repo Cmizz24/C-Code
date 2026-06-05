@@ -351,11 +351,11 @@
 			"label": "启用 Fast mode",
 			"description": "对受支持的模型（GPT-5.5 和 GPT-5.4）使用 OpenAI priority service tier。Fast mode 可能会以更高的速度消耗 credits。",
 			"status": {
-				"disabled": "{{modelId}} 可使用 Fast mode，但当前已关闭。",
+				"disabled": "{{modelId}} 的 Fast mode 已关闭。",
 				"unsupported": "{{modelId}} 不支持 Fast mode。",
-				"signInRequired": "{{modelId}} 的 Fast mode 已启用，但运行前需要先登录。",
-				"requested": "已为 {{modelId}} 请求 Fast mode，但 OpenAI 尚未确认 priority tier。",
-				"confirmed": "已确认 {{modelId}} 使用 OpenAI 的 priority tier 运行 Fast mode。",
+				"signInRequired": "{{modelId}} 的 Fast mode 已开启，但需要先登录，Codex 才能使用。",
+				"active": "{{modelId}} 的 Fast mode 已开启，并会在支持的请求中使用 Codex Fast 路由。",
+				"confirmed": "{{modelId}} 的 Fast mode 已开启；OpenAI 已为上次请求报告 Fast service tier。",
 				"rejected": "已为 {{modelId}} 请求 Fast mode，但 OpenAI 返回了 {{observedServiceTier}} service tier。"
 			}
 		},

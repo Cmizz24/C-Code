@@ -1,6 +1,6 @@
 import { vscode } from "@/utils/vscode"
 import { Button, StandardTooltip } from "@/components/ui"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { useCallback } from "react"
 
 export const ExportButton = ({ itemId }: { itemId: string }) => {

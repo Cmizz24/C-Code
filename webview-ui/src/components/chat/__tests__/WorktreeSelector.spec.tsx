@@ -12,7 +12,7 @@ vi.mock("@/utils/vscode", () => ({
 	},
 }))
 
-vi.mock("@/i18n/TranslationContext", () => ({
+vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string) => key,
 	}),

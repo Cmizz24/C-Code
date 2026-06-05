@@ -1,5 +1,5 @@
 import { HTMLAttributes } from "react"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 
 import type { Language } from "@roo-code/types"
 

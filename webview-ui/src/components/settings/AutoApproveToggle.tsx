@@ -1,6 +1,6 @@
 import type { GlobalSettings } from "@roo-code/types"
 
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { cn } from "@/lib/utils"
 import { Button, StandardTooltip } from "@/components/ui"
 
