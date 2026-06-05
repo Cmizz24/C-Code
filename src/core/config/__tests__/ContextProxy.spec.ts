@@ -35,7 +35,7 @@ describe("ContextProxy", () => {
 
 		// Mock secrets
 		mockSecrets = {
-			get: vi.fn().mockResolvedValue("test-secret"),
+			get: vi.fn().mockResolvedValue(undefined),
 			store: vi.fn().mockResolvedValue(undefined),
 			delete: vi.fn().mockResolvedValue(undefined),
 		}
@@ -444,6 +444,135 @@ describe("ContextProxy", () => {
 
 			// Should reinitialize caches
 			expect(initializeSpy).toHaveBeenCalledTimes(1)
+		})
+	})
+
+	describe("image generation settings migration", () => {
+		it("should migrate old nested OpenRouter image generation settings to flattened state and secrets", async () => {
+			vi.clearAllMocks()
+			mockGlobalState.get.mockImplementation((key: string) => {
+				if (key === "openRouterImageGenerationSettings") {
+					return {
+						openRouterApiKey: "legacy-key",
+						selectedModel: "legacy-model",
+						baseUrl: "https://legacy-openrouter.example/api/v1",
+						apiMethod: "chat_completions",
+					}
+				}
+				return undefined
+			})
+			mockSecrets.get.mockResolvedValue(undefined)
+
+			const proxyWithLegacyImageSettings = new ContextProxy(mockContext)
+			await proxyWithLegacyImageSettings.initialize()
+
+			expect(mockSecrets.store).toHaveBeenCalledWith("openRouterImageApiKey", "legacy-key")
+			expect(mockGlobalState.update).toHaveBeenCalledWith(
+				"openRouterImageGenerationSelectedModel",
+				"legacy-model",
+			)
+			expect(mockGlobalState.update).toHaveBeenCalledWith(
+				"openRouterImageBaseUrl",
+				"https://legacy-openrouter.example/api/v1",
+			)
+			expect(mockGlobalState.update).toHaveBeenCalledWith(
+				"openRouterImageGenerationApiMethod",
+				"chat_completions",
+			)
+			expect(mockGlobalState.update).toHaveBeenCalledWith("imageGenerationProvider", "openrouter")
+			expect(mockGlobalState.update).toHaveBeenCalledWith("openRouterImageGenerationSettings", undefined)
+			expect(proxyWithLegacyImageSettings.getSecret("openRouterImageApiKey")).toBe("legacy-key")
+			expect(proxyWithLegacyImageSettings.getGlobalState("imageGenerationProvider")).toBe("openrouter")
+		})
+
+		it("should default the provider to OpenRouter when flattened legacy OpenRouter image settings exist", async () => {
+			vi.clearAllMocks()
+			mockGlobalState.get.mockImplementation((key: string) => {
+				if (key === "openRouterImageGenerationSelectedModel") {
+					return "google/gemini-2.5-flash-image"
+				}
+				return undefined
+			})
+			mockSecrets.get.mockResolvedValue(undefined)
+
+			const proxyWithFlattenedLegacySettings = new ContextProxy(mockContext)
+			await proxyWithFlattenedLegacySettings.initialize()
+
+			expect(mockGlobalState.update).toHaveBeenCalledWith("imageGenerationProvider", "openrouter")
+			expect(proxyWithFlattenedLegacySettings.getGlobalState("imageGenerationProvider")).toBe("openrouter")
+		})
+
+		it("should not overwrite an explicitly configured image generation provider", async () => {
+			vi.clearAllMocks()
+			mockGlobalState.get.mockImplementation((key: string) => {
+				if (key === "imageGenerationProvider") {
+					return "openai"
+				}
+				if (key === "openRouterImageGenerationSelectedModel") {
+					return "google/gemini-2.5-flash-image"
+				}
+				return undefined
+			})
+			mockSecrets.get.mockResolvedValue(undefined)
+
+			const proxyWithExplicitProvider = new ContextProxy(mockContext)
+			await proxyWithExplicitProvider.initialize()
+
+			const imageGenerationProviderUpdates = mockGlobalState.update.mock.calls.filter(
+				(call: unknown[]) => call[0] === "imageGenerationProvider",
+			)
+			expect(imageGenerationProviderUpdates).toHaveLength(0)
+			expect(proxyWithExplicitProvider.getGlobalState("imageGenerationProvider")).toBe("openai")
+		})
+
+		it("should not overwrite existing flattened OpenRouter image settings during nested migration", async () => {
+			vi.clearAllMocks()
+			mockGlobalState.get.mockImplementation((key: string) => {
+				if (key === "openRouterImageGenerationSettings") {
+					return {
+						openRouterApiKey: "legacy-key",
+						selectedModel: "legacy-model",
+						baseUrl: "https://legacy-openrouter.example/api/v1",
+						apiMethod: "images_api",
+					}
+				}
+				if (key === "imageGenerationProvider") {
+					return "openai"
+				}
+				if (key === "openRouterImageGenerationSelectedModel") {
+					return "existing-model"
+				}
+				if (key === "openRouterImageBaseUrl") {
+					return "https://existing-openrouter.example/api/v1"
+				}
+				if (key === "openRouterImageGenerationApiMethod") {
+					return "chat_completions"
+				}
+				return undefined
+			})
+			mockSecrets.get.mockImplementation((key: string) =>
+				Promise.resolve(key === "openRouterImageApiKey" ? "existing-key" : undefined),
+			)
+
+			const proxyWithExistingSettings = new ContextProxy(mockContext)
+			await proxyWithExistingSettings.initialize()
+
+			expect(mockSecrets.store).not.toHaveBeenCalledWith("openRouterImageApiKey", "legacy-key")
+			expect(mockGlobalState.update).not.toHaveBeenCalledWith(
+				"openRouterImageGenerationSelectedModel",
+				"legacy-model",
+			)
+			expect(mockGlobalState.update).not.toHaveBeenCalledWith(
+				"openRouterImageBaseUrl",
+				"https://legacy-openrouter.example/api/v1",
+			)
+			expect(mockGlobalState.update).not.toHaveBeenCalledWith("openRouterImageGenerationApiMethod", "images_api")
+			expect(mockGlobalState.update).not.toHaveBeenCalledWith("imageGenerationProvider", "openrouter")
+			expect(mockGlobalState.update).toHaveBeenCalledWith("openRouterImageGenerationSettings", undefined)
+			expect(proxyWithExistingSettings.getSecret("openRouterImageApiKey")).toBe("existing-key")
+			expect(proxyWithExistingSettings.getGlobalState("openRouterImageGenerationSelectedModel")).toBe(
+				"existing-model",
+			)
 		})
 	})
 

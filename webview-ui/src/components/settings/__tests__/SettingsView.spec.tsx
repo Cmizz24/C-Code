@@ -53,15 +53,25 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 			{children}
 		</label>
 	),
-	VSCodeTextField: ({ value, onInput, placeholder, "data-testid": dataTestId }: any) => (
+	VSCodeTextField: ({ value, onInput, placeholder, type, "data-testid": dataTestId }: any) => (
 		<input
-			type="text"
+			type={type ?? "text"}
 			value={value}
 			onChange={(e) => onInput({ target: { value: e.target.value } })}
 			placeholder={placeholder}
 			data-testid={dataTestId}
 		/>
 	),
+	VSCodeDropdown: ({ children, value, onChange, disabled, "data-testid": dataTestId }: any) => (
+		<select
+			value={value}
+			onChange={(e) => onChange({ target: { value: e.target.value } })}
+			disabled={disabled}
+			data-testid={dataTestId}>
+			{children}
+		</select>
+	),
+	VSCodeOption: ({ children, value }: any) => <option value={value}>{children}</option>,
 	VSCodeLink: ({ children, href }: any) => <a href={href || "#"}>{children}</a>,
 	VSCodeRadio: ({ value, checked, onChange }: any) => (
 		<input type="radio" value={value} checked={checked} onChange={onChange} />
@@ -851,6 +861,97 @@ describe("SettingsView - API Configuration", () => {
 		renderSettingsView()
 
 		expect(screen.getByTestId("api-config-management")).toBeInTheDocument()
+	})
+})
+
+describe("SettingsView - Image Generation Settings", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("saves image generation settings from cached state", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			experiments: { imageGeneration: true },
+			imageGenerationProvider: "openrouter",
+			openRouterImageApiKey: "saved-openrouter-key",
+			openRouterImageBaseUrl: "https://openrouter.ai/api/v1",
+			openRouterImageGenerationSelectedModel: "google/gemini-2.5-flash-image",
+			openRouterImageGenerationApiMethod: "chat_completions",
+		})
+
+		activateTab("experimental")
+
+		const content = getSettingsContent()
+		const apiKeyInput = within(content).getByPlaceholderText(
+			"settings:experimental.IMAGE_GENERATION.apiKeyPlaceholder",
+		)
+		fireEvent.change(apiKeyInput, { target: { value: "updated-openrouter-key" } })
+
+		const saveButton = screen.getByTestId("save-button")
+		fireEvent.click(saveButton)
+
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					experiments: expect.objectContaining({ imageGeneration: true }),
+					imageGenerationProvider: "openrouter",
+					openRouterImageApiKey: "updated-openrouter-key",
+					openRouterImageBaseUrl: "https://openrouter.ai/api/v1",
+					openRouterImageGenerationSelectedModel: "google/gemini-2.5-flash-image",
+					openRouterImageGenerationApiMethod: "chat_completions",
+				}),
+			}),
+		)
+	})
+
+	it("keeps image generation settings independent from the active chat provider profile", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			experiments: { imageGeneration: true },
+			apiConfiguration: {
+				apiProvider: "anthropic",
+				apiKey: "anthropic-chat-key",
+				apiModelId: "claude-sonnet-4-5",
+			},
+			imageGenerationProvider: "openai",
+			openAiImageApiKey: "openai-image-key",
+			openAiImageBaseUrl: "https://api.openai.com/v1",
+			openAiImageGenerationSelectedModel: "custom-image-model",
+			openAiImageGenerationApiMethod: "chat_completions",
+		})
+
+		activateTab("experimental")
+
+		const content = getSettingsContent()
+		const baseUrlInput = within(content).getByPlaceholderText(
+			"settings:experimental.IMAGE_GENERATION.baseUrlPlaceholder",
+		)
+		fireEvent.change(baseUrlInput, { target: { value: "https://compatible.example/v1" } })
+
+		const saveButton = screen.getByTestId("save-button")
+		fireEvent.click(saveButton)
+
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					imageGenerationProvider: "openai",
+					openAiImageApiKey: "openai-image-key",
+					openAiImageBaseUrl: "https://compatible.example/v1",
+					openAiImageGenerationSelectedModel: "custom-image-model",
+					openAiImageGenerationApiMethod: "chat_completions",
+				}),
+			}),
+		)
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "upsertApiConfiguration",
+				apiConfiguration: expect.objectContaining({
+					apiProvider: "anthropic",
+					apiModelId: "claude-sonnet-4-5",
+				}),
+			}),
+		)
 	})
 })
 

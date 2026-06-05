@@ -18,11 +18,15 @@
 	},
 	"generateImage": {
 		"openRouterApiKeyRequired": "OpenRouter API-sleutel is vereist voor het genereren van afbeeldingen met OpenRouter-modellen. Configureer deze in de Experimentele Instellingen voor Afbeeldingsgeneratie.",
+		"missingConfiguration": "Instellingen voor afbeeldingsgeneratie zijn niet beschikbaar. Configureer Afbeeldingsgeneratie in de experimentele instellingen.",
+		"apiKeyRequired": "{{provider}} API-sleutel is vereist voor afbeeldingsgeneratie. Configureer deze in de experimentele instellingen voor Afbeeldingsgeneratie.",
+		"modelRequired": "{{provider}} vereist een model-ID voor afbeeldingsgeneratie. Configureer deze in de experimentele instellingen voor Afbeeldingsgeneratie.",
+		"unsupportedApiMethod": "{{provider}} ondersteunt de API-methode {{apiMethod}} voor afbeeldingsgeneratie niet.",
 		"failedWithStatus": "Afbeelding genereren mislukt: {{status}} {{statusText}}",
 		"failedWithMessage": "Afbeelding genereren mislukt: {{message}}",
 		"noImageGenerated": "Er is geen afbeelding gegenereerd in het antwoord",
-		"invalidImageData": "Ongeldige afbeeldingsgegevens in het antwoord",
+		"invalidImageData": "Ongeldige afbeeldingsgegevens in antwoord",
 		"invalidImageFormat": "Ongeldig afbeeldingsformaat ontvangen",
-		"unknownError": "Er is een onbekende fout opgetreden"
+		"unknownError": "Onbekende fout opgetreden"
 	}
 }

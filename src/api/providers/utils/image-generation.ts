@@ -39,23 +39,89 @@ export interface ImageGenerationResult {
 	error?: string
 }
 
-interface ImageGenerationOptions {
+export interface ImageGenerationOptions {
 	baseURL: string
-	authToken: string
+	authToken?: string
 	model: string
 	prompt: string
 	inputImage?: string
 }
 
-interface ImagesApiOptions {
+export interface ImagesApiOptions {
 	baseURL: string
-	authToken: string
+	authToken?: string
 	model: string
 	prompt: string
 	inputImage?: string
 	size?: string
 	quality?: string
 	outputFormat?: string
+}
+
+const buildImageGenerationHeaders = (authToken?: string): Record<string, string> => ({
+	...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+	"Content-Type": "application/json",
+	"HTTP-Referer": "https://github.com/Cmizz24/C-Code",
+	"X-Title": "C Code",
+})
+
+const getImageFormatFromContentType = (contentType: string | null | undefined): string | undefined => {
+	const match = contentType?.match(/^image\/(png|jpeg|jpg|webp|gif)(?:;|$)/i)
+	return match?.[1]?.toLowerCase()
+}
+
+const getImageFormatFromUrl = (url: string): string | undefined => {
+	try {
+		const parsed = new URL(url)
+		const match = parsed.pathname.match(/\.(png|jpe?g|webp|gif)$/i)
+		return match?.[1]?.toLowerCase().replace("jpg", "jpeg")
+	} catch {
+		const match = url.match(/\.(png|jpe?g|webp|gif)(?:\?|#|$)/i)
+		return match?.[1]?.toLowerCase().replace("jpg", "jpeg")
+	}
+}
+
+export async function normalizeImageGenerationData(
+	imageData: string,
+	fallbackFormat = "png",
+): Promise<Pick<ImageGenerationResult, "imageData" | "imageFormat">> {
+	if (imageData.startsWith("data:image/")) {
+		const base64Match = imageData.match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,(.+)$/i)
+		if (!base64Match) {
+			throw new Error(t("tools:generateImage.invalidImageFormat"))
+		}
+
+		return {
+			imageData,
+			imageFormat: base64Match[1].toLowerCase(),
+		}
+	}
+
+	if (/^https?:\/\//i.test(imageData)) {
+		const response = await fetch(imageData)
+		if (!response.ok) {
+			throw new Error(
+				t("tools:generateImage.failedWithStatus", {
+					status: response.status,
+					statusText: response.statusText,
+				}),
+			)
+		}
+
+		const format =
+			getImageFormatFromContentType(response.headers?.get?.("content-type")) ||
+			getImageFormatFromUrl(imageData) ||
+			fallbackFormat
+		const arrayBuffer = await response.arrayBuffer()
+		const base64Data = Buffer.from(arrayBuffer).toString("base64")
+
+		return {
+			imageData: `data:image/${format};base64,${base64Data}`,
+			imageFormat: format,
+		}
+	}
+
+	throw new Error(t("tools:generateImage.invalidImageFormat"))
 }
 
 /**
@@ -67,12 +133,7 @@ export async function generateImageWithProvider(options: ImageGenerationOptions)
 	try {
 		const response = await fetch(`${baseURL}/chat/completions`, {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${authToken}`,
-				"Content-Type": "application/json",
-				"HTTP-Referer": "https://github.com/Cmizz24/C-Code",
-				"X-Title": "C Code",
-			},
+			headers: buildImageGenerationHeaders(authToken),
 			body: JSON.stringify({
 				model,
 				messages: [
@@ -149,19 +210,11 @@ export async function generateImageWithProvider(options: ImageGenerationOptions)
 			}
 		}
 
-		// Extract base64 data from data URL
-		const base64Match = imageData.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/)
-		if (!base64Match) {
-			return {
-				success: false,
-				error: t("tools:generateImage.invalidImageFormat"),
-			}
-		}
+		const normalizedImage = await normalizeImageGenerationData(imageData)
 
 		return {
 			success: true,
-			imageData: imageData,
-			imageFormat: base64Match[1],
+			...normalizedImage,
 		}
 	} catch (error) {
 		return {
@@ -213,12 +266,7 @@ export async function generateImageWithImagesApi(options: ImagesApiOptions): Pro
 
 		const fetchOptions: RequestInit = {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${authToken}`,
-				"Content-Type": "application/json",
-				"HTTP-Referer": "https://github.com/Cmizz24/C-Code",
-				"X-Title": "C Code",
-			},
+			headers: buildImageGenerationHeaders(authToken),
 			body: JSON.stringify(requestBody),
 		}
 
@@ -282,21 +330,10 @@ export async function generateImageWithImagesApi(options: ImagesApiOptions): Pro
 
 		// Handle URL response (fallback)
 		if (imageItem?.url) {
-			// If it's already a data URL, use it directly
-			if (imageItem.url.startsWith("data:image/")) {
-				const formatMatch = imageItem.url.match(/^data:image\/(\w+);/)
-				const format = formatMatch?.[1] || outputFormat
-				return {
-					success: true,
-					imageData: imageItem.url,
-					imageFormat: format,
-				}
-			}
-			// For external URLs, return as-is (the caller will need to handle fetching)
+			const normalizedImage = await normalizeImageGenerationData(imageItem.url, outputFormat)
 			return {
 				success: true,
-				imageData: imageItem.url,
-				imageFormat: outputFormat,
+				...normalizedImage,
 			}
 		}
 

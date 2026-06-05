@@ -867,17 +867,35 @@
 			"description": "有効にすると、new_taskツールはtodosパラメータの提供が必須になります。これにより、すべての新しいタスクが明確な目的のリストで開始されることが保証されます。無効（デフォルト）の場合、下位互換性のためにtodosパラメータはオプションのままです。"
 		},
 		"IMAGE_GENERATION": {
+			"name": "AI画像生成を有効化",
+			"description": "有効にすると、C は別途設定した画像生成プロバイダーを使って、prompt から画像を生成・編集できます。",
 			"providerLabel": "プロバイダー",
-			"providerDescription": "画像生成に使用するプロバイダーを選択",
-			"name": "AI画像生成を有効にする",
-			"description": "有効にすると、RooはOpenRouterの画像生成モデルを使用してテキストプロンプトから画像を生成できます。OpenRouter APIキーの設定が必要です。",
-			"openRouterApiKeyLabel": "OpenRouter APIキー",
-			"openRouterApiKeyPlaceholder": "OpenRouter APIキーを入力してください",
-			"getApiKeyText": "APIキーを取得する場所",
+			"providerDescription": "画像生成に使用するプロバイダーを選択します。これは chat プロバイダープロファイルとは独立しています。",
+			"apiKeyLabel": "{{provider}} APIキー",
+			"optionalApiKeyLabel": "{{provider}} APIキー（任意）",
+			"apiKeyPlaceholder": "{{provider}} APIキーを入力",
+			"apiKeyRequiredDescription": "このプロバイダーでは画像生成に API キーが必要です。",
+			"apiKeyOptionalDescription": "任意。ローカルサーバーまたは proxy が bearer-token 認証を必要とする場合にのみ使用してください。",
+			"getApiKeyText": "APIキーの取得元",
+			"baseUrlLabel": "ベースURL",
+			"baseUrlPlaceholder": "デフォルト: {{url}}",
+			"baseUrlDescription": "{{url}} を使用するには空のままにしてください。",
 			"modelSelectionLabel": "画像生成モデル",
 			"modelSelectionDescription": "画像生成に使用するモデルを選択",
-			"warningMissingKey": "⚠️ 画像生成にはOpenRouter APIキーが必要です。上記で設定してください。",
-			"successConfigured": "✓ 画像生成が設定され、使用準備完了です"
+			"modelIdLabel": "モデルID",
+			"customModelIdPlaceholder": "モデルIDを入力",
+			"modelIdPlaceholderWithDefault": "デフォルト: {{model}}",
+			"customModelIdDescription": "プロバイダーまたはローカルサーバーが公開している正確なモデルIDを入力してください。",
+			"apiMethodLabel": "APIメソッド",
+			"apiMethodDescription": "画像生成に使用する OpenAI 互換 endpoint の形式を選択してください。",
+			"apiMethodLockedDescription": "選択したモデルは {{model}} に必要な API メソッドを使用します。",
+			"apiMethodLabels": {
+				"chat_completions": "Chat completions",
+				"images_api": "Images API"
+			},
+			"warningMissingApiKey": "⚠️ {{provider}} で画像生成するには API キーが必要です。上で設定してください。",
+			"warningMissingModel": "⚠️ {{provider}} で画像生成するにはモデルIDが必要です。上で設定してください。",
+			"successConfigured": "✓ {{provider}} の画像生成が設定され、使用準備ができています"
 		},
 		"RUN_SLASH_COMMAND": {
 			"name": "モデル開始スラッシュコマンドを有効にする",

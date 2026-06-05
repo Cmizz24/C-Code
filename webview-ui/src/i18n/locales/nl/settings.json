@@ -867,17 +867,35 @@
 			"description": "Wanneer ingeschakeld, vereist de new_task-tool dat een todos-parameter wordt opgegeven. Dit zorgt ervoor dat alle nieuwe taken beginnen met een duidelijke lijst met doelstellingen. Wanneer uitgeschakeld (standaard), blijft de todos-parameter optioneel voor achterwaartse compatibiliteit."
 		},
 		"IMAGE_GENERATION": {
-			"providerLabel": "Provider",
-			"providerDescription": "Selecteer de provider voor het genereren van afbeeldingen.",
 			"name": "AI-afbeeldingsgeneratie inschakelen",
-			"description": "Wanneer ingeschakeld, kan Roo afbeeldingen genereren van tekstprompts met behulp van OpenRouter's afbeeldingsgeneratiemodellen. Vereist een geconfigureerde OpenRouter API-sleutel.",
-			"openRouterApiKeyLabel": "OpenRouter API-sleutel",
-			"openRouterApiKeyPlaceholder": "Voer je OpenRouter API-sleutel in",
+			"description": "Als dit is ingeschakeld, kan C afbeeldingen genereren en bewerken vanuit prompts met een apart geconfigureerde afbeeldingsgeneratieprovider.",
+			"providerLabel": "Provider",
+			"providerDescription": "Selecteer de provider voor afbeeldingsgeneratie. Dit staat los van je chatproviderprofiel.",
+			"apiKeyLabel": "{{provider}} API-sleutel",
+			"optionalApiKeyLabel": "{{provider}} API-sleutel (optioneel)",
+			"apiKeyPlaceholder": "Voer je {{provider}} API-sleutel in",
+			"apiKeyRequiredDescription": "Deze provider vereist een API-sleutel voor afbeeldingsgeneratie.",
+			"apiKeyOptionalDescription": "Optioneel. Gebruik dit alleen als je lokale server of proxy bearer-token-authenticatie vereist.",
 			"getApiKeyText": "Haal je API-sleutel op van",
+			"baseUrlLabel": "Basis-URL",
+			"baseUrlPlaceholder": "Standaard: {{url}}",
+			"baseUrlDescription": "Laat leeg om {{url}} te gebruiken.",
 			"modelSelectionLabel": "Afbeeldingsgeneratiemodel",
-			"modelSelectionDescription": "Selecteer het model voor afbeeldingsgeneratie",
-			"warningMissingKey": "⚠️ OpenRouter API-sleutel is vereist voor afbeeldingsgeneratie. Configureer deze hierboven.",
-			"successConfigured": "✓ Afbeeldingsgeneratie is geconfigureerd en klaar voor gebruik"
+			"modelSelectionDescription": "Selecteer het model dat je voor afbeeldingsgeneratie wilt gebruiken",
+			"modelIdLabel": "Model-ID",
+			"customModelIdPlaceholder": "Voer een model-ID in",
+			"modelIdPlaceholderWithDefault": "Standaard: {{model}}",
+			"customModelIdDescription": "Voer de exacte model-ID in die je provider of lokale server aanbiedt.",
+			"apiMethodLabel": "API-methode",
+			"apiMethodDescription": "Kies de OpenAI-compatibele endpointvorm voor afbeeldingsgeneratie.",
+			"apiMethodLockedDescription": "Het geselecteerde model gebruikt de vereiste API-methode van {{model}}.",
+			"apiMethodLabels": {
+				"chat_completions": "Chat completions",
+				"images_api": "Images API"
+			},
+			"warningMissingApiKey": "⚠️ {{provider}} vereist een API-sleutel voor afbeeldingsgeneratie. Configureer deze hierboven.",
+			"warningMissingModel": "⚠️ {{provider}} vereist een model-ID voor afbeeldingsgeneratie. Configureer deze hierboven.",
+			"successConfigured": "✓ Afbeeldingsgeneratie is geconfigureerd voor {{provider}} en klaar voor gebruik"
 		},
 		"RUN_SLASH_COMMAND": {
 			"name": "Model-geïnitieerde slash-commando's inschakelen",

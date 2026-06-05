@@ -867,17 +867,35 @@
 			"description": "Gdy włączone, narzędzie new_task będzie wymagało podania parametru todos. Zapewnia to, że wszystkie nowe zadania rozpoczynają się od jasnej listy celów. Gdy wyłączone (domyślnie), parametr todos pozostaje opcjonalny dla zachowania kompatybilności wstecznej."
 		},
 		"IMAGE_GENERATION": {
+			"name": "Włącz generowanie obrazów przez AI",
+			"description": "Po włączeniu C może generować i edytować obrazy z promptów przy użyciu osobno skonfigurowanego dostawcy generowania obrazów.",
 			"providerLabel": "Dostawca",
-			"providerDescription": "Wybierz dostawcę do generowania obrazów.",
-			"name": "Włącz generowanie obrazów AI",
-			"description": "Gdy włączone, Roo może generować obrazy z promptów tekstowych używając modeli generowania obrazów OpenRouter. Wymaga skonfigurowanego klucza API OpenRouter.",
-			"openRouterApiKeyLabel": "Klucz API OpenRouter",
-			"openRouterApiKeyPlaceholder": "Wprowadź swój klucz API OpenRouter",
+			"providerDescription": "Wybierz dostawcę używanego do generowania obrazów. Jest niezależny od profilu dostawcy chatu.",
+			"apiKeyLabel": "Klucz API {{provider}}",
+			"optionalApiKeyLabel": "Klucz API {{provider}} (opcjonalnie)",
+			"apiKeyPlaceholder": "Wpisz klucz API {{provider}}",
+			"apiKeyRequiredDescription": "Ten dostawca wymaga klucza API do generowania obrazów.",
+			"apiKeyOptionalDescription": "Opcjonalnie. Użyj tego tylko wtedy, gdy lokalny serwer lub proxy wymaga uwierzytelniania bearer-token.",
 			"getApiKeyText": "Uzyskaj swój klucz API od",
+			"baseUrlLabel": "Bazowy URL",
+			"baseUrlPlaceholder": "Domyślnie: {{url}}",
+			"baseUrlDescription": "Zostaw puste, aby użyć {{url}}.",
 			"modelSelectionLabel": "Model generowania obrazów",
-			"modelSelectionDescription": "Wybierz model do generowania obrazów",
-			"warningMissingKey": "⚠️ Klucz API OpenRouter jest wymagany do generowania obrazów. Skonfiguruj go powyżej.",
-			"successConfigured": "✓ Generowanie obrazów jest skonfigurowane i gotowe do użycia"
+			"modelSelectionDescription": "Wybierz model używany do generowania obrazów",
+			"modelIdLabel": "ID modelu",
+			"customModelIdPlaceholder": "Wpisz ID modelu",
+			"modelIdPlaceholderWithDefault": "Domyślnie: {{model}}",
+			"customModelIdDescription": "Wpisz dokładny ID modelu udostępniany przez dostawcę lub lokalny serwer.",
+			"apiMethodLabel": "Metoda API",
+			"apiMethodDescription": "Wybierz kształt endpointu zgodnego z OpenAI używany do generowania obrazów.",
+			"apiMethodLockedDescription": "Wybrany model używa wymaganej metody API modelu {{model}}.",
+			"apiMethodLabels": {
+				"chat_completions": "Chat completions",
+				"images_api": "Images API"
+			},
+			"warningMissingApiKey": "⚠️ {{provider}} wymaga klucza API do generowania obrazów. Skonfiguruj go powyżej.",
+			"warningMissingModel": "⚠️ {{provider}} wymaga ID modelu do generowania obrazów. Skonfiguruj go powyżej.",
+			"successConfigured": "✓ Generowanie obrazów jest skonfigurowane dla {{provider}} i gotowe do użycia"
 		},
 		"RUN_SLASH_COMMAND": {
 			"name": "Włącz polecenia slash inicjowane przez model",

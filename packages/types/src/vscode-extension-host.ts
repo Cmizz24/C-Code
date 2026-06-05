@@ -316,7 +316,18 @@ export type ExtensionState = Pick<
 	| "includeDiagnosticMessages"
 	| "maxDiagnosticMessages"
 	| "imageGenerationProvider"
+	| "openRouterImageBaseUrl"
 	| "openRouterImageGenerationSelectedModel"
+	| "openRouterImageGenerationApiMethod"
+	| "openAiImageBaseUrl"
+	| "openAiImageGenerationSelectedModel"
+	| "openAiImageGenerationApiMethod"
+	| "ollamaImageBaseUrl"
+	| "ollamaImageGenerationSelectedModel"
+	| "ollamaImageGenerationApiMethod"
+	| "lmStudioImageBaseUrl"
+	| "lmStudioImageGenerationSelectedModel"
+	| "lmStudioImageGenerationApiMethod"
 	| "openAiCodexFastStatus"
 	| "includeTaskHistoryInEnhance"
 	| "reasoningBlockCollapsed"
@@ -372,6 +383,9 @@ export type ExtensionState = Pick<
 	profileThresholds: Record<string, number>
 	hasOpenedModeSelector: boolean
 	openRouterImageApiKey?: string
+	openAiImageApiKey?: string
+	ollamaImageApiKey?: string
+	lmStudioImageApiKey?: string
 	smtpPasswordConfigured?: boolean
 	messageQueue?: QueuedMessage[]
 	lastShownAnnouncementId?: string

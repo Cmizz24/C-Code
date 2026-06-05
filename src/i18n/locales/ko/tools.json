@@ -18,6 +18,10 @@
 	},
 	"generateImage": {
 		"openRouterApiKeyRequired": "OpenRouter 모델로 이미지를 생성하려면 OpenRouter API 키가 필요합니다. 이미지 생성 실험 설정에서 구성하세요.",
+		"missingConfiguration": "이미지 생성 설정을 사용할 수 없습니다. 실험 설정에서 이미지 생성을 구성하세요.",
+		"apiKeyRequired": "이미지 생성에는 {{provider}} API 키가 필요합니다. 이미지 생성 실험 설정에서 구성하세요.",
+		"modelRequired": "{{provider}}은(는) 이미지 생성에 모델 ID가 필요합니다. 이미지 생성 실험 설정에서 구성하세요.",
+		"unsupportedApiMethod": "{{provider}}은(는) {{apiMethod}} 이미지 생성 API 메서드를 지원하지 않습니다.",
 		"failedWithStatus": "이미지 생성 실패: {{status}} {{statusText}}",
 		"failedWithMessage": "이미지 생성 실패: {{message}}",
 		"noImageGenerated": "응답에서 이미지가 생성되지 않았습니다",

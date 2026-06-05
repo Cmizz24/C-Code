@@ -18,6 +18,10 @@
 	},
 	"generateImage": {
 		"openRouterApiKeyRequired": "Es requereix la clau API d'OpenRouter per a la generació d'imatges amb models d'OpenRouter. Configura-la a la configuració experimental de Generació d'Imatges.",
+		"missingConfiguration": "La configuració de generació d'imatges no està disponible. Configura Generació d'Imatges a la configuració experimental.",
+		"apiKeyRequired": "Es requereix la clau API de {{provider}} per a la generació d'imatges. Configura-la a la configuració experimental de Generació d'Imatges.",
+		"modelRequired": "{{provider}} requereix un ID de model per a la generació d'imatges. Configura'l a la configuració experimental de Generació d'Imatges.",
+		"unsupportedApiMethod": "{{provider}} no admet el mètode d'API de generació d'imatges {{apiMethod}}.",
 		"failedWithStatus": "Error en generar imatge: {{status}} {{statusText}}",
 		"failedWithMessage": "Error en generar imatge: {{message}}",
 		"noImageGenerated": "No s'ha generat cap imatge en la resposta",

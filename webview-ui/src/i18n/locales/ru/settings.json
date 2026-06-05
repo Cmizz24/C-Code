@@ -867,17 +867,35 @@
 			"description": "Если включено, инструмент new_task будет требовать предоставления параметра todos. Это гарантирует, что все новые задачи начинаются с четкого списка целей. Когда отключено (по умолчанию), параметр todos остается необязательным для обратной совместимости."
 		},
 		"IMAGE_GENERATION": {
+			"name": "Включить генерацию изображений с ИИ",
+			"description": "Когда включено, C может генерировать и редактировать изображения по prompt'ам с помощью отдельно настроенного провайдера генерации изображений.",
 			"providerLabel": "Провайдер",
-			"providerDescription": "Выберите провайдера для генерации изображений.",
-			"name": "Включить генерацию изображений ИИ",
-			"description": "Когда включено, Roo может генерировать изображения из текстовых запросов, используя модели генерации изображений OpenRouter. Требует настроенный API-ключ OpenRouter.",
-			"openRouterApiKeyLabel": "API-ключ OpenRouter",
-			"openRouterApiKeyPlaceholder": "Введите ваш API-ключ OpenRouter",
-			"getApiKeyText": "Получите ваш API-ключ от",
+			"providerDescription": "Выберите провайдера для генерации изображений. Он не зависит от профиля провайдера чата.",
+			"apiKeyLabel": "API-ключ {{provider}}",
+			"optionalApiKeyLabel": "API-ключ {{provider}} (необязательно)",
+			"apiKeyPlaceholder": "Введите API-ключ {{provider}}",
+			"apiKeyRequiredDescription": "Этому провайдеру нужен API-ключ для генерации изображений.",
+			"apiKeyOptionalDescription": "Необязательно. Используйте это только если ваш локальный сервер или proxy требует аутентификацию bearer-token.",
+			"getApiKeyText": "Получите ваш API-ключ у",
+			"baseUrlLabel": "Базовый URL",
+			"baseUrlPlaceholder": "По умолчанию: {{url}}",
+			"baseUrlDescription": "Оставьте пустым, чтобы использовать {{url}}.",
 			"modelSelectionLabel": "Модель генерации изображений",
 			"modelSelectionDescription": "Выберите модель для генерации изображений",
-			"warningMissingKey": "⚠️ API-ключ OpenRouter необходим для генерации изображений. Настройте его выше.",
-			"successConfigured": "✓ Генерация изображений настроена и готова к использованию"
+			"modelIdLabel": "ID модели",
+			"customModelIdPlaceholder": "Введите ID модели",
+			"modelIdPlaceholderWithDefault": "По умолчанию: {{model}}",
+			"customModelIdDescription": "Введите точный ID модели, предоставляемый провайдером или локальным сервером.",
+			"apiMethodLabel": "Метод API",
+			"apiMethodDescription": "Выберите форму endpoint, совместимую с OpenAI, для генерации изображений.",
+			"apiMethodLockedDescription": "Выбранная модель использует обязательный метод API модели {{model}}.",
+			"apiMethodLabels": {
+				"chat_completions": "Chat completions",
+				"images_api": "Images API"
+			},
+			"warningMissingApiKey": "⚠️ {{provider}} требует API-ключ для генерации изображений. Настройте его выше.",
+			"warningMissingModel": "⚠️ {{provider}} требует ID модели для генерации изображений. Настройте его выше.",
+			"successConfigured": "✓ Генерация изображений настроена для {{provider}} и готова к использованию"
 		},
 		"RUN_SLASH_COMMAND": {
 			"name": "Включить слэш-команды, инициированные моделью",

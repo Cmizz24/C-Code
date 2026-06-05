@@ -15,6 +15,7 @@ import { customModePromptsSchema, customSupportPromptsSchema } from "./mode.js"
 import { toolNamesSchema } from "./tool.js"
 import { languagesSchema } from "./vscode.js"
 import { openAiCodexFastStatusSchema } from "./providers/openai-codex.js"
+import { IMAGE_GENERATION_API_METHODS, IMAGE_GENERATION_PROVIDER_IDS } from "./image-generation.js"
 
 /**
  * Default delay in milliseconds after writes to allow diagnostics to detect potential problems.
@@ -109,10 +110,24 @@ export const globalSettingsSchema = z.object({
 	taskHistory: z.array(historyItemSchema).optional(),
 	dismissedUpsells: z.array(z.string()).optional(),
 
-	// Image generation settings (experimental) - flattened for simplicity
-	imageGenerationProvider: z.enum(["openrouter"]).optional(),
+	// Image generation settings (experimental) - kept independent from chat provider profiles.
+	imageGenerationProvider: z.enum(IMAGE_GENERATION_PROVIDER_IDS).optional(),
 	openRouterImageApiKey: z.string().optional(),
+	openRouterImageBaseUrl: z.string().optional(),
 	openRouterImageGenerationSelectedModel: z.string().optional(),
+	openRouterImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+	openAiImageApiKey: z.string().optional(),
+	openAiImageBaseUrl: z.string().optional(),
+	openAiImageGenerationSelectedModel: z.string().optional(),
+	openAiImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+	ollamaImageApiKey: z.string().optional(),
+	ollamaImageBaseUrl: z.string().optional(),
+	ollamaImageGenerationSelectedModel: z.string().optional(),
+	ollamaImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+	lmStudioImageApiKey: z.string().optional(),
+	lmStudioImageBaseUrl: z.string().optional(),
+	lmStudioImageGenerationSelectedModel: z.string().optional(),
+	lmStudioImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
 	openAiCodexFastStatus: openAiCodexFastStatusSchema.optional(),
 
 	customCondensingPrompt: z.string().optional(),
@@ -324,6 +339,9 @@ export const SECRET_STATE_KEYS = [
 // Global secrets that are part of GlobalSettings (not ProviderSettings)
 export const GLOBAL_SECRET_KEYS = [
 	"openRouterImageApiKey", // For image generation
+	"openAiImageApiKey", // For image generation
+	"ollamaImageApiKey", // For image generation with authenticated local/cloud instances
+	"lmStudioImageApiKey", // For image generation with authenticated local/proxy instances
 	"smtpPassword", // For SMTP email notifications
 ] as const
 
