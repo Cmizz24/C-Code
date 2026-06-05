@@ -115,6 +115,75 @@ describe("OpenAICodex", () => {
 		expectFastModeIndicator("green", "bg-vscode-charts-green")
 	})
 
+	it("shows Fast mode as active with a green indicator while the provider request is still pending", () => {
+		renderOpenAICodex(
+			{ apiModelId: "gpt-5.5", openAiCodexFastMode: true },
+			{
+				openAiCodexIsAuthenticated: true,
+				openAiCodexFastStatus: {
+					state: "requested",
+					modelId: "gpt-5.5",
+					requestedServiceTier: "priority",
+				},
+			},
+		)
+
+		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
+			"Fast mode is on for gpt-5.5 and will use Codex Fast routing on supported requests.",
+		)
+		expectFastModeIndicator("green", "bg-vscode-charts-green")
+	})
+
+	it("keeps Fast mode green when an active request transitions back to idle while the toggle remains enabled", () => {
+		const { rerender } = render(
+			<OpenAICodex
+				apiConfiguration={{ apiModelId: "gpt-5.5", openAiCodexFastMode: true } as ProviderSettings}
+				setApiConfigurationField={mockSetApiConfigurationField}
+				openAiCodexIsAuthenticated={true}
+				openAiCodexFastStatus={{
+					state: "requested",
+					modelId: "gpt-5.5",
+					requestedServiceTier: "priority",
+				}}
+			/>,
+		)
+
+		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
+			"Fast mode is on for gpt-5.5 and will use Codex Fast routing on supported requests.",
+		)
+		expectFastModeIndicator("green", "bg-vscode-charts-green")
+
+		rerender(
+			<OpenAICodex
+				apiConfiguration={{ apiModelId: "gpt-5.5", openAiCodexFastMode: true } as ProviderSettings}
+				setApiConfigurationField={mockSetApiConfigurationField}
+				openAiCodexIsAuthenticated={true}
+				openAiCodexFastStatus={{
+					state: "off",
+					modelId: "gpt-5.5",
+				}}
+			/>,
+		)
+
+		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
+			"Fast mode is on for gpt-5.5 and will use Codex Fast routing on supported requests.",
+		)
+		expectFastModeIndicator("green", "bg-vscode-charts-green")
+
+		rerender(
+			<OpenAICodex
+				apiConfiguration={{ apiModelId: "gpt-5.5", openAiCodexFastMode: true } as ProviderSettings}
+				setApiConfigurationField={mockSetApiConfigurationField}
+				openAiCodexIsAuthenticated={true}
+			/>,
+		)
+
+		expect(screen.getByTestId("openai-codex-fast-mode-status")).toHaveTextContent(
+			"Fast mode is on for gpt-5.5 and will use Codex Fast routing on supported requests.",
+		)
+		expectFastModeIndicator("green", "bg-vscode-charts-green")
+	})
+
 	it("shows Fast mode as confirmed when the provider echoes the requested priority tier", () => {
 		renderOpenAICodex(
 			{ apiModelId: "gpt-5.5", openAiCodexFastMode: true },
