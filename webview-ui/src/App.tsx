@@ -19,8 +19,9 @@ import { useAddNonInteractiveClickListener } from "./components/ui/hooks/useNonI
 import { TooltipProvider } from "./components/ui/tooltip"
 import { STANDARD_TOOLTIP_DELAY } from "./components/ui/standard-tooltip"
 import { PlanPreviewModal } from "./components/agents/PlanPreviewModal"
+import VisualBrowserInspectorView from "./components/visual-browser-inspector/VisualBrowserInspectorView"
 
-type Tab = "settings" | "history" | "chat"
+type Tab = "settings" | "history" | "chat" | "visualBrowserInspector"
 
 interface DeleteMessageDialogState {
 	isOpen: boolean
@@ -85,6 +86,11 @@ const App = () => {
 	const onMessage = useCallback(
 		(e: MessageEvent) => {
 			const message: ExtensionMessage = e.data
+
+			if (message.type === "visualBrowserInspector") {
+				switchTab("visualBrowserInspector")
+				return
+			}
 
 			if (message.type === "action" && message.action) {
 				// Handle switchTab action with tab parameter
@@ -184,6 +190,7 @@ const App = () => {
 			{tab === "settings" && (
 				<SettingsView ref={settingsRef} onDone={() => setTab("chat")} targetSection={currentSection} />
 			)}
+			{tab === "visualBrowserInspector" && <VisualBrowserInspectorView />}
 			<ChatView
 				ref={chatViewRef}
 				isHidden={tab !== "chat"}

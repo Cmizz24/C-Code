@@ -88,6 +88,7 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 		return openClineInNewTab({ context, outputChannel })
 	},
 	openInNewTab: () => openClineInNewTab({ context, outputChannel }),
+	openVisualBrowserInspector: () => openVisualBrowserInspectorPanel({ context, outputChannel }),
 	settingsButtonClicked: () => {
 		const visibleProvider = getVisibleProviderOrLog(outputChannel)
 
@@ -171,7 +172,11 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 	},
 })
 
-export const openClineInNewTab = async ({ context, outputChannel }: Omit<RegisterCommandOptions, "provider">) => {
+type OpenClineInNewTabOptions = Omit<RegisterCommandOptions, "provider"> & {
+	title?: string
+}
+
+export const openClineInNewTab = async ({ context, outputChannel, title = "C Code" }: OpenClineInNewTabOptions) => {
 	// (This example uses webviewProvider activation event which is necessary to
 	// deserialize cached webview, but since we use retainContextWhenHidden, we
 	// don't need to use that event).
@@ -192,7 +197,7 @@ export const openClineInNewTab = async ({ context, outputChannel }: Omit<Registe
 
 	const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
 
-	const newPanel = vscode.window.createWebviewPanel(ClineProvider.tabPanelId, "C Code", targetCol, {
+	const newPanel = vscode.window.createWebviewPanel(ClineProvider.tabPanelId, title, targetCol, {
 		enableScripts: true,
 		retainContextWhenHidden: true,
 		localResourceRoots: [context.extensionUri],
@@ -235,5 +240,14 @@ export const openClineInNewTab = async ({ context, outputChannel }: Omit<Registe
 	await delay(100)
 	await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
 
+	return tabProvider
+}
+
+export const openVisualBrowserInspectorPanel = async ({
+	context,
+	outputChannel,
+}: Omit<RegisterCommandOptions, "provider">) => {
+	const tabProvider = await openClineInNewTab({ context, outputChannel, title: "Visual Browser Inspector" })
+	await tabProvider.postMessageToWebview({ type: "visualBrowserInspector", payload: { action: "show" } })
 	return tabProvider
 }

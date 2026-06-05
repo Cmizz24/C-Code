@@ -38,6 +38,7 @@ import { updateTodoListTool, updateTodoStatusForTask } from "../tools/UpdateTodo
 import { runSlashCommandTool } from "../tools/RunSlashCommandTool"
 import { skillTool } from "../tools/SkillTool"
 import { generateImageTool } from "../tools/GenerateImageTool"
+import { visualBrowserInspectorTool } from "../tools/VisualBrowserInspectorTool"
 import { applyDiffTool as applyDiffToolClass } from "../tools/ApplyDiffTool"
 import { isValidToolName, validateToolUse } from "../tools/validateToolUse"
 import { codebaseSearchTool } from "../tools/CodebaseSearchTool"
@@ -489,6 +490,8 @@ export async function presentAssistantMessage(cline: Task) {
 						return `[${block.name} for '${block.params.skill}'${block.params.args ? ` with args: ${block.params.args}` : ""}]`
 					case "generate_image":
 						return `[${block.name} for '${block.params.path}']`
+					case "visual_browser_inspector":
+						return `[${block.name} ${block.params.action ?? ""}]`
 					default:
 						return `[${block.name}]`
 				}
@@ -985,6 +988,13 @@ export async function presentAssistantMessage(cline: Task) {
 				case "generate_image":
 					await checkpointSaveAndMark(cline)
 					await generateImageTool.handle(cline, block as ToolUse<"generate_image">, {
+						askApproval,
+						handleError,
+						pushToolResult,
+					})
+					break
+				case "visual_browser_inspector":
+					await visualBrowserInspectorTool.handle(cline, block as ToolUse<"visual_browser_inspector">, {
 						askApproval,
 						handleError,
 						pushToolResult,

@@ -120,8 +120,10 @@ async function main() {
 		outfile: "dist/extension.js",
 		// global-agent must be external because it dynamically patches Node.js http/https modules
 		// which breaks when bundled. It needs access to the actual Node.js module instances.
+		// Playwright must be external and loaded lazily because its runtime resolves package metadata
+		// such as browsers.json relative to the installed package, not the bundled extension file.
 		// undici must be bundled because our VSIX is packaged with `--no-dependencies`.
-		external: ["vscode", "esbuild", "global-agent"],
+		external: ["vscode", "esbuild", "global-agent", "playwright", "playwright-core"],
 	}
 
 	/**

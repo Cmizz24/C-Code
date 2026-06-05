@@ -15,6 +15,7 @@ import type { ModelRecord, RouterModels } from "./model.js"
 import type { OpenAiCodexRateLimitInfo } from "./providers/openai-codex-rate-limits.js"
 import type { SkillMetadata } from "./skills.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
+import type { VisualBrowserWebviewRequest, VisualBrowserWebviewResponse } from "./visual-browser-inspector.js"
 import type {
 	AgentActivityEvent,
 	AgentCompletionPacket,
@@ -112,6 +113,7 @@ export interface ExtensionMessage {
 		| "skills"
 		| "fileContent"
 		| "smtpTestResult"
+		| "visualBrowserInspector"
 	text?: string
 	/** For fileContent: { path, content, error? } */
 	fileContent?: { path: string; content: string | null; error?: string }
@@ -591,10 +593,11 @@ export interface WebviewMessage {
 		| "moveSkill"
 		| "updateSkillModes"
 		| "openSkillFile"
+		| "visualBrowserInspector"
 	text?: string
 	taskId?: string
 	editedMessageContent?: string
-	tab?: "settings" | "history" | "mcp" | "modes" | "chat"
+	tab?: "settings" | "history" | "mcp" | "modes" | "chat" | "visualBrowserInspector"
 	disabled?: boolean
 	context?: string
 	dataUri?: string
@@ -743,6 +746,8 @@ export type WebViewMessagePayload =
 	| IndexClearedPayload
 	| UpdateTodoListPayload
 	| EditQueuedMessagePayload
+	| VisualBrowserWebviewRequest
+	| VisualBrowserWebviewResponse
 
 export interface IndexingStatus {
 	systemStatus: string

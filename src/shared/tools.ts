@@ -9,6 +9,7 @@ import type {
 	ToolGroup,
 	ToolName,
 	ToolProgressStatus,
+	VisualBrowserInspectorToolParams,
 } from "@roo-code/types"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
@@ -81,6 +82,19 @@ export const toolParamNames = [
 	"replyToId",
 	"prompt",
 	"image",
+	"sessionId",
+	"screenshotId",
+	"cropId",
+	"viewport",
+	"headless",
+	"allowExternal",
+	"selector",
+	"x",
+	"y",
+	"region",
+	"fullPage",
+	"deltaX",
+	"deltaY",
 	// read_file parameters (native protocol)
 	"operations", // search_and_replace parameter for multiple operations
 	"patch", // apply_patch parameter
@@ -157,6 +171,7 @@ export type NativeToolArgs = {
 	}
 	codebase_search: { query: string; path?: string }
 	generate_image: GenerateImageParams
+	visual_browser_inspector: VisualBrowserInspectorToolParams
 	run_slash_command: { command: string; args?: string }
 	skill: { skill: string; args?: string }
 	search_files: { path: string; regex: string; file_pattern?: string | null }
@@ -306,6 +321,32 @@ export interface GenerateImageToolUse extends ToolUse<"generate_image"> {
 	params: Partial<Pick<Record<ToolParamName, string>, "prompt" | "path" | "image">>
 }
 
+export interface VisualBrowserInspectorToolUse extends ToolUse<"visual_browser_inspector"> {
+	name: "visual_browser_inspector"
+	params: Partial<
+		Pick<
+			Record<ToolParamName, string>,
+			| "action"
+			| "url"
+			| "sessionId"
+			| "screenshotId"
+			| "cropId"
+			| "viewport"
+			| "headless"
+			| "allowExternal"
+			| "selector"
+			| "x"
+			| "y"
+			| "region"
+			| "fullPage"
+			| "deltaX"
+			| "deltaY"
+			| "text"
+			| "prompt"
+		>
+	>
+}
+
 // Define tool group configuration
 export type ToolGroupConfig = {
 	tools: readonly string[]
@@ -339,6 +380,7 @@ export const TOOL_DISPLAY_NAMES: Record<ToolName, string> = {
 	run_slash_command: "run slash command",
 	skill: "load skill",
 	generate_image: "generate images",
+	visual_browser_inspector: "inspect browser visually",
 	custom_tool: "use custom tools",
 } as const
 
@@ -351,7 +393,7 @@ export const TOOL_GROUPS: Record<ToolGroup, ToolGroupConfig> = {
 		tools: ["apply_diff", "write_to_file", "edit", "search_replace", "edit_file", "apply_patch", "generate_image"],
 	},
 	command: {
-		tools: ["execute_command", "read_command_output"],
+		tools: ["execute_command", "read_command_output", "visual_browser_inspector"],
 	},
 	mcp: {
 		tools: ["use_mcp_tool", "access_mcp_resource"],

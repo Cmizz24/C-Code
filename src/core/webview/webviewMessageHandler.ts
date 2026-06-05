@@ -13,6 +13,8 @@ import {
 	type ModelRecord,
 	type Command as SlashCommand,
 	type WebviewMessage,
+	type VisualBrowserWebviewRequest,
+	type VisualBrowserWebviewResponse,
 	type EditQueuedMessagePayload,
 	type TokenUsage,
 	type ToolUsage,
@@ -79,6 +81,10 @@ import { GetModelsOptions } from "../../shared/api"
 import { generateSystemPrompt } from "./generateSystemPrompt"
 import { resolveDefaultSaveUri, saveLastExportPath } from "../../utils/export"
 import { getCommand } from "../../utils/commands"
+import {
+	visualBrowserInspectorService,
+	visualBrowserWebviewRequestToToolParams,
+} from "../../services/visual-browser-inspector/VisualBrowserInspectorService"
 
 const ALLOWED_VSCODE_SETTINGS = new Set(["terminal.integrated.inheritEnv"])
 
@@ -3544,6 +3550,49 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				provider.log(`Error opening folder picker: ${errorMessage}`)
 			}
+
+			break
+		}
+
+		case "visualBrowserInspector": {
+			const options = {
+				cwd: getCurrentCwd(),
+				toWebviewUri: provider.convertToWebviewUri.bind(provider),
+			}
+			const payload = message.payload as Partial<VisualBrowserWebviewRequest> | undefined
+			let response: VisualBrowserWebviewResponse
+
+			if (!payload || typeof payload.action !== "string") {
+				response = {
+					state: visualBrowserInspectorService.getPanelState(options),
+					error: "Invalid Visual Browser Inspector request.",
+				}
+			} else {
+				const request = payload as VisualBrowserWebviewRequest
+
+				try {
+					const params = visualBrowserWebviewRequestToToolParams(request)
+					const result = params ? await visualBrowserInspectorService.execute(params, options) : undefined
+
+					response = {
+						state: visualBrowserInspectorService.getPanelState(options),
+						result,
+					}
+				} catch (error) {
+					const errorMessage = error instanceof Error ? error.message : String(error)
+					provider.log(`Visual Browser Inspector request failed: ${errorMessage}`)
+
+					response = {
+						state: visualBrowserInspectorService.getPanelState(options),
+						error: errorMessage,
+					}
+				}
+			}
+
+			await provider.postMessageToWebview({
+				type: "visualBrowserInspector",
+				payload: response,
+			})
 
 			break
 		}

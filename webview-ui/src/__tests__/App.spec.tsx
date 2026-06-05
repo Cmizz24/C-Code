@@ -54,6 +54,13 @@ vi.mock("@src/components/modes/ModesView", () => ({
 	},
 }))
 
+vi.mock("@src/components/visual-browser-inspector/VisualBrowserInspectorView", () => ({
+	__esModule: true,
+	default: function VisualBrowserInspectorView() {
+		return <div data-testid="visual-browser-inspector-view">Visual Browser Inspector View</div>
+	},
+}))
+
 const mockUseExtensionState = vi.fn()
 
 // Mock i18next and react-i18next
@@ -152,6 +159,16 @@ describe("App", () => {
 		window.dispatchEvent(messageEvent)
 	}
 
+	const triggerVisualBrowserInspectorMessage = () => {
+		const messageEvent = new MessageEvent("message", {
+			data: {
+				type: "visualBrowserInspector",
+				payload: { action: "show" },
+			},
+		})
+		window.dispatchEvent(messageEvent)
+	}
+
 	it("shows chat view by default", () => {
 		render(<AppWithProviders />)
 
@@ -183,6 +200,20 @@ describe("App", () => {
 
 		const historyView = await screen.findByTestId("history-view")
 		expect(historyView).toBeInTheDocument()
+
+		const chatView = screen.getByTestId("chat-view")
+		expect(chatView.getAttribute("data-hidden")).toBe("true")
+	})
+
+	it("switches to Visual Browser Inspector view when receiving visualBrowserInspector message", async () => {
+		render(<AppWithProviders />)
+
+		act(() => {
+			triggerVisualBrowserInspectorMessage()
+		})
+
+		const visualBrowserInspectorView = await screen.findByTestId("visual-browser-inspector-view")
+		expect(visualBrowserInspectorView).toBeInTheDocument()
 
 		const chatView = screen.getByTestId("chat-view")
 		expect(chatView.getAttribute("data-hidden")).toBe("true")

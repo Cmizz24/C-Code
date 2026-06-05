@@ -11,6 +11,7 @@
 	"command.settings.title": "Instellingen",
 	"command.documentation.title": "Documentatie",
 	"command.openInNewTab.title": "Openen in Nieuw Tabblad",
+	"command.openVisualBrowserInspector.title": "Visual Browser Inspector Openen",
 	"command.explainCode.title": "Leg Code Uit",
 	"command.fixCode.title": "Repareer Code",
 	"command.improveCode.title": "Verbeter Code",
