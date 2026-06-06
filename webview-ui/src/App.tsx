@@ -23,6 +23,23 @@ import VisualBrowserInspectorView from "./components/visual-browser-inspector/Vi
 
 type Tab = "settings" | "history" | "chat" | "visualBrowserInspector"
 
+type RooStartupWindow = Window & {
+	ROO_INITIAL_TAB?: unknown
+	ROO_VISUAL_ONLY?: unknown
+}
+
+const getInitialTab = (): Tab => {
+	const initialTab = (window as RooStartupWindow).ROO_INITIAL_TAB
+
+	return initialTab === "visualBrowserInspector" ? "visualBrowserInspector" : "chat"
+}
+
+const getIsVisualBrowserInspectorOnly = (): boolean => {
+	const startupWindow = window as RooStartupWindow
+
+	return startupWindow.ROO_VISUAL_ONLY === true || startupWindow.ROO_INITIAL_TAB === "visualBrowserInspector"
+}
+
 interface DeleteMessageDialogState {
 	isOpen: boolean
 	messageTs: number
@@ -51,7 +68,8 @@ const App = () => {
 	const { didHydrateState, showWelcome, shouldShowAnnouncement, renderContext } = useExtensionState()
 
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
-	const [tab, setTab] = useState<Tab>("chat")
+	const [isVisualBrowserInspectorOnly] = useState(() => getIsVisualBrowserInspectorOnly())
+	const [tab, setTab] = useState<Tab>(() => getInitialTab())
 	const [planPreview, setPlanPreview] = useState<ExecutionPlan | undefined>(undefined)
 
 	const [deleteMessageDialogState, setDeleteMessageDialogState] = useState<DeleteMessageDialogState>({
@@ -71,15 +89,22 @@ const App = () => {
 	const settingsRef = useRef<SettingsViewRef>(null)
 	const chatViewRef = useRef<ChatViewRef>(null)
 
-	const switchTab = useCallback((newTab: Tab) => {
-		setCurrentSection(undefined)
+	const switchTab = useCallback(
+		(newTab: Tab) => {
+			if (isVisualBrowserInspectorOnly && newTab !== "visualBrowserInspector") {
+				return
+			}
 
-		if (settingsRef.current?.checkUnsaveChanges) {
-			settingsRef.current.checkUnsaveChanges(() => setTab(newTab))
-		} else {
-			setTab(newTab)
-		}
-	}, [])
+			setCurrentSection(undefined)
+
+			if (settingsRef.current?.checkUnsaveChanges) {
+				settingsRef.current.checkUnsaveChanges(() => setTab(newTab))
+			} else {
+				setTab(newTab)
+			}
+		},
+		[isVisualBrowserInspectorOnly],
+	)
 
 	const [currentSection, setCurrentSection] = useState<string | undefined>(undefined)
 
@@ -93,21 +118,28 @@ const App = () => {
 			}
 
 			if (message.type === "action" && message.action) {
+				const switchIfAllowed = (targetTab: Tab, targetSection?: string) => {
+					if (isVisualBrowserInspectorOnly && targetTab !== "visualBrowserInspector") {
+						return
+					}
+
+					switchTab(targetTab)
+					setCurrentSection(targetSection)
+				}
+
 				// Handle switchTab action with tab parameter
 				if (message.action === "switchTab" && message.tab) {
 					const targetTab = message.tab as Tab
-					switchTab(targetTab)
 					// Extract targetSection from values if provided
 					const targetSection = message.values?.section as string | undefined
-					setCurrentSection(targetSection)
+					switchIfAllowed(targetTab, targetSection)
 				} else {
 					// Handle other actions using the mapping
 					const newTab = tabsByMessageAction[message.action]
 					const section = message.values?.section as string | undefined
 
 					if (newTab) {
-						switchTab(newTab)
-						setCurrentSection(section)
+						switchIfAllowed(newTab, section)
 					}
 				}
 			}
@@ -130,7 +162,7 @@ const App = () => {
 				})
 			}
 
-			if (message.type === "acceptInput") {
+			if (message.type === "acceptInput" && !isVisualBrowserInspectorOnly) {
 				chatViewRef.current?.acceptInput()
 			}
 
@@ -138,7 +170,7 @@ const App = () => {
 				setPlanPreview(message.executionPlan)
 			}
 		},
-		[switchTab],
+		[isVisualBrowserInspectorOnly, switchTab],
 	)
 
 	useEvent("message", onMessage)
@@ -180,9 +212,13 @@ const App = () => {
 		return null
 	}
 
+	if (isVisualBrowserInspectorOnly) {
+		return <VisualBrowserInspectorView />
+	}
+
 	// Do not conditionally load ChatView, it's expensive and there's state we
 	// don't want to lose (user input, disableInput, askResponse promise, etc.)
-	return showWelcome ? (
+	return showWelcome && tab !== "visualBrowserInspector" ? (
 		<WelcomeView />
 	) : (
 		<>

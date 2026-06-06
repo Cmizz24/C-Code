@@ -110,6 +110,33 @@ function getPreviousTodos(messages: ClineMessage[], currentMessageTs: number): a
 	return []
 }
 
+const visualBrowserActionLabels: Partial<Record<NonNullable<ClineSayTool["action"]>, string>> = {
+	visual_browser_open: "Open page",
+	visual_browser_reload: "Reload page",
+	visual_browser_back: "Go back",
+	visual_browser_forward: "Go forward",
+	visual_browser_capture: "Capture screenshot",
+	visual_browser_crop: "Create crop",
+	visual_browser_inspect_point: "Inspect point",
+	visual_browser_inspect_region: "Inspect region",
+	visual_browser_click: "Click page",
+	visual_browser_hover: "Hover page",
+	visual_browser_type: "Type text",
+	visual_browser_scroll: "Scroll page",
+	visual_browser_analyze_screenshot: "Analyze screenshot",
+	visual_browser_analyze_crop: "Analyze crop",
+	visual_browser_close: "Close session",
+	visual_browser_delete_session: "Delete session",
+}
+
+function formatVisualBrowserAction(action: ClineSayTool["action"]): string {
+	if (!action) {
+		return "Visual Browser Inspector"
+	}
+
+	return visualBrowserActionLabels[action] ?? action.replace(/^visual_browser_/, "").replace(/_/g, " ")
+}
+
 interface ChatRowProps {
 	message: ClineMessage
 	lastModifiedMessage?: ClineMessage
@@ -424,6 +451,123 @@ export const ChatRowContent = ({
 		return null
 	}, [message.type, message.ask, message.partial, message.text])
 
+	const renderVisualBrowserInspectorTool = (visualBrowserTool: ClineSayTool) => {
+		const result = visualBrowserTool.visualBrowserResult
+		const sessionId = visualBrowserTool.sessionId ?? result?.session.sessionId
+		const url = visualBrowserTool.url ?? result?.session.url
+		const screenshotId =
+			visualBrowserTool.screenshotId ??
+			result?.screenshot?.screenshotId ??
+			result?.crop?.screenshotId ??
+			result?.inspection?.screenshotId
+		const cropId = visualBrowserTool.cropId ?? result?.crop?.cropId ?? result?.inspection?.cropId
+		const isRunning =
+			visualBrowserTool.visualBrowserStatus === "running" || (message.type === "ask" && message.partial)
+		const isError = visualBrowserTool.visualBrowserStatus === "error"
+		const statusText = isRunning
+			? "Running"
+			: isError
+				? "Error"
+				: message.type === "say"
+					? "Completed"
+					: "Requested"
+		const issueCount = result?.analysis?.issues.length ?? result?.inspection?.issues?.length
+		const inspectedElementCount =
+			result?.inspection?.elements?.length ?? (result?.inspection?.element ? 1 : undefined)
+		const summary =
+			result?.analysis?.summary ??
+			result?.analysis?.recommendationSummary ??
+			visualBrowserTool.message ??
+			result?.message
+		const details = [
+			["Action", formatVisualBrowserAction(visualBrowserTool.action)],
+			["Session", sessionId],
+			["URL", url],
+			["Screenshot", screenshotId],
+			["Crop", cropId],
+			["Issues", issueCount === undefined ? undefined : String(issueCount)],
+			["Elements", inspectedElementCount === undefined ? undefined : String(inspectedElementCount)],
+		].filter((detail): detail is [string, string] => Boolean(detail[1]))
+
+		const openVisualBrowserInspector = () => {
+			vscode.postMessage({
+				type: "visualBrowserInspector",
+				payload: {
+					action: "open_panel",
+					sessionId,
+					screenshotId,
+					cropId,
+				},
+			})
+		}
+
+		return (
+			<>
+				<div className="mb-2 flex items-center gap-2 break-words">
+					{isRunning ? (
+						<ProgressIndicator />
+					) : isError ? (
+						<span className="codicon codicon-error text-vscode-errorForeground" />
+					) : (
+						<Eye className="size-4 shrink-0" aria-label="Visual Browser Inspector icon" />
+					)}
+					<span className="font-bold">Visual Browser Inspector {statusText}</span>
+				</div>
+				<div className="pl-6">
+					<ToolUseBlock className="cursor-default border border-vscode-panel-border">
+						<div className="flex flex-col gap-3 text-sm text-vscode-foreground">
+							<div className="flex flex-wrap items-start justify-between gap-2">
+								<div className="flex min-w-0 flex-col gap-1">
+									<div className="font-medium">
+										{formatVisualBrowserAction(visualBrowserTool.action)}
+									</div>
+									<div className="text-xs text-vscode-descriptionForeground">
+										Controlled Playwright browser page only. Screenshots and crops stay local under
+										<code className="mx-1 rounded bg-vscode-textCodeBlock-background px-1">
+											.roo/visual-browser-inspector
+										</code>
+										.
+									</div>
+								</div>
+								<button
+									type="button"
+									className="inline-flex shrink-0 items-center gap-1 rounded border border-vscode-panel-border bg-vscode-button-background px-2 py-1 text-xs font-medium text-vscode-button-foreground hover:bg-vscode-button-hoverBackground"
+									onClick={openVisualBrowserInspector}>
+									Open Visual Browser Inspector
+									<SquareArrowOutUpRight className="size-3" aria-hidden="true" />
+								</button>
+							</div>
+
+							{summary && (
+								<div className="rounded border border-vscode-panel-border bg-vscode-sideBar-background p-2">
+									<div className="mb-1 text-xs font-medium uppercase tracking-wide text-vscode-descriptionForeground">
+										Summary
+									</div>
+									<div className="whitespace-pre-wrap break-words">{summary}</div>
+								</div>
+							)}
+
+							{details.length > 0 && (
+								<div className="grid gap-1 text-xs sm:grid-cols-2">
+									{details.map(([label, value]) => (
+										<div
+											key={label}
+											className="min-w-0 rounded bg-vscode-sideBar-background px-2 py-1">
+											<span className="mr-1 font-medium text-vscode-descriptionForeground">
+												{label}:
+											</span>
+											<span className="break-all">{value}</span>
+										</div>
+									))}
+								</div>
+							)}
+						</div>
+					</ToolUseBlock>
+				</div>
+			</>
+		)
+	}
+
 	if (tool) {
 		const toolIcon = (name: string) => (
 			<span
@@ -434,6 +578,9 @@ export const ChatRowContent = ({
 		switch (tool.tool as string) {
 			case "parallelAgents":
 				return <AgentStatusPanel tool={tool} />
+			case "visualBrowserInspector":
+			case "visual_browser_inspector":
+				return renderVisualBrowserInspectorTool(tool)
 			case "editedExistingFile":
 			case "appliedDiff":
 			case "newFileCreated":
@@ -1414,6 +1561,9 @@ export const ChatRowContent = ({
 					switch (sayTool.tool) {
 						case "parallelAgents":
 							return <AgentStatusPanel tool={sayTool} />
+						case "visualBrowserInspector":
+						case "visual_browser_inspector":
+							return renderVisualBrowserInspectorTool(sayTool)
 						case "runSlashCommand": {
 							const slashCommandInfo = sayTool
 							return (

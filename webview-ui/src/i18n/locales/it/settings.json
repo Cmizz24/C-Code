@@ -255,6 +255,10 @@
 			"maxConcurrentDescription": "Scegli quanti agenti possono essere eseguiti contemporaneamente per un piano di attività parallele approvato ({{min}}–{{max}}). Gli agenti in attesa partono quando quelli in esecuzione terminano.",
 			"description": "Approva automaticamente i piani di attività parallele validi e avvia gli agenti senza mostrare il modale di anteprima del piano"
 		},
+		"visualBrowserInspector": {
+			"label": "Browser",
+			"description": "Approva automaticamente le azioni del Visual Browser Inspector dalla chat, incluse l'apertura di pagine browser controllate, screenshot, ispezione DOM, ritagli, analisi e interazioni con la pagina. Questo non consente modifiche ai file né comandi del terminale."
+		},
 		"followupQuestions": {
 			"label": "Domanda",
 			"description": "Seleziona automaticamente la prima risposta suggerita per le domande di follow-up dopo il timeout configurato",

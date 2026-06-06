@@ -181,14 +181,15 @@ vi.mock("@/components/ui", () => ({
 			data-testid={dataTestId}
 		/>
 	),
-	Button: ({ children, onClick, variant, className, disabled, type, "data-testid": dataTestId }: any) => (
+	Button: ({ children, onClick, variant, className, disabled, type, "data-testid": dataTestId, ...props }: any) => (
 		<button
 			type={type}
 			onClick={onClick}
 			disabled={disabled}
 			data-variant={variant}
 			className={className}
-			data-testid={dataTestId}>
+			data-testid={dataTestId}
+			{...props}>
 			{children}
 		</button>
 	),
@@ -1027,6 +1028,36 @@ describe("SettingsView - Auto Approve Parallel Tasks", () => {
 				type: "updateSettings",
 				updatedSettings: expect.objectContaining({
 					maxConcurrentParallelTasks: 5,
+				}),
+			}),
+		)
+	})
+})
+
+describe("SettingsView - Auto Approve Visual Browser Inspector", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("saves the Visual Browser Inspector auto-approval toggle from cached state", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView()
+
+		activateTab("autoApprove")
+
+		const content = getSettingsContent()
+		const visualBrowserInspectorToggle = within(content).getByTestId("always-allow-visual-browser-inspector-toggle")
+		expect(visualBrowserInspectorToggle).toHaveAttribute("aria-pressed", "false")
+
+		fireEvent.click(visualBrowserInspectorToggle)
+
+		const saveButton = screen.getByTestId("save-button")
+		fireEvent.click(saveButton)
+
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					alwaysAllowVisualBrowserInspector: true,
 				}),
 			}),
 		)

@@ -95,6 +95,12 @@ export default function VisualBrowserInspectorView() {
 	const [allowExternal, setAllowExternal] = useState(false)
 	const [fullPage, setFullPage] = useState(false)
 	const [analysisPrompt, setAnalysisPrompt] = useState("")
+	const [changeInstruction, setChangeInstruction] = useState("")
+	const [changeIncludeScreenshot, setChangeIncludeScreenshot] = useState(true)
+	const [changeIncludeCrop, setChangeIncludeCrop] = useState(true)
+	const [changeIncludeRegion, setChangeIncludeRegion] = useState(true)
+	const [changeIncludeInspection, setChangeIncludeInspection] = useState(true)
+	const [changeIncludeFindings, setChangeIncludeFindings] = useState(true)
 	const [selectedScreenshotId, setSelectedScreenshotId] = useState<string | undefined>()
 	const [selectedCropId, setSelectedCropId] = useState<string | undefined>()
 	const [selection, setSelection] = useState<VisualBrowserBoundingBox | undefined>()
@@ -104,6 +110,7 @@ export default function VisualBrowserInspectorView() {
 	const imageRef = useRef<HTMLImageElement | null>(null)
 	const dragStartRef = useRef<VisualBrowserPoint | undefined>()
 	const pendingAnalyzeCropRef = useRef(false)
+	const autoOpenedLocalhostUrlRef = useRef<string | undefined>()
 
 	const currentSessionId = panelState.session?.sessionId
 	const activeSession = Boolean(panelState.session && panelState.session.status !== "closed")
@@ -119,6 +126,41 @@ export default function VisualBrowserInspectorView() {
 	}, [panelState.crops, selectedCropId])
 	const externalUrlNeedsApproval = url.trim().length > 0 && !isProbablyLocalUrl(url)
 	const selectionReady = Boolean(currentScreenshot && selection && selection.width >= 1 && selection.height >= 1)
+	const selectedChangeRegion = selectionReady ? selection : currentCrop?.region
+	const latestInspectionIndex = panelState.inspections.length > 0 ? 0 : undefined
+	const latestInspection =
+		typeof latestInspectionIndex === "number" ? panelState.inspections[latestInspectionIndex] : undefined
+	const changeInstructionReady = changeInstruction.trim().length > 0
+	const findingsIssueCount = useMemo(
+		() => panelState.findings.reduce((count, finding) => count + finding.issues.length, 0),
+		[panelState.findings],
+	)
+	const changeContextSummary = useMemo(() => {
+		const contextParts = [
+			panelState.session ? `page ${panelState.session.url}` : "no active VBI session",
+			changeIncludeScreenshot && currentScreenshot ? `screenshot ${currentScreenshot.screenshotId}` : undefined,
+			changeIncludeCrop && currentCrop ? `crop ${currentCrop.cropId}` : undefined,
+			changeIncludeRegion && selectedChangeRegion ? `region ${formatBox(selectedChangeRegion)} px` : undefined,
+			changeIncludeInspection && latestInspection ? "latest inspected element/region" : undefined,
+			changeIncludeFindings && findingsIssueCount > 0
+				? `${findingsIssueCount} finding issue${findingsIssueCount === 1 ? "" : "s"}`
+				: undefined,
+		].filter(Boolean)
+
+		return contextParts.join(" · ")
+	}, [
+		changeIncludeCrop,
+		changeIncludeFindings,
+		changeIncludeInspection,
+		changeIncludeRegion,
+		changeIncludeScreenshot,
+		currentCrop,
+		currentScreenshot,
+		findingsIssueCount,
+		latestInspection,
+		panelState.session,
+		selectedChangeRegion,
+	])
 
 	const sendRequest = useCallback((request: VisualBrowserWebviewRequest) => {
 		setIsLoading(true)
@@ -176,17 +218,38 @@ export default function VisualBrowserInspectorView() {
 			setIsLoading(false)
 			setPanelState(payload.state)
 			setStatusMessage(
-				payload.error || payload.result?.message || payload.state.error || payload.state.statusMessage,
+				payload.error ||
+					payload.message ||
+					payload.result?.message ||
+					payload.state.error ||
+					payload.state.statusMessage,
 			)
 
-			if (payload.result?.screenshot) {
-				setSelectedScreenshotId(payload.result.screenshot.screenshotId)
+			const focusedCropId =
+				payload.focus?.cropId ?? payload.result?.crop?.cropId ?? payload.result?.inspection?.cropId
+			const focusedCrop = focusedCropId
+				? payload.state.crops.find((crop) => crop.cropId === focusedCropId)
+				: undefined
+			const focusedScreenshotId =
+				payload.focus?.screenshotId ??
+				payload.result?.screenshot?.screenshotId ??
+				payload.result?.crop?.screenshotId ??
+				payload.result?.inspection?.screenshotId ??
+				focusedCrop?.screenshotId
+
+			if (
+				focusedScreenshotId &&
+				payload.state.screenshots.some((screenshot) => screenshot.screenshotId === focusedScreenshotId)
+			) {
+				setSelectedScreenshotId(focusedScreenshotId)
 				setSelection(undefined)
 			}
 
-			if (payload.result?.crop) {
-				setSelectedCropId(payload.result.crop.cropId)
+			if (focusedCrop) {
+				setSelectedCropId(focusedCrop.cropId)
+			}
 
+			if (payload.result?.crop) {
 				if (pendingAnalyzeCropRef.current) {
 					pendingAnalyzeCropRef.current = false
 					sendRequest({
@@ -197,8 +260,42 @@ export default function VisualBrowserInspectorView() {
 					})
 				}
 			}
+
+			if (payload.localhostUrl) {
+				const localPreviewUrl = normalizeUrlForCheck(payload.localhostUrl)
+
+				if (!isProbablyLocalUrl(localPreviewUrl)) {
+					setStatusMessage("Ignoring non-local preview URL returned by the helper task.")
+					return
+				}
+
+				setUrl(localPreviewUrl)
+				setAllowExternal(false)
+
+				const alreadyOpenedByTool = payload.result?.action === "visual_browser_open"
+				const alreadyActiveInState =
+					payload.state.session?.url === localPreviewUrl && payload.state.session.status === "active"
+
+				if (
+					alreadyOpenedByTool ||
+					alreadyActiveInState ||
+					autoOpenedLocalhostUrlRef.current === localPreviewUrl
+				) {
+					autoOpenedLocalhostUrlRef.current = localPreviewUrl
+					return
+				}
+
+				autoOpenedLocalhostUrlRef.current = localPreviewUrl
+				sendRequest({
+					action: "open",
+					url: localPreviewUrl,
+					sessionId: payload.state.session?.sessionId ?? currentSessionId,
+					viewport,
+					allowExternal: false,
+				})
+			}
 		},
-		[analysisPrompt, sendRequest],
+		[analysisPrompt, currentSessionId, sendRequest, viewport],
 	)
 
 	useEvent("message", handleMessage)
@@ -315,6 +412,15 @@ export default function VisualBrowserInspectorView() {
 		sendRequest({ action: "open", url, viewport, allowExternal })
 	}, [allowExternal, externalUrlNeedsApproval, sendRequest, url, viewport])
 
+	const startLocalPreviewTask = useCallback(() => {
+		sendRequest({
+			action: "start_local_preview_task",
+			url: url.trim() || undefined,
+			sessionId: currentSessionId,
+			viewport,
+		})
+	}, [currentSessionId, sendRequest, url, viewport])
+
 	const captureScreenshot = useCallback(() => {
 		sendRequest({ action: "capture", sessionId: currentSessionId, fullPage })
 	}, [currentSessionId, fullPage, sendRequest])
@@ -376,6 +482,73 @@ export default function VisualBrowserInspectorView() {
 		pendingAnalyzeCropRef.current = true
 		cropSelection()
 	}, [analysisPrompt, cropSelection, currentCrop, currentScreenshot, currentSessionId, selection, sendRequest])
+
+	const startFixTask = useCallback(
+		(findingIndex?: number, issueIndex?: number) => {
+			const baseRequest = {
+				action: "start_fix_task" as const,
+				sessionId: currentSessionId,
+				screenshotId: currentScreenshot?.screenshotId,
+				cropId: currentCrop?.cropId,
+			}
+
+			if (typeof findingIndex === "number" && typeof issueIndex === "number") {
+				sendRequest({ ...baseRequest, scope: "issue", findingIndex, issueIndex })
+				return
+			}
+
+			if (typeof findingIndex === "number") {
+				sendRequest({ ...baseRequest, scope: "finding", findingIndex })
+				return
+			}
+
+			sendRequest({ ...baseRequest, scope: "all" })
+		},
+		[currentCrop?.cropId, currentScreenshot?.screenshotId, currentSessionId, sendRequest],
+	)
+
+	const startChangeTask = useCallback(() => {
+		const instruction = changeInstruction.trim()
+
+		if (!instruction) {
+			setStatusMessage("Enter a specific Visual Browser Inspector change request before starting a task.")
+			return
+		}
+
+		if (!panelState.session) {
+			setStatusMessage("Open a Visual Browser Inspector session before starting a contextual change task.")
+			return
+		}
+
+		sendRequest({
+			action: "start_change_task",
+			sessionId: currentSessionId,
+			instruction,
+			screenshotId: changeIncludeScreenshot ? currentScreenshot?.screenshotId : undefined,
+			cropId: changeIncludeCrop ? currentCrop?.cropId : undefined,
+			region: changeIncludeRegion ? selectedChangeRegion : undefined,
+			inspectionIndex: changeIncludeInspection ? latestInspectionIndex : undefined,
+			includeScreenshotContext: changeIncludeScreenshot,
+			includeCropContext: changeIncludeCrop,
+			includeRegionContext: changeIncludeRegion,
+			includeInspectionContext: changeIncludeInspection,
+			includeFindingsContext: changeIncludeFindings,
+		})
+	}, [
+		changeIncludeCrop,
+		changeIncludeFindings,
+		changeIncludeInspection,
+		changeIncludeRegion,
+		changeIncludeScreenshot,
+		changeInstruction,
+		currentCrop?.cropId,
+		currentSessionId,
+		currentScreenshot?.screenshotId,
+		latestInspectionIndex,
+		panelState.session,
+		selectedChangeRegion,
+		sendRequest,
+	])
 
 	const stopSession = useCallback(() => {
 		sendRequest({ action: "stop", sessionId: currentSessionId })
@@ -440,7 +613,14 @@ export default function VisualBrowserInspectorView() {
 							))}
 						</select>
 					</label>
-					<div className="flex items-end">
+					<div className="flex flex-wrap items-end gap-2">
+						<button
+							className={secondaryButtonClass}
+							type="button"
+							onClick={startLocalPreviewTask}
+							disabled={isLoading}>
+							Start local preview
+						</button>
 						<button className={primaryButtonClass} type="button" onClick={openBrowser} disabled={isLoading}>
 							Open browser
 						</button>
@@ -496,6 +676,85 @@ export default function VisualBrowserInspectorView() {
 						onClick={deleteSession}
 						disabled={!panelState.session || isLoading}>
 						Delete session artifacts
+					</button>
+				</div>
+			</section>
+
+			<section className="grid gap-3 rounded border border-vscode-panel-border bg-vscode-sideBar-background p-3">
+				<div className="grid gap-1">
+					<h3 className="m-0 text-base font-semibold">Ask C Code to change this</h3>
+					<p className="m-0 text-sm text-vscode-descriptionForeground">
+						Describe a specific design, UX, content, or code change. The task opens in the main C Code chat
+						with VBI context attached as local artifacts.
+					</p>
+				</div>
+
+				<label className="grid gap-1 text-sm">
+					<span className="font-medium">Specific change request</span>
+					<textarea
+						className={`${inputClass} min-h-24 resize-y`}
+						value={changeInstruction}
+						onChange={(event) => setChangeInstruction(event.target.value)}
+						placeholder="Example: Make the primary button more prominent and align the hero copy with the screenshot layout."
+					/>
+				</label>
+
+				<div className="grid gap-2 text-sm md:grid-cols-2 xl:grid-cols-5">
+					<label className="flex items-center gap-2 rounded border border-vscode-panel-border px-2 py-1 text-vscode-descriptionForeground">
+						<input
+							type="checkbox"
+							checked={changeIncludeScreenshot && Boolean(currentScreenshot)}
+							disabled={!currentScreenshot}
+							onChange={(event) => setChangeIncludeScreenshot(event.target.checked)}
+						/>
+						Current screenshot
+					</label>
+					<label className="flex items-center gap-2 rounded border border-vscode-panel-border px-2 py-1 text-vscode-descriptionForeground">
+						<input
+							type="checkbox"
+							checked={changeIncludeCrop && Boolean(currentCrop)}
+							disabled={!currentCrop}
+							onChange={(event) => setChangeIncludeCrop(event.target.checked)}
+						/>
+						Selected crop
+					</label>
+					<label className="flex items-center gap-2 rounded border border-vscode-panel-border px-2 py-1 text-vscode-descriptionForeground">
+						<input
+							type="checkbox"
+							checked={changeIncludeRegion && Boolean(selectedChangeRegion)}
+							disabled={!selectedChangeRegion}
+							onChange={(event) => setChangeIncludeRegion(event.target.checked)}
+						/>
+						Selected region
+					</label>
+					<label className="flex items-center gap-2 rounded border border-vscode-panel-border px-2 py-1 text-vscode-descriptionForeground">
+						<input
+							type="checkbox"
+							checked={changeIncludeInspection && Boolean(latestInspection)}
+							disabled={!latestInspection}
+							onChange={(event) => setChangeIncludeInspection(event.target.checked)}
+						/>
+						Inspected element
+					</label>
+					<label className="flex items-center gap-2 rounded border border-vscode-panel-border px-2 py-1 text-vscode-descriptionForeground">
+						<input
+							type="checkbox"
+							checked={changeIncludeFindings && findingsIssueCount > 0}
+							disabled={findingsIssueCount === 0}
+							onChange={(event) => setChangeIncludeFindings(event.target.checked)}
+						/>
+						Findings context
+					</label>
+				</div>
+
+				<div className="flex flex-wrap items-center justify-between gap-2">
+					<p className="m-0 text-xs text-vscode-descriptionForeground">Context: {changeContextSummary}</p>
+					<button
+						className={primaryButtonClass}
+						type="button"
+						onClick={startChangeTask}
+						disabled={!changeInstructionReady || !panelState.session || isLoading}>
+						Start AI change task
 					</button>
 				</div>
 			</section>
@@ -674,7 +933,22 @@ export default function VisualBrowserInspectorView() {
 			</section>
 
 			<section className="rounded border border-vscode-panel-border bg-vscode-sideBar-background p-3">
-				<h3 className="m-0 mb-2 text-base font-semibold">Findings</h3>
+				<div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+					<div>
+						<h3 className="m-0 text-base font-semibold">Findings</h3>
+						<p className="m-0 text-xs text-vscode-descriptionForeground">
+							{findingsIssueCount} actionable issue{findingsIssueCount === 1 ? "" : "s"} available for a
+							follow-up fix task.
+						</p>
+					</div>
+					<button
+						className={primaryButtonClass}
+						type="button"
+						onClick={() => startFixTask()}
+						disabled={findingsIssueCount === 0 || isLoading}>
+						Start Fix Task for all findings
+					</button>
+				</div>
 				{panelState.findings.length === 0 ? (
 					<p className="m-0 text-sm text-vscode-descriptionForeground">No analysis findings yet.</p>
 				) : (
@@ -683,31 +957,139 @@ export default function VisualBrowserInspectorView() {
 							<article
 								key={`${finding.summary}-${findingIndex}`}
 								className="rounded border border-vscode-panel-border p-3">
-								<p className="mt-0 text-sm">{finding.summary}</p>
+								<div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+									<div className="grid gap-1">
+										<p className="m-0 text-sm">{finding.summary}</p>
+										{finding.recommendationSummary && (
+											<p className="m-0 text-xs text-vscode-descriptionForeground">
+												{finding.recommendationSummary}
+											</p>
+										)}
+										<div className="flex flex-wrap gap-1 text-xs text-vscode-descriptionForeground">
+											{finding.analysisMode && (
+												<span className="rounded border border-vscode-panel-border px-1.5 py-0.5">
+													{finding.analysisMode}
+												</span>
+											)}
+											{finding.scope && (
+												<span className="rounded border border-vscode-panel-border px-1.5 py-0.5">
+													{finding.scope}
+												</span>
+											)}
+											{finding.generatedAt && (
+												<span className="rounded border border-vscode-panel-border px-1.5 py-0.5">
+													{new Date(finding.generatedAt).toLocaleString()}
+												</span>
+											)}
+										</div>
+									</div>
+									<button
+										className={secondaryButtonClass}
+										type="button"
+										onClick={() => startFixTask(findingIndex)}
+										disabled={finding.issues.length === 0 || isLoading}>
+										Start Fix Task for this finding
+									</button>
+								</div>
+								{finding.privacyNotice && (
+									<p className="rounded border border-vscode-panel-border bg-vscode-editor-background px-2 py-1 text-xs text-vscode-descriptionForeground">
+										{finding.privacyNotice}
+									</p>
+								)}
 								<div className="grid gap-2">
 									{finding.issues.map((issue, issueIndex) => (
 										<div
 											key={`${issue.title}-${issueIndex}`}
-											className={`rounded border p-2 text-sm ${severityClassName(issue.severity)}`}>
-											<div className="flex flex-wrap items-center gap-2">
-												<strong>{issue.title}</strong>
-												<span className="text-xs uppercase">{issue.severity}</span>
-												<span className="text-xs">
-													confidence {Math.round(issue.confidence * 100)}%
-												</span>
+											className={`grid gap-2 rounded border p-2 text-sm ${severityClassName(issue.severity)}`}>
+											<div className="flex flex-wrap items-start justify-between gap-2">
+												<div className="flex flex-wrap items-center gap-2">
+													<strong>{issue.title}</strong>
+													<span className="rounded border border-current px-1.5 py-0.5 text-xs uppercase">
+														{issue.severity}
+													</span>
+													{issue.category && (
+														<span className="rounded border border-current px-1.5 py-0.5 text-xs">
+															{issue.category}
+														</span>
+													)}
+													{issue.fixPriority && (
+														<span className="rounded border border-current px-1.5 py-0.5 text-xs">
+															{issue.fixPriority} priority
+														</span>
+													)}
+													<span className="text-xs">
+														confidence {Math.round(issue.confidence * 100)}%
+													</span>
+												</div>
+												<button
+													className={secondaryButtonClass}
+													type="button"
+													onClick={() => startFixTask(findingIndex, issueIndex)}
+													disabled={isLoading}>
+													Start Fix Task
+												</button>
 											</div>
 											<p>{issue.visualEvidence}</p>
+											{issue.userImpact && (
+												<p className="text-vscode-descriptionForeground">
+													User impact: {issue.userImpact}
+												</p>
+											)}
 											<p className="text-vscode-descriptionForeground">
 												Likely cause: {issue.likelyCause}
 											</p>
 											<p className="text-vscode-descriptionForeground">
 												Suggested fix: {issue.suggestedFix}
 											</p>
-											<code className="break-all text-xs">{issue.selectorOrElement}</code>
+											{issue.recommendation && (
+												<p className="text-vscode-descriptionForeground">
+													Recommendation: {issue.recommendation}
+												</p>
+											)}
+											{issue.implementationHint && (
+												<p className="text-vscode-descriptionForeground">
+													Implementation hint: {issue.implementationHint}
+												</p>
+											)}
+											<div className="grid gap-1 text-xs text-vscode-descriptionForeground">
+												<code className="break-all rounded bg-vscode-textCodeBlock-background px-1 py-0.5">
+													{issue.selectorOrElement}
+												</code>
+												<span>Box: {formatBox(issue.boundingBox)} px</span>
+												<span>Screenshot: {issue.screenshotId || "n/a"}</span>
+												<span>Crop: {issue.cropId || "n/a"}</span>
+											</div>
 											{issue.filesToInspect.length > 0 && (
-												<p className="mb-0 text-xs text-vscode-descriptionForeground">
+												<p className="m-0 text-xs text-vscode-descriptionForeground">
 													Files to inspect: {issue.filesToInspect.join(", ")}
 												</p>
+											)}
+											{issue.verificationSteps && issue.verificationSteps.length > 0 && (
+												<div className="grid gap-1 text-xs text-vscode-descriptionForeground">
+													<span className="font-medium text-vscode-foreground">
+														Verification steps
+													</span>
+													<ul className="m-0 grid gap-1 pl-4">
+														{issue.verificationSteps.map((step, stepIndex) => (
+															<li key={`${step}-${stepIndex}`}>{step}</li>
+														))}
+													</ul>
+												</div>
+											)}
+											{issue.relatedArtifacts && issue.relatedArtifacts.length > 0 && (
+												<div className="flex flex-wrap gap-1 text-xs text-vscode-descriptionForeground">
+													{issue.relatedArtifacts.map((artifact, artifactIndex) => (
+														<span
+															key={`${artifact.type}-${artifact.id}-${artifactIndex}`}
+															className="rounded border border-vscode-panel-border px-1.5 py-0.5">
+															{artifact.type}: {artifact.id}
+															{artifact.path ? ` · ${artifact.path}` : ""}
+															{artifact.region
+																? ` · ${formatBox(artifact.region)} px`
+																: ""}
+														</span>
+													))}
+												</div>
 											)}
 										</div>
 									))}

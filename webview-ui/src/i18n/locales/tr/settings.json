@@ -255,6 +255,10 @@
 			"maxConcurrentDescription": "Onaylanmış bir paralel görev planı için aynı anda kaç ajanın çalışabileceğini seç ({{min}}–{{max}}). Bekleyen ajanlar, çalışan ajanlar tamamlandığında başlar.",
 			"description": "Geçerli paralel görev planlarını otomatik olarak onayla ve plan önizleme penceresini göstermeden ajanları başlat"
 		},
+		"visualBrowserInspector": {
+			"label": "Tarayıcı",
+			"description": "Chat'ten gelen Visual Browser Inspector eylemlerini otomatik olarak onayla; kontrollü tarayıcı sayfaları açma, ekran görüntüleri, DOM incelemesi, kırpmalar, analiz ve sayfa etkileşimleri dahil. Bu, dosya düzenlemelerine veya terminal komutlarına izin vermez."
+		},
 		"followupQuestions": {
 			"label": "Soru",
 			"description": "Yapılandırılan zaman aşımından sonra takip sorularına ilişkin ilk önerilen yanıtı otomatik olarak seç",

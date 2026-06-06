@@ -255,6 +255,10 @@
 			"maxConcurrentDescription": "Pilih berapa banyak agent yang boleh berjalan sekaligus untuk rencana tugas paralel yang disetujui ({{min}}–{{max}}). Agent yang tertunda dimulai saat agent yang berjalan selesai.",
 			"description": "Setujui otomatis rencana tugas paralel yang valid dan mulai agents tanpa menampilkan modal pratinjau rencana"
 		},
+		"visualBrowserInspector": {
+			"label": "Browser",
+			"description": "Setujui otomatis tindakan Visual Browser Inspector dari chat, termasuk membuka halaman browser terkontrol, screenshot, inspeksi DOM, crop, analisis, dan interaksi halaman. Ini tidak mengizinkan pengeditan file atau perintah terminal."
+		},
 		"followupQuestions": {
 			"label": "Pertanyaan",
 			"description": "Secara otomatis memilih jawaban pertama yang disarankan untuk pertanyaan lanjutan setelah batas waktu yang dikonfigurasi",

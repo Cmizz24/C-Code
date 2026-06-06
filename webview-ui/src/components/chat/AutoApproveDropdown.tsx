@@ -38,6 +38,7 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 		setAlwaysAllowModeSwitch,
 		setAlwaysAllowSubtasks,
 		setAlwaysAllowParallelTasks,
+		setAlwaysAllowVisualBrowserInspector,
 		setAlwaysAllowFollowupQuestions,
 	} = useExtensionState()
 
@@ -69,6 +70,9 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 				case "alwaysAllowParallelTasks":
 					setAlwaysAllowParallelTasks(value)
 					break
+				case "alwaysAllowVisualBrowserInspector":
+					setAlwaysAllowVisualBrowserInspector(value)
+					break
 				case "alwaysAllowFollowupQuestions":
 					setAlwaysAllowFollowupQuestions(value)
 					break
@@ -89,6 +93,7 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 			setAlwaysAllowModeSwitch,
 			setAlwaysAllowSubtasks,
 			setAlwaysAllowParallelTasks,
+			setAlwaysAllowVisualBrowserInspector,
 			setAlwaysAllowFollowupQuestions,
 			setAutoApprovalEnabled,
 		],

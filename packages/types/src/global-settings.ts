@@ -160,6 +160,7 @@ export const globalSettingsSchema = z.object({
 		.min(MIN_PARALLEL_TASK_CONCURRENCY)
 		.max(MAX_PARALLEL_TASK_CONCURRENCY)
 		.optional(),
+	alwaysAllowVisualBrowserInspector: z.boolean().optional(),
 	alwaysAllowExecute: z.boolean().optional(),
 	alwaysAllowFollowupQuestions: z.boolean().optional(),
 	followupAutoApproveTimeoutMs: z.number().optional(),

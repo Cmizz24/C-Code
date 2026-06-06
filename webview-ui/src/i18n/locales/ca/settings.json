@@ -255,6 +255,10 @@
 			"maxConcurrentDescription": "Tria quants agents es poden executar alhora per a un pla de tasques paral·leles aprovat ({{min}}–{{max}}). Els agents pendents s'inicien quan els agents en execució acaben.",
 			"description": "Aprova automàticament els plans de tasques paral·leles vàlids i inicia els agents sense mostrar el modal de previsualització del pla"
 		},
+		"visualBrowserInspector": {
+			"label": "Navegador",
+			"description": "Aprova automàticament les accions del Visual Browser Inspector des del xat, incloent-hi l'obertura de pàgines de navegador controlades, captures de pantalla, inspecció del DOM, retalls, anàlisi i interaccions amb la pàgina. Això no permet editar fitxers ni executar comandes de terminal."
+		},
 		"followupQuestions": {
 			"label": "Pregunta",
 			"description": "Seleccionar automàticament la primera resposta suggerida per a preguntes de seguiment després del temps d'espera configurat",

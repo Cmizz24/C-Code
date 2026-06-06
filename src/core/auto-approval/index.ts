@@ -21,6 +21,7 @@ export type AutoApprovalState =
 	| "alwaysAllowModeSwitch"
 	| "alwaysAllowSubtasks"
 	| "alwaysAllowParallelTasks"
+	| "alwaysAllowVisualBrowserInspector"
 	| "alwaysAllowExecute"
 	| "alwaysAllowFollowupQuestions"
 
@@ -160,6 +161,10 @@ export async function checkAutoApproval({
 
 		if (["newTask", "finishTask"].includes(tool?.tool)) {
 			return state.alwaysAllowSubtasks === true ? { decision: "approve" } : { decision: "ask" }
+		}
+
+		if (tool.tool === "visualBrowserInspector" || tool.tool === "visual_browser_inspector") {
+			return state.alwaysAllowVisualBrowserInspector === true ? { decision: "approve" } : { decision: "ask" }
 		}
 
 		const isOutsideWorkspace = !!tool.isOutsideWorkspace

@@ -256,6 +256,10 @@
 			"maxConcurrentDescription": "Choisis combien d'agents peuvent s'exécuter en même temps pour un plan de tâches parallèles approuvé ({{min}}–{{max}}). Les agents en attente démarrent quand les agents en cours se terminent.",
 			"description": "Approuver automatiquement les plans de tâches parallèles valides et démarrer les agents sans afficher la fenêtre modale d'aperçu du plan"
 		},
+		"visualBrowserInspector": {
+			"label": "Navigateur",
+			"description": "Approuver automatiquement les actions du Visual Browser Inspector depuis le chat, y compris l'ouverture de pages de navigateur contrôlées, les captures d'écran, l'inspection du DOM, les recadrages, l'analyse et les interactions avec la page. Cela n'autorise pas les modifications de fichiers ni les commandes de terminal."
+		},
 		"followupQuestions": {
 			"label": "Question",
 			"description": "Sélectionner automatiquement la première réponse suggérée pour les questions de suivi après le délai configuré",

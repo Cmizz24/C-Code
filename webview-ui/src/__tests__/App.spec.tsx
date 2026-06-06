@@ -40,6 +40,13 @@ vi.mock("@src/components/history/HistoryView", () => ({
 	},
 }))
 
+vi.mock("@src/components/welcome/WelcomeViewProvider", () => ({
+	__esModule: true,
+	default: function WelcomeView() {
+		return <div data-testid="welcome-view">Welcome View</div>
+	},
+}))
+
 vi.mock("@src/components/mcp/McpView", () => ({
 	__esModule: true,
 	default: function McpView() {
@@ -147,6 +154,7 @@ describe("App", () => {
 	afterEach(() => {
 		cleanup()
 		window.removeEventListener("message", () => {})
+		delete (window as Window & { ROO_INITIAL_TAB?: unknown }).ROO_INITIAL_TAB
 	})
 
 	const triggerMessage = (action: string) => {
@@ -154,6 +162,17 @@ describe("App", () => {
 			data: {
 				type: "action",
 				action,
+			},
+		})
+		window.dispatchEvent(messageEvent)
+	}
+
+	const triggerSwitchTabMessage = (tab: string) => {
+		const messageEvent = new MessageEvent("message", {
+			data: {
+				type: "action",
+				action: "switchTab",
+				tab,
 			},
 		})
 		window.dispatchEvent(messageEvent)
@@ -175,7 +194,73 @@ describe("App", () => {
 		const chatView = screen.getByTestId("chat-view")
 		expect(chatView).toBeInTheDocument()
 		expect(chatView.getAttribute("data-hidden")).toBe("false")
+		expect(screen.queryByTestId("visual-browser-inspector-view")).not.toBeInTheDocument()
 	}, 10000)
+
+	it("shows welcome view on normal startup when onboarding is required", () => {
+		mockUseExtensionState.mockReturnValue({
+			didHydrateState: true,
+			showWelcome: true,
+			shouldShowAnnouncement: false,
+			experiments: {},
+			language: "en",
+		})
+
+		render(<AppWithProviders />)
+
+		expect(screen.getByTestId("welcome-view")).toBeInTheDocument()
+		expect(screen.queryByTestId("chat-view")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("visual-browser-inspector-view")).not.toBeInTheDocument()
+	})
+
+	it("starts in Visual Browser Inspector view when the webview HTML sets the initial tab", async () => {
+		;(window as Window & { ROO_INITIAL_TAB?: unknown }).ROO_INITIAL_TAB = "visualBrowserInspector"
+
+		render(<AppWithProviders />)
+
+		const visualBrowserInspectorView = await screen.findByTestId("visual-browser-inspector-view")
+		expect(visualBrowserInspectorView).toBeInTheDocument()
+
+		expect(screen.queryByTestId("chat-view")).not.toBeInTheDocument()
+	})
+
+	it("starts in Visual Browser Inspector view when onboarding would otherwise show", async () => {
+		;(window as Window & { ROO_INITIAL_TAB?: unknown }).ROO_INITIAL_TAB = "visualBrowserInspector"
+		mockUseExtensionState.mockReturnValue({
+			didHydrateState: true,
+			showWelcome: true,
+			shouldShowAnnouncement: false,
+			experiments: {},
+			language: "en",
+		})
+
+		render(<AppWithProviders />)
+
+		const visualBrowserInspectorView = await screen.findByTestId("visual-browser-inspector-view")
+		expect(visualBrowserInspectorView).toBeInTheDocument()
+		expect(screen.queryByTestId("welcome-view")).not.toBeInTheDocument()
+
+		expect(screen.queryByTestId("chat-view")).not.toBeInTheDocument()
+	})
+
+	it("keeps Visual Browser Inspector startup visual-only when normal app navigation actions arrive", async () => {
+		;(window as Window & { ROO_INITIAL_TAB?: unknown }).ROO_INITIAL_TAB = "visualBrowserInspector"
+
+		render(<AppWithProviders />)
+
+		expect(await screen.findByTestId("visual-browser-inspector-view")).toBeInTheDocument()
+
+		act(() => {
+			triggerMessage("settingsButtonClicked")
+			triggerMessage("historyButtonClicked")
+			triggerSwitchTabMessage("chat")
+		})
+
+		expect(screen.getByTestId("visual-browser-inspector-view")).toBeInTheDocument()
+		expect(screen.queryByTestId("settings-view")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("history-view")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("chat-view")).not.toBeInTheDocument()
+	})
 
 	it("switches to settings view when receiving settingsButtonClicked action", async () => {
 		render(<AppWithProviders />)

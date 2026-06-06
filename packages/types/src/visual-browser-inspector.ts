@@ -58,6 +58,16 @@ export type VisualBrowserAction =
 
 export type VisualBrowserSessionStatus = "opening" | "active" | "closed" | "error"
 
+export type VisualBrowserToolStatus = "running" | "complete" | "error"
+
+export type VisualBrowserSyncSource = "chat_tool" | "panel"
+
+export interface VisualBrowserFocusTarget {
+	sessionId?: string
+	screenshotId?: string
+	cropId?: string
+}
+
 export interface VisualBrowserBoundingBox {
 	x: number
 	y: number
@@ -156,22 +166,53 @@ export interface VisualBrowserInspectedElement extends VisualBrowserElementMetad
 
 export type VisualBrowserIssueSeverity = "critical" | "major" | "minor"
 
+export type VisualBrowserIssueCategory =
+	| "layout"
+	| "responsive"
+	| "accessibility"
+	| "readability"
+	| "interaction"
+	| "content"
+	| "visual-regression"
+	| "unknown"
+
+export type VisualBrowserFixPriority = "high" | "medium" | "low"
+
+export interface VisualBrowserIssueArtifactReference {
+	type: "screenshot" | "crop"
+	id: string
+	path?: string
+	region?: VisualBrowserBoundingBox
+}
+
 export interface VisualBrowserIssue {
 	severity: VisualBrowserIssueSeverity
 	confidence: number
 	title: string
+	category?: VisualBrowserIssueCategory
+	fixPriority?: VisualBrowserFixPriority
 	visualEvidence: string
 	screenshotId: string
 	cropId: string | null
 	selectorOrElement: string
 	boundingBox: VisualBrowserBoundingBox
+	userImpact?: string
 	likelyCause: string
 	suggestedFix: string
+	recommendation?: string
+	implementationHint?: string
 	filesToInspect: string[]
+	verificationSteps?: string[]
+	relatedArtifacts?: VisualBrowserIssueArtifactReference[]
 }
 
 export interface VisualBrowserAnalysisResult {
 	summary: string
+	analysisMode?: "local-heuristic"
+	generatedAt?: string
+	scope?: "screenshot" | "crop" | "inspection"
+	privacyNotice?: string
+	recommendationSummary?: string
 	issues: VisualBrowserIssue[]
 }
 
@@ -274,6 +315,41 @@ export interface VisualBrowserAnalyzeCropParams extends VisualBrowserSessionPara
 	prompt?: string
 }
 
+export type VisualBrowserStartFixTaskScope = "all" | "finding" | "issue"
+
+export interface VisualBrowserStartFixTaskRequest extends VisualBrowserSessionParams {
+	action: "start_fix_task"
+	scope?: VisualBrowserStartFixTaskScope
+	findingIndex?: number
+	issueIndex?: number
+	screenshotId?: string
+	cropId?: string
+}
+
+export interface VisualBrowserStartLocalPreviewTaskRequest extends VisualBrowserSessionParams {
+	action: "start_local_preview_task"
+	url?: string
+	viewport?: VisualBrowserViewportPresetName
+}
+
+export interface VisualBrowserStartChangeTaskRequest extends VisualBrowserSessionParams {
+	action: "start_change_task"
+	instruction: string
+	screenshotId?: string
+	cropId?: string
+	region?: VisualBrowserBoundingBox
+	inspectionIndex?: number
+	includeScreenshotContext?: boolean
+	includeCropContext?: boolean
+	includeRegionContext?: boolean
+	includeInspectionContext?: boolean
+	includeFindingsContext?: boolean
+}
+
+export interface VisualBrowserOpenPanelRequest extends VisualBrowserFocusTarget {
+	action: "open_panel"
+}
+
 export interface VisualBrowserNavigationParams extends VisualBrowserSessionParams {
 	action: "visual_browser_reload" | "visual_browser_back" | "visual_browser_forward"
 }
@@ -314,13 +390,23 @@ export interface VisualBrowserToolResult {
 
 export type VisualBrowserWebviewRequest =
 	| { action: "get_state"; sessionId?: string }
-	| { action: "open"; url: string; viewport: VisualBrowserViewportPresetName; allowExternal?: boolean }
+	| {
+			action: "open"
+			url: string
+			sessionId?: string
+			viewport: VisualBrowserViewportPresetName
+			allowExternal?: boolean
+	  }
 	| { action: "capture"; sessionId?: string; fullPage?: boolean }
 	| { action: "crop"; sessionId?: string; screenshotId: string; region: VisualBrowserBoundingBox }
 	| { action: "inspect_point"; sessionId?: string; x: number; y: number; screenshotId?: string }
 	| { action: "inspect_region"; sessionId?: string; region: VisualBrowserBoundingBox; screenshotId?: string }
 	| { action: "analyze_screenshot"; sessionId?: string; screenshotId: string; prompt?: string }
 	| { action: "analyze_crop"; sessionId?: string; cropId: string; prompt?: string }
+	| VisualBrowserStartFixTaskRequest
+	| VisualBrowserStartLocalPreviewTaskRequest
+	| VisualBrowserStartChangeTaskRequest
+	| VisualBrowserOpenPanelRequest
 	| { action: "stop"; sessionId?: string }
 	| { action: "delete_session"; sessionId?: string }
 
@@ -328,5 +414,12 @@ export interface VisualBrowserWebviewResponse {
 	requestId?: string
 	state: VisualBrowserPanelState
 	result?: VisualBrowserToolResult
+	source?: VisualBrowserSyncSource
+	status?: VisualBrowserToolStatus
+	toolCallId?: string
+	focus?: VisualBrowserFocusTarget
+	message?: string
+	localhostUrl?: string
+	startedTask?: boolean
 	error?: string
 }

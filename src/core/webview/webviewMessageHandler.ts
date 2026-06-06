@@ -82,11 +82,84 @@ import { generateSystemPrompt } from "./generateSystemPrompt"
 import { resolveDefaultSaveUri, saveLastExportPath } from "../../utils/export"
 import { getCommand } from "../../utils/commands"
 import {
+	buildVisualBrowserChangeTaskPrompt,
+	buildVisualBrowserFixTaskPrompt,
+	buildVisualBrowserLocalPreviewTaskPrompt,
 	visualBrowserInspectorService,
 	visualBrowserWebviewRequestToToolParams,
 } from "../../services/visual-browser-inspector/VisualBrowserInspectorService"
 
 const ALLOWED_VSCODE_SETTINGS = new Set(["terminal.integrated.inheritEnv"])
+
+const VISUAL_BROWSER_INSPECTOR_ONLY_BLOCKED_MESSAGE_TYPES = new Set<WebviewMessage["type"]>([
+	"newTask",
+	"askResponse",
+	"acceptCompletion",
+	"approvePlan",
+	"cancelPlan",
+	"clearTask",
+	"deleteMultipleTasksWithIds",
+	"currentApiConfigName",
+	"saveApiConfiguration",
+	"upsertApiConfiguration",
+	"deleteApiConfiguration",
+	"loadApiConfiguration",
+	"loadApiConfigurationById",
+	"renameApiConfiguration",
+	"customInstructions",
+	"importSettings",
+	"exportSettings",
+	"resetState",
+	"installMarketplaceMcp",
+	"discoverMarketplaceMcp",
+	"createMarketplaceMcpServer",
+	"enhancePrompt",
+	"deleteMessage",
+	"deleteMessageConfirm",
+	"submitEditedMessage",
+	"editMessageConfirm",
+	"setApiConfigPassword",
+	"mode",
+	"updatePrompt",
+	"enhancementApiConfigId",
+	"autoApprovalEnabled",
+	"updateCustomMode",
+	"deleteCustomMode",
+	"toggleApiConfigPin",
+	"hasOpenedModeSelector",
+	"lockApiConfigAcrossModes",
+	"saveCodeIndexSettingsAtomic",
+	"startIndexing",
+	"stopIndexing",
+	"clearIndexData",
+	"toggleWorkspaceIndexing",
+	"setAutoEnableDefault",
+	"exportMode",
+	"importMode",
+	"imageGenerationSettings",
+	"queueMessage",
+	"removeQueuedMessage",
+	"editQueuedMessage",
+	"updateSettings",
+	"testSmtpSettings",
+	"allowedCommands",
+	"deniedCommands",
+	"deleteTaskWithId",
+	"exportTaskWithId",
+	"showTaskWithId",
+	"getTaskWithAggregatedCosts",
+	"refreshCustomTools",
+	"switchMode",
+	"debugSetting",
+])
+
+function isVisualBrowserInspectorOnlyBlockedMessage(message: WebviewMessage): boolean {
+	if (message.type === "switchTab") {
+		return message.tab !== "visualBrowserInspector"
+	}
+
+	return VISUAL_BROWSER_INSPECTOR_ONLY_BLOCKED_MESSAGE_TYPES.has(message.type)
+}
 
 import { setPendingTodoList } from "../tools/UpdateTodoListTool"
 import {
@@ -103,6 +176,11 @@ import {
 } from "./worktree"
 
 export const webviewMessageHandler = async (provider: ClineProvider, message: WebviewMessage) => {
+	if (provider.isVisualBrowserInspectorOnly && isVisualBrowserInspectorOnlyBlockedMessage(message)) {
+		provider.log(`[visual-browser-inspector] Ignored ${message.type} message in visual-only panel.`)
+		return
+	}
+
 	// Utility functions provided for concise get/update of global state via contextProxy API.
 	const getGlobalState = <K extends keyof GlobalState>(key: K) => provider.contextProxy.getValue(key)
 	const updateGlobalState = async <K extends keyof GlobalState>(key: K, value: GlobalState[K]) =>
@@ -3560,7 +3638,8 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				toWebviewUri: provider.convertToWebviewUri.bind(provider),
 			}
 			const payload = message.payload as Partial<VisualBrowserWebviewRequest> | undefined
-			let response: VisualBrowserWebviewResponse
+			let response: VisualBrowserWebviewResponse | undefined
+			let responsePosted = false
 
 			if (!payload || typeof payload.action !== "string") {
 				response = {
@@ -3571,12 +3650,157 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				const request = payload as VisualBrowserWebviewRequest
 
 				try {
-					const params = visualBrowserWebviewRequestToToolParams(request)
-					const result = params ? await visualBrowserInspectorService.execute(params, options) : undefined
+					if (request.action === "open_panel") {
+						const focus = {
+							sessionId: request.sessionId,
+							screenshotId: request.screenshotId,
+							cropId: request.cropId,
+						}
 
-					response = {
-						state: visualBrowserInspectorService.getPanelState(options),
-						result,
+						await vscode.commands.executeCommand(getCommand("openVisualBrowserInspector"))
+
+						response = {
+							state: visualBrowserInspectorService.getPanelState(options),
+							source: "chat_tool",
+							status: "complete",
+							focus,
+							message: "Opened Visual Browser Inspector.",
+						}
+
+						if (!provider.isVisualBrowserInspectorOnly) {
+							await provider.postMessageToVisualBrowserInspectorPanels({
+								type: "visualBrowserInspector",
+								payload: response,
+							})
+							responsePosted = true
+						}
+					} else if (request.action === "start_fix_task") {
+						const state = visualBrowserInspectorService.getPanelState(options)
+						const prompt = buildVisualBrowserFixTaskPrompt(state, request)
+						const visualBrowserFixMode = "code"
+						const taskConfiguration = {
+							...(message.taskConfiguration ?? {}),
+							mode: visualBrowserFixMode,
+						}
+						const taskProvider = await ClineProvider.getOrOpenMainInstance()
+
+						if (!taskProvider) {
+							throw new Error(
+								"Unable to open a main C Code view for the Visual Browser Inspector fix task.",
+							)
+						}
+
+						await taskProvider.createTask(
+							prompt,
+							undefined,
+							undefined,
+							{ mode: visualBrowserFixMode },
+							taskConfiguration,
+						)
+						response = {
+							state: visualBrowserInspectorService.getPanelState(options),
+							message:
+								"Started a follow-up C Code task for the selected Visual Browser Inspector findings.",
+							startedTask: true,
+						}
+
+						if (taskProvider === provider) {
+							await provider.postMessageToWebview({
+								type: "visualBrowserInspector",
+								payload: response,
+							})
+							responsePosted = true
+						}
+
+						await taskProvider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
+						await taskProvider.postMessageToWebview({ type: "action", action: "switchTab", tab: "chat" })
+					} else if (request.action === "start_change_task") {
+						const state = visualBrowserInspectorService.getPanelState(options)
+						const prompt = buildVisualBrowserChangeTaskPrompt(state, request)
+						const visualBrowserChangeMode = "code"
+						const taskConfiguration = {
+							...(message.taskConfiguration ?? {}),
+							mode: visualBrowserChangeMode,
+						}
+						const taskProvider = await ClineProvider.getOrOpenMainInstance()
+
+						if (!taskProvider) {
+							throw new Error(
+								"Unable to open a main C Code view for the Visual Browser Inspector change task.",
+							)
+						}
+
+						await taskProvider.createTask(
+							prompt,
+							undefined,
+							undefined,
+							{ mode: visualBrowserChangeMode },
+							taskConfiguration,
+						)
+						response = {
+							state: visualBrowserInspectorService.getPanelState(options),
+							message: "Started a C Code task for the Visual Browser Inspector change request.",
+							startedTask: true,
+						}
+
+						if (taskProvider === provider) {
+							await provider.postMessageToWebview({
+								type: "visualBrowserInspector",
+								payload: response,
+							})
+							responsePosted = true
+						}
+
+						await taskProvider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
+						await taskProvider.postMessageToWebview({ type: "action", action: "switchTab", tab: "chat" })
+					} else if (request.action === "start_local_preview_task") {
+						const state = visualBrowserInspectorService.getPanelState(options)
+						const prompt = buildVisualBrowserLocalPreviewTaskPrompt(state, request)
+						const visualBrowserPreviewMode = "code"
+						const taskConfiguration = {
+							...(message.taskConfiguration ?? {}),
+							mode: visualBrowserPreviewMode,
+						}
+						const taskProvider = await ClineProvider.getOrOpenMainInstance()
+
+						if (!taskProvider) {
+							throw new Error(
+								"Unable to open a main C Code view for the Visual Browser Inspector local preview task.",
+							)
+						}
+
+						await taskProvider.createTask(
+							prompt,
+							undefined,
+							undefined,
+							{ mode: visualBrowserPreviewMode },
+							taskConfiguration,
+						)
+						response = {
+							state: visualBrowserInspectorService.getPanelState(options),
+							message:
+								"Started a safe C Code helper task to prepare a local preview for Visual Browser Inspector.",
+							startedTask: true,
+						}
+
+						if (taskProvider === provider) {
+							await provider.postMessageToWebview({
+								type: "visualBrowserInspector",
+								payload: response,
+							})
+							responsePosted = true
+						}
+
+						await taskProvider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
+						await taskProvider.postMessageToWebview({ type: "action", action: "switchTab", tab: "chat" })
+					} else {
+						const params = visualBrowserWebviewRequestToToolParams(request)
+						const result = params ? await visualBrowserInspectorService.execute(params, options) : undefined
+
+						response = {
+							state: visualBrowserInspectorService.getPanelState(options),
+							result,
+						}
 					}
 				} catch (error) {
 					const errorMessage = error instanceof Error ? error.message : String(error)
@@ -3589,10 +3813,12 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				}
 			}
 
-			await provider.postMessageToWebview({
-				type: "visualBrowserInspector",
-				payload: response,
-			})
+			if (response && !responsePosted) {
+				await provider.postMessageToWebview({
+					type: "visualBrowserInspector",
+					payload: response,
+				})
+			}
 
 			break
 		}

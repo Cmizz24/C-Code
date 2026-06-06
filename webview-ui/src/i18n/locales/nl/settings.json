@@ -255,6 +255,10 @@
 			"maxConcurrentDescription": "Kies hoeveel agents tegelijk mogen draaien voor een goedgekeurd plan met parallelle taken ({{min}}–{{max}}). Wachtende agents starten zodra actieve agents klaar zijn.",
 			"description": "Keur geldige plannen voor parallelle taken automatisch goed en start agents zonder het modal voor planvoorbeeld te tonen"
 		},
+		"visualBrowserInspector": {
+			"label": "Browser",
+			"description": "Keur Visual Browser Inspector-acties vanuit de chat automatisch goed, inclusief het openen van gecontroleerde browserpagina's, screenshots, DOM-inspectie, uitsneden, analyse en pagina-interacties. Dit staat geen bestandsbewerkingen of terminalopdrachten toe."
+		},
 		"followupQuestions": {
 			"label": "Vraag",
 			"description": "Selecteer automatisch het eerste voorgestelde antwoord voor vervolgvragen na de geconfigureerde time-out",

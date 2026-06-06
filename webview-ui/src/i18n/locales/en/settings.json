@@ -315,6 +315,10 @@
 			"maxConcurrentDescription": "Choose how many agents may run at once for an approved parallel task plan ({{min}}–{{max}}). Pending agents start as running agents finish.",
 			"description": "Automatically approve valid parallel task plans and start agents without showing the plan preview modal"
 		},
+		"visualBrowserInspector": {
+			"label": "Browser",
+			"description": "Automatically approve Visual Browser Inspector actions from chat, including opening controlled browser pages, screenshots, DOM inspection, crops, analysis, and page interactions. This does not allow file edits or terminal commands."
+		},
 		"followupQuestions": {
 			"label": "Question",
 			"description": "Automatically select the first suggested answer for follow-up questions after the configured timeout",

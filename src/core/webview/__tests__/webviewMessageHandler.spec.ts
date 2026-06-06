@@ -42,9 +42,11 @@ import { RooCodeEventName } from "@roo-code/types"
 import EventEmitter from "events"
 
 import { webviewMessageHandler } from "../webviewMessageHandler"
-import type { ClineProvider } from "../ClineProvider"
+import { ClineProvider } from "../ClineProvider"
 import { getModels } from "../../../api/providers/fetchers/modelCache"
 import { getCommands } from "../../../services/command/commands"
+import { visualBrowserInspectorService } from "../../../services/visual-browser-inspector/VisualBrowserInspectorService"
+import { getCommand } from "../../../utils/commands"
 const { openAiCodexOAuthManager } = await import("../../../integrations/openai-codex/oauth")
 const { fetchOpenAiCodexRateLimitInfo } = await import("../../../integrations/openai-codex/rate-limits")
 
@@ -86,6 +88,7 @@ const mockClineProvider = {
 	testSmtpSettings: vi.fn(),
 	getMcpHub: vi.fn(),
 	getSkillsManager: vi.fn(),
+	convertToWebviewUri: vi.fn((path: string) => `vscode-resource://${path}`),
 	cwd: "/mock/workspace",
 } as unknown as ClineProvider
 
@@ -101,12 +104,18 @@ vi.mock("vscode", () => {
 	const showErrorMessage = vi.fn()
 	const openTextDocument = vi.fn().mockResolvedValue({})
 	const showTextDocument = vi.fn().mockResolvedValue(undefined)
+	const createTextEditorDecorationType = vi.fn(() => ({ dispose: vi.fn() }))
+	const executeCommand = vi.fn().mockResolvedValue(undefined)
 
 	return {
+		commands: {
+			executeCommand,
+		},
 		window: {
 			showInformationMessage,
 			showErrorMessage,
 			showTextDocument,
+			createTextEditorDecorationType,
 		},
 		workspace: {
 			workspaceFolders: [{ uri: { fsPath: "/mock/workspace" } }],
@@ -1327,6 +1336,663 @@ describe("webviewMessageHandler - downloadErrorDiagnostics", () => {
 
 		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("No active task to generate diagnostics for")
 		expect(generateErrorDiagnostics).not.toHaveBeenCalled()
+	})
+})
+
+describe("webviewMessageHandler - visualBrowserInspector", () => {
+	const mockMainClineProvider = {
+		...mockClineProvider,
+		postMessageToWebview: vi.fn(),
+		createTask: vi.fn().mockResolvedValue({ taskId: "visual-fix-task-id" }),
+	} as unknown as ClineProvider
+
+	beforeEach(() => {
+		vi.clearAllMocks()
+		vi.mocked(mockClineProvider.createTask).mockResolvedValue({ taskId: "vbi-panel-task-id" } as any)
+		vi.mocked(mockMainClineProvider.createTask).mockResolvedValue({ taskId: "visual-fix-task-id" } as any)
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(null as any)
+	})
+
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+
+	it("opens the VBI panel from chat tool cards and syncs focus without switching the main chat view", async () => {
+		const panelState = {
+			session: {
+				sessionId: "session-1",
+				status: "active",
+				url: "http://localhost:3000",
+				createdAt: "2026-01-01T00:00:00.000Z",
+				updatedAt: "2026-01-01T00:00:00.000Z",
+				viewport: { name: "mobile", width: 390, height: 844 },
+				headless: false,
+				allowExternal: false,
+				artifacts: {
+					rootDir: ".roo/visual-browser-inspector/session-1",
+					screenshotsDir: ".roo/visual-browser-inspector/session-1/screenshots",
+					cropsDir: ".roo/visual-browser-inspector/session-1/crops",
+					metadataPath: ".roo/visual-browser-inspector/session-1/metadata.json",
+				},
+			},
+			screenshots: [
+				{
+					sessionId: "session-1",
+					screenshotId: "shot-1",
+					url: "http://localhost:3000",
+					path: ".roo/visual-browser-inspector/session-1/screenshots/shot-1.png",
+					createdAt: "2026-01-01T00:00:01.000Z",
+					viewport: { name: "mobile", width: 390, height: 844 },
+					pageWidth: 390,
+					pageHeight: 844,
+					fullPage: false,
+					redacted: true,
+				},
+			],
+			crops: [
+				{
+					sessionId: "session-1",
+					cropId: "crop-1",
+					screenshotId: "shot-1",
+					url: "http://localhost:3000",
+					path: ".roo/visual-browser-inspector/session-1/crops/crop-1.png",
+					createdAt: "2026-01-01T00:00:02.000Z",
+					viewport: { name: "mobile", width: 390, height: 844 },
+					region: { x: 10, y: 20, width: 100, height: 120 },
+					elements: [],
+				},
+			],
+			inspections: [],
+			findings: [],
+			statusMessage: "Ready",
+		} as any
+		const getPanelStateSpy = vi.spyOn(visualBrowserInspectorService, "getPanelState").mockReturnValue(panelState)
+		const postMessageToVisualBrowserInspectorPanels = vi.fn().mockResolvedValue(undefined)
+		;(mockClineProvider as any).postMessageToVisualBrowserInspectorPanels =
+			postMessageToVisualBrowserInspectorPanels
+
+		try {
+			await webviewMessageHandler(mockClineProvider, {
+				type: "visualBrowserInspector",
+				payload: {
+					action: "open_panel",
+					sessionId: "session-1",
+					screenshotId: "shot-1",
+					cropId: "crop-1",
+				},
+			} as any)
+
+			expect(vscode.commands.executeCommand).toHaveBeenCalledWith(getCommand("openVisualBrowserInspector"))
+			expect(postMessageToVisualBrowserInspectorPanels).toHaveBeenCalledWith({
+				type: "visualBrowserInspector",
+				payload: expect.objectContaining({
+					state: panelState,
+					source: "chat_tool",
+					status: "complete",
+					focus: {
+						sessionId: "session-1",
+						screenshotId: "shot-1",
+						cropId: "crop-1",
+					},
+					message: "Opened Visual Browser Inspector.",
+				}),
+			})
+			expect(mockClineProvider.postMessageToWebview).not.toHaveBeenCalledWith(
+				expect.objectContaining({ type: "visualBrowserInspector" }),
+			)
+		} finally {
+			getPanelStateSpy.mockRestore()
+			delete (mockClineProvider as any).postMessageToVisualBrowserInspectorPanels
+		}
+	})
+
+	it("routes a VBI follow-up code task to the main C Code provider while leaving the VBI provider in visual mode", async () => {
+		const getMainProviderSpy = vi
+			.spyOn(ClineProvider, "getOrOpenMainInstance")
+			.mockResolvedValue(mockMainClineProvider)
+		const getPanelStateSpy = vi.spyOn(visualBrowserInspectorService, "getPanelState").mockReturnValue({
+			session: {
+				sessionId: "session-1",
+				status: "active",
+				url: "http://localhost:3000",
+				createdAt: "2026-01-01T00:00:00.000Z",
+				updatedAt: "2026-01-01T00:00:00.000Z",
+				viewport: { name: "mobile", width: 390, height: 844 },
+				headless: false,
+				allowExternal: false,
+				artifacts: {
+					rootDir: ".roo/visual-browser-inspector/session-1",
+					screenshotsDir: ".roo/visual-browser-inspector/session-1/screenshots",
+					cropsDir: ".roo/visual-browser-inspector/session-1/crops",
+					metadataPath: ".roo/visual-browser-inspector/session-1/metadata.json",
+					findingsPath: ".roo/visual-browser-inspector/session-1/findings.json",
+				},
+			},
+			screenshots: [
+				{
+					sessionId: "session-1",
+					screenshotId: "shot-1",
+					url: "http://localhost:3000",
+					path: ".roo/visual-browser-inspector/session-1/screenshots/shot-1.png",
+					createdAt: "2026-01-01T00:00:01.000Z",
+					viewport: { name: "mobile", width: 390, height: 844 },
+					pageWidth: 390,
+					pageHeight: 844,
+					fullPage: false,
+					redacted: true,
+				},
+			],
+			crops: [],
+			inspections: [],
+			findings: [
+				{
+					summary: "Local heuristic visual/UX analysis. Found 1 actionable issue.",
+					analysisMode: "local-heuristic",
+					generatedAt: "2026-01-01T00:00:02.000Z",
+					scope: "screenshot",
+					privacyNotice: "Artifacts remain local.",
+					recommendationSummary: "1 major accessibility issue.",
+					issues: [
+						{
+							severity: "major",
+							confidence: 0.91,
+							title: "Tiny checkout button",
+							category: "accessibility",
+							fixPriority: "medium",
+							visualEvidence: "Button is 24×24px and hard to tap.",
+							screenshotId: "shot-1",
+							cropId: null,
+							selectorOrElement: "button[data-testid=checkout]",
+							boundingBox: { x: 10, y: 20, width: 24, height: 24 },
+							userImpact: "Touch users may miss the control.",
+							likelyCause: "Icon-only button lacks minimum dimensions.",
+							suggestedFix: "Use a minimum 44×44px tap target.",
+							recommendation: "Inspect the owning component before changing styles.",
+							implementationHint: "Look for the checkout action component and button size tokens.",
+							filesToInspect: ["webview-ui/src/components/CheckoutButton.tsx"],
+							verificationSteps: ["Re-run the mobile viewport", "Confirm tap target size"],
+							relatedArtifacts: [{ type: "screenshot", id: "shot-1" }],
+						},
+					],
+				},
+			],
+			statusMessage: "Ready",
+		} as any)
+		const taskConfiguration = { apiProvider: "openrouter", currentApiConfigName: "work-profile", mode: "ask" }
+
+		try {
+			await webviewMessageHandler(mockClineProvider, {
+				type: "visualBrowserInspector",
+				payload: { action: "start_fix_task", scope: "all", sessionId: "session-1", screenshotId: "shot-1" },
+				taskConfiguration,
+			} as any)
+
+			expect(getMainProviderSpy).toHaveBeenCalledTimes(1)
+			expect(mockClineProvider.createTask).not.toHaveBeenCalled()
+			expect(mockMainClineProvider.createTask).toHaveBeenCalledTimes(1)
+			const createTaskCall = vi.mocked(mockMainClineProvider.createTask).mock.calls[0]
+			const prompt = createTaskCall[0] as string
+			expect(prompt).toContain("Fix Visual Browser Inspector findings.")
+			expect(prompt).toContain("Tiny checkout button")
+			expect(prompt).toContain("Do not blindly apply these recommendations")
+			expect(prompt).toContain("do not upload screenshots or crops to a remote service")
+			expect(prompt).toContain("webview-ui/src/components/CheckoutButton.tsx")
+			expect(createTaskCall[2]).toBeUndefined()
+			expect(createTaskCall[3]).toEqual({ mode: "code" })
+			expect(createTaskCall[4]).toEqual({ ...taskConfiguration, mode: "code" })
+			expect(mockMainClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+				type: "invoke",
+				invoke: "newChat",
+			})
+			expect(mockMainClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+				type: "action",
+				action: "switchTab",
+				tab: "chat",
+			})
+			expect(mockClineProvider.postMessageToWebview).not.toHaveBeenCalledWith({
+				type: "invoke",
+				invoke: "newChat",
+			})
+			expect(mockClineProvider.postMessageToWebview).not.toHaveBeenCalledWith({
+				type: "action",
+				action: "switchTab",
+				tab: "chat",
+			})
+			expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+				type: "visualBrowserInspector",
+				payload: expect.objectContaining({
+					message: "Started a follow-up C Code task for the selected Visual Browser Inspector findings.",
+					startedTask: true,
+				}),
+			})
+		} finally {
+			getPanelStateSpy.mockRestore()
+		}
+	})
+
+	it("routes a VBI custom change task to the main C Code provider with full context", async () => {
+		const getMainProviderSpy = vi
+			.spyOn(ClineProvider, "getOrOpenMainInstance")
+			.mockResolvedValue(mockMainClineProvider)
+		const getPanelStateSpy = vi.spyOn(visualBrowserInspectorService, "getPanelState").mockReturnValue({
+			session: {
+				sessionId: "session-1",
+				status: "active",
+				url: "http://localhost:3000?token=secret-value",
+				createdAt: "2026-01-01T00:00:00.000Z",
+				updatedAt: "2026-01-01T00:00:00.000Z",
+				viewport: { name: "mobile", width: 390, height: 844 },
+				headless: false,
+				allowExternal: false,
+				artifacts: {
+					rootDir: ".roo/visual-browser-inspector/session-1",
+					screenshotsDir: ".roo/visual-browser-inspector/session-1/screenshots",
+					cropsDir: ".roo/visual-browser-inspector/session-1/crops",
+					metadataPath: ".roo/visual-browser-inspector/session-1/metadata.json",
+					findingsPath: ".roo/visual-browser-inspector/session-1/findings.json",
+				},
+			},
+			screenshots: [
+				{
+					sessionId: "session-1",
+					screenshotId: "shot-1",
+					url: "http://localhost:3000",
+					path: ".roo/visual-browser-inspector/session-1/screenshots/shot-1.png",
+					createdAt: "2026-01-01T00:00:01.000Z",
+					viewport: { name: "mobile", width: 390, height: 844 },
+					pageWidth: 390,
+					pageHeight: 844,
+					fullPage: false,
+					redacted: true,
+				},
+			],
+			crops: [
+				{
+					sessionId: "session-1",
+					cropId: "crop-1",
+					screenshotId: "shot-1",
+					url: "http://localhost:3000",
+					path: ".roo/visual-browser-inspector/session-1/crops/crop-1.png",
+					createdAt: "2026-01-01T00:00:02.000Z",
+					viewport: { name: "mobile", width: 390, height: 844 },
+					region: { x: 10, y: 20, width: 120, height: 80 },
+					elements: [],
+				},
+			],
+			inspections: [
+				{
+					sessionId: "session-1",
+					screenshotId: "shot-1",
+					cropId: "crop-1",
+					url: "http://localhost:3000",
+					viewport: { name: "mobile", width: 390, height: 844 },
+					region: { x: 10, y: 20, width: 120, height: 80 },
+					element: {
+						tagName: "BUTTON",
+						selector: "button[data-testid=checkout]",
+						text: "Checkout now",
+						role: "button",
+						ariaLabel: "Checkout",
+						attributes: { "data-testid": "checkout" },
+						boundingBox: { x: 10, y: 20, width: 120, height: 80 },
+						visible: true,
+						sourceMapping: { component: "webview-ui/src/components/HeroCheckout.tsx" },
+						ancestors: [],
+					},
+				},
+			],
+			findings: [
+				{
+					summary: "CTA is visually understated.",
+					analysisMode: "local-heuristic",
+					generatedAt: "2026-01-01T00:00:03.000Z",
+					scope: "screenshot",
+					privacyNotice: "Artifacts remain local.",
+					recommendationSummary: "1 major interaction issue.",
+					issues: [
+						{
+							severity: "major",
+							confidence: 0.91,
+							title: "Tiny checkout button",
+							category: "interaction",
+							fixPriority: "medium",
+							visualEvidence: "Button is visually quiet compared with surrounding content.",
+							screenshotId: "shot-1",
+							cropId: "crop-1",
+							selectorOrElement: "button[data-testid=checkout]",
+							boundingBox: { x: 10, y: 20, width: 120, height: 80 },
+							likelyCause: "CTA styling lacks visual weight.",
+							suggestedFix: "Increase prominence with existing design tokens.",
+							recommendation: "Inspect the owning component before changing styles.",
+							filesToInspect: ["webview-ui/src/components/CheckoutButton.tsx"],
+						},
+					],
+				},
+			],
+			statusMessage: "Ready",
+		} as any)
+		const taskConfiguration = { apiProvider: "openrouter", currentApiConfigName: "work-profile", mode: "ask" }
+
+		try {
+			await webviewMessageHandler(mockClineProvider, {
+				type: "visualBrowserInspector",
+				payload: {
+					action: "start_change_task",
+					sessionId: "session-1",
+					instruction: "Make the checkout CTA more prominent",
+					screenshotId: "shot-1",
+					cropId: "crop-1",
+					region: { x: 10, y: 20, width: 120, height: 80 },
+					inspectionIndex: 0,
+					includeScreenshotContext: true,
+					includeCropContext: true,
+					includeRegionContext: true,
+					includeInspectionContext: true,
+					includeFindingsContext: true,
+				},
+				taskConfiguration,
+			} as any)
+
+			expect(getMainProviderSpy).toHaveBeenCalledTimes(1)
+			expect(mockClineProvider.createTask).not.toHaveBeenCalled()
+			expect(mockMainClineProvider.createTask).toHaveBeenCalledTimes(1)
+			const createTaskCall = vi.mocked(mockMainClineProvider.createTask).mock.calls[0]
+			const prompt = createTaskCall[0] as string
+			expect(prompt).toContain("Implement a specific Visual Browser Inspector change request.")
+			expect(prompt).toContain("Make the checkout CTA more prominent")
+			expect(prompt).toContain("Screenshot context: shot-1")
+			expect(prompt).toContain("Crop context: crop-1")
+			expect(prompt).toContain("Selected region bounds: 10,20 120×80px")
+			expect(prompt).toContain("Selected element: button")
+			expect(prompt).toContain("webview-ui/src/components/HeroCheckout.tsx")
+			expect(prompt).toContain("Current findings/recommendations (context only")
+			expect(prompt).toContain("Tiny checkout button")
+			expect(prompt).toContain("Do not frame this as only fixing automatically detected findings")
+			expect(prompt).toContain("Do not commit, push, merge, rebase, change branches, or build/package a VSIX")
+			expect(prompt).not.toContain("secret-value")
+			expect(createTaskCall[2]).toBeUndefined()
+			expect(createTaskCall[3]).toEqual({ mode: "code" })
+			expect(createTaskCall[4]).toEqual({ ...taskConfiguration, mode: "code" })
+			expect(mockMainClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+				type: "invoke",
+				invoke: "newChat",
+			})
+			expect(mockMainClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+				type: "action",
+				action: "switchTab",
+				tab: "chat",
+			})
+			expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+				type: "visualBrowserInspector",
+				payload: expect.objectContaining({
+					message: "Started a C Code task for the Visual Browser Inspector change request.",
+					startedTask: true,
+				}),
+			})
+		} finally {
+			getPanelStateSpy.mockRestore()
+		}
+	})
+
+	it("routes a VBI local-preview helper task to the main C Code provider with strict safe instructions", async () => {
+		const getMainProviderSpy = vi
+			.spyOn(ClineProvider, "getOrOpenMainInstance")
+			.mockResolvedValue(mockMainClineProvider)
+		const getPanelStateSpy = vi.spyOn(visualBrowserInspectorService, "getPanelState").mockReturnValue({
+			session: {
+				sessionId: "session-1",
+				status: "active",
+				url: "http://localhost:3000?token=secret-value",
+				createdAt: "2026-01-01T00:00:00.000Z",
+				updatedAt: "2026-01-01T00:00:00.000Z",
+				viewport: { name: "mobile", width: 390, height: 844 },
+				headless: false,
+				allowExternal: false,
+				artifacts: {
+					rootDir: ".roo/visual-browser-inspector/session-1",
+					screenshotsDir: ".roo/visual-browser-inspector/session-1/screenshots",
+					cropsDir: ".roo/visual-browser-inspector/session-1/crops",
+					metadataPath: ".roo/visual-browser-inspector/session-1/metadata.json",
+				},
+			},
+			screenshots: [],
+			crops: [],
+			inspections: [],
+			findings: [],
+			statusMessage: "Ready",
+		} as any)
+		const taskConfiguration = { apiProvider: "openrouter", currentApiConfigName: "work-profile", mode: "ask" }
+
+		try {
+			await webviewMessageHandler(mockClineProvider, {
+				type: "visualBrowserInspector",
+				payload: {
+					action: "start_local_preview_task",
+					url: "localhost:5173?token=secret-value",
+					sessionId: "session-1",
+					viewport: "desktop",
+				},
+				taskConfiguration,
+			} as any)
+
+			expect(getMainProviderSpy).toHaveBeenCalledTimes(1)
+			expect(mockClineProvider.createTask).not.toHaveBeenCalled()
+			expect(mockMainClineProvider.createTask).toHaveBeenCalledTimes(1)
+			const createTaskCall = vi.mocked(mockMainClineProvider.createTask).mock.calls[0]
+			const prompt = createTaskCall[0] as string
+			expect(prompt).toContain("Prepare a safe local preview for Visual Browser Inspector.")
+			expect(prompt).toContain("Do not edit files.")
+			expect(prompt).toContain("Do not install packages or modify dependencies.")
+			expect(prompt).toContain("Do not run database migrations")
+			expect(prompt).toContain("Do not commit, push, merge, rebase, or change branches.")
+			expect(prompt).toContain("LOCAL_PREVIEW_URL=<url>")
+			expect(prompt).toContain("visual_browser_open")
+			expect(prompt).toContain("[redacted]")
+			expect(prompt).not.toContain("secret-value")
+			expect(createTaskCall[2]).toBeUndefined()
+			expect(createTaskCall[3]).toEqual({ mode: "code" })
+			expect(createTaskCall[4]).toEqual({ ...taskConfiguration, mode: "code" })
+			expect(mockMainClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+				type: "invoke",
+				invoke: "newChat",
+			})
+			expect(mockMainClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+				type: "action",
+				action: "switchTab",
+				tab: "chat",
+			})
+			expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+				type: "visualBrowserInspector",
+				payload: expect.objectContaining({
+					message:
+						"Started a safe C Code helper task to prepare a local preview for Visual Browser Inspector.",
+					startedTask: true,
+				}),
+			})
+		} finally {
+			getPanelStateSpy.mockRestore()
+		}
+	})
+
+	it("keeps main-view VBI task creation on the originating main provider and ends on the chat tab", async () => {
+		vi.spyOn(ClineProvider, "getOrOpenMainInstance").mockResolvedValue(mockClineProvider)
+		const getPanelStateSpy = vi.spyOn(visualBrowserInspectorService, "getPanelState").mockReturnValue({
+			session: {
+				sessionId: "session-1",
+				status: "active",
+				url: "http://localhost:3000",
+				createdAt: "2026-01-01T00:00:00.000Z",
+				updatedAt: "2026-01-01T00:00:00.000Z",
+				viewport: { name: "mobile", width: 390, height: 844 },
+				headless: false,
+				allowExternal: false,
+				artifacts: {
+					rootDir: ".roo/visual-browser-inspector/session-1",
+					screenshotsDir: ".roo/visual-browser-inspector/session-1/screenshots",
+					cropsDir: ".roo/visual-browser-inspector/session-1/crops",
+					metadataPath: ".roo/visual-browser-inspector/session-1/metadata.json",
+					findingsPath: ".roo/visual-browser-inspector/session-1/findings.json",
+				},
+			},
+			screenshots: [],
+			crops: [],
+			inspections: [],
+			findings: [
+				{
+					summary: "One local issue.",
+					issues: [
+						{
+							severity: "major",
+							confidence: 0.9,
+							title: "Main view issue",
+							visualEvidence: "Visible evidence.",
+							screenshotId: "shot-1",
+							cropId: null,
+							selectorOrElement: "main",
+							boundingBox: { x: 0, y: 0, width: 100, height: 100 },
+							likelyCause: "Layout constraint.",
+							suggestedFix: "Inspect and fix layout.",
+							filesToInspect: [],
+						},
+					],
+				},
+			],
+			statusMessage: "Ready",
+		} as any)
+
+		try {
+			await webviewMessageHandler(mockClineProvider, {
+				type: "visualBrowserInspector",
+				payload: { action: "start_fix_task", scope: "all" },
+			} as any)
+
+			expect(mockClineProvider.createTask).toHaveBeenCalledTimes(1)
+			expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+				type: "visualBrowserInspector",
+				payload: expect.objectContaining({ startedTask: true }),
+			})
+
+			const postedMessages = vi
+				.mocked(mockClineProvider.postMessageToWebview)
+				.mock.calls.map(([posted]) => posted)
+			expect(postedMessages[postedMessages.length - 1]).toEqual({
+				type: "action",
+				action: "switchTab",
+				tab: "chat",
+			})
+		} finally {
+			getPanelStateSpy.mockRestore()
+		}
+	})
+})
+
+describe("webviewMessageHandler - visual-only provider guard", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		Object.defineProperty(mockClineProvider, "isVisualBrowserInspectorOnly", { value: true, configurable: true })
+	})
+
+	afterEach(() => {
+		Object.defineProperty(mockClineProvider, "isVisualBrowserInspectorOnly", { value: false, configurable: true })
+	})
+
+	it("ignores normal new task creation in a visual-only provider", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "newTask",
+			text: "Start a normal chat from the VBI panel",
+		} as any)
+
+		expect(mockClineProvider.createTask).not.toHaveBeenCalled()
+		expect(mockClineProvider.postMessageToWebview).not.toHaveBeenCalledWith({ type: "invoke", invoke: "newChat" })
+		expect(mockClineProvider.log).toHaveBeenCalledWith(
+			expect.stringContaining("Ignored newTask message in visual-only panel"),
+		)
+	})
+
+	it("ignores normal settings and chat tab switches but still allows the VBI tab", async () => {
+		await webviewMessageHandler(mockClineProvider, { type: "switchTab", tab: "settings" } as any)
+		await webviewMessageHandler(mockClineProvider, { type: "switchTab", tab: "chat" } as any)
+
+		expect(mockClineProvider.postMessageToWebview).not.toHaveBeenCalled()
+
+		await webviewMessageHandler(mockClineProvider, { type: "switchTab", tab: "visualBrowserInspector" } as any)
+
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "action",
+			action: "switchTab",
+			tab: "visualBrowserInspector",
+			values: undefined,
+		})
+	})
+
+	it("ignores marketplace task creation in a visual-only provider", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "installMarketplaceMcp",
+			marketplaceMcpId: "context7",
+			marketplaceMcpScope: "global",
+		} as any)
+
+		expect(mockClineProvider.createTask).not.toHaveBeenCalled()
+		expect(mockClineProvider.postMessageToWebview).not.toHaveBeenCalledWith({ type: "invoke", invoke: "newChat" })
+		expect(vscode.window.showErrorMessage).not.toHaveBeenCalled()
+	})
+})
+
+describe("ClineProvider - main task provider routing", () => {
+	const originalActiveInstances = (ClineProvider as any).activeInstances
+
+	beforeEach(() => {
+		vi.clearAllMocks()
+		;(ClineProvider as any).activeInstances = new Set()
+	})
+
+	afterEach(() => {
+		;(ClineProvider as any).activeInstances = originalActiveInstances
+		vi.restoreAllMocks()
+	})
+
+	it("excludes visual-only VBI providers when selecting a visible main task provider", () => {
+		const visibleVbiProvider = {
+			isVisualBrowserInspectorOnly: true,
+			view: { visible: true },
+		} as any
+		const hiddenMainProvider = {
+			_disposed: false,
+			isVisualBrowserInspectorOnly: false,
+			view: { visible: false },
+		} as any
+		const visibleMainProvider = {
+			_disposed: false,
+			isVisualBrowserInspectorOnly: false,
+			view: { visible: true },
+		} as any
+
+		;(ClineProvider as any).activeInstances = new Set([hiddenMainProvider, visibleVbiProvider, visibleMainProvider])
+
+		expect(ClineProvider.getVisibleMainInstance()).toBe(visibleMainProvider)
+	})
+
+	it("opens the sidebar and returns a main provider when only the VBI provider is visible", async () => {
+		const visibleVbiProvider = {
+			_disposed: false,
+			isVisualBrowserInspectorOnly: true,
+			view: { visible: true },
+		} as any
+		const sidebarMainProvider = {
+			_disposed: false,
+			isVisualBrowserInspectorOnly: false,
+			renderContext: "sidebar",
+			view: { visible: false, show: vi.fn() },
+		} as any
+
+		;(ClineProvider as any).activeInstances = new Set([sidebarMainProvider, visibleVbiProvider])
+		vi.mocked(vscode.commands.executeCommand).mockImplementation(async () => {
+			sidebarMainProvider.view.visible = true
+		})
+
+		await expect(ClineProvider.getOrOpenMainInstance()).resolves.toBe(sidebarMainProvider)
+		expect(vscode.commands.executeCommand).toHaveBeenCalledWith("c-code.SidebarProvider.focus")
+		expect(sidebarMainProvider.view.show).toHaveBeenCalledWith(false)
 	})
 })
 

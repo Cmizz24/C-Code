@@ -15,7 +15,13 @@ import type { ModelRecord, RouterModels } from "./model.js"
 import type { OpenAiCodexRateLimitInfo } from "./providers/openai-codex-rate-limits.js"
 import type { SkillMetadata } from "./skills.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
-import type { VisualBrowserWebviewRequest, VisualBrowserWebviewResponse } from "./visual-browser-inspector.js"
+import type {
+	VisualBrowserAction,
+	VisualBrowserToolResult,
+	VisualBrowserToolStatus,
+	VisualBrowserWebviewRequest,
+	VisualBrowserWebviewResponse,
+} from "./visual-browser-inspector.js"
 import type {
 	AgentActivityEvent,
 	AgentCompletionPacket,
@@ -273,6 +279,7 @@ export type ExtensionState = Pick<
 	| "alwaysAllowSubtasks"
 	| "alwaysAllowParallelTasks"
 	| "maxConcurrentParallelTasks"
+	| "alwaysAllowVisualBrowserInspector"
 	| "alwaysAllowFollowupQuestions"
 	| "alwaysAllowExecute"
 	| "followupAutoApproveTimeoutMs"
@@ -802,6 +809,8 @@ export interface ClineSayTool {
 		| "updateTodoList"
 		| "skill"
 		| "parallelAgents"
+		| "visualBrowserInspector"
+		| "visual_browser_inspector"
 	path?: string
 	// Properties for parallelAgents tool status messages
 	executionPlan?: ExecutionPlan
@@ -879,6 +888,16 @@ export interface ClineSayTool {
 	description?: string
 	// Properties for skill tool
 	skill?: string
+	// Properties for visualBrowserInspector tool
+	action?: VisualBrowserAction
+	visualBrowserStatus?: VisualBrowserToolStatus
+	visualBrowserResult?: VisualBrowserToolResult
+	sessionId?: string
+	url?: string
+	screenshotId?: string
+	cropId?: string
+	toolCallId?: string
+	message?: string
 }
 
 export interface ClineAskUseMcpServer {

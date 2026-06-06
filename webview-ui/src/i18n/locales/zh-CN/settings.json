@@ -255,6 +255,10 @@
 			"maxConcurrentDescription": "选择已批准的并行任务计划可同时运行多少个代理（{{min}}–{{max}}）。等待中的代理会在运行中的代理完成后启动。",
 			"description": "自动批准有效的并行任务计划并启动代理，而不显示计划预览模态框"
 		},
+		"visualBrowserInspector": {
+			"label": "浏览器",
+			"description": "自动批准来自聊天的 Visual Browser Inspector 操作，包括打开受控浏览器页面、截图、DOM 检查、裁剪、分析和页面交互。这不会允许文件编辑或终端命令。"
+		},
 		"followupQuestions": {
 			"label": "问题",
 			"description": "在配置的超时时间后自动选择后续问题的第一个建议答案",

@@ -12,6 +12,7 @@ type AutoApproveToggles = Pick<
 	| "alwaysAllowModeSwitch"
 	| "alwaysAllowSubtasks"
 	| "alwaysAllowParallelTasks"
+	| "alwaysAllowVisualBrowserInspector"
 	| "alwaysAllowExecute"
 	| "alwaysAllowFollowupQuestions"
 >
@@ -68,6 +69,13 @@ export const autoApproveSettingsConfig: Record<AutoApproveSetting, AutoApproveCo
 		descriptionKey: "settings:autoApprove.parallelTasks.description",
 		icon: "repo-forked",
 		testId: "always-allow-parallel-tasks-toggle",
+	},
+	alwaysAllowVisualBrowserInspector: {
+		key: "alwaysAllowVisualBrowserInspector",
+		labelKey: "settings:autoApprove.visualBrowserInspector.label",
+		descriptionKey: "settings:autoApprove.visualBrowserInspector.description",
+		icon: "browser",
+		testId: "always-allow-visual-browser-inspector-toggle",
 	},
 	alwaysAllowExecute: {
 		key: "alwaysAllowExecute",

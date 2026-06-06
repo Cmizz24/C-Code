@@ -25,6 +25,19 @@ export function getVisibleProviderOrLog(outputChannel: vscode.OutputChannel): Cl
 	return visibleProvider
 }
 
+function shouldIgnoreVisualOnlyProvider(
+	provider: ClineProvider,
+	outputChannel: vscode.OutputChannel,
+	action: string,
+): boolean {
+	if (!provider.isVisualBrowserInspectorOnly) {
+		return false
+	}
+
+	outputChannel.appendLine(`Ignoring ${action} in visual-only Visual Browser Inspector panel.`)
+	return true
+}
+
 // Store panel references in both modes
 let sidebarPanel: vscode.WebviewView | undefined = undefined
 let tabPanel: vscode.WebviewPanel | undefined = undefined
@@ -77,6 +90,10 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 			return
 		}
 
+		if (shouldIgnoreVisualOnlyProvider(visibleProvider, outputChannel, "new task")) {
+			return
+		}
+
 		await visibleProvider.removeClineFromStack()
 		await visibleProvider.refreshWorkspace()
 		await visibleProvider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
@@ -96,6 +113,10 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 			return
 		}
 
+		if (shouldIgnoreVisualOnlyProvider(visibleProvider, outputChannel, "settings")) {
+			return
+		}
+
 		visibleProvider.postMessageToWebview({ type: "action", action: "settingsButtonClicked" })
 		// Also explicitly post the visibility message to trigger scroll reliably
 		visibleProvider.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
@@ -104,6 +125,10 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 		const visibleProvider = getVisibleProviderOrLog(outputChannel)
 
 		if (!visibleProvider) {
+			return
+		}
+
+		if (shouldIgnoreVisualOnlyProvider(visibleProvider, outputChannel, "history")) {
 			return
 		}
 
@@ -117,6 +142,10 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 	importSettings: async (filePath?: string) => {
 		const visibleProvider = getVisibleProviderOrLog(outputChannel)
 		if (!visibleProvider) {
+			return
+		}
+
+		if (shouldIgnoreVisualOnlyProvider(visibleProvider, outputChannel, "import settings")) {
 			return
 		}
 
@@ -156,12 +185,20 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 			return
 		}
 
+		if (shouldIgnoreVisualOnlyProvider(visibleProvider, outputChannel, "accept input")) {
+			return
+		}
+
 		visibleProvider.postMessageToWebview({ type: "acceptInput" })
 	},
 	toggleAutoApprove: async () => {
 		const visibleProvider = getVisibleProviderOrLog(outputChannel)
 
 		if (!visibleProvider) {
+			return
+		}
+
+		if (shouldIgnoreVisualOnlyProvider(visibleProvider, outputChannel, "toggle auto approve")) {
 			return
 		}
 
@@ -174,9 +211,15 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 
 type OpenClineInNewTabOptions = Omit<RegisterCommandOptions, "provider"> & {
 	title?: string
+	initialTab?: "visualBrowserInspector"
 }
 
-export const openClineInNewTab = async ({ context, outputChannel, title = "C Code" }: OpenClineInNewTabOptions) => {
+export const openClineInNewTab = async ({
+	context,
+	outputChannel,
+	title = "C Code",
+	initialTab,
+}: OpenClineInNewTabOptions) => {
 	// (This example uses webviewProvider activation event which is necessary to
 	// deserialize cached webview, but since we use retainContextWhenHidden, we
 	// don't need to use that event).
@@ -184,7 +227,7 @@ export const openClineInNewTab = async ({ context, outputChannel, title = "C Cod
 	const contextProxy = await ContextProxy.getInstance(context)
 	const codeIndexManager = CodeIndexManager.getInstance(context)
 
-	const tabProvider = new ClineProvider(context, outputChannel, "editor", contextProxy)
+	const tabProvider = new ClineProvider(context, outputChannel, "editor", contextProxy, initialTab)
 	const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
 
 	// Check if there are any visible text editors, otherwise open a new group
@@ -197,7 +240,10 @@ export const openClineInNewTab = async ({ context, outputChannel, title = "C Cod
 
 	const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
 
-	const newPanel = vscode.window.createWebviewPanel(ClineProvider.tabPanelId, title, targetCol, {
+	const panelId =
+		initialTab === "visualBrowserInspector" ? ClineProvider.visualBrowserInspectorPanelId : ClineProvider.tabPanelId
+
+	const newPanel = vscode.window.createWebviewPanel(panelId, title, targetCol, {
 		enableScripts: true,
 		retainContextWhenHidden: true,
 		localResourceRoots: [context.extensionUri],
@@ -247,7 +293,12 @@ export const openVisualBrowserInspectorPanel = async ({
 	context,
 	outputChannel,
 }: Omit<RegisterCommandOptions, "provider">) => {
-	const tabProvider = await openClineInNewTab({ context, outputChannel, title: "Visual Browser Inspector" })
+	const tabProvider = await openClineInNewTab({
+		context,
+		outputChannel,
+		title: "Visual Browser Inspector",
+		initialTab: "visualBrowserInspector",
+	})
 	await tabProvider.postMessageToWebview({ type: "visualBrowserInspector", payload: { action: "show" } })
 	return tabProvider
 }

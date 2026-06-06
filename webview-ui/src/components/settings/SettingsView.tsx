@@ -172,6 +172,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		alwaysAllowModeSwitch,
 		alwaysAllowSubtasks,
 		alwaysAllowParallelTasks,
+		alwaysAllowVisualBrowserInspector,
 		maxConcurrentParallelTasks,
 		alwaysAllowWrite,
 		alwaysAllowWriteOutsideWorkspace,
@@ -566,6 +567,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				maxDiagnosticMessages: maxDiagnosticMessages ?? 50,
 				alwaysAllowSubtasks,
 				alwaysAllowParallelTasks: alwaysAllowParallelTasks ?? false,
+				alwaysAllowVisualBrowserInspector: alwaysAllowVisualBrowserInspector ?? false,
 				maxConcurrentParallelTasks: normalizeParallelTaskConcurrency(
 					maxConcurrentParallelTasks ?? DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
 				),
@@ -1008,6 +1010,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								alwaysAllowModeSwitch={alwaysAllowModeSwitch}
 								alwaysAllowSubtasks={alwaysAllowSubtasks}
 								alwaysAllowParallelTasks={alwaysAllowParallelTasks}
+								alwaysAllowVisualBrowserInspector={alwaysAllowVisualBrowserInspector}
 								maxConcurrentParallelTasks={maxConcurrentParallelTasks}
 								alwaysAllowExecute={alwaysAllowExecute}
 								alwaysAllowFollowupQuestions={alwaysAllowFollowupQuestions}

@@ -255,6 +255,10 @@
 			"maxConcurrentDescription": "Wybierz, ilu agentów może działać jednocześnie dla zatwierdzonego planu zadań równoległych ({{min}}–{{max}}). Oczekujący agenci startują, gdy działający agenci zakończą pracę.",
 			"description": "Automatycznie zatwierdzaj prawidłowe plany zadań równoległych i uruchamiaj agentów bez wyświetlania modala podglądu planu"
 		},
+		"visualBrowserInspector": {
+			"label": "Przeglądarka",
+			"description": "Automatycznie zatwierdzaj akcje Visual Browser Inspector z czatu, w tym otwieranie kontrolowanych stron przeglądarki, zrzuty ekranu, inspekcję DOM, wycinki, analizę i interakcje ze stroną. Nie pozwala to na edycję plików ani polecenia terminala."
+		},
 		"followupQuestions": {
 			"label": "Pytanie",
 			"description": "Automatycznie wybierz pierwszą sugerowaną odpowiedź na pytania uzupełniające po skonfigurowanym limicie czasu",

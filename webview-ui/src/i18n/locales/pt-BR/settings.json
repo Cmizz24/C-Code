@@ -255,6 +255,10 @@
 			"maxConcurrentDescription": "Escolha quantos agentes podem ser executados ao mesmo tempo para um plano de tarefas paralelas aprovado ({{min}}–{{max}}). Agentes pendentes começam quando os agentes em execução terminam.",
 			"description": "Aprovar automaticamente planos válidos de tarefas paralelas e iniciar agentes sem mostrar o modal de pré-visualização do plano"
 		},
+		"visualBrowserInspector": {
+			"label": "Navegador",
+			"description": "Aprovar automaticamente ações do Visual Browser Inspector no chat, incluindo abrir páginas controladas do navegador, capturas de tela, inspeção do DOM, recortes, análise e interações com a página. Isso não permite edições de arquivos nem comandos de terminal."
+		},
 		"followupQuestions": {
 			"label": "Pergunta",
 			"description": "Selecionar automaticamente a primeira resposta sugerida para perguntas de acompanhamento após o tempo limite configurado",

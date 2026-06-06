@@ -8,6 +8,7 @@ interface AutoApprovalToggles {
 	alwaysAllowModeSwitch?: boolean
 	alwaysAllowSubtasks?: boolean
 	alwaysAllowParallelTasks?: boolean
+	alwaysAllowVisualBrowserInspector?: boolean
 	alwaysAllowFollowupQuestions?: boolean
 }
 

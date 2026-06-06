@@ -15,19 +15,34 @@ import {
 } from "@src/context/ExtensionStateContext"
 
 const TestComponent = () => {
-	const { allowedCommands, setAllowedCommands, soundEnabled, showRooIgnoredFiles, setShowRooIgnoredFiles } =
-		useExtensionState()
+	const {
+		allowedCommands,
+		setAllowedCommands,
+		soundEnabled,
+		showRooIgnoredFiles,
+		setShowRooIgnoredFiles,
+		alwaysAllowVisualBrowserInspector,
+		setAlwaysAllowVisualBrowserInspector,
+	} = useExtensionState()
 
 	return (
 		<div>
 			<div data-testid="allowed-commands">{JSON.stringify(allowedCommands)}</div>
 			<div data-testid="sound-enabled">{JSON.stringify(soundEnabled)}</div>
 			<div data-testid="show-rooignored-files">{JSON.stringify(showRooIgnoredFiles)}</div>
+			<div data-testid="always-allow-visual-browser-inspector">
+				{JSON.stringify(alwaysAllowVisualBrowserInspector)}
+			</div>
 			<button data-testid="update-button" onClick={() => setAllowedCommands(["npm install", "git status"])}>
 				Update Commands
 			</button>
 			<button data-testid="toggle-rooignore-button" onClick={() => setShowRooIgnoredFiles(!showRooIgnoredFiles)}>
 				Update Commands
+			</button>
+			<button
+				data-testid="toggle-vbi-auto-approval-button"
+				onClick={() => setAlwaysAllowVisualBrowserInspector(!alwaysAllowVisualBrowserInspector)}>
+				Update VBI Auto Approval
 			</button>
 		</div>
 	)
@@ -88,6 +103,16 @@ describe("ExtensionStateContext", () => {
 		expect(JSON.parse(screen.getByTestId("show-rooignored-files").textContent!)).toBe(true)
 	})
 
+	it("initializes with visual browser inspector auto-approval set to false", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<TestComponent />
+			</ExtensionStateContextProvider>,
+		)
+
+		expect(JSON.parse(screen.getByTestId("always-allow-visual-browser-inspector").textContent!)).toBe(false)
+	})
+
 	it("updates showRooIgnoredFiles through setShowRooIgnoredFiles", () => {
 		render(
 			<ExtensionStateContextProvider>
@@ -100,6 +125,20 @@ describe("ExtensionStateContext", () => {
 		})
 
 		expect(JSON.parse(screen.getByTestId("show-rooignored-files").textContent!)).toBe(false)
+	})
+
+	it("updates visual browser inspector auto-approval through setAlwaysAllowVisualBrowserInspector", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<TestComponent />
+			</ExtensionStateContextProvider>,
+		)
+
+		act(() => {
+			screen.getByTestId("toggle-vbi-auto-approval-button").click()
+		})
+
+		expect(JSON.parse(screen.getByTestId("always-allow-visual-browser-inspector").textContent!)).toBe(true)
 	})
 
 	it("updates allowedCommands through setAllowedCommands", () => {
