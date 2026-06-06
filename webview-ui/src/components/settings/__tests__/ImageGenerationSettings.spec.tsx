@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 
 import { ImageGenerationSettings } from "../ImageGenerationSettings"
 
@@ -173,6 +173,55 @@ describe("ImageGenerationSettings", () => {
 			)
 			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith("openAiImageGenerationApiMethod", "images_api")
 		})
+
+		it("should update ComfyUI provider-specific fields", () => {
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					enabled={true}
+					imageGenerationSettings={{
+						imageGenerationProvider: "comfyui",
+						comfyUiImageApiKey: "existing-comfyui-key",
+						comfyUiImageBaseUrl: "http://127.0.0.1:8188",
+						comfyUiImageGenerationSelectedModel: "sdxl.safetensors",
+						comfyUiImageGenerationNegativePrompt: "blurry",
+					}}
+				/>,
+			)
+
+			fireEvent.change(
+				screen.getByPlaceholderText(
+					"settings:experimental.IMAGE_GENERATION.apiKeyPlaceholder(provider=ComfyUI)",
+				),
+				{ target: { value: "updated-comfyui-key" } },
+			)
+			fireEvent.change(
+				screen.getByPlaceholderText(
+					"settings:experimental.IMAGE_GENERATION.baseUrlPlaceholder(url=http://127.0.0.1:8188)",
+				),
+				{ target: { value: "http://localhost:8188" } },
+			)
+			fireEvent.change(screen.getByDisplayValue("sdxl.safetensors"), {
+				target: { value: "juggernaut.safetensors" },
+			})
+			fireEvent.change(
+				screen.getByPlaceholderText("settings:experimental.IMAGE_GENERATION.negativePromptPlaceholder"),
+				{
+					target: { value: "low quality" },
+				},
+			)
+
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith("comfyUiImageApiKey", "updated-comfyui-key")
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith("comfyUiImageBaseUrl", "http://localhost:8188")
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith(
+				"comfyUiImageGenerationSelectedModel",
+				"juggernaut.safetensors",
+			)
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith(
+				"comfyUiImageGenerationNegativePrompt",
+				"low quality",
+			)
+		})
 	})
 
 	describe("Conditional Rendering", () => {
@@ -231,7 +280,7 @@ describe("ImageGenerationSettings", () => {
 			).toBeInTheDocument()
 		})
 
-		it("should render optional API key and missing-model warning for local providers", () => {
+		it("should render active provider choices only and normalize legacy local providers to OpenRouter", () => {
 			render(
 				<ImageGenerationSettings
 					{...defaultProps}
@@ -240,14 +289,89 @@ describe("ImageGenerationSettings", () => {
 				/>,
 			)
 
+			const providerSelect = screen.getAllByRole("combobox")[0]
+			expect(providerSelect).toHaveValue("openrouter")
 			expect(
-				screen.getByText("settings:experimental.IMAGE_GENERATION.optionalApiKeyLabel(provider=Ollama)"),
+				within(providerSelect)
+					.getAllByRole("option")
+					.map((option) => option.textContent),
+			).toEqual(["OpenRouter", "OpenAI / OpenAI Compatible", "ComfyUI", "Automatic1111"])
+			expect(within(providerSelect).queryByRole("option", { name: "Ollama" })).not.toBeInTheDocument()
+			expect(within(providerSelect).queryByRole("option", { name: "LM Studio" })).not.toBeInTheDocument()
+			expect(screen.getByText("settings:experimental.IMAGE_GENERATION.localProviderNote")).toBeInTheDocument()
+			expect(
+				screen.getByPlaceholderText(
+					"settings:experimental.IMAGE_GENERATION.apiKeyPlaceholder(provider=OpenRouter)",
+				),
+			).toBeInTheDocument()
+			expect(
+				screen.queryByText("settings:experimental.IMAGE_GENERATION.optionalApiKeyLabel(provider=Ollama)"),
+			).not.toBeInTheDocument()
+		})
+
+		it("should render required local ComfyUI fields and missing-model warning", () => {
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					enabled={true}
+					imageGenerationSettings={{ imageGenerationProvider: "comfyui" }}
+				/>,
+			)
+
+			expect(
+				screen.getByText("settings:experimental.IMAGE_GENERATION.optionalApiKeyLabel(provider=ComfyUI)"),
+			).toBeInTheDocument()
+			expect(
+				screen.getByPlaceholderText(
+					"settings:experimental.IMAGE_GENERATION.baseUrlPlaceholder(url=http://127.0.0.1:8188)",
+				),
 			).toBeInTheDocument()
 			expect(
 				screen.getByPlaceholderText("settings:experimental.IMAGE_GENERATION.customModelIdPlaceholder"),
 			).toBeInTheDocument()
+			expect(screen.getByText("settings:experimental.IMAGE_GENERATION.negativePromptLabel")).toBeInTheDocument()
 			expect(
-				screen.getByText("settings:experimental.IMAGE_GENERATION.warningMissingModel(provider=Ollama)"),
+				screen.getByPlaceholderText("settings:experimental.IMAGE_GENERATION.negativePromptPlaceholder"),
+			).toBeInTheDocument()
+			expect(
+				screen.getByDisplayValue("settings:experimental.IMAGE_GENERATION.apiMethodLabels.comfyui_api"),
+			).toBeDisabled()
+			expect(
+				screen.getByText("settings:experimental.IMAGE_GENERATION.warningMissingModel(provider=ComfyUI)"),
+			).toBeInTheDocument()
+		})
+
+		it("should render optional Automatic1111 model field without missing-model warning", () => {
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					enabled={true}
+					imageGenerationSettings={{ imageGenerationProvider: "automatic1111" }}
+				/>,
+			)
+
+			expect(
+				screen.getByText("settings:experimental.IMAGE_GENERATION.optionalApiKeyLabel(provider=Automatic1111)"),
+			).toBeInTheDocument()
+			expect(
+				screen.getByPlaceholderText(
+					"settings:experimental.IMAGE_GENERATION.baseUrlPlaceholder(url=http://127.0.0.1:7860)",
+				),
+			).toBeInTheDocument()
+			expect(
+				screen.getByText("settings:experimental.IMAGE_GENERATION.optionalModelIdDescription"),
+			).toBeInTheDocument()
+			expect(screen.getByText("settings:experimental.IMAGE_GENERATION.negativePromptLabel")).toBeInTheDocument()
+			expect(
+				screen.getByDisplayValue("settings:experimental.IMAGE_GENERATION.apiMethodLabels.automatic1111_api"),
+			).toBeDisabled()
+			expect(
+				screen.queryByText(
+					"settings:experimental.IMAGE_GENERATION.warningMissingModel(provider=Automatic1111)",
+				),
+			).not.toBeInTheDocument()
+			expect(
+				screen.getByText("settings:experimental.IMAGE_GENERATION.successConfigured(provider=Automatic1111)"),
 			).toBeInTheDocument()
 		})
 

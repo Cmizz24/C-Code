@@ -324,6 +324,14 @@ export type ExtensionState = Pick<
 	| "openAiImageBaseUrl"
 	| "openAiImageGenerationSelectedModel"
 	| "openAiImageGenerationApiMethod"
+	| "comfyUiImageBaseUrl"
+	| "comfyUiImageGenerationSelectedModel"
+	| "comfyUiImageGenerationApiMethod"
+	| "comfyUiImageGenerationNegativePrompt"
+	| "automatic1111ImageBaseUrl"
+	| "automatic1111ImageGenerationSelectedModel"
+	| "automatic1111ImageGenerationApiMethod"
+	| "automatic1111ImageGenerationNegativePrompt"
 	| "ollamaImageBaseUrl"
 	| "ollamaImageGenerationSelectedModel"
 	| "ollamaImageGenerationApiMethod"
@@ -386,6 +394,8 @@ export type ExtensionState = Pick<
 	hasOpenedModeSelector: boolean
 	openRouterImageApiKey?: string
 	openAiImageApiKey?: string
+	comfyUiImageApiKey?: string
+	automatic1111ImageApiKey?: string
 	ollamaImageApiKey?: string
 	lmStudioImageApiKey?: string
 	smtpPasswordConfigured?: boolean

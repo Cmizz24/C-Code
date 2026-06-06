@@ -22,6 +22,7 @@
 		"apiKeyRequired": "Se requiere la clave API de {{provider}} para la generación de imágenes. Configúrala en la configuración experimental de Generación de Imágenes.",
 		"modelRequired": "{{provider}} requiere un ID de modelo para la generación de imágenes. Configúralo en la configuración experimental de Generación de Imágenes.",
 		"unsupportedApiMethod": "{{provider}} no admite el método de API de generación de imágenes {{apiMethod}}.",
+		"unsupportedProvider": "{{provider}} no es compatible con la generación de imágenes. Usa OpenRouter, OpenAI/OpenAI-compatible, ComfyUI o Automatic1111.",
 		"failedWithStatus": "Error al generar imagen: {{status}} {{statusText}}",
 		"failedWithMessage": "Error al generar imagen: {{message}}",
 		"noImageGenerated": "No se generó ninguna imagen en la respuesta",

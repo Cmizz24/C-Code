@@ -297,6 +297,39 @@ describe("generateImageTool", () => {
 		})
 	})
 
+	describe("output path validation", () => {
+		it("should reject unsupported output extensions before requesting approval", async () => {
+			const block: ToolUse = {
+				type: "tool_use",
+				name: "generate_image",
+				params: {
+					prompt: "Generate a test image",
+					path: "test-image.svg",
+				},
+				nativeArgs: {
+					prompt: "Generate a test image",
+					path: "test-image.svg",
+				},
+				partial: false,
+			}
+
+			await generateImageTool.handle(mockCline as Task, block as ToolUse<"generate_image">, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(mockCline.say).toHaveBeenCalledWith(
+				"error",
+				expect.stringContaining("Unsupported output file extension: .svg"),
+			)
+			expect(mockPushToolResult).toHaveBeenCalledWith(expect.stringContaining("SVG"))
+			expect(mockAskApproval).not.toHaveBeenCalled()
+			expect(generateImageWithConfiguredProvider).not.toHaveBeenCalled()
+			expect(fs.writeFile).not.toHaveBeenCalled()
+		})
+	})
+
 	describe("experiment validation", () => {
 		it("should error when image generation experiment is disabled", async () => {
 			// Disable the experiment

@@ -22,6 +22,7 @@
 		"apiKeyRequired": "Es requereix la clau API de {{provider}} per a la generació d'imatges. Configura-la a la configuració experimental de Generació d'Imatges.",
 		"modelRequired": "{{provider}} requereix un ID de model per a la generació d'imatges. Configura'l a la configuració experimental de Generació d'Imatges.",
 		"unsupportedApiMethod": "{{provider}} no admet el mètode d'API de generació d'imatges {{apiMethod}}.",
+		"unsupportedProvider": "{{provider}} no és compatible amb la generació d'imatges. Fes servir OpenRouter, OpenAI/OpenAI-compatible, ComfyUI o Automatic1111.",
 		"failedWithStatus": "Error en generar imatge: {{status}} {{statusText}}",
 		"failedWithMessage": "Error en generar imatge: {{message}}",
 		"noImageGenerated": "No s'ha generat cap imatge en la resposta",

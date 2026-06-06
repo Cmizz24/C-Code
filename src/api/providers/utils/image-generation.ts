@@ -25,12 +25,18 @@ interface ImagesApiResponse {
 		b64_json?: string
 		url?: string
 	}>
+	images?: string[]
+	image?: string
 	error?: {
 		message?: string
 		type?: string
 		code?: string
 	}
 }
+
+type ImageGenerationProviderName = "openrouter" | "openai" | "comfyui" | "automatic1111"
+
+type ImageGenerationApiMethodName = "chat_completions" | "images_api" | "comfyui_api" | "automatic1111_api"
 
 export interface ImageGenerationResult {
 	success: boolean
@@ -45,6 +51,7 @@ export interface ImageGenerationOptions {
 	model: string
 	prompt: string
 	inputImage?: string
+	provider?: ImageGenerationProviderName
 }
 
 export interface ImagesApiOptions {
@@ -56,6 +63,27 @@ export interface ImagesApiOptions {
 	size?: string
 	quality?: string
 	outputFormat?: string
+	provider?: ImageGenerationProviderName
+}
+
+export interface Automatic1111ImageGenerationOptions {
+	baseURL: string
+	authToken?: string
+	model?: string
+	prompt: string
+	negativePrompt?: string
+	inputImage?: string
+	provider?: Extract<ImageGenerationProviderName, "automatic1111">
+}
+
+export interface ComfyUiImageGenerationOptions {
+	baseURL: string
+	authToken?: string
+	model: string
+	prompt: string
+	negativePrompt?: string
+	inputImage?: string
+	provider?: Extract<ImageGenerationProviderName, "comfyui">
 }
 
 const buildImageGenerationHeaders = (authToken?: string): Record<string, string> => ({
@@ -64,6 +92,341 @@ const buildImageGenerationHeaders = (authToken?: string): Record<string, string>
 	"HTTP-Referer": "https://github.com/Cmizz24/C-Code",
 	"X-Title": "C Code",
 })
+
+const buildOptionalAuthHeaders = (authToken?: string): Record<string, string> =>
+	authToken ? { Authorization: `Bearer ${authToken}` } : {}
+
+const IMAGE_GENERATION_CONFIGURATION_GUIDANCE =
+	"Check that the configured image generation provider, base URL, API method, and model support text-to-image or image-edit generation. Local image generation requires a real image-generation API such as ComfyUI or Automatic1111. Vision/image-understanding models can analyze images, but they are not image-generation models."
+
+const IMAGE_GENERATION_RESPONSE_GUIDANCE =
+	"Expected image data in one of these response shapes: OpenAI Images API data[0].b64_json or data[0].url; OpenAI-compatible chat choices[0].message.images[].image_url.url; Automatic1111 images[] base64 output; ComfyUI history output images retrievable through /view; image, message.images, or images values containing base64 image strings; or text content containing a data:image/...;base64 URL or markdown image data URL. Use a real image-generation model through OpenRouter, OpenAI/OpenAI-compatible Images API, ComfyUI, or Automatic1111; vision/image-understanding models are not valid image-generation models."
+
+const STREAM_EVENTS_PROPERTY = "__streamEvents" as const
+
+const formatProviderError = (message: string): string =>
+	t("tools:generateImage.failedWithMessage", {
+		message,
+	})
+
+const formatResponseStatus = (response: Pick<Response, "status" | "statusText">): string =>
+	`${response.status}${response.statusText ? ` ${response.statusText}` : ""}`
+
+const getResponseStatus = (response: Response): string => {
+	const responseWithStatus = response as Partial<Pick<Response, "status" | "statusText">>
+	return typeof responseWithStatus.status === "number"
+		? formatResponseStatus(responseWithStatus as Response)
+		: "unknown"
+}
+
+const getResponseHeader = (response: Response, headerName: string): string | undefined => {
+	try {
+		const value = response.headers?.get?.(headerName)
+		return typeof value === "string" && value.trim() ? value.trim() : undefined
+	} catch {
+		return undefined
+	}
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null && !Array.isArray(value)
+
+interface ProviderResponseDiagnosticsContext {
+	provider?: ImageGenerationProviderName
+	apiMethod: ImageGenerationApiMethodName
+	endpoint: string
+	model: string
+}
+
+interface ProviderResponseDiagnostics {
+	status?: string
+	contentType?: string
+	bodyByteLength?: number
+	streaming?: boolean
+	topLevelKeys?: string[]
+	eventKeys?: string[]
+}
+
+type JsonParseResult<T> =
+	| { success: true; data: T; diagnostics: ProviderResponseDiagnostics }
+	| { success: false; error: string }
+
+type ProviderResponseRecord = Record<string, unknown> & {
+	[STREAM_EVENTS_PROPERTY]?: ProviderResponseRecord[]
+}
+
+type ImageCandidate =
+	| { kind: "data_or_url"; value: string; fallbackFormat?: string }
+	| { kind: "base64"; value: string; fallbackFormat?: string }
+
+const sanitizeDiagnosticValue = (value: unknown, fallback = "unknown"): string => {
+	const text = String(value ?? "")
+		.replace(/[\r\n\t]+/g, " ")
+		.trim()
+	if (!text) {
+		return fallback
+	}
+	return text.length > 160 ? `${text.slice(0, 157)}...` : text
+}
+
+const formatDiagnosticKeys = (keys: string[] | undefined): string =>
+	keys && keys.length > 0 ? keys.map((key) => sanitizeDiagnosticValue(key)).join("|") : "none"
+
+const getProviderSpecificGuidance = (_context: ProviderResponseDiagnosticsContext): string => ""
+
+const formatProviderResponseDiagnostics = (
+	context: ProviderResponseDiagnosticsContext,
+	diagnostics: ProviderResponseDiagnostics,
+): string => {
+	return [
+		`provider=${sanitizeDiagnosticValue(context.provider)}`,
+		`apiMethod=${sanitizeDiagnosticValue(context.apiMethod)}`,
+		`endpoint=${sanitizeDiagnosticValue(context.endpoint)}`,
+		`status=${sanitizeDiagnosticValue(diagnostics.status)}`,
+		`contentType=${sanitizeDiagnosticValue(diagnostics.contentType)}`,
+		`bodyByteLength=${diagnostics.bodyByteLength ?? "unknown"}`,
+		`streaming=${diagnostics.streaming === undefined ? "unknown" : String(diagnostics.streaming)}`,
+		`topLevelKeys=${formatDiagnosticKeys(diagnostics.topLevelKeys)}`,
+		`eventKeys=${formatDiagnosticKeys(diagnostics.eventKeys)}`,
+		`model=${sanitizeDiagnosticValue(context.model)}`,
+	].join(", ")
+}
+
+const formatProviderErrorWithDiagnostics = (
+	message: string,
+	context: ProviderResponseDiagnosticsContext,
+	diagnostics: ProviderResponseDiagnostics,
+): string => {
+	const providerSpecificGuidance = getProviderSpecificGuidance(context)
+	return formatProviderError(
+		`${message}${providerSpecificGuidance ? ` ${providerSpecificGuidance}` : ""} Diagnostics: ${formatProviderResponseDiagnostics(context, diagnostics)}`,
+	)
+}
+
+const getRecordKeys = (record: Record<string, unknown>): string[] =>
+	Object.keys(record)
+		.filter((key) => key !== STREAM_EVENTS_PROPERTY)
+		.sort()
+
+const getEventKeys = (record: ProviderResponseRecord): string[] | undefined => {
+	const events = record[STREAM_EVENTS_PROPERTY]
+	if (!Array.isArray(events) || events.length === 0) {
+		return undefined
+	}
+
+	return [...new Set(events.flatMap((event) => getRecordKeys(event)))].sort()
+}
+
+const isStreamingResponse = (response: Response, parsedAsStream = false): boolean => {
+	if (parsedAsStream) {
+		return true
+	}
+
+	const contentType = getResponseHeader(response, "content-type") || ""
+	const transferEncoding = getResponseHeader(response, "transfer-encoding") || ""
+	return /(?:text\/event-stream|application\/(?:x-)?ndjson)/i.test(contentType) || /chunked/i.test(transferEncoding)
+}
+
+const buildResponseDiagnostics = (
+	response: Response,
+	overrides: Partial<ProviderResponseDiagnostics> = {},
+): ProviderResponseDiagnostics => ({
+	status: getResponseStatus(response),
+	contentType: getResponseHeader(response, "content-type") || "unknown",
+	streaming: isStreamingResponse(response),
+	...overrides,
+})
+
+const getEndpointPath = (url: string): string => {
+	try {
+		return new URL(url).pathname || "unknown"
+	} catch {
+		const withoutQuery = url.split(/[?#]/)[0]
+		const match = withoutQuery.match(/^https?:\/\/[^/]+(\/.*)$/i)
+		return match?.[1] || withoutQuery || "unknown"
+	}
+}
+
+const validateProviderJsonShape = <T>(
+	value: unknown,
+	context: ProviderResponseDiagnosticsContext,
+	diagnostics: ProviderResponseDiagnostics,
+): JsonParseResult<T> => {
+	if (!isRecord(value)) {
+		return {
+			success: false,
+			error: formatProviderErrorWithDiagnostics(
+				`The image generation provider returned an unexpected JSON response. ${IMAGE_GENERATION_CONFIGURATION_GUIDANCE}`,
+				context,
+				diagnostics,
+			),
+		}
+	}
+
+	const record = value as ProviderResponseRecord
+	return {
+		success: true,
+		data: value as T,
+		diagnostics: {
+			...diagnostics,
+			topLevelKeys: getRecordKeys(record),
+			eventKeys: getEventKeys(record),
+		},
+	}
+}
+
+const parseNdjsonProviderResponse = (responseText: string): ProviderResponseRecord | undefined => {
+	const events: ProviderResponseRecord[] = []
+
+	for (const line of responseText.split(/\r?\n/)) {
+		const trimmedLine = line.trim()
+		if (!trimmedLine) {
+			continue
+		}
+
+		const jsonLine = trimmedLine.startsWith("data:") ? trimmedLine.slice("data:".length).trim() : trimmedLine
+		if (jsonLine === "[DONE]") {
+			continue
+		}
+
+		try {
+			const parsed = JSON.parse(jsonLine)
+			if (!isRecord(parsed)) {
+				return undefined
+			}
+			events.push(parsed as ProviderResponseRecord)
+		} catch {
+			return undefined
+		}
+	}
+
+	return events.length > 0 ? { [STREAM_EVENTS_PROPERTY]: events } : undefined
+}
+
+async function readProviderJsonResponse<T>(
+	response: Response,
+	responseDescription: string,
+	context: ProviderResponseDiagnosticsContext,
+): Promise<JsonParseResult<T>> {
+	const responseWithText = response as Response & { text?: () => Promise<string>; json?: () => Promise<unknown> }
+
+	if (typeof responseWithText.text === "function") {
+		const responseText = await responseWithText.text()
+		const diagnostics = buildResponseDiagnostics(response, {
+			bodyByteLength: Buffer.byteLength(responseText, "utf8"),
+		})
+
+		if (!responseText.trim()) {
+			return {
+				success: false,
+				error: formatProviderErrorWithDiagnostics(
+					`The image generation provider returned an empty ${responseDescription}. ${IMAGE_GENERATION_CONFIGURATION_GUIDANCE}`,
+					context,
+					diagnostics,
+				),
+			}
+		}
+
+		try {
+			return validateProviderJsonShape<T>(JSON.parse(responseText), context, diagnostics)
+		} catch {
+			const ndjsonResult = parseNdjsonProviderResponse(responseText)
+			if (ndjsonResult) {
+				return validateProviderJsonShape<T>(ndjsonResult, context, {
+					...diagnostics,
+					streaming: true,
+				})
+			}
+
+			return {
+				success: false,
+				error: formatProviderErrorWithDiagnostics(
+					`The image generation provider returned a non-JSON ${responseDescription}. ${IMAGE_GENERATION_CONFIGURATION_GUIDANCE}`,
+					context,
+					diagnostics,
+				),
+			}
+		}
+	}
+
+	if (typeof responseWithText.json === "function") {
+		const diagnostics = buildResponseDiagnostics(response)
+		try {
+			return validateProviderJsonShape<T>(await responseWithText.json(), context, diagnostics)
+		} catch {
+			return {
+				success: false,
+				error: formatProviderErrorWithDiagnostics(
+					`The image generation provider returned an invalid JSON ${responseDescription}. ${IMAGE_GENERATION_CONFIGURATION_GUIDANCE}`,
+					context,
+					diagnostics,
+				),
+			}
+		}
+	}
+
+	return {
+		success: false,
+		error: formatProviderErrorWithDiagnostics(
+			`The image generation provider returned an unreadable ${responseDescription}. ${IMAGE_GENERATION_CONFIGURATION_GUIDANCE}`,
+			context,
+			buildResponseDiagnostics(response),
+		),
+	}
+}
+
+const getErrorMessageFromErrorResponse = async (
+	response: Response,
+	context: ProviderResponseDiagnosticsContext,
+): Promise<string> => {
+	const statusMessage = t("tools:generateImage.failedWithStatus", {
+		status: response.status,
+		statusText: response.statusText,
+	})
+	const responseWithText = response as Response & { text?: () => Promise<string> }
+
+	if (typeof responseWithText.text !== "function") {
+		return statusMessage
+	}
+
+	const errorText = await responseWithText.text()
+	const diagnostics = buildResponseDiagnostics(response, {
+		bodyByteLength: Buffer.byteLength(errorText, "utf8"),
+	})
+	if (!errorText.trim()) {
+		return formatProviderErrorWithDiagnostics(
+			`The image generation provider returned an empty error response (${formatResponseStatus(response)}). ${IMAGE_GENERATION_CONFIGURATION_GUIDANCE}`,
+			context,
+			diagnostics,
+		)
+	}
+
+	try {
+		const errorJson = JSON.parse(errorText)
+		if (isRecord(errorJson) && isRecord(errorJson.error) && typeof errorJson.error.message === "string") {
+			return formatProviderError(errorJson.error.message)
+		}
+
+		if (isRecord(errorJson)) {
+			return formatProviderErrorWithDiagnostics(
+				`The image generation provider returned an error response (${formatResponseStatus(response)}). ${IMAGE_GENERATION_CONFIGURATION_GUIDANCE}`,
+				context,
+				{
+					...diagnostics,
+					topLevelKeys: getRecordKeys(errorJson),
+				},
+			)
+		}
+	} catch {
+		return formatProviderErrorWithDiagnostics(
+			`The image generation provider returned a non-JSON error response (${formatResponseStatus(response)}). ${IMAGE_GENERATION_CONFIGURATION_GUIDANCE}`,
+			context,
+			diagnostics,
+		)
+	}
+
+	return statusMessage
+}
 
 const getImageFormatFromContentType = (contentType: string | null | undefined): string | undefined => {
 	const match = contentType?.match(/^image\/(png|jpeg|jpg|webp|gif)(?:;|$)/i)
@@ -78,6 +441,726 @@ const getImageFormatFromUrl = (url: string): string | undefined => {
 	} catch {
 		const match = url.match(/\.(png|jpe?g|webp|gif)(?:\?|#|$)/i)
 		return match?.[1]?.toLowerCase().replace("jpg", "jpeg")
+	}
+}
+
+const normalizeBinaryImageResponse = async (
+	response: Response,
+	fallbackFormat = "png",
+): Promise<Pick<ImageGenerationResult, "imageData" | "imageFormat"> | undefined> => {
+	const contentType = getResponseHeader(response, "content-type")
+	const format = normalizeImageFormat(getImageFormatFromContentType(contentType), fallbackFormat)
+
+	if (!getImageFormatFromContentType(contentType)) {
+		return undefined
+	}
+
+	const responseWithArrayBuffer = response as Response & { arrayBuffer?: () => Promise<ArrayBuffer> }
+	if (typeof responseWithArrayBuffer.arrayBuffer !== "function") {
+		return undefined
+	}
+
+	const arrayBuffer = await responseWithArrayBuffer.arrayBuffer()
+	const base64Data = Buffer.from(arrayBuffer).toString("base64")
+	return {
+		imageData: `data:image/${format};base64,${base64Data}`,
+		imageFormat: format,
+	}
+}
+
+const sanitizeBase64ImageData = (value: string): string => value.trim().replace(/\s/g, "")
+
+const normalizeImageFormat = (format: string | undefined, fallbackFormat = "png"): string => {
+	const normalized = (format || fallbackFormat).toLowerCase().replace("jpg", "jpeg")
+	return normalized || "png"
+}
+
+const detectImageFormatFromBase64 = (base64Data: string): string | undefined => {
+	try {
+		const buffer = Buffer.from(sanitizeBase64ImageData(base64Data).slice(0, 64), "base64")
+
+		if (
+			buffer.length >= 8 &&
+			buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+		) {
+			return "png"
+		}
+
+		if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+			return "jpeg"
+		}
+
+		if (buffer.length >= 6) {
+			const signature = buffer.subarray(0, 6).toString("ascii")
+			if (signature === "GIF87a" || signature === "GIF89a") {
+				return "gif"
+			}
+		}
+
+		if (
+			buffer.length >= 12 &&
+			buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
+			buffer.subarray(8, 12).toString("ascii") === "WEBP"
+		) {
+			return "webp"
+		}
+	} catch {
+		return undefined
+	}
+
+	return undefined
+}
+
+const getStringField = (record: Record<string, unknown>, field: string): string | undefined => {
+	const value = record[field]
+	return typeof value === "string" && value.trim() ? value : undefined
+}
+
+const getMimeImageFormat = (record: Record<string, unknown>): string | undefined => {
+	const mimeType = getStringField(record, "mimeType") || getStringField(record, "mime_type")
+	const match = mimeType?.match(/^image\/(png|jpeg|jpg|webp|gif)$/i)
+	return match?.[1]?.toLowerCase().replace("jpg", "jpeg")
+}
+
+const getImageCandidateFromText = (text: string, fallbackFormat = "png"): ImageCandidate | undefined => {
+	const dataUrlMatch = text.match(/data:image\/(?:png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=]+/i)
+	if (dataUrlMatch?.[0]) {
+		return { kind: "data_or_url", value: dataUrlMatch[0], fallbackFormat }
+	}
+
+	const markdownImageUrlMatch = text.match(
+		/!\[[^\]]*\]\((https?:\/\/[^)\s]+\.(?:png|jpe?g|webp|gif)(?:\?[^)\s]*)?)\)/i,
+	)
+	if (markdownImageUrlMatch?.[1]) {
+		return { kind: "data_or_url", value: markdownImageUrlMatch[1], fallbackFormat }
+	}
+
+	const compactText = text
+		.trim()
+		.replace(/^```(?:\w+)?\s*/i, "")
+		.replace(/\s*```$/, "")
+		.replace(/\s/g, "")
+
+	if (compactText.length > 64 && /^[A-Za-z0-9+/=]+$/.test(compactText) && detectImageFormatFromBase64(compactText)) {
+		return { kind: "base64", value: compactText, fallbackFormat }
+	}
+
+	return undefined
+}
+
+const getImageCandidateFromImageValue = (value: unknown, fallbackFormat = "png"): ImageCandidate | undefined => {
+	if (typeof value === "string" && value.trim()) {
+		const trimmedValue = value.trim()
+		return trimmedValue.startsWith("data:image/") || /^https?:\/\//i.test(trimmedValue)
+			? { kind: "data_or_url", value: trimmedValue, fallbackFormat }
+			: { kind: "base64", value: trimmedValue, fallbackFormat }
+	}
+
+	if (!isRecord(value)) {
+		return undefined
+	}
+
+	const imageUrl = value.image_url
+	if (isRecord(imageUrl)) {
+		const imageUrlValue = getStringField(imageUrl, "url")
+		if (imageUrlValue) {
+			return { kind: "data_or_url", value: imageUrlValue, fallbackFormat }
+		}
+	}
+
+	const url = getStringField(value, "url")
+	if (url) {
+		return { kind: "data_or_url", value: url, fallbackFormat }
+	}
+
+	const base64Value =
+		getStringField(value, "b64_json") || getStringField(value, "base64") || getStringField(value, "data")
+	if (base64Value) {
+		return { kind: "base64", value: base64Value, fallbackFormat: getMimeImageFormat(value) || fallbackFormat }
+	}
+
+	return undefined
+}
+
+const getImageCandidateFromImagesArray = (value: unknown, fallbackFormat = "png"): ImageCandidate | undefined => {
+	if (!Array.isArray(value)) {
+		return undefined
+	}
+
+	for (const item of value) {
+		const candidate = getImageCandidateFromImageValue(item, fallbackFormat)
+		if (candidate) {
+			return candidate
+		}
+	}
+
+	return undefined
+}
+
+const getImageCandidateFromContent = (value: unknown, fallbackFormat = "png"): ImageCandidate | undefined => {
+	if (typeof value === "string") {
+		return getImageCandidateFromText(value, fallbackFormat)
+	}
+
+	if (Array.isArray(value)) {
+		for (const item of value) {
+			const candidate =
+				getImageCandidateFromImageValue(item, fallbackFormat) ||
+				getImageCandidateFromContent(item, fallbackFormat)
+			if (candidate) {
+				return candidate
+			}
+		}
+		return undefined
+	}
+
+	if (!isRecord(value)) {
+		return undefined
+	}
+
+	const imageValueCandidate = getImageCandidateFromImageValue(value, fallbackFormat)
+	if (imageValueCandidate) {
+		return imageValueCandidate
+	}
+
+	const text = getStringField(value, "text") || getStringField(value, "content")
+	return text ? getImageCandidateFromText(text, fallbackFormat) : undefined
+}
+
+const getImageCandidateFromMessage = (message: unknown, fallbackFormat = "png"): ImageCandidate | undefined => {
+	if (!isRecord(message)) {
+		return undefined
+	}
+
+	return (
+		getImageCandidateFromImagesArray(message.images, fallbackFormat) ||
+		getImageCandidateFromContent(message.content, fallbackFormat) ||
+		getImageCandidateFromImageValue(message, fallbackFormat)
+	)
+}
+
+const collectTextFragmentsFromRecord = (record: ProviderResponseRecord): string[] => {
+	const fragments: string[] = []
+
+	const response = getStringField(record, "response")
+	if (response) {
+		fragments.push(response)
+	}
+
+	const content = getStringField(record, "content")
+	if (content) {
+		fragments.push(content)
+	}
+
+	if (isRecord(record.message)) {
+		const messageContent = getStringField(record.message, "content")
+		if (messageContent) {
+			fragments.push(messageContent)
+		}
+	}
+
+	if (Array.isArray(record.choices)) {
+		for (const choice of record.choices) {
+			if (!isRecord(choice)) {
+				continue
+			}
+
+			for (const messageKey of ["message", "delta"] as const) {
+				if (isRecord(choice[messageKey])) {
+					const messageContent = getStringField(choice[messageKey], "content")
+					if (messageContent) {
+						fragments.push(messageContent)
+					}
+				}
+			}
+		}
+	}
+
+	return fragments
+}
+
+const getImageCandidateFromProviderRecord = (
+	record: ProviderResponseRecord,
+	fallbackFormat = "png",
+	includeStreamEvents = true,
+): ImageCandidate | undefined => {
+	if (includeStreamEvents && Array.isArray(record[STREAM_EVENTS_PROPERTY])) {
+		const streamEvents = record[STREAM_EVENTS_PROPERTY] ?? []
+
+		for (const event of streamEvents) {
+			const candidate = getImageCandidateFromProviderRecord(event, fallbackFormat, false)
+			if (candidate) {
+				return candidate
+			}
+		}
+
+		const combinedText = streamEvents.flatMap((event) => collectTextFragmentsFromRecord(event)).join("")
+		if (combinedText) {
+			return getImageCandidateFromText(combinedText, fallbackFormat)
+		}
+	}
+
+	const data = record.data
+	if (Array.isArray(data)) {
+		const dataCandidate = getImageCandidateFromImagesArray(data, fallbackFormat)
+		if (dataCandidate) {
+			return dataCandidate
+		}
+	}
+
+	if (Array.isArray(record.choices)) {
+		for (const choice of record.choices) {
+			if (!isRecord(choice)) {
+				continue
+			}
+
+			const candidate =
+				getImageCandidateFromMessage(choice.message, fallbackFormat) ||
+				getImageCandidateFromMessage(choice.delta, fallbackFormat) ||
+				getImageCandidateFromContent(choice.content, fallbackFormat)
+
+			if (candidate) {
+				return candidate
+			}
+		}
+	}
+
+	return (
+		getImageCandidateFromMessage(record.message, fallbackFormat) ||
+		getImageCandidateFromImagesArray(record.images, fallbackFormat) ||
+		getImageCandidateFromImageValue(record.image, fallbackFormat) ||
+		getImageCandidateFromContent(record.response, fallbackFormat) ||
+		getImageCandidateFromContent(record.content, fallbackFormat)
+	)
+}
+
+const normalizeImageCandidate = async (
+	candidate: ImageCandidate,
+	fallbackFormat = "png",
+): Promise<Pick<ImageGenerationResult, "imageData" | "imageFormat">> => {
+	if (candidate.kind === "base64") {
+		const base64Data = sanitizeBase64ImageData(candidate.value)
+		const imageFormat = normalizeImageFormat(
+			detectImageFormatFromBase64(base64Data),
+			candidate.fallbackFormat || fallbackFormat,
+		)
+
+		return {
+			imageData: `data:image/${imageFormat};base64,${base64Data}`,
+			imageFormat,
+		}
+	}
+
+	return normalizeImageGenerationData(candidate.value, candidate.fallbackFormat || fallbackFormat)
+}
+
+const extractImageFromProviderResponse = async (
+	result: ProviderResponseRecord,
+	fallbackFormat = "png",
+): Promise<Pick<ImageGenerationResult, "imageData" | "imageFormat"> | undefined> => {
+	const candidate = getImageCandidateFromProviderRecord(result, fallbackFormat)
+	return candidate ? normalizeImageCandidate(candidate, fallbackFormat) : undefined
+}
+
+const getNoExtractableImageError = (
+	apiMethod: ImageGenerationApiMethodName,
+	context: ProviderResponseDiagnosticsContext,
+	diagnostics: ProviderResponseDiagnostics,
+): string =>
+	formatProviderErrorWithDiagnostics(
+		`The image generation provider response did not include extractable image data for the ${apiMethod} API method. ${IMAGE_GENERATION_RESPONSE_GUIDANCE}`,
+		context,
+		diagnostics,
+	)
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+interface Automatic1111ImageGenerationResponse {
+	images?: unknown[]
+	info?: string
+	parameters?: Record<string, unknown>
+	error?: string | { message?: string }
+}
+
+interface ComfyUiPromptResponse {
+	prompt_id?: string
+	number?: number
+	node_errors?: Record<string, unknown>
+	error?: string | { message?: string }
+}
+
+interface ComfyUiImageReference {
+	filename: string
+	subfolder?: string
+	type?: string
+}
+
+const getLocalProviderErrorMessage = (error: unknown): string => {
+	if (typeof error === "string" && error.trim()) {
+		return error.trim()
+	}
+
+	if (isRecord(error) && typeof error.message === "string" && error.message.trim()) {
+		return error.message.trim()
+	}
+
+	return t("tools:generateImage.unknownError")
+}
+
+const buildComfyUiDefaultWorkflow = (options: { model: string; prompt: string; negativePrompt?: string }) => ({
+	"3": {
+		class_type: "KSampler",
+		inputs: {
+			seed: Math.floor(Math.random() * Number.MAX_SAFE_INTEGER),
+			steps: 20,
+			cfg: 8,
+			sampler_name: "euler",
+			scheduler: "normal",
+			denoise: 1,
+			model: ["4", 0],
+			positive: ["6", 0],
+			negative: ["7", 0],
+			latent_image: ["5", 0],
+		},
+	},
+	"4": {
+		class_type: "CheckpointLoaderSimple",
+		inputs: {
+			ckpt_name: options.model,
+		},
+	},
+	"5": {
+		class_type: "EmptyLatentImage",
+		inputs: {
+			width: 1024,
+			height: 1024,
+			batch_size: 1,
+		},
+	},
+	"6": {
+		class_type: "CLIPTextEncode",
+		inputs: {
+			text: options.prompt,
+			clip: ["4", 1],
+		},
+	},
+	"7": {
+		class_type: "CLIPTextEncode",
+		inputs: {
+			text: options.negativePrompt || "",
+			clip: ["4", 1],
+		},
+	},
+	"8": {
+		class_type: "VAEDecode",
+		inputs: {
+			samples: ["3", 0],
+			vae: ["4", 2],
+		},
+	},
+	"9": {
+		class_type: "SaveImage",
+		inputs: {
+			filename_prefix: "roo_image",
+			images: ["8", 0],
+		},
+	},
+})
+
+const getComfyUiImageReference = (
+	history: ProviderResponseRecord,
+	promptId: string,
+): ComfyUiImageReference | undefined => {
+	const promptHistory = isRecord(history[promptId]) ? (history[promptId] as Record<string, unknown>) : history
+	const outputs = isRecord(promptHistory.outputs) ? promptHistory.outputs : undefined
+
+	if (!outputs) {
+		return undefined
+	}
+
+	for (const output of Object.values(outputs)) {
+		if (!isRecord(output) || !Array.isArray(output.images)) {
+			continue
+		}
+
+		for (const image of output.images) {
+			if (!isRecord(image)) {
+				continue
+			}
+
+			const filename = getStringField(image, "filename")
+			if (!filename) {
+				continue
+			}
+
+			return {
+				filename,
+				subfolder: getStringField(image, "subfolder"),
+				type: getStringField(image, "type") || "output",
+			}
+		}
+	}
+
+	return undefined
+}
+
+const fetchComfyUiOutputImage = async (
+	baseURL: string,
+	authToken: string | undefined,
+	image: ComfyUiImageReference,
+	context: ProviderResponseDiagnosticsContext,
+): Promise<ImageGenerationResult> => {
+	const params = new URLSearchParams({
+		filename: image.filename,
+		type: image.type || "output",
+	})
+
+	if (image.subfolder) {
+		params.set("subfolder", image.subfolder)
+	}
+
+	const url = `${baseURL}/view?${params.toString()}`
+	const response = await fetch(url, {
+		method: "GET",
+		headers: buildOptionalAuthHeaders(authToken),
+	})
+
+	if (!response.ok) {
+		return {
+			success: false,
+			error: await getErrorMessageFromErrorResponse(response, { ...context, endpoint: getEndpointPath(url) }),
+		}
+	}
+
+	const binaryImage = await normalizeBinaryImageResponse(response)
+	if (binaryImage) {
+		return {
+			success: true,
+			...binaryImage,
+		}
+	}
+
+	return {
+		success: false,
+		error: formatProviderErrorWithDiagnostics(
+			`ComfyUI returned an output reference, but /view did not return image data. ${IMAGE_GENERATION_RESPONSE_GUIDANCE}`,
+			{ ...context, endpoint: getEndpointPath(url) },
+			buildResponseDiagnostics(response),
+		),
+	}
+}
+
+export async function generateImageWithAutomatic1111(
+	options: Automatic1111ImageGenerationOptions,
+): Promise<ImageGenerationResult> {
+	const { baseURL, authToken, model, prompt, negativePrompt, inputImage, provider = "automatic1111" } = options
+
+	if (inputImage) {
+		return {
+			success: false,
+			error: formatProviderError(
+				"Automatic1111 local image generation currently supports text-to-image requests through /sdapi/v1/txt2img. Remove the input image or use an image-edit provider.",
+			),
+		}
+	}
+
+	try {
+		const url = `${baseURL}/sdapi/v1/txt2img`
+		const diagnosticsContext: ProviderResponseDiagnosticsContext = {
+			provider,
+			apiMethod: "automatic1111_api",
+			endpoint: getEndpointPath(url),
+			model: model || "current-checkpoint",
+		}
+
+		const requestBody: Record<string, unknown> = {
+			prompt,
+			negative_prompt: negativePrompt || "",
+			width: 1024,
+			height: 1024,
+			batch_size: 1,
+			n_iter: 1,
+			steps: 20,
+			cfg_scale: 7,
+			sampler_name: "Euler",
+			save_images: false,
+		}
+
+		if (model?.trim()) {
+			requestBody.override_settings = {
+				sd_model_checkpoint: model.trim(),
+			}
+		}
+
+		const response = await fetch(url, {
+			method: "POST",
+			headers: buildImageGenerationHeaders(authToken),
+			body: JSON.stringify(requestBody),
+		})
+
+		if (!response.ok) {
+			return {
+				success: false,
+				error: await getErrorMessageFromErrorResponse(response, diagnosticsContext),
+			}
+		}
+
+		const parsedResult = await readProviderJsonResponse<Automatic1111ImageGenerationResponse>(
+			response,
+			"response",
+			diagnosticsContext,
+		)
+		if (!parsedResult.success) {
+			return parsedResult
+		}
+
+		const result = parsedResult.data
+		if (result.error) {
+			return {
+				success: false,
+				error: formatProviderError(getLocalProviderErrorMessage(result.error)),
+			}
+		}
+
+		const normalizedImage = await extractImageFromProviderResponse(result as ProviderResponseRecord)
+		if (!normalizedImage) {
+			return {
+				success: false,
+				error: getNoExtractableImageError("automatic1111_api", diagnosticsContext, parsedResult.diagnostics),
+			}
+		}
+
+		return {
+			success: true,
+			...normalizedImage,
+		}
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : t("tools:generateImage.unknownError"),
+		}
+	}
+}
+
+export async function generateImageWithComfyUi(options: ComfyUiImageGenerationOptions): Promise<ImageGenerationResult> {
+	const { baseURL, authToken, model, prompt, negativePrompt, inputImage, provider = "comfyui" } = options
+
+	if (inputImage) {
+		return {
+			success: false,
+			error: formatProviderError(
+				"ComfyUI local image generation currently uses Roo's default text-to-image workflow. Remove the input image or use an image-edit provider.",
+			),
+		}
+	}
+
+	try {
+		const url = `${baseURL}/prompt`
+		const diagnosticsContext: ProviderResponseDiagnosticsContext = {
+			provider,
+			apiMethod: "comfyui_api",
+			endpoint: getEndpointPath(url),
+			model,
+		}
+
+		const response = await fetch(url, {
+			method: "POST",
+			headers: buildImageGenerationHeaders(authToken),
+			body: JSON.stringify({
+				prompt: buildComfyUiDefaultWorkflow({ model, prompt, negativePrompt }),
+				client_id: `roo-code-${Date.now()}`,
+			}),
+		})
+
+		if (!response.ok) {
+			return {
+				success: false,
+				error: await getErrorMessageFromErrorResponse(response, diagnosticsContext),
+			}
+		}
+
+		const parsedPromptResult = await readProviderJsonResponse<ComfyUiPromptResponse>(
+			response,
+			"prompt response",
+			diagnosticsContext,
+		)
+		if (!parsedPromptResult.success) {
+			return parsedPromptResult
+		}
+
+		const promptResult = parsedPromptResult.data
+		if (promptResult.error) {
+			return {
+				success: false,
+				error: formatProviderError(getLocalProviderErrorMessage(promptResult.error)),
+			}
+		}
+
+		if (!promptResult.prompt_id) {
+			return {
+				success: false,
+				error: formatProviderErrorWithDiagnostics(
+					`ComfyUI did not return a prompt_id. ${IMAGE_GENERATION_CONFIGURATION_GUIDANCE}`,
+					diagnosticsContext,
+					parsedPromptResult.diagnostics,
+				),
+			}
+		}
+
+		const promptId = promptResult.prompt_id
+		for (let attempt = 0; attempt < 60; attempt++) {
+			const historyUrl = `${baseURL}/history/${encodeURIComponent(promptId)}`
+			const historyContext: ProviderResponseDiagnosticsContext = {
+				...diagnosticsContext,
+				endpoint: getEndpointPath(historyUrl),
+			}
+			const historyResponse = await fetch(historyUrl, {
+				method: "GET",
+				headers: buildOptionalAuthHeaders(authToken),
+			})
+
+			if (!historyResponse.ok) {
+				return {
+					success: false,
+					error: await getErrorMessageFromErrorResponse(historyResponse, historyContext),
+				}
+			}
+
+			const parsedHistoryResult = await readProviderJsonResponse<ProviderResponseRecord>(
+				historyResponse,
+				"history response",
+				historyContext,
+			)
+			if (!parsedHistoryResult.success) {
+				return parsedHistoryResult
+			}
+
+			const imageReference = getComfyUiImageReference(parsedHistoryResult.data, promptId)
+			if (imageReference) {
+				return fetchComfyUiOutputImage(baseURL, authToken, imageReference, diagnosticsContext)
+			}
+
+			if (isRecord(parsedHistoryResult.data[promptId])) {
+				return {
+					success: false,
+					error: getNoExtractableImageError("comfyui_api", historyContext, parsedHistoryResult.diagnostics),
+				}
+			}
+
+			await sleep(1_000)
+		}
+
+		return {
+			success: false,
+			error: formatProviderError(
+				"ComfyUI did not produce an image before the request timed out. Check that the server is running, the checkpoint name exists, and the workflow can complete.",
+			),
+		}
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : t("tools:generateImage.unknownError"),
+		}
 	}
 }
 
@@ -128,10 +1211,17 @@ export async function normalizeImageGenerationData(
  * Shared image generation implementation for OpenAI-compatible image providers.
  */
 export async function generateImageWithProvider(options: ImageGenerationOptions): Promise<ImageGenerationResult> {
-	const { baseURL, authToken, model, prompt, inputImage } = options
+	const { baseURL, authToken, model, prompt, inputImage, provider } = options
 
 	try {
-		const response = await fetch(`${baseURL}/chat/completions`, {
+		const url = `${baseURL}/chat/completions`
+		const diagnosticsContext: ProviderResponseDiagnosticsContext = {
+			provider,
+			apiMethod: "chat_completions",
+			endpoint: getEndpointPath(url),
+			model,
+		}
+		const response = await fetch(url, {
 			method: "POST",
 			headers: buildImageGenerationHeaders(authToken),
 			body: JSON.stringify({
@@ -160,29 +1250,31 @@ export async function generateImageWithProvider(options: ImageGenerationOptions)
 		})
 
 		if (!response.ok) {
-			const errorText = await response.text()
-			let errorMessage = t("tools:generateImage.failedWithStatus", {
-				status: response.status,
-				statusText: response.statusText,
-			})
-
-			try {
-				const errorJson = JSON.parse(errorText)
-				if (errorJson.error?.message) {
-					errorMessage = t("tools:generateImage.failedWithMessage", {
-						message: errorJson.error.message,
-					})
-				}
-			} catch {
-				// Use default error message
-			}
+			const errorMessage = await getErrorMessageFromErrorResponse(response, diagnosticsContext)
 			return {
 				success: false,
 				error: errorMessage,
 			}
 		}
 
-		const result: ImageGenerationResponse = await response.json()
+		const binaryImage = await normalizeBinaryImageResponse(response)
+		if (binaryImage) {
+			return {
+				success: true,
+				...binaryImage,
+			}
+		}
+
+		const parsedResult = await readProviderJsonResponse<ImageGenerationResponse>(
+			response,
+			"response",
+			diagnosticsContext,
+		)
+		if (!parsedResult.success) {
+			return parsedResult
+		}
+
+		const result = parsedResult.data
 
 		if (result.error) {
 			return {
@@ -193,24 +1285,13 @@ export async function generateImageWithProvider(options: ImageGenerationOptions)
 			}
 		}
 
-		// Extract the generated image from the response
-		const images = result.choices?.[0]?.message?.images
-		if (!images || images.length === 0) {
+		const normalizedImage = await extractImageFromProviderResponse(result as ProviderResponseRecord)
+		if (!normalizedImage) {
 			return {
 				success: false,
-				error: t("tools:generateImage.noImageGenerated"),
+				error: getNoExtractableImageError("chat_completions", diagnosticsContext, parsedResult.diagnostics),
 			}
 		}
-
-		const imageData = images[0]?.image_url?.url
-		if (!imageData) {
-			return {
-				success: false,
-				error: t("tools:generateImage.invalidImageData"),
-			}
-		}
-
-		const normalizedImage = await normalizeImageGenerationData(imageData)
 
 		return {
 			success: true,
@@ -229,10 +1310,16 @@ export async function generateImageWithProvider(options: ImageGenerationOptions)
  * Supports BFL models (Flux) with provider-specific options for image editing
  */
 export async function generateImageWithImagesApi(options: ImagesApiOptions): Promise<ImageGenerationResult> {
-	const { baseURL, authToken, model, prompt, inputImage, outputFormat = "png" } = options
+	const { baseURL, authToken, model, prompt, inputImage, outputFormat = "png", provider } = options
 
 	try {
 		const url = `${baseURL}/images/generations`
+		const diagnosticsContext: ProviderResponseDiagnosticsContext = {
+			provider,
+			apiMethod: "images_api",
+			endpoint: getEndpointPath(url),
+			model,
+		}
 
 		// Build the request body
 		// For BFL models, inputImage is passed via providerOptions.blackForestLabs.inputImage
@@ -273,29 +1360,27 @@ export async function generateImageWithImagesApi(options: ImagesApiOptions): Pro
 		const response = await fetch(url, fetchOptions)
 
 		if (!response.ok) {
-			const errorText = await response.text()
-			let errorMessage = t("tools:generateImage.failedWithStatus", {
-				status: response.status,
-				statusText: response.statusText,
-			})
-
-			try {
-				const errorJson = JSON.parse(errorText)
-				if (errorJson.error?.message) {
-					errorMessage = t("tools:generateImage.failedWithMessage", {
-						message: errorJson.error.message,
-					})
-				}
-			} catch {
-				// Use default error message
-			}
+			const errorMessage = await getErrorMessageFromErrorResponse(response, diagnosticsContext)
 			return {
 				success: false,
 				error: errorMessage,
 			}
 		}
 
-		const result: ImagesApiResponse = await response.json()
+		const binaryImage = await normalizeBinaryImageResponse(response, outputFormat)
+		if (binaryImage) {
+			return {
+				success: true,
+				...binaryImage,
+			}
+		}
+
+		const parsedResult = await readProviderJsonResponse<ImagesApiResponse>(response, "response", diagnosticsContext)
+		if (!parsedResult.success) {
+			return parsedResult
+		}
+
+		const result = parsedResult.data
 
 		if (result.error) {
 			return {
@@ -306,40 +1391,17 @@ export async function generateImageWithImagesApi(options: ImagesApiOptions): Pro
 			}
 		}
 
-		// Extract the generated image from the response
-		const images = result.data
-		if (!images || images.length === 0) {
+		const normalizedImage = await extractImageFromProviderResponse(result as ProviderResponseRecord, outputFormat)
+		if (!normalizedImage) {
 			return {
 				success: false,
-				error: t("tools:generateImage.noImageGenerated"),
-			}
-		}
-
-		const imageItem = images[0]
-
-		// Handle b64_json response (most common)
-		if (imageItem?.b64_json) {
-			// Convert base64 to data URL
-			const dataUrl = `data:image/${outputFormat};base64,${imageItem.b64_json}`
-			return {
-				success: true,
-				imageData: dataUrl,
-				imageFormat: outputFormat,
-			}
-		}
-
-		// Handle URL response (fallback)
-		if (imageItem?.url) {
-			const normalizedImage = await normalizeImageGenerationData(imageItem.url, outputFormat)
-			return {
-				success: true,
-				...normalizedImage,
+				error: getNoExtractableImageError("images_api", diagnosticsContext, parsedResult.diagnostics),
 			}
 		}
 
 		return {
-			success: false,
-			error: t("tools:generateImage.invalidImageData"),
+			success: true,
+			...normalizedImage,
 		}
 	} catch (error) {
 		return {

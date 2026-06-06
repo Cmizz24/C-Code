@@ -6,7 +6,7 @@ import {
 	getImageGenerationModel,
 	getImageGenerationModels,
 	getImageGenerationProvider,
-	IMAGE_GENERATION_PROVIDER_DEFINITIONS,
+	ACTIVE_IMAGE_GENERATION_PROVIDER_DEFINITIONS,
 	IMAGE_GENERATION_PROVIDERS,
 	type ImageGenerationApiMethod,
 	type ImageGenerationProvider,
@@ -68,9 +68,12 @@ export const ImageGenerationSettings = ({
 	const apiMethodLockedByModel = !!currentModelInfo?.apiMethod
 	const configuredBaseUrl = getStringSetting(settingsKeys.baseUrl) ?? ""
 	const configuredApiKey = getStringSetting(settingsKeys.apiKey) ?? ""
+	const configuredNegativePrompt = getStringSetting(settingsKeys.negativePrompt) ?? ""
 	const hasRequiredApiKey = !providerDefinition.requiresApiKey || configuredApiKey.trim().length > 0
-	const hasModel = currentModel.trim().length > 0
+	const requiresModel = providerDefinition.requiresModel ?? true
+	const hasModel = !requiresModel || currentModel.trim().length > 0
 	const isConfigured = hasRequiredApiKey && hasModel
+	const apiMethodDescriptionKey = "settings:experimental.IMAGE_GENERATION.apiMethodDescription"
 	const modelFieldPlaceholder = providerDefinition.defaultModel
 		? t("settings:experimental.IMAGE_GENERATION.modelIdPlaceholderWithDefault", {
 				model: providerDefinition.defaultModel,
@@ -87,6 +90,12 @@ export const ImageGenerationSettings = ({
 
 	const handleModelChange = (value: string) => {
 		setImageGenerationSetting(settingsKeys.model, value)
+	}
+
+	const handleNegativePromptChange = (value: string) => {
+		if (settingsKeys.negativePrompt) {
+			setImageGenerationSetting(settingsKeys.negativePrompt, value)
+		}
 	}
 
 	const renderModelInput = () => {
@@ -138,7 +147,7 @@ export const ImageGenerationSettings = ({
 							value={currentProvider}
 							onChange={(e: any) => handleProviderChange(e.target.value)}
 							className="w-full">
-							{IMAGE_GENERATION_PROVIDER_DEFINITIONS.map((provider) => (
+							{ACTIVE_IMAGE_GENERATION_PROVIDER_DEFINITIONS.map((provider) => (
 								<VSCodeOption key={provider.value} value={provider.value} className="py-2 px-3">
 									{provider.label}
 								</VSCodeOption>
@@ -146,6 +155,9 @@ export const ImageGenerationSettings = ({
 						</VSCodeDropdown>
 						<p className="text-vscode-descriptionForeground text-xs mt-1">
 							{t("settings:experimental.IMAGE_GENERATION.providerDescription")}
+						</p>
+						<p className="text-vscode-descriptionForeground text-xs mt-1">
+							{t("settings:experimental.IMAGE_GENERATION.localProviderNote")}
 						</p>
 					</div>
 
@@ -218,11 +230,30 @@ export const ImageGenerationSettings = ({
 						</label>
 						{renderModelInput()}
 						<p className="text-vscode-descriptionForeground text-xs mt-1">
-							{providerDefinition.supportsCustomModelId
-								? t("settings:experimental.IMAGE_GENERATION.customModelIdDescription")
-								: t("settings:experimental.IMAGE_GENERATION.modelSelectionDescription")}
+							{!requiresModel
+								? t("settings:experimental.IMAGE_GENERATION.optionalModelIdDescription")
+								: providerDefinition.supportsCustomModelId
+									? t("settings:experimental.IMAGE_GENERATION.customModelIdDescription")
+									: t("settings:experimental.IMAGE_GENERATION.modelSelectionDescription")}
 						</p>
 					</div>
+
+					{settingsKeys.negativePrompt && (
+						<div>
+							<label className="block font-medium mb-1">
+								{t("settings:experimental.IMAGE_GENERATION.negativePromptLabel")}
+							</label>
+							<VSCodeTextField
+								value={configuredNegativePrompt}
+								onInput={(e: any) => handleNegativePromptChange(e.target.value)}
+								placeholder={t("settings:experimental.IMAGE_GENERATION.negativePromptPlaceholder")}
+								className="w-full"
+							/>
+							<p className="text-vscode-descriptionForeground text-xs mt-1">
+								{t("settings:experimental.IMAGE_GENERATION.negativePromptDescription")}
+							</p>
+						</div>
+					)}
 
 					<div>
 						<label className="block font-medium mb-1">
@@ -244,7 +275,7 @@ export const ImageGenerationSettings = ({
 								? t("settings:experimental.IMAGE_GENERATION.apiMethodLockedDescription", {
 										model: currentModelInfo.label,
 									})
-								: t("settings:experimental.IMAGE_GENERATION.apiMethodDescription")}
+								: t(apiMethodDescriptionKey)}
 						</p>
 					</div>
 
@@ -256,7 +287,7 @@ export const ImageGenerationSettings = ({
 						</div>
 					)}
 
-					{hasRequiredApiKey && !hasModel && (
+					{hasRequiredApiKey && requiresModel && !hasModel && (
 						<div className="p-2 bg-vscode-editorWarning-background text-vscode-editorWarning-foreground rounded text-sm">
 							{t("settings:experimental.IMAGE_GENERATION.warningMissingModel", {
 								provider: providerDefinition.label,

@@ -12,6 +12,9 @@ import { generateImageWithConfiguredProvider } from "../../api/providers/utils/i
 import { BaseTool, ToolCallbacks } from "./BaseTool"
 import type { ToolUse } from "../../shared/tools"
 
+const SUPPORTED_OUTPUT_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"])
+const SUPPORTED_OUTPUT_FORMATS_DISPLAY = "PNG, JPG, JPEG, WEBP, GIF"
+
 export class GenerateImageTool extends BaseTool<"generate_image"> {
 	readonly name = "generate_image" as const
 
@@ -46,6 +49,15 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 			task.consecutiveMistakeCount++
 			task.recordToolError("generate_image")
 			pushToolResult(await task.sayAndCreateMissingParamError("generate_image", "path"))
+			return
+		}
+
+		const outputExtension = path.extname(relPath).toLowerCase()
+		if (outputExtension && !SUPPORTED_OUTPUT_EXTENSIONS.has(outputExtension)) {
+			const errorMessage = `Unsupported output file extension: ${outputExtension}. SVG output is not supported by image generation. Image generation can save ${SUPPORTED_OUTPUT_FORMATS_DISPLAY} files. Use a supported extension or omit the extension so Roo can choose one automatically.`
+			await task.say("error", errorMessage)
+			task.didToolFailInCurrentTurn = true
+			pushToolResult(formatResponse.toolError(errorMessage))
 			return
 		}
 

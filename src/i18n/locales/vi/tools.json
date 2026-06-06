@@ -22,6 +22,7 @@
 		"apiKeyRequired": "Cần khóa API {{provider}} để tạo hình ảnh. Vui lòng cấu hình trong cài đặt thử nghiệm Tạo hình ảnh.",
 		"modelRequired": "{{provider}} yêu cầu ID mô hình để tạo hình ảnh. Vui lòng cấu hình trong cài đặt thử nghiệm Tạo hình ảnh.",
 		"unsupportedApiMethod": "{{provider}} không hỗ trợ phương thức API tạo hình ảnh {{apiMethod}}.",
+		"unsupportedProvider": "{{provider}} không được hỗ trợ cho tạo hình ảnh. Hãy dùng OpenRouter, OpenAI/OpenAI-compatible, ComfyUI hoặc Automatic1111 thay thế.",
 		"failedWithStatus": "Tạo hình ảnh thất bại: {{status}} {{statusText}}",
 		"failedWithMessage": "Tạo hình ảnh thất bại: {{message}}",
 		"noImageGenerated": "Không có hình ảnh nào được tạo trong phản hồi",

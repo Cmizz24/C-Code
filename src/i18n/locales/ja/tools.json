@@ -22,6 +22,7 @@
 		"apiKeyRequired": "画像生成には{{provider}} APIキーが必要です。画像生成の実験設定で設定してください。",
 		"modelRequired": "{{provider}}では画像生成にモデルIDが必要です。画像生成の実験設定で設定してください。",
 		"unsupportedApiMethod": "{{provider}}は{{apiMethod}}画像生成APIメソッドをサポートしていません。",
+		"unsupportedProvider": "{{provider}} は画像生成ではサポートされていません。代わりに OpenRouter、OpenAI/OpenAI-compatible、ComfyUI、または Automatic1111 を使用してください。",
 		"failedWithStatus": "画像生成に失敗しました: {{status}} {{statusText}}",
 		"failedWithMessage": "画像生成に失敗しました: {{message}}",
 		"noImageGenerated": "レスポンスに画像が生成されませんでした",

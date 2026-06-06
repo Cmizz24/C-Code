@@ -22,6 +22,7 @@
 		"apiKeyRequired": "{{provider}} API key is required for image generation. Please configure it in the Image Generation experimental settings.",
 		"modelRequired": "{{provider}} requires a model ID for image generation. Please configure it in the Image Generation experimental settings.",
 		"unsupportedApiMethod": "{{provider}} does not support the {{apiMethod}} image generation API method.",
+		"unsupportedProvider": "{{provider}} is not supported for image generation. Use OpenRouter, OpenAI/OpenAI-compatible, ComfyUI, or Automatic1111 instead.",
 		"failedWithStatus": "Failed to generate image: {{status}} {{statusText}}",
 		"failedWithMessage": "Failed to generate image: {{message}}",
 		"noImageGenerated": "No image was generated in the response",

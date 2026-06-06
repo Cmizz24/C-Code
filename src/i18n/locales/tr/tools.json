@@ -22,6 +22,7 @@
 		"apiKeyRequired": "Görüntü oluşturma için {{provider}} API anahtarı gereklidir. Lütfen Görüntü Oluşturma deneysel ayarlarında yapılandırın.",
 		"modelRequired": "{{provider}} görüntü oluşturma için model ID'si gerektirir. Lütfen Görüntü Oluşturma deneysel ayarlarında yapılandırın.",
 		"unsupportedApiMethod": "{{provider}} {{apiMethod}} görüntü oluşturma API yöntemini desteklemiyor.",
+		"unsupportedProvider": "{{provider}} görüntü oluşturma için desteklenmiyor. Bunun yerine OpenRouter, OpenAI/OpenAI-compatible, ComfyUI veya Automatic1111 kullan.",
 		"failedWithStatus": "Görüntü oluşturma başarısız: {{status}} {{statusText}}",
 		"failedWithMessage": "Görüntü oluşturma başarısız: {{message}}",
 		"noImageGenerated": "Yanıtta görüntü oluşturulmadı",

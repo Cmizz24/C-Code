@@ -1,7 +1,12 @@
 import type { RooCodeSettings } from "@roo-code/types"
 
 import { generateImageWithConfiguredProvider, resolveImageGenerationConfig } from "../image-generation-provider"
-import { generateImageWithImagesApi, generateImageWithProvider } from "../image-generation"
+import {
+	generateImageWithAutomatic1111,
+	generateImageWithComfyUi,
+	generateImageWithImagesApi,
+	generateImageWithProvider,
+} from "../image-generation"
 
 vi.mock("../../../../i18n", () => ({
 	t: (key: string, options?: Record<string, string>) => {
@@ -17,6 +22,8 @@ vi.mock("../../../../i18n", () => ({
 }))
 
 vi.mock("../image-generation", () => ({
+	generateImageWithAutomatic1111: vi.fn(),
+	generateImageWithComfyUi: vi.fn(),
 	generateImageWithImagesApi: vi.fn(),
 	generateImageWithProvider: vi.fn(),
 }))
@@ -54,6 +61,7 @@ describe("resolveImageGenerationConfig", () => {
 			authToken: "openrouter-key",
 			model: "google/gemini-2.5-flash-image",
 			apiMethod: "chat_completions",
+			negativePrompt: undefined,
 		})
 	})
 
@@ -96,25 +104,27 @@ describe("resolveImageGenerationConfig", () => {
 		})
 	})
 
-	it("should allow local providers without API keys but require a model ID", () => {
+	it("should resolve ComfyUI settings with required checkpoint and optional auth", () => {
 		const missingModelResult = resolveImageGenerationConfig(
 			state({
-				imageGenerationProvider: "ollama",
+				imageGenerationProvider: "comfyui",
 			}),
 		)
 
 		expect(missingModelResult.success).toBe(false)
 		if (missingModelResult.success) {
-			throw new Error("Expected local provider resolution to fail without a model")
+			throw new Error("Expected ComfyUI resolution to fail without a checkpoint")
 		}
-		expect(missingModelResult.error).toBe("tools:generateImage.modelRequired(provider=Ollama)")
+		expect(missingModelResult.error).toBe("tools:generateImage.modelRequired(provider=ComfyUI)")
 
 		const result = resolveImageGenerationConfig(
 			state({
-				imageGenerationProvider: "ollama",
-				ollamaImageBaseUrl: "http://localhost:11434/v1/",
-				ollamaImageGenerationSelectedModel: "llava:latest",
-				ollamaImageGenerationApiMethod: "chat_completions",
+				imageGenerationProvider: "comfyui",
+				comfyUiImageApiKey: "  local-proxy-token  ",
+				comfyUiImageBaseUrl: " http://127.0.0.1:8188/// ",
+				comfyUiImageGenerationSelectedModel: "  sdxl.safetensors  ",
+				comfyUiImageGenerationApiMethod: "comfyui_api",
+				comfyUiImageGenerationNegativePrompt: "  blurry, low quality  ",
 			}),
 		)
 
@@ -124,12 +134,68 @@ describe("resolveImageGenerationConfig", () => {
 		}
 
 		expect(result.config).toEqual({
-			provider: "ollama",
-			providerLabel: "Ollama",
-			baseURL: "http://localhost:11434/v1",
+			provider: "comfyui",
+			providerLabel: "ComfyUI",
+			baseURL: "http://127.0.0.1:8188",
+			authToken: "local-proxy-token",
+			model: "sdxl.safetensors",
+			apiMethod: "comfyui_api",
+			negativePrompt: "blurry, low quality",
+		})
+	})
+
+	it("should resolve Automatic1111 settings without requiring a checkpoint override", () => {
+		const result = resolveImageGenerationConfig(
+			state({
+				imageGenerationProvider: "automatic1111",
+				automatic1111ImageGenerationSelectedModel: "   ",
+				automatic1111ImageGenerationNegativePrompt: "  bad anatomy  ",
+			}),
+		)
+
+		expect(result.success).toBe(true)
+		if (!result.success) {
+			throw new Error(result.error)
+		}
+
+		expect(result.config).toEqual({
+			provider: "automatic1111",
+			providerLabel: "Automatic1111",
+			baseURL: "http://127.0.0.1:7860",
 			authToken: undefined,
-			model: "llava:latest",
-			apiMethod: "chat_completions",
+			model: "",
+			apiMethod: "automatic1111_api",
+			negativePrompt: "bad anatomy",
+		})
+	})
+
+	it("should reject legacy unsupported local providers", () => {
+		const ollamaResult = resolveImageGenerationConfig(
+			state({
+				imageGenerationProvider: "ollama",
+				ollamaImageBaseUrl: "http://localhost:11434",
+				ollamaImageGenerationSelectedModel: "llava:latest",
+				ollamaImageGenerationApiMethod: "chat_completions",
+			}),
+		)
+
+		expect(ollamaResult).toEqual({
+			success: false,
+			error: "tools:generateImage.unsupportedProvider(provider=Ollama)",
+		})
+
+		const lmStudioResult = resolveImageGenerationConfig(
+			state({
+				imageGenerationProvider: "lmstudio",
+				lmStudioImageBaseUrl: "http://localhost:1234",
+				lmStudioImageGenerationSelectedModel: "local-image-model",
+				lmStudioImageGenerationApiMethod: "images_api",
+			}),
+		)
+
+		expect(lmStudioResult).toEqual({
+			success: false,
+			error: "tools:generateImage.unsupportedProvider(provider=LM Studio)",
 		})
 	})
 
@@ -163,6 +229,16 @@ describe("generateImageWithConfiguredProvider", () => {
 			imageData: "data:image/png;base64,chatcompletions",
 			imageFormat: "png",
 		})
+		vi.mocked(generateImageWithComfyUi).mockResolvedValue({
+			success: true,
+			imageData: "data:image/png;base64,comfyui",
+			imageFormat: "png",
+		})
+		vi.mocked(generateImageWithAutomatic1111).mockResolvedValue({
+			success: true,
+			imageData: "data:image/png;base64,automatic1111",
+			imageFormat: "png",
+		})
 	})
 
 	it("should dispatch Images API configurations to the Images API helper", async () => {
@@ -187,8 +263,94 @@ describe("generateImageWithConfiguredProvider", () => {
 			model: "gpt-image-1",
 			prompt: "Draw a cat",
 			inputImage: "data:image/png;base64,input",
+			negativePrompt: undefined,
+			provider: "openai",
 		})
 		expect(generateImageWithProvider).not.toHaveBeenCalled()
+		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
+		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
+	})
+
+	it("should reject legacy unsupported local providers without calling provider helpers", async () => {
+		const result = await generateImageWithConfiguredProvider({
+			state: state({
+				imageGenerationProvider: "ollama",
+				ollamaImageBaseUrl: "http://localhost:11434/v1/",
+				ollamaImageGenerationSelectedModel: "x/z-image-turbo",
+				ollamaImageGenerationApiMethod: "images_api",
+			}),
+			prompt: "Draw locally",
+		})
+
+		expect(result).toEqual({
+			success: false,
+			error: "tools:generateImage.unsupportedProvider(provider=Ollama)",
+		})
+		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
+		expect(generateImageWithProvider).not.toHaveBeenCalled()
+		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
+		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
+	})
+
+	it("should dispatch ComfyUI configurations to the ComfyUI helper", async () => {
+		const result = await generateImageWithConfiguredProvider({
+			state: state({
+				imageGenerationProvider: "comfyui",
+				comfyUiImageApiKey: "proxy-token",
+				comfyUiImageBaseUrl: "http://localhost:8188/",
+				comfyUiImageGenerationSelectedModel: "sdxl.safetensors",
+				comfyUiImageGenerationNegativePrompt: "blurry",
+			}),
+			prompt: "Draw locally with ComfyUI",
+		})
+
+		expect(result).toEqual({
+			success: true,
+			imageData: "data:image/png;base64,comfyui",
+			imageFormat: "png",
+		})
+		expect(generateImageWithComfyUi).toHaveBeenCalledWith({
+			baseURL: "http://localhost:8188",
+			authToken: "proxy-token",
+			model: "sdxl.safetensors",
+			prompt: "Draw locally with ComfyUI",
+			inputImage: undefined,
+			negativePrompt: "blurry",
+			provider: "comfyui",
+		})
+		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
+		expect(generateImageWithProvider).not.toHaveBeenCalled()
+		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
+	})
+
+	it("should dispatch Automatic1111 configurations to the Automatic1111 helper", async () => {
+		const result = await generateImageWithConfiguredProvider({
+			state: state({
+				imageGenerationProvider: "automatic1111",
+				automatic1111ImageBaseUrl: "http://localhost:7860/",
+				automatic1111ImageGenerationSelectedModel: "   ",
+				automatic1111ImageGenerationNegativePrompt: "bad anatomy",
+			}),
+			prompt: "Draw locally with Automatic1111",
+		})
+
+		expect(result).toEqual({
+			success: true,
+			imageData: "data:image/png;base64,automatic1111",
+			imageFormat: "png",
+		})
+		expect(generateImageWithAutomatic1111).toHaveBeenCalledWith({
+			baseURL: "http://localhost:7860",
+			authToken: undefined,
+			model: "",
+			prompt: "Draw locally with Automatic1111",
+			inputImage: undefined,
+			negativePrompt: "bad anatomy",
+			provider: "automatic1111",
+		})
+		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
+		expect(generateImageWithProvider).not.toHaveBeenCalled()
+		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
 	})
 
 	it("should dispatch chat-completions configurations to the chat-completions helper", async () => {
@@ -213,8 +375,12 @@ describe("generateImageWithConfiguredProvider", () => {
 			model: "google/gemini-2.5-flash-image",
 			prompt: "Draw a dog",
 			inputImage: undefined,
+			negativePrompt: undefined,
+			provider: "openrouter",
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
+		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
+		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
 
 	it("should dispatch OpenAI-compatible custom chat-completions models", async () => {
@@ -235,8 +401,12 @@ describe("generateImageWithConfiguredProvider", () => {
 			model: "custom-image-model",
 			prompt: "Draw with a custom model",
 			inputImage: undefined,
+			negativePrompt: undefined,
+			provider: "openai",
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
+		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
+		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
 
 	it("should return resolver errors without calling provider helpers", async () => {
@@ -253,5 +423,7 @@ describe("generateImageWithConfiguredProvider", () => {
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
 		expect(generateImageWithProvider).not.toHaveBeenCalled()
+		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
+		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
 })
