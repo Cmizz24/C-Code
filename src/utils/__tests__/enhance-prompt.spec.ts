@@ -6,6 +6,7 @@ import { singleCompletionHandler } from "../single-completion-handler"
 import { buildApiHandler } from "../../api"
 import type { SingleCompletionHandler } from "../../api"
 import { supportPrompt } from "../../shared/support-prompt"
+import { SINGLE_COMPLETION_SYSTEM_PROMPT } from "../../shared/single-completion"
 
 // Mock the API handler
 vi.mock("../../api", () => ({
@@ -100,7 +101,40 @@ describe("enhancePrompt", () => {
 		const result = await singleCompletionHandler(mockApiConfig, "Test prompt")
 
 		expect(result).toBe("Enhanced prompt")
-		expect(createMessage).toHaveBeenCalledWith("", [{ role: "user", content: "Test prompt" }])
+		expect(createMessage).toHaveBeenCalledWith(SINGLE_COMPLETION_SYSTEM_PROMPT, [
+			{ role: "user", content: "Test prompt" },
+		])
+	})
+
+	it("passes non-empty instructions to the streaming fallback for Codex-compatible providers", async () => {
+		const createMessage = vi.fn(async function* (systemPrompt: string, _messages: any[]) {
+			if (!systemPrompt.trim()) {
+				yield { type: "error", message: "Instructions are required" }
+				return
+			}
+
+			yield { type: "text", text: "Enhanced prompt" }
+		})
+
+		;(buildApiHandler as any).mockReturnValue({
+			// No completePrompt method
+			createMessage,
+			getModel: vi.fn().mockReturnValue({
+				id: "codex-compatible-model",
+				info: {
+					maxTokens: 4096,
+					contextWindow: 8192,
+					supportsPromptCache: false,
+				},
+			}),
+		})
+
+		const result = await singleCompletionHandler(mockApiConfig, "Test prompt")
+
+		expect(result).toBe("Enhanced prompt")
+		expect(createMessage).toHaveBeenCalledWith(SINGLE_COMPLETION_SYSTEM_PROMPT, [
+			{ role: "user", content: "Test prompt" },
+		])
 	})
 
 	it("propagates createMessage stream errors from the fallback path", async () => {

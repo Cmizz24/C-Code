@@ -2,6 +2,7 @@ import type { ProviderSettings } from "@roo-code/types"
 
 import { buildApiHandler } from "../api"
 import type { SingleCompletionHandler } from "../api"
+import { SINGLE_COMPLETION_SYSTEM_PROMPT } from "../shared/single-completion"
 
 type BuiltApiHandler = ReturnType<typeof buildApiHandler>
 
@@ -13,7 +14,9 @@ function hasCompletePrompt(handler: BuiltApiHandler): handler is BuiltApiHandler
 async function completePromptViaCreateMessage(handler: BuiltApiHandler, promptText: string): Promise<string> {
 	let completion = ""
 
-	for await (const chunk of handler.createMessage("", [{ role: "user" as const, content: promptText }])) {
+	for await (const chunk of handler.createMessage(SINGLE_COMPLETION_SYSTEM_PROMPT, [
+		{ role: "user" as const, content: promptText },
+	])) {
 		if (chunk.type === "text") {
 			completion += chunk.text
 		} else if (chunk.type === "error") {

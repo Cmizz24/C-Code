@@ -1,6 +1,6 @@
 // npx vitest core/webview/__tests__/webviewMessageHandler.spec.ts
 
-import type { Mock } from "vitest"
+import type { Mock, MockInstance } from "vitest"
 
 // Mock dependencies - must come before imports
 vi.mock("../../../api/providers/fetchers/modelCache")
@@ -187,7 +187,7 @@ vi.mock("../../mentions/resolveImageMentions", () => ({
 import { resolveImageMentions } from "../../mentions/resolveImageMentions"
 
 describe("webviewMessageHandler - enhancePrompt", () => {
-	let enhanceMessageSpy: ReturnType<typeof vi.spyOn>
+	let enhanceMessageSpy: MockInstance<typeof MessageEnhancer.enhanceMessage>
 
 	beforeEach(() => {
 		vi.clearAllMocks()

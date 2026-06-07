@@ -26,6 +26,7 @@ import { isMcpTool } from "../../utils/mcp-name"
 import { sanitizeOpenAiCallId } from "../../utils/tool-id"
 import { openAiCodexOAuthManager } from "../../integrations/openai-codex/oauth"
 import { t } from "../../i18n"
+import { SINGLE_COMPLETION_SYSTEM_PROMPT } from "../../shared/single-completion"
 
 export type OpenAiCodexModel = ReturnType<OpenAiCodexHandler["getModel"]>
 
@@ -102,6 +103,16 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		this.sessionId = uuidv7()
 	}
 
+	private resetResponseState(): void {
+		this.lastResponseOutput = undefined
+		this.lastResponseId = undefined
+		this.pendingToolCallId = undefined
+		this.pendingToolCallName = undefined
+		this.sawTextOutputInCurrentResponse = false
+		this.sawTextDeltaInCurrentResponse = false
+		this.streamedToolCallIds.clear()
+	}
+
 	private normalizeUsage(usage: any, model: OpenAiCodexModel): ApiStreamUsageChunk | undefined {
 		if (!usage) return undefined
 
@@ -156,13 +167,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
 		// Reset state for this request
-		this.lastResponseOutput = undefined
-		this.lastResponseId = undefined
-		this.pendingToolCallId = undefined
-		this.pendingToolCallName = undefined
-		this.sawTextOutputInCurrentResponse = false
-		this.sawTextDeltaInCurrentResponse = false
-		this.streamedToolCallIds.clear()
+		this.resetResponseState()
 		this.beginOpenAiCodexFastStatus(model, metadata)
 
 		// Get access token from OAuth manager
@@ -317,7 +322,9 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 			stream: true,
 			...(this.shouldUseFastMode(model, metadata) ? { service_tier: "priority" as const } : {}),
 			store: false,
-			instructions: systemPrompt,
+			// Codex requires non-empty top-level instructions. Normal task requests provide
+			// a full system prompt; lightweight single-completion fallbacks may not.
+			instructions: systemPrompt.trim() || SINGLE_COMPLETION_SYSTEM_PROMPT,
 			// Only include encrypted reasoning content when reasoning effort is set
 			...(reasoningEffort ? { include: ["reasoning.encrypted_content"] } : {}),
 			...(reasoningEffort
@@ -1280,6 +1287,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 
 		try {
 			const model = this.getModel()
+			this.resetResponseState()
 			this.beginOpenAiCodexFastStatus(model)
 
 			// Get access token
@@ -1305,9 +1313,11 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 						content: [{ type: "input_text", text: prompt }],
 					},
 				],
-				stream: false,
+				stream: true,
 				...(this.shouldUseFastMode(model) ? { service_tier: "priority" as const } : {}),
 				store: false,
+				// Codex rejects standalone completions without an instructions field.
+				instructions: SINGLE_COMPLETION_SYSTEM_PROMPT,
 				...(reasoningEffort ? { include: ["reasoning.encrypted_content"] } : {}),
 			}
 
@@ -1354,26 +1364,22 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 				throw error
 			}
 
-			const responseData = await response.json()
-			this.captureOpenAiCodexFastStatusFromEvent(responseData)
+			if (!response.body) {
+				const error = new Error(t("common:errors.openAiCodex.noResponseBody"))
+				this.markOpenAiCodexFastStatusRejected(error)
+				throw error
+			}
 
-			if (responseData?.output && Array.isArray(responseData.output)) {
-				for (const outputItem of responseData.output) {
-					if (outputItem.type === "message" && outputItem.content) {
-						for (const content of outputItem.content) {
-							if (content.type === "output_text" && content.text) {
-								return content.text
-							}
-						}
-					}
+			let completion = ""
+			for await (const chunk of this.handleStreamResponse(response.body, model)) {
+				if (chunk.type === "text") {
+					completion += chunk.text
+				} else if (chunk.type === "error") {
+					throw new Error(chunk.message || chunk.error || "Prompt enhancement failed")
 				}
 			}
 
-			if (responseData?.text) {
-				return responseData.text
-			}
-
-			return ""
+			return completion
 		} catch (error) {
 			const errorModel = this.getModel()
 			const errorMessage = error instanceof Error ? error.message : String(error)
