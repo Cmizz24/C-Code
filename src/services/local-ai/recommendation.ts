@@ -261,19 +261,21 @@ export function recommendLocalAiModel(
 	const diskKnown = probe.disk.status === "known" && probe.disk.freeGb !== undefined
 	const runtimeReady = probe.runtimes.ollama.status === "running"
 	const enoughRecommendedRam = ramGb >= model.recommendedRamGb
+	const hasWeakHardwareWarning = weakHardwareWarnings.length > 0
 	const confidence: LocalAiRecommendation["confidence"] =
 		enoughRecommendedRam && diskKnown && runtimeReady ? "high" : enoughRecommendedRam ? "medium" : "low"
 
 	return {
 		provider: "ollama",
-		recommendedSetup: weakHardwareWarnings.length > 0 ? "api-provider" : "local",
+		recommendedSetup: "local",
 		runtimeDisplayName: "Ollama",
 		baseUrl: probe.runtimes.ollama.baseUrl || "http://localhost:11434",
 		model,
 		ollamaNumCtx: confidence === "high" ? model.defaultNumCtx : undefined,
 		confidence,
 		reasons,
-		warnings: [...weakHardwareWarnings, ...warnings],
+		hasWeakHardwareWarning,
+		warnings,
 		freeDiskGb: probe.disk.freeGb,
 		diskBudgetGb: questionnaire.diskBudgetGb,
 		privacyNote: "Inference runs locally once Ollama and the selected model are installed.",

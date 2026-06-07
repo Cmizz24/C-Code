@@ -90,7 +90,8 @@
 			"runtime": "Runtime/プロバイダー: 公式ローカルAPIの{{runtime}}",
 			"confidence": "おすすめの信頼度: {{confidence}}",
 			"privacyHeading": "プライバシーメモ",
-			"warnings": "ダウンロード前に"
+			"warnings": "ダウンロード前に",
+			"weakHardwareWarning": "このハードウェアでは、ローカル AI モデルが遅くなったり、意図したとおりに動作しない場合があります。"
 		},
 		"confidence": { "low": "低", "medium": "中", "high": "高" },
 		"progress": {

@@ -75,7 +75,8 @@
 			"runtime": "Runtime/提供商：来自官方本地 API 的 {{runtime}}",
 			"confidence": "推荐置信度：{{confidence}}",
 			"privacyHeading": "隐私说明",
-			"warnings": "下载前"
+			"warnings": "下载前",
+			"weakHardwareWarning": "在这台硬件上，本地 AI 模型可能会很慢，或无法按预期工作。"
 		},
 		"confidence": { "low": "低", "medium": "中", "high": "高" },
 		"progress": {

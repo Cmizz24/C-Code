@@ -90,7 +90,8 @@
 			"runtime": "Runtime/sağlayıcı: resmi yerel API üzerinden {{runtime}}",
 			"confidence": "Öneri güveni: {{confidence}}",
 			"privacyHeading": "Gizlilik notu",
-			"warnings": "İndirmeden önce"
+			"warnings": "İndirmeden önce",
+			"weakHardwareWarning": "Yerel AI modelleri bu donanımda yavaş olabilir veya beklendiği gibi çalışmayabilir."
 		},
 		"confidence": { "low": "düşük", "medium": "orta", "high": "yüksek" },
 		"progress": {

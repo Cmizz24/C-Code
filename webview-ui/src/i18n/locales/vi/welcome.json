@@ -90,7 +90,8 @@
 			"runtime": "Runtime/nhà cung cấp: {{runtime}} từ API cục bộ chính thức",
 			"confidence": "Độ tin cậy đề xuất: {{confidence}}",
 			"privacyHeading": "Ghi chú quyền riêng tư",
-			"warnings": "Trước khi tải"
+			"warnings": "Trước khi tải",
+			"weakHardwareWarning": "Các mô hình AI cục bộ có thể chậm hoặc không hoạt động như mong đợi trên phần cứng này."
 		},
 		"confidence": { "low": "thấp", "medium": "trung bình", "high": "cao" },
 		"progress": {

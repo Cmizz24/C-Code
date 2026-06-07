@@ -90,7 +90,8 @@
 			"runtime": "Runtime/provider: {{runtime}} इसकी आधिकारिक स्थानीय API से",
 			"confidence": "सुझाव confidence: {{confidence}}",
 			"privacyHeading": "Privacy note",
-			"warnings": "डाउनलोड से पहले"
+			"warnings": "डाउनलोड से पहले",
+			"weakHardwareWarning": "इस हार्डवेयर पर स्थानीय AI मॉडल धीमे हो सकते हैं या उम्मीद के मुताबिक काम नहीं कर सकते।"
 		},
 		"confidence": { "low": "कम", "medium": "मध्यम", "high": "उच्च" },
 		"progress": {

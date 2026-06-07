@@ -93,6 +93,7 @@ export interface LocalAiRecommendation {
 	ollamaNumCtx?: number
 	confidence: "low" | "medium" | "high"
 	reasons: string[]
+	hasWeakHardwareWarning: boolean
 	warnings: string[]
 	freeDiskGb?: number
 	diskBudgetGb: number

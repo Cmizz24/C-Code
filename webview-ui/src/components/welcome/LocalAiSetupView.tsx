@@ -369,6 +369,7 @@ const LocalAiSetupView = ({ onBack, onApiProviderSetup }: LocalAiSetupViewProps)
 		}
 
 		const recommendsApiProvider = recommendation.recommendedSetup === "api-provider"
+		const hasWeakHardwareWarning = recommendation.hasWeakHardwareWarning === true
 
 		return (
 			<div className="space-y-4">
@@ -382,6 +383,17 @@ const LocalAiSetupView = ({ onBack, onApiProviderSetup }: LocalAiSetupViewProps)
 						</div>
 						<p className="m-0">{t("welcome:localSetup.recommendation.apiDescription")}</p>
 						<p className="m-0">{t("welcome:localSetup.recommendation.manualStillAvailable")}</p>
+					</div>
+				)}
+
+				{hasWeakHardwareWarning && !recommendsApiProvider && (
+					<div
+						data-testid="local-ai-weak-hardware-warning"
+						className="rounded-md border border-vscode-inputValidation-warningBorder bg-vscode-inputValidation-warningBackground p-3 text-sm">
+						<div className="flex items-center gap-2">
+							<AlertTriangle className="size-4" />
+							<span>{t("welcome:localSetup.recommendation.weakHardwareWarning")}</span>
+						</div>
 					</div>
 				)}
 
@@ -463,6 +475,11 @@ const LocalAiSetupView = ({ onBack, onApiProviderSetup }: LocalAiSetupViewProps)
 						</>
 					) : (
 						<>
+							{hasWeakHardwareWarning && (
+								<Button variant="secondary" onClick={() => onApiProviderSetup()}>
+									{t("welcome:localSetup.actions.useApiProvider")}
+								</Button>
+							)}
 							<Button variant="secondary" onClick={() => handleOpenInstall()}>
 								<ExternalLink className="size-4" />
 								{t("welcome:localSetup.actions.installHelp")}

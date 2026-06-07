@@ -92,7 +92,8 @@
 			"runtime": "Runtime/proveedor: {{runtime}} desde su API local oficial",
 			"confidence": "Confianza de la recomendación: {{confidence}}",
 			"privacyHeading": "Nota de privacidad",
-			"warnings": "Antes de descargar"
+			"warnings": "Antes de descargar",
+			"weakHardwareWarning": "Los modelos de AI locales pueden ser lentos o no funcionar como se espera en este hardware."
 		},
 		"confidence": {
 			"low": "baja",

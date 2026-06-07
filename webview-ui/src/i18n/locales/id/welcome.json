@@ -90,7 +90,8 @@
 			"runtime": "Runtime/penyedia: {{runtime}} dari API lokal resminya",
 			"confidence": "Keyakinan rekomendasi: {{confidence}}",
 			"privacyHeading": "Catatan privasi",
-			"warnings": "Sebelum mengunduh"
+			"warnings": "Sebelum mengunduh",
+			"weakHardwareWarning": "Model AI lokal mungkin lambat atau tidak berfungsi seperti yang diharapkan di hardware ini."
 		},
 		"confidence": { "low": "rendah", "medium": "sedang", "high": "tinggi" },
 		"progress": {

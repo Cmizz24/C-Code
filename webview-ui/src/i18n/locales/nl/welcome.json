@@ -90,7 +90,8 @@
 			"runtime": "Runtime/provider: {{runtime}} via de officiële lokale API",
 			"confidence": "Betrouwbaarheid aanbeveling: {{confidence}}",
 			"privacyHeading": "Privacynotitie",
-			"warnings": "Voor het downloaden"
+			"warnings": "Voor het downloaden",
+			"weakHardwareWarning": "Lokale AI-modellen kunnen traag zijn of werken mogelijk niet zoals bedoeld op deze hardware."
 		},
 		"confidence": { "low": "laag", "medium": "gemiddeld", "high": "hoog" },
 		"progress": {

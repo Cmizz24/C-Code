@@ -80,7 +80,8 @@
 			"runtime": "Runtime/提供者：來自官方本機 API 的 {{runtime}}",
 			"confidence": "推薦信心：{{confidence}}",
 			"privacyHeading": "隱私說明",
-			"warnings": "下載前"
+			"warnings": "下載前",
+			"weakHardwareWarning": "在這台硬體上，本地 AI 模型可能會很慢，或無法按預期運作。"
 		},
 		"confidence": { "low": "低", "medium": "中", "high": "高" },
 		"progress": {

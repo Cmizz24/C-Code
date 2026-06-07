@@ -38,6 +38,7 @@ const startRequest: LocalAiSetupStartRequest = {
 		ollamaNumCtx: 8192,
 		confidence: "high",
 		reasons: [],
+		hasWeakHardwareWarning: false,
 		warnings: [],
 		diskBudgetGb: 8,
 		privacyNote: "Inference runs locally once Ollama and the selected model are installed.",
