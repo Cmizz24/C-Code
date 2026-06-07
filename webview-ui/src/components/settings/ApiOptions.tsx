@@ -11,30 +11,6 @@ import {
 	type RouterModels,
 	isRetiredProvider,
 	DEFAULT_CONSECUTIVE_MISTAKE_LIMIT,
-	openRouterDefaultModelId,
-	poeDefaultModelId,
-	requestyDefaultModelId,
-	litellmDefaultModelId,
-	openAiNativeDefaultModelId,
-	openAiCodexDefaultModelId,
-	anthropicDefaultModelId,
-	qwenCodeDefaultModelId,
-	geminiDefaultModelId,
-	deepSeekDefaultModelId,
-	moonshotDefaultModelId,
-	xiaomiMiMoDefaultModelId,
-	mistralDefaultModelId,
-	xaiDefaultModelId,
-	basetenDefaultModelId,
-	bedrockDefaultModelId,
-	vertexDefaultModelId,
-	sambaNovaDefaultModelId,
-	internationalZAiDefaultModelId,
-	mainlandZAiDefaultModelId,
-	fireworksDefaultModelId,
-	vercelAiGatewayDefaultModelId,
-	minimaxDefaultModelId,
-	unboundDefaultModelId,
 } from "@roo-code/types"
 
 import {
@@ -55,7 +31,7 @@ import {
 	useOpenRouterModelProviders,
 	OPENROUTER_DEFAULT_PROVIDER_NAME,
 } from "@src/components/ui/hooks/useOpenRouterModelProviders"
-import { filterProviders, filterModels } from "./utils/organizationFilters"
+import { filterModels } from "./utils/organizationFilters"
 import {
 	Select,
 	SelectTrigger,
@@ -100,6 +76,7 @@ import {
 import { isRouterName } from "@roo/api"
 
 import { MODELS_BY_PROVIDER, PROVIDERS } from "./constants"
+import { getAvailableProviderOptions, getProviderDefaultModelConfig } from "./utils/providerOptions"
 import { inputEventTransform, noTransform } from "./transforms"
 import { ModelPicker } from "./ModelPicker"
 import { ApiErrorMessage } from "./ApiErrorMessage"
@@ -506,51 +483,7 @@ const ApiOptions = ({
 				}
 			}
 
-			// Define a mapping object that associates each provider with its model configuration
-			const PROVIDER_MODEL_CONFIG: Partial<
-				Record<
-					ProviderName,
-					{
-						field: keyof ProviderSettings
-						default?: string
-					}
-				>
-			> = {
-				openrouter: { field: "openRouterModelId", default: openRouterDefaultModelId },
-				requesty: { field: "requestyModelId", default: requestyDefaultModelId },
-				unbound: { field: "unboundModelId", default: unboundDefaultModelId },
-				litellm: { field: "litellmModelId", default: litellmDefaultModelId },
-				anthropic: { field: "apiModelId", default: anthropicDefaultModelId },
-				"openai-codex": { field: "apiModelId", default: openAiCodexDefaultModelId },
-				"qwen-code": { field: "apiModelId", default: qwenCodeDefaultModelId },
-				"openai-native": { field: "apiModelId", default: openAiNativeDefaultModelId },
-				gemini: { field: "apiModelId", default: geminiDefaultModelId },
-				deepseek: { field: "apiModelId", default: deepSeekDefaultModelId },
-				moonshot: { field: "apiModelId", default: moonshotDefaultModelId },
-				minimax: { field: "apiModelId", default: minimaxDefaultModelId },
-				"xiaomi-mimo": { field: "apiModelId", default: xiaomiMiMoDefaultModelId },
-				mistral: { field: "apiModelId", default: mistralDefaultModelId },
-				xai: { field: "apiModelId", default: xaiDefaultModelId },
-				baseten: { field: "apiModelId", default: basetenDefaultModelId },
-				bedrock: { field: "apiModelId", default: bedrockDefaultModelId },
-				vertex: { field: "apiModelId", default: vertexDefaultModelId },
-				sambanova: { field: "apiModelId", default: sambaNovaDefaultModelId },
-				zai: {
-					field: "apiModelId",
-					default:
-						apiConfiguration.zaiApiLine === "china_coding"
-							? mainlandZAiDefaultModelId
-							: internationalZAiDefaultModelId,
-				},
-				fireworks: { field: "apiModelId", default: fireworksDefaultModelId },
-				poe: { field: "apiModelId", default: poeDefaultModelId },
-				"vercel-ai-gateway": { field: "vercelAiGatewayModelId", default: vercelAiGatewayDefaultModelId },
-				openai: { field: "openAiModelId" },
-				ollama: { field: "ollamaModelId" },
-				lmstudio: { field: "lmStudioModelId" },
-			}
-
-			const config = PROVIDER_MODEL_CONFIG[value]
+			const config = getProviderDefaultModelConfig(value, apiConfiguration)
 			if (config) {
 				validateAndResetModel(
 					value,
@@ -590,46 +523,11 @@ const ApiOptions = ({
 
 	// Convert providers to SearchableSelect options
 	const providerOptions = useMemo(() => {
-		// First filter by organization allow list
-		const allowedProviders = filterProviders(PROVIDERS, organizationAllowList)
-
-		// Then filter out static providers that have no models (unless currently selected)
-		const providersWithModels = allowedProviders.filter(({ value }) => {
-			// Always show the currently selected provider to avoid breaking existing configurations
-			// Use apiConfiguration.apiProvider directly since that's what's actually selected
-			if (value === apiConfiguration.apiProvider) {
-				return true
-			}
-
-			// Check if this is a static provider (has models in MODELS_BY_PROVIDER)
-			const staticModels = MODELS_BY_PROVIDER[value as ProviderName]
-
-			// If it's a static provider, check if it has any models after filtering
-			if (staticModels) {
-				const filteredModels = filterModels(staticModels, value as ProviderName, organizationAllowList)
-				// Hide the provider if it has no models after filtering
-				return filteredModels && Object.keys(filteredModels).length > 0
-			}
-
-			// If it's a dynamic provider (not in MODELS_BY_PROVIDER), always show it
-			// to avoid race conditions with async model fetching
-			return true
+		return getAvailableProviderOptions({
+			organizationAllowList,
+			selectedProvider: apiConfiguration.apiProvider,
+			prioritizeOpenRouter: fromWelcomeView,
 		})
-
-		const options = providersWithModels.map(({ value, label }) => ({
-			value,
-			label,
-		}))
-
-		if (fromWelcomeView) {
-			const openRouterIndex = options.findIndex((opt) => opt.value === "openrouter")
-			if (openRouterIndex > 0) {
-				const [openRouterOption] = options.splice(openRouterIndex, 1)
-				options.unshift(openRouterOption)
-			}
-		}
-
-		return options
 	}, [organizationAllowList, apiConfiguration.apiProvider, fromWelcomeView])
 
 	return (

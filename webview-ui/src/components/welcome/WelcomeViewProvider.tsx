@@ -1,16 +1,17 @@
-import { useCallback, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { Trans } from "react-i18next"
 import { ArrowLeft, Brain } from "lucide-react"
 
-import { openRouterDefaultModelId, type ProviderSettings } from "@roo-code/types"
+import { openRouterDefaultModelId, type ProviderName, type ProviderSettings } from "@roo-code/types"
 
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { validateApiConfiguration } from "@src/utils/validate"
 import { vscode } from "@src/utils/vscode"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
-import { Button } from "@src/components/ui"
+import { Button, SearchableSelect } from "@src/components/ui"
 
 import ApiOptions from "../settings/ApiOptions"
+import { getAvailableProviderOptions, getProviderDefaultModelConfig } from "../settings/utils/providerOptions"
 import { Tab, TabContent } from "../common/Tab"
 
 import LocalAiSetupView from "./LocalAiSetupView"
@@ -33,13 +34,44 @@ const getWelcomeApiConfiguration = (apiConfiguration?: ProviderSettings): Provid
 	return apiConfiguration
 }
 
+const getWelcomeApiConfigurationForProvider = (
+	provider: ProviderName,
+	apiConfiguration?: ProviderSettings,
+): ProviderSettings => {
+	const nextConfiguration: ProviderSettings = {
+		...getWelcomeApiConfiguration(apiConfiguration),
+		apiProvider: provider,
+	}
+	const defaultModelConfig = getProviderDefaultModelConfig(provider, nextConfiguration)
+	const isExistingProvider = apiConfiguration?.apiProvider === provider
+
+	if (defaultModelConfig?.default && (!nextConfiguration[defaultModelConfig.field] || !isExistingProvider)) {
+		return {
+			...nextConfiguration,
+			[defaultModelConfig.field]: defaultModelConfig.default,
+		}
+	}
+
+	return nextConfiguration
+}
+
 const WelcomeViewProvider = () => {
-	const { apiConfiguration, currentApiConfigName, setApiConfiguration, uriScheme } = useExtensionState()
+	const { apiConfiguration, currentApiConfigName, organizationAllowList, setApiConfiguration, uriScheme } =
+		useExtensionState()
 	const { t } = useAppTranslation()
 	const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
 	const [welcomeStep, setWelcomeStep] = useState<"landing" | "provider" | "local">("landing")
 	const [welcomeApiConfiguration, setWelcomeApiConfiguration] = useState<ProviderSettings>()
 	const effectiveApiConfiguration = welcomeApiConfiguration ?? getWelcomeApiConfiguration(apiConfiguration)
+	const providerOptions = useMemo(
+		() =>
+			getAvailableProviderOptions({
+				organizationAllowList,
+				selectedProvider: effectiveApiConfiguration.apiProvider,
+				prioritizeOpenRouter: true,
+			}),
+		[organizationAllowList, effectiveApiConfiguration.apiProvider],
+	)
 
 	const setApiConfigurationFieldForApiOptions = useCallback(
 		<K extends keyof ProviderSettings>(field: K, value: ProviderSettings[K]) => {
@@ -52,14 +84,22 @@ const WelcomeViewProvider = () => {
 		[effectiveApiConfiguration, setApiConfiguration],
 	)
 
+	const enterProviderSetup = useCallback(
+		(provider?: ProviderName) => {
+			const initialApiConfiguration = provider
+				? getWelcomeApiConfigurationForProvider(provider, apiConfiguration)
+				: getWelcomeApiConfiguration(apiConfiguration)
+
+			setWelcomeApiConfiguration(initialApiConfiguration)
+			setApiConfiguration(initialApiConfiguration)
+			setWelcomeStep("provider")
+		},
+		[apiConfiguration, setApiConfiguration],
+	)
+
 	const handleGetStarted = useCallback(() => {
 		if (welcomeStep !== "provider") {
-			const initialApiConfiguration = getWelcomeApiConfiguration(apiConfiguration)
-			setWelcomeApiConfiguration(initialApiConfiguration)
-
-			setApiConfiguration(initialApiConfiguration)
-
-			setWelcomeStep("provider")
+			enterProviderSetup()
 			return
 		}
 
@@ -76,7 +116,7 @@ const WelcomeViewProvider = () => {
 			text: currentApiConfigName,
 			apiConfiguration: effectiveApiConfiguration,
 		})
-	}, [welcomeStep, apiConfiguration, setApiConfiguration, effectiveApiConfiguration, currentApiConfigName])
+	}, [welcomeStep, enterProviderSetup, effectiveApiConfiguration, currentApiConfigName])
 
 	if (welcomeStep === "landing") {
 		return (
@@ -93,26 +133,29 @@ const WelcomeViewProvider = () => {
 
 					<div className="mt-2 grid gap-3 md:grid-cols-2">
 						<button
+							data-testid="local-ai-option-card"
 							onClick={() => setWelcomeStep("local")}
 							className="cursor-pointer rounded-md border border-vscode-foreground/20 bg-transparent p-4 text-left text-vscode-foreground hover:bg-vscode-foreground/5">
 							<div className="font-medium">{t("welcome:landing.localAi.title")}</div>
 							<div className="mt-1 text-sm">{t("welcome:landing.localAi.description")}</div>
 						</button>
-						<button
-							onClick={handleGetStarted}
-							className="cursor-pointer rounded-md border border-vscode-foreground/20 bg-transparent p-4 text-left text-vscode-foreground hover:bg-vscode-foreground/5">
+						<div
+							data-testid="api-provider-option-card"
+							className="rounded-md border border-vscode-foreground/20 bg-transparent p-4 text-left text-vscode-foreground">
 							<div className="font-medium">{t("welcome:landing.provider.title")}</div>
 							<div className="mt-1 text-sm">{t("welcome:landing.provider.description")}</div>
-						</button>
-					</div>
-
-					<div className="mt-2 flex gap-2 items-center">
-						<Button onClick={handleGetStarted} variant="primary">
-							{t("welcome:landing.getStarted")}
-						</Button>
-						<Button onClick={() => setWelcomeStep("local")} variant="secondary">
-							{t("welcome:landing.setupLocalAi")}
-						</Button>
+							<div className="mt-3">
+								<SearchableSelect
+									onValueChange={(value) => enterProviderSetup(value as ProviderName)}
+									options={providerOptions}
+									placeholder={t("settings:common.select")}
+									searchPlaceholder={t("settings:providers.searchProviderPlaceholder")}
+									emptyMessage={t("settings:providers.noProviderMatchFound")}
+									className="w-full"
+									data-testid="welcome-provider-select"
+								/>
+							</div>
+						</div>
 					</div>
 
 					<div className="absolute bottom-6 left-6">

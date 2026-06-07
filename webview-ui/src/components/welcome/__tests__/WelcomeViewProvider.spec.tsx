@@ -1,6 +1,7 @@
 // npx vitest src/components/welcome/__tests__/WelcomeViewProvider.spec.tsx
 
-import { render, screen, fireEvent, waitFor } from "@/utils/test-utils"
+import { render, screen, fireEvent, waitFor, within } from "@/utils/test-utils"
+import userEvent from "@testing-library/user-event"
 import { openRouterDefaultModelId } from "@roo-code/types"
 
 import * as ExtensionStateContext from "@src/context/ExtensionStateContext"
@@ -8,14 +9,6 @@ const { ExtensionStateContextProvider } = ExtensionStateContext
 
 import WelcomeViewProvider from "../WelcomeViewProvider"
 import { vscode } from "@src/utils/vscode"
-
-vi.mock("@src/components/ui", () => ({
-	Button: ({ children, onClick, variant, disabled }: any) => (
-		<button onClick={onClick} data-testid={`button-${variant}`} disabled={disabled}>
-			{children}
-		</button>
-	),
-}))
 
 vi.mock("../../settings/ApiOptions", () => ({
 	default: ({ apiConfiguration }: any) => (
@@ -40,8 +33,11 @@ vi.mock("../RooHero", () => ({
 vi.mock("lucide-react", () => ({
 	ArrowLeft: () => <span data-testid="arrow-left-icon">left</span>,
 	Brain: () => <span data-testid="brain-icon">brain</span>,
+	Check: () => <span data-testid="check-icon">check</span>,
+	ChevronDown: () => <span data-testid="chevron-down-icon">chevron</span>,
+	X: () => <span data-testid="x-icon">x</span>,
 	AlertTriangle: () => <span data-testid="alert-icon">alert</span>,
-	CheckCircle2: () => <span data-testid="check-icon">check</span>,
+	CheckCircle2: () => <span data-testid="check-circle-icon">check</span>,
 	Download: () => <span data-testid="download-icon">download</span>,
 	ExternalLink: () => <span data-testid="external-icon">external</span>,
 	RefreshCcw: () => <span data-testid="refresh-icon">refresh</span>,
@@ -91,6 +87,22 @@ const renderWelcomeViewProvider = (extensionState = {}) => {
 
 const dispatchExtensionMessage = (data: any) => {
 	window.dispatchEvent(new MessageEvent("message", { data }))
+}
+
+const openProviderDropdown = async () => {
+	const user = userEvent.setup()
+	await user.click(screen.getByTestId("welcome-provider-select"))
+	return { user, listbox: await screen.findByRole("listbox") }
+}
+
+const selectWelcomeProvider = async (providerLabel: string) => {
+	const { user, listbox } = await openProviderDropdown()
+	await user.click(within(listbox).getByText(providerLabel))
+	return user
+}
+
+const openLocalAiSetup = () => {
+	fireEvent.click(screen.getByTestId("local-ai-option-card"))
 }
 
 const mockProbe = {
@@ -148,14 +160,59 @@ describe("WelcomeViewProvider", () => {
 		expect(screen.getByTestId("trans-welcome:landing.introduction")).toBeInTheDocument()
 		expect(screen.getByText(/welcome:landing.localAi.title/)).toBeInTheDocument()
 		expect(screen.getByText(/welcome:landing.provider.title/)).toBeInTheDocument()
-		expect(screen.getByTestId("button-primary")).toBeInTheDocument()
+		expect(screen.getByTestId("local-ai-option-card")).toBeInTheDocument()
+		expect(screen.getByTestId("api-provider-option-card")).toBeInTheDocument()
 		expect(screen.getByText(/welcome:importSettings/)).toBeInTheDocument()
 	})
 
-	it("opens provider setup when Get Started is clicked", () => {
+	it("does not render duplicate bottom Get Started or Set up local AI buttons on the landing screen", () => {
+		renderWelcomeViewProvider()
+
+		expect(screen.queryByText(/welcome:landing.getStarted/)).not.toBeInTheDocument()
+		expect(screen.queryByText(/welcome:landing.setupLocalAi/)).not.toBeInTheDocument()
+	})
+
+	it("keeps the API provider dropdown closed until opened", () => {
+		renderWelcomeViewProvider()
+
+		expect(screen.getByTestId("welcome-provider-select")).toHaveAttribute("aria-expanded", "false")
+		expect(screen.queryByRole("listbox")).not.toBeInTheDocument()
+		expect(screen.queryByText("Anthropic")).not.toBeInTheDocument()
+	})
+
+	it("shows available API providers when the landing dropdown is opened", async () => {
+		renderWelcomeViewProvider()
+
+		const { listbox } = await openProviderDropdown()
+
+		expect(screen.getByTestId("welcome-provider-select")).toHaveAttribute("aria-expanded", "true")
+		expect(within(listbox).getByText("OpenRouter")).toBeInTheDocument()
+		expect(within(listbox).getByText("Anthropic")).toBeInTheDocument()
+		expect(within(listbox).getByText("OpenAI")).toBeInTheDocument()
+		expect(within(listbox).getByText("Ollama")).toBeInTheDocument()
+		expect(within(listbox).getByText("LM Studio")).toBeInTheDocument()
+	})
+
+	it("opens provider setup with the selected provider preselected", async () => {
 		const { setApiConfiguration } = renderWelcomeViewProvider()
 
-		fireEvent.click(screen.getByTestId("button-primary"))
+		await selectWelcomeProvider("Anthropic")
+
+		expect(screen.getByTestId("api-options")).toBeInTheDocument()
+		expect(screen.getByTestId("api-options")).toHaveAttribute("data-provider", "anthropic")
+		expect(setApiConfiguration).toHaveBeenCalledWith(
+			expect.objectContaining({
+				apiProvider: "anthropic",
+			}),
+		)
+		expect(screen.getByTestId("trans-welcome:providerSignup.chooseProvider")).toBeInTheDocument()
+		expect(vscode.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "upsertApiConfiguration" }))
+	})
+
+	it("opens provider setup when OpenRouter is selected", async () => {
+		const { setApiConfiguration } = renderWelcomeViewProvider()
+
+		await selectWelcomeProvider("OpenRouter")
 
 		expect(screen.getByTestId("api-options")).toBeInTheDocument()
 		expect(screen.getByTestId("api-options")).toHaveAttribute("data-provider", "openrouter")
@@ -168,7 +225,7 @@ describe("WelcomeViewProvider", () => {
 		expect(vscode.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "upsertApiConfiguration" }))
 	})
 
-	it("treats the built-in Anthropic default as empty onboarding config", () => {
+	it("treats the built-in Anthropic default as empty onboarding config", async () => {
 		const { setApiConfiguration } = renderWelcomeViewProvider({
 			apiConfiguration: {
 				apiProvider: "anthropic",
@@ -176,7 +233,7 @@ describe("WelcomeViewProvider", () => {
 			},
 		})
 
-		fireEvent.click(screen.getByTestId("button-primary"))
+		await selectWelcomeProvider("OpenRouter")
 
 		expect(screen.getByTestId("api-options")).toHaveAttribute("data-provider", "openrouter")
 		expect(screen.getByTestId("api-options")).toHaveAttribute("data-model", openRouterDefaultModelId)
@@ -186,10 +243,16 @@ describe("WelcomeViewProvider", () => {
 		})
 	})
 
-	it("saves the configured provider from setup", () => {
-		renderWelcomeViewProvider({ apiConfiguration: { apiProvider: "openrouter" } })
+	it("saves the configured provider from setup", async () => {
+		renderWelcomeViewProvider({
+			apiConfiguration: {
+				apiProvider: "openrouter",
+				openRouterApiKey: "test-key",
+				openRouterModelId: openRouterDefaultModelId,
+			},
+		})
 
-		fireEvent.click(screen.getByTestId("button-primary"))
+		await selectWelcomeProvider("OpenRouter")
 		fireEvent.click(screen.getByText(/welcome:providerSignup.finish/))
 
 		expect(vscode.postMessage).toHaveBeenCalledWith({
@@ -197,15 +260,17 @@ describe("WelcomeViewProvider", () => {
 			text: "default",
 			apiConfiguration: {
 				apiProvider: "openrouter",
+				openRouterApiKey: "test-key",
+				openRouterModelId: openRouterDefaultModelId,
 			},
 		})
 	})
 
-	it("returns to landing from provider setup", () => {
+	it("returns to landing from provider setup", async () => {
 		renderWelcomeViewProvider()
 
-		fireEvent.click(screen.getByTestId("button-primary"))
-		fireEvent.click(screen.getByTestId("button-secondary"))
+		await selectWelcomeProvider("OpenRouter")
+		fireEvent.click(screen.getByText(/welcome:providerSignup.goBack/))
 
 		expect(screen.getByText(/welcome:landing.greeting/)).toBeInTheDocument()
 		expect(screen.queryByTestId("api-options")).not.toBeInTheDocument()
@@ -214,7 +279,7 @@ describe("WelcomeViewProvider", () => {
 	it("opens the local AI setup path and probes hardware", () => {
 		renderWelcomeViewProvider()
 
-		fireEvent.click(screen.getByText(/welcome:landing.setupLocalAi/))
+		openLocalAiSetup()
 
 		expect(screen.getByText(/welcome:localSetup.heading/)).toBeInTheDocument()
 		expect(screen.getByText(/welcome:localSetup.form.usage.label/)).toBeInTheDocument()
@@ -224,7 +289,7 @@ describe("WelcomeViewProvider", () => {
 	it("builds a local AI recommendation from questionnaire answers", async () => {
 		renderWelcomeViewProvider()
 
-		fireEvent.click(screen.getByText(/welcome:landing.setupLocalAi/))
+		openLocalAiSetup()
 		dispatchExtensionMessage({ type: "localAiProbeResult", payload: mockProbe })
 
 		const [usageSelect, preferenceSelect] = screen.getAllByRole("combobox")
@@ -250,7 +315,7 @@ describe("WelcomeViewProvider", () => {
 	it("confirms download, shows progress, and renders success", async () => {
 		renderWelcomeViewProvider()
 
-		fireEvent.click(screen.getByText(/welcome:landing.setupLocalAi/))
+		openLocalAiSetup()
 		dispatchExtensionMessage({ type: "localAiProbeResult", payload: mockProbe })
 		fireEvent.click(screen.getByText(/welcome:localSetup.actions.recommend/))
 		dispatchExtensionMessage({ type: "localAiRecommendationResult", payload: mockRecommendation })
@@ -283,7 +348,7 @@ describe("WelcomeViewProvider", () => {
 	it("supports cancellation during local AI setup", async () => {
 		renderWelcomeViewProvider()
 
-		fireEvent.click(screen.getByText(/welcome:landing.setupLocalAi/))
+		openLocalAiSetup()
 		dispatchExtensionMessage({ type: "localAiProbeResult", payload: mockProbe })
 		fireEvent.click(screen.getByText(/welcome:localSetup.actions.recommend/))
 		dispatchExtensionMessage({ type: "localAiRecommendationResult", payload: mockRecommendation })
@@ -297,7 +362,7 @@ describe("WelcomeViewProvider", () => {
 	it("shows manual local AI setup and opens official Ollama download", () => {
 		renderWelcomeViewProvider()
 
-		fireEvent.click(screen.getByText(/welcome:landing.setupLocalAi/))
+		openLocalAiSetup()
 		fireEvent.click(screen.getByText(/welcome:localSetup.actions.manual/))
 
 		expect(screen.getByText(/welcome:localSetup.manual.heading/)).toBeInTheDocument()
