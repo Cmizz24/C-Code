@@ -123,7 +123,36 @@ describe("getModels with new GetModelsOptions", () => {
 
 		const result = await getModels({ provider: "openrouter" })
 
-		expect(mockGetOpenRouterModels).toHaveBeenCalled()
+		expect(mockGetOpenRouterModels).toHaveBeenCalledWith({ provider: "openrouter" })
+		expect(result).toEqual(mockModels)
+	})
+
+	it("passes OpenRouter image model options through and caches them separately", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const mockModels = {
+			"google/gemini-2.5-flash-image-preview": {
+				maxTokens: 8192,
+				contextWindow: 128000,
+				supportsImages: true,
+				supportsImageOutput: true,
+				supportsPromptCache: false,
+				description: "OpenRouter image model",
+			},
+		}
+		mockGetOpenRouterModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({
+			provider: "openrouter",
+			modelType: "image",
+			baseUrl: "https://openrouter.example/api/v1",
+		})
+
+		expect(mockGetOpenRouterModels).toHaveBeenCalledWith({
+			provider: "openrouter",
+			modelType: "image",
+			baseUrl: "https://openrouter.example/api/v1",
+		})
+		expect(mockCache.set).toHaveBeenCalledWith("openrouter_image", mockModels)
 		expect(result).toEqual(mockModels)
 	})
 
@@ -396,6 +425,45 @@ describe("empty cache protection", () => {
 	})
 
 	describe("refreshModels", () => {
+		it("keeps chat and image OpenRouter refreshes and cache entries separate", async () => {
+			const chatModels = {
+				"anthropic/claude-sonnet-4": {
+					maxTokens: 8192,
+					contextWindow: 200000,
+					supportsPromptCache: true,
+					description: "OpenRouter chat model",
+				},
+			}
+			const imageModels = {
+				"google/gemini-2.5-flash-image-preview": {
+					maxTokens: 8192,
+					contextWindow: 128000,
+					supportsImages: true,
+					supportsImageOutput: true,
+					supportsPromptCache: false,
+					description: "OpenRouter image model",
+				},
+			}
+
+			mockGet.mockReturnValue(undefined)
+			mockGetOpenRouterModels.mockResolvedValueOnce(chatModels).mockResolvedValueOnce(imageModels)
+
+			const { refreshModels } = await import("../modelCache")
+
+			const chatPromise = refreshModels({ provider: "openrouter" })
+			const imagePromise = refreshModels({ provider: "openrouter", modelType: "image" })
+
+			const [chatResult, imageResult] = await Promise.all([chatPromise, imagePromise])
+
+			expect(mockGetOpenRouterModels).toHaveBeenCalledTimes(2)
+			expect(mockGetOpenRouterModels).toHaveBeenCalledWith({ provider: "openrouter" })
+			expect(mockGetOpenRouterModels).toHaveBeenCalledWith({ provider: "openrouter", modelType: "image" })
+			expect(mockSet).toHaveBeenCalledWith("openrouter", chatModels)
+			expect(mockSet).toHaveBeenCalledWith("openrouter_image", imageModels)
+			expect(chatResult).toEqual(chatModels)
+			expect(imageResult).toEqual(imageModels)
+		})
+
 		it("keeps existing cache when API returns empty response", async () => {
 			const existingModels = {
 				"openrouter/existing-model": {

@@ -332,46 +332,7 @@
 		"warningMissingModel": "⚠️ {{provider}} requiere un ID de modelo para la generación de imágenes. Configúralo arriba.",
 		"successConfigured": "✓ La generación de imágenes está configurada para {{provider}} y lista para usar",
 		"modelLabel": "Modelo de generación de imágenes",
-		"optionalModelDescription": "Opcional. Déjalo en blanco para usar el checkpoint cargado actualmente por el proveedor.",
-		"recommendations": {
-			"title": "Rutas de proveedor recomendadas y notas sobre límites gratuitos",
-			"description": "Empieza con OpenRouter o con un endpoint Images API compatible con OpenAI. Los límites gratuitos públicos cambian a menudo, así que confirma las cuotas actuales en el panel de cada proveedor antes de depender de ellas.",
-			"modelLabel": "Modelo/API sugerido",
-			"limitLabel": "Límite gratuito visible",
-			"notesLabel": "Notas de configuración",
-			"rows": {
-				"openrouter": {
-					"provider": "OpenRouter",
-					"model": "Usa modelos con salida de imagen, como modelos de imagen de Gemini u OpenAI, mediante Chat Completions.",
-					"limit": "Los límites de modelos gratuitos varían por cuenta/clave; revisa el panel de OpenRouter.",
-					"notes": "Usa el proveedor OpenRouter de arriba con una clave API de OpenRouter."
-				},
-				"openaiCompatible": {
-					"provider": "OpenAI / OpenAI-compatible",
-					"model": "Usa modelos de OpenAI Images API (por ejemplo, gpt-image-1) o un endpoint Images API compatible.",
-					"limit": "Los proveedores compatibles con OpenAI definen sus propios precios y cuotas gratuitas.",
-					"notes": "Usa el proveedor compatible con OpenAI de arriba y define la Base URL del endpoint."
-				},
-				"googleAiStudio": {
-					"provider": "Google AI Studio / Gemini API",
-					"model": "Imagen 4 está disponible mediante Gemini API donde sea compatible.",
-					"limit": "El nivel gratuito de Imagen API no está disponible en los precios publicados; los límites de prueba de AI Studio varían por región/cuenta.",
-					"notes": "Úsalo mediante OpenRouter cuando esté disponible, o con un endpoint proxy compatible con OpenAI."
-				},
-				"huggingFace": {
-					"provider": "Hugging Face Inference Providers",
-					"model": "Modelos text-to-image mediante proveedores de Hugging Face.",
-					"limit": "Los usuarios gratuitos reciben 0,10 $ en créditos mensuales; PRO/Team reciben más créditos mensuales.",
-					"notes": "Úsalo solo si el endpoint elegido expone una API de imágenes compatible con OpenAI."
-				},
-				"stability": {
-					"provider": "Stability AI",
-					"model": "APIs de generación/edición de Stable Image.",
-					"limit": "La documentación indica 25 créditos gratis; 1 crédito = 0,01 $ y el uso varía por servicio/modelo.",
-					"notes": "Úsalo solo mediante un proxy compatible con OpenAI o un endpoint compatible personalizado."
-				}
-			}
-		}
+		"optionalModelDescription": "Opcional. Déjalo en blanco para usar el checkpoint cargado actualmente por el proveedor."
 	},
 	"providers": {
 		"providerDocumentation": "Documentación de {{provider}}",

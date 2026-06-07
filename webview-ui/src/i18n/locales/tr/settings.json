@@ -332,46 +332,7 @@
 		"warningMissingModel": "⚠️ {{provider}} görüntü oluşturma için model ID'si gerektirir. Yukarıda yapılandır.",
 		"successConfigured": "✓ Görüntü oluşturma {{provider}} için yapılandırıldı ve kullanıma hazır",
 		"modelLabel": "Görüntü oluşturma modeli",
-		"optionalModelDescription": "İsteğe bağlı. Sağlayıcı tarafından şu anda yüklü checkpoint'i kullanmak için boş bırak.",
-		"recommendations": {
-			"title": "Önerilen sağlayıcı yolları ve ücretsiz limit notları",
-			"description": "OpenRouter veya OpenAI-compatible Images API endpoint ile başla. Herkese açık ücretsiz limitler sık değişir, bu yüzden bunlara güvenmeden önce her sağlayıcının dashboard'unda güncel kotaları doğrula.",
-			"modelLabel": "Önerilen model/API",
-			"limitLabel": "Görünen ücretsiz limit",
-			"notesLabel": "Kurulum notları",
-			"rows": {
-				"openrouter": {
-					"provider": "OpenRouter",
-					"model": "Chat Completions üzerinden Gemini veya OpenAI görüntü modelleri gibi image-output modelleri kullan.",
-					"limit": "Ücretsiz model limitleri hesap/anahtara göre değişir; OpenRouter dashboard'unu kontrol et.",
-					"notes": "Yukarıdaki OpenRouter sağlayıcısını bir OpenRouter API anahtarıyla kullan."
-				},
-				"openaiCompatible": {
-					"provider": "OpenAI / OpenAI-compatible",
-					"model": "OpenAI Images API modellerini (ör. gpt-image-1) veya uyumlu bir Images API endpoint kullan.",
-					"limit": "OpenAI-compatible sağlayıcılar kendi fiyatlandırmalarını ve ücretsiz kotalarını belirler.",
-					"notes": "Yukarıdaki OpenAI-compatible sağlayıcısını kullan ve endpoint'in Base URL değerini ayarla."
-				},
-				"googleAiStudio": {
-					"provider": "Google AI Studio / Gemini API",
-					"model": "Imagen 4 desteklendiği yerlerde Gemini API üzerinden kullanılabilir.",
-					"limit": "Imagen API ücretsiz katmanı yayınlanan fiyatlandırmada mevcut değil; AI Studio test limitleri bölge/hesaba göre değişir.",
-					"notes": "Mevcut olduğunda OpenRouter üzerinden veya OpenAI-compatible proxy endpoint ile kullan."
-				},
-				"huggingFace": {
-					"provider": "Hugging Face Inference Providers",
-					"model": "Hugging Face sağlayıcıları üzerinden text-to-image modelleri.",
-					"limit": "Ücretsiz kullanıcılar aylık $0,10 credits alır; PRO/Team kullanıcıları daha yüksek aylık credits alır.",
-					"notes": "Yalnızca seçtiğin endpoint OpenAI-compatible image API sunuyorsa kullan."
-				},
-				"stability": {
-					"provider": "Stability AI",
-					"model": "Stable Image oluşturma/düzenleme API'leri.",
-					"limit": "Docs 25 ücretsiz credits listeler; 1 credit = $0,01 ve kullanım service/model'e göre değişir.",
-					"notes": "Yalnızca OpenAI-compatible proxy veya custom compatible endpoint üzerinden kullan."
-				}
-			}
-		}
+		"optionalModelDescription": "İsteğe bağlı. Sağlayıcı tarafından şu anda yüklü checkpoint'i kullanmak için boş bırak."
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} Dokümantasyonu",

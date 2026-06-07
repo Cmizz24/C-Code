@@ -342,46 +342,7 @@
 		"warningMissingModel": "⚠️ {{provider}} 需要模型 ID 才能生成影像。請在上方設定。",
 		"successConfigured": "✓ 已為 {{provider}} 設定影像生成，可以使用",
 		"modelLabel": "影像生成模型",
-		"optionalModelDescription": "選用。留空以使用供應商目前載入的 checkpoint。",
-		"recommendations": {
-			"title": "建議的供應商路徑與免費限制說明",
-			"description": "從 OpenRouter 或 OpenAI-compatible Images API endpoint 開始。公開免費限制經常變動，因此在依賴之前，請在各供應商 dashboard 確認目前 quota。",
-			"modelLabel": "建議模型/API",
-			"limitLabel": "可見免費限制",
-			"notesLabel": "設定說明",
-			"rows": {
-				"openrouter": {
-					"provider": "OpenRouter",
-					"model": "透過 Chat Completions 使用 Gemini 或 OpenAI 影像模型等 image-output 模型。",
-					"limit": "免費模型限制會依帳號/key 而異；請查看 OpenRouter dashboard。",
-					"notes": "使用上方 OpenRouter 供應商並設定 OpenRouter API key。"
-				},
-				"openaiCompatible": {
-					"provider": "OpenAI / OpenAI-compatible",
-					"model": "使用 OpenAI Images API 模型（例如 gpt-image-1）或相容的 Images API endpoint。",
-					"limit": "OpenAI-compatible 供應商會自行設定價格與免費 quota。",
-					"notes": "使用上方 OpenAI-compatible 供應商，並設定 endpoint 的 Base URL。"
-				},
-				"googleAiStudio": {
-					"provider": "Google AI Studio / Gemini API",
-					"model": "Imagen 4 在支援的情況下可透過 Gemini API 使用。",
-					"limit": "已發布價格中不提供 Imagen API 免費層；AI Studio 測試限制會依地區/帳號而異。",
-					"notes": "可用時透過 OpenRouter 使用，或透過 OpenAI-compatible proxy endpoint 使用。"
-				},
-				"huggingFace": {
-					"provider": "Hugging Face Inference Providers",
-					"model": "透過 Hugging Face 供應商使用 text-to-image 模型。",
-					"limit": "免費使用者每月獲得 $0.10 credits；PRO/Team 使用者獲得更高的每月 credits。",
-					"notes": "僅在所選 endpoint 提供 OpenAI-compatible image API 時使用。"
-				},
-				"stability": {
-					"provider": "Stability AI",
-					"model": "Stable Image 生成/編輯 API。",
-					"limit": "Docs 列出 25 free credits；1 credit = $0.01，使用量依 service/model 而異。",
-					"notes": "僅透過 OpenAI-compatible proxy 或 custom compatible endpoint 使用。"
-				}
-			}
-		}
+		"optionalModelDescription": "選用。留空以使用供應商目前載入的 checkpoint。"
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} 說明文件",

@@ -6,11 +6,15 @@ import { vscode } from "@src/utils/vscode"
 
 type UseRouterModelsOptions = {
 	provider?: string // single provider filter (e.g. "openrouter")
+	modelType?: "chat" | "image"
+	values?: Record<string, unknown>
 	enabled?: boolean // gate fetching entirely
 }
 
-const getRouterModels = async (provider?: string) =>
+const getRouterModels = async (opts: Omit<UseRouterModelsOptions, "enabled">) =>
 	new Promise<RouterModels>((resolve, reject) => {
+		const { provider, modelType, values } = opts
+
 		const cleanup = () => {
 			if (typeof window !== "undefined") {
 				window.removeEventListener("message", handler)
@@ -27,9 +31,10 @@ const getRouterModels = async (provider?: string) =>
 
 			if (message.type === "routerModels") {
 				const msgProvider = message?.values?.provider as string | undefined
+				const msgModelType = message?.values?.modelType as "chat" | "image" | undefined
 
 				// Verify response matches request
-				if (provider !== msgProvider) {
+				if (provider !== msgProvider || modelType !== msgModelType) {
 					// Not our response; ignore and wait for the matching one
 					return
 				}
@@ -46,8 +51,15 @@ const getRouterModels = async (provider?: string) =>
 		}
 
 		window.addEventListener("message", handler)
-		if (provider) {
-			vscode.postMessage({ type: "requestRouterModels", values: { provider } })
+
+		const requestValues = {
+			...values,
+			...(provider ? { provider } : {}),
+			...(modelType ? { modelType } : {}),
+		}
+
+		if (Object.keys(requestValues).length > 0) {
+			vscode.postMessage({ type: "requestRouterModels", values: requestValues })
 		} else {
 			vscode.postMessage({ type: "requestRouterModels" })
 		}
@@ -55,9 +67,12 @@ const getRouterModels = async (provider?: string) =>
 
 export const useRouterModels = (opts: UseRouterModelsOptions = {}) => {
 	const provider = opts.provider || undefined
+	const modelType = opts.modelType === "image" ? "image" : undefined
+	const values = opts.values
+
 	return useQuery({
-		queryKey: ["routerModels", provider || "all"],
-		queryFn: () => getRouterModels(provider),
+		queryKey: ["routerModels", provider || "all", modelType || "chat", values || {}],
+		queryFn: () => getRouterModels({ provider, modelType, values }),
 		enabled: opts.enabled !== false,
 	})
 }

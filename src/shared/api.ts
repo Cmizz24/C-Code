@@ -184,11 +184,13 @@ type CommonFetchParams = {
 	openAiHeaders?: Record<string, string>
 }
 
+export type RouterModelType = "chat" | "image"
+
 // Exhaustive, value-level map for all dynamic providers.
 // If a new dynamic provider is added in packages/types, this will fail to compile
 // until a corresponding entry is added here.
 const dynamicProviderExtras = {
-	openrouter: {} as {}, // eslint-disable-line @typescript-eslint/no-empty-object-type
+	openrouter: {} as { modelType?: RouterModelType },
 	"vercel-ai-gateway": {} as {}, // eslint-disable-line @typescript-eslint/no-empty-object-type
 	litellm: {} as { apiKey: string; baseUrl: string },
 	requesty: {} as { apiKey?: string; baseUrl?: string },

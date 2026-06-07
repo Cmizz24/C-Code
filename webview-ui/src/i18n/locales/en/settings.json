@@ -394,46 +394,7 @@
 		"warningMissingModel": "⚠️ {{provider}} requires a model ID for image generation. Configure it above.",
 		"successConfigured": "✓ Image generation is configured for {{provider}} and ready to use",
 		"modelLabel": "Image Generation Model",
-		"optionalModelDescription": "Optional. Leave blank to use the checkpoint currently loaded by the provider.",
-		"recommendations": {
-			"title": "Recommended provider paths and free-limit notes",
-			"description": "Start with OpenRouter or an OpenAI-compatible Images API endpoint. Public free limits change frequently, so confirm current quotas in each provider dashboard before relying on them.",
-			"modelLabel": "Suggested model/API",
-			"limitLabel": "Visible free limit",
-			"notesLabel": "Setup notes",
-			"rows": {
-				"openrouter": {
-					"provider": "OpenRouter",
-					"model": "Use image-output models such as Gemini or OpenAI image models through Chat Completions.",
-					"limit": "Free-model limits vary by account/key; check the OpenRouter dashboard.",
-					"notes": "Use the OpenRouter provider above with an OpenRouter API key."
-				},
-				"openaiCompatible": {
-					"provider": "OpenAI / OpenAI-compatible",
-					"model": "Use OpenAI Images API models (for example, gpt-image-1) or a compatible Images API endpoint.",
-					"limit": "OpenAI-compatible providers set their own pricing and free quotas.",
-					"notes": "Use the OpenAI-compatible provider above and set the endpoint's Base URL."
-				},
-				"googleAiStudio": {
-					"provider": "Google AI Studio / Gemini API",
-					"model": "Imagen 4 is available through the Gemini API where supported.",
-					"limit": "Imagen API free tier is not available in published pricing; AI Studio testing limits vary by region/account.",
-					"notes": "Use through OpenRouter when available, or an OpenAI-compatible proxy endpoint."
-				},
-				"huggingFace": {
-					"provider": "Hugging Face Inference Providers",
-					"model": "Text-to-image models through Hugging Face providers.",
-					"limit": "Free users receive $0.10 monthly credits; PRO/Team users receive higher monthly credits.",
-					"notes": "Use only if your chosen endpoint exposes an OpenAI-compatible image API."
-				},
-				"stability": {
-					"provider": "Stability AI",
-					"model": "Stable Image generation/edit APIs.",
-					"limit": "Docs list 25 free credits; 1 credit = $0.01 and usage varies by service/model.",
-					"notes": "Use only through an OpenAI-compatible proxy or custom compatible endpoint."
-				}
-			}
-		}
+		"optionalModelDescription": "Optional. Leave blank to use the checkpoint currently loaded by the provider."
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} documentation",

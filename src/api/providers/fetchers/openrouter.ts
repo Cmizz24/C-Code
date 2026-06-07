@@ -9,8 +9,10 @@ import {
 	anthropicModels,
 } from "@roo-code/types"
 
-import type { ApiHandlerOptions } from "../../../shared/api"
+import type { ApiHandlerOptions, RouterModelType } from "../../../shared/api"
 import { parseApiPrice } from "../../../shared/cost"
+
+type OpenRouterFetchOptions = ApiHandlerOptions & { baseUrl?: string; modelType?: RouterModelType }
 
 /**
  * OpenRouterBaseModel
@@ -94,9 +96,10 @@ type OpenRouterModelEndpointsResponse = z.infer<typeof openRouterModelEndpointsR
  * getOpenRouterModels
  */
 
-export async function getOpenRouterModels(options?: ApiHandlerOptions): Promise<Record<string, ModelInfo>> {
+export async function getOpenRouterModels(options?: OpenRouterFetchOptions): Promise<Record<string, ModelInfo>> {
 	const models: Record<string, ModelInfo> = {}
-	const baseURL = options?.openRouterBaseUrl || "https://openrouter.ai/api/v1"
+	const baseURL = options?.openRouterBaseUrl || options?.baseUrl || "https://openrouter.ai/api/v1"
+	const modelType = options?.modelType ?? "chat"
 
 	try {
 		const response = await axios.get<OpenRouterModelsResponse>(`${baseURL}/models`)
@@ -109,9 +112,9 @@ export async function getOpenRouterModels(options?: ApiHandlerOptions): Promise<
 
 		for (const model of data) {
 			const { id, architecture, top_provider, supported_parameters = [] } = model
+			const imageGenerationHint = hasOpenRouterImageGenerationHint(id, model.name, model.description)
 
-			// Skip image generation models (models that output images)
-			if (architecture?.output_modalities?.includes("image")) {
+			if (!shouldIncludeOpenRouterModel(modelType, architecture?.output_modalities, imageGenerationHint)) {
 				continue
 			}
 
@@ -141,10 +144,11 @@ export async function getOpenRouterModels(options?: ApiHandlerOptions): Promise<
 
 export async function getOpenRouterModelEndpoints(
 	modelId: string,
-	options?: ApiHandlerOptions,
+	options?: OpenRouterFetchOptions,
 ): Promise<Record<string, ModelInfo>> {
 	const models: Record<string, ModelInfo> = {}
-	const baseURL = options?.openRouterBaseUrl || "https://openrouter.ai/api/v1"
+	const baseURL = options?.openRouterBaseUrl || options?.baseUrl || "https://openrouter.ai/api/v1"
+	const modelType = options?.modelType ?? "chat"
 
 	try {
 		const response = await axios.get<OpenRouterModelEndpointsResponse>(`${baseURL}/models/${modelId}/endpoints`)
@@ -155,10 +159,10 @@ export async function getOpenRouterModelEndpoints(
 			console.error("OpenRouter model endpoints response is invalid", result.error.format())
 		}
 
-		const { id, architecture, endpoints } = data
+		const { id, name, description, architecture, endpoints } = data
+		const imageGenerationHint = hasOpenRouterImageGenerationHint(id, name, description)
 
-		// Skip image generation models (models that output images)
-		if (architecture?.output_modalities?.includes("image")) {
+		if (!shouldIncludeOpenRouterModel(modelType, architecture?.output_modalities, imageGenerationHint)) {
 			return models
 		}
 
@@ -178,6 +182,36 @@ export async function getOpenRouterModelEndpoints(
 	}
 
 	return models
+}
+
+function shouldIncludeOpenRouterModel(
+	modelType: RouterModelType,
+	outputModality: string[] | null | undefined,
+	imageGenerationHint: boolean,
+): boolean {
+	const hasOutputModalityMetadata = Array.isArray(outputModality) && outputModality.length > 0
+	const supportsImageOutput = outputModality?.includes("image") ?? false
+
+	if (modelType === "image") {
+		return supportsImageOutput || (!hasOutputModalityMetadata && imageGenerationHint)
+	}
+
+	return !supportsImageOutput && !(imageGenerationHint && !hasOutputModalityMetadata)
+}
+
+function hasOpenRouterImageGenerationHint(
+	id: string,
+	name: string | undefined,
+	description: string | undefined,
+): boolean {
+	const idHint = /(?:^|[/:_-])image(?:$|[/:_-])/.test(id.toLowerCase())
+	const haystack = [id, name, description].filter(Boolean).join(" ").toLowerCase()
+	const generationHint =
+		/\b(image generation|generate images?|text-to-image|image[-_ ]?output|gpt-image|imagen|dall[-_\s]?e|flux|stable diffusion|sdxl|ideogram|recraft|seedream|midjourney|sora)\b/.test(
+			haystack,
+		)
+
+	return idHint || generationHint
 }
 
 /**
@@ -211,6 +245,7 @@ export const parseOpenRouterModel = ({
 		maxTokens: maxTokens || Math.ceil(model.context_length * 0.2),
 		contextWindow: model.context_length,
 		supportsImages: inputModality?.includes("image") ?? false,
+		supportsImageOutput: outputModality?.includes("image") ?? false,
 		supportsPromptCache,
 		inputPrice: parseApiPrice(model.pricing?.prompt),
 		outputPrice: parseApiPrice(model.pricing?.completion),

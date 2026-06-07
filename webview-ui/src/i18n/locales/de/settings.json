@@ -332,46 +332,7 @@
 		"warningMissingModel": "⚠️ {{provider}} benötigt eine Modell-ID für die Bildgenerierung. Konfiguriere sie oben.",
 		"successConfigured": "✓ Bildgenerierung ist für {{provider}} konfiguriert und einsatzbereit",
 		"modelLabel": "Bildgenerierungsmodell",
-		"optionalModelDescription": "Optional. Leer lassen, um den aktuell vom Anbieter geladenen Checkpoint zu verwenden.",
-		"recommendations": {
-			"title": "Empfohlene Anbieterwege und Hinweise zu kostenlosen Limits",
-			"description": "Starte mit OpenRouter oder einem OpenAI-kompatiblen Images-API-Endpunkt. Öffentliche kostenlose Limits ändern sich häufig, prüfe daher die aktuellen Quoten im Dashboard des jeweiligen Anbieters, bevor du dich darauf verlässt.",
-			"modelLabel": "Vorgeschlagenes Modell/API",
-			"limitLabel": "Sichtbares kostenloses Limit",
-			"notesLabel": "Einrichtungshinweise",
-			"rows": {
-				"openrouter": {
-					"provider": "OpenRouter",
-					"model": "Nutze Modelle mit Bildausgabe, z. B. Gemini- oder OpenAI-Bildmodelle, über Chat Completions.",
-					"limit": "Limits für kostenlose Modelle variieren je nach Konto/Schlüssel; prüfe das OpenRouter-Dashboard.",
-					"notes": "Nutze oben den OpenRouter-Anbieter mit einem OpenRouter-API-Schlüssel."
-				},
-				"openaiCompatible": {
-					"provider": "OpenAI / OpenAI-compatible",
-					"model": "Nutze OpenAI-Images-API-Modelle (z. B. gpt-image-1) oder einen kompatiblen Images-API-Endpunkt.",
-					"limit": "OpenAI-kompatible Anbieter legen eigene Preise und kostenlose Quoten fest.",
-					"notes": "Nutze oben den OpenAI-kompatiblen Anbieter und setze die Base URL des Endpunkts."
-				},
-				"googleAiStudio": {
-					"provider": "Google AI Studio / Gemini API",
-					"model": "Imagen 4 ist über die Gemini API verfügbar, wo es unterstützt wird.",
-					"limit": "Für die Imagen API ist in den veröffentlichten Preisen kein kostenloser Tarif verfügbar; AI-Studio-Testlimits variieren je nach Region/Konto.",
-					"notes": "Nutze es über OpenRouter, wenn verfügbar, oder über einen OpenAI-kompatiblen Proxy-Endpunkt."
-				},
-				"huggingFace": {
-					"provider": "Hugging Face Inference Providers",
-					"model": "Text-to-image-Modelle über Hugging-Face-Anbieter.",
-					"limit": "Kostenlose Nutzer erhalten monatlich 0,10 $ Credits; PRO/Team erhalten höhere monatliche Credits.",
-					"notes": "Nur verwenden, wenn der gewählte Endpunkt eine OpenAI-kompatible Bild-API bereitstellt."
-				},
-				"stability": {
-					"provider": "Stability AI",
-					"model": "Stable-Image-APIs zum Generieren/Bearbeiten.",
-					"limit": "Die Docs nennen 25 kostenlose Credits; 1 Credit = 0,01 $, und der Verbrauch variiert je nach Dienst/Modell.",
-					"notes": "Nur über einen OpenAI-kompatiblen Proxy oder einen eigenen kompatiblen Endpunkt verwenden."
-				}
-			}
-		}
+		"optionalModelDescription": "Optional. Leer lassen, um den aktuell vom Anbieter geladenen Checkpoint zu verwenden."
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}}-Dokumentation",

@@ -332,46 +332,7 @@
 		"warningMissingModel": "⚠️ {{provider}} memerlukan ID model untuk pembuatan gambar. Konfigurasikan di atas.",
 		"successConfigured": "✓ Pembuatan gambar dikonfigurasi untuk {{provider}} dan siap digunakan",
 		"modelLabel": "Model Pembuatan Gambar",
-		"optionalModelDescription": "Opsional. Biarkan kosong untuk menggunakan checkpoint yang saat ini dimuat oleh penyedia.",
-		"recommendations": {
-			"title": "Jalur penyedia yang direkomendasikan dan catatan batas gratis",
-			"description": "Mulai dengan OpenRouter atau endpoint Images API yang kompatibel dengan OpenAI. Batas gratis publik sering berubah, jadi konfirmasi kuota terbaru di dashboard tiap penyedia sebelum mengandalkannya.",
-			"modelLabel": "Model/API yang disarankan",
-			"limitLabel": "Batas gratis yang terlihat",
-			"notesLabel": "Catatan penyiapan",
-			"rows": {
-				"openrouter": {
-					"provider": "OpenRouter",
-					"model": "Gunakan model keluaran gambar seperti model gambar Gemini atau OpenAI melalui Chat Completions.",
-					"limit": "Batas model gratis bervariasi menurut akun/kunci; periksa dashboard OpenRouter.",
-					"notes": "Gunakan penyedia OpenRouter di atas dengan kunci API OpenRouter."
-				},
-				"openaiCompatible": {
-					"provider": "OpenAI / OpenAI-compatible",
-					"model": "Gunakan model OpenAI Images API (misalnya gpt-image-1) atau endpoint Images API yang kompatibel.",
-					"limit": "Penyedia yang kompatibel dengan OpenAI menetapkan harga dan kuota gratisnya sendiri.",
-					"notes": "Gunakan penyedia OpenAI-compatible di atas dan atur Base URL endpoint."
-				},
-				"googleAiStudio": {
-					"provider": "Google AI Studio / Gemini API",
-					"model": "Imagen 4 tersedia melalui Gemini API jika didukung.",
-					"limit": "Tier gratis Imagen API tidak tersedia dalam harga yang dipublikasikan; batas pengujian AI Studio bervariasi menurut region/akun.",
-					"notes": "Gunakan melalui OpenRouter jika tersedia, atau endpoint proxy yang kompatibel dengan OpenAI."
-				},
-				"huggingFace": {
-					"provider": "Hugging Face Inference Providers",
-					"model": "Model text-to-image melalui penyedia Hugging Face.",
-					"limit": "Pengguna gratis menerima kredit bulanan $0,10; pengguna PRO/Team menerima kredit bulanan lebih tinggi.",
-					"notes": "Gunakan hanya jika endpoint pilihanmu mengekspos API gambar yang kompatibel dengan OpenAI."
-				},
-				"stability": {
-					"provider": "Stability AI",
-					"model": "API generasi/edit Stable Image.",
-					"limit": "Dokumentasi mencantumkan 25 kredit gratis; 1 kredit = $0,01 dan penggunaan bervariasi menurut layanan/model.",
-					"notes": "Gunakan hanya melalui proxy yang kompatibel dengan OpenAI atau endpoint kompatibel kustom."
-				}
-			}
-		}
+		"optionalModelDescription": "Opsional. Biarkan kosong untuk menggunakan checkpoint yang saat ini dimuat oleh penyedia."
 	},
 	"providers": {
 		"providerDocumentation": "Dokumentasi {{provider}}",

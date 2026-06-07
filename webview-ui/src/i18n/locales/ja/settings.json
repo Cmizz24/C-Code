@@ -332,46 +332,7 @@
 		"warningMissingModel": "⚠️ {{provider}} で画像生成するにはモデルIDが必要です。上で設定してください。",
 		"successConfigured": "✓ {{provider}} の画像生成が設定され、使用準備ができています",
 		"modelLabel": "画像生成モデル",
-		"optionalModelDescription": "任意。空欄にすると、プロバイダーで現在読み込まれている checkpoint を使用します。",
-		"recommendations": {
-			"title": "おすすめのプロバイダー経路と無料枠メモ",
-			"description": "OpenRouter または OpenAI-compatible な Images API endpoint から始めてください。公開されている無料枠は頻繁に変わるため、利用前に各プロバイダーの dashboard で現在の quota を確認してください。",
-			"modelLabel": "推奨モデル/API",
-			"limitLabel": "確認できる無料枠",
-			"notesLabel": "設定メモ",
-			"rows": {
-				"openrouter": {
-					"provider": "OpenRouter",
-					"model": "Chat Completions 経由で Gemini や OpenAI の画像モデルなど、画像出力モデルを使用します。",
-					"limit": "無料モデルの制限は account/key によって異なります。OpenRouter dashboard を確認してください。",
-					"notes": "上の OpenRouter プロバイダーを OpenRouter API key と一緒に使用してください。"
-				},
-				"openaiCompatible": {
-					"provider": "OpenAI / OpenAI-compatible",
-					"model": "OpenAI Images API モデル（例: gpt-image-1）または互換 Images API endpoint を使用します。",
-					"limit": "OpenAI-compatible プロバイダーは独自の料金と無料 quota を設定します。",
-					"notes": "上の OpenAI-compatible プロバイダーを使用し、endpoint の Base URL を設定してください。"
-				},
-				"googleAiStudio": {
-					"provider": "Google AI Studio / Gemini API",
-					"model": "Imagen 4 は対応地域/環境で Gemini API 経由で利用できます。",
-					"limit": "Imagen API の無料枠は公開料金では利用不可です。AI Studio のテスト制限は region/account によって異なります。",
-					"notes": "利用可能なら OpenRouter 経由、または OpenAI-compatible な proxy endpoint 経由で使用してください。"
-				},
-				"huggingFace": {
-					"provider": "Hugging Face Inference Providers",
-					"model": "Hugging Face providers 経由の text-to-image モデル。",
-					"limit": "無料ユーザーは月額 $0.10 credits、PRO/Team ユーザーはより多い月額 credits を受け取ります。",
-					"notes": "選択した endpoint が OpenAI-compatible な画像 API を公開している場合のみ使用してください。"
-				},
-				"stability": {
-					"provider": "Stability AI",
-					"model": "Stable Image の生成/編集 API。",
-					"limit": "Docs では 25 free credits とされています。1 credit = $0.01 で、使用量は service/model により異なります。",
-					"notes": "OpenAI-compatible proxy または custom compatible endpoint 経由の場合のみ使用してください。"
-				}
-			}
-		}
+		"optionalModelDescription": "任意。空欄にすると、プロバイダーで現在読み込まれている checkpoint を使用します。"
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}}のドキュメント",

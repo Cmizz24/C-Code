@@ -8,12 +8,14 @@ import {
 	getImageGenerationProvider,
 	ACTIVE_IMAGE_GENERATION_PROVIDER_DEFINITIONS,
 	IMAGE_GENERATION_PROVIDERS,
+	type ImageGenerationModel,
 	type ImageGenerationApiMethod,
 	type ImageGenerationProvider,
 	type ImageGenerationProviderSettingsKeys,
 } from "@roo-code/types"
 import type { ExtensionStateContextType } from "@src/context/ExtensionStateContext"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
+import { useRouterModels } from "@src/components/ui/hooks/useRouterModels"
 
 import { Section } from "./Section"
 import { SectionHeader } from "./SectionHeader"
@@ -56,10 +58,54 @@ export const ImageGenerationSettings = ({
 	const providerDefinition = IMAGE_GENERATION_PROVIDERS[currentProvider]
 	const settingsKeys = providerDefinition.settingsKeys
 
-	const availableModels = useMemo(() => getImageGenerationModels(currentProvider), [currentProvider])
 	const configuredModel = getStringSetting(settingsKeys.model)?.trim()
 	const defaultModel = getDefaultImageGenerationModel(currentProvider)
 	const currentModel = configuredModel || defaultModel
+	const configuredBaseUrl = getStringSetting(settingsKeys.baseUrl) ?? ""
+	const openRouterModelRequestValues = useMemo(
+		() => ({ openRouterImageBaseUrl: configuredBaseUrl }),
+		[configuredBaseUrl],
+	)
+	const { data: openRouterImageRouterModels } = useRouterModels({
+		provider: "openrouter",
+		modelType: "image",
+		values: openRouterModelRequestValues,
+		enabled: currentProvider === "openrouter",
+	})
+	const availableModels = useMemo(() => {
+		const staticModels = getImageGenerationModels(currentProvider)
+
+		if (currentProvider !== "openrouter") {
+			return staticModels
+		}
+
+		const staticModelIds = new Set(staticModels.map((model) => model.value))
+		const dynamicModels: ImageGenerationModel[] = Object.entries(openRouterImageRouterModels?.openrouter ?? {})
+			.filter(([modelId]) => !staticModelIds.has(modelId))
+			.map(([modelId, modelInfo]) => ({
+				value: modelId,
+				label: modelId,
+				provider: "openrouter",
+				supportsImageInput: modelInfo.supportsImages,
+			}))
+
+		return [...staticModels, ...dynamicModels]
+	}, [currentProvider, openRouterImageRouterModels])
+	const selectableModels = useMemo(() => {
+		if (!currentModel || availableModels.some((model) => model.value === currentModel)) {
+			return availableModels
+		}
+
+		return [
+			{
+				value: currentModel,
+				label: currentModel,
+				provider: currentProvider,
+				isCustom: true,
+			},
+			...availableModels,
+		]
+	}, [availableModels, currentModel, currentProvider])
 	const currentModelInfo = getImageGenerationModel(currentProvider, currentModel)
 	const configuredApiMethod = getStringSetting(settingsKeys.apiMethod) as ImageGenerationApiMethod | undefined
 	const supportedConfiguredApiMethod =
@@ -71,7 +117,6 @@ export const ImageGenerationSettings = ({
 		supportedConfiguredApiMethod ||
 		getDefaultImageGenerationApiMethod(currentProvider)
 	const apiMethodLockedByModel = !!currentModelInfo?.apiMethod
-	const configuredBaseUrl = getStringSetting(settingsKeys.baseUrl) ?? ""
 	const configuredApiKey = getStringSetting(settingsKeys.apiKey) ?? ""
 	const configuredNegativePrompt = getStringSetting(settingsKeys.negativePrompt) ?? ""
 	const hasRequiredApiKey = !providerDefinition.requiresApiKey || configuredApiKey.trim().length > 0
@@ -120,7 +165,7 @@ export const ImageGenerationSettings = ({
 				value={currentModel}
 				onChange={(e: any) => handleModelChange(e.target.value)}
 				className="w-full">
-				{availableModels.map((model) => (
+				{selectableModels.map((model) => (
 					<VSCodeOption key={model.value} value={model.value} className="py-2 px-3">
 						{model.label}
 					</VSCodeOption>
@@ -128,8 +173,6 @@ export const ImageGenerationSettings = ({
 			</VSCodeDropdown>
 		)
 	}
-
-	const recommendationRows = ["openrouter", "openaiCompatible", "googleAiStudio", "huggingFace", "stability"] as const
 
 	return (
 		<div>
@@ -139,42 +182,6 @@ export const ImageGenerationSettings = ({
 				<p className="text-vscode-descriptionForeground text-sm mt-0">
 					{t("settings:imageGeneration.description")}
 				</p>
-
-				<div className="mb-4 rounded border border-vscode-panel-border bg-vscode-sideBar-background p-3 text-sm">
-					<div className="font-medium mb-1">{t("settings:imageGeneration.recommendations.title")}</div>
-					<p className="text-vscode-descriptionForeground text-xs mt-0 mb-3">
-						{t("settings:imageGeneration.recommendations.description")}
-					</p>
-					<div className="grid gap-2">
-						{recommendationRows.map((row) => (
-							<div
-								key={row}
-								className="rounded border border-vscode-panel-border bg-vscode-editor-background p-2">
-								<div className="font-medium">
-									{t(`settings:imageGeneration.recommendations.rows.${row}.provider`)}
-								</div>
-								<div className="mt-1 text-xs text-vscode-descriptionForeground">
-									<span className="font-medium text-vscode-foreground">
-										{t("settings:imageGeneration.recommendations.modelLabel")}:
-									</span>
-									{t(`settings:imageGeneration.recommendations.rows.${row}.model`)}
-								</div>
-								<div className="mt-1 text-xs text-vscode-descriptionForeground">
-									<span className="font-medium text-vscode-foreground">
-										{t("settings:imageGeneration.recommendations.limitLabel")}:
-									</span>
-									{t(`settings:imageGeneration.recommendations.rows.${row}.limit`)}
-								</div>
-								<div className="mt-1 text-xs text-vscode-descriptionForeground">
-									<span className="font-medium text-vscode-foreground">
-										{t("settings:imageGeneration.recommendations.notesLabel")}:
-									</span>
-									{t(`settings:imageGeneration.recommendations.rows.${row}.notes`)}
-								</div>
-							</div>
-						))}
-					</div>
-				</div>
 
 				<div className="space-y-3">
 					<div>

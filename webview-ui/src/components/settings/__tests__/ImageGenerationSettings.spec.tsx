@@ -2,6 +2,8 @@ import { fireEvent, render, screen, within } from "@testing-library/react"
 
 import { ImageGenerationSettings } from "../ImageGenerationSettings"
 
+const mockUseRouterModels = vi.hoisted(() => vi.fn(() => ({ data: undefined as any })))
+
 vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 	VSCodeCheckbox: ({ children, checked, onChange }: any) => (
 		<label>
@@ -24,6 +26,10 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 			className={className}
 		/>
 	),
+}))
+
+vi.mock("@src/components/ui/hooks/useRouterModels", () => ({
+	useRouterModels: mockUseRouterModels,
 }))
 
 vi.mock("@src/i18n/TranslationContext", () => ({
@@ -52,6 +58,7 @@ describe("ImageGenerationSettings", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
+		mockUseRouterModels.mockReturnValue({ data: undefined })
 	})
 
 	describe("Initial Mount Behavior", () => {
@@ -200,25 +207,74 @@ describe("ImageGenerationSettings", () => {
 	})
 
 	describe("Conditional Rendering", () => {
-		it("should render provider recommendation and visible limit guidance", () => {
+		it("should not render provider recommendation or visible free-limit guidance", () => {
 			render(<ImageGenerationSettings {...defaultProps} />)
 
-			expect(screen.getByText("settings:imageGeneration.recommendations.title")).toBeInTheDocument()
-			expect(screen.getByText("settings:imageGeneration.recommendations.description")).toBeInTheDocument()
+			expect(screen.queryByText("settings:imageGeneration.recommendations.title")).not.toBeInTheDocument()
+			expect(screen.queryByText("settings:imageGeneration.recommendations.description")).not.toBeInTheDocument()
 			expect(
-				screen.getByText("settings:imageGeneration.recommendations.rows.openrouter.provider"),
+				screen.queryByText("settings:imageGeneration.recommendations.rows.openrouter.provider"),
+			).not.toBeInTheDocument()
+			expect(
+				screen.queryByText("settings:imageGeneration.recommendations.rows.openaiCompatible.provider"),
+			).not.toBeInTheDocument()
+			expect(
+				screen.queryByText("settings:imageGeneration.recommendations.rows.googleAiStudio.limit"),
+			).not.toBeInTheDocument()
+			expect(
+				screen.queryByText("settings:imageGeneration.recommendations.rows.huggingFace.limit"),
+			).not.toBeInTheDocument()
+			expect(
+				screen.queryByText("settings:imageGeneration.recommendations.rows.stability.limit"),
+			).not.toBeInTheDocument()
+		})
+
+		it("should render dynamic user-available OpenRouter image models separately from static choices", () => {
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					openrouter: {
+						"google/gemini-2.5-flash-image-preview": {
+							maxTokens: 8192,
+							contextWindow: 128000,
+							supportsImages: true,
+							supportsImageOutput: true,
+							supportsPromptCache: false,
+						},
+						"google/imagen-4": {
+							maxTokens: 8192,
+							contextWindow: 32000,
+							supportsImages: false,
+							supportsImageOutput: true,
+							supportsPromptCache: false,
+						},
+					},
+				},
+			})
+
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					imageGenerationSettings={{
+						imageGenerationProvider: "openrouter",
+						openRouterImageBaseUrl: "https://openrouter.example/api/v1",
+					}}
+				/>,
+			)
+
+			expect(mockUseRouterModels).toHaveBeenCalledWith({
+				provider: "openrouter",
+				modelType: "image",
+				values: { openRouterImageBaseUrl: "https://openrouter.example/api/v1" },
+				enabled: true,
+			})
+
+			const modelSelect = screen.getAllByRole("combobox")[1]
+			expect(
+				within(modelSelect).getByRole("option", { name: "google/gemini-2.5-flash-image-preview" }),
 			).toBeInTheDocument()
+			expect(within(modelSelect).getByRole("option", { name: "google/imagen-4" })).toBeInTheDocument()
 			expect(
-				screen.getByText("settings:imageGeneration.recommendations.rows.openaiCompatible.provider"),
-			).toBeInTheDocument()
-			expect(
-				screen.getByText("settings:imageGeneration.recommendations.rows.googleAiStudio.limit"),
-			).toBeInTheDocument()
-			expect(
-				screen.getByText("settings:imageGeneration.recommendations.rows.huggingFace.limit"),
-			).toBeInTheDocument()
-			expect(
-				screen.getByText("settings:imageGeneration.recommendations.rows.stability.limit"),
+				within(modelSelect).getByRole("option", { name: "Gemini 2.5 Flash Image (Paid)" }),
 			).toBeInTheDocument()
 		})
 

@@ -74,6 +74,7 @@ export const modelInfoSchema = z.object({
 	maxThinkingTokens: z.number().nullish(),
 	contextWindow: z.number(),
 	supportsImages: z.boolean().optional(),
+	supportsImageOutput: z.boolean().optional(),
 	supportsPromptCache: z.boolean(),
 	// Optional default prompt cache retention policy for providers that support it.
 	// When set to "24h", extended prompt caching will be requested; when omitted

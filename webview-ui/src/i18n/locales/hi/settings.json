@@ -332,46 +332,7 @@
 		"warningMissingModel": "⚠️ {{provider}} को छवि निर्माण के लिए मॉडल ID चाहिए। इसे ऊपर कॉन्फ़िगर करें।",
 		"successConfigured": "✓ छवि निर्माण {{provider}} के लिए कॉन्फ़िगर है और उपयोग के लिए तैयार है",
 		"modelLabel": "छवि निर्माण मॉडल",
-		"optionalModelDescription": "वैकल्पिक। provider द्वारा वर्तमान में loaded checkpoint इस्तेमाल करने के लिए खाली छोड़ें.",
-		"recommendations": {
-			"title": "Recommended provider paths और free-limit notes",
-			"description": "OpenRouter या OpenAI-compatible Images API endpoint से शुरू करें. Public free limits अक्सर बदलते हैं, इसलिए उन पर निर्भर होने से पहले हर provider dashboard में current quotas confirm करें.",
-			"modelLabel": "Suggested model/API",
-			"limitLabel": "Visible free limit",
-			"notesLabel": "Setup notes",
-			"rows": {
-				"openrouter": {
-					"provider": "OpenRouter",
-					"model": "Chat Completions के ज़रिए Gemini या OpenAI image models जैसे image-output models इस्तेमाल करें.",
-					"limit": "Free-model limits account/key के अनुसार बदलते हैं; OpenRouter dashboard देखें.",
-					"notes": "ऊपर OpenRouter provider को OpenRouter API key के साथ इस्तेमाल करें."
-				},
-				"openaiCompatible": {
-					"provider": "OpenAI / OpenAI-compatible",
-					"model": "OpenAI Images API models (जैसे gpt-image-1) या compatible Images API endpoint इस्तेमाल करें.",
-					"limit": "OpenAI-compatible providers अपनी pricing और free quotas खुद तय करते हैं.",
-					"notes": "ऊपर OpenAI-compatible provider इस्तेमाल करें और endpoint की Base URL set करें."
-				},
-				"googleAiStudio": {
-					"provider": "Google AI Studio / Gemini API",
-					"model": "Imagen 4 supported जगहों पर Gemini API के ज़रिए उपलब्ध है.",
-					"limit": "Published pricing में Imagen API free tier उपलब्ध नहीं है; AI Studio testing limits region/account के अनुसार बदलते हैं.",
-					"notes": "Available होने पर OpenRouter से, या OpenAI-compatible proxy endpoint से इस्तेमाल करें."
-				},
-				"huggingFace": {
-					"provider": "Hugging Face Inference Providers",
-					"model": "Hugging Face providers के ज़रिए text-to-image models.",
-					"limit": "Free users को monthly $0.10 credits मिलते हैं; PRO/Team users को ज़्यादा monthly credits मिलते हैं.",
-					"notes": "केवल तब इस्तेमाल करें जब चुना गया endpoint OpenAI-compatible image API expose करता हो."
-				},
-				"stability": {
-					"provider": "Stability AI",
-					"model": "Stable Image generation/edit APIs.",
-					"limit": "Docs में 25 free credits हैं; 1 credit = $0.01 और usage service/model के अनुसार बदलता है.",
-					"notes": "केवल OpenAI-compatible proxy या custom compatible endpoint के ज़रिए इस्तेमाल करें."
-				}
-			}
-		}
+		"optionalModelDescription": "वैकल्पिक। provider द्वारा वर्तमान में loaded checkpoint इस्तेमाल करने के लिए खाली छोड़ें."
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} दस्तावेज़ीकरण",

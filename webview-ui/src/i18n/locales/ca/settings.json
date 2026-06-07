@@ -332,46 +332,7 @@
 		"warningMissingModel": "⚠️ {{provider}} requereix un ID de model per a la generació d'imatges. Configura'l a dalt.",
 		"successConfigured": "✓ La generació d'imatges està configurada per a {{provider}} i llesta per utilitzar",
 		"modelLabel": "Model de generació d'imatges",
-		"optionalModelDescription": "Opcional. Deixa-ho en blanc per utilitzar el checkpoint carregat actualment pel proveïdor.",
-		"recommendations": {
-			"title": "Rutes de proveïdor recomanades i notes sobre límits gratuïts",
-			"description": "Comença amb OpenRouter o amb un endpoint Images API compatible amb OpenAI. Els límits gratuïts públics canvien sovint, així que confirma les quotes actuals al dashboard de cada proveïdor abans de dependre'n.",
-			"modelLabel": "Model/API suggerit",
-			"limitLabel": "Límit gratuït visible",
-			"notesLabel": "Notes de configuració",
-			"rows": {
-				"openrouter": {
-					"provider": "OpenRouter",
-					"model": "Fes servir models amb sortida d'imatge, com models d'imatge de Gemini o OpenAI, a través de Chat Completions.",
-					"limit": "Els límits dels models gratuïts varien segons el compte o la clau; consulta el dashboard d'OpenRouter.",
-					"notes": "Fes servir el proveïdor OpenRouter de dalt amb una clau API d'OpenRouter."
-				},
-				"openaiCompatible": {
-					"provider": "OpenAI / OpenAI-compatible",
-					"model": "Fes servir models de l'OpenAI Images API (per exemple, gpt-image-1) o un endpoint Images API compatible.",
-					"limit": "Els proveïdors compatibles amb OpenAI defineixen els seus propis preus i quotes gratuïtes.",
-					"notes": "Fes servir el proveïdor OpenAI-compatible de dalt i defineix la Base URL de l'endpoint."
-				},
-				"googleAiStudio": {
-					"provider": "Google AI Studio / Gemini API",
-					"model": "Imagen 4 està disponible a través de la Gemini API on sigui compatible.",
-					"limit": "El nivell gratuït de l'Imagen API no està disponible als preus publicats; els límits de prova d'AI Studio varien segons regió i compte.",
-					"notes": "Fes-ho servir a través d'OpenRouter quan estigui disponible, o amb un endpoint proxy compatible amb OpenAI."
-				},
-				"huggingFace": {
-					"provider": "Hugging Face Inference Providers",
-					"model": "Models text-to-image a través dels proveïdors de Hugging Face.",
-					"limit": "Els usuaris gratuïts reben 0,10 $ en crèdits mensuals; PRO/Team reben més crèdits mensuals.",
-					"notes": "Fes-ho servir només si l'endpoint triat exposa una API d'imatges compatible amb OpenAI."
-				},
-				"stability": {
-					"provider": "Stability AI",
-					"model": "APIs de generació i edició de Stable Image.",
-					"limit": "La documentació indica 25 crèdits gratuïts; 1 crèdit = 0,01 $ i l'ús varia segons servei/model.",
-					"notes": "Fes-ho servir només a través d'un proxy compatible amb OpenAI o un endpoint compatible personalitzat."
-				}
-			}
-		}
+		"optionalModelDescription": "Opcional. Deixa-ho en blanc per utilitzar el checkpoint carregat actualment pel proveïdor."
 	},
 	"providers": {
 		"providerDocumentation": "Documentació de {{provider}}",

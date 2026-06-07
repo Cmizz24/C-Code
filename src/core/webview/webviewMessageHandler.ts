@@ -1080,6 +1080,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			// Optional single provider filter from webview
 			const requestedProvider = message?.values?.provider
 			const providerFilter = requestedProvider ? toRouterName(requestedProvider) : undefined
+			const requestedModelType = message?.values?.modelType === "image" ? "image" : undefined
 
 			// Optional refresh flag to flush cache before fetching (useful for providers requiring credentials)
 			const shouldRefresh = message?.values?.refresh === true
@@ -1125,9 +1126,22 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				return configValue
 			}
 
+			const openRouterBaseUrl = getProviderValue(
+				"openrouter",
+				requestedModelType === "image" ? undefined : apiConfiguration.openRouterBaseUrl,
+				requestedModelType === "image" ? "openRouterImageBaseUrl" : "openRouterBaseUrl",
+			)
+
 			// Base candidates (only those handled by this aggregate fetcher)
 			const candidates: { key: RouterName; options: GetModelsOptions }[] = [
-				{ key: "openrouter", options: { provider: "openrouter" } },
+				{
+					key: "openrouter",
+					options: {
+						provider: "openrouter",
+						...(requestedModelType ? { modelType: requestedModelType } : {}),
+						...(openRouterBaseUrl ? { baseUrl: openRouterBaseUrl } : {}),
+					},
+				},
 				{
 					key: "requesty",
 					options: {
@@ -1287,7 +1301,10 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 						type: "singleRouterModelFetchResponse",
 						success: false,
 						error: errorMessage,
-						values: { provider: routerName },
+						values: {
+							provider: routerName,
+							...(requestedModelType ? { modelType: requestedModelType } : {}),
+						},
 					})
 				}
 			})
@@ -1295,7 +1312,11 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			provider.postMessageToWebview({
 				type: "routerModels",
 				routerModels,
-				values: providerFilter ? { provider: requestedProvider } : undefined,
+				values: providerFilter
+					? { provider: requestedProvider, ...(requestedModelType ? { modelType: requestedModelType } : {}) }
+					: requestedModelType
+						? { modelType: requestedModelType }
+						: undefined,
 			})
 			break
 		case "requestOllamaModels": {

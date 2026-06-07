@@ -28,7 +28,7 @@ Generate new images from text prompts or edit existing images in your workspace.
 - Saves to your workspace at a path you choose; appropriate extension (.png or .jpg) is auto-added if missing
 - Shows a preview of the generated/edited image in the conversation
 - Supports remote providers such as OpenRouter and OpenAI/OpenAI-compatible endpoints
-- Shows provider recommendations and visible free-limit guidance in Image Generation settings
+- Keeps image-generation provider settings separate from chat provider profiles
 
 ---
 
@@ -71,7 +71,7 @@ When invoked, Roo sends your prompt (and optionally an existing image) to your c
 - **Location:** Settings > Image Generation
 - **Supported providers:** OpenRouter and OpenAI/OpenAI-compatible
 
-### 2. Configure Credentials or Local Endpoint
+### 2. Configure Credentials or Compatible Endpoint
 
 - Add the required API key. For OpenRouter, get your key at [https://openrouter.ai/keys](https://openrouter.ai/keys).
 - For OpenAI-compatible providers or proxies, configure the base URL that exposes an image-generation API.
@@ -79,7 +79,8 @@ When invoked, Roo sends your prompt (and optionally an existing image) to your c
 ### 3. Image Generation Model and API Method
 
 - **Purpose:** Selects which model to use for generation
-- **Default:** Provider-specific default model or local checkpoint
+- **Default:** Provider-specific default model
+- **OpenRouter model list:** Shows available image-output models separately from the normal chat model picker
 - **API method:** Uses the provider-supported method, such as Chat Completions or Images API
 
 ---
@@ -131,7 +132,7 @@ Include these elements in your prompts:
 
 - Provider availability and model lists vary by provider
 - Vision or image-understanding chat models are not image-generation models
-- OpenRouter and OpenAI-compatible provider limits, free credits, and model availability can change; confirm current details in the provider dashboard
+- OpenRouter and OpenAI-compatible provider limits, costs, and model availability can change; confirm current details in the provider dashboard
 - One image is produced per request
 - Output formats supported: PNG or JPG
 - Supported input formats for editing: PNG, JPG, JPEG, GIF, WEBP only
