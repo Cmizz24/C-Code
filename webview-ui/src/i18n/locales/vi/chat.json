@@ -204,7 +204,8 @@
 	"imageGeneration": {
 		"approval": {
 			"generate": "Tạo",
-			"editPromptHint": "Chỉnh sửa Prompt trong ô tin nhắn trước khi phê duyệt, hoặc phê duyệt nguyên trạng."
+			"editPromptHint": "Chỉnh sửa Prompt trong thẻ này trước khi phê duyệt, hoặc phê duyệt nguyên trạng.",
+			"promptLabel": "Prompt để tạo"
 		},
 		"statusTitle": "Tạo hình ảnh: {{status}}",
 		"status": {
@@ -232,7 +233,9 @@
 			"totalTokens": "Tổng tokens",
 			"images": "Hình ảnh",
 			"cost": "Chi phí",
-			"error": "Lỗi"
+			"error": "Lỗi",
+			"showDetails": "Hiển thị chi tiết",
+			"hideDetails": "Ẩn chi tiết"
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",

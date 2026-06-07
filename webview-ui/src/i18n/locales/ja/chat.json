@@ -204,7 +204,8 @@
 	"imageGeneration": {
 		"approval": {
 			"generate": "生成",
-			"editPromptHint": "承認する前にメッセージボックスでPromptを編集するか、そのまま承認してください。"
+			"editPromptHint": "承認する前にこのカードでPromptを編集するか、そのまま承認してください。",
+			"promptLabel": "生成するPrompt"
 		},
 		"statusTitle": "画像生成: {{status}}",
 		"status": {
@@ -232,7 +233,9 @@
 			"totalTokens": "合計tokens",
 			"images": "画像",
 			"cost": "コスト",
-			"error": "エラー"
+			"error": "エラー",
+			"showDetails": "詳細を表示",
+			"hideDetails": "詳細を非表示"
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",

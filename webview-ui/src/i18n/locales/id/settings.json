@@ -332,7 +332,8 @@
 		"warningMissingModel": "⚠️ {{provider}} memerlukan ID model untuk pembuatan gambar. Konfigurasikan di atas.",
 		"successConfigured": "✓ Pembuatan gambar dikonfigurasi untuk {{provider}} dan siap digunakan",
 		"modelLabel": "Model Pembuatan Gambar",
-		"optionalModelDescription": "Opsional. Biarkan kosong untuk menggunakan checkpoint yang saat ini dimuat oleh penyedia."
+		"optionalModelDescription": "Opsional. Biarkan kosong untuk menggunakan checkpoint yang saat ini dimuat oleh penyedia.",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models bersifat publik, jadi daftar ini dapat menyertakan semua model dengan output gambar; saat kamu memberikan kunci API gambar, Roo menggunakannya untuk hasil khusus akun jika OpenRouter mengembalikannya."
 	},
 	"providers": {
 		"providerDocumentation": "Dokumentasi {{provider}}",

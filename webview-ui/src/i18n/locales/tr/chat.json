@@ -204,7 +204,8 @@
 	"imageGeneration": {
 		"approval": {
 			"generate": "Oluştur",
-			"editPromptHint": "Onaylamadan önce mesaj kutusunda Prompt'u düzenle veya olduğu gibi onayla."
+			"editPromptHint": "Onaylamadan önce bu kartta Prompt’u düzenle veya olduğu gibi onayla.",
+			"promptLabel": "Oluşturulacak Prompt"
 		},
 		"statusTitle": "Görsel oluşturma: {{status}}",
 		"status": {
@@ -232,7 +233,9 @@
 			"totalTokens": "Toplam tokens",
 			"images": "Görseller",
 			"cost": "Maliyet",
-			"error": "Hata"
+			"error": "Hata",
+			"showDetails": "Ayrıntıları göster",
+			"hideDetails": "Ayrıntıları gizle"
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",

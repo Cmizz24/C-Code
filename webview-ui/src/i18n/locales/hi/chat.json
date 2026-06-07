@@ -204,7 +204,8 @@
 	"imageGeneration": {
 		"approval": {
 			"generate": "बनाएँ",
-			"editPromptHint": "स्वीकृत करने से पहले संदेश बॉक्स में Prompt संपादित करें, या इसे जस का तस स्वीकृत करें."
+			"editPromptHint": "स्वीकृत करने से पहले इस कार्ड में Prompt संपादित करें, या इसे जस का तस स्वीकृत करें.",
+			"promptLabel": "जनरेट करने के लिए Prompt"
 		},
 		"statusTitle": "छवि निर्माण: {{status}}",
 		"status": {
@@ -232,7 +233,9 @@
 			"totalTokens": "कुल tokens",
 			"images": "छवियाँ",
 			"cost": "लागत",
-			"error": "त्रुटि"
+			"error": "त्रुटि",
+			"showDetails": "विवरण दिखाएँ",
+			"hideDetails": "विवरण छिपाएँ"
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",

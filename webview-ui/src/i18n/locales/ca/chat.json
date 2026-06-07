@@ -204,7 +204,8 @@
 	"imageGeneration": {
 		"approval": {
 			"generate": "Genera",
-			"editPromptHint": "Edita el Prompt al quadre de missatge abans d'aprovar-lo, o aprova'l tal com està."
+			"editPromptHint": "Edita el Prompt a la targeta abans d’aprovar-lo, o aprova’l tal com està.",
+			"promptLabel": "Prompt per generar"
 		},
 		"statusTitle": "Generació d'imatges: {{status}}",
 		"status": {
@@ -232,7 +233,9 @@
 			"totalTokens": "Tokens totals",
 			"images": "Imatges",
 			"cost": "Cost",
-			"error": "Error"
+			"error": "Error",
+			"showDetails": "Mostra els detalls",
+			"hideDetails": "Amaga els detalls"
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",

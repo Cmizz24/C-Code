@@ -199,7 +199,8 @@
 	"imageGeneration": {
 		"approval": {
 			"generate": "Сгенерировать",
-			"editPromptHint": "Перед подтверждением отредактируй Prompt в поле сообщения или подтверди как есть."
+			"editPromptHint": "Перед подтверждением отредактируй Prompt в этой карточке или подтверди как есть.",
+			"promptLabel": "Prompt для генерации"
 		},
 		"statusTitle": "Генерация изображения: {{status}}",
 		"status": {
@@ -227,7 +228,9 @@
 			"totalTokens": "Всего tokens",
 			"images": "Изображения",
 			"cost": "Стоимость",
-			"error": "Ошибка"
+			"error": "Ошибка",
+			"showDetails": "Показать сведения",
+			"hideDetails": "Скрыть сведения"
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",

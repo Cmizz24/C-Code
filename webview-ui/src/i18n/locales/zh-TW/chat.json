@@ -243,7 +243,8 @@
 	"imageGeneration": {
 		"approval": {
 			"generate": "產生",
-			"editPromptHint": "核准前可在訊息框中編輯 Prompt，或依原樣核准。"
+			"editPromptHint": "核准前可在此卡片中編輯 Prompt，或依原樣核准。",
+			"promptLabel": "要產生的 Prompt"
 		},
 		"statusTitle": "圖片產生：{{status}}",
 		"status": {
@@ -271,7 +272,9 @@
 			"totalTokens": "總 tokens",
 			"images": "圖片",
 			"cost": "費用",
-			"error": "錯誤"
+			"error": "錯誤",
+			"showDetails": "顯示詳細資料",
+			"hideDetails": "隱藏詳細資料"
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",

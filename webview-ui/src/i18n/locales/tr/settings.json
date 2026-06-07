@@ -332,7 +332,8 @@
 		"warningMissingModel": "⚠️ {{provider}} görüntü oluşturma için model ID'si gerektirir. Yukarıda yapılandır.",
 		"successConfigured": "✓ Görüntü oluşturma {{provider}} için yapılandırıldı ve kullanıma hazır",
 		"modelLabel": "Görüntü oluşturma modeli",
-		"optionalModelDescription": "İsteğe bağlı. Sağlayıcı tarafından şu anda yüklü checkpoint'i kullanmak için boş bırak."
+		"optionalModelDescription": "İsteğe bağlı. Sağlayıcı tarafından şu anda yüklü checkpoint'i kullanmak için boş bırak.",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models herkese açıktır, bu nedenle liste tüm görüntü çıktısı modellerini içerebilir; bir görüntü API anahtarı sağladığında, OpenRouter döndürürse Roo bunu hesaba özel sonuçlar için kullanır."
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} Dokümantasyonu",

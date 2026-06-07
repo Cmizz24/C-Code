@@ -394,7 +394,8 @@
 		"warningMissingModel": "⚠️ {{provider}} requires a model ID for image generation. Configure it above.",
 		"successConfigured": "✓ Image generation is configured for {{provider}} and ready to use",
 		"modelLabel": "Image Generation Model",
-		"optionalModelDescription": "Optional. Leave blank to use the checkpoint currently loaded by the provider."
+		"optionalModelDescription": "Optional. Leave blank to use the checkpoint currently loaded by the provider.",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models is public, so this list may include all image-output models; when you provide an image API key, Roo uses it for account-specific results when OpenRouter returns them."
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} documentation",

@@ -257,6 +257,7 @@ describe("ImageGenerationSettings", () => {
 					imageGenerationSettings={{
 						imageGenerationProvider: "openrouter",
 						openRouterImageBaseUrl: "https://openrouter.example/api/v1",
+						openRouterImageApiKey: "openrouter-image-key",
 					}}
 				/>,
 			)
@@ -264,7 +265,10 @@ describe("ImageGenerationSettings", () => {
 			expect(mockUseRouterModels).toHaveBeenCalledWith({
 				provider: "openrouter",
 				modelType: "image",
-				values: { openRouterImageBaseUrl: "https://openrouter.example/api/v1" },
+				values: {
+					openRouterImageBaseUrl: "https://openrouter.example/api/v1",
+					openRouterImageApiKey: "openrouter-image-key",
+				},
 				enabled: true,
 			})
 
@@ -275,6 +279,9 @@ describe("ImageGenerationSettings", () => {
 			expect(within(modelSelect).getByRole("option", { name: "google/imagen-4" })).toBeInTheDocument()
 			expect(
 				within(modelSelect).getByRole("option", { name: "Gemini 2.5 Flash Image (Paid)" }),
+			).toBeInTheDocument()
+			expect(
+				within(modelSelect).getByRole("option", { name: "google/gemini-2.5-flash-image-preview" }),
 			).toBeInTheDocument()
 		})
 

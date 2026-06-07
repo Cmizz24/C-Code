@@ -326,7 +326,6 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 				usage: result.usage,
 			})
 
-			await sayImageGenerationStatus(completedMetadata)
 			await task.say(
 				"image",
 				JSON.stringify({ imageUri, imagePath: fullImagePath, imageGeneration: completedMetadata }),

@@ -199,7 +199,8 @@
 	"imageGeneration": {
 		"approval": {
 			"generate": "Genereren",
-			"editPromptHint": "Bewerk de Prompt in het berichtvak voordat je goedkeurt, of keur hem ongewijzigd goed."
+			"editPromptHint": "Bewerk de Prompt in deze kaart voordat je goedkeurt, of keur hem ongewijzigd goed.",
+			"promptLabel": "Prompt om te genereren"
 		},
 		"statusTitle": "Afbeelding genereren: {{status}}",
 		"status": {
@@ -227,7 +228,9 @@
 			"totalTokens": "Totale tokens",
 			"images": "Afbeeldingen",
 			"cost": "Kosten",
-			"error": "Fout"
+			"error": "Fout",
+			"showDetails": "Details tonen",
+			"hideDetails": "Details verbergen"
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",

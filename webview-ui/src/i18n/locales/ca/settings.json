@@ -332,7 +332,8 @@
 		"warningMissingModel": "⚠️ {{provider}} requereix un ID de model per a la generació d'imatges. Configura'l a dalt.",
 		"successConfigured": "✓ La generació d'imatges està configurada per a {{provider}} i llesta per utilitzar",
 		"modelLabel": "Model de generació d'imatges",
-		"optionalModelDescription": "Opcional. Deixa-ho en blanc per utilitzar el checkpoint carregat actualment pel proveïdor."
+		"optionalModelDescription": "Opcional. Deixa-ho en blanc per utilitzar el checkpoint carregat actualment pel proveïdor.",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models és públic, així que la llista pot incloure tots els models amb sortida d’imatge; si proporciones una clau API d’imatge, Roo la farà servir per a resultats específics del compte quan OpenRouter els retorni."
 	},
 	"providers": {
 		"providerDocumentation": "Documentació de {{provider}}",

@@ -332,7 +332,8 @@
 		"warningMissingModel": "⚠️ {{provider}} で画像生成するにはモデルIDが必要です。上で設定してください。",
 		"successConfigured": "✓ {{provider}} の画像生成が設定され、使用準備ができています",
 		"modelLabel": "画像生成モデル",
-		"optionalModelDescription": "任意。空欄にすると、プロバイダーで現在読み込まれている checkpoint を使用します。"
+		"optionalModelDescription": "任意。空欄にすると、プロバイダーで現在読み込まれている checkpoint を使用します。",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models は公開されているため、この一覧には画像出力対応モデルがすべて含まれる場合があります。画像 API キーを指定すると、OpenRouter が返す場合に Roo はアカウント固有の結果にそれを使用します。"
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}}のドキュメント",

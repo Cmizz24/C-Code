@@ -204,7 +204,8 @@
 	"imageGeneration": {
 		"approval": {
 			"generate": "생성",
-			"editPromptHint": "승인하기 전에 메시지 입력창에서 Prompt를 편집하거나 그대로 승인하세요."
+			"editPromptHint": "승인하기 전에 이 카드에서 Prompt를 편집하거나 그대로 승인하세요.",
+			"promptLabel": "생성할 Prompt"
 		},
 		"statusTitle": "이미지 생성: {{status}}",
 		"status": {
@@ -232,7 +233,9 @@
 			"totalTokens": "총 tokens",
 			"images": "이미지",
 			"cost": "비용",
-			"error": "오류"
+			"error": "오류",
+			"showDetails": "세부 정보 표시",
+			"hideDetails": "세부 정보 숨기기"
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",

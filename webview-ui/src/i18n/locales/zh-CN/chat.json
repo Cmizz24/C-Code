@@ -204,7 +204,8 @@
 	"imageGeneration": {
 		"approval": {
 			"generate": "生成",
-			"editPromptHint": "批准前可在消息框中编辑 Prompt，或按原样批准。"
+			"editPromptHint": "批准前可在此卡片中编辑 Prompt，或按原样批准。",
+			"promptLabel": "要生成的 Prompt"
 		},
 		"statusTitle": "图片生成：{{status}}",
 		"status": {
@@ -232,7 +233,9 @@
 			"totalTokens": "总 tokens",
 			"images": "图片",
 			"cost": "费用",
-			"error": "错误"
+			"error": "错误",
+			"showDetails": "显示详情",
+			"hideDetails": "隐藏详情"
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",

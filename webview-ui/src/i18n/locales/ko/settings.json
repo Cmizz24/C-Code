@@ -332,7 +332,8 @@
 		"warningMissingModel": "⚠️ {{provider}}은(는) 이미지 생성에 모델 ID가 필요합니다. 위에서 구성하세요.",
 		"successConfigured": "✓ {{provider}}용 이미지 생성이 구성되었으며 사용할 준비가 되었습니다",
 		"modelLabel": "이미지 생성 모델",
-		"optionalModelDescription": "선택 사항입니다. 비워 두면 제공업체에 현재 로드된 checkpoint를 사용합니다."
+		"optionalModelDescription": "선택 사항입니다. 비워 두면 제공업체에 현재 로드된 checkpoint를 사용합니다.",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models는 공개되어 있으므로 이 목록에는 모든 이미지 출력 모델이 포함될 수 있습니다. 이미지 API 키를 제공하면 OpenRouter가 반환하는 경우 Roo가 계정별 결과에 이를 사용합니다."
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} 문서",

@@ -204,7 +204,8 @@
 	"imageGeneration": {
 		"approval": {
 			"generate": "Genera",
-			"editPromptHint": "Modifica il Prompt nella casella del messaggio prima di approvare, oppure approvalo così com'è."
+			"editPromptHint": "Modifica il Prompt in questa scheda prima di approvare, oppure approvalo così com’è.",
+			"promptLabel": "Prompt da generare"
 		},
 		"statusTitle": "Generazione immagine: {{status}}",
 		"status": {
@@ -232,7 +233,9 @@
 			"totalTokens": "Token totali",
 			"images": "Immagini",
 			"cost": "Costo",
-			"error": "Errore"
+			"error": "Errore",
+			"showDetails": "Mostra dettagli",
+			"hideDetails": "Nascondi dettagli"
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",

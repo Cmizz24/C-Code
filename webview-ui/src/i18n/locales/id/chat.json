@@ -248,7 +248,8 @@
 	"imageGeneration": {
 		"approval": {
 			"generate": "Buat",
-			"editPromptHint": "Edit Prompt di kotak pesan sebelum menyetujui, atau setujui apa adanya."
+			"editPromptHint": "Edit Prompt di kartu ini sebelum menyetujui, atau setujui apa adanya.",
+			"promptLabel": "Prompt untuk dibuat"
 		},
 		"statusTitle": "Pembuatan gambar: {{status}}",
 		"status": {
@@ -276,7 +277,9 @@
 			"totalTokens": "Total tokens",
 			"images": "Gambar",
 			"cost": "Biaya",
-			"error": "Error"
+			"error": "Error",
+			"showDetails": "Tampilkan detail",
+			"hideDetails": "Sembunyikan detail"
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",

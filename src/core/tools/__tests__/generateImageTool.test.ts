@@ -315,6 +315,13 @@ describe("generateImageTool", () => {
 					}),
 				]),
 			)
+			expect(toolStatusPayloads).not.toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						imageGeneration: expect.objectContaining({ status: "completed" }),
+					}),
+				]),
+			)
 
 			const imageCall = mockCline.say.mock.calls.find((call: any[]) => call[0] === "image")
 			if (!imageCall) {

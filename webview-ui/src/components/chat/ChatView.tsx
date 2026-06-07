@@ -1643,6 +1643,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					isLast={index === messageCount - 1}
 					onHeightChange={handleRowHeightChange}
 					isStreaming={isStreaming}
+					onImageApprovalGenerate={handlePrimaryButtonClick}
 					onSuggestionClick={handleSuggestionClickInRow} // This was already stabilized
 					onBatchFileResponse={handleBatchFileResponse}
 					onFollowUpUnmount={handleFollowUpUnmount}
@@ -1675,6 +1676,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			groupedMessages.length,
 			handleRowHeightChange,
 			isStreaming,
+			handlePrimaryButtonClick,
 			handleSuggestionClickInRow,
 			handleBatchFileResponse,
 			handleFollowUpUnmount,

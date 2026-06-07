@@ -12,7 +12,17 @@ import {
 import type { ApiHandlerOptions, RouterModelType } from "../../../shared/api"
 import { parseApiPrice } from "../../../shared/cost"
 
-type OpenRouterFetchOptions = ApiHandlerOptions & { baseUrl?: string; modelType?: RouterModelType }
+type OpenRouterFetchOptions = ApiHandlerOptions & { apiKey?: string; baseUrl?: string; modelType?: RouterModelType }
+
+function getOpenRouterRequestConfig(options?: OpenRouterFetchOptions) {
+	const apiKey = options?.apiKey?.trim() || options?.openRouterApiKey?.trim()
+
+	if (!apiKey) {
+		return undefined
+	}
+
+	return { headers: { Authorization: `Bearer ${apiKey}` } }
+}
 
 /**
  * OpenRouterBaseModel
@@ -100,9 +110,12 @@ export async function getOpenRouterModels(options?: OpenRouterFetchOptions): Pro
 	const models: Record<string, ModelInfo> = {}
 	const baseURL = options?.openRouterBaseUrl || options?.baseUrl || "https://openrouter.ai/api/v1"
 	const modelType = options?.modelType ?? "chat"
+	const requestConfig = getOpenRouterRequestConfig(options)
 
 	try {
-		const response = await axios.get<OpenRouterModelsResponse>(`${baseURL}/models`)
+		const response = requestConfig
+			? await axios.get<OpenRouterModelsResponse>(`${baseURL}/models`, requestConfig)
+			: await axios.get<OpenRouterModelsResponse>(`${baseURL}/models`)
 		const result = openRouterModelsResponseSchema.safeParse(response.data)
 		const data = result.success ? result.data.data : response.data.data
 
@@ -149,9 +162,12 @@ export async function getOpenRouterModelEndpoints(
 	const models: Record<string, ModelInfo> = {}
 	const baseURL = options?.openRouterBaseUrl || options?.baseUrl || "https://openrouter.ai/api/v1"
 	const modelType = options?.modelType ?? "chat"
+	const requestConfig = getOpenRouterRequestConfig(options)
 
 	try {
-		const response = await axios.get<OpenRouterModelEndpointsResponse>(`${baseURL}/models/${modelId}/endpoints`)
+		const response = requestConfig
+			? await axios.get<OpenRouterModelEndpointsResponse>(`${baseURL}/models/${modelId}/endpoints`, requestConfig)
+			: await axios.get<OpenRouterModelEndpointsResponse>(`${baseURL}/models/${modelId}/endpoints`)
 		const result = openRouterModelEndpointsResponseSchema.safeParse(response.data)
 		const data = result.success ? result.data.data : response.data.data
 

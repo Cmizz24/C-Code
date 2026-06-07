@@ -1075,7 +1075,8 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			await flushModels({ provider: routerNameFlush } as GetModelsOptions, true)
 			break
 		case "requestRouterModels":
-			const { apiConfiguration } = await provider.getState()
+			const state = await provider.getState()
+			const { apiConfiguration, openRouterImageApiKey, openRouterImageBaseUrl } = state
 
 			// Optional single provider filter from webview
 			const requestedProvider = message?.values?.provider
@@ -1126,9 +1127,15 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				return configValue
 			}
 
+			const openRouterApiKey = getProviderValue(
+				"openrouter",
+				requestedModelType === "image" ? openRouterImageApiKey : apiConfiguration.openRouterApiKey,
+				requestedModelType === "image" ? "openRouterImageApiKey" : "openRouterApiKey",
+			)
+
 			const openRouterBaseUrl = getProviderValue(
 				"openrouter",
-				requestedModelType === "image" ? undefined : apiConfiguration.openRouterBaseUrl,
+				requestedModelType === "image" ? openRouterImageBaseUrl : apiConfiguration.openRouterBaseUrl,
 				requestedModelType === "image" ? "openRouterImageBaseUrl" : "openRouterBaseUrl",
 			)
 
@@ -1139,6 +1146,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					options: {
 						provider: "openrouter",
 						...(requestedModelType ? { modelType: requestedModelType } : {}),
+						...(openRouterApiKey ? { apiKey: openRouterApiKey } : {}),
 						...(openRouterBaseUrl ? { baseUrl: openRouterBaseUrl } : {}),
 					},
 				},

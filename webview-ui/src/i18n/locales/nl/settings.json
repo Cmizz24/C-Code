@@ -332,7 +332,8 @@
 		"warningMissingModel": "⚠️ {{provider}} vereist een model-ID voor afbeeldingsgeneratie. Configureer deze hierboven.",
 		"successConfigured": "✓ Afbeeldingsgeneratie is geconfigureerd voor {{provider}} en klaar voor gebruik",
 		"modelLabel": "Afbeeldingsgeneratiemodel",
-		"optionalModelDescription": "Optioneel. Laat leeg om de checkpoint te gebruiken die momenteel door de provider is geladen."
+		"optionalModelDescription": "Optioneel. Laat leeg om de checkpoint te gebruiken die momenteel door de provider is geladen.",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models is openbaar, dus deze lijst kan alle modellen met afbeeldingsuitvoer bevatten; wanneer je een image API key opgeeft, gebruikt Roo die voor accountspecifieke resultaten wanneer OpenRouter ze terugstuurt."
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} documentatie",

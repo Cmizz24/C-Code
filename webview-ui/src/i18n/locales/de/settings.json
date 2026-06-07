@@ -332,7 +332,8 @@
 		"warningMissingModel": "⚠️ {{provider}} benötigt eine Modell-ID für die Bildgenerierung. Konfiguriere sie oben.",
 		"successConfigured": "✓ Bildgenerierung ist für {{provider}} konfiguriert und einsatzbereit",
 		"modelLabel": "Bildgenerierungsmodell",
-		"optionalModelDescription": "Optional. Leer lassen, um den aktuell vom Anbieter geladenen Checkpoint zu verwenden."
+		"optionalModelDescription": "Optional. Leer lassen, um den aktuell vom Anbieter geladenen Checkpoint zu verwenden.",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models ist öffentlich, daher kann die Liste alle Modelle mit Bildausgabe enthalten; wenn du einen Image-API-Schlüssel angibst, verwendet Roo ihn für kontospezifische Ergebnisse, sofern OpenRouter sie zurückgibt."
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}}-Dokumentation",

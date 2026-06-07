@@ -342,7 +342,8 @@
 		"warningMissingModel": "⚠️ {{provider}} 需要模型 ID 才能生成影像。請在上方設定。",
 		"successConfigured": "✓ 已為 {{provider}} 設定影像生成，可以使用",
 		"modelLabel": "影像生成模型",
-		"optionalModelDescription": "選用。留空以使用供應商目前載入的 checkpoint。"
+		"optionalModelDescription": "選用。留空以使用供應商目前載入的 checkpoint。",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models 是公開的，因此此清單可能包含所有支援影像輸出的模型；提供影像 API 金鑰時，如果 OpenRouter 回傳帳戶專屬結果，Roo 會使用該金鑰取得這些結果。"
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} 說明文件",

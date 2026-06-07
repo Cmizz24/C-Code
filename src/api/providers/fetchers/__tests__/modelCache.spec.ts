@@ -127,7 +127,7 @@ describe("getModels with new GetModelsOptions", () => {
 		expect(result).toEqual(mockModels)
 	})
 
-	it("passes OpenRouter image model options through and caches them separately", async () => {
+	it("passes public OpenRouter image model options through and caches them separately", async () => {
 		const mockCache = new (vi.mocked(NodeCache))()
 		const mockModels = {
 			"google/gemini-2.5-flash-image-preview": {
@@ -144,6 +144,62 @@ describe("getModels with new GetModelsOptions", () => {
 		const result = await getModels({
 			provider: "openrouter",
 			modelType: "image",
+		})
+
+		expect(mockGetOpenRouterModels).toHaveBeenCalledWith({
+			provider: "openrouter",
+			modelType: "image",
+		})
+		expect(mockCache.set).toHaveBeenCalledWith("openrouter_image", mockModels)
+		expect(result).toEqual(mockModels)
+	})
+
+	it("bypasses cache for credentialed OpenRouter image model requests", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const mockModels = {
+			"google/gemini-2.5-flash-image-preview": {
+				maxTokens: 8192,
+				contextWindow: 128000,
+				supportsImages: true,
+				supportsImageOutput: true,
+				supportsPromptCache: false,
+				description: "Account-specific OpenRouter image model",
+			},
+		}
+		mockGetOpenRouterModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({
+			provider: "openrouter",
+			modelType: "image",
+			apiKey: "openrouter-image-key",
+		})
+
+		expect(mockGetOpenRouterModels).toHaveBeenCalledWith({
+			provider: "openrouter",
+			modelType: "image",
+			apiKey: "openrouter-image-key",
+		})
+		expect(mockCache.set).not.toHaveBeenCalled()
+		expect(result).toEqual(mockModels)
+	})
+
+	it("bypasses cache for custom-base OpenRouter image model requests", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const mockModels = {
+			"custom/image-model": {
+				maxTokens: 8192,
+				contextWindow: 128000,
+				supportsImages: true,
+				supportsImageOutput: true,
+				supportsPromptCache: false,
+				description: "Custom-base OpenRouter image model",
+			},
+		}
+		mockGetOpenRouterModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({
+			provider: "openrouter",
+			modelType: "image",
 			baseUrl: "https://openrouter.example/api/v1",
 		})
 
@@ -152,7 +208,7 @@ describe("getModels with new GetModelsOptions", () => {
 			modelType: "image",
 			baseUrl: "https://openrouter.example/api/v1",
 		})
-		expect(mockCache.set).toHaveBeenCalledWith("openrouter_image", mockModels)
+		expect(mockCache.set).not.toHaveBeenCalled()
 		expect(result).toEqual(mockModels)
 	})
 

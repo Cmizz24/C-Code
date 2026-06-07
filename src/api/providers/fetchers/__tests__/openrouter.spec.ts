@@ -162,6 +162,18 @@ describe("OpenRouter API", () => {
 			expect(getSpy).toHaveBeenCalledTimes(2)
 			getSpy.mockRestore()
 		})
+
+		it("uses Authorization for OpenRouter model discovery when an API key is provided", async () => {
+			const axios = await import("axios")
+			const getSpy = vi.spyOn(axios.default, "get").mockResolvedValue({ data: { data: [] } })
+
+			await getOpenRouterModels({ baseUrl: "https://openrouter.test/api/v1", apiKey: "test-key" })
+
+			expect(getSpy).toHaveBeenCalledWith("https://openrouter.test/api/v1/models", {
+				headers: { Authorization: "Bearer test-key" },
+			})
+			getSpy.mockRestore()
+		})
 	})
 
 	describe("getOpenRouterModelEndpoints", () => {
@@ -350,6 +362,22 @@ describe("OpenRouter API", () => {
 				supportedParameters: ["max_tokens", "temperature", "reasoning"],
 			})
 
+			getSpy.mockRestore()
+		})
+
+		it("uses Authorization for OpenRouter endpoint discovery when an API key is provided", async () => {
+			const axios = await import("axios")
+			const getSpy = vi.spyOn(axios.default, "get").mockResolvedValue({ data: { data: { endpoints: [] } } })
+
+			await getOpenRouterModelEndpoints("google/gemini-2.5-flash-image-preview", {
+				baseUrl: "https://openrouter.test/api/v1",
+				apiKey: "test-key",
+			})
+
+			expect(getSpy).toHaveBeenCalledWith(
+				"https://openrouter.test/api/v1/models/google/gemini-2.5-flash-image-preview/endpoints",
+				{ headers: { Authorization: "Bearer test-key" } },
+			)
 			getSpy.mockRestore()
 		})
 	})

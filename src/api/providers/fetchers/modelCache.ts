@@ -38,6 +38,7 @@ import {
 } from "./static-provider-models"
 
 const memoryCache = new NodeCache({ stdTTL: 5 * 60, checkperiod: 5 * 60 })
+const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 type ModelCacheKey = RouterName | "openrouter_image"
 
@@ -50,6 +51,23 @@ const inFlightRefresh = new Map<ModelCacheKey, Promise<ModelRecord>>()
 
 function getModelCacheKey(options: GetModelsOptions): ModelCacheKey {
 	return options.provider === "openrouter" && options.modelType === "image" ? "openrouter_image" : options.provider
+}
+
+function normalizeOpenRouterBaseUrl(baseUrl?: string): string | undefined {
+	const normalized = baseUrl?.trim().replace(/\/+$/, "")
+	return normalized || undefined
+}
+
+function shouldBypassModelCache(options: GetModelsOptions): boolean {
+	if (options.provider !== "openrouter" || options.modelType !== "image") {
+		return false
+	}
+
+	const hasApiKey = !!options.apiKey?.trim()
+	const baseUrl = normalizeOpenRouterBaseUrl(options.baseUrl)
+	const hasCustomBaseUrl = !!baseUrl && baseUrl !== DEFAULT_OPENROUTER_BASE_URL
+
+	return hasApiKey || hasCustomBaseUrl
 }
 
 async function writeModels(router: ModelCacheKey, data: ModelRecord) {
@@ -163,6 +181,10 @@ export const getModels = async (options: GetModelsOptions): Promise<ModelRecord>
 	const { provider } = options
 	const cacheKey = getModelCacheKey(options)
 
+	if (shouldBypassModelCache(options)) {
+		return fetchModelsFromProvider(options)
+	}
+
 	let models = getModelsFromCache(cacheKey)
 
 	if (models) {
@@ -204,6 +226,10 @@ export const getModels = async (options: GetModelsOptions): Promise<ModelRecord>
 export const refreshModels = async (options: GetModelsOptions): Promise<ModelRecord> => {
 	const { provider } = options
 	const cacheKey = getModelCacheKey(options)
+
+	if (shouldBypassModelCache(options)) {
+		return fetchModelsFromProvider(options)
+	}
 
 	// Check if there's already an in-flight refresh for this provider
 	// This prevents race conditions where multiple concurrent refreshes might

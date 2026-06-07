@@ -332,7 +332,8 @@
 		"warningMissingModel": "⚠️ {{provider}} yêu cầu ID mô hình để tạo hình ảnh. Hãy cấu hình ở trên.",
 		"successConfigured": "✓ Tạo hình ảnh đã được cấu hình cho {{provider}} và sẵn sàng sử dụng",
 		"modelLabel": "Mô hình tạo hình ảnh",
-		"optionalModelDescription": "Tùy chọn. Để trống để dùng checkpoint hiện đang được nhà cung cấp tải."
+		"optionalModelDescription": "Tùy chọn. Để trống để dùng checkpoint hiện đang được nhà cung cấp tải.",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models là công khai, nên danh sách này có thể bao gồm tất cả mô hình có đầu ra hình ảnh; khi bạn cung cấp khóa API hình ảnh, Roo dùng khóa đó cho kết quả theo tài khoản nếu OpenRouter trả về."
 	},
 	"providers": {
 		"providerDocumentation": "Tài liệu {{provider}}",

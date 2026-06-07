@@ -332,7 +332,8 @@
 		"warningMissingModel": "⚠️ {{provider}} exige um ID de modelo para geração de imagens. Configure-o acima.",
 		"successConfigured": "✓ A geração de imagens está configurada para {{provider}} e pronta para uso",
 		"modelLabel": "Modelo de geração de imagens",
-		"optionalModelDescription": "Opcional. Deixe em branco para usar o checkpoint carregado atualmente pelo provedor."
+		"optionalModelDescription": "Opcional. Deixe em branco para usar o checkpoint carregado atualmente pelo provedor.",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models é público, então esta lista pode incluir todos os modelos com saída de imagem; quando você fornece uma chave de API de imagem, o Roo a usa para resultados específicos da conta quando o OpenRouter os retorna."
 	},
 	"providers": {
 		"providerDocumentation": "Documentação do {{provider}}",

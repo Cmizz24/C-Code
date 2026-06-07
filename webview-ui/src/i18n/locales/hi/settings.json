@@ -332,7 +332,8 @@
 		"warningMissingModel": "⚠️ {{provider}} को छवि निर्माण के लिए मॉडल ID चाहिए। इसे ऊपर कॉन्फ़िगर करें।",
 		"successConfigured": "✓ छवि निर्माण {{provider}} के लिए कॉन्फ़िगर है और उपयोग के लिए तैयार है",
 		"modelLabel": "छवि निर्माण मॉडल",
-		"optionalModelDescription": "वैकल्पिक। provider द्वारा वर्तमान में loaded checkpoint इस्तेमाल करने के लिए खाली छोड़ें."
+		"optionalModelDescription": "वैकल्पिक। provider द्वारा वर्तमान में loaded checkpoint इस्तेमाल करने के लिए खाली छोड़ें.",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models सार्वजनिक है, इसलिए इस सूची में सभी image-output मॉडल शामिल हो सकते हैं; जब आप image API key देते हैं, तो OpenRouter द्वारा लौटाए जाने पर Roo खाते-विशिष्ट परिणामों के लिए इसका उपयोग करता है."
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} दस्तावेज़ीकरण",

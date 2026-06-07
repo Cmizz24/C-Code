@@ -148,6 +148,7 @@ interface ChatRowProps {
 	isStreaming: boolean
 	onToggleExpand: (ts: number) => void
 	onHeightChange: (isTaller: boolean) => void
+	onImageApprovalGenerate?: (prompt: string) => void
 	onSuggestionClick?: (suggestion: SuggestionItem, event?: React.MouseEvent) => void
 	onBatchFileResponse?: (response: { [key: string]: boolean }) => void
 	onFollowUpUnmount?: () => void
@@ -210,6 +211,7 @@ export const ChatRowContent = ({
 	isLast,
 	isStreaming,
 	onToggleExpand,
+	onImageApprovalGenerate,
 	onSuggestionClick,
 	onFollowUpUnmount,
 	onBatchFileResponse,
@@ -438,6 +440,37 @@ export const ChatRowContent = ({
 		() => (message.ask === "tool" ? safeJsonParse<ClineSayTool>(message.text) : null),
 		[message.ask, message.text],
 	)
+	const [imageApprovalPrompt, setImageApprovalPrompt] = useState("")
+	const [expandedImageGenerationDetails, setExpandedImageGenerationDetails] = useState<Record<string, boolean>>({})
+
+	useEffect(() => {
+		if (message.type === "ask" && tool?.tool === "generateImage") {
+			setImageApprovalPrompt(tool.imageGeneration?.prompt ?? tool.content ?? "")
+		}
+	}, [message.type, message.ts, tool])
+
+	const handleImageApprovalPromptChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
+		setImageApprovalPrompt(event.target.value)
+	}, [])
+
+	const handleImageApprovalGenerate = useCallback(() => {
+		const trimmedPrompt = imageApprovalPrompt.trim()
+
+		if (!trimmedPrompt) {
+			return
+		}
+
+		if (onImageApprovalGenerate) {
+			onImageApprovalGenerate(trimmedPrompt)
+			return
+		}
+
+		vscode.postMessage({ type: "askResponse", askResponse: "yesButtonClicked", text: trimmedPrompt })
+	}, [imageApprovalPrompt, onImageApprovalGenerate])
+
+	const toggleImageGenerationDetails = useCallback((detailsKey: string) => {
+		setExpandedImageGenerationDetails((prev) => ({ ...prev, [detailsKey]: !prev[detailsKey] }))
+	}, [])
 
 	// Unified diff content (provided by backend when relevant)
 	const unifiedDiff = useMemo(() => {
@@ -656,62 +689,22 @@ export const ChatRowContent = ({
 		const endpoint = formatSafeEndpoint(metadata.baseURL)
 		const usage = metadata.usage
 
-		const details: Array<{
+		type ImageGenerationDetail = {
 			key: string
 			labelKey: string
 			value?: React.ReactNode
 			wide?: boolean
 			mono?: boolean
 			error?: boolean
-		}> = [
-			{
-				key: "prompt",
-				labelKey: "chat:imageGeneration.metadata.prompt",
-				value: metadata.prompt,
-				wide: true,
-			},
-			{
-				key: "editedPrompt",
-				labelKey: "chat:imageGeneration.metadata.editedPrompt",
-				value: metadata.editedPrompt,
-				wide: true,
-			},
-			{
-				key: "originalPrompt",
-				labelKey: "chat:imageGeneration.metadata.originalPrompt",
-				value: metadata.originalPrompt,
-				wide: true,
-			},
+		}
+
+		const compactDetails: ImageGenerationDetail[] = [
 			{
 				key: "provider",
 				labelKey: "chat:imageGeneration.metadata.provider",
 				value: metadata.providerLabel ?? metadata.provider,
 			},
 			{ key: "model", labelKey: "chat:imageGeneration.metadata.model", value: metadata.model },
-			{
-				key: "endpoint",
-				labelKey: "chat:imageGeneration.metadata.endpoint",
-				value: endpoint,
-				mono: true,
-				wide: true,
-			},
-			{
-				key: "endpointType",
-				labelKey: "chat:imageGeneration.metadata.endpointType",
-				value:
-					metadata.isLocal === undefined
-						? undefined
-						: t(
-								metadata.isLocal
-									? "chat:imageGeneration.metadata.localEndpoint"
-									: "chat:imageGeneration.metadata.remoteEndpoint",
-							),
-			},
-			{
-				key: "apiMethod",
-				labelKey: "chat:imageGeneration.metadata.apiMethod",
-				value: formatImageGenerationApiMethod(metadata.apiMethod),
-			},
 			{
 				key: "outputPath",
 				labelKey: "chat:imageGeneration.metadata.outputPath",
@@ -761,6 +754,80 @@ export const ChatRowContent = ({
 			},
 		].filter((detail) => detail.value !== undefined && detail.value !== null && detail.value !== "")
 
+		const fullDetails: ImageGenerationDetail[] = [
+			{
+				key: "prompt",
+				labelKey: "chat:imageGeneration.metadata.prompt",
+				value: metadata.prompt,
+				wide: true,
+			},
+			{
+				key: "editedPrompt",
+				labelKey: "chat:imageGeneration.metadata.editedPrompt",
+				value: metadata.editedPrompt,
+				wide: true,
+			},
+			{
+				key: "originalPrompt",
+				labelKey: "chat:imageGeneration.metadata.originalPrompt",
+				value: metadata.originalPrompt,
+				wide: true,
+			},
+			{
+				key: "endpoint",
+				labelKey: "chat:imageGeneration.metadata.endpoint",
+				value: endpoint,
+				mono: true,
+				wide: true,
+			},
+			{
+				key: "endpointType",
+				labelKey: "chat:imageGeneration.metadata.endpointType",
+				value:
+					metadata.isLocal === undefined
+						? undefined
+						: t(
+								metadata.isLocal
+									? "chat:imageGeneration.metadata.localEndpoint"
+									: "chat:imageGeneration.metadata.remoteEndpoint",
+							),
+			},
+			{
+				key: "apiMethod",
+				labelKey: "chat:imageGeneration.metadata.apiMethod",
+				value: formatImageGenerationApiMethod(metadata.apiMethod),
+			},
+		].filter((detail) => detail.value !== undefined && detail.value !== null && detail.value !== "")
+
+		const detailsKey = [status, metadata.outputPath ?? metadata.path, metadata.model, metadata.prompt]
+			.filter(Boolean)
+			.join(":")
+		const isExpanded = !!expandedImageGenerationDetails[detailsKey]
+		const renderDetails = (details: ImageGenerationDetail[]) => (
+			<dl className="grid gap-2 text-xs sm:grid-cols-2">
+				{details.map((detail) => (
+					<div
+						key={detail.key}
+						className={cn(
+							"min-w-0 rounded bg-vscode-sideBar-background px-2 py-1",
+							detail.wide && "sm:col-span-2",
+							detail.error &&
+								"border border-vscode-inputValidation-errorBorder bg-vscode-inputValidation-errorBackground text-vscode-errorForeground",
+						)}>
+						<dt className="mb-0.5 font-medium text-vscode-descriptionForeground">{t(detail.labelKey)}</dt>
+						<dd
+							className={cn(
+								"m-0 whitespace-pre-wrap break-words",
+								detail.mono && "font-mono break-all",
+								detail.error && "text-vscode-errorForeground",
+							)}>
+							{detail.value}
+						</dd>
+					</div>
+				))}
+			</dl>
+		)
+
 		return (
 			<div className={cn("flex flex-col gap-3 text-sm text-vscode-foreground", includeStatus && "p-2")}>
 				{includeStatus && (
@@ -772,31 +839,22 @@ export const ChatRowContent = ({
 					</div>
 				)}
 
-				{details.length > 0 && (
-					<dl className="grid gap-2 text-xs sm:grid-cols-2">
-						{details.map((detail) => (
-							<div
-								key={detail.key}
-								className={cn(
-									"min-w-0 rounded bg-vscode-sideBar-background px-2 py-1",
-									detail.wide && "sm:col-span-2",
-									detail.error &&
-										"border border-vscode-inputValidation-errorBorder bg-vscode-inputValidation-errorBackground text-vscode-errorForeground",
-								)}>
-								<dt className="mb-0.5 font-medium text-vscode-descriptionForeground">
-									{t(detail.labelKey)}
-								</dt>
-								<dd
-									className={cn(
-										"m-0 whitespace-pre-wrap break-words",
-										detail.mono && "font-mono break-all",
-										detail.error && "text-vscode-errorForeground",
-									)}>
-									{detail.value}
-								</dd>
-							</div>
-						))}
-					</dl>
+				{compactDetails.length > 0 && renderDetails(compactDetails)}
+
+				{fullDetails.length > 0 && (
+					<div className="flex flex-col gap-2">
+						<button
+							type="button"
+							className="w-fit rounded text-xs text-vscode-textLink-foreground hover:text-vscode-textLink-activeForeground"
+							onClick={() => toggleImageGenerationDetails(detailsKey)}>
+							{t(
+								isExpanded
+									? "chat:imageGeneration.metadata.hideDetails"
+									: "chat:imageGeneration.metadata.showDetails",
+							)}
+						</button>
+						{isExpanded && renderDetails(fullDetails)}
+					</div>
 				)}
 			</div>
 		)
@@ -1385,6 +1443,7 @@ export const ChatRowContent = ({
 					prompt: tool.content,
 					path: tool.path,
 				}
+				const imageApprovalPromptId = `image-generation-approval-prompt-${message.ts}`
 
 				return (
 					<>
@@ -1410,10 +1469,38 @@ export const ChatRowContent = ({
 						{message.type === "ask" && (
 							<div className="pl-6">
 								<ToolUseBlock>
-									<div className="flex flex-col gap-2 p-2">
+									<div className="flex flex-col gap-3 p-2">
 										<div className="flex items-center gap-2 text-xs text-vscode-descriptionForeground">
 											<ImageIcon className="size-3" aria-hidden="true" />
 											<span>{t("chat:imageGeneration.approval.editPromptHint")}</span>
+										</div>
+										<div className="flex flex-col gap-1">
+											<label
+												htmlFor={imageApprovalPromptId}
+												className="text-xs font-medium text-vscode-descriptionForeground">
+												{t("chat:imageGeneration.approval.promptLabel")}
+											</label>
+											<textarea
+												id={imageApprovalPromptId}
+												aria-label={t("chat:imageGeneration.approval.promptLabel")}
+												value={imageApprovalPrompt}
+												onChange={handleImageApprovalPromptChange}
+												rows={4}
+												className="w-full resize-y rounded border border-vscode-input-border bg-vscode-input-background px-2 py-1 text-sm text-vscode-input-foreground outline-none focus:border-vscode-focusBorder"
+											/>
+										</div>
+										<div className="flex justify-end">
+											<button
+												type="button"
+												disabled={imageApprovalPrompt.trim().length === 0}
+												onClick={handleImageApprovalGenerate}
+												className={cn(
+													"rounded bg-vscode-button-background px-3 py-1 text-xs font-medium text-vscode-button-foreground hover:bg-vscode-button-hoverBackground",
+													imageApprovalPrompt.trim().length === 0 &&
+														"cursor-not-allowed opacity-50",
+												)}>
+												{t("chat:imageGeneration.approval.generate")}
+											</button>
 										</div>
 										{renderImageGenerationMetadata(imageGenerationMetadata)}
 									</div>

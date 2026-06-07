@@ -62,10 +62,22 @@ export const ImageGenerationSettings = ({
 	const defaultModel = getDefaultImageGenerationModel(currentProvider)
 	const currentModel = configuredModel || defaultModel
 	const configuredBaseUrl = getStringSetting(settingsKeys.baseUrl) ?? ""
-	const openRouterModelRequestValues = useMemo(
-		() => ({ openRouterImageBaseUrl: configuredBaseUrl }),
-		[configuredBaseUrl],
-	)
+	const configuredApiKey = getStringSetting(settingsKeys.apiKey) ?? ""
+	const configuredOpenRouterBaseUrl = getStringSetting("openRouterImageBaseUrl") ?? ""
+	const configuredOpenRouterApiKey = getStringSetting("openRouterImageApiKey") ?? ""
+	const openRouterModelRequestValues = useMemo(() => {
+		const values: Record<string, string> = {}
+
+		if (configuredOpenRouterBaseUrl.trim()) {
+			values.openRouterImageBaseUrl = configuredOpenRouterBaseUrl.trim()
+		}
+
+		if (configuredOpenRouterApiKey.trim()) {
+			values.openRouterImageApiKey = configuredOpenRouterApiKey.trim()
+		}
+
+		return values
+	}, [configuredOpenRouterApiKey, configuredOpenRouterBaseUrl])
 	const { data: openRouterImageRouterModels } = useRouterModels({
 		provider: "openrouter",
 		modelType: "image",
@@ -117,7 +129,6 @@ export const ImageGenerationSettings = ({
 		supportedConfiguredApiMethod ||
 		getDefaultImageGenerationApiMethod(currentProvider)
 	const apiMethodLockedByModel = !!currentModelInfo?.apiMethod
-	const configuredApiKey = getStringSetting(settingsKeys.apiKey) ?? ""
 	const configuredNegativePrompt = getStringSetting(settingsKeys.negativePrompt) ?? ""
 	const hasRequiredApiKey = !providerDefinition.requiresApiKey || configuredApiKey.trim().length > 0
 	const requiresModel = providerDefinition.requiresModel ?? true
@@ -272,7 +283,9 @@ export const ImageGenerationSettings = ({
 								? t("settings:imageGeneration.optionalModelIdDescription")
 								: providerDefinition.supportsCustomModelId
 									? t("settings:imageGeneration.customModelIdDescription")
-									: t("settings:imageGeneration.modelSelectionDescription")}
+									: currentProvider === "openrouter"
+										? t("settings:imageGeneration.openRouterModelDiscoveryDescription")
+										: t("settings:imageGeneration.modelSelectionDescription")}
 						</p>
 					</div>
 
