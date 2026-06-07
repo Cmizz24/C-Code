@@ -15,6 +15,9 @@ import {
 import type { ExtensionStateContextType } from "@src/context/ExtensionStateContext"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 
+import { Section } from "./Section"
+import { SectionHeader } from "./SectionHeader"
+
 export type ImageGenerationSettingField =
 	| "imageGenerationProvider"
 	| NonNullable<ImageGenerationProviderSettingsKeys[keyof ImageGenerationProviderSettingsKeys]>
@@ -121,172 +124,176 @@ export const ImageGenerationSettings = ({
 	}
 
 	return (
-		<div className="space-y-4">
-			<p className="text-vscode-descriptionForeground text-sm mt-0">
-				{t("settings:imageGeneration.description")}
-			</p>
+		<div>
+			<SectionHeader>{t("settings:sections.imageGeneration")}</SectionHeader>
 
-			<div className="space-y-3">
-				<div>
-					<label className="block font-medium mb-1">{t("settings:imageGeneration.providerLabel")}</label>
-					<VSCodeDropdown
-						value={currentProvider}
-						onChange={(e: any) => handleProviderChange(e.target.value)}
-						className="w-full">
-						{ACTIVE_IMAGE_GENERATION_PROVIDER_DEFINITIONS.map((provider) => (
-							<VSCodeOption key={provider.value} value={provider.value} className="py-2 px-3">
-								{provider.label}
-							</VSCodeOption>
-						))}
-					</VSCodeDropdown>
-					<p className="text-vscode-descriptionForeground text-xs mt-1">
-						{t("settings:imageGeneration.providerDescription")}
-					</p>
-					{providerDefinition.isLocal && (
-						<p className="text-vscode-descriptionForeground text-xs mt-1">
-							{t("settings:imageGeneration.localProviderNote")}
-						</p>
-					)}
-				</div>
+			<Section>
+				<p className="text-vscode-descriptionForeground text-sm mt-0">
+					{t("settings:imageGeneration.description")}
+				</p>
 
-				{settingsKeys.apiKey && (
+				<div className="space-y-3">
 					<div>
-						<label className="block font-medium mb-1">
-							{providerDefinition.requiresApiKey
-								? t("settings:imageGeneration.apiKeyLabel", {
-										provider: providerDefinition.label,
-									})
-								: t("settings:imageGeneration.optionalApiKeyLabel", {
-										provider: providerDefinition.label,
-									})}
-						</label>
+						<label className="block font-medium mb-1">{t("settings:imageGeneration.providerLabel")}</label>
+						<VSCodeDropdown
+							value={currentProvider}
+							onChange={(e: any) => handleProviderChange(e.target.value)}
+							className="w-full">
+							{ACTIVE_IMAGE_GENERATION_PROVIDER_DEFINITIONS.map((provider) => (
+								<VSCodeOption key={provider.value} value={provider.value} className="py-2 px-3">
+									{provider.label}
+								</VSCodeOption>
+							))}
+						</VSCodeDropdown>
+						<p className="text-vscode-descriptionForeground text-xs mt-1">
+							{t("settings:imageGeneration.providerDescription")}
+						</p>
+						{providerDefinition.isLocal && (
+							<p className="text-vscode-descriptionForeground text-xs mt-1">
+								{t("settings:imageGeneration.localProviderNote")}
+							</p>
+						)}
+					</div>
+
+					{settingsKeys.apiKey && (
+						<div>
+							<label className="block font-medium mb-1">
+								{providerDefinition.requiresApiKey
+									? t("settings:imageGeneration.apiKeyLabel", {
+											provider: providerDefinition.label,
+										})
+									: t("settings:imageGeneration.optionalApiKeyLabel", {
+											provider: providerDefinition.label,
+										})}
+							</label>
+							<VSCodeTextField
+								value={configuredApiKey}
+								onInput={(e: any) => setImageGenerationSetting(settingsKeys.apiKey!, e.target.value)}
+								placeholder={t("settings:imageGeneration.apiKeyPlaceholder", {
+									provider: providerDefinition.label,
+								})}
+								className="w-full"
+								type="password"
+							/>
+							<p className="text-vscode-descriptionForeground text-xs mt-1">
+								{providerDefinition.requiresApiKey
+									? t("settings:imageGeneration.apiKeyRequiredDescription")
+									: t("settings:imageGeneration.apiKeyOptionalDescription")}
+								{providerDefinition.apiKeyUrl && (
+									<>
+										{" "}
+										{t("settings:imageGeneration.getApiKeyText")}{" "}
+										<a
+											href={providerDefinition.apiKeyUrl}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="text-vscode-textLink-foreground hover:text-vscode-textLink-activeForeground">
+											{providerDefinition.apiKeyUrl.replace(/^https?:\/\//, "")}
+										</a>
+									</>
+								)}
+							</p>
+						</div>
+					)}
+
+					<div>
+						<label className="block font-medium mb-1">{t("settings:imageGeneration.baseUrlLabel")}</label>
 						<VSCodeTextField
-							value={configuredApiKey}
-							onInput={(e: any) => setImageGenerationSetting(settingsKeys.apiKey!, e.target.value)}
-							placeholder={t("settings:imageGeneration.apiKeyPlaceholder", {
-								provider: providerDefinition.label,
+							value={configuredBaseUrl}
+							onInput={(e: any) => setImageGenerationSetting(settingsKeys.baseUrl, e.target.value)}
+							placeholder={t("settings:imageGeneration.baseUrlPlaceholder", {
+								url: providerDefinition.defaultBaseUrl,
 							})}
 							className="w-full"
-							type="password"
+							type="url"
 						/>
 						<p className="text-vscode-descriptionForeground text-xs mt-1">
-							{providerDefinition.requiresApiKey
-								? t("settings:imageGeneration.apiKeyRequiredDescription")
-								: t("settings:imageGeneration.apiKeyOptionalDescription")}
-							{providerDefinition.apiKeyUrl && (
-								<>
-									{" "}
-									{t("settings:imageGeneration.getApiKeyText")}{" "}
-									<a
-										href={providerDefinition.apiKeyUrl}
-										target="_blank"
-										rel="noopener noreferrer"
-										className="text-vscode-textLink-foreground hover:text-vscode-textLink-activeForeground">
-										{providerDefinition.apiKeyUrl.replace(/^https?:\/\//, "")}
-									</a>
-								</>
-							)}
+							{t("settings:imageGeneration.baseUrlDescription", {
+								url: providerDefinition.defaultBaseUrl,
+							})}
 						</p>
 					</div>
-				)}
 
-				<div>
-					<label className="block font-medium mb-1">{t("settings:imageGeneration.baseUrlLabel")}</label>
-					<VSCodeTextField
-						value={configuredBaseUrl}
-						onInput={(e: any) => setImageGenerationSetting(settingsKeys.baseUrl, e.target.value)}
-						placeholder={t("settings:imageGeneration.baseUrlPlaceholder", {
-							url: providerDefinition.defaultBaseUrl,
-						})}
-						className="w-full"
-						type="url"
-					/>
-					<p className="text-vscode-descriptionForeground text-xs mt-1">
-						{t("settings:imageGeneration.baseUrlDescription", {
-							url: providerDefinition.defaultBaseUrl,
-						})}
-					</p>
-				</div>
-
-				<div>
-					<label className="block font-medium mb-1">
-						{providerDefinition.supportsCustomModelId
-							? t("settings:imageGeneration.modelIdLabel")
-							: t("settings:imageGeneration.modelSelectionLabel")}
-					</label>
-					{renderModelInput()}
-					<p className="text-vscode-descriptionForeground text-xs mt-1">
-						{!requiresModel
-							? t("settings:imageGeneration.optionalModelIdDescription")
-							: providerDefinition.supportsCustomModelId
-								? t("settings:imageGeneration.customModelIdDescription")
-								: t("settings:imageGeneration.modelSelectionDescription")}
-					</p>
-				</div>
-
-				{settingsKeys.negativePrompt && (
 					<div>
 						<label className="block font-medium mb-1">
-							{t("settings:imageGeneration.negativePromptLabel")}
+							{providerDefinition.supportsCustomModelId
+								? t("settings:imageGeneration.modelIdLabel")
+								: t("settings:imageGeneration.modelSelectionLabel")}
 						</label>
-						<VSCodeTextField
-							value={configuredNegativePrompt}
-							onInput={(e: any) => handleNegativePromptChange(e.target.value)}
-							placeholder={t("settings:imageGeneration.negativePromptPlaceholder")}
-							className="w-full"
-						/>
+						{renderModelInput()}
 						<p className="text-vscode-descriptionForeground text-xs mt-1">
-							{t("settings:imageGeneration.negativePromptDescription")}
+							{!requiresModel
+								? t("settings:imageGeneration.optionalModelIdDescription")
+								: providerDefinition.supportsCustomModelId
+									? t("settings:imageGeneration.customModelIdDescription")
+									: t("settings:imageGeneration.modelSelectionDescription")}
 						</p>
 					</div>
-				)}
 
-				<div>
-					<label className="block font-medium mb-1">{t("settings:imageGeneration.apiMethodLabel")}</label>
-					<VSCodeDropdown
-						value={currentApiMethod}
-						onChange={(e: any) => handleApiMethodChange(e.target.value)}
-						className="w-full"
-						disabled={apiMethodLockedByModel || providerDefinition.supportedApiMethods.length === 1}>
-						{providerDefinition.supportedApiMethods.map((method) => (
-							<VSCodeOption key={method} value={method} className="py-2 px-3">
-								{t(`settings:imageGeneration.apiMethodLabels.${method}`)}
-							</VSCodeOption>
-						))}
-					</VSCodeDropdown>
-					<p className="text-vscode-descriptionForeground text-xs mt-1">
-						{apiMethodLockedByModel && currentModelInfo
-							? t("settings:imageGeneration.apiMethodLockedDescription", {
-									model: currentModelInfo.label,
-								})
-							: t(apiMethodDescriptionKey)}
-					</p>
+					{settingsKeys.negativePrompt && (
+						<div>
+							<label className="block font-medium mb-1">
+								{t("settings:imageGeneration.negativePromptLabel")}
+							</label>
+							<VSCodeTextField
+								value={configuredNegativePrompt}
+								onInput={(e: any) => handleNegativePromptChange(e.target.value)}
+								placeholder={t("settings:imageGeneration.negativePromptPlaceholder")}
+								className="w-full"
+							/>
+							<p className="text-vscode-descriptionForeground text-xs mt-1">
+								{t("settings:imageGeneration.negativePromptDescription")}
+							</p>
+						</div>
+					)}
+
+					<div>
+						<label className="block font-medium mb-1">{t("settings:imageGeneration.apiMethodLabel")}</label>
+						<VSCodeDropdown
+							value={currentApiMethod}
+							onChange={(e: any) => handleApiMethodChange(e.target.value)}
+							className="w-full"
+							disabled={apiMethodLockedByModel || providerDefinition.supportedApiMethods.length === 1}>
+							{providerDefinition.supportedApiMethods.map((method) => (
+								<VSCodeOption key={method} value={method} className="py-2 px-3">
+									{t(`settings:imageGeneration.apiMethodLabels.${method}`)}
+								</VSCodeOption>
+							))}
+						</VSCodeDropdown>
+						<p className="text-vscode-descriptionForeground text-xs mt-1">
+							{apiMethodLockedByModel && currentModelInfo
+								? t("settings:imageGeneration.apiMethodLockedDescription", {
+										model: currentModelInfo.label,
+									})
+								: t(apiMethodDescriptionKey)}
+						</p>
+					</div>
+
+					{!hasRequiredApiKey && (
+						<div className="p-2 bg-vscode-editorWarning-background text-vscode-editorWarning-foreground rounded text-sm">
+							{t("settings:imageGeneration.warningMissingApiKey", {
+								provider: providerDefinition.label,
+							})}
+						</div>
+					)}
+
+					{hasRequiredApiKey && requiresModel && !hasModel && (
+						<div className="p-2 bg-vscode-editorWarning-background text-vscode-editorWarning-foreground rounded text-sm">
+							{t("settings:imageGeneration.warningMissingModel", {
+								provider: providerDefinition.label,
+							})}
+						</div>
+					)}
+
+					{isConfigured && (
+						<div className="p-2 bg-vscode-editorInfo-background text-vscode-editorInfo-foreground rounded text-sm">
+							{t("settings:imageGeneration.successConfigured", {
+								provider: providerDefinition.label,
+							})}
+						</div>
+					)}
 				</div>
-
-				{!hasRequiredApiKey && (
-					<div className="p-2 bg-vscode-editorWarning-background text-vscode-editorWarning-foreground rounded text-sm">
-						{t("settings:imageGeneration.warningMissingApiKey", {
-							provider: providerDefinition.label,
-						})}
-					</div>
-				)}
-
-				{hasRequiredApiKey && requiresModel && !hasModel && (
-					<div className="p-2 bg-vscode-editorWarning-background text-vscode-editorWarning-foreground rounded text-sm">
-						{t("settings:imageGeneration.warningMissingModel", {
-							provider: providerDefinition.label,
-						})}
-					</div>
-				)}
-
-				{isConfigured && (
-					<div className="p-2 bg-vscode-editorInfo-background text-vscode-editorInfo-foreground rounded text-sm">
-						{t("settings:imageGeneration.successConfigured", {
-							provider: providerDefinition.label,
-						})}
-					</div>
-				)}
-			</div>
+			</Section>
 		</div>
 	)
 }

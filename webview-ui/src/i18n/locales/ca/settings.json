@@ -260,6 +260,10 @@
 			"label": "Navegador",
 			"description": "Aprova automàticament les accions del Visual Browser Inspector des del xat, incloent-hi l'obertura de pàgines de navegador controlades, captures de pantalla, inspecció del DOM, retalls, anàlisi i interaccions amb la pàgina. Això no permet editar fitxers ni executar comandes de terminal."
 		},
+		"imageGeneration": {
+			"label": "Imatges",
+			"description": "Aprova automàticament les accions de generació i edició d'imatges des del xat. Això pot crear o modificar fitxers d'imatge amb el proveïdor de generació d'imatges configurat."
+		},
 		"followupQuestions": {
 			"label": "Pregunta",
 			"description": "Seleccionar automàticament la primera resposta suggerida per a preguntes de seguiment després del temps d'espera configurat",

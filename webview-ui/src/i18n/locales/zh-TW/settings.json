@@ -268,6 +268,10 @@
 			"label": "瀏覽器",
 			"description": "自動核准來自聊天的 Visual Browser Inspector 動作，包括開啟受控瀏覽器頁面、螢幕截圖、DOM 檢查、裁切、分析和頁面互動。這不會允許檔案編輯或終端機命令。"
 		},
+		"imageGeneration": {
+			"label": "影像",
+			"description": "自動核准來自聊天的影像生成與編輯動作。這可能會使用已設定的影像生成供應商建立或修改影像檔。"
+		},
 		"followupQuestions": {
 			"label": "後續提問",
 			"description": "在設定的逾時時間過後，自動選擇後續問題的第一個建議答案",

@@ -260,6 +260,10 @@
 			"label": "Przeglądarka",
 			"description": "Automatycznie zatwierdzaj akcje Visual Browser Inspector z czatu, w tym otwieranie kontrolowanych stron przeglądarki, zrzuty ekranu, inspekcję DOM, wycinki, analizę i interakcje ze stroną. Nie pozwala to na edycję plików ani polecenia terminala."
 		},
+		"imageGeneration": {
+			"label": "Obrazy",
+			"description": "Automatycznie zatwierdzaj generowanie i edycję obrazów z czatu. Może to tworzyć lub modyfikować pliki obrazów przy użyciu skonfigurowanego dostawcy generowania obrazów."
+		},
 		"followupQuestions": {
 			"label": "Pytanie",
 			"description": "Automatycznie wybierz pierwszą sugerowaną odpowiedź na pytania uzupełniające po skonfigurowanym limicie czasu",

@@ -260,6 +260,10 @@
 			"label": "Browser",
 			"description": "Visual Browser Inspector-Aktionen aus dem Chat automatisch genehmigen, einschließlich Öffnen kontrollierter Browserseiten, Screenshots, DOM-Inspektion, Zuschnitten, Analyse und Seiteninteraktionen. Das erlaubt keine Dateiänderungen oder Terminalbefehle."
 		},
+		"imageGeneration": {
+			"label": "Bilder",
+			"description": "Bildgenerierungs- und Bildbearbeitungsaktionen aus dem Chat automatisch genehmigen. Dadurch können Bilddateien mit dem konfigurierten Bildgenerierungsanbieter erstellt oder geändert werden."
+		},
 		"followupQuestions": {
 			"label": "Frage",
 			"description": "Automatisch die erste vorgeschlagene Antwort für Folgefragen nach der konfigurierten Zeitüberschreitung auswählen",

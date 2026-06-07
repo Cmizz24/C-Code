@@ -260,6 +260,10 @@
 			"label": "Browser",
 			"description": "Approva automaticamente le azioni del Visual Browser Inspector dalla chat, incluse l'apertura di pagine browser controllate, screenshot, ispezione DOM, ritagli, analisi e interazioni con la pagina. Questo non consente modifiche ai file né comandi del terminale."
 		},
+		"imageGeneration": {
+			"label": "Immagini",
+			"description": "Approva automaticamente le azioni di generazione e modifica delle immagini dalla chat. Questo può creare o modificare file immagine usando il provider di generazione immagini configurato."
+		},
 		"followupQuestions": {
 			"label": "Domanda",
 			"description": "Seleziona automaticamente la prima risposta suggerita per le domande di follow-up dopo il timeout configurato",

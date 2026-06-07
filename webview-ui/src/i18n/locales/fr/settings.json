@@ -261,6 +261,10 @@
 			"label": "Navigateur",
 			"description": "Approuver automatiquement les actions du Visual Browser Inspector depuis le chat, y compris l'ouverture de pages de navigateur contrôlées, les captures d'écran, l'inspection du DOM, les recadrages, l'analyse et les interactions avec la page. Cela n'autorise pas les modifications de fichiers ni les commandes de terminal."
 		},
+		"imageGeneration": {
+			"label": "Images",
+			"description": "Approuver automatiquement les actions de génération et de modification d'images depuis le chat. Cela peut créer ou modifier des fichiers image avec le fournisseur de génération d'images configuré."
+		},
 		"followupQuestions": {
 			"label": "Question",
 			"description": "Sélectionner automatiquement la première réponse suggérée pour les questions de suivi après le délai configuré",

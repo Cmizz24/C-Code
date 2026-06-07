@@ -421,6 +421,7 @@ describe("SettingsView - Localization", () => {
 		const content = within(screen.getByTestId("settings-content"))
 
 		expect(screen.getByTestId("tab-imageGeneration")).toHaveTextContent("Image Generation")
+		expect(content.getByRole("heading", { name: "Image Generation" })).toBeInTheDocument()
 		expect(
 			content.getByText(
 				"Select the provider to use for image generation. This is independent from your chat provider profile.",
@@ -439,7 +440,27 @@ describe("SettingsView - Localization", () => {
 		expect(content.getByRole("option", { name: "Automatic1111 API" })).toBeInTheDocument()
 
 		expect(container).not.toHaveTextContent("settings:sections.imageGeneration")
+		expect(container).not.toHaveTextContent("sections.imageGeneration")
+		expect(container).not.toHaveTextContent("settings:imageGeneration.providerLabel")
+		expect(container).not.toHaveTextContent("imageGeneration.providerLabel")
 		expect(container).not.toHaveTextContent("settings:imageGeneration.")
+	})
+
+	it("renders the image generation auto-approve control through the real i18n provider", () => {
+		const { container } = renderSettingsViewWithTranslations(
+			{
+				alwaysAllowImageGeneration: false,
+			},
+			"autoApprove",
+		)
+
+		const content = within(screen.getByTestId("settings-content"))
+		const imageGenerationToggle = content.getByTestId("always-allow-image-generation-toggle")
+
+		expect(imageGenerationToggle).toHaveTextContent("Images")
+		expect(imageGenerationToggle).toHaveAttribute("aria-label", "Images")
+		expect(container).not.toHaveTextContent("settings:autoApprove.imageGeneration.label")
+		expect(container).not.toHaveTextContent("autoApprove.imageGeneration.label")
 	})
 
 	it("renders OpenAI Codex Settings labels through the real i18n provider without raw settings keys", async () => {

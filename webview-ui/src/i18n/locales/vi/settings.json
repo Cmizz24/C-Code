@@ -260,6 +260,10 @@
 			"label": "Trình duyệt",
 			"description": "Tự động phê duyệt các hành động Visual Browser Inspector từ chat, bao gồm mở các trang trình duyệt được kiểm soát, ảnh chụp màn hình, kiểm tra DOM, cắt ảnh, phân tích và tương tác với trang. Điều này không cho phép chỉnh sửa tệp hoặc chạy lệnh terminal."
 		},
+		"imageGeneration": {
+			"label": "Hình ảnh",
+			"description": "Tự động phê duyệt các hành động tạo và chỉnh sửa hình ảnh từ chat. Điều này có thể tạo hoặc sửa đổi tệp hình ảnh bằng nhà cung cấp tạo hình ảnh đã cấu hình."
+		},
 		"followupQuestions": {
 			"label": "Câu hỏi",
 			"description": "Tự động chọn câu trả lời đầu tiên được đề xuất cho các câu hỏi tiếp theo sau thời gian chờ đã cấu hình",

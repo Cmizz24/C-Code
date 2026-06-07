@@ -320,6 +320,10 @@
 			"label": "Browser",
 			"description": "Automatically approve Visual Browser Inspector actions from chat, including opening controlled browser pages, screenshots, DOM inspection, crops, analysis, and page interactions. This does not allow file edits or terminal commands."
 		},
+		"imageGeneration": {
+			"label": "Images",
+			"description": "Automatically approve image generation and editing actions from chat. This can create or modify image files using the configured image-generation provider."
+		},
 		"followupQuestions": {
 			"label": "Question",
 			"description": "Automatically select the first suggested answer for follow-up questions after the configured timeout",
