@@ -3,7 +3,8 @@
 import type { ProviderSettings } from "@roo-code/types"
 
 import { singleCompletionHandler } from "../single-completion-handler"
-import { buildApiHandler, SingleCompletionHandler } from "../../api"
+import { buildApiHandler } from "../../api"
+import type { SingleCompletionHandler } from "../../api"
 import { supportPrompt } from "../../shared/support-prompt"
 
 // Mock the API handler
@@ -77,10 +78,15 @@ describe("enhancePrompt", () => {
 		)
 	})
 
-	it("throws error for API provider that does not support prompt enhancement", async () => {
+	it("falls back to createMessage for API providers without completePrompt", async () => {
+		const createMessage = vi.fn(async function* (_systemPrompt: string, _messages: any[]) {
+			yield { type: "text", text: "Enhanced " }
+			yield { type: "text", text: "prompt" }
+		})
+
 		;(buildApiHandler as any).mockReturnValue({
 			// No completePrompt method
-			createMessage: vi.fn(),
+			createMessage,
 			getModel: vi.fn().mockReturnValue({
 				id: "test-model",
 				info: {
@@ -91,9 +97,32 @@ describe("enhancePrompt", () => {
 			}),
 		})
 
-		await expect(singleCompletionHandler(mockApiConfig, "Test prompt")).rejects.toThrow(
-			"The selected API provider does not support prompt enhancement",
-		)
+		const result = await singleCompletionHandler(mockApiConfig, "Test prompt")
+
+		expect(result).toBe("Enhanced prompt")
+		expect(createMessage).toHaveBeenCalledWith("", [{ role: "user", content: "Test prompt" }])
+	})
+
+	it("propagates createMessage stream errors from the fallback path", async () => {
+		const createMessage = vi.fn(async function* (_systemPrompt: string, _messages: any[]) {
+			yield { type: "text", text: "Partial response" }
+			yield { type: "error", message: "Stream failed", error: "Provider stream failed" }
+		})
+
+		;(buildApiHandler as any).mockReturnValue({
+			// No completePrompt method
+			createMessage,
+			getModel: vi.fn().mockReturnValue({
+				id: "test-model",
+				info: {
+					maxTokens: 4096,
+					contextWindow: 8192,
+					supportsPromptCache: false,
+				},
+			}),
+		})
+
+		await expect(singleCompletionHandler(mockApiConfig, "Test prompt")).rejects.toThrow("Stream failed")
 	})
 
 	it("uses appropriate model based on provider", async () => {

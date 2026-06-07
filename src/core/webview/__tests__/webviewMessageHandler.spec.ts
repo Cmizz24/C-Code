@@ -43,6 +43,7 @@ import EventEmitter from "events"
 
 import { webviewMessageHandler } from "../webviewMessageHandler"
 import { ClineProvider } from "../ClineProvider"
+import { MessageEnhancer } from "../messageEnhancer"
 import { getModels } from "../../../api/providers/fetchers/modelCache"
 import { getCommands } from "../../../services/command/commands"
 import { visualBrowserInspectorService } from "../../../services/visual-browser-inspector/VisualBrowserInspectorService"
@@ -184,6 +185,70 @@ vi.mock("../../mentions/resolveImageMentions", () => ({
 }))
 
 import { resolveImageMentions } from "../../mentions/resolveImageMentions"
+
+describe("webviewMessageHandler - enhancePrompt", () => {
+	let enhanceMessageSpy: ReturnType<typeof vi.spyOn>
+
+	beforeEach(() => {
+		vi.clearAllMocks()
+		enhanceMessageSpy = vi.spyOn(MessageEnhancer, "enhanceMessage").mockResolvedValue({
+			success: true,
+			enhancedText: "Enhanced prompt",
+		})
+	})
+
+	afterEach(() => {
+		enhanceMessageSpy.mockRestore()
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(undefined)
+		mockClineProvider.getState = vi.fn()
+	})
+
+	it("passes current task mode and Roo-ignore-filtered file context to the message enhancer", async () => {
+		const apiConfiguration = { apiProvider: "openai" }
+		const clineMessages = [{ type: "ask", text: "Existing task context", ts: 1000 }]
+		const trackedFiles = ["src/visible.ts", ".env", "src/also-visible.ts"]
+		const filterPaths = vi.fn((paths: string[]) => paths.filter((filePath) => filePath !== ".env"))
+		const getTaskMode = vi.fn().mockResolvedValue("code")
+		const getFilesReadByRoo = vi.fn().mockResolvedValue(trackedFiles)
+
+		mockClineProvider.getState = vi.fn().mockResolvedValue({
+			apiConfiguration,
+			customSupportPrompts: {},
+			listApiConfigMeta: [],
+			enhancementApiConfigId: undefined,
+			includeTaskHistoryInEnhance: true,
+			mode: "ask",
+		})
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue({
+			cwd: "/mock/workspace",
+			clineMessages,
+			getTaskMode,
+			fileContextTracker: { getFilesReadByRoo },
+			rooIgnoreController: { filterPaths },
+		} as any)
+
+		await webviewMessageHandler(mockClineProvider, { type: "enhancePrompt", text: "Improve this prompt" })
+
+		expect(getTaskMode).toHaveBeenCalled()
+		expect(getFilesReadByRoo).toHaveBeenCalled()
+		expect(filterPaths).toHaveBeenCalledWith(trackedFiles)
+		expect(enhanceMessageSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				text: "Improve this prompt",
+				apiConfiguration,
+				includeTaskHistoryInEnhance: true,
+				currentClineMessages: clineMessages,
+				currentTaskMode: "code",
+				currentWorkingDirectory: "/mock/workspace",
+				filesReadByRoo: ["src/visible.ts", "src/also-visible.ts"],
+			}),
+		)
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "enhancedPrompt",
+			text: "Enhanced prompt",
+		})
+	})
+})
 
 describe("webviewMessageHandler - testSmtpSettings", () => {
 	beforeEach(() => {

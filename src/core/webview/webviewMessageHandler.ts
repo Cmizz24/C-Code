@@ -1957,9 +1957,33 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 						listApiConfigMeta = [],
 						enhancementApiConfigId,
 						includeTaskHistoryInEnhance,
+						mode,
 					} = state
 
 					const currentCline = provider.getCurrentTask()
+					let currentTaskMode = mode
+					let filesReadByRoo: string[] = []
+
+					if (currentCline) {
+						try {
+							currentTaskMode = await currentCline.getTaskMode()
+						} catch (error) {
+							provider.log(
+								`Error resolving current task mode for prompt enhancement: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+							)
+						}
+
+						try {
+							const trackedFiles = await currentCline.fileContextTracker.getFilesReadByRoo()
+							filesReadByRoo = currentCline.rooIgnoreController
+								? currentCline.rooIgnoreController.filterPaths(trackedFiles)
+								: []
+						} catch (error) {
+							provider.log(
+								`Error resolving current task files for prompt enhancement: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+							)
+						}
+					}
 
 					const result = await MessageEnhancer.enhanceMessage({
 						text: message.text,
@@ -1969,6 +1993,9 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 						enhancementApiConfigId,
 						includeTaskHistoryInEnhance,
 						currentClineMessages: currentCline?.clineMessages,
+						currentTaskMode,
+						currentWorkingDirectory: getCurrentCwd(),
+						filesReadByRoo,
 						providerSettingsManager: provider.providerSettingsManager,
 					})
 
