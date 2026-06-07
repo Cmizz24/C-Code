@@ -359,7 +359,7 @@ const renderSettingsView = (initialState: Record<string, any> = {}) => {
 	return { onDone, activateTab, getSettingsContent }
 }
 
-const renderSettingsViewWithTranslations = (initialState: Record<string, any> = {}) => {
+const renderSettingsViewWithTranslations = (initialState: Record<string, any> = {}, targetSection?: string) => {
 	const onDone = vi.fn()
 	const queryClient = new QueryClient()
 
@@ -367,7 +367,7 @@ const renderSettingsViewWithTranslations = (initialState: Record<string, any> = 
 		<ExtensionStateContextProvider>
 			<TranslationProvider>
 				<QueryClientProvider client={queryClient}>
-					<SettingsView onDone={onDone} />
+					<SettingsView onDone={onDone} targetSection={targetSection} />
 				</QueryClientProvider>
 			</TranslationProvider>
 		</ExtensionStateContextProvider>
@@ -408,6 +408,38 @@ describe("SettingsView - Localization", () => {
 		expect(container).not.toHaveTextContent("settings:sections.providers")
 		expect(container).not.toHaveTextContent("settings:providers.configProfile")
 		expect(container).not.toHaveTextContent("settings:providers.apiProvider")
+	})
+
+	it("renders image generation settings labels through the real i18n provider without raw settings keys", () => {
+		const { container } = renderSettingsViewWithTranslations(
+			{
+				imageGenerationProvider: "automatic1111",
+			},
+			"imageGeneration",
+		)
+
+		const content = within(screen.getByTestId("settings-content"))
+
+		expect(screen.getByTestId("tab-imageGeneration")).toHaveTextContent("Image Generation")
+		expect(
+			content.getByText(
+				"Select the provider to use for image generation. This is independent from your chat provider profile.",
+			),
+		).toBeInTheDocument()
+		expect(content.getByText("Provider")).toBeInTheDocument()
+		expect(content.getByText("Automatic1111 API Key (optional)")).toBeInTheDocument()
+		expect(content.getByPlaceholderText("Enter your Automatic1111 API key")).toBeInTheDocument()
+		expect(content.getByText("Base URL")).toBeInTheDocument()
+		expect(content.getByPlaceholderText("Default: http://127.0.0.1:7860")).toBeInTheDocument()
+		expect(content.getByText("Model ID")).toBeInTheDocument()
+		expect(content.getByPlaceholderText("Enter a model ID")).toBeInTheDocument()
+		expect(content.getByText("Negative prompt")).toBeInTheDocument()
+		expect(content.getByPlaceholderText("Enter content to avoid in generated images")).toBeInTheDocument()
+		expect(content.getByText("API method")).toBeInTheDocument()
+		expect(content.getByRole("option", { name: "Automatic1111 API" })).toBeInTheDocument()
+
+		expect(container).not.toHaveTextContent("settings:sections.imageGeneration")
+		expect(container).not.toHaveTextContent("settings:imageGeneration.")
 	})
 
 	it("renders OpenAI Codex Settings labels through the real i18n provider without raw settings keys", async () => {
