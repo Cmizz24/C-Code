@@ -31,6 +31,36 @@ export type ActiveImageGenerationProvider = (typeof IMAGE_GENERATION_ACTIVE_PROV
 
 export type LegacyUnsupportedImageGenerationProvider = (typeof IMAGE_GENERATION_LEGACY_UNSUPPORTED_PROVIDER_IDS)[number]
 
+export type ImageGenerationToolStatus = "pending" | "running" | "completed" | "error"
+
+export interface ImageGenerationUsageDetails {
+	tokensIn?: number
+	tokensOut?: number
+	totalTokens?: number
+	imageCount?: number
+	cost?: number
+	currency?: string
+}
+
+export interface GeneratedImageMetadata {
+	status?: ImageGenerationToolStatus
+	prompt?: string
+	originalPrompt?: string
+	editedPrompt?: string
+	path?: string
+	outputPath?: string
+	inputImage?: string
+	provider?: ActiveImageGenerationProvider
+	providerLabel?: string
+	model?: string
+	baseURL?: string
+	apiMethod?: ImageGenerationApiMethod
+	isLocal?: boolean
+	imageFormat?: string
+	usage?: ImageGenerationUsageDetails
+	error?: string
+}
+
 export interface ImageGenerationProviderSettingsKeys {
 	apiKey?:
 		| "openRouterImageApiKey"

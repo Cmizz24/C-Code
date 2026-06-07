@@ -13,7 +13,7 @@ import { customToolRegistry } from "@roo-code/core"
 import { t } from "../../i18n"
 
 import { defaultModeSlug, getModeBySlug } from "../../shared/modes"
-import type { ToolParamName, ToolResponse, ToolUse, McpToolUse } from "../../shared/tools"
+import type { ToolParamName, ToolResponse, ToolUse, McpToolUse, AskApprovalWithResponse } from "../../shared/tools"
 
 import { AskIgnoredError } from "../task/AskIgnoredError"
 import { Task } from "../task/Task"
@@ -600,11 +600,12 @@ export async function presentAssistantMessage(cline: Task) {
 				hasToolResult = true
 			}
 
-			const askApproval = async (
+			const askApprovalWithResponse: AskApprovalWithResponse = async (
 				type: ClineAsk,
 				partialMessage?: string,
 				progressStatus?: ToolProgressStatus,
 				isProtected?: boolean,
+				options?: { suppressApprovalFeedback?: boolean },
 			) => {
 				const { response, text, images } = await cline.ask(
 					type,
@@ -623,18 +624,28 @@ export async function presentAssistantMessage(cline: Task) {
 						pushToolResult(formatResponse.toolDenied())
 					}
 					cline.didRejectTool = true
-					return false
+					return { approved: false, text, images }
 				}
 
 				// Store approval feedback to be merged into tool result (GitHub #10465)
 				// Don't push it as a separate tool_result here - that would create duplicates.
 				// The tool will call pushToolResult, which will merge the feedback into the actual result.
-				if (text) {
+				if (text && !options?.suppressApprovalFeedback) {
 					await cline.say("user_feedback", text, images)
 					approvalFeedback = { text, images }
 				}
 
-				return true
+				return { approved: true, text, images }
+			}
+
+			const askApproval = async (
+				type: ClineAsk,
+				partialMessage?: string,
+				progressStatus?: ToolProgressStatus,
+				isProtected?: boolean,
+			) => {
+				const result = await askApprovalWithResponse(type, partialMessage, progressStatus, isProtected)
+				return result.approved
 			}
 
 			const askFinishSubTaskApproval = async () => {
@@ -989,6 +1000,7 @@ export async function presentAssistantMessage(cline: Task) {
 					await checkpointSaveAndMark(cline)
 					await generateImageTool.handle(cline, block as ToolUse<"generate_image">, {
 						askApproval,
+						askApprovalWithResponse,
 						handleError,
 						pushToolResult,
 					})

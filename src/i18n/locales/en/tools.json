@@ -17,10 +17,10 @@
 		}
 	},
 	"generateImage": {
-		"openRouterApiKeyRequired": "OpenRouter API key is required for image generation with OpenRouter models. Please configure it in the Image Generation experimental settings.",
-		"missingConfiguration": "Image generation settings are unavailable. Please configure Image Generation in the experimental settings.",
-		"apiKeyRequired": "{{provider}} API key is required for image generation. Please configure it in the Image Generation experimental settings.",
-		"modelRequired": "{{provider}} requires a model ID for image generation. Please configure it in the Image Generation experimental settings.",
+		"openRouterApiKeyRequired": "OpenRouter API key is required for image generation with OpenRouter models. Please configure it in the Image Generation settings.",
+		"missingConfiguration": "Image generation settings are unavailable. Please configure the Image Generation settings.",
+		"apiKeyRequired": "{{provider}} API key is required for image generation. Please configure it in the Image Generation settings.",
+		"modelRequired": "{{provider}} requires a model ID for image generation. Please configure it in the Image Generation settings.",
 		"unsupportedApiMethod": "{{provider}} does not support the {{apiMethod}} image generation API method.",
 		"unsupportedProvider": "{{provider}} is not supported for image generation. Use OpenRouter, OpenAI/OpenAI-compatible, ComfyUI, or Automatic1111 instead.",
 		"failedWithStatus": "Failed to generate image: {{status}} {{statusText}}",

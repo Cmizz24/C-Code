@@ -17,10 +17,10 @@
 		}
 	},
 	"generateImage": {
-		"openRouterApiKeyRequired": "OpenRouter API-Schlüssel ist für die Bildgenerierung mit OpenRouter-Modellen erforderlich. Bitte konfiguriere ihn in den Experimentellen Einstellungen für Bildgenerierung.",
-		"missingConfiguration": "Bildgenerierungseinstellungen sind nicht verfügbar. Bitte konfiguriere die Bildgenerierung in den experimentellen Einstellungen.",
-		"apiKeyRequired": "{{provider}} API-Schlüssel ist für die Bildgenerierung erforderlich. Bitte konfiguriere ihn in den experimentellen Einstellungen für Bildgenerierung.",
-		"modelRequired": "{{provider}} benötigt eine Modell-ID für die Bildgenerierung. Bitte konfiguriere sie in den experimentellen Einstellungen für Bildgenerierung.",
+		"openRouterApiKeyRequired": "OpenRouter API-Schlüssel ist für die Bildgenerierung mit OpenRouter-Modellen erforderlich. Bitte konfiguriere ihn in den Bildgenerierungseinstellungen.",
+		"missingConfiguration": "Bildgenerierungseinstellungen sind nicht verfügbar. Bitte konfiguriere die Bildgenerierung in den Bildgenerierungseinstellungen.",
+		"apiKeyRequired": "{{provider}} API-Schlüssel ist für die Bildgenerierung erforderlich. Bitte konfiguriere ihn in den Bildgenerierungseinstellungen.",
+		"modelRequired": "{{provider}} benötigt eine Modell-ID für die Bildgenerierung. Bitte konfiguriere sie in den Bildgenerierungseinstellungen.",
 		"unsupportedApiMethod": "{{provider}} unterstützt die Bildgenerierungs-API-Methode {{apiMethod}} nicht.",
 		"unsupportedProvider": "{{provider}} wird für die Bildgenerierung nicht unterstützt. Verwende stattdessen OpenRouter, OpenAI/OpenAI-compatible, ComfyUI oder Automatic1111.",
 		"failedWithStatus": "Bildgenerierung fehlgeschlagen: {{status}} {{statusText}}",

@@ -21,6 +21,24 @@ export type AskApproval = (
 	forceApproval?: boolean,
 ) => Promise<boolean>
 
+export interface AskApprovalResponse {
+	approved: boolean
+	text?: string
+	images?: string[]
+}
+
+export interface AskApprovalWithResponseOptions {
+	suppressApprovalFeedback?: boolean
+}
+
+export type AskApprovalWithResponse = (
+	type: ClineAsk,
+	partialMessage?: string,
+	progressStatus?: ToolProgressStatus,
+	forceApproval?: boolean,
+	options?: AskApprovalWithResponseOptions,
+) => Promise<AskApprovalResponse>
+
 export type HandleError = (action: string, error: Error) => Promise<void>
 
 export type PushToolResult = (content: ToolResponse) => void
@@ -390,10 +408,16 @@ export const TOOL_GROUPS: Record<ToolGroup, ToolGroupConfig> = {
 		tools: ["read_file", "search_files", "list_files", "codebase_search"],
 	},
 	edit: {
-		tools: ["apply_diff", "write_to_file", "edit", "search_replace", "edit_file", "apply_patch", "generate_image"],
+		tools: ["apply_diff", "write_to_file", "edit", "search_replace", "edit_file", "apply_patch"],
 	},
 	command: {
-		tools: ["execute_command", "read_command_output", "visual_browser_inspector"],
+		tools: ["execute_command", "read_command_output"],
+	},
+	visual_browser_inspector: {
+		tools: ["visual_browser_inspector"],
+	},
+	image_generation: {
+		tools: ["generate_image"],
 	},
 	mcp: {
 		tools: ["use_mcp_tool", "access_mcp_resource"],

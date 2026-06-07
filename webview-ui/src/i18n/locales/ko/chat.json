@@ -201,6 +201,46 @@
 		"wantsToGenerateImageProtected": "Roo가 보호된 위치에서 이미지를 생성하고 싶어합니다",
 		"didGenerateImage": "Roo가 이미지를 생성했습니다"
 	},
+	"imageGeneration": {
+		"approval": {
+			"generate": "생성",
+			"editPromptHint": "승인하기 전에 메시지 입력창에서 Prompt를 편집하거나 그대로 승인하세요."
+		},
+		"statusTitle": "이미지 생성: {{status}}",
+		"status": {
+			"pending": "승인 대기 중",
+			"running": "실행 중",
+			"completed": "완료됨",
+			"error": "오류"
+		},
+		"metadata": {
+			"prompt": "Prompt",
+			"editedPrompt": "편집된 Prompt",
+			"originalPrompt": "원본 Prompt",
+			"provider": "공급자",
+			"model": "모델",
+			"endpoint": "Endpoint",
+			"endpointType": "Endpoint 유형",
+			"localEndpoint": "로컬",
+			"remoteEndpoint": "원격",
+			"apiMethod": "API 메서드",
+			"outputPath": "출력 경로",
+			"inputImage": "입력 이미지",
+			"imageFormat": "이미지 형식",
+			"tokensIn": "입력 tokens",
+			"tokensOut": "출력 tokens",
+			"totalTokens": "총 tokens",
+			"images": "이미지",
+			"cost": "비용",
+			"error": "오류"
+		},
+		"apiMethods": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API"
+		}
+	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo가 이 디렉토리의 최상위 파일을 보고 싶어합니다",
 		"didViewTopLevel": "Roo가 이 디렉토리의 최상위 파일을 보았습니다",

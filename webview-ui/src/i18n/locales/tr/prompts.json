@@ -26,6 +26,8 @@
 			"read": "Dosyaları Oku",
 			"edit": "Dosyaları Düzenle",
 			"command": "Komutları Çalıştır",
+			"visual_browser_inspector": "Tarayıcıyı Görsel Olarak İncele",
+			"image_generation": "Görsel Oluştur",
 			"mcp": "MCP Kullan"
 		},
 		"noTools": "Yok"

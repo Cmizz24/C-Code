@@ -58,6 +58,7 @@ describe("resolveImageGenerationConfig", () => {
 			provider: "openrouter",
 			providerLabel: "OpenRouter",
 			baseURL: "https://openrouter.example/api/v1",
+			isLocal: false,
 			authToken: "openrouter-key",
 			model: "google/gemini-2.5-flash-image",
 			apiMethod: "chat_completions",
@@ -137,6 +138,7 @@ describe("resolveImageGenerationConfig", () => {
 			provider: "comfyui",
 			providerLabel: "ComfyUI",
 			baseURL: "http://127.0.0.1:8188",
+			isLocal: true,
 			authToken: "local-proxy-token",
 			model: "sdxl.safetensors",
 			apiMethod: "comfyui_api",
@@ -162,6 +164,7 @@ describe("resolveImageGenerationConfig", () => {
 			provider: "automatic1111",
 			providerLabel: "Automatic1111",
 			baseURL: "http://127.0.0.1:7860",
+			isLocal: true,
 			authToken: undefined,
 			model: "",
 			apiMethod: "automatic1111_api",
@@ -256,6 +259,14 @@ describe("generateImageWithConfiguredProvider", () => {
 			success: true,
 			imageData: "data:image/png;base64,imagesapi",
 			imageFormat: "png",
+			metadata: {
+				provider: "openai",
+				providerLabel: "OpenAI / OpenAI Compatible",
+				baseURL: "https://api.openai.com/v1",
+				model: "gpt-image-1",
+				apiMethod: "images_api",
+				isLocal: false,
+			},
 		})
 		expect(generateImageWithImagesApi).toHaveBeenCalledWith({
 			baseURL: "https://api.openai.com/v1",
@@ -308,6 +319,14 @@ describe("generateImageWithConfiguredProvider", () => {
 			success: true,
 			imageData: "data:image/png;base64,comfyui",
 			imageFormat: "png",
+			metadata: {
+				provider: "comfyui",
+				providerLabel: "ComfyUI",
+				baseURL: "http://localhost:8188",
+				model: "sdxl.safetensors",
+				apiMethod: "comfyui_api",
+				isLocal: true,
+			},
 		})
 		expect(generateImageWithComfyUi).toHaveBeenCalledWith({
 			baseURL: "http://localhost:8188",
@@ -338,6 +357,14 @@ describe("generateImageWithConfiguredProvider", () => {
 			success: true,
 			imageData: "data:image/png;base64,automatic1111",
 			imageFormat: "png",
+			metadata: {
+				provider: "automatic1111",
+				providerLabel: "Automatic1111",
+				baseURL: "http://localhost:7860",
+				model: "",
+				apiMethod: "automatic1111_api",
+				isLocal: true,
+			},
 		})
 		expect(generateImageWithAutomatic1111).toHaveBeenCalledWith({
 			baseURL: "http://localhost:7860",
@@ -368,6 +395,14 @@ describe("generateImageWithConfiguredProvider", () => {
 			success: true,
 			imageData: "data:image/png;base64,chatcompletions",
 			imageFormat: "png",
+			metadata: {
+				provider: "openrouter",
+				providerLabel: "OpenRouter",
+				baseURL: "https://openrouter.example/api/v1",
+				model: "google/gemini-2.5-flash-image",
+				apiMethod: "chat_completions",
+				isLocal: false,
+			},
 		})
 		expect(generateImageWithProvider).toHaveBeenCalledWith({
 			baseURL: "https://openrouter.example/api/v1",
@@ -384,7 +419,7 @@ describe("generateImageWithConfiguredProvider", () => {
 	})
 
 	it("should dispatch OpenAI-compatible custom chat-completions models", async () => {
-		await generateImageWithConfiguredProvider({
+		const result = await generateImageWithConfiguredProvider({
 			state: state({
 				imageGenerationProvider: "openai",
 				openAiImageApiKey: "compatible-key",
@@ -393,6 +428,15 @@ describe("generateImageWithConfiguredProvider", () => {
 				openAiImageGenerationApiMethod: "chat_completions",
 			}),
 			prompt: "Draw with a custom model",
+		})
+
+		expect(result.metadata).toEqual({
+			provider: "openai",
+			providerLabel: "OpenAI / OpenAI Compatible",
+			baseURL: "https://compatible.example/v1",
+			model: "custom-image-model",
+			apiMethod: "chat_completions",
+			isLocal: false,
 		})
 
 		expect(generateImageWithProvider).toHaveBeenCalledWith({

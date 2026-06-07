@@ -17,10 +17,10 @@
 		}
 	},
 	"generateImage": {
-		"openRouterApiKeyRequired": "La clé API OpenRouter est requise pour la génération d'images avec les modèles OpenRouter. Configure-la dans les paramètres expérimentaux de Génération d'Images.",
-		"missingConfiguration": "Les paramètres de génération d'images ne sont pas disponibles. Configure la Génération d'Images dans les paramètres expérimentaux.",
-		"apiKeyRequired": "La clé API {{provider}} est requise pour la génération d'images. Configure-la dans les paramètres expérimentaux de Génération d'Images.",
-		"modelRequired": "{{provider}} nécessite un ID de modèle pour la génération d'images. Configure-le dans les paramètres expérimentaux de Génération d'Images.",
+		"openRouterApiKeyRequired": "La clé API OpenRouter est requise pour la génération d'images avec les modèles OpenRouter. Configure-la dans les paramètres de Génération d'Images.",
+		"missingConfiguration": "Les paramètres de génération d'images ne sont pas disponibles. Configure la Génération d'Images dans les paramètres de Génération d'Images.",
+		"apiKeyRequired": "La clé API {{provider}} est requise pour la génération d'images. Configure-la dans les paramètres de Génération d'Images.",
+		"modelRequired": "{{provider}} nécessite un ID de modèle pour la génération d'images. Configure-le dans les paramètres de Génération d'Images.",
 		"unsupportedApiMethod": "{{provider}} ne prend pas en charge la méthode API de génération d'images {{apiMethod}}.",
 		"unsupportedProvider": "{{provider}} n'est pas compatible avec la génération d'images. Utilise plutôt OpenRouter, OpenAI/OpenAI-compatible, ComfyUI ou Automatic1111.",
 		"failedWithStatus": "Échec de génération de l'image : {{status}} {{statusText}}",

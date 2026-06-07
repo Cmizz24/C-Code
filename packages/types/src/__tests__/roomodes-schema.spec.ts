@@ -55,7 +55,16 @@ describe("roomodes JSON schema", () => {
 					whenToUse: "Use when you need everything.",
 					description: "A mode with all properties.",
 					customInstructions: "Follow these additional rules.",
-					groups: ["read", "edit", "command", "mcp"],
+					groups: [
+						"read",
+						"edit",
+						"command",
+						"visual_browser_inspector",
+						"image_generation",
+						"mcp",
+						"modes",
+						"orchestrator",
+					],
 					source: "project",
 				},
 			],
@@ -128,6 +137,23 @@ describe("roomodes JSON schema", () => {
 					name: "Orchestrator",
 					roleDefinition: "You orchestrate other modes.",
 					groups: ["read", "modes"],
+				},
+			],
+		}
+
+		const valid = validate(config)
+		expect(validate.errors).toBeNull()
+		expect(valid).toBe(true)
+	})
+
+	it("should accept the visual browser inspector and image generation tool groups", () => {
+		const config = {
+			customModes: [
+				{
+					slug: "visual-image-mode",
+					name: "Visual Image Mode",
+					roleDefinition: "A mode that can inspect browser UI and generate images.",
+					groups: ["read", "visual_browser_inspector", "image_generation"],
 				},
 			],
 		}

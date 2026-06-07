@@ -38,9 +38,21 @@ describe("getCapabilitiesSection", () => {
 		const result = getCapabilitiesSection(cwd)
 
 		expect(result).toContain("CAPABILITIES")
+		expect(result).toContain("available tools depend on the active mode")
+		expect(result).toContain("Use only tools that are currently available")
 		expect(result).toContain("execute CLI commands")
 		expect(result).toContain("list files")
 		expect(result).toContain("read and write files")
+		expect(result).toContain("When execute_command is available")
+	})
+
+	it("includes mode routing guidance for unavailable capabilities", () => {
+		const result = getCapabilitiesSection(cwd)
+
+		expect(result).toContain("current mode's tools cannot perform")
+		expect(result).toContain("use switch_mode or new_task")
+		expect(result).toContain("route to a capable mode")
+		expect(result).toContain("instead of refusing or asking the user to do it manually")
 	})
 
 	it("includes MCP reference when mcpHub is provided", () => {

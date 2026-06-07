@@ -17,10 +17,10 @@
 		}
 	},
 	"generateImage": {
-		"openRouterApiKeyRequired": "Klucz API OpenRouter jest wymagany do generowania obrazów z modelami OpenRouter. Skonfiguruj go w eksperymentalnych ustawieniach generowania obrazów.",
-		"missingConfiguration": "Ustawienia generowania obrazów są niedostępne. Skonfiguruj Generowanie Obrazów w ustawieniach eksperymentalnych.",
-		"apiKeyRequired": "Klucz API {{provider}} jest wymagany do generowania obrazów. Skonfiguruj go w eksperymentalnych ustawieniach Generowania Obrazów.",
-		"modelRequired": "{{provider}} wymaga ID modelu do generowania obrazów. Skonfiguruj go w eksperymentalnych ustawieniach Generowania Obrazów.",
+		"openRouterApiKeyRequired": "Klucz API OpenRouter jest wymagany do generowania obrazów z modelami OpenRouter. Skonfiguruj go w ustawieniach Generowania Obrazów.",
+		"missingConfiguration": "Ustawienia generowania obrazów są niedostępne. Skonfiguruj Generowanie Obrazów w ustawieniach Generowania Obrazów.",
+		"apiKeyRequired": "Klucz API {{provider}} jest wymagany do generowania obrazów. Skonfiguruj go w ustawieniach Generowania Obrazów.",
+		"modelRequired": "{{provider}} wymaga ID modelu do generowania obrazów. Skonfiguruj go w ustawieniach Generowania Obrazów.",
 		"unsupportedApiMethod": "{{provider}} nie obsługuje metody API generowania obrazów {{apiMethod}}.",
 		"unsupportedProvider": "{{provider}} nie jest obsługiwany do generowania obrazów. Użyj zamiast tego OpenRouter, OpenAI/OpenAI-compatible, ComfyUI lub Automatic1111.",
 		"failedWithStatus": "Nie udało się wygenerować obrazu: {{status}} {{statusText}}",

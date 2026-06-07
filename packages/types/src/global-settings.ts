@@ -110,7 +110,7 @@ export const globalSettingsSchema = z.object({
 	taskHistory: z.array(historyItemSchema).optional(),
 	dismissedUpsells: z.array(z.string()).optional(),
 
-	// Image generation settings (experimental) - kept independent from chat provider profiles.
+	// Image generation settings - kept independent from chat provider profiles.
 	imageGenerationProvider: z.enum(IMAGE_GENERATION_PROVIDER_IDS).optional(),
 	openRouterImageApiKey: z.string().optional(),
 	openRouterImageBaseUrl: z.string().optional(),
@@ -161,6 +161,7 @@ export const globalSettingsSchema = z.object({
 		.max(MAX_PARALLEL_TASK_CONCURRENCY)
 		.optional(),
 	alwaysAllowVisualBrowserInspector: z.boolean().optional(),
+	alwaysAllowImageGeneration: z.boolean().optional(),
 	alwaysAllowExecute: z.boolean().optional(),
 	alwaysAllowFollowupQuestions: z.boolean().optional(),
 	followupAutoApproveTimeoutMs: z.number().optional(),

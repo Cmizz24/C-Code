@@ -196,6 +196,46 @@
 		"wantsToGenerateImageProtected": "Roo хочет сгенерировать изображение в защищённом месте",
 		"didGenerateImage": "Roo сгенерировал изображение"
 	},
+	"imageGeneration": {
+		"approval": {
+			"generate": "Сгенерировать",
+			"editPromptHint": "Перед подтверждением отредактируй Prompt в поле сообщения или подтверди как есть."
+		},
+		"statusTitle": "Генерация изображения: {{status}}",
+		"status": {
+			"pending": "Ожидает подтверждения",
+			"running": "Выполняется",
+			"completed": "Завершено",
+			"error": "Ошибка"
+		},
+		"metadata": {
+			"prompt": "Prompt",
+			"editedPrompt": "Отредактированный Prompt",
+			"originalPrompt": "Исходный Prompt",
+			"provider": "Провайдер",
+			"model": "Модель",
+			"endpoint": "Endpoint",
+			"endpointType": "Тип endpoint",
+			"localEndpoint": "Локальный",
+			"remoteEndpoint": "Удалённый",
+			"apiMethod": "Метод API",
+			"outputPath": "Путь вывода",
+			"inputImage": "Входное изображение",
+			"imageFormat": "Формат изображения",
+			"tokensIn": "Входные tokens",
+			"tokensOut": "Выходные tokens",
+			"totalTokens": "Всего tokens",
+			"images": "Изображения",
+			"cost": "Стоимость",
+			"error": "Ошибка"
+		},
+		"apiMethods": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API"
+		}
+	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo хочет просмотреть файлы верхнего уровня в этой директории",
 		"didViewTopLevel": "Roo просмотрел файлы верхнего уровня в этой директории",

@@ -12,11 +12,6 @@ import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 import { SearchableSetting } from "./SearchableSetting"
 import { ExperimentalFeature } from "./ExperimentalFeature"
-import {
-	ImageGenerationSettings,
-	type ImageGenerationSettingsValues,
-	type SetImageGenerationSetting,
-} from "./ImageGenerationSettings"
 import { CustomToolsSettings } from "./CustomToolsSettings"
 
 type ExperimentalSettingsProps = HTMLAttributes<HTMLDivElement> & {
@@ -24,8 +19,6 @@ type ExperimentalSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	setExperimentEnabled: SetExperimentEnabled
 	apiConfiguration?: any
 	setApiConfigurationField?: any
-	imageGenerationSettings?: ImageGenerationSettingsValues
-	setImageGenerationSetting?: SetImageGenerationSetting
 }
 
 export const ExperimentalSettings = ({
@@ -33,8 +26,6 @@ export const ExperimentalSettings = ({
 	setExperimentEnabled,
 	apiConfiguration,
 	setApiConfigurationField,
-	imageGenerationSettings,
-	setImageGenerationSetting,
 	className,
 	...props
 }: ExperimentalSettingsProps) => {
@@ -52,23 +43,8 @@ export const ExperimentalSettings = ({
 						const experimentKey = config[0]
 						const label = t(`settings:experimental.${experimentKey}.name`)
 
-						if (config[0] === "IMAGE_GENERATION" && imageGenerationSettings && setImageGenerationSetting) {
-							return (
-								<SearchableSetting
-									key={config[0]}
-									settingId={`experimental-${config[0].toLowerCase()}`}
-									section="experimental"
-									label={label}>
-									<ImageGenerationSettings
-										enabled={experiments[EXPERIMENT_IDS.IMAGE_GENERATION] ?? false}
-										onChange={(enabled) =>
-											setExperimentEnabled(EXPERIMENT_IDS.IMAGE_GENERATION, enabled)
-										}
-										imageGenerationSettings={imageGenerationSettings}
-										setImageGenerationSetting={setImageGenerationSetting}
-									/>
-								</SearchableSetting>
-							)
+						if (config[0] === "IMAGE_GENERATION") {
+							return null
 						}
 						if (config[0] === "CUSTOM_TOOLS") {
 							return (

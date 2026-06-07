@@ -17,10 +17,10 @@
 		}
 	},
 	"generateImage": {
-		"openRouterApiKeyRequired": "Yêu cầu khóa API OpenRouter để tạo hình ảnh với các mô hình OpenRouter. Vui lòng cấu hình trong cài đặt thử nghiệm Tạo hình ảnh.",
-		"missingConfiguration": "Không có cài đặt tạo hình ảnh. Vui lòng cấu hình Tạo hình ảnh trong cài đặt thử nghiệm.",
-		"apiKeyRequired": "Cần khóa API {{provider}} để tạo hình ảnh. Vui lòng cấu hình trong cài đặt thử nghiệm Tạo hình ảnh.",
-		"modelRequired": "{{provider}} yêu cầu ID mô hình để tạo hình ảnh. Vui lòng cấu hình trong cài đặt thử nghiệm Tạo hình ảnh.",
+		"openRouterApiKeyRequired": "Yêu cầu khóa API OpenRouter để tạo hình ảnh với các mô hình OpenRouter. Vui lòng cấu hình trong cài đặt Tạo hình ảnh.",
+		"missingConfiguration": "Không có cài đặt tạo hình ảnh. Vui lòng cấu hình Tạo hình ảnh trong cài đặt Tạo hình ảnh.",
+		"apiKeyRequired": "Cần khóa API {{provider}} để tạo hình ảnh. Vui lòng cấu hình trong cài đặt Tạo hình ảnh.",
+		"modelRequired": "{{provider}} yêu cầu ID mô hình để tạo hình ảnh. Vui lòng cấu hình trong cài đặt Tạo hình ảnh.",
 		"unsupportedApiMethod": "{{provider}} không hỗ trợ phương thức API tạo hình ảnh {{apiMethod}}.",
 		"unsupportedProvider": "{{provider}} không được hỗ trợ cho tạo hình ảnh. Hãy dùng OpenRouter, OpenAI/OpenAI-compatible, ComfyUI hoặc Automatic1111 thay thế.",
 		"failedWithStatus": "Tạo hình ảnh thất bại: {{status}} {{statusText}}",

@@ -26,6 +26,8 @@
 			"read": "读取文件",
 			"edit": "编辑文件",
 			"command": "运行命令",
+			"visual_browser_inspector": "可视化检查浏览器",
+			"image_generation": "生成图像",
 			"mcp": "MCP服务"
 		},
 		"noTools": "无"

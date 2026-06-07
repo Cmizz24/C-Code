@@ -237,6 +237,46 @@
 		"wantsToInsertWithLineNumber": "C wants to insert content into this file at line {{lineNumber}}",
 		"wantsToInsertAtEnd": "C wants to append content to the end of this file"
 	},
+	"imageGeneration": {
+		"approval": {
+			"generate": "Generate",
+			"editPromptHint": "Edit the prompt in the message box before approving, or approve as-is."
+		},
+		"statusTitle": "Image generation: {{status}}",
+		"status": {
+			"pending": "Pending approval",
+			"running": "Running",
+			"completed": "Completed",
+			"error": "Error"
+		},
+		"metadata": {
+			"prompt": "Prompt",
+			"editedPrompt": "Edited prompt",
+			"originalPrompt": "Original prompt",
+			"provider": "Provider",
+			"model": "Model",
+			"endpoint": "Endpoint",
+			"endpointType": "Endpoint type",
+			"localEndpoint": "Local",
+			"remoteEndpoint": "Remote",
+			"apiMethod": "API method",
+			"outputPath": "Output path",
+			"inputImage": "Input image",
+			"imageFormat": "Image format",
+			"tokensIn": "Input tokens",
+			"tokensOut": "Output tokens",
+			"totalTokens": "Total tokens",
+			"images": "Images",
+			"cost": "Cost",
+			"error": "Error"
+		},
+		"apiMethods": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API"
+		}
+	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "C wants to view the top level files in this directory",
 		"didViewTopLevel": "C viewed the top level files in this directory",

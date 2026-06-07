@@ -26,6 +26,8 @@
 			"read": "Llegir fitxers",
 			"edit": "Editar fitxers",
 			"command": "Executar comandes",
+			"visual_browser_inspector": "Inspeccionar visualment el navegador",
+			"image_generation": "Generar imatges",
 			"mcp": "Utilitzar MCP"
 		},
 		"noTools": "Cap"

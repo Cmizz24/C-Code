@@ -5,9 +5,11 @@ import { Task } from "../../task/Task"
 import * as fs from "fs/promises"
 import * as pathUtils from "../../../utils/pathUtils"
 import * as fileUtils from "../../../utils/fs"
-import { formatResponse } from "../../prompts/responses"
 import { EXPERIMENT_IDS } from "../../../shared/experiments"
-import { generateImageWithConfiguredProvider } from "../../../api/providers/utils/image-generation-provider"
+import {
+	generateImageWithConfiguredProvider,
+	resolveImageGenerationConfig,
+} from "../../../api/providers/utils/image-generation-provider"
 
 // Mock dependencies
 vi.mock("fs/promises")
@@ -16,6 +18,7 @@ vi.mock("../../../utils/fs")
 vi.mock("../../../utils/safeWriteJson")
 vi.mock("../../../api/providers/utils/image-generation-provider", () => ({
 	generateImageWithConfiguredProvider: vi.fn(),
+	resolveImageGenerationConfig: vi.fn(),
 }))
 
 describe("generateImageTool", () => {
@@ -26,10 +29,27 @@ describe("generateImageTool", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
+		const providerMetadata = {
+			provider: "openrouter",
+			providerLabel: "OpenRouter",
+			baseURL: "https://openrouter.ai/api/v1",
+			model: "google/gemini-2.5-flash-image",
+			apiMethod: "chat_completions",
+			isLocal: false,
+		} as const
+		vi.mocked(resolveImageGenerationConfig).mockReturnValue({
+			success: true,
+			config: {
+				...providerMetadata,
+				authToken: "test-api-key",
+				negativePrompt: undefined,
+			},
+		})
 		vi.mocked(generateImageWithConfiguredProvider).mockResolvedValue({
 			success: true,
 			imageData: "data:image/png;base64,fakebase64data",
 			imageFormat: "png",
+			metadata: providerMetadata,
 		})
 
 		// Setup mock Cline instance
@@ -243,6 +263,72 @@ describe("generateImageTool", () => {
 				expect(imageData.imagePath).toBe(expectedPath)
 			}
 		})
+
+		it("should send edited approval prompt to the configured provider and emitted metadata", async () => {
+			const mockAskApprovalWithResponse = vi.fn().mockResolvedValue({
+				approved: true,
+				text: "Use the edited prompt",
+			})
+			const completeBlock: ToolUse = {
+				type: "tool_use",
+				name: "generate_image",
+				params: {
+					prompt: "Generate a test image",
+					path: "test-image.png",
+				},
+				nativeArgs: {
+					prompt: "Generate a test image",
+					path: "test-image.png",
+				},
+				partial: false,
+			}
+
+			await generateImageTool.handle(mockCline as Task, completeBlock as ToolUse<"generate_image">, {
+				askApproval: mockAskApproval,
+				askApprovalWithResponse: mockAskApprovalWithResponse,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(mockAskApproval).not.toHaveBeenCalled()
+			expect(generateImageWithConfiguredProvider).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: "Use the edited prompt",
+				}),
+			)
+
+			const toolStatusPayloads = mockCline.say.mock.calls
+				.filter((call: any[]) => call[0] === "tool")
+				.map((call: any[]) => JSON.parse(call[1]))
+
+			expect(toolStatusPayloads).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						tool: "imageGenerated",
+						imageGeneration: expect.objectContaining({
+							status: "running",
+							prompt: "Use the edited prompt",
+							originalPrompt: "Generate a test image",
+							editedPrompt: "Use the edited prompt",
+						}),
+					}),
+				]),
+			)
+
+			const imageCall = mockCline.say.mock.calls.find((call: any[]) => call[0] === "image")
+			if (!imageCall) {
+				throw new Error("Expected generated image message")
+			}
+			const imagePayload = JSON.parse(imageCall[1])
+			expect(imagePayload.imageGeneration).toEqual(
+				expect.objectContaining({
+					status: "completed",
+					prompt: "Use the edited prompt",
+					originalPrompt: "Generate a test image",
+					editedPrompt: "Use the edited prompt",
+				}),
+			)
+		})
 	})
 
 	describe("missing parameters", () => {
@@ -330,13 +416,14 @@ describe("generateImageTool", () => {
 		})
 	})
 
-	describe("experiment validation", () => {
-		it("should error when image generation experiment is disabled", async () => {
-			// Disable the experiment
+	describe("legacy experiment flag", () => {
+		it("should process image generation when the legacy experiment flag is disabled", async () => {
 			mockCline.providerRef.deref().getState.mockResolvedValue({
 				experiments: {
 					[EXPERIMENT_IDS.IMAGE_GENERATION]: false,
 				},
+				openRouterImageApiKey: "test-api-key",
+				openRouterImageGenerationSelectedModel: "google/gemini-2.5-flash-image",
 			})
 
 			const block: ToolUse = {
@@ -359,10 +446,60 @@ describe("generateImageTool", () => {
 				pushToolResult: mockPushToolResult,
 			})
 
+			expect(mockAskApproval).toHaveBeenCalled()
+			expect(generateImageWithConfiguredProvider).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: "Generate a test image",
+				}),
+			)
+			expect(mockPushToolResult).toHaveBeenCalled()
+		})
+
+		it("should emit an error status when image generation settings cannot be resolved", async () => {
+			vi.mocked(resolveImageGenerationConfig).mockReturnValue({
+				success: false,
+				error: "tools:generateImage.apiKeyRequired(provider=OpenRouter)",
+			})
+			const block: ToolUse = {
+				type: "tool_use",
+				name: "generate_image",
+				params: {
+					prompt: "Generate a test image",
+					path: "test-image.png",
+				},
+				nativeArgs: {
+					prompt: "Generate a test image",
+					path: "test-image.png",
+				},
+				partial: false,
+			}
+
+			await generateImageTool.handle(mockCline as Task, block as ToolUse<"generate_image">, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(mockAskApproval).not.toHaveBeenCalled()
+			expect(generateImageWithConfiguredProvider).not.toHaveBeenCalled()
 			expect(mockPushToolResult).toHaveBeenCalledWith(
-				formatResponse.toolError(
-					"Image generation is an experimental feature that must be enabled in settings. Please enable 'Image Generation' in the Experimental Settings section.",
-				),
+				expect.stringContaining("tools:generateImage.apiKeyRequired(provider=OpenRouter)"),
+			)
+
+			const toolStatusPayloads = mockCline.say.mock.calls
+				.filter((call: any[]) => call[0] === "tool")
+				.map((call: any[]) => JSON.parse(call[1]))
+
+			expect(toolStatusPayloads).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						tool: "imageGenerated",
+						imageGeneration: expect.objectContaining({
+							status: "error",
+							error: "tools:generateImage.apiKeyRequired(provider=OpenRouter)",
+						}),
+					}),
+				]),
 			)
 		})
 	})

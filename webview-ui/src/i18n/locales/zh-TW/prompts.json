@@ -26,6 +26,8 @@
 			"read": "讀取檔案",
 			"edit": "編輯檔案",
 			"command": "執行命令",
+			"visual_browser_inspector": "以視覺方式檢查瀏覽器",
+			"image_generation": "產生圖像",
 			"mcp": "使用 MCP"
 		},
 		"noTools": "無"

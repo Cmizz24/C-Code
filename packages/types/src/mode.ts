@@ -218,7 +218,7 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 		whenToUse:
 			"Use this mode as the implementation fallback for scripts, utilities, config files, build glue, one-off automation, and logic that is not clearly frontend, backend, database, auth, quality, DevOps, or platform-specific.",
 		description: "General fallback implementation",
-		groups: ["read", "edit", "command", "mcp"],
+		groups: ["read", "edit", "command", "mcp", "visual_browser_inspector", "image_generation"],
 		customInstructions:
 			"Before implementing, check whether the task clearly belongs to a specialist mode. If it is frontend UI, component work, styling, accessibility, animation, backend API, database, auth, background jobs, caching, search, integration, realtime, tests, security, performance, refactoring, DevOps, mobile, CLI, or browser-extension work, suggest switching to the appropriate specialist mode. Otherwise implement directly with focused changes, tests, and validation.",
 	},
@@ -230,7 +230,7 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 		whenToUse:
 			"Use this mode for troubleshooting errors, regressions, crashes, failing tests, production incidents, stack traces, and bug reports that require minimal targeted fixes.",
 		description: "Diagnose root cause and fix minimally",
-		groups: ["read", "edit", "command", "mcp"],
+		groups: ["read", "edit", "command", "mcp", "visual_browser_inspector"],
 		customInstructions:
 			"Start from the symptom, logs, stack traces, or failing test. Reproduce or narrow the failure quickly, identify root cause, and avoid broad refactors or unrelated cleanup. Write or update a regression test before marking the issue complete. Apply the smallest possible fix, then run relevant validation.",
 	},
@@ -259,6 +259,8 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 			["edit", { fileRegex: FRONTEND_FILE_REGEX, description: "Frontend UI files only" }],
 			"command",
 			"mcp",
+			"visual_browser_inspector",
+			"image_generation",
 		],
 		customInstructions:
 			"Optimize for clarity, user intent, accessibility, and maintainable frontend patterns. Do not modify backend APIs or persistence unless explicitly delegated; coordinate with `api` or `integration` instead.",
@@ -275,6 +277,8 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 			["edit", { fileRegex: FRONTEND_FILE_REGEX, description: "Frontend component files only" }],
 			"command",
 			"mcp",
+			"visual_browser_inspector",
+			"image_generation",
 		],
 		customInstructions:
 			"Keep components small, typed, accessible, and easy to compose. Respect existing state-management patterns and add focused component tests when behavior changes.",
@@ -292,6 +296,8 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 			["edit", { fileRegex: FRONTEND_FILE_REGEX, description: "Frontend styling files only" }],
 			"command",
 			"mcp",
+			"visual_browser_inspector",
+			"image_generation",
 		],
 		customInstructions:
 			"Prefer existing design tokens and Tailwind utilities over inline styles. Preserve accessibility and responsiveness. Avoid changing business logic unless required to expose styling hooks.",
@@ -309,6 +315,7 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 			["edit", { fileRegex: FRONTEND_FILE_REGEX, description: "Frontend accessibility files only" }],
 			"command",
 			"mcp",
+			"visual_browser_inspector",
 		],
 		customInstructions:
 			"Prefer native semantics before ARIA. Verify keyboard and screen-reader paths where practical, add regression coverage for accessibility behavior, and keep visual changes minimal unless they directly support accessibility.",
@@ -326,6 +333,8 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 			["edit", { fileRegex: FRONTEND_FILE_REGEX, description: "Frontend animation files only" }],
 			"command",
 			"mcp",
+			"visual_browser_inspector",
+			"image_generation",
 		],
 		customInstructions:
 			"Use motion to clarify state changes, not distract. Respect reduced-motion preferences, avoid layout jank, and keep animation logic isolated from business logic.",

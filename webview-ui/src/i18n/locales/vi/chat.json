@@ -201,6 +201,46 @@
 		"wantsToGenerateImageProtected": "Roo muốn tạo hình ảnh ở vị trí được bảo vệ",
 		"didGenerateImage": "Roo đã tạo một hình ảnh"
 	},
+	"imageGeneration": {
+		"approval": {
+			"generate": "Tạo",
+			"editPromptHint": "Chỉnh sửa Prompt trong ô tin nhắn trước khi phê duyệt, hoặc phê duyệt nguyên trạng."
+		},
+		"statusTitle": "Tạo hình ảnh: {{status}}",
+		"status": {
+			"pending": "Đang chờ phê duyệt",
+			"running": "Đang chạy",
+			"completed": "Đã hoàn tất",
+			"error": "Lỗi"
+		},
+		"metadata": {
+			"prompt": "Prompt",
+			"editedPrompt": "Prompt đã chỉnh sửa",
+			"originalPrompt": "Prompt gốc",
+			"provider": "Nhà cung cấp",
+			"model": "Mô hình",
+			"endpoint": "Endpoint",
+			"endpointType": "Loại endpoint",
+			"localEndpoint": "Cục bộ",
+			"remoteEndpoint": "Từ xa",
+			"apiMethod": "Phương thức API",
+			"outputPath": "Đường dẫn đầu ra",
+			"inputImage": "Hình ảnh đầu vào",
+			"imageFormat": "Định dạng hình ảnh",
+			"tokensIn": "Tokens đầu vào",
+			"tokensOut": "Tokens đầu ra",
+			"totalTokens": "Tổng tokens",
+			"images": "Hình ảnh",
+			"cost": "Chi phí",
+			"error": "Lỗi"
+		},
+		"apiMethods": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API"
+		}
+	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo muốn xem các tệp cấp cao nhất trong thư mục này",
 		"didViewTopLevel": "Roo đã xem các tệp cấp cao nhất trong thư mục này",

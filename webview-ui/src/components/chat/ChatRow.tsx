@@ -11,6 +11,8 @@ import type {
 	ClineApiReqInfo,
 	ClineAskUseMcpServer,
 	ClineSayTool,
+	GeneratedImageMetadata,
+	ImageGenerationToolStatus,
 } from "@roo-code/types"
 
 import { Mode } from "@roo/modes"
@@ -72,6 +74,7 @@ import {
 	Split,
 	ArrowRight,
 	Check,
+	Image as ImageIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PathTooltip } from "../ui/PathTooltip"
@@ -157,6 +160,12 @@ interface ChatRowProps {
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
+
+interface GeneratedImageSayPayload {
+	imageUri?: string
+	imagePath?: string
+	imageGeneration?: GeneratedImageMetadata
+}
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
@@ -568,6 +577,257 @@ export const ChatRowContent = ({
 		)
 	}
 
+	const formatSafeEndpoint = (baseURL?: string): string | undefined => {
+		if (!baseURL) {
+			return undefined
+		}
+
+		try {
+			const url = new URL(baseURL)
+			url.username = ""
+			url.password = ""
+			url.search = ""
+			url.hash = ""
+			return url.toString().replace(/\/$/, "")
+		} catch {
+			return baseURL
+				.replace(/\/\/[^/@]+@/, "//")
+				.split("?")[0]
+				.split("#")[0]
+				.replace(/\/$/, "")
+		}
+	}
+
+	const formatImageGenerationNumber = (value?: number): string | undefined => {
+		if (typeof value !== "number" || !Number.isFinite(value)) {
+			return undefined
+		}
+
+		return new Intl.NumberFormat(i18n.language || undefined).format(value)
+	}
+
+	const formatImageGenerationCost = (cost?: number, currency?: string): string | undefined => {
+		if (typeof cost !== "number" || !Number.isFinite(cost)) {
+			return undefined
+		}
+
+		const trimmedCurrency = currency?.trim()
+		if (trimmedCurrency) {
+			try {
+				return new Intl.NumberFormat(i18n.language || undefined, {
+					style: "currency",
+					currency: trimmedCurrency,
+					maximumFractionDigits: cost > 0 && cost < 0.01 ? 6 : 4,
+				}).format(cost)
+			} catch {
+				return `${cost.toFixed(cost > 0 && cost < 0.01 ? 6 : 4)} ${trimmedCurrency}`
+			}
+		}
+
+		return cost.toFixed(cost > 0 && cost < 0.01 ? 6 : 4)
+	}
+
+	const formatImageGenerationApiMethod = (apiMethod?: GeneratedImageMetadata["apiMethod"]): string | undefined => {
+		if (!apiMethod) {
+			return undefined
+		}
+
+		const translationKey = `chat:imageGeneration.apiMethods.${apiMethod}`
+		return i18n.exists(translationKey) ? t(translationKey) : apiMethod.replace(/_/g, " ")
+	}
+
+	const renderImageGenerationStatusIcon = (status: ImageGenerationToolStatus) => {
+		switch (status) {
+			case "pending":
+				return <span className="codicon codicon-clock text-vscode-descriptionForeground" />
+			case "running":
+				return <ProgressIndicator />
+			case "error":
+				return <span className="codicon codicon-error text-vscode-errorForeground" />
+			case "completed":
+			default:
+				return <ImageIcon className="size-4 shrink-0 text-vscode-charts-green" aria-hidden="true" />
+		}
+	}
+
+	const renderImageGenerationMetadata = (metadata: GeneratedImageMetadata, includeStatus = false) => {
+		const status = metadata.status ?? "completed"
+		const statusLabel = t(`chat:imageGeneration.status.${status}`)
+		const endpoint = formatSafeEndpoint(metadata.baseURL)
+		const usage = metadata.usage
+
+		const details: Array<{
+			key: string
+			labelKey: string
+			value?: React.ReactNode
+			wide?: boolean
+			mono?: boolean
+			error?: boolean
+		}> = [
+			{
+				key: "prompt",
+				labelKey: "chat:imageGeneration.metadata.prompt",
+				value: metadata.prompt,
+				wide: true,
+			},
+			{
+				key: "editedPrompt",
+				labelKey: "chat:imageGeneration.metadata.editedPrompt",
+				value: metadata.editedPrompt,
+				wide: true,
+			},
+			{
+				key: "originalPrompt",
+				labelKey: "chat:imageGeneration.metadata.originalPrompt",
+				value: metadata.originalPrompt,
+				wide: true,
+			},
+			{
+				key: "provider",
+				labelKey: "chat:imageGeneration.metadata.provider",
+				value: metadata.providerLabel ?? metadata.provider,
+			},
+			{ key: "model", labelKey: "chat:imageGeneration.metadata.model", value: metadata.model },
+			{
+				key: "endpoint",
+				labelKey: "chat:imageGeneration.metadata.endpoint",
+				value: endpoint,
+				mono: true,
+				wide: true,
+			},
+			{
+				key: "endpointType",
+				labelKey: "chat:imageGeneration.metadata.endpointType",
+				value:
+					metadata.isLocal === undefined
+						? undefined
+						: t(
+								metadata.isLocal
+									? "chat:imageGeneration.metadata.localEndpoint"
+									: "chat:imageGeneration.metadata.remoteEndpoint",
+							),
+			},
+			{
+				key: "apiMethod",
+				labelKey: "chat:imageGeneration.metadata.apiMethod",
+				value: formatImageGenerationApiMethod(metadata.apiMethod),
+			},
+			{
+				key: "outputPath",
+				labelKey: "chat:imageGeneration.metadata.outputPath",
+				value: metadata.outputPath ?? metadata.path,
+				mono: true,
+				wide: true,
+			},
+			{
+				key: "inputImage",
+				labelKey: "chat:imageGeneration.metadata.inputImage",
+				value: metadata.inputImage,
+				mono: true,
+				wide: true,
+			},
+			{ key: "imageFormat", labelKey: "chat:imageGeneration.metadata.imageFormat", value: metadata.imageFormat },
+			{
+				key: "tokensIn",
+				labelKey: "chat:imageGeneration.metadata.tokensIn",
+				value: formatImageGenerationNumber(usage?.tokensIn),
+			},
+			{
+				key: "tokensOut",
+				labelKey: "chat:imageGeneration.metadata.tokensOut",
+				value: formatImageGenerationNumber(usage?.tokensOut),
+			},
+			{
+				key: "totalTokens",
+				labelKey: "chat:imageGeneration.metadata.totalTokens",
+				value: formatImageGenerationNumber(usage?.totalTokens),
+			},
+			{
+				key: "images",
+				labelKey: "chat:imageGeneration.metadata.images",
+				value: formatImageGenerationNumber(usage?.imageCount),
+			},
+			{
+				key: "cost",
+				labelKey: "chat:imageGeneration.metadata.cost",
+				value: formatImageGenerationCost(usage?.cost, usage?.currency),
+			},
+			{
+				key: "error",
+				labelKey: "chat:imageGeneration.metadata.error",
+				value: metadata.error,
+				wide: true,
+				error: true,
+			},
+		].filter((detail) => detail.value !== undefined && detail.value !== null && detail.value !== "")
+
+		return (
+			<div className={cn("flex flex-col gap-3 text-sm text-vscode-foreground", includeStatus && "p-2")}>
+				{includeStatus && (
+					<div className="flex items-center gap-2 text-vscode-foreground">
+						{renderImageGenerationStatusIcon(status)}
+						<span className="font-medium">
+							{t("chat:imageGeneration.statusTitle", { status: statusLabel })}
+						</span>
+					</div>
+				)}
+
+				{details.length > 0 && (
+					<dl className="grid gap-2 text-xs sm:grid-cols-2">
+						{details.map((detail) => (
+							<div
+								key={detail.key}
+								className={cn(
+									"min-w-0 rounded bg-vscode-sideBar-background px-2 py-1",
+									detail.wide && "sm:col-span-2",
+									detail.error &&
+										"border border-vscode-inputValidation-errorBorder bg-vscode-inputValidation-errorBackground text-vscode-errorForeground",
+								)}>
+								<dt className="mb-0.5 font-medium text-vscode-descriptionForeground">
+									{t(detail.labelKey)}
+								</dt>
+								<dd
+									className={cn(
+										"m-0 whitespace-pre-wrap break-words",
+										detail.mono && "font-mono break-all",
+										detail.error && "text-vscode-errorForeground",
+									)}>
+									{detail.value}
+								</dd>
+							</div>
+						))}
+					</dl>
+				)}
+			</div>
+		)
+	}
+
+	const renderImageGenerationStatusTool = (imageTool: ClineSayTool) => {
+		const metadata: GeneratedImageMetadata = imageTool.imageGeneration ?? {
+			status: "completed",
+			prompt: imageTool.content,
+			path: imageTool.path,
+		}
+		const status = metadata.status ?? "completed"
+		const statusLabel = t(`chat:imageGeneration.status.${status}`)
+
+		return (
+			<>
+				<div style={headerStyle}>
+					{renderImageGenerationStatusIcon(status)}
+					<span style={{ fontWeight: "bold" }}>
+						{t("chat:imageGeneration.statusTitle", { status: statusLabel })}
+					</span>
+				</div>
+				<div className="pl-6">
+					<ToolUseBlock className="cursor-default border border-vscode-panel-border">
+						{renderImageGenerationMetadata(metadata)}
+					</ToolUseBlock>
+				</div>
+			</>
+		)
+	}
+
 	if (tool) {
 		const toolIcon = (name: string) => (
 			<span
@@ -581,6 +841,8 @@ export const ChatRowContent = ({
 			case "visualBrowserInspector":
 			case "visual_browser_inspector":
 				return renderVisualBrowserInspectorTool(tool)
+			case "imageGenerated":
+				return renderImageGenerationStatusTool(tool)
 			case "editedExistingFile":
 			case "appliedDiff":
 			case "newFileCreated":
@@ -1118,6 +1380,12 @@ export const ChatRowContent = ({
 				)
 			}
 			case "generateImage":
+				const imageGenerationMetadata = tool.imageGeneration ?? {
+					status: message.type === "ask" ? "pending" : "completed",
+					prompt: tool.content,
+					path: tool.path,
+				}
+
 				return (
 					<>
 						<div style={headerStyle}>
@@ -1142,11 +1410,12 @@ export const ChatRowContent = ({
 						{message.type === "ask" && (
 							<div className="pl-6">
 								<ToolUseBlock>
-									<div className="p-2">
-										<div className="mb-2 break-words">{tool.content}</div>
-										<div className="flex items-center gap-1 text-xs text-vscode-descriptionForeground">
-											{tool.path}
+									<div className="flex flex-col gap-2 p-2">
+										<div className="flex items-center gap-2 text-xs text-vscode-descriptionForeground">
+											<ImageIcon className="size-3" aria-hidden="true" />
+											<span>{t("chat:imageGeneration.approval.editPromptHint")}</span>
 										</div>
+										{renderImageGenerationMetadata(imageGenerationMetadata)}
 									</div>
 								</ToolUseBlock>
 							</div>
@@ -1564,6 +1833,8 @@ export const ChatRowContent = ({
 						case "visualBrowserInspector":
 						case "visual_browser_inspector":
 							return renderVisualBrowserInspectorTool(sayTool)
+						case "imageGenerated":
+							return renderImageGenerationStatusTool(sayTool)
 						case "runSlashCommand": {
 							const slashCommandInfo = sayTool
 							return (
@@ -1684,13 +1955,20 @@ export const ChatRowContent = ({
 					}
 				case "image":
 					// Parse the JSON to get imageUri and imagePath
-					const imageInfo = safeJsonParse<{ imageUri: string; imagePath: string }>(message.text || "{}")
+					const imageInfo = safeJsonParse<GeneratedImageSayPayload>(message.text || "{}")
 					if (!imageInfo) {
 						return null
 					}
 					return (
-						<div style={{ marginTop: "10px" }}>
+						<div className="mt-2 flex flex-col gap-2">
 							<ImageBlock imageUri={imageInfo.imageUri} imagePath={imageInfo.imagePath} />
+							{imageInfo.imageGeneration && (
+								<div className="pl-6">
+									<ToolUseBlock className="cursor-default border border-vscode-panel-border">
+										{renderImageGenerationMetadata(imageInfo.imageGeneration, true)}
+									</ToolUseBlock>
+								</div>
+							)}
 						</div>
 					)
 				case "too_many_tools_warning": {

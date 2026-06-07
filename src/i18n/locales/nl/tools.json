@@ -17,10 +17,10 @@
 		}
 	},
 	"generateImage": {
-		"openRouterApiKeyRequired": "OpenRouter API-sleutel is vereist voor het genereren van afbeeldingen met OpenRouter-modellen. Configureer deze in de Experimentele Instellingen voor Afbeeldingsgeneratie.",
-		"missingConfiguration": "Instellingen voor afbeeldingsgeneratie zijn niet beschikbaar. Configureer Afbeeldingsgeneratie in de experimentele instellingen.",
-		"apiKeyRequired": "{{provider}} API-sleutel is vereist voor afbeeldingsgeneratie. Configureer deze in de experimentele instellingen voor Afbeeldingsgeneratie.",
-		"modelRequired": "{{provider}} vereist een model-ID voor afbeeldingsgeneratie. Configureer deze in de experimentele instellingen voor Afbeeldingsgeneratie.",
+		"openRouterApiKeyRequired": "OpenRouter API-sleutel is vereist voor het genereren van afbeeldingen met OpenRouter-modellen. Configureer deze in de instellingen voor Afbeeldingsgeneratie.",
+		"missingConfiguration": "Instellingen voor afbeeldingsgeneratie zijn niet beschikbaar. Configureer Afbeeldingsgeneratie in de instellingen voor Afbeeldingsgeneratie.",
+		"apiKeyRequired": "{{provider}} API-sleutel is vereist voor afbeeldingsgeneratie. Configureer deze in de instellingen voor Afbeeldingsgeneratie.",
+		"modelRequired": "{{provider}} vereist een model-ID voor afbeeldingsgeneratie. Configureer deze in de instellingen voor Afbeeldingsgeneratie.",
 		"unsupportedApiMethod": "{{provider}} ondersteunt de API-methode {{apiMethod}} voor afbeeldingsgeneratie niet.",
 		"unsupportedProvider": "{{provider}} wordt niet ondersteund voor afbeeldingsgeneratie. Gebruik in plaats daarvan OpenRouter, OpenAI/OpenAI-compatible, ComfyUI of Automatic1111.",
 		"failedWithStatus": "Afbeelding genereren mislukt: {{status}} {{statusText}}",

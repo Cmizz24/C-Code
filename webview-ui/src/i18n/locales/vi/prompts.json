@@ -26,6 +26,8 @@
 			"read": "Đọc tệp",
 			"edit": "Chỉnh sửa tệp",
 			"command": "Chạy lệnh",
+			"visual_browser_inspector": "Kiểm tra trình duyệt trực quan",
+			"image_generation": "Tạo hình ảnh",
 			"mcp": "Sử dụng MCP"
 		},
 		"noTools": "Không có"

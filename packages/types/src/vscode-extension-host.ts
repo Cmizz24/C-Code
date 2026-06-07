@@ -15,6 +15,7 @@ import type { ModelRecord, RouterModels } from "./model.js"
 import type { OpenAiCodexRateLimitInfo } from "./providers/openai-codex-rate-limits.js"
 import type { SkillMetadata } from "./skills.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
+import type { GeneratedImageMetadata } from "./image-generation.js"
 import type {
 	VisualBrowserAction,
 	VisualBrowserToolResult,
@@ -280,6 +281,7 @@ export type ExtensionState = Pick<
 	| "alwaysAllowParallelTasks"
 	| "maxConcurrentParallelTasks"
 	| "alwaysAllowVisualBrowserInspector"
+	| "alwaysAllowImageGeneration"
 	| "alwaysAllowFollowupQuestions"
 	| "alwaysAllowExecute"
 	| "followupAutoApproveTimeoutMs"
@@ -881,6 +883,7 @@ export interface ClineSayTool {
 	}>
 	question?: string
 	imageData?: string // Base64 encoded image data for generated images
+	imageGeneration?: GeneratedImageMetadata
 	// Properties for runSlashCommand tool
 	command?: string
 	args?: string

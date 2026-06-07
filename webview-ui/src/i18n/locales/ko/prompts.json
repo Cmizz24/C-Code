@@ -26,6 +26,8 @@
 			"read": "파일 읽기",
 			"edit": "파일 편집",
 			"command": "명령 실행",
+			"visual_browser_inspector": "브라우저를 시각적으로 검사",
+			"image_generation": "이미지 생성",
 			"mcp": "MCP 사용"
 		},
 		"noTools": "없음"

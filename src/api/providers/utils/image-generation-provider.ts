@@ -27,6 +27,7 @@ export interface ResolvedImageGenerationConfig {
 	provider: ActiveImageGenerationProvider
 	providerLabel: string
 	baseURL: string
+	isLocal: boolean
 	authToken?: string
 	model: string
 	apiMethod: ImageGenerationApiMethod
@@ -153,6 +154,7 @@ export function resolveImageGenerationConfig(
 			provider,
 			providerLabel: definition.label,
 			baseURL: normalizeConfiguredBaseUrl(providerState.baseUrl, provider),
+			isLocal: definition.isLocal,
 			authToken: authToken || undefined,
 			model,
 			apiMethod,
@@ -176,6 +178,21 @@ export async function generateImageWithConfiguredProvider(options: {
 	}
 
 	const { config } = resolved
+	const safeMetadata = {
+		provider: config.provider,
+		providerLabel: config.providerLabel,
+		baseURL: config.baseURL,
+		model: config.model,
+		apiMethod: config.apiMethod,
+		isLocal: config.isLocal,
+	}
+	const withSafeMetadata = (result: ImageGenerationResult): ImageGenerationResult => ({
+		...result,
+		metadata: {
+			...safeMetadata,
+			...result.metadata,
+		},
+	})
 	const generatorOptions = {
 		baseURL: config.baseURL,
 		authToken: config.authToken,
@@ -186,16 +203,18 @@ export async function generateImageWithConfiguredProvider(options: {
 	}
 
 	if (config.provider === "comfyui") {
-		return generateImageWithComfyUi({ ...generatorOptions, provider: "comfyui" })
+		return withSafeMetadata(await generateImageWithComfyUi({ ...generatorOptions, provider: "comfyui" }))
 	}
 
 	if (config.provider === "automatic1111") {
-		return generateImageWithAutomatic1111({ ...generatorOptions, provider: "automatic1111" })
+		return withSafeMetadata(
+			await generateImageWithAutomatic1111({ ...generatorOptions, provider: "automatic1111" }),
+		)
 	}
 
 	if (config.apiMethod === "images_api") {
-		return generateImageWithImagesApi({ ...generatorOptions, provider: config.provider })
+		return withSafeMetadata(await generateImageWithImagesApi({ ...generatorOptions, provider: config.provider }))
 	}
 
-	return generateImageWithProvider({ ...generatorOptions, provider: config.provider })
+	return withSafeMetadata(await generateImageWithProvider({ ...generatorOptions, provider: config.provider }))
 }

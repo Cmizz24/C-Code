@@ -15,6 +15,7 @@ export function useAutoApprovalToggles() {
 		alwaysAllowSubtasks,
 		alwaysAllowParallelTasks,
 		alwaysAllowVisualBrowserInspector,
+		alwaysAllowImageGeneration,
 		alwaysAllowFollowupQuestions,
 	} = useExtensionState()
 
@@ -28,6 +29,7 @@ export function useAutoApprovalToggles() {
 			alwaysAllowSubtasks,
 			alwaysAllowParallelTasks,
 			alwaysAllowVisualBrowserInspector,
+			alwaysAllowImageGeneration,
 			alwaysAllowFollowupQuestions,
 		}),
 		[
@@ -39,6 +41,7 @@ export function useAutoApprovalToggles() {
 			alwaysAllowSubtasks,
 			alwaysAllowParallelTasks,
 			alwaysAllowVisualBrowserInspector,
+			alwaysAllowImageGeneration,
 			alwaysAllowFollowupQuestions,
 		],
 	)

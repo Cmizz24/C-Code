@@ -240,6 +240,46 @@
 		"wantsToInsertWithLineNumber": "Roo 想要在此檔案第 {{lineNumber}} 行插入內容",
 		"wantsToInsertAtEnd": "Roo 想要在此檔案尾端新增內容"
 	},
+	"imageGeneration": {
+		"approval": {
+			"generate": "產生",
+			"editPromptHint": "核准前可在訊息框中編輯 Prompt，或依原樣核准。"
+		},
+		"statusTitle": "圖片產生：{{status}}",
+		"status": {
+			"pending": "等待核准",
+			"running": "執行中",
+			"completed": "已完成",
+			"error": "錯誤"
+		},
+		"metadata": {
+			"prompt": "Prompt",
+			"editedPrompt": "已編輯的 Prompt",
+			"originalPrompt": "原始 Prompt",
+			"provider": "供應商",
+			"model": "模型",
+			"endpoint": "Endpoint",
+			"endpointType": "Endpoint 類型",
+			"localEndpoint": "本機",
+			"remoteEndpoint": "遠端",
+			"apiMethod": "API 方法",
+			"outputPath": "輸出路徑",
+			"inputImage": "輸入圖片",
+			"imageFormat": "圖片格式",
+			"tokensIn": "輸入 tokens",
+			"tokensOut": "輸出 tokens",
+			"totalTokens": "總 tokens",
+			"images": "圖片",
+			"cost": "費用",
+			"error": "錯誤"
+		},
+		"apiMethods": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API"
+		}
+	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo 想要檢視此目錄中最上層的檔案",
 		"didViewTopLevel": "Roo 已檢視此目錄中最上層的檔案",

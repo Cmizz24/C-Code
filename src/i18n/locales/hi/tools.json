@@ -17,10 +17,10 @@
 		}
 	},
 	"generateImage": {
-		"openRouterApiKeyRequired": "OpenRouter मॉडल के साथ छवि निर्माण के लिए OpenRouter API कुंजी आवश्यक है। कृपया इसे छवि निर्माण प्रयोगात्मक सेटिंग में कॉन्फ़िगर करें।",
-		"missingConfiguration": "छवि निर्माण सेटिंग उपलब्ध नहीं हैं। कृपया प्रयोगात्मक सेटिंग में छवि निर्माण कॉन्फ़िगर करें।",
-		"apiKeyRequired": "छवि निर्माण के लिए {{provider}} API कुंजी आवश्यक है। कृपया इसे छवि निर्माण प्रयोगात्मक सेटिंग में कॉन्फ़िगर करें।",
-		"modelRequired": "{{provider}} को छवि निर्माण के लिए मॉडल ID चाहिए। कृपया इसे छवि निर्माण प्रयोगात्मक सेटिंग में कॉन्फ़िगर करें।",
+		"openRouterApiKeyRequired": "OpenRouter मॉडल के साथ छवि निर्माण के लिए OpenRouter API कुंजी आवश्यक है। कृपया इसे छवि निर्माण सेटिंग में कॉन्फ़िगर करें।",
+		"missingConfiguration": "छवि निर्माण सेटिंग उपलब्ध नहीं हैं। कृपया छवि निर्माण को छवि निर्माण सेटिंग में कॉन्फ़िगर करें।",
+		"apiKeyRequired": "छवि निर्माण के लिए {{provider}} API कुंजी आवश्यक है। कृपया इसे छवि निर्माण सेटिंग में कॉन्फ़िगर करें।",
+		"modelRequired": "{{provider}} को छवि निर्माण के लिए मॉडल ID चाहिए। कृपया इसे छवि निर्माण सेटिंग में कॉन्फ़िगर करें।",
 		"unsupportedApiMethod": "{{provider}} {{apiMethod}} छवि निर्माण API विधि का समर्थन नहीं करता है।",
 		"unsupportedProvider": "{{provider}} छवि निर्माण के लिए समर्थित नहीं है। इसके बजाय OpenRouter, OpenAI/OpenAI-compatible, ComfyUI या Automatic1111 इस्तेमाल करें.",
 		"failedWithStatus": "छवि निर्माण विफल: {{status}} {{statusText}}",

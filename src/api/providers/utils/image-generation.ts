@@ -1,3 +1,5 @@
+import type { GeneratedImageMetadata, ImageGenerationUsageDetails } from "@roo-code/types"
+
 import { t } from "../../../i18n"
 
 // Image generation types
@@ -42,6 +44,8 @@ export interface ImageGenerationResult {
 	success: boolean
 	imageData?: string
 	imageFormat?: string
+	usage?: ImageGenerationUsageDetails
+	metadata?: GeneratedImageMetadata
 	error?: string
 }
 
@@ -130,6 +134,83 @@ const getResponseHeader = (response: Response, headerName: string): string | und
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value)
+
+const getFiniteNumber = (value: unknown): number | undefined => {
+	if (typeof value === "number") {
+		return Number.isFinite(value) ? value : undefined
+	}
+
+	if (typeof value === "string" && value.trim()) {
+		const parsed = Number(value)
+		return Number.isFinite(parsed) ? parsed : undefined
+	}
+
+	return undefined
+}
+
+const getFirstNumberField = (record: Record<string, unknown>, fields: string[]): number | undefined => {
+	for (const field of fields) {
+		const value = getFiniteNumber(record[field])
+		if (value !== undefined) {
+			return value
+		}
+	}
+
+	return undefined
+}
+
+const getFirstStringField = (record: Record<string, unknown>, fields: string[]): string | undefined => {
+	for (const field of fields) {
+		const value = record[field]
+		if (typeof value === "string" && value.trim()) {
+			return value.trim()
+		}
+	}
+
+	return undefined
+}
+
+const extractImageGenerationUsageDetails = (value: unknown): ImageGenerationUsageDetails | undefined => {
+	if (!isRecord(value)) {
+		return undefined
+	}
+
+	const usageRecord = isRecord(value.usage) ? value.usage : value
+	const tokensIn = getFirstNumberField(usageRecord, [
+		"tokensIn",
+		"tokens_in",
+		"input_tokens",
+		"prompt_tokens",
+		"promptTokens",
+	])
+	const tokensOut = getFirstNumberField(usageRecord, [
+		"tokensOut",
+		"tokens_out",
+		"output_tokens",
+		"completion_tokens",
+		"completionTokens",
+	])
+	const totalTokens = getFirstNumberField(usageRecord, ["totalTokens", "total_tokens"])
+	const imageCount = getFirstNumberField(usageRecord, [
+		"imageCount",
+		"image_count",
+		"images_count",
+		"generated_images",
+	])
+	const cost = getFirstNumberField(usageRecord, ["cost", "total_cost", "totalCost", "cost_usd"])
+	const currency = getFirstStringField(usageRecord, ["currency", "cost_currency"])
+
+	const usage: ImageGenerationUsageDetails = {
+		...(tokensIn !== undefined && { tokensIn }),
+		...(tokensOut !== undefined && { tokensOut }),
+		...(totalTokens !== undefined && { totalTokens }),
+		...(imageCount !== undefined && { imageCount }),
+		...(cost !== undefined && { cost }),
+		...(currency !== undefined && { currency }),
+	}
+
+	return Object.keys(usage).length > 0 ? usage : undefined
+}
 
 interface ProviderResponseDiagnosticsContext {
 	provider?: ImageGenerationProviderName
@@ -1033,6 +1114,7 @@ export async function generateImageWithAutomatic1111(
 		return {
 			success: true,
 			...normalizedImage,
+			usage: extractImageGenerationUsageDetails(result),
 		}
 	} catch (error) {
 		return {
@@ -1296,6 +1378,7 @@ export async function generateImageWithProvider(options: ImageGenerationOptions)
 		return {
 			success: true,
 			...normalizedImage,
+			usage: extractImageGenerationUsageDetails(result),
 		}
 	} catch (error) {
 		return {

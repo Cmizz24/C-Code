@@ -1,14 +1,16 @@
 import path from "path"
 import fs from "fs/promises"
 import * as vscode from "vscode"
-import { GenerateImageParams } from "@roo-code/types"
+import { GenerateImageParams, type GeneratedImageMetadata } from "@roo-code/types"
 import { Task } from "../task/Task"
 import { formatResponse } from "../prompts/responses"
 import { fileExistsAtPath } from "../../utils/fs"
 import { getReadablePath } from "../../utils/path"
 import { isPathOutsideWorkspace } from "../../utils/pathUtils"
-import { EXPERIMENT_IDS, experiments } from "../../shared/experiments"
-import { generateImageWithConfiguredProvider } from "../../api/providers/utils/image-generation-provider"
+import {
+	generateImageWithConfiguredProvider,
+	resolveImageGenerationConfig,
+} from "../../api/providers/utils/image-generation-provider"
 import { BaseTool, ToolCallbacks } from "./BaseTool"
 import type { ToolUse } from "../../shared/tools"
 
@@ -20,23 +22,10 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 
 	async execute(params: GenerateImageParams, task: Task, callbacks: ToolCallbacks): Promise<void> {
 		const { prompt, path: relPath, image: inputImagePath } = params
-		const { handleError, pushToolResult, askApproval } = callbacks
+		const { handleError, pushToolResult, askApproval, askApprovalWithResponse } = callbacks
 
 		const provider = task.providerRef.deref()
 		const state = await provider?.getState()
-		const isImageGenerationEnabled = experiments.isEnabled(
-			state?.experiments ?? {},
-			EXPERIMENT_IDS.IMAGE_GENERATION,
-		)
-
-		if (!isImageGenerationEnabled) {
-			pushToolResult(
-				formatResponse.toolError(
-					"Image generation is an experimental feature that must be enabled in settings. Please enable 'Image Generation' in the Experimental Settings section.",
-				),
-			)
-			return
-		}
 
 		if (!prompt) {
 			task.consecutiveMistakeCount++
@@ -129,11 +118,44 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 
 		const fullPath = path.resolve(task.cwd, relPath)
 		const isOutsideWorkspace = isPathOutsideWorkspace(fullPath)
+		const readableOutputPath = getReadablePath(task.cwd, relPath)
+		const readableInputImagePath = inputImagePath ? getReadablePath(task.cwd, inputImagePath) : undefined
+		const resolvedConfig = resolveImageGenerationConfig(state)
+		const providerMetadata: GeneratedImageMetadata = resolvedConfig.success
+			? {
+					provider: resolvedConfig.config.provider,
+					providerLabel: resolvedConfig.config.providerLabel,
+					baseURL: resolvedConfig.config.baseURL,
+					model: resolvedConfig.config.model,
+					apiMethod: resolvedConfig.config.apiMethod,
+					isLocal: resolvedConfig.config.isLocal,
+				}
+			: {}
+		const createImageGenerationMetadata = (overrides: GeneratedImageMetadata = {}): GeneratedImageMetadata => ({
+			...providerMetadata,
+			prompt,
+			originalPrompt: prompt,
+			path: readableOutputPath,
+			...(readableInputImagePath && { inputImage: readableInputImagePath }),
+			...overrides,
+		})
+		const sayImageGenerationStatus = async (metadata: GeneratedImageMetadata) => {
+			await task.say(
+				"tool",
+				JSON.stringify({
+					tool: "imageGenerated",
+					path: metadata.outputPath ?? metadata.path ?? readableOutputPath,
+					content: metadata.prompt,
+					imageGeneration: metadata,
+				}),
+			)
+		}
 
 		const sharedMessageProps = {
 			tool: "generateImage" as const,
-			path: getReadablePath(task.cwd, relPath),
+			path: readableOutputPath,
 			content: prompt,
+			imageGeneration: createImageGenerationMetadata({ status: "pending" }),
 			isOutsideWorkspace,
 			isProtected: isWriteProtected,
 		}
@@ -143,33 +165,75 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 		try {
 			task.consecutiveMistakeCount = 0
 
-			const approvalMessage = JSON.stringify({
-				...sharedMessageProps,
-				content: prompt,
-				...(inputImagePath && { inputImage: getReadablePath(task.cwd, inputImagePath) }),
-			})
-
-			const didApprove = await askApproval("tool", approvalMessage, undefined, isWriteProtected)
-
-			if (!didApprove) {
+			if (!resolvedConfig.success) {
+				await sayImageGenerationStatus(
+					createImageGenerationMetadata({ status: "error", error: resolvedConfig.error }),
+				)
+				task.didToolFailInCurrentTurn = true
+				pushToolResult(formatResponse.toolError(resolvedConfig.error))
 				return
 			}
 
+			const approvalMessage = JSON.stringify({
+				...sharedMessageProps,
+				content: prompt,
+				...(readableInputImagePath && { inputImage: readableInputImagePath }),
+			})
+
+			const approvalResponse = askApprovalWithResponse
+				? await askApprovalWithResponse("tool", approvalMessage, undefined, isWriteProtected, {
+						suppressApprovalFeedback: true,
+					})
+				: { approved: await askApproval("tool", approvalMessage, undefined, isWriteProtected) }
+
+			if (!approvalResponse.approved) {
+				return
+			}
+
+			const editedPrompt = approvalResponse.text?.trim()
+			const promptForProvider = editedPrompt || prompt
+			const promptMetadata = createImageGenerationMetadata({
+				status: "running",
+				prompt: promptForProvider,
+				...(editedPrompt && editedPrompt !== prompt && { editedPrompt }),
+			})
+
+			await sayImageGenerationStatus(promptMetadata)
+
 			const result = await generateImageWithConfiguredProvider({
 				state,
-				prompt,
+				prompt: promptForProvider,
 				inputImage: inputImageData,
 			})
 
 			if (!result.success) {
-				await task.say("error", result.error || "Failed to generate image")
+				const errorMessage = result.error || "Failed to generate image"
+				await sayImageGenerationStatus(
+					createImageGenerationMetadata({
+						...result.metadata,
+						status: "error",
+						prompt: promptForProvider,
+						...(editedPrompt && editedPrompt !== prompt && { editedPrompt }),
+						error: errorMessage,
+					}),
+				)
+				await task.say("error", errorMessage)
 				task.didToolFailInCurrentTurn = true
-				pushToolResult(formatResponse.toolError(result.error || "Failed to generate image"))
+				pushToolResult(formatResponse.toolError(errorMessage))
 				return
 			}
 
 			if (!result.imageData) {
 				const errorMessage = "No image data received"
+				await sayImageGenerationStatus(
+					createImageGenerationMetadata({
+						...result.metadata,
+						status: "error",
+						prompt: promptForProvider,
+						...(editedPrompt && editedPrompt !== prompt && { editedPrompt }),
+						error: errorMessage,
+					}),
+				)
 				await task.say("error", errorMessage)
 				task.didToolFailInCurrentTurn = true
 				pushToolResult(formatResponse.toolError(errorMessage))
@@ -179,6 +243,15 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 			const base64Match = result.imageData.match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,(.+)$/)
 			if (!base64Match) {
 				const errorMessage = "Invalid image format received"
+				await sayImageGenerationStatus(
+					createImageGenerationMetadata({
+						...result.metadata,
+						status: "error",
+						prompt: promptForProvider,
+						...(editedPrompt && editedPrompt !== prompt && { editedPrompt }),
+						error: errorMessage,
+					}),
+				)
 				await task.say("error", errorMessage)
 				task.didToolFailInCurrentTurn = true
 				pushToolResult(formatResponse.toolError(errorMessage))
@@ -196,6 +269,18 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 			const writePermission = task.requestAgentWriteIntent(finalPath)
 			if (!writePermission.approved) {
 				const reason = writePermission.reason ?? `Write denied for ${finalPath}`
+				await sayImageGenerationStatus(
+					createImageGenerationMetadata({
+						...result.metadata,
+						status: "error",
+						prompt: promptForProvider,
+						...(editedPrompt && editedPrompt !== prompt && { editedPrompt }),
+						outputPath: getReadablePath(task.cwd, finalPath),
+						imageFormat,
+						usage: result.usage,
+						error: reason,
+					}),
+				)
 				await task.say("error", reason)
 				pushToolResult(formatResponse.toolError(reason))
 				return
@@ -227,9 +312,29 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 			const cacheBuster = Date.now()
 			imageUri = imageUri.includes("?") ? `${imageUri}&t=${cacheBuster}` : `${imageUri}?t=${cacheBuster}`
 
-			await task.say("image", JSON.stringify({ imageUri, imagePath: fullImagePath }))
+			const completedMetadata = createImageGenerationMetadata({
+				...result.metadata,
+				status: "completed",
+				prompt: promptForProvider,
+				...(editedPrompt && editedPrompt !== prompt && { editedPrompt }),
+				outputPath: getReadablePath(task.cwd, finalPath),
+				imageFormat,
+				usage: result.usage,
+			})
+
+			await sayImageGenerationStatus(completedMetadata)
+			await task.say(
+				"image",
+				JSON.stringify({ imageUri, imagePath: fullImagePath, imageGeneration: completedMetadata }),
+			)
 			pushToolResult(formatResponse.toolResult(getReadablePath(task.cwd, finalPath)))
 		} catch (error) {
+			await sayImageGenerationStatus(
+				createImageGenerationMetadata({
+					status: "error",
+					error: error instanceof Error ? error.message : "Unknown error",
+				}),
+			)
 			await handleError("generating image", error as Error)
 		} finally {
 			if (didAcquireWriteIntent && writeIntentRelPath) {

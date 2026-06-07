@@ -14,6 +14,7 @@ import {
 	GitBranch,
 	Bell,
 	Database,
+	Image as ImageIcon,
 	SquareTerminal,
 	FlaskConical,
 	AlertTriangle,
@@ -72,7 +73,7 @@ import { NotificationSettings } from "./NotificationSettings"
 import { ContextManagementSettings } from "./ContextManagementSettings"
 import { TerminalSettings } from "./TerminalSettings"
 import { ExperimentalSettings } from "./ExperimentalSettings"
-import type { SetImageGenerationSetting } from "./ImageGenerationSettings"
+import { ImageGenerationSettings, type SetImageGenerationSetting } from "./ImageGenerationSettings"
 import { LanguageSettings } from "./LanguageSettings"
 import { About } from "./About"
 import { Section } from "./Section"
@@ -100,6 +101,7 @@ export interface SettingsViewRef {
 export const sectionNames = [
 	"providers",
 	"autoApprove",
+	"imageGeneration",
 	"slashCommands",
 	"skills",
 	"checkpoints",
@@ -173,6 +175,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		alwaysAllowSubtasks,
 		alwaysAllowParallelTasks,
 		alwaysAllowVisualBrowserInspector,
+		alwaysAllowImageGeneration,
 		maxConcurrentParallelTasks,
 		alwaysAllowWrite,
 		alwaysAllowWriteOutsideWorkspace,
@@ -568,6 +571,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				alwaysAllowSubtasks,
 				alwaysAllowParallelTasks: alwaysAllowParallelTasks ?? false,
 				alwaysAllowVisualBrowserInspector: alwaysAllowVisualBrowserInspector ?? false,
+				alwaysAllowImageGeneration: alwaysAllowImageGeneration ?? false,
 				maxConcurrentParallelTasks: normalizeParallelTaskConcurrency(
 					maxConcurrentParallelTasks ?? DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
 				),
@@ -713,6 +717,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			{ id: "skills", icon: GraduationCap },
 			{ id: "slashCommands", icon: SquareSlash },
 			{ id: "autoApprove", icon: CheckCheck },
+			{ id: "imageGeneration", icon: ImageIcon },
 			{ id: "mcp", icon: Server },
 			{ id: "checkpoints", icon: GitCommitVertical },
 			{ id: "notifications", icon: Bell },
@@ -1011,6 +1016,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								alwaysAllowSubtasks={alwaysAllowSubtasks}
 								alwaysAllowParallelTasks={alwaysAllowParallelTasks}
 								alwaysAllowVisualBrowserInspector={alwaysAllowVisualBrowserInspector}
+								alwaysAllowImageGeneration={alwaysAllowImageGeneration}
 								maxConcurrentParallelTasks={maxConcurrentParallelTasks}
 								alwaysAllowExecute={alwaysAllowExecute}
 								alwaysAllowFollowupQuestions={alwaysAllowFollowupQuestions}
@@ -1020,6 +1026,14 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								allowedMaxCost={allowedMaxCost ?? undefined}
 								deniedCommands={deniedCommands}
 								setCachedStateField={setCachedStateField}
+							/>
+						)}
+
+						{/* Image Generation Section */}
+						{renderTab === "imageGeneration" && (
+							<ImageGenerationSettings
+								imageGenerationSettings={imageGenerationSettings}
+								setImageGenerationSetting={setImageGenerationSetting}
 							/>
 						)}
 
@@ -1145,8 +1159,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								experiments={experiments}
 								apiConfiguration={apiConfiguration}
 								setApiConfigurationField={setApiConfigurationField}
-								imageGenerationSettings={imageGenerationSettings}
-								setImageGenerationSetting={setImageGenerationSetting}
 							/>
 						)}
 
