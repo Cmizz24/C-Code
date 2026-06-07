@@ -253,6 +253,7 @@ describe("generateImageWithConfiguredProvider", () => {
 			}),
 			prompt: "Draw a cat",
 			inputImage: "data:image/png;base64,input",
+			outputFormat: "webp",
 		})
 
 		expect(result).toEqual({
@@ -274,6 +275,7 @@ describe("generateImageWithConfiguredProvider", () => {
 			model: "gpt-image-1",
 			prompt: "Draw a cat",
 			inputImage: "data:image/png;base64,input",
+			outputFormat: "webp",
 			negativePrompt: undefined,
 			provider: "openai",
 		})

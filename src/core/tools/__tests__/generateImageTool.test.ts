@@ -185,6 +185,7 @@ describe("generateImageTool", () => {
 				}),
 				prompt: "Generate a test image",
 				inputImage: undefined,
+				outputFormat: "png",
 			})
 			expect(mockCline.requestAgentWriteIntent).toHaveBeenCalledWith("test-image.png")
 			expect(mockCline.releaseAgentWriteIntent).toHaveBeenCalledWith("test-image.png")
@@ -414,6 +415,64 @@ describe("generateImageTool", () => {
 			expect(generateImageWithConfiguredProvider).not.toHaveBeenCalled()
 			expect(fs.writeFile).not.toHaveBeenCalled()
 		})
+
+		it("should pass jpeg output format for jpg output paths", async () => {
+			const block: ToolUse = {
+				type: "tool_use",
+				name: "generate_image",
+				params: {
+					prompt: "Generate a test image",
+					path: "test-image.jpg",
+				},
+				nativeArgs: {
+					prompt: "Generate a test image",
+					path: "test-image.jpg",
+				},
+				partial: false,
+			}
+
+			await generateImageTool.handle(mockCline as Task, block as ToolUse<"generate_image">, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(generateImageWithConfiguredProvider).toHaveBeenCalledWith(
+				expect.objectContaining({
+					outputFormat: "jpeg",
+				}),
+			)
+			expect(mockCline.requestAgentWriteIntent).toHaveBeenCalledWith("test-image.jpg")
+		})
+
+		it("should omit provider output format when the output path has no extension", async () => {
+			const block: ToolUse = {
+				type: "tool_use",
+				name: "generate_image",
+				params: {
+					prompt: "Generate a test image",
+					path: "test-image",
+				},
+				nativeArgs: {
+					prompt: "Generate a test image",
+					path: "test-image",
+				},
+				partial: false,
+			}
+
+			await generateImageTool.handle(mockCline as Task, block as ToolUse<"generate_image">, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(generateImageWithConfiguredProvider).toHaveBeenCalledWith(
+				expect.objectContaining({
+					outputFormat: undefined,
+				}),
+			)
+			expect(mockCline.requestAgentWriteIntent).toHaveBeenCalledWith("test-image.png")
+		})
 	})
 
 	describe("legacy experiment flag", () => {
@@ -535,6 +594,7 @@ describe("generateImageTool", () => {
 				expect.objectContaining({
 					prompt: "Upscale this image",
 					inputImage: `data:image/png;base64,${inputBuffer.toString("base64")}`,
+					outputFormat: "png",
 				}),
 			)
 		})

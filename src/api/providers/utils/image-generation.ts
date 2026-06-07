@@ -97,6 +97,12 @@ const buildImageGenerationHeaders = (authToken?: string): Record<string, string>
 	"X-Title": "C Code",
 })
 
+const buildMultipartImageGenerationHeaders = (authToken?: string): Record<string, string> => ({
+	...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+	"HTTP-Referer": "https://github.com/Cmizz24/C-Code",
+	"X-Title": "C Code",
+})
+
 const buildOptionalAuthHeaders = (authToken?: string): Record<string, string> =>
 	authToken ? { Authorization: `Bearer ${authToken}` } : {}
 
@@ -525,6 +531,13 @@ const getImageFormatFromUrl = (url: string): string | undefined => {
 	}
 }
 
+const isDallEImageModel = (model: string): boolean => /^dall-e-\d+/i.test(model.trim())
+
+const isProviderSpecificGenerationsEditModel = (model: string): boolean => model.trim().startsWith("bfl/")
+
+const getImagesApiResponseFallbackFormat = (model: string, outputFormat: string): string =>
+	isDallEImageModel(model) ? "png" : outputFormat
+
 const normalizeBinaryImageResponse = async (
 	response: Response,
 	fallbackFormat = "png",
@@ -554,6 +567,58 @@ const sanitizeBase64ImageData = (value: string): string => value.trim().replace(
 const normalizeImageFormat = (format: string | undefined, fallbackFormat = "png"): string => {
 	const normalized = (format || fallbackFormat).toLowerCase().replace("jpg", "jpeg")
 	return normalized || "png"
+}
+
+const getImageFileExtension = (format: string): string => (format === "jpeg" ? "jpg" : format)
+
+const getImageEditInputFromDataUrl = (
+	inputImage: string,
+): { data: ArrayBuffer; filename: string; mimeType: string } | undefined => {
+	const base64Match = inputImage.match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,(.+)$/i)
+	if (!base64Match) {
+		return undefined
+	}
+
+	const imageFormat = normalizeImageFormat(base64Match[1])
+	const base64Data = sanitizeBase64ImageData(base64Match[2])
+	const imageBuffer = Buffer.from(base64Data, "base64")
+	const imageData = new ArrayBuffer(imageBuffer.byteLength)
+	new Uint8Array(imageData).set(imageBuffer)
+
+	return {
+		data: imageData,
+		filename: `input.${getImageFileExtension(imageFormat)}`,
+		mimeType: `image/${imageFormat}`,
+	}
+}
+
+const appendFormDataString = (formData: FormData, name: string, value: string | number | undefined): void => {
+	if (value !== undefined && String(value).trim()) {
+		formData.append(name, String(value))
+	}
+}
+
+const appendImagesApiOutputOptions = (
+	target: Record<string, unknown> | FormData,
+	model: string,
+	outputFormat: string,
+): void => {
+	if (typeof (target as FormData).append === "function") {
+		const formData = target as FormData
+		if (isDallEImageModel(model)) {
+			appendFormDataString(formData, "response_format", "b64_json")
+		} else {
+			appendFormDataString(formData, "output_format", outputFormat)
+		}
+		return
+	}
+
+	const requestBody = target as Record<string, unknown>
+	if (isDallEImageModel(model)) {
+		requestBody.response_format = "b64_json"
+	} else {
+		requestBody.output_format = outputFormat
+	}
 }
 
 const detectImageFormatFromBase64 = (base64Data: string): string | undefined => {
@@ -876,6 +941,26 @@ interface ComfyUiImageReference {
 	type?: string
 }
 
+const getComfyUiPromptHistory = (
+	history: ProviderResponseRecord,
+	promptId: string,
+): Record<string, unknown> | undefined =>
+	isRecord(history[promptId]) ? (history[promptId] as Record<string, unknown>) : undefined
+
+const isComfyUiPromptComplete = (promptHistory: Record<string, unknown>): boolean => {
+	const status = promptHistory.status
+	if (!isRecord(status)) {
+		return false
+	}
+
+	if (status.completed === true) {
+		return true
+	}
+
+	const statusString = getStringField(status, "status_str")?.toLowerCase()
+	return statusString === "success" || statusString === "error"
+}
+
 const getLocalProviderErrorMessage = (error: unknown): string => {
 	if (typeof error === "string" && error.trim()) {
 		return error.trim()
@@ -952,7 +1037,7 @@ const getComfyUiImageReference = (
 	history: ProviderResponseRecord,
 	promptId: string,
 ): ComfyUiImageReference | undefined => {
-	const promptHistory = isRecord(history[promptId]) ? (history[promptId] as Record<string, unknown>) : history
+	const promptHistory = getComfyUiPromptHistory(history, promptId) ?? history
 	const outputs = isRecord(promptHistory.outputs) ? promptHistory.outputs : undefined
 
 	if (!outputs) {
@@ -1222,7 +1307,8 @@ export async function generateImageWithComfyUi(options: ComfyUiImageGenerationOp
 				return fetchComfyUiOutputImage(baseURL, authToken, imageReference, diagnosticsContext)
 			}
 
-			if (isRecord(parsedHistoryResult.data[promptId])) {
+			const promptHistory = getComfyUiPromptHistory(parsedHistoryResult.data, promptId)
+			if (promptHistory && isComfyUiPromptComplete(promptHistory)) {
 				return {
 					success: false,
 					error: getNoExtractableImageError("comfyui_api", historyContext, parsedHistoryResult.diagnostics),
@@ -1396,7 +1482,9 @@ export async function generateImageWithImagesApi(options: ImagesApiOptions): Pro
 	const { baseURL, authToken, model, prompt, inputImage, outputFormat = "png", provider } = options
 
 	try {
-		const url = `${baseURL}/images/generations`
+		const normalizedOutputFormat = normalizeImageFormat(outputFormat)
+		const useGenerationsEndpoint = !inputImage || isProviderSpecificGenerationsEditModel(model)
+		const url = `${baseURL}/images/${useGenerationsEndpoint ? "generations" : "edits"}`
 		const diagnosticsContext: ProviderResponseDiagnosticsContext = {
 			provider,
 			apiMethod: "images_api",
@@ -1404,40 +1492,65 @@ export async function generateImageWithImagesApi(options: ImagesApiOptions): Pro
 			model,
 		}
 
-		// Build the request body
-		// For BFL models, inputImage is passed via providerOptions.blackForestLabs.inputImage
-		const requestBody: Record<string, unknown> = {
-			model,
-			prompt,
-			n: 1,
-		}
+		let fetchOptions: RequestInit
 
-		// Add optional parameters
-		if (options.size) {
-			requestBody.size = options.size
-		}
-		if (options.quality) {
-			requestBody.quality = options.quality
-		}
+		if (!useGenerationsEndpoint) {
+			const editInput = getImageEditInputFromDataUrl(inputImage)
+			if (!editInput) {
+				return {
+					success: false,
+					error: formatProviderError(
+						"OpenAI Images API image edits require a data:image/...;base64 input image. Use a supported local input image file or omit the image parameter for text-to-image generation.",
+					),
+				}
+			}
 
-		// For BFL (Black Forest Labs) models like flux-pro-1.1, use providerOptions
-		if (model.startsWith("bfl/")) {
-			requestBody.providerOptions = {
-				blackForestLabs: {
-					outputFormat: outputFormat,
-					// inputImage: Base64 encoded image or URL of image to use as reference
-					...(inputImage && { inputImage }),
-				},
+			const formData = new FormData()
+			appendFormDataString(formData, "model", model)
+			appendFormDataString(formData, "prompt", prompt)
+			appendFormDataString(formData, "n", 1)
+			appendFormDataString(formData, "size", options.size)
+			appendFormDataString(formData, "quality", options.quality)
+			appendImagesApiOutputOptions(formData, model, normalizedOutputFormat)
+			formData.append("image", new Blob([editInput.data], { type: editInput.mimeType }), editInput.filename)
+
+			fetchOptions = {
+				method: "POST",
+				headers: buildMultipartImageGenerationHeaders(authToken),
+				body: formData,
 			}
 		} else {
-			// For other models, use standard output_format parameter
-			requestBody.output_format = outputFormat
-		}
+			// Build the request body. For BFL (Black Forest Labs) models like flux-pro-1.1,
+			// inputImage is passed via providerOptions.blackForestLabs.inputImage on /images/generations.
+			const requestBody: Record<string, unknown> = {
+				model,
+				prompt,
+				n: 1,
+			}
 
-		const fetchOptions: RequestInit = {
-			method: "POST",
-			headers: buildImageGenerationHeaders(authToken),
-			body: JSON.stringify(requestBody),
+			if (options.size) {
+				requestBody.size = options.size
+			}
+			if (options.quality) {
+				requestBody.quality = options.quality
+			}
+
+			if (isProviderSpecificGenerationsEditModel(model)) {
+				requestBody.providerOptions = {
+					blackForestLabs: {
+						outputFormat: normalizedOutputFormat,
+						...(inputImage && { inputImage }),
+					},
+				}
+			} else {
+				appendImagesApiOutputOptions(requestBody, model, normalizedOutputFormat)
+			}
+
+			fetchOptions = {
+				method: "POST",
+				headers: buildImageGenerationHeaders(authToken),
+				body: JSON.stringify(requestBody),
+			}
 		}
 
 		const response = await fetch(url, fetchOptions)
@@ -1450,7 +1563,8 @@ export async function generateImageWithImagesApi(options: ImagesApiOptions): Pro
 			}
 		}
 
-		const binaryImage = await normalizeBinaryImageResponse(response, outputFormat)
+		const responseFallbackFormat = getImagesApiResponseFallbackFormat(model, normalizedOutputFormat)
+		const binaryImage = await normalizeBinaryImageResponse(response, responseFallbackFormat)
 		if (binaryImage) {
 			return {
 				success: true,
@@ -1474,7 +1588,10 @@ export async function generateImageWithImagesApi(options: ImagesApiOptions): Pro
 			}
 		}
 
-		const normalizedImage = await extractImageFromProviderResponse(result as ProviderResponseRecord, outputFormat)
+		const normalizedImage = await extractImageFromProviderResponse(
+			result as ProviderResponseRecord,
+			responseFallbackFormat,
+		)
 		if (!normalizedImage) {
 			return {
 				success: false,

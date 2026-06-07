@@ -493,6 +493,38 @@ describe("generateImageWithImagesApi", () => {
 			expect(body).not.toHaveProperty("response_format")
 		})
 
+		it("should use DALL-E response_format instead of GPT image output_format", async () => {
+			const mockResponse = {
+				ok: true,
+				json: vi.fn().mockResolvedValue({
+					data: [{ b64_json: ONE_BY_ONE_PNG_BASE64 }],
+				}),
+			}
+
+			vi.mocked(global.fetch).mockResolvedValue(mockResponse as any)
+
+			const result = await generateImageWithImagesApi({
+				baseURL: "https://api.openai.com/v1",
+				authToken: "test-token",
+				model: "dall-e-3",
+				prompt: "A cute cat",
+				outputFormat: "webp",
+				provider: "openai",
+			})
+
+			expect(result.success).toBe(true)
+			const callArgs = vi.mocked(global.fetch).mock.calls[0]
+			expect(callArgs[0]).toBe("https://api.openai.com/v1/images/generations")
+			const body = JSON.parse(callArgs[1]?.body as string)
+			expect(body).toEqual({
+				model: "dall-e-3",
+				prompt: "A cute cat",
+				n: 1,
+				response_format: "b64_json",
+			})
+			expect(body).not.toHaveProperty("output_format")
+		})
+
 		it("should omit optional Images API size and quality when none is configured", async () => {
 			vi.mocked(global.fetch).mockResolvedValue({
 				ok: true,
@@ -653,7 +685,7 @@ describe("generateImageWithImagesApi", () => {
 	})
 
 	describe("image editing", () => {
-		it("should use /images/generations endpoint with inputImage in request body", async () => {
+		it("should use /images/edits endpoint with multipart input image for OpenAI-compatible edits", async () => {
 			const mockBase64 = Buffer.from("fake image data").toString("base64")
 			const mockResponse = {
 				ok: true,
@@ -677,9 +709,67 @@ describe("generateImageWithImagesApi", () => {
 
 			expect(result.success).toBe(true)
 
-			// Verify /images/generations endpoint was used (not /images/edits)
-			const callUrl = vi.mocked(global.fetch).mock.calls[0][0]
-			expect(callUrl).toContain("/images/generations")
+			const [callUrl, callOptions] = vi.mocked(global.fetch).mock.calls[0]
+			expect(callUrl).toBe("https://api.example.com/v1/images/edits")
+			expect(callOptions?.headers).toEqual(
+				expect.objectContaining({
+					Authorization: "Bearer test-token",
+				}),
+			)
+			expect(callOptions?.headers).not.toHaveProperty("Content-Type")
+
+			const formData = callOptions?.body as unknown as { append: ReturnType<typeof vi.fn> }
+			expect(formData.append).toHaveBeenCalledWith("model", "gpt-image-1")
+			expect(formData.append).toHaveBeenCalledWith("prompt", "Make it blue")
+			expect(formData.append).toHaveBeenCalledWith("n", "1")
+			expect(formData.append).toHaveBeenCalledWith("output_format", "png")
+			expect(formData.append).not.toHaveBeenCalledWith("response_format", expect.anything())
+			expect(global.Blob).toHaveBeenCalledWith([expect.any(ArrayBuffer)], { type: "image/png" })
+			expect(formData.append).toHaveBeenCalledWith("image", expect.any(Object), "input.png")
+		})
+
+		it("should keep provider-specific BFL edits on /images/generations with providerOptions", async () => {
+			vi.mocked(global.fetch).mockResolvedValue({
+				ok: true,
+				json: vi.fn().mockResolvedValue({
+					data: [{ b64_json: ONE_BY_ONE_PNG_BASE64 }],
+				}),
+			} as any)
+
+			const inputImageDataUrl = `data:image/png;base64,${ONE_BY_ONE_PNG_BASE64}`
+
+			const result = await generateImageWithImagesApi({
+				baseURL: "https://openrouter.ai/api/v1",
+				authToken: "test-token",
+				model: "bfl/flux-kontext-pro",
+				prompt: "Make it blue",
+				inputImage: inputImageDataUrl,
+				outputFormat: "jpeg",
+				provider: "openrouter",
+			})
+
+			expect(result.success).toBe(true)
+			const [callUrl, callOptions] = vi.mocked(global.fetch).mock.calls[0]
+			expect(callUrl).toBe("https://openrouter.ai/api/v1/images/generations")
+			expect(callOptions?.headers).toEqual(
+				expect.objectContaining({
+					Authorization: "Bearer test-token",
+					"Content-Type": "application/json",
+				}),
+			)
+
+			const body = JSON.parse(callOptions?.body as string)
+			expect(body).toEqual({
+				model: "bfl/flux-kontext-pro",
+				prompt: "Make it blue",
+				n: 1,
+				providerOptions: {
+					blackForestLabs: {
+						outputFormat: "jpeg",
+						inputImage: inputImageDataUrl,
+					},
+				},
+			})
 		})
 
 		it("should handle edit operation errors", async () => {
@@ -964,6 +1054,123 @@ describe("generateImageWithComfyUi", () => {
 		expect(promptBody.prompt["4"].inputs.ckpt_name).toBe("sdxl.safetensors")
 		expect(promptBody.prompt["6"].inputs.text).toBe("A cute cat")
 		expect(promptBody.prompt["7"].inputs.text).toBe("blurry")
+	})
+
+	it("should keep polling when ComfyUI creates history before outputs are complete", async () => {
+		vi.useFakeTimers()
+		try {
+			const imageBuffer = Buffer.from("comfyui image data")
+			vi.mocked(global.fetch)
+				.mockResolvedValueOnce({
+					ok: true,
+					json: vi.fn().mockResolvedValue({ prompt_id: "prompt-123" }),
+				} as any)
+				.mockResolvedValueOnce({
+					ok: true,
+					json: vi.fn().mockResolvedValue({
+						"prompt-123": {
+							status: { completed: false, status_str: "running" },
+						},
+					}),
+				} as any)
+				.mockResolvedValueOnce({
+					ok: true,
+					json: vi.fn().mockResolvedValue({
+						"prompt-123": {
+							status: { completed: true, status_str: "success" },
+							outputs: {
+								"9": {
+									images: [{ filename: "roo_image_00001_.png", subfolder: "", type: "output" }],
+								},
+							},
+						},
+					}),
+				} as any)
+				.mockResolvedValueOnce({
+					ok: true,
+					headers: {
+						get: vi.fn((header: string) => (header.toLowerCase() === "content-type" ? "image/png" : null)),
+					},
+					arrayBuffer: vi
+						.fn()
+						.mockResolvedValue(
+							imageBuffer.buffer.slice(
+								imageBuffer.byteOffset,
+								imageBuffer.byteOffset + imageBuffer.byteLength,
+							),
+						),
+				} as any)
+
+			const resultPromise = generateImageWithComfyUi({
+				baseURL: "http://127.0.0.1:8188",
+				model: "sdxl.safetensors",
+				prompt: "A cute cat",
+			})
+
+			for (let index = 0; index < 10; index++) {
+				await Promise.resolve()
+			}
+			expect(global.fetch).toHaveBeenCalledTimes(2)
+
+			await vi.advanceTimersByTimeAsync(1_000)
+			const result = await resultPromise
+
+			expect(result).toEqual({
+				success: true,
+				imageData: `data:image/png;base64,${imageBuffer.toString("base64")}`,
+				imageFormat: "png",
+			})
+			expect(global.fetch).toHaveBeenNthCalledWith(
+				3,
+				"http://127.0.0.1:8188/history/prompt-123",
+				expect.objectContaining({ method: "GET" }),
+			)
+			expect(global.fetch).toHaveBeenNthCalledWith(
+				4,
+				"http://127.0.0.1:8188/view?filename=roo_image_00001_.png&type=output",
+				expect.objectContaining({ method: "GET" }),
+			)
+		} finally {
+			vi.useRealTimers()
+		}
+	})
+
+	it("should return diagnostics when ComfyUI completes without output images", async () => {
+		vi.mocked(global.fetch)
+			.mockResolvedValueOnce({
+				ok: true,
+				json: vi.fn().mockResolvedValue({ prompt_id: "prompt-123" }),
+			} as any)
+			.mockResolvedValueOnce({
+				ok: true,
+				status: 200,
+				statusText: "OK",
+				headers: {
+					get: vi.fn((header: string) =>
+						header.toLowerCase() === "content-type" ? "application/json" : null,
+					),
+				},
+				text: vi.fn().mockResolvedValue(
+					JSON.stringify({
+						"prompt-123": {
+							status: { completed: true, status_str: "success" },
+							outputs: {},
+						},
+					}),
+				),
+			} as any)
+
+		const result = await generateImageWithComfyUi({
+			baseURL: "http://127.0.0.1:8188",
+			model: "sdxl.safetensors",
+			prompt: "A cute cat",
+		})
+
+		expect(result.success).toBe(false)
+		expect(result.error).toContain("did not include extractable image data")
+		expect(result.error).toContain("apiMethod=comfyui_api")
+		expect(result.error).toContain("endpoint=/history/prompt-123")
+		expect(global.fetch).toHaveBeenCalledTimes(2)
 	})
 
 	it("should reject input images because the default workflow is text-to-image only", async () => {

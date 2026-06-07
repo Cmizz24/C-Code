@@ -167,6 +167,7 @@ export async function generateImageWithConfiguredProvider(options: {
 	state: Partial<RooCodeSettings> | undefined
 	prompt: string
 	inputImage?: string
+	outputFormat?: string
 }): Promise<ImageGenerationResult> {
 	const resolved = resolveImageGenerationConfig(options.state)
 
@@ -213,7 +214,13 @@ export async function generateImageWithConfiguredProvider(options: {
 	}
 
 	if (config.apiMethod === "images_api") {
-		return withSafeMetadata(await generateImageWithImagesApi({ ...generatorOptions, provider: config.provider }))
+		return withSafeMetadata(
+			await generateImageWithImagesApi({
+				...generatorOptions,
+				outputFormat: options.outputFormat,
+				provider: config.provider,
+			}),
+		)
 	}
 
 	return withSafeMetadata(await generateImageWithProvider({ ...generatorOptions, provider: config.provider }))
