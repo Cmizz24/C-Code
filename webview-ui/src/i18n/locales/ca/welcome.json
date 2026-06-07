@@ -79,10 +79,14 @@
 			"confirmDownload": "Confirma i descarrega",
 			"cancel": "Cancel·la la configuració",
 			"retry": "Reintenta la descàrrega",
-			"openOllamaDownload": "Obre la descàrrega d'Ollama"
+			"openOllamaDownload": "Obre la descàrrega d'Ollama",
+			"useApiProvider": "Utilitza un proveïdor d'API"
 		},
 		"recommendation": {
 			"heading": "Model local recomanat",
+			"apiHeading": "Es recomana un proveïdor d'API",
+			"apiDescription": "Aquest ordinador pot executar els models de codi locals lentament o amb qualitat limitada. Un proveïdor d'API és el camí recomanat per a una millor experiència en la primera execució.",
+			"manualStillAvailable": "Encara pots triar la configuració local manual si vols experimentar amb Ollama.",
 			"size": "Descàrrega aproximada: {{size}}",
 			"disk": "Disc lliure detectat: {{free}}",
 			"runtime": "Runtime/proveïdor: {{runtime}} des de la seva API local oficial",

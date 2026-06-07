@@ -23,7 +23,11 @@ vi.mock("../../settings/ApiOptions", () => ({
 
 vi.mock("../../common/Tab", () => ({
 	Tab: ({ children }: any) => <div data-testid="tab">{children}</div>,
-	TabContent: ({ children }: any) => <div data-testid="tab-content">{children}</div>,
+	TabContent: ({ children, className, ...props }: any) => (
+		<div data-testid="tab-content" className={className} {...props}>
+			{children}
+		</div>
+	),
 }))
 
 vi.mock("../RooHero", () => ({
@@ -126,6 +130,7 @@ const mockProbe = {
 
 const mockRecommendation = {
 	provider: "ollama",
+	recommendedSetup: "local",
 	runtimeDisplayName: "Ollama",
 	baseUrl: "http://localhost:11434",
 	model: {
@@ -148,6 +153,29 @@ const mockRecommendation = {
 	privacyNote: "Inference runs locally once Ollama and the selected model are installed.",
 }
 
+const mockWeakRecommendation = {
+	...mockRecommendation,
+	recommendedSetup: "api-provider",
+	model: {
+		...mockRecommendation.model,
+		tag: "qwen2.5-coder:1.5b",
+		displayName: "Qwen2.5 Coder 1.5B",
+		description: "Fast local coder model",
+		approximateSizeGb: 1.1,
+		minimumRamGb: 4,
+		recommendedRamGb: 8,
+		tier: "tiny",
+		defaultNumCtx: 4096,
+	},
+	ollamaNumCtx: undefined,
+	confidence: "low",
+	reasons: ["Detected about 7.7 GB RAM and 8 CPU cores."],
+	warnings: [
+		"Detected memory is below the practical 12 GB threshold for useful local coding models.",
+		"Detected an integrated or entry-level GPU with limited system memory, so local coding models may run slowly.",
+	],
+}
+
 describe("WelcomeViewProvider", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -157,6 +185,7 @@ describe("WelcomeViewProvider", () => {
 		renderWelcomeViewProvider()
 
 		expect(screen.getByText(/welcome:landing.greeting/)).toBeInTheDocument()
+		expect(screen.getByTestId("welcome-startup-content")).toHaveClass("pt-8")
 		expect(screen.getByTestId("trans-welcome:landing.introduction")).toBeInTheDocument()
 		expect(screen.getByText(/welcome:landing.localAi.title/)).toBeInTheDocument()
 		expect(screen.getByText(/welcome:landing.provider.title/)).toBeInTheDocument()
@@ -214,6 +243,8 @@ describe("WelcomeViewProvider", () => {
 
 		await selectWelcomeProvider("OpenRouter")
 
+		expect(screen.getByTestId("welcome-startup-content")).toHaveClass("pt-8")
+		expect(screen.getByRole("heading", { name: /welcome:providerSignup.heading/ })).toBeInTheDocument()
 		expect(screen.getByTestId("api-options")).toBeInTheDocument()
 		expect(screen.getByTestId("api-options")).toHaveAttribute("data-provider", "openrouter")
 		expect(screen.getByTestId("api-options")).toHaveAttribute("data-model", openRouterDefaultModelId)
@@ -281,9 +312,31 @@ describe("WelcomeViewProvider", () => {
 
 		openLocalAiSetup()
 
+		expect(screen.getByTestId("welcome-startup-content")).toHaveClass("pt-8")
+		expect(screen.getByTestId("local-ai-setup-header")).toBeInTheDocument()
+		expect(screen.getByTestId("local-ai-setup-heading")).toBeInTheDocument()
 		expect(screen.getByText(/welcome:localSetup.heading/)).toBeInTheDocument()
 		expect(screen.getByText(/welcome:localSetup.form.usage.label/)).toBeInTheDocument()
 		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "localAiProbe" })
+	})
+
+	it("keeps the local setup header visible when switching local states", async () => {
+		renderWelcomeViewProvider()
+
+		openLocalAiSetup()
+		fireEvent.click(screen.getByText(/welcome:localSetup.actions.manual/))
+
+		expect(screen.getByTestId("local-ai-setup-header")).toBeInTheDocument()
+		expect(screen.getByTestId("local-ai-setup-heading")).toBeInTheDocument()
+		expect(screen.getByText(/welcome:localSetup.manual.heading/)).toBeInTheDocument()
+
+		fireEvent.click(screen.getByText(/welcome:providerSignup.goBack/))
+		dispatchExtensionMessage({ type: "localAiProbeResult", payload: mockProbe })
+		fireEvent.click(screen.getByText(/welcome:localSetup.actions.recommend/))
+		dispatchExtensionMessage({ type: "localAiRecommendationResult", payload: mockRecommendation })
+
+		await waitFor(() => expect(screen.getByText("Qwen2.5 Coder 7B")).toBeInTheDocument())
+		expect(screen.getByTestId("local-ai-setup-header")).toBeInTheDocument()
 	})
 
 	it("builds a local AI recommendation from questionnaire answers", async () => {
@@ -310,6 +363,29 @@ describe("WelcomeViewProvider", () => {
 		await waitFor(() => expect(screen.getByText("Qwen2.5 Coder 7B")).toBeInTheDocument())
 		expect(screen.getByText("qwen2.5-coder:7b")).toBeInTheDocument()
 		expect(screen.getByText(/welcome:localSetup.actions.confirmDownload/)).toBeInTheDocument()
+	})
+
+	it("routes weak-system local AI recommendations to API provider setup", async () => {
+		const { setApiConfiguration } = renderWelcomeViewProvider()
+
+		openLocalAiSetup()
+		dispatchExtensionMessage({ type: "localAiProbeResult", payload: mockProbe })
+		fireEvent.click(screen.getByText(/welcome:localSetup.actions.recommend/))
+		dispatchExtensionMessage({ type: "localAiRecommendationResult", payload: mockWeakRecommendation })
+
+		await waitFor(() => expect(screen.getByTestId("local-ai-api-recommendation")).toBeInTheDocument())
+		expect(screen.getByText(/welcome:localSetup.recommendation.apiHeading/)).toBeInTheDocument()
+		expect(screen.queryByText(/welcome:localSetup.actions.confirmDownload/)).not.toBeInTheDocument()
+
+		fireEvent.click(screen.getByText(/welcome:localSetup.actions.useApiProvider/))
+
+		expect(screen.getByTestId("api-options")).toBeInTheDocument()
+		expect(screen.getByTestId("api-options")).toHaveAttribute("data-provider", "openrouter")
+		expect(screen.getByTestId("api-options")).toHaveAttribute("data-model", openRouterDefaultModelId)
+		expect(setApiConfiguration).toHaveBeenCalledWith({
+			apiProvider: "openrouter",
+			openRouterModelId: openRouterDefaultModelId,
+		})
 	})
 
 	it("confirms download, shows progress, and renders success", async () => {

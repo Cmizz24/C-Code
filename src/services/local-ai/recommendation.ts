@@ -14,6 +14,21 @@ const TIER_SCORE: Record<LocalAiModelCatalogItem["tier"], number> = {
 	xl: 4,
 }
 
+const PRACTICAL_LOCAL_CODING_RAM_GB = 12
+const LOW_RAM_WITH_WEAK_GPU_GB = 16
+const VERY_LOW_FREE_DISK_GB = 6
+
+const WEAK_GPU_PATTERNS = [
+	/\bintel(?:\(r\))?\s+(?:uhd|hd|iris)\b/i,
+	/\buhd graphics\b/i,
+	/\bhd graphics\b/i,
+	/\biris(?:\(r\))?\s*(?:xe|plus|graphics)?\b/i,
+	/\bintegrated\b/i,
+	/\bmicrosoft basic (?:display|render)/i,
+	/\bsoftware rasterizer\b/i,
+	/\bllvmpipe\b/i,
+]
+
 export const LOCAL_AI_MODEL_CATALOG: LocalAiModelCatalogItem[] = [
 	{
 		provider: "ollama",
@@ -124,6 +139,44 @@ const getQuestionnaireTargetScore = (questionnaire: LocalAiQuestionnaire) => {
 const hasExplicitLargeModelIntent = (questionnaire: LocalAiQuestionnaire) =>
 	questionnaire.usageProfile === "agentic" || questionnaire.preference === "quality"
 
+const hasWeakOrIntegratedGpu = (probe: LocalAiHardwareProbe) => {
+	if (probe.gpu.status === "unknown") {
+		return true
+	}
+
+	return probe.gpu.names.some((name) => WEAK_GPU_PATTERNS.some((pattern) => pattern.test(name)))
+}
+
+const getWeakHardwareWarnings = (probe: LocalAiHardwareProbe) => {
+	const warnings: string[] = []
+	const ramGb = probe.memory.totalGb
+	const weakOrUnknownGpu = hasWeakOrIntegratedGpu(probe)
+
+	if (ramGb < PRACTICAL_LOCAL_CODING_RAM_GB) {
+		warnings.push(
+			`Detected memory is below the practical ${PRACTICAL_LOCAL_CODING_RAM_GB} GB threshold for useful local coding models.`,
+		)
+	}
+
+	if (
+		probe.disk.status === "known" &&
+		typeof probe.disk.freeGb === "number" &&
+		probe.disk.freeGb < VERY_LOW_FREE_DISK_GB
+	) {
+		warnings.push("Detected free disk space is very low for local model downloads.")
+	}
+
+	if (ramGb < LOW_RAM_WITH_WEAK_GPU_GB && weakOrUnknownGpu) {
+		warnings.push(
+			probe.gpu.status === "unknown"
+				? "GPU details are unknown and system memory is limited, so local coding models may run slowly."
+				: "Detected an integrated or entry-level GPU with limited system memory, so local coding models may run slowly.",
+		)
+	}
+
+	return warnings
+}
+
 const getDiskLimitGb = (probe: LocalAiHardwareProbe, questionnaire: LocalAiQuestionnaire) => {
 	const configuredBudget = Math.max(0, questionnaire.diskBudgetGb)
 
@@ -145,6 +198,7 @@ export function recommendLocalAiModel(
 	const ramGb = probe.memory.totalGb
 	const diskLimitGb = getDiskLimitGb(probe, questionnaire)
 	const ramScore = getRamTierScore(ramGb)
+	const weakHardwareWarnings = getWeakHardwareWarnings(probe)
 	let targetScore = Math.min(ramScore, getQuestionnaireTargetScore(questionnaire))
 
 	if (!hasExplicitLargeModelIntent(questionnaire)) {
@@ -212,13 +266,14 @@ export function recommendLocalAiModel(
 
 	return {
 		provider: "ollama",
+		recommendedSetup: weakHardwareWarnings.length > 0 ? "api-provider" : "local",
 		runtimeDisplayName: "Ollama",
 		baseUrl: probe.runtimes.ollama.baseUrl || "http://localhost:11434",
 		model,
 		ollamaNumCtx: confidence === "high" ? model.defaultNumCtx : undefined,
 		confidence,
 		reasons,
-		warnings,
+		warnings: [...weakHardwareWarnings, ...warnings],
 		freeDiskGb: probe.disk.freeGb,
 		diskBudgetGb: questionnaire.diskBudgetGb,
 		privacyNote: "Inference runs locally once Ollama and the selected model are installed.",

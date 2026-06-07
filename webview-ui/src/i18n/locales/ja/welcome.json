@@ -77,10 +77,14 @@
 			"confirmDownload": "確認してダウンロード",
 			"cancel": "セットアップをキャンセル",
 			"retry": "ダウンロードを再試行",
-			"openOllamaDownload": "Ollamaダウンロードを開く"
+			"openOllamaDownload": "Ollamaダウンロードを開く",
+			"useApiProvider": "APIプロバイダーを使う"
 		},
 		"recommendation": {
 			"heading": "おすすめのローカルモデル",
+			"apiHeading": "APIプロバイダーをおすすめします",
+			"apiDescription": "このコンピューターではローカルのcoding modelsが遅かったり、品質が限られたりする可能性があります。初回体験を良くするにはAPIプロバイダーがおすすめです。",
+			"manualStillAvailable": "Ollamaを試したい場合は、引き続き手動のローカル設定を選べます。",
 			"size": "おおよそのダウンロード: {{size}}",
 			"disk": "検出された空きディスク: {{free}}",
 			"runtime": "Runtime/プロバイダー: 公式ローカルAPIの{{runtime}}",

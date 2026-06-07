@@ -77,10 +77,14 @@
 			"confirmDownload": "Bevestigen en downloaden",
 			"cancel": "Setup annuleren",
 			"retry": "Download opnieuw proberen",
-			"openOllamaDownload": "Ollama-download openen"
+			"openOllamaDownload": "Ollama-download openen",
+			"useApiProvider": "Een API-provider gebruiken"
 		},
 		"recommendation": {
 			"heading": "Aanbevolen lokaal model",
+			"apiHeading": "API-provider aanbevolen",
+			"apiDescription": "Deze computer voert lokale coding-modellen mogelijk traag of met beperkte kwaliteit uit. Een API-provider is de aanbevolen route voor een betere eerste ervaring.",
+			"manualStillAvailable": "Je kunt nog steeds handmatige lokale setup kiezen als je met Ollama wilt experimenteren.",
 			"size": "Geschatte download: {{size}}",
 			"disk": "Gedetecteerde vrije schijf: {{free}}",
 			"runtime": "Runtime/provider: {{runtime}} via de officiële lokale API",

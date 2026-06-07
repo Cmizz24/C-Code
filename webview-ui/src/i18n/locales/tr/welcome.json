@@ -77,10 +77,14 @@
 			"confirmDownload": "Onayla ve indir",
 			"cancel": "Kurulumu iptal et",
 			"retry": "İndirmeyi tekrar dene",
-			"openOllamaDownload": "Ollama indirmesini aç"
+			"openOllamaDownload": "Ollama indirmesini aç",
+			"useApiProvider": "Bir API sağlayıcısı kullan"
 		},
 		"recommendation": {
 			"heading": "Önerilen yerel model",
+			"apiHeading": "API sağlayıcısı önerilir",
+			"apiDescription": "Bu bilgisayar yerel coding modellerini yavaş veya sınırlı kaliteyle çalıştırabilir. Daha iyi bir ilk kullanım deneyimi için önerilen yol bir API sağlayıcısıdır.",
+			"manualStillAvailable": "Ollama ile denemek istersen manuel yerel kurulumu hâlâ seçebilirsin.",
 			"size": "Yaklaşık indirme: {{size}}",
 			"disk": "Algılanan boş disk: {{free}}",
 			"runtime": "Runtime/sağlayıcı: resmi yerel API üzerinden {{runtime}}",

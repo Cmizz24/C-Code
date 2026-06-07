@@ -37,6 +37,7 @@ type LocalAiStep = "questionnaire" | "recommendation" | "progress" | "success" |
 
 interface LocalAiSetupViewProps {
 	onBack: () => void
+	onApiProviderSetup: () => void
 }
 
 const formatGb = (value?: number) => {
@@ -57,7 +58,7 @@ const getRuntimeSummary = (probe?: LocalAiHardwareProbe) => {
 
 const getProgressPercent = (progress?: LocalAiSetupProgress) => progress?.percent ?? 0
 
-const LocalAiSetupView = ({ onBack }: LocalAiSetupViewProps) => {
+const LocalAiSetupView = ({ onBack, onApiProviderSetup }: LocalAiSetupViewProps) => {
 	const { t } = useAppTranslation()
 	const [step, setStep] = useState<LocalAiStep>("questionnaire")
 	const [probe, setProbe] = useState<LocalAiHardwareProbe>()
@@ -165,7 +166,7 @@ const LocalAiSetupView = ({ onBack }: LocalAiSetupViewProps) => {
 	}, [probe, questionnaire])
 
 	const handleStartSetup = useCallback(() => {
-		if (!recommendation) {
+		if (!recommendation || recommendation.recommendedSetup === "api-provider") {
 			return
 		}
 
@@ -367,8 +368,23 @@ const LocalAiSetupView = ({ onBack }: LocalAiSetupViewProps) => {
 			return null
 		}
 
+		const recommendsApiProvider = recommendation.recommendedSetup === "api-provider"
+
 		return (
 			<div className="space-y-4">
+				{recommendsApiProvider && (
+					<div
+						data-testid="local-ai-api-recommendation"
+						className="rounded-md border border-vscode-inputValidation-warningBorder bg-vscode-inputValidation-warningBackground p-4 text-sm space-y-2">
+						<div className="flex items-center gap-2 font-medium">
+							<AlertTriangle className="size-4" />
+							{t("welcome:localSetup.recommendation.apiHeading")}
+						</div>
+						<p className="m-0">{t("welcome:localSetup.recommendation.apiDescription")}</p>
+						<p className="m-0">{t("welcome:localSetup.recommendation.manualStillAvailable")}</p>
+					</div>
+				)}
+
 				<div className="rounded-md border border-vscode-foreground/20 p-4 space-y-3">
 					<div className="flex items-start gap-3">
 						<Download className="mt-1 size-5" />
@@ -436,13 +452,26 @@ const LocalAiSetupView = ({ onBack }: LocalAiSetupViewProps) => {
 						<ArrowLeft className="size-4" />
 						{t("welcome:localSetup.actions.adjust")}
 					</Button>
-					<Button variant="secondary" onClick={() => handleOpenInstall()}>
-						<ExternalLink className="size-4" />
-						{t("welcome:localSetup.actions.installHelp")}
-					</Button>
-					<Button variant="primary" onClick={handleStartSetup}>
-						{t("welcome:localSetup.actions.confirmDownload")}
-					</Button>
+					{recommendsApiProvider ? (
+						<>
+							<Button variant="secondary" onClick={() => setStep("manual")}>
+								{t("welcome:localSetup.actions.manual")}
+							</Button>
+							<Button variant="primary" onClick={() => onApiProviderSetup()}>
+								{t("welcome:localSetup.actions.useApiProvider")}
+							</Button>
+						</>
+					) : (
+						<>
+							<Button variant="secondary" onClick={() => handleOpenInstall()}>
+								<ExternalLink className="size-4" />
+								{t("welcome:localSetup.actions.installHelp")}
+							</Button>
+							<Button variant="primary" onClick={handleStartSetup}>
+								{t("welcome:localSetup.actions.confirmDownload")}
+							</Button>
+						</>
+					)}
 				</div>
 			</div>
 		)
@@ -542,10 +571,12 @@ const LocalAiSetupView = ({ onBack }: LocalAiSetupViewProps) => {
 	)
 
 	return (
-		<div className="flex flex-col gap-4">
+		<div data-testid="local-ai-setup-page" className="flex flex-col gap-4">
 			<Server className="size-8" strokeWidth={1.5} />
-			<div>
-				<h2 className="mt-0 mb-1 text-xl">{t("welcome:localSetup.heading")}</h2>
+			<div data-testid="local-ai-setup-header">
+				<h2 data-testid="local-ai-setup-heading" className="mt-0 mb-1 text-xl">
+					{t("welcome:localSetup.heading")}
+				</h2>
 				<p className="m-0 text-base text-vscode-foreground">{t("welcome:localSetup.subtitle")}</p>
 			</div>
 

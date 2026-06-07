@@ -67,10 +67,14 @@
 			"confirmDownload": "確認並下載",
 			"cancel": "取消設定",
 			"retry": "重試下載",
-			"openOllamaDownload": "開啟 Ollama 下載"
+			"openOllamaDownload": "開啟 Ollama 下載",
+			"useApiProvider": "使用 API 供應商"
 		},
 		"recommendation": {
 			"heading": "推薦的本機模型",
+			"apiHeading": "建議使用 API 供應商",
+			"apiDescription": "這台電腦執行本機 coding models 可能較慢或品質有限。為了更好的首次執行體驗，建議使用 API 供應商。",
+			"manualStillAvailable": "如果你想試用 Ollama，仍然可以選擇手動本機設定。",
 			"size": "預估下載：{{size}}",
 			"disk": "偵測到的可用磁碟：{{free}}",
 			"runtime": "Runtime/提供者：來自官方本機 API 的 {{runtime}}",

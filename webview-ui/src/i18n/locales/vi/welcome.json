@@ -77,10 +77,14 @@
 			"confirmDownload": "Xác nhận và tải xuống",
 			"cancel": "Hủy thiết lập",
 			"retry": "Thử tải lại",
-			"openOllamaDownload": "Mở tải Ollama"
+			"openOllamaDownload": "Mở tải Ollama",
+			"useApiProvider": "Dùng nhà cung cấp API"
 		},
 		"recommendation": {
 			"heading": "Mô hình cục bộ được đề xuất",
+			"apiHeading": "Nên dùng nhà cung cấp API",
+			"apiDescription": "Máy tính này có thể chạy các mô hình coding cục bộ chậm hoặc với chất lượng hạn chế. Nhà cung cấp API là hướng được đề xuất để có trải nghiệm chạy lần đầu tốt hơn.",
+			"manualStillAvailable": "Bạn vẫn có thể chọn thiết lập cục bộ thủ công nếu muốn thử nghiệm với Ollama.",
 			"size": "Tải xuống xấp xỉ: {{size}}",
 			"disk": "Ổ đĩa trống đã phát hiện: {{free}}",
 			"runtime": "Runtime/nhà cung cấp: {{runtime}} từ API cục bộ chính thức",

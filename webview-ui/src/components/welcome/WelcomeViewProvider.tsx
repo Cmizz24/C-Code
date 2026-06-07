@@ -22,6 +22,8 @@ const DEFAULT_WELCOME_API_CONFIGURATION: ProviderSettings = {
 	openRouterModelId: openRouterDefaultModelId,
 }
 
+const WELCOME_CONTENT_CLASS = "flex flex-col gap-4 px-6 pb-6 pt-8"
+
 const getWelcomeApiConfiguration = (apiConfiguration?: ProviderSettings): ProviderSettings => {
 	if (!apiConfiguration?.apiProvider) {
 		return DEFAULT_WELCOME_API_CONFIGURATION
@@ -121,7 +123,7 @@ const WelcomeViewProvider = () => {
 	if (welcomeStep === "landing") {
 		return (
 			<Tab>
-				<TabContent className="relative flex flex-col gap-4 p-6 justify-center">
+				<TabContent data-testid="welcome-startup-content" className={WELCOME_CONTENT_CLASS}>
 					<RooHero />
 					<h2 className="mt-0 mb-0 text-xl">{t("welcome:landing.greeting")}</h2>
 
@@ -158,7 +160,7 @@ const WelcomeViewProvider = () => {
 						</div>
 					</div>
 
-					<div className="absolute bottom-6 left-6">
+					<div className="mt-auto pt-4">
 						<button
 							onClick={() => vscode.postMessage({ type: "importSettings" })}
 							className="cursor-pointer bg-transparent border-none p-0 text-vscode-foreground hover:underline">
@@ -173,8 +175,11 @@ const WelcomeViewProvider = () => {
 	if (welcomeStep === "local") {
 		return (
 			<Tab>
-				<TabContent className="flex flex-col gap-4 p-6 justify-center">
-					<LocalAiSetupView onBack={() => setWelcomeStep("landing")} />
+				<TabContent data-testid="welcome-startup-content" className={WELCOME_CONTENT_CLASS}>
+					<LocalAiSetupView
+						onBack={() => setWelcomeStep("landing")}
+						onApiProviderSetup={enterProviderSetup}
+					/>
 				</TabContent>
 			</Tab>
 		)
@@ -182,7 +187,7 @@ const WelcomeViewProvider = () => {
 
 	return (
 		<Tab>
-			<TabContent className="flex flex-col gap-4 p-6 justify-center">
+			<TabContent data-testid="welcome-startup-content" className={WELCOME_CONTENT_CLASS}>
 				<Brain className="size-8" strokeWidth={1.5} />
 				<h2 className="mt-0 mb-0 text-xl">{t("welcome:providerSignup.heading")}</h2>
 

@@ -86,6 +86,7 @@ export interface LocalAiRecommendationRequest {
 
 export interface LocalAiRecommendation {
 	provider: "ollama"
+	recommendedSetup?: "local" | "api-provider"
 	runtimeDisplayName: string
 	baseUrl: string
 	model: LocalAiModelCatalogItem

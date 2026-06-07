@@ -62,10 +62,14 @@
 			"confirmDownload": "确认并下载",
 			"cancel": "取消设置",
 			"retry": "重试下载",
-			"openOllamaDownload": "打开 Ollama 下载"
+			"openOllamaDownload": "打开 Ollama 下载",
+			"useApiProvider": "使用 API 提供商"
 		},
 		"recommendation": {
 			"heading": "推荐的本地模型",
+			"apiHeading": "建议使用 API 提供商",
+			"apiDescription": "这台电脑运行本地 coding models 可能较慢或质量有限。为了获得更好的首次运行体验，建议使用 API 提供商。",
+			"manualStillAvailable": "如果你想试用 Ollama，仍然可以选择手动本地设置。",
 			"size": "预计下载：{{size}}",
 			"disk": "检测到的可用磁盘：{{free}}",
 			"runtime": "Runtime/提供商：来自官方本地 API 的 {{runtime}}",

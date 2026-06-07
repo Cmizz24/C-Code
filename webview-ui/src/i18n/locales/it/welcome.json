@@ -77,10 +77,14 @@
 			"confirmDownload": "Conferma e scarica",
 			"cancel": "Annulla configurazione",
 			"retry": "Riprova download",
-			"openOllamaDownload": "Apri download Ollama"
+			"openOllamaDownload": "Apri download Ollama",
+			"useApiProvider": "Usa un provider API"
 		},
 		"recommendation": {
 			"heading": "Modello locale consigliato",
+			"apiHeading": "Provider API consigliato",
+			"apiDescription": "Questo computer potrebbe eseguire i modelli di coding locali lentamente o con qualità limitata. Un provider API è il percorso consigliato per una prima esperienza migliore.",
+			"manualStillAvailable": "Puoi comunque scegliere la configurazione locale manuale se vuoi sperimentare con Ollama.",
 			"size": "Download approssimativo: {{size}}",
 			"disk": "Disco libero rilevato: {{free}}",
 			"runtime": "Runtime/provider: {{runtime}} dalla sua API locale ufficiale",

@@ -34,9 +34,47 @@ describe("recommendLocalAiModel", () => {
 		const recommendation = recommendLocalAiModel({ probe: baseProbe, questionnaire: baseQuestionnaire })
 
 		expect(recommendation.model.tag).toBe("qwen2.5-coder:7b")
+		expect(recommendation.recommendedSetup).toBe("local")
 		expect(recommendation.model.approximateSizeGb).toBeLessThanOrEqual(baseQuestionnaire.diskBudgetGb)
 		expect(recommendation.provider).toBe("ollama")
 		expect(recommendation.ollamaNumCtx).toBe(8192)
+	})
+
+	it("recommends an API provider for low-RAM systems with integrated graphics", () => {
+		const lowMemoryProbe: LocalAiHardwareProbe = {
+			...baseProbe,
+			memory: { totalBytes: 7.7 * 1024 ** 3, totalGb: 7.7 },
+			gpu: { status: "detected", names: ["Intel UHD Graphics"] },
+			runtimes: {
+				...baseProbe.runtimes,
+				ollama: {
+					provider: "ollama",
+					displayName: "Ollama",
+					baseUrl: "http://localhost:11434",
+					status: "missing",
+				},
+			},
+		}
+
+		const recommendation = recommendLocalAiModel({ probe: lowMemoryProbe, questionnaire: baseQuestionnaire })
+
+		expect(recommendation.recommendedSetup).toBe("api-provider")
+		expect(recommendation.warnings).toContain(
+			"Detected memory is below the practical 12 GB threshold for useful local coding models.",
+		)
+		expect(recommendation.warnings).toContain(
+			"Detected an integrated or entry-level GPU with limited system memory, so local coding models may run slowly.",
+		)
+	})
+
+	it("recommends an API provider when free disk space is very low", () => {
+		const recommendation = recommendLocalAiModel({
+			probe: { ...baseProbe, disk: { status: "known", freeBytes: 5 * 1024 ** 3, freeGb: 5, path: "C:" } },
+			questionnaire: baseQuestionnaire,
+		})
+
+		expect(recommendation.recommendedSetup).toBe("api-provider")
+		expect(recommendation.warnings).toContain("Detected free disk space is very low for local model downloads.")
 	})
 
 	it("does not silently choose a model above the user disk budget", () => {

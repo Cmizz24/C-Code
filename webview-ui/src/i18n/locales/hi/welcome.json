@@ -77,10 +77,14 @@
 			"confirmDownload": "पुष्टि करके डाउनलोड करें",
 			"cancel": "सेटअप रद्द करें",
 			"retry": "डाउनलोड फिर से कोशिश करें",
-			"openOllamaDownload": "Ollama डाउनलोड खोलें"
+			"openOllamaDownload": "Ollama डाउनलोड खोलें",
+			"useApiProvider": "API provider का उपयोग करें"
 		},
 		"recommendation": {
 			"heading": "सुझाया गया स्थानीय मॉडल",
+			"apiHeading": "API provider सुझाया गया",
+			"apiDescription": "यह कंप्यूटर स्थानीय coding models को धीमे या सीमित गुणवत्ता के साथ चला सकता है। बेहतर first-run अनुभव के लिए API provider सुझाया गया रास्ता है।",
+			"manualStillAvailable": "अगर तुम Ollama के साथ प्रयोग करना चाहते हो, तो अभी भी manual local setup चुन सकते हो।",
 			"size": "लगभग डाउनलोड: {{size}}",
 			"disk": "मिली खाली डिस्क: {{free}}",
 			"runtime": "Runtime/provider: {{runtime}} इसकी आधिकारिक स्थानीय API से",

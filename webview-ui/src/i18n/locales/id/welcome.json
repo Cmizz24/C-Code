@@ -77,10 +77,14 @@
 			"confirmDownload": "Konfirmasi dan unduh",
 			"cancel": "Batalkan setup",
 			"retry": "Coba unduh lagi",
-			"openOllamaDownload": "Buka unduhan Ollama"
+			"openOllamaDownload": "Buka unduhan Ollama",
+			"useApiProvider": "Gunakan penyedia API"
 		},
 		"recommendation": {
 			"heading": "Model lokal yang direkomendasikan",
+			"apiHeading": "Penyedia API direkomendasikan",
+			"apiDescription": "Komputer ini mungkin menjalankan model coding lokal dengan lambat atau kualitas terbatas. Penyedia API adalah jalur yang direkomendasikan untuk pengalaman pertama yang lebih baik.",
+			"manualStillAvailable": "Kamu masih bisa memilih penyiapan lokal manual jika ingin bereksperimen dengan Ollama.",
 			"size": "Perkiraan unduhan: {{size}}",
 			"disk": "Disk kosong terdeteksi: {{free}}",
 			"runtime": "Runtime/penyedia: {{runtime}} dari API lokal resminya",
