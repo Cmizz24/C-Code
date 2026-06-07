@@ -25,7 +25,7 @@
 		"apiKeyRequired": "Kunci API {{provider}} diperlukan untuk pembuatan gambar. Silakan konfigurasikan di pengaturan Pembuatan Gambar.",
 		"modelRequired": "{{provider}} memerlukan ID model untuk pembuatan gambar. Silakan konfigurasikan di pengaturan Pembuatan Gambar.",
 		"unsupportedApiMethod": "{{provider}} tidak mendukung metode API pembuatan gambar {{apiMethod}}.",
-		"unsupportedProvider": "{{provider}} tidak didukung untuk pembuatan gambar. Gunakan OpenRouter, OpenAI/OpenAI-compatible, ComfyUI, atau Automatic1111 sebagai gantinya.",
+		"unsupportedProvider": "{{provider}} tidak didukung untuk pembuatan gambar. Gunakan OpenRouter atau endpoint pembuatan gambar OpenAI/OpenAI-compatible sebagai gantinya.",
 		"failedWithStatus": "Gagal menghasilkan gambar: {{status}} {{statusText}}",
 		"failedWithMessage": "Gagal menghasilkan gambar: {{message}}",
 		"noImageGenerated": "Tidak ada gambar yang dihasilkan dalam respons",

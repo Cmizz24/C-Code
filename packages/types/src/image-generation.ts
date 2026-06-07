@@ -10,12 +10,15 @@ export const IMAGE_GENERATION_API_METHODS = [
 	"automatic1111_api",
 ] as const
 
-export const IMAGE_GENERATION_ACTIVE_PROVIDER_IDS = ["openrouter", "openai", "comfyui", "automatic1111"] as const
+export const IMAGE_GENERATION_ACTIVE_PROVIDER_IDS = ["openrouter", "openai"] as const
+
+export const IMAGE_GENERATION_REMOVED_PROVIDER_IDS = ["comfyui", "automatic1111"] as const
 
 export const IMAGE_GENERATION_LEGACY_UNSUPPORTED_PROVIDER_IDS = ["ollama", "lmstudio"] as const
 
 export const IMAGE_GENERATION_PROVIDER_IDS = [
 	...IMAGE_GENERATION_ACTIVE_PROVIDER_IDS,
+	...IMAGE_GENERATION_REMOVED_PROVIDER_IDS,
 	...IMAGE_GENERATION_LEGACY_UNSUPPORTED_PROVIDER_IDS,
 ] as const
 
@@ -28,6 +31,8 @@ export const IMAGE_GENERATION_PROVIDER_IDS = [
 export type ImageGenerationProvider = (typeof IMAGE_GENERATION_PROVIDER_IDS)[number]
 
 export type ActiveImageGenerationProvider = (typeof IMAGE_GENERATION_ACTIVE_PROVIDER_IDS)[number]
+
+export type RemovedImageGenerationProvider = (typeof IMAGE_GENERATION_REMOVED_PROVIDER_IDS)[number]
 
 export type LegacyUnsupportedImageGenerationProvider = (typeof IMAGE_GENERATION_LEGACY_UNSUPPORTED_PROVIDER_IDS)[number]
 

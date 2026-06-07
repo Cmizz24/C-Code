@@ -107,10 +107,10 @@ const buildOptionalAuthHeaders = (authToken?: string): Record<string, string> =>
 	authToken ? { Authorization: `Bearer ${authToken}` } : {}
 
 const IMAGE_GENERATION_CONFIGURATION_GUIDANCE =
-	"Check that the configured image generation provider, base URL, API method, and model support text-to-image or image-edit generation. Local image generation requires a real image-generation API such as ComfyUI or Automatic1111. Vision/image-understanding models can analyze images, but they are not image-generation models."
+	"Check that the configured image generation provider, base URL, API method, and model support text-to-image or image-edit generation. Use OpenRouter image-output models or an OpenAI/OpenAI-compatible Images API endpoint; vision/image-understanding models can analyze images, but they are not image-generation models."
 
 const IMAGE_GENERATION_RESPONSE_GUIDANCE =
-	"Expected image data in one of these response shapes: OpenAI Images API data[0].b64_json or data[0].url; OpenAI-compatible chat choices[0].message.images[].image_url.url; Automatic1111 images[] base64 output; ComfyUI history output images retrievable through /view; image, message.images, or images values containing base64 image strings; or text content containing a data:image/...;base64 URL or markdown image data URL. Use a real image-generation model through OpenRouter, OpenAI/OpenAI-compatible Images API, ComfyUI, or Automatic1111; vision/image-understanding models are not valid image-generation models."
+	"Expected image data in one of these response shapes: OpenAI Images API data[0].b64_json or data[0].url; OpenAI-compatible chat choices[0].message.images[].image_url.url; image, message.images, or images values containing base64 image strings; or text content containing a data:image/...;base64 URL or markdown image data URL. Use a real image-generation model through OpenRouter or an OpenAI/OpenAI-compatible Images API endpoint; vision/image-understanding models are not valid image-generation models."
 
 const STREAM_EVENTS_PROPERTY = "__streamEvents" as const
 

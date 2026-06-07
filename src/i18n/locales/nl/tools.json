@@ -22,7 +22,7 @@
 		"apiKeyRequired": "{{provider}} API-sleutel is vereist voor afbeeldingsgeneratie. Configureer deze in de instellingen voor Afbeeldingsgeneratie.",
 		"modelRequired": "{{provider}} vereist een model-ID voor afbeeldingsgeneratie. Configureer deze in de instellingen voor Afbeeldingsgeneratie.",
 		"unsupportedApiMethod": "{{provider}} ondersteunt de API-methode {{apiMethod}} voor afbeeldingsgeneratie niet.",
-		"unsupportedProvider": "{{provider}} wordt niet ondersteund voor afbeeldingsgeneratie. Gebruik in plaats daarvan OpenRouter, OpenAI/OpenAI-compatible, ComfyUI of Automatic1111.",
+		"unsupportedProvider": "{{provider}} wordt niet ondersteund voor afbeeldingsgeneratie. Gebruik in plaats daarvan OpenRouter of een OpenAI/OpenAI-compatible endpoint voor afbeeldingsgeneratie.",
 		"failedWithStatus": "Afbeelding genereren mislukt: {{status}} {{statusText}}",
 		"failedWithMessage": "Afbeelding genereren mislukt: {{message}}",
 		"noImageGenerated": "Er is geen afbeelding gegenereerd in het antwoord",

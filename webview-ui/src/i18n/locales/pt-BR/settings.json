@@ -299,7 +299,7 @@
 		"description": "Quando ativado, C pode gerar e editar imagens a partir de prompts usando um provedor de geração de imagens configurado separadamente.",
 		"providerLabel": "Provedor",
 		"providerDescription": "Selecione o provedor a usar para geração de imagens. Ele é independente do seu perfil de provedor de chat.",
-		"localProviderNote": "Ollama e LM Studio não podem ser selecionados aqui porque expõem APIs de vision/chat, não APIs de geração de imagens. A geração local de imagens está disponível por APIs reais de geração de imagens, como ComfyUI e Automatic1111, quando configuradas.",
+		"localProviderNote": "Ollama, LM Studio, ComfyUI e Automatic1111 não podem ser selecionados aqui porque este painel agora foca no OpenRouter e em APIs de geração de imagens compatíveis com OpenAI.",
 		"apiKeyLabel": "Chave de API {{provider}}",
 		"optionalApiKeyLabel": "Chave de API {{provider}} (opcional)",
 		"apiKeyPlaceholder": "Insira sua chave de API {{provider}}",
@@ -327,12 +327,51 @@
 		},
 		"negativePromptLabel": "Prompt negativo",
 		"negativePromptPlaceholder": "Insira conteúdo a evitar nas imagens geradas",
-		"negativePromptDescription": "Opcional. Ajuda provedores locais a evitar assuntos, estilos ou artefatos indesejados.",
+		"negativePromptDescription": "Opcional. Ajuda provedores compatíveis a evitar temas, estilos ou artefatos indesejados.",
 		"warningMissingApiKey": "⚠️ {{provider}} exige uma chave de API para geração de imagens. Configure-a acima.",
 		"warningMissingModel": "⚠️ {{provider}} exige um ID de modelo para geração de imagens. Configure-o acima.",
 		"successConfigured": "✓ A geração de imagens está configurada para {{provider}} e pronta para uso",
 		"modelLabel": "Modelo de geração de imagens",
-		"optionalModelDescription": "Opcional. Deixe em branco para usar o checkpoint carregado atualmente pelo provedor."
+		"optionalModelDescription": "Opcional. Deixe em branco para usar o checkpoint carregado atualmente pelo provedor.",
+		"recommendations": {
+			"title": "Caminhos de provedores recomendados e notas sobre limites grátis",
+			"description": "Comece com OpenRouter ou um endpoint Images API compatível com OpenAI. Limites grátis públicos mudam com frequência, então confirme as cotas atuais no dashboard de cada provedor antes de depender delas.",
+			"modelLabel": "Modelo/API sugerido",
+			"limitLabel": "Limite grátis visível",
+			"notesLabel": "Notas de configuração",
+			"rows": {
+				"openrouter": {
+					"provider": "OpenRouter",
+					"model": "Use modelos com saída de imagem, como modelos de imagem Gemini ou OpenAI, via Chat Completions.",
+					"limit": "Os limites de modelos grátis variam por conta/chave; confira o dashboard do OpenRouter.",
+					"notes": "Use o provedor OpenRouter acima com uma chave API do OpenRouter."
+				},
+				"openaiCompatible": {
+					"provider": "OpenAI / OpenAI-compatible",
+					"model": "Use modelos OpenAI Images API (por exemplo, gpt-image-1) ou um endpoint Images API compatível.",
+					"limit": "Provedores compatíveis com OpenAI definem seus próprios preços e cotas grátis.",
+					"notes": "Use o provedor OpenAI-compatible acima e defina a Base URL do endpoint."
+				},
+				"googleAiStudio": {
+					"provider": "Google AI Studio / Gemini API",
+					"model": "Imagen 4 está disponível pela Gemini API onde houver suporte.",
+					"limit": "O nível grátis da Imagen API não está disponível nos preços publicados; os limites de teste do AI Studio variam por região/conta.",
+					"notes": "Use pelo OpenRouter quando disponível, ou por um endpoint proxy compatível com OpenAI."
+				},
+				"huggingFace": {
+					"provider": "Hugging Face Inference Providers",
+					"model": "Modelos text-to-image por provedores Hugging Face.",
+					"limit": "Usuários grátis recebem US$ 0,10 em créditos mensais; usuários PRO/Team recebem créditos mensais maiores.",
+					"notes": "Use apenas se o endpoint escolhido expõe uma API de imagens compatível com OpenAI."
+				},
+				"stability": {
+					"provider": "Stability AI",
+					"model": "APIs de geração/edição Stable Image.",
+					"limit": "A documentação lista 25 créditos grátis; 1 crédito = US$ 0,01 e o uso varia por serviço/modelo.",
+					"notes": "Use apenas por um proxy compatível com OpenAI ou endpoint compatível personalizado."
+				}
+			}
+		}
 	},
 	"providers": {
 		"providerDocumentation": "Documentação do {{provider}}",
@@ -920,7 +959,7 @@
 			"description": "Quando ativado, C pode gerar e editar imagens a partir de prompts usando um provedor de geração de imagens configurado separadamente.",
 			"providerLabel": "Provedor",
 			"providerDescription": "Selecione o provedor a usar para geração de imagens. Ele é independente do seu perfil de provedor de chat.",
-			"localProviderNote": "Ollama e LM Studio não podem ser selecionados aqui porque expõem APIs de vision/chat, não APIs de geração de imagens. A geração local de imagens está disponível por APIs reais de geração de imagens, como ComfyUI e Automatic1111, quando configuradas.",
+			"localProviderNote": "Ollama, LM Studio, ComfyUI e Automatic1111 não podem ser selecionados aqui porque este painel agora foca no OpenRouter e em APIs de geração de imagens compatíveis com OpenAI.",
 			"apiKeyLabel": "Chave de API {{provider}}",
 			"optionalApiKeyLabel": "Chave de API {{provider}} (opcional)",
 			"apiKeyPlaceholder": "Insira sua chave de API {{provider}}",
@@ -948,7 +987,7 @@
 			},
 			"negativePromptLabel": "Prompt negativo",
 			"negativePromptPlaceholder": "Insira conteúdo a evitar nas imagens geradas",
-			"negativePromptDescription": "Opcional. Ajuda provedores locais a evitar assuntos, estilos ou artefatos indesejados.",
+			"negativePromptDescription": "Opcional. Ajuda provedores compatíveis a evitar temas, estilos ou artefatos indesejados.",
 			"warningMissingApiKey": "⚠️ {{provider}} exige uma chave de API para geração de imagens. Configure-a acima.",
 			"warningMissingModel": "⚠️ {{provider}} exige um ID de modelo para geração de imagens. Configure-o acima.",
 			"successConfigured": "✓ A geração de imagens está configurada para {{provider}} e pronta para uso"

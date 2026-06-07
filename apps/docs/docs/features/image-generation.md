@@ -28,7 +28,7 @@ Generate new images from text prompts or edit existing images in your workspace.
 - Saves to your workspace at a path you choose; appropriate extension (.png or .jpg) is auto-added if missing
 - Shows a preview of the generated/edited image in the conversation
 - Supports remote providers such as OpenRouter and OpenAI/OpenAI-compatible endpoints
-- Supports local image-generation APIs such as ComfyUI and Automatic1111
+- Shows provider recommendations and visible free-limit guidance in Image Generation settings
 
 ---
 
@@ -57,7 +57,7 @@ When invoked, Roo sends your prompt (and optionally an existing image) to your c
 ## Requirements
 
 - A configured image-generation provider
-- Internet access for remote providers, or a reachable local endpoint for local providers
+- Internet access for the configured provider
 - An open, writable workspace folder
 
 ---
@@ -69,18 +69,18 @@ When invoked, Roo sends your prompt (and optionally an existing image) to your c
 - **Purpose:** Selects which provider Roo uses for image generation
 - **Default:** OpenRouter
 - **Location:** Settings > Image Generation
-- **Supported providers:** OpenRouter, OpenAI/OpenAI-compatible, ComfyUI, Automatic1111
+- **Supported providers:** OpenRouter and OpenAI/OpenAI-compatible
 
 ### 2. Configure Credentials or Local Endpoint
 
-- **Remote providers:** Add the required API key. For OpenRouter, get your key at [https://openrouter.ai/keys](https://openrouter.ai/keys).
-- **Local providers:** Configure the local API base URL and any optional auth token.
+- Add the required API key. For OpenRouter, get your key at [https://openrouter.ai/keys](https://openrouter.ai/keys).
+- For OpenAI-compatible providers or proxies, configure the base URL that exposes an image-generation API.
 
 ### 3. Image Generation Model and API Method
 
 - **Purpose:** Selects which model to use for generation
 - **Default:** Provider-specific default model or local checkpoint
-- **API method:** Uses the provider-supported method, such as Chat Completions, Images API, ComfyUI API, or Automatic1111 API
+- **API method:** Uses the provider-supported method, such as Chat Completions or Images API
 
 ---
 
@@ -131,7 +131,7 @@ Include these elements in your prompts:
 
 - Provider availability and model lists vary by provider
 - Vision or image-understanding chat models are not image-generation models
-- Local ComfyUI and Automatic1111 support currently uses text-to-image flows; use an edit-capable remote provider when an input image needs to be transformed
+- OpenRouter and OpenAI-compatible provider limits, free credits, and model availability can change; confirm current details in the provider dashboard
 - One image is produced per request
 - Output formats supported: PNG or JPG
 - Supported input formats for editing: PNG, JPG, JPEG, GIF, WEBP only

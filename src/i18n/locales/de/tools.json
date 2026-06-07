@@ -22,7 +22,7 @@
 		"apiKeyRequired": "{{provider}} API-Schlüssel ist für die Bildgenerierung erforderlich. Bitte konfiguriere ihn in den Bildgenerierungseinstellungen.",
 		"modelRequired": "{{provider}} benötigt eine Modell-ID für die Bildgenerierung. Bitte konfiguriere sie in den Bildgenerierungseinstellungen.",
 		"unsupportedApiMethod": "{{provider}} unterstützt die Bildgenerierungs-API-Methode {{apiMethod}} nicht.",
-		"unsupportedProvider": "{{provider}} wird für die Bildgenerierung nicht unterstützt. Verwende stattdessen OpenRouter, OpenAI/OpenAI-compatible, ComfyUI oder Automatic1111.",
+		"unsupportedProvider": "{{provider}} wird für die Bildgenerierung nicht unterstützt. Verwende stattdessen OpenRouter oder einen OpenAI/OpenAI-compatible-Endpunkt für Bildgenerierung.",
 		"failedWithStatus": "Bildgenerierung fehlgeschlagen: {{status}} {{statusText}}",
 		"failedWithMessage": "Bildgenerierung fehlgeschlagen: {{message}}",
 		"noImageGenerated": "In der Antwort wurde kein Bild generiert",

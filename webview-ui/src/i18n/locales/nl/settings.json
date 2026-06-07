@@ -299,7 +299,7 @@
 		"description": "Als dit is ingeschakeld, kan C afbeeldingen genereren en bewerken vanuit prompts met een apart geconfigureerde afbeeldingsgeneratieprovider.",
 		"providerLabel": "Provider",
 		"providerDescription": "Selecteer de provider voor afbeeldingsgeneratie. Dit staat los van je chatproviderprofiel.",
-		"localProviderNote": "Ollama en LM Studio zijn hier niet selecteerbaar omdat ze vision-/chat-API's beschikbaar maken, geen API's voor afbeeldingsgeneratie. Lokale afbeeldingsgeneratie is beschikbaar via echte API's voor afbeeldingsgeneratie zoals ComfyUI en Automatic1111 wanneer ze zijn geconfigureerd.",
+		"localProviderNote": "Ollama, LM Studio, ComfyUI en Automatic1111 zijn hier niet selecteerbaar omdat dit paneel nu focust op OpenRouter en OpenAI-compatible API's voor afbeeldingsgeneratie.",
 		"apiKeyLabel": "{{provider}} API-sleutel",
 		"optionalApiKeyLabel": "{{provider}} API-sleutel (optioneel)",
 		"apiKeyPlaceholder": "Voer je {{provider}} API-sleutel in",
@@ -327,12 +327,51 @@
 		},
 		"negativePromptLabel": "Negatieve prompt",
 		"negativePromptPlaceholder": "Voer inhoud in die je in gegenereerde afbeeldingen wilt vermijden",
-		"negativePromptDescription": "Optioneel. Helpt lokale providers ongewenste onderwerpen, stijlen of artefacten te vermijden.",
+		"negativePromptDescription": "Optioneel. Helpt compatibele providers ongewenste onderwerpen, stijlen of artefacten te vermijden.",
 		"warningMissingApiKey": "⚠️ {{provider}} vereist een API-sleutel voor afbeeldingsgeneratie. Configureer deze hierboven.",
 		"warningMissingModel": "⚠️ {{provider}} vereist een model-ID voor afbeeldingsgeneratie. Configureer deze hierboven.",
 		"successConfigured": "✓ Afbeeldingsgeneratie is geconfigureerd voor {{provider}} en klaar voor gebruik",
 		"modelLabel": "Afbeeldingsgeneratiemodel",
-		"optionalModelDescription": "Optioneel. Laat leeg om de checkpoint te gebruiken die momenteel door de provider is geladen."
+		"optionalModelDescription": "Optioneel. Laat leeg om de checkpoint te gebruiken die momenteel door de provider is geladen.",
+		"recommendations": {
+			"title": "Aanbevolen providerpaden en opmerkingen over gratis limieten",
+			"description": "Begin met OpenRouter of een OpenAI-compatible Images API-endpoint. Publieke gratis limieten veranderen vaak, dus controleer de actuele quota in het dashboard van elke provider voordat je erop vertrouwt.",
+			"modelLabel": "Voorgesteld model/API",
+			"limitLabel": "Zichtbare gratis limiet",
+			"notesLabel": "Instelnotities",
+			"rows": {
+				"openrouter": {
+					"provider": "OpenRouter",
+					"model": "Gebruik modellen met afbeeldingsuitvoer, zoals Gemini- of OpenAI-afbeeldingsmodellen, via Chat Completions.",
+					"limit": "Gratis-modellimieten verschillen per account/key; controleer het OpenRouter-dashboard.",
+					"notes": "Gebruik de OpenRouter-provider hierboven met een OpenRouter API-key."
+				},
+				"openaiCompatible": {
+					"provider": "OpenAI / OpenAI-compatible",
+					"model": "Gebruik OpenAI Images API-modellen (bijvoorbeeld gpt-image-1) of een compatible Images API-endpoint.",
+					"limit": "OpenAI-compatible providers bepalen hun eigen prijzen en gratis quota.",
+					"notes": "Gebruik de OpenAI-compatible provider hierboven en stel de Base URL van het endpoint in."
+				},
+				"googleAiStudio": {
+					"provider": "Google AI Studio / Gemini API",
+					"model": "Imagen 4 is via de Gemini API beschikbaar waar dit wordt ondersteund.",
+					"limit": "De gratis tier van Imagen API is niet beschikbaar in gepubliceerde prijzen; AI Studio-testlimieten verschillen per regio/account.",
+					"notes": "Gebruik via OpenRouter wanneer beschikbaar, of via een OpenAI-compatible proxy-endpoint."
+				},
+				"huggingFace": {
+					"provider": "Hugging Face Inference Providers",
+					"model": "Text-to-image-modellen via Hugging Face-providers.",
+					"limit": "Gratis gebruikers ontvangen maandelijks $0,10 credits; PRO/Team-gebruikers ontvangen hogere maandelijkse credits.",
+					"notes": "Gebruik alleen als je gekozen endpoint een OpenAI-compatible image API aanbiedt."
+				},
+				"stability": {
+					"provider": "Stability AI",
+					"model": "Stable Image generatie-/bewerkings-API's.",
+					"limit": "Docs noemen 25 gratis credits; 1 credit = $0,01 en gebruik verschilt per service/model.",
+					"notes": "Gebruik alleen via een OpenAI-compatible proxy of custom compatible endpoint."
+				}
+			}
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} documentatie",
@@ -920,7 +959,7 @@
 			"description": "Als dit is ingeschakeld, kan C afbeeldingen genereren en bewerken vanuit prompts met een apart geconfigureerde afbeeldingsgeneratieprovider.",
 			"providerLabel": "Provider",
 			"providerDescription": "Selecteer de provider voor afbeeldingsgeneratie. Dit staat los van je chatproviderprofiel.",
-			"localProviderNote": "Ollama en LM Studio zijn hier niet selecteerbaar omdat ze vision-/chat-API's beschikbaar maken, geen API's voor afbeeldingsgeneratie. Lokale afbeeldingsgeneratie is beschikbaar via echte API's voor afbeeldingsgeneratie zoals ComfyUI en Automatic1111 wanneer ze zijn geconfigureerd.",
+			"localProviderNote": "Ollama, LM Studio, ComfyUI en Automatic1111 zijn hier niet selecteerbaar omdat dit paneel nu focust op OpenRouter en OpenAI-compatible API's voor afbeeldingsgeneratie.",
 			"apiKeyLabel": "{{provider}} API-sleutel",
 			"optionalApiKeyLabel": "{{provider}} API-sleutel (optioneel)",
 			"apiKeyPlaceholder": "Voer je {{provider}} API-sleutel in",
@@ -948,7 +987,7 @@
 			},
 			"negativePromptLabel": "Negatieve prompt",
 			"negativePromptPlaceholder": "Voer inhoud in die je in gegenereerde afbeeldingen wilt vermijden",
-			"negativePromptDescription": "Optioneel. Helpt lokale providers ongewenste onderwerpen, stijlen of artefacten te vermijden.",
+			"negativePromptDescription": "Optioneel. Helpt compatibele providers ongewenste onderwerpen, stijlen of artefacten te vermijden.",
 			"warningMissingApiKey": "⚠️ {{provider}} vereist een API-sleutel voor afbeeldingsgeneratie. Configureer deze hierboven.",
 			"warningMissingModel": "⚠️ {{provider}} vereist een model-ID voor afbeeldingsgeneratie. Configureer deze hierboven.",
 			"successConfigured": "✓ Afbeeldingsgeneratie is geconfigureerd voor {{provider}} en klaar voor gebruik"

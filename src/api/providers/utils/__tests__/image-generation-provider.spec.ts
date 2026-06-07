@@ -105,22 +105,13 @@ describe("resolveImageGenerationConfig", () => {
 		})
 	})
 
-	it("should resolve ComfyUI settings with required checkpoint and optional auth", () => {
-		const missingModelResult = resolveImageGenerationConfig(
-			state({
-				imageGenerationProvider: "comfyui",
-			}),
-		)
-
-		expect(missingModelResult.success).toBe(false)
-		if (missingModelResult.success) {
-			throw new Error("Expected ComfyUI resolution to fail without a checkpoint")
-		}
-		expect(missingModelResult.error).toBe("tools:generateImage.modelRequired(provider=ComfyUI)")
-
+	it("should fall back removed local provider settings to OpenRouter", () => {
 		const result = resolveImageGenerationConfig(
 			state({
 				imageGenerationProvider: "comfyui",
+				openRouterImageApiKey: "  openrouter-key  ",
+				openRouterImageBaseUrl: "https://openrouter.example/api/v1///",
+				openRouterImageGenerationSelectedModel: "google/gemini-2.5-flash-image",
 				comfyUiImageApiKey: "  local-proxy-token  ",
 				comfyUiImageBaseUrl: " http://127.0.0.1:8188/// ",
 				comfyUiImageGenerationSelectedModel: "  sdxl.safetensors  ",
@@ -135,41 +126,32 @@ describe("resolveImageGenerationConfig", () => {
 		}
 
 		expect(result.config).toEqual({
-			provider: "comfyui",
-			providerLabel: "ComfyUI",
-			baseURL: "http://127.0.0.1:8188",
-			isLocal: true,
-			authToken: "local-proxy-token",
-			model: "sdxl.safetensors",
-			apiMethod: "comfyui_api",
-			negativePrompt: "blurry, low quality",
+			provider: "openrouter",
+			providerLabel: "OpenRouter",
+			baseURL: "https://openrouter.example/api/v1",
+			isLocal: false,
+			authToken: "openrouter-key",
+			model: "google/gemini-2.5-flash-image",
+			apiMethod: "chat_completions",
+			negativePrompt: undefined,
 		})
 	})
 
-	it("should resolve Automatic1111 settings without requiring a checkpoint override", () => {
+	it("should require OpenRouter configuration when stale removed providers are saved", () => {
 		const result = resolveImageGenerationConfig(
 			state({
 				imageGenerationProvider: "automatic1111",
+				automatic1111ImageBaseUrl: "http://127.0.0.1:7860",
 				automatic1111ImageGenerationSelectedModel: "   ",
 				automatic1111ImageGenerationNegativePrompt: "  bad anatomy  ",
 			}),
 		)
 
-		expect(result.success).toBe(true)
-		if (!result.success) {
-			throw new Error(result.error)
+		expect(result.success).toBe(false)
+		if (result.success) {
+			throw new Error("Expected stale Automatic1111 settings to fall back to OpenRouter and require its API key")
 		}
-
-		expect(result.config).toEqual({
-			provider: "automatic1111",
-			providerLabel: "Automatic1111",
-			baseURL: "http://127.0.0.1:7860",
-			isLocal: true,
-			authToken: undefined,
-			model: "",
-			apiMethod: "automatic1111_api",
-			negativePrompt: "bad anatomy",
-		})
+		expect(result.error).toBe("tools:generateImage.apiKeyRequired(provider=OpenRouter)")
 	})
 
 	it("should reject legacy unsupported local providers", () => {
@@ -305,81 +287,86 @@ describe("generateImageWithConfiguredProvider", () => {
 		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
 
-	it("should dispatch ComfyUI configurations to the ComfyUI helper", async () => {
+	it("should dispatch stale removed provider settings through OpenRouter fallback", async () => {
 		const result = await generateImageWithConfiguredProvider({
 			state: state({
 				imageGenerationProvider: "comfyui",
+				openRouterImageApiKey: "openrouter-key",
+				openRouterImageBaseUrl: "https://openrouter.example/api/v1/",
+				openRouterImageGenerationSelectedModel: "google/gemini-2.5-flash-image",
 				comfyUiImageApiKey: "proxy-token",
 				comfyUiImageBaseUrl: "http://localhost:8188/",
 				comfyUiImageGenerationSelectedModel: "sdxl.safetensors",
 				comfyUiImageGenerationNegativePrompt: "blurry",
 			}),
-			prompt: "Draw locally with ComfyUI",
+			prompt: "Draw through fallback",
 		})
 
 		expect(result).toEqual({
 			success: true,
-			imageData: "data:image/png;base64,comfyui",
+			imageData: "data:image/png;base64,chatcompletions",
 			imageFormat: "png",
 			metadata: {
-				provider: "comfyui",
-				providerLabel: "ComfyUI",
-				baseURL: "http://localhost:8188",
-				model: "sdxl.safetensors",
-				apiMethod: "comfyui_api",
-				isLocal: true,
+				provider: "openrouter",
+				providerLabel: "OpenRouter",
+				baseURL: "https://openrouter.example/api/v1",
+				model: "google/gemini-2.5-flash-image",
+				apiMethod: "chat_completions",
+				isLocal: false,
 			},
 		})
-		expect(generateImageWithComfyUi).toHaveBeenCalledWith({
-			baseURL: "http://localhost:8188",
-			authToken: "proxy-token",
-			model: "sdxl.safetensors",
-			prompt: "Draw locally with ComfyUI",
+		expect(generateImageWithProvider).toHaveBeenCalledWith({
+			baseURL: "https://openrouter.example/api/v1",
+			authToken: "openrouter-key",
+			model: "google/gemini-2.5-flash-image",
+			prompt: "Draw through fallback",
 			inputImage: undefined,
-			negativePrompt: "blurry",
-			provider: "comfyui",
+			negativePrompt: undefined,
+			provider: "openrouter",
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
-		expect(generateImageWithProvider).not.toHaveBeenCalled()
+		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
 		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
 
-	it("should dispatch Automatic1111 configurations to the Automatic1111 helper", async () => {
+	it("should not dispatch stale Automatic1111 settings to local helpers", async () => {
 		const result = await generateImageWithConfiguredProvider({
 			state: state({
 				imageGenerationProvider: "automatic1111",
+				openRouterImageApiKey: "openrouter-key",
+				openRouterImageGenerationSelectedModel: "google/gemini-2.5-flash-image",
 				automatic1111ImageBaseUrl: "http://localhost:7860/",
 				automatic1111ImageGenerationSelectedModel: "   ",
 				automatic1111ImageGenerationNegativePrompt: "bad anatomy",
 			}),
-			prompt: "Draw locally with Automatic1111",
+			prompt: "Draw with stale Automatic1111",
 		})
 
 		expect(result).toEqual({
 			success: true,
-			imageData: "data:image/png;base64,automatic1111",
+			imageData: "data:image/png;base64,chatcompletions",
 			imageFormat: "png",
 			metadata: {
-				provider: "automatic1111",
-				providerLabel: "Automatic1111",
-				baseURL: "http://localhost:7860",
-				model: "",
-				apiMethod: "automatic1111_api",
-				isLocal: true,
+				provider: "openrouter",
+				providerLabel: "OpenRouter",
+				baseURL: "https://openrouter.ai/api/v1",
+				model: "google/gemini-2.5-flash-image",
+				apiMethod: "chat_completions",
+				isLocal: false,
 			},
 		})
-		expect(generateImageWithAutomatic1111).toHaveBeenCalledWith({
-			baseURL: "http://localhost:7860",
-			authToken: undefined,
-			model: "",
-			prompt: "Draw locally with Automatic1111",
+		expect(generateImageWithProvider).toHaveBeenCalledWith({
+			baseURL: "https://openrouter.ai/api/v1",
+			authToken: "openrouter-key",
+			model: "google/gemini-2.5-flash-image",
+			prompt: "Draw with stale Automatic1111",
 			inputImage: undefined,
-			negativePrompt: "bad anatomy",
-			provider: "automatic1111",
+			negativePrompt: undefined,
+			provider: "openrouter",
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
-		expect(generateImageWithProvider).not.toHaveBeenCalled()
 		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
+		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
 
 	it("should dispatch chat-completions configurations to the chat-completions helper", async () => {

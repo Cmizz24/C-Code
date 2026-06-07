@@ -4,7 +4,7 @@ const GENERATE_IMAGE_DESCRIPTION = `Request to generate or edit an image using t
 
 Use this as the primary path when the user explicitly asks to generate, create, edit, transform, enhance, or upscale an image. Do not use Visual Browser Inspector, Playwright/browser automation, MCP tools, or manual web UI workflows for image generation unless the user explicitly asks to operate or inspect a browser/web app instead of generating through Roo's image-generation provider. If the user does not provide an output path, choose a safe workspace-relative image asset path such as images/<descriptive-name>.png.
 
-The configured provider and model must actually support image generation. Use real image-generation providers such as OpenRouter image-output models, OpenAI/OpenAI-compatible Images API models, or configured local image-generation APIs such as ComfyUI or Automatic1111. Vision or image-understanding chat models are not valid image-generation models, and Ollama or LM Studio vision/chat APIs are not image-generation providers in this tool flow. Local ComfyUI and Automatic1111 support currently uses text-to-image flows; use an edit-capable provider when an input image needs to be transformed.
+The configured provider and model must actually support image generation. Use real image-generation providers such as OpenRouter image-output models or OpenAI/OpenAI-compatible Images API models. Vision or image-understanding chat models are not valid image-generation models, and Ollama or LM Studio vision/chat APIs are not image-generation providers in this tool flow. Use an edit-capable image provider when an input image needs to be transformed.
 
 Parameters:
 - prompt: (required) The text prompt describing what to generate or how to edit the image

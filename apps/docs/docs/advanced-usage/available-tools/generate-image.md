@@ -7,14 +7,12 @@ keywords:
     - image editing
     - OpenRouter
     - OpenAI
-    - ComfyUI
-    - Automatic1111
     - Roo Code tools
 ---
 
 # generate_image
 
-The `generate_image` tool creates new images from text prompts or modifies existing images using configured image-generation providers. It supports remote providers such as **OpenRouter** and **OpenAI/OpenAI-compatible** endpoints, plus local image-generation APIs such as **ComfyUI** and **Automatic1111**.
+The `generate_image` tool creates new images from text prompts or modifies existing images using configured image-generation providers. It supports **OpenRouter** and **OpenAI/OpenAI-compatible** endpoints.
 
 ---
 
@@ -50,7 +48,7 @@ This tool generates images from text descriptions or applies transformations to 
 - **Image-to-image transformation**: Edit or transform existing images
 - Supports multiple input formats (PNG, JPG, JPEG, GIF, WEBP)
 - Automatic file extension handling
-- Powered by configured remote or local image-generation providers
+- Powered by configured OpenRouter or OpenAI/OpenAI-compatible image-generation providers
 - Human approval by default, with the proposed prompt shown before generation
 - Prompt edits during approval are sent to the provider
 
@@ -127,7 +125,7 @@ The `generate_image` tool is the programmatic interface to the [Image Generation
 
 Image generation requires provider configuration in the dedicated Image Generation settings. See the [Image Generation](/features/image-generation) feature page for detailed setup instructions including:
 
-- Provider selection and API key or local endpoint configuration
-- Model, checkpoint, and API-method capabilities
+- Provider selection, API key, and compatible endpoint configuration
+- Model and API-method capabilities
 - Best practices for prompts
 - Troubleshooting and limitations

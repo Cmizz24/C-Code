@@ -62,8 +62,14 @@ export const ImageGenerationSettings = ({
 	const currentModel = configuredModel || defaultModel
 	const currentModelInfo = getImageGenerationModel(currentProvider, currentModel)
 	const configuredApiMethod = getStringSetting(settingsKeys.apiMethod) as ImageGenerationApiMethod | undefined
+	const supportedConfiguredApiMethod =
+		configuredApiMethod && providerDefinition.supportedApiMethods.includes(configuredApiMethod)
+			? configuredApiMethod
+			: undefined
 	const currentApiMethod =
-		currentModelInfo?.apiMethod || configuredApiMethod || getDefaultImageGenerationApiMethod(currentProvider)
+		currentModelInfo?.apiMethod ||
+		supportedConfiguredApiMethod ||
+		getDefaultImageGenerationApiMethod(currentProvider)
 	const apiMethodLockedByModel = !!currentModelInfo?.apiMethod
 	const configuredBaseUrl = getStringSetting(settingsKeys.baseUrl) ?? ""
 	const configuredApiKey = getStringSetting(settingsKeys.apiKey) ?? ""
@@ -123,6 +129,8 @@ export const ImageGenerationSettings = ({
 		)
 	}
 
+	const recommendationRows = ["openrouter", "openaiCompatible", "googleAiStudio", "huggingFace", "stability"] as const
+
 	return (
 		<div>
 			<SectionHeader>{t("settings:sections.imageGeneration")}</SectionHeader>
@@ -131,6 +139,42 @@ export const ImageGenerationSettings = ({
 				<p className="text-vscode-descriptionForeground text-sm mt-0">
 					{t("settings:imageGeneration.description")}
 				</p>
+
+				<div className="mb-4 rounded border border-vscode-panel-border bg-vscode-sideBar-background p-3 text-sm">
+					<div className="font-medium mb-1">{t("settings:imageGeneration.recommendations.title")}</div>
+					<p className="text-vscode-descriptionForeground text-xs mt-0 mb-3">
+						{t("settings:imageGeneration.recommendations.description")}
+					</p>
+					<div className="grid gap-2">
+						{recommendationRows.map((row) => (
+							<div
+								key={row}
+								className="rounded border border-vscode-panel-border bg-vscode-editor-background p-2">
+								<div className="font-medium">
+									{t(`settings:imageGeneration.recommendations.rows.${row}.provider`)}
+								</div>
+								<div className="mt-1 text-xs text-vscode-descriptionForeground">
+									<span className="font-medium text-vscode-foreground">
+										{t("settings:imageGeneration.recommendations.modelLabel")}:
+									</span>
+									{t(`settings:imageGeneration.recommendations.rows.${row}.model`)}
+								</div>
+								<div className="mt-1 text-xs text-vscode-descriptionForeground">
+									<span className="font-medium text-vscode-foreground">
+										{t("settings:imageGeneration.recommendations.limitLabel")}:
+									</span>
+									{t(`settings:imageGeneration.recommendations.rows.${row}.limit`)}
+								</div>
+								<div className="mt-1 text-xs text-vscode-descriptionForeground">
+									<span className="font-medium text-vscode-foreground">
+										{t("settings:imageGeneration.recommendations.notesLabel")}:
+									</span>
+									{t(`settings:imageGeneration.recommendations.rows.${row}.notes`)}
+								</div>
+							</div>
+						))}
+					</div>
+				</div>
 
 				<div className="space-y-3">
 					<div>
@@ -148,11 +192,6 @@ export const ImageGenerationSettings = ({
 						<p className="text-vscode-descriptionForeground text-xs mt-1">
 							{t("settings:imageGeneration.providerDescription")}
 						</p>
-						{providerDefinition.isLocal && (
-							<p className="text-vscode-descriptionForeground text-xs mt-1">
-								{t("settings:imageGeneration.localProviderNote")}
-							</p>
-						)}
 					</div>
 
 					{settingsKeys.apiKey && (

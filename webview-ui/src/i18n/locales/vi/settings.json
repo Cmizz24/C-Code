@@ -299,7 +299,7 @@
 		"description": "Khi bật, C có thể tạo và chỉnh sửa hình ảnh từ prompt bằng một nhà cung cấp tạo hình ảnh được cấu hình riêng.",
 		"providerLabel": "Nhà cung cấp",
 		"providerDescription": "Chọn nhà cung cấp dùng cho tạo hình ảnh. Cài đặt này độc lập với hồ sơ nhà cung cấp chat của bạn.",
-		"localProviderNote": "Ollama và LM Studio không thể chọn ở đây vì chúng cung cấp API vision/chat, không phải API tạo hình ảnh. Tạo hình ảnh local có sẵn qua các API tạo hình ảnh thực sự như ComfyUI và Automatic1111 khi được cấu hình.",
+		"localProviderNote": "Ollama, LM Studio, ComfyUI và Automatic1111 không thể chọn ở đây vì bảng này hiện tập trung vào OpenRouter và các API tạo hình ảnh tương thích OpenAI.",
 		"apiKeyLabel": "Khóa API {{provider}}",
 		"optionalApiKeyLabel": "Khóa API {{provider}} (tùy chọn)",
 		"apiKeyPlaceholder": "Nhập khóa API {{provider}} của bạn",
@@ -327,12 +327,51 @@
 		},
 		"negativePromptLabel": "Prompt phủ định",
 		"negativePromptPlaceholder": "Nhập nội dung cần tránh trong hình ảnh được tạo",
-		"negativePromptDescription": "Tùy chọn. Giúp nhà cung cấp local tránh chủ thể, phong cách hoặc artifact không mong muốn.",
+		"negativePromptDescription": "Tùy chọn. Giúp các nhà cung cấp tương thích tránh chủ thể, phong cách hoặc artifacts không mong muốn.",
 		"warningMissingApiKey": "⚠️ {{provider}} yêu cầu khóa API để tạo hình ảnh. Hãy cấu hình ở trên.",
 		"warningMissingModel": "⚠️ {{provider}} yêu cầu ID mô hình để tạo hình ảnh. Hãy cấu hình ở trên.",
 		"successConfigured": "✓ Tạo hình ảnh đã được cấu hình cho {{provider}} và sẵn sàng sử dụng",
 		"modelLabel": "Mô hình tạo hình ảnh",
-		"optionalModelDescription": "Tùy chọn. Để trống để dùng checkpoint hiện đang được nhà cung cấp tải."
+		"optionalModelDescription": "Tùy chọn. Để trống để dùng checkpoint hiện đang được nhà cung cấp tải.",
+		"recommendations": {
+			"title": "Lộ trình nhà cung cấp được đề xuất và ghi chú giới hạn miễn phí",
+			"description": "Bắt đầu với OpenRouter hoặc endpoint Images API tương thích OpenAI. Giới hạn miễn phí công khai thường thay đổi, nên hãy xác nhận quota hiện tại trong dashboard của từng nhà cung cấp trước khi dựa vào chúng.",
+			"modelLabel": "Model/API đề xuất",
+			"limitLabel": "Giới hạn miễn phí hiển thị",
+			"notesLabel": "Ghi chú thiết lập",
+			"rows": {
+				"openrouter": {
+					"provider": "OpenRouter",
+					"model": "Dùng các model xuất hình ảnh như model hình ảnh Gemini hoặc OpenAI qua Chat Completions.",
+					"limit": "Giới hạn model miễn phí thay đổi theo tài khoản/khóa; kiểm tra dashboard OpenRouter.",
+					"notes": "Dùng nhà cung cấp OpenRouter ở trên với khóa API OpenRouter."
+				},
+				"openaiCompatible": {
+					"provider": "OpenAI / OpenAI-compatible",
+					"model": "Dùng model OpenAI Images API (ví dụ gpt-image-1) hoặc endpoint Images API tương thích.",
+					"limit": "Nhà cung cấp tương thích OpenAI tự đặt giá và quota miễn phí của họ.",
+					"notes": "Dùng nhà cung cấp OpenAI-compatible ở trên và đặt Base URL của endpoint."
+				},
+				"googleAiStudio": {
+					"provider": "Google AI Studio / Gemini API",
+					"model": "Imagen 4 có sẵn qua Gemini API ở nơi được hỗ trợ.",
+					"limit": "Gói miễn phí Imagen API không có trong giá công bố; giới hạn thử nghiệm AI Studio thay đổi theo khu vực/tài khoản.",
+					"notes": "Dùng qua OpenRouter khi có sẵn, hoặc endpoint proxy tương thích OpenAI."
+				},
+				"huggingFace": {
+					"provider": "Hugging Face Inference Providers",
+					"model": "Model text-to-image qua các nhà cung cấp Hugging Face.",
+					"limit": "Người dùng miễn phí nhận $0.10 credits mỗi tháng; PRO/Team nhận credits hằng tháng cao hơn.",
+					"notes": "Chỉ dùng nếu endpoint đã chọn expose API hình ảnh tương thích OpenAI."
+				},
+				"stability": {
+					"provider": "Stability AI",
+					"model": "API tạo/chỉnh sửa Stable Image.",
+					"limit": "Docs liệt kê 25 credits miễn phí; 1 credit = $0.01 và mức dùng thay đổi theo service/model.",
+					"notes": "Chỉ dùng qua proxy tương thích OpenAI hoặc endpoint tương thích tùy chỉnh."
+				}
+			}
+		}
 	},
 	"providers": {
 		"providerDocumentation": "Tài liệu {{provider}}",
@@ -920,7 +959,7 @@
 			"description": "Khi bật, C có thể tạo và chỉnh sửa hình ảnh từ prompt bằng một nhà cung cấp tạo hình ảnh được cấu hình riêng.",
 			"providerLabel": "Nhà cung cấp",
 			"providerDescription": "Chọn nhà cung cấp dùng cho tạo hình ảnh. Cài đặt này độc lập với hồ sơ nhà cung cấp chat của bạn.",
-			"localProviderNote": "Ollama và LM Studio không thể chọn ở đây vì chúng cung cấp API vision/chat, không phải API tạo hình ảnh. Tạo hình ảnh local có sẵn qua các API tạo hình ảnh thực sự như ComfyUI và Automatic1111 khi được cấu hình.",
+			"localProviderNote": "Ollama, LM Studio, ComfyUI và Automatic1111 không thể chọn ở đây vì bảng này hiện tập trung vào OpenRouter và các API tạo hình ảnh tương thích OpenAI.",
 			"apiKeyLabel": "Khóa API {{provider}}",
 			"optionalApiKeyLabel": "Khóa API {{provider}} (tùy chọn)",
 			"apiKeyPlaceholder": "Nhập khóa API {{provider}} của bạn",
@@ -948,7 +987,7 @@
 			},
 			"negativePromptLabel": "Prompt phủ định",
 			"negativePromptPlaceholder": "Nhập nội dung cần tránh trong hình ảnh được tạo",
-			"negativePromptDescription": "Tùy chọn. Giúp nhà cung cấp local tránh chủ thể, phong cách hoặc artifact không mong muốn.",
+			"negativePromptDescription": "Tùy chọn. Giúp các nhà cung cấp tương thích tránh chủ thể, phong cách hoặc artifacts không mong muốn.",
 			"warningMissingApiKey": "⚠️ {{provider}} yêu cầu khóa API để tạo hình ảnh. Hãy cấu hình ở trên.",
 			"warningMissingModel": "⚠️ {{provider}} yêu cầu ID mô hình để tạo hình ảnh. Hãy cấu hình ở trên.",
 			"successConfigured": "✓ Tạo hình ảnh đã được cấu hình cho {{provider}} và sẵn sàng sử dụng"

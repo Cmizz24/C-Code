@@ -414,6 +414,7 @@ describe("SettingsView - Localization", () => {
 		const { container } = renderSettingsViewWithTranslations(
 			{
 				imageGenerationProvider: "automatic1111",
+				openRouterImageApiKey: "openrouter-key",
 			},
 			"imageGeneration",
 		)
@@ -427,17 +428,27 @@ describe("SettingsView - Localization", () => {
 				"Select the provider to use for image generation. This is independent from your chat provider profile.",
 			),
 		).toBeInTheDocument()
+		expect(content.getByText("Recommended provider paths and free-limit notes")).toBeInTheDocument()
+		expect(content.getAllByText("OpenRouter").length).toBeGreaterThan(0)
+		expect(content.getAllByText("OpenAI / OpenAI-compatible").length).toBeGreaterThan(0)
+		expect(content.getByText("Google AI Studio / Gemini API")).toBeInTheDocument()
+		expect(
+			content.getByText(
+				"Imagen API free tier is not available in published pricing; AI Studio testing limits vary by region/account.",
+			),
+		).toBeInTheDocument()
 		expect(content.getByText("Provider")).toBeInTheDocument()
-		expect(content.getByText("Automatic1111 API Key (optional)")).toBeInTheDocument()
-		expect(content.getByPlaceholderText("Enter your Automatic1111 API key")).toBeInTheDocument()
+		expect(content.getByText("OpenRouter API Key")).toBeInTheDocument()
+		expect(content.getByPlaceholderText("Enter your OpenRouter API key")).toBeInTheDocument()
 		expect(content.getByText("Base URL")).toBeInTheDocument()
-		expect(content.getByPlaceholderText("Default: http://127.0.0.1:7860")).toBeInTheDocument()
-		expect(content.getByText("Model ID")).toBeInTheDocument()
-		expect(content.getByPlaceholderText("Enter a model ID")).toBeInTheDocument()
-		expect(content.getByText("Negative prompt")).toBeInTheDocument()
-		expect(content.getByPlaceholderText("Enter content to avoid in generated images")).toBeInTheDocument()
+		expect(content.getByPlaceholderText("Default: https://openrouter.ai/api/v1")).toBeInTheDocument()
+		expect(content.getByText("Image Generation Model")).toBeInTheDocument()
 		expect(content.getByText("API method")).toBeInTheDocument()
-		expect(content.getByRole("option", { name: "Automatic1111 API" })).toBeInTheDocument()
+		expect(content.getByRole("option", { name: "Chat completions" })).toBeInTheDocument()
+		expect(content.queryByRole("option", { name: "ComfyUI" })).not.toBeInTheDocument()
+		expect(content.queryByRole("option", { name: "Automatic1111" })).not.toBeInTheDocument()
+		expect(content.queryByRole("option", { name: "Automatic1111 API" })).not.toBeInTheDocument()
+		expect(content.queryByText("Negative prompt")).not.toBeInTheDocument()
 
 		expect(container).not.toHaveTextContent("settings:sections.imageGeneration")
 		expect(container).not.toHaveTextContent("sections.imageGeneration")

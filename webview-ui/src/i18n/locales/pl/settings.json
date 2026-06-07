@@ -299,7 +299,7 @@
 		"description": "Po włączeniu C może generować i edytować obrazy z promptów przy użyciu osobno skonfigurowanego dostawcy generowania obrazów.",
 		"providerLabel": "Dostawca",
 		"providerDescription": "Wybierz dostawcę używanego do generowania obrazów. Jest niezależny od profilu dostawcy chatu.",
-		"localProviderNote": "Ollama i LM Studio nie są tutaj dostępne do wyboru, ponieważ udostępniają API vision/chat, a nie API generowania obrazów. Lokalne generowanie obrazów jest dostępne przez prawdziwe API generowania obrazów, takie jak ComfyUI i Automatic1111, gdy są skonfigurowane.",
+		"localProviderNote": "Ollama, LM Studio, ComfyUI i Automatic1111 nie są tutaj dostępne do wyboru, bo ten panel skupia się teraz na OpenRouter i API generowania obrazów kompatybilnych z OpenAI.",
 		"apiKeyLabel": "Klucz API {{provider}}",
 		"optionalApiKeyLabel": "Klucz API {{provider}} (opcjonalnie)",
 		"apiKeyPlaceholder": "Wpisz klucz API {{provider}}",
@@ -327,12 +327,51 @@
 		},
 		"negativePromptLabel": "Negatywny prompt",
 		"negativePromptPlaceholder": "Wpisz treści, których należy unikać w generowanych obrazach",
-		"negativePromptDescription": "Opcjonalne. Pomaga lokalnym dostawcom unikać niechcianych obiektów, stylów lub artefaktów.",
+		"negativePromptDescription": "Opcjonalne. Pomaga kompatybilnym dostawcom unikać niechcianych tematów, stylów lub artefaktów.",
 		"warningMissingApiKey": "⚠️ {{provider}} wymaga klucza API do generowania obrazów. Skonfiguruj go powyżej.",
 		"warningMissingModel": "⚠️ {{provider}} wymaga ID modelu do generowania obrazów. Skonfiguruj go powyżej.",
 		"successConfigured": "✓ Generowanie obrazów jest skonfigurowane dla {{provider}} i gotowe do użycia",
 		"modelLabel": "Model generowania obrazów",
-		"optionalModelDescription": "Opcjonalne. Zostaw puste, aby użyć checkpointu aktualnie załadowanego przez dostawcę."
+		"optionalModelDescription": "Opcjonalne. Zostaw puste, aby użyć checkpointu aktualnie załadowanego przez dostawcę.",
+		"recommendations": {
+			"title": "Zalecane ścieżki dostawców i notatki o darmowych limitach",
+			"description": "Zacznij od OpenRouter albo endpointu Images API kompatybilnego z OpenAI. Publiczne darmowe limity często się zmieniają, więc sprawdź aktualne kwoty w dashboardzie każdego dostawcy, zanim na nich polegniesz.",
+			"modelLabel": "Sugerowany model/API",
+			"limitLabel": "Widoczny darmowy limit",
+			"notesLabel": "Notatki konfiguracyjne",
+			"rows": {
+				"openrouter": {
+					"provider": "OpenRouter",
+					"model": "Używaj modeli z wyjściem obrazu, takich jak modele obrazów Gemini lub OpenAI, przez Chat Completions.",
+					"limit": "Limity darmowych modeli różnią się według konta/klucza; sprawdź dashboard OpenRouter.",
+					"notes": "Użyj powyższego dostawcy OpenRouter z kluczem API OpenRouter."
+				},
+				"openaiCompatible": {
+					"provider": "OpenAI / OpenAI-compatible",
+					"model": "Używaj modeli OpenAI Images API (np. gpt-image-1) albo kompatybilnego endpointu Images API.",
+					"limit": "Dostawcy kompatybilni z OpenAI ustalają własne ceny i darmowe kwoty.",
+					"notes": "Użyj powyższego dostawcy OpenAI-compatible i ustaw Base URL endpointu."
+				},
+				"googleAiStudio": {
+					"provider": "Google AI Studio / Gemini API",
+					"model": "Imagen 4 jest dostępny przez Gemini API tam, gdzie jest wspierany.",
+					"limit": "Darmowy tier Imagen API nie jest dostępny w opublikowanym cenniku; limity testowe AI Studio różnią się według regionu/konta.",
+					"notes": "Używaj przez OpenRouter, gdy jest dostępny, albo przez endpoint proxy kompatybilny z OpenAI."
+				},
+				"huggingFace": {
+					"provider": "Hugging Face Inference Providers",
+					"model": "Modele text-to-image przez dostawców Hugging Face.",
+					"limit": "Darmowi użytkownicy otrzymują miesięcznie $0,10 credits; PRO/Team otrzymują wyższe miesięczne credits.",
+					"notes": "Używaj tylko wtedy, gdy wybrany endpoint udostępnia OpenAI-compatible image API."
+				},
+				"stability": {
+					"provider": "Stability AI",
+					"model": "API generowania/edycji Stable Image.",
+					"limit": "Docs podają 25 darmowych credits; 1 credit = $0,01, a użycie zależy od usługi/modelu.",
+					"notes": "Używaj tylko przez OpenAI-compatible proxy albo własny kompatybilny endpoint."
+				}
+			}
+		}
 	},
 	"providers": {
 		"providerDocumentation": "Dokumentacja {{provider}}",
@@ -920,7 +959,7 @@
 			"description": "Po włączeniu C może generować i edytować obrazy z promptów przy użyciu osobno skonfigurowanego dostawcy generowania obrazów.",
 			"providerLabel": "Dostawca",
 			"providerDescription": "Wybierz dostawcę używanego do generowania obrazów. Jest niezależny od profilu dostawcy chatu.",
-			"localProviderNote": "Ollama i LM Studio nie są tutaj dostępne do wyboru, ponieważ udostępniają API vision/chat, a nie API generowania obrazów. Lokalne generowanie obrazów jest dostępne przez prawdziwe API generowania obrazów, takie jak ComfyUI i Automatic1111, gdy są skonfigurowane.",
+			"localProviderNote": "Ollama, LM Studio, ComfyUI i Automatic1111 nie są tutaj dostępne do wyboru, bo ten panel skupia się teraz na OpenRouter i API generowania obrazów kompatybilnych z OpenAI.",
 			"apiKeyLabel": "Klucz API {{provider}}",
 			"optionalApiKeyLabel": "Klucz API {{provider}} (opcjonalnie)",
 			"apiKeyPlaceholder": "Wpisz klucz API {{provider}}",
@@ -948,7 +987,7 @@
 			},
 			"negativePromptLabel": "Negatywny prompt",
 			"negativePromptPlaceholder": "Wpisz treści, których należy unikać w generowanych obrazach",
-			"negativePromptDescription": "Opcjonalne. Pomaga lokalnym dostawcom unikać niechcianych obiektów, stylów lub artefaktów.",
+			"negativePromptDescription": "Opcjonalne. Pomaga kompatybilnym dostawcom unikać niechcianych tematów, stylów lub artefaktów.",
 			"warningMissingApiKey": "⚠️ {{provider}} wymaga klucza API do generowania obrazów. Skonfiguruj go powyżej.",
 			"warningMissingModel": "⚠️ {{provider}} wymaga ID modelu do generowania obrazów. Skonfiguruj go powyżej.",
 			"successConfigured": "✓ Generowanie obrazów jest skonfigurowane dla {{provider}} i gotowe do użycia"

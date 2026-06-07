@@ -22,7 +22,7 @@
 		"apiKeyRequired": "Для генерации изображений требуется API-ключ {{provider}}. Настройте его в настройках генерации изображений.",
 		"modelRequired": "{{provider}} требует ID модели для генерации изображений. Настройте его в настройках генерации изображений.",
 		"unsupportedApiMethod": "{{provider}} не поддерживает метод API генерации изображений {{apiMethod}}.",
-		"unsupportedProvider": "{{provider}} не поддерживается для генерации изображений. Используй OpenRouter, OpenAI/OpenAI-compatible, ComfyUI или Automatic1111.",
+		"unsupportedProvider": "{{provider}} не поддерживается для генерации изображений. Используй OpenRouter или OpenAI/OpenAI-compatible endpoint генерации изображений.",
 		"failedWithStatus": "Не удалось сгенерировать изображение: {{status}} {{statusText}}",
 		"failedWithMessage": "Не удалось сгенерировать изображение: {{message}}",
 		"noImageGenerated": "В ответе не было сгенерировано изображение",

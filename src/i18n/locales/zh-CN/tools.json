@@ -22,7 +22,7 @@
 		"apiKeyRequired": "图像生成需要 {{provider}} API 密钥。请在图像生成设置中配置。",
 		"modelRequired": "{{provider}} 需要模型 ID 才能生成图像。请在图像生成设置中配置。",
 		"unsupportedApiMethod": "{{provider}} 不支持 {{apiMethod}} 图像生成 API 方法。",
-		"unsupportedProvider": "{{provider}} 不支持图像生成。请改用 OpenRouter、OpenAI/OpenAI-compatible、ComfyUI 或 Automatic1111。",
+		"unsupportedProvider": "{{provider}} 不支持图像生成。请改用 OpenRouter 或 OpenAI/OpenAI-compatible 图像生成 endpoint。",
 		"failedWithStatus": "图像生成失败：{{status}} {{statusText}}",
 		"failedWithMessage": "图像生成失败：{{message}}",
 		"noImageGenerated": "响应中未生成图像",

@@ -5,7 +5,6 @@ import {
 	getImageGenerationModel,
 	getImageGenerationProvider,
 	IMAGE_GENERATION_PROVIDERS,
-	isActiveImageGenerationProvider,
 	isImageGenerationApiMethod,
 	isLegacyUnsupportedImageGenerationProvider,
 	type ActiveImageGenerationProvider,
@@ -15,13 +14,7 @@ import {
 } from "@roo-code/types"
 
 import { t } from "../../../i18n"
-import {
-	generateImageWithAutomatic1111,
-	generateImageWithComfyUi,
-	generateImageWithImagesApi,
-	generateImageWithProvider,
-	type ImageGenerationResult,
-} from "./image-generation"
+import { generateImageWithImagesApi, generateImageWithProvider, type ImageGenerationResult } from "./image-generation"
 
 export interface ResolvedImageGenerationConfig {
 	provider: ActiveImageGenerationProvider
@@ -31,6 +24,14 @@ export interface ResolvedImageGenerationConfig {
 	authToken?: string
 	model: string
 	apiMethod: ImageGenerationApiMethod
+	negativePrompt?: string
+}
+
+type ProviderState = {
+	apiKey?: string
+	baseUrl?: string
+	model?: string
+	apiMethod?: ImageGenerationApiMethod
 	negativePrompt?: string
 }
 
@@ -48,7 +49,7 @@ const normalizeConfiguredBaseUrl = (baseUrl: string | undefined, provider: Activ
 	return normalized
 }
 
-const getProviderState = (state: Partial<RooCodeSettings>, provider: ActiveImageGenerationProvider) => {
+const getProviderState = (state: Partial<RooCodeSettings>, provider: ActiveImageGenerationProvider): ProviderState => {
 	switch (provider) {
 		case "openrouter":
 			return {
@@ -63,22 +64,6 @@ const getProviderState = (state: Partial<RooCodeSettings>, provider: ActiveImage
 				baseUrl: state.openAiImageBaseUrl,
 				model: state.openAiImageGenerationSelectedModel,
 				apiMethod: state.openAiImageGenerationApiMethod,
-			}
-		case "comfyui":
-			return {
-				apiKey: state.comfyUiImageApiKey,
-				baseUrl: state.comfyUiImageBaseUrl,
-				model: state.comfyUiImageGenerationSelectedModel,
-				apiMethod: state.comfyUiImageGenerationApiMethod,
-				negativePrompt: state.comfyUiImageGenerationNegativePrompt,
-			}
-		case "automatic1111":
-			return {
-				apiKey: state.automatic1111ImageApiKey,
-				baseUrl: state.automatic1111ImageBaseUrl,
-				model: state.automatic1111ImageGenerationSelectedModel,
-				apiMethod: state.automatic1111ImageGenerationApiMethod,
-				negativePrompt: state.automatic1111ImageGenerationNegativePrompt,
 			}
 	}
 }
@@ -105,13 +90,6 @@ export function resolveImageGenerationConfig(
 		state.imageGenerationProvider,
 		!!state.openRouterImageGenerationSelectedModel,
 	)
-
-	if (!isActiveImageGenerationProvider(provider)) {
-		return {
-			success: false,
-			error: t("tools:generateImage.unsupportedProvider", { provider: provider ?? "unknown" }),
-		}
-	}
 
 	const definition = IMAGE_GENERATION_PROVIDERS[provider]
 	const providerState = getProviderState(state, provider)
@@ -201,16 +179,6 @@ export async function generateImageWithConfiguredProvider(options: {
 		prompt: options.prompt,
 		inputImage: options.inputImage,
 		negativePrompt: config.negativePrompt,
-	}
-
-	if (config.provider === "comfyui") {
-		return withSafeMetadata(await generateImageWithComfyUi({ ...generatorOptions, provider: "comfyui" }))
-	}
-
-	if (config.provider === "automatic1111") {
-		return withSafeMetadata(
-			await generateImageWithAutomatic1111({ ...generatorOptions, provider: "automatic1111" }),
-		)
 	}
 
 	if (config.apiMethod === "images_api") {

@@ -299,7 +299,7 @@
 		"description": "Когда включено, C может генерировать и редактировать изображения по prompt'ам с помощью отдельно настроенного провайдера генерации изображений.",
 		"providerLabel": "Провайдер",
 		"providerDescription": "Выберите провайдера для генерации изображений. Он не зависит от профиля провайдера чата.",
-		"localProviderNote": "Ollama и LM Studio здесь нельзя выбрать, потому что они предоставляют vision/chat API, а не API генерации изображений. Локальная генерация изображений доступна через настоящие API генерации изображений, такие как ComfyUI и Automatic1111, если они настроены.",
+		"localProviderNote": "Ollama, LM Studio, ComfyUI и Automatic1111 здесь нельзя выбрать, потому что эта панель теперь ориентирована на OpenRouter и OpenAI-compatible API генерации изображений.",
 		"apiKeyLabel": "API-ключ {{provider}}",
 		"optionalApiKeyLabel": "API-ключ {{provider}} (необязательно)",
 		"apiKeyPlaceholder": "Введите API-ключ {{provider}}",
@@ -327,12 +327,51 @@
 		},
 		"negativePromptLabel": "Негативный prompt",
 		"negativePromptPlaceholder": "Введи, чего нужно избегать в сгенерированных изображениях",
-		"negativePromptDescription": "Необязательно. Помогает локальным провайдерам избегать нежелательных объектов, стилей или артефактов.",
+		"negativePromptDescription": "Необязательно. Помогает совместимым провайдерам избегать нежелательных объектов, стилей или артефактов.",
 		"warningMissingApiKey": "⚠️ {{provider}} требует API-ключ для генерации изображений. Настройте его выше.",
 		"warningMissingModel": "⚠️ {{provider}} требует ID модели для генерации изображений. Настройте его выше.",
 		"successConfigured": "✓ Генерация изображений настроена для {{provider}} и готова к использованию",
 		"modelLabel": "Модель генерации изображений",
-		"optionalModelDescription": "Необязательно. Оставь пустым, чтобы использовать checkpoint, сейчас загруженный провайдером."
+		"optionalModelDescription": "Необязательно. Оставь пустым, чтобы использовать checkpoint, сейчас загруженный провайдером.",
+		"recommendations": {
+			"title": "Рекомендуемые пути провайдеров и заметки о бесплатных лимитах",
+			"description": "Начни с OpenRouter или OpenAI-compatible endpoint Images API. Публичные бесплатные лимиты часто меняются, поэтому проверяй текущие квоты в dashboard каждого провайдера, прежде чем на них полагаться.",
+			"modelLabel": "Рекомендуемая модель/API",
+			"limitLabel": "Видимый бесплатный лимит",
+			"notesLabel": "Заметки по настройке",
+			"rows": {
+				"openrouter": {
+					"provider": "OpenRouter",
+					"model": "Используй модели с выводом изображений, например Gemini или OpenAI image models, через Chat Completions.",
+					"limit": "Лимиты бесплатных моделей зависят от аккаунта/ключа; проверь dashboard OpenRouter.",
+					"notes": "Используй провайдера OpenRouter выше с API-ключом OpenRouter."
+				},
+				"openaiCompatible": {
+					"provider": "OpenAI / OpenAI-compatible",
+					"model": "Используй модели OpenAI Images API (например, gpt-image-1) или совместимый endpoint Images API.",
+					"limit": "OpenAI-compatible провайдеры сами задают цены и бесплатные квоты.",
+					"notes": "Используй OpenAI-compatible провайдера выше и задай Base URL endpoint."
+				},
+				"googleAiStudio": {
+					"provider": "Google AI Studio / Gemini API",
+					"model": "Imagen 4 доступен через Gemini API там, где поддерживается.",
+					"limit": "Бесплатный тариф Imagen API не доступен в опубликованных ценах; тестовые лимиты AI Studio зависят от региона/аккаунта.",
+					"notes": "Используй через OpenRouter, если доступно, или через OpenAI-compatible proxy endpoint."
+				},
+				"huggingFace": {
+					"provider": "Hugging Face Inference Providers",
+					"model": "Модели text-to-image через провайдеров Hugging Face.",
+					"limit": "Бесплатные пользователи получают $0,10 monthly credits; PRO/Team получают больше monthly credits.",
+					"notes": "Используй только если выбранный endpoint предоставляет OpenAI-compatible image API."
+				},
+				"stability": {
+					"provider": "Stability AI",
+					"model": "API генерации/редактирования Stable Image.",
+					"limit": "В docs указано 25 free credits; 1 credit = $0,01, а расход зависит от service/model.",
+					"notes": "Используй только через OpenAI-compatible proxy или custom compatible endpoint."
+				}
+			}
+		}
 	},
 	"providers": {
 		"providerDocumentation": "Документация {{provider}}",
@@ -920,7 +959,7 @@
 			"description": "Когда включено, C может генерировать и редактировать изображения по prompt'ам с помощью отдельно настроенного провайдера генерации изображений.",
 			"providerLabel": "Провайдер",
 			"providerDescription": "Выберите провайдера для генерации изображений. Он не зависит от профиля провайдера чата.",
-			"localProviderNote": "Ollama и LM Studio здесь нельзя выбрать, потому что они предоставляют vision/chat API, а не API генерации изображений. Локальная генерация изображений доступна через настоящие API генерации изображений, такие как ComfyUI и Automatic1111, если они настроены.",
+			"localProviderNote": "Ollama, LM Studio, ComfyUI и Automatic1111 здесь нельзя выбрать, потому что эта панель теперь ориентирована на OpenRouter и OpenAI-compatible API генерации изображений.",
 			"apiKeyLabel": "API-ключ {{provider}}",
 			"optionalApiKeyLabel": "API-ключ {{provider}} (необязательно)",
 			"apiKeyPlaceholder": "Введите API-ключ {{provider}}",
@@ -948,7 +987,7 @@
 			},
 			"negativePromptLabel": "Негативный prompt",
 			"negativePromptPlaceholder": "Введи, чего нужно избегать в сгенерированных изображениях",
-			"negativePromptDescription": "Необязательно. Помогает локальным провайдерам избегать нежелательных объектов, стилей или артефактов.",
+			"negativePromptDescription": "Необязательно. Помогает совместимым провайдерам избегать нежелательных объектов, стилей или артефактов.",
 			"warningMissingApiKey": "⚠️ {{provider}} требует API-ключ для генерации изображений. Настройте его выше.",
 			"warningMissingModel": "⚠️ {{provider}} требует ID модели для генерации изображений. Настройте его выше.",
 			"successConfigured": "✓ Генерация изображений настроена для {{provider}} и готова к использованию"

@@ -22,7 +22,7 @@
 		"apiKeyRequired": "Klucz API {{provider}} jest wymagany do generowania obrazów. Skonfiguruj go w ustawieniach Generowania Obrazów.",
 		"modelRequired": "{{provider}} wymaga ID modelu do generowania obrazów. Skonfiguruj go w ustawieniach Generowania Obrazów.",
 		"unsupportedApiMethod": "{{provider}} nie obsługuje metody API generowania obrazów {{apiMethod}}.",
-		"unsupportedProvider": "{{provider}} nie jest obsługiwany do generowania obrazów. Użyj zamiast tego OpenRouter, OpenAI/OpenAI-compatible, ComfyUI lub Automatic1111.",
+		"unsupportedProvider": "{{provider}} nie jest obsługiwany do generowania obrazów. Użyj zamiast tego OpenRouter albo endpointu generowania obrazów OpenAI/OpenAI-compatible.",
 		"failedWithStatus": "Nie udało się wygenerować obrazu: {{status}} {{statusText}}",
 		"failedWithMessage": "Nie udało się wygenerować obrazu: {{message}}",
 		"noImageGenerated": "W odpowiedzi nie wygenerowano żadnego obrazu",
