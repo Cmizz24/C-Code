@@ -17,7 +17,11 @@
 		}
 	},
 	"generateImage": {
-		"openRouterApiKeyRequired": "La clé API OpenRouter est requise pour la génération d'images avec les modèles OpenRouter. Veuillez la configurer dans les paramètres expérimentaux de Génération d'Images.",
+		"openRouterApiKeyRequired": "La clé API OpenRouter est requise pour la génération d'images avec les modèles OpenRouter. Configure-la dans les paramètres expérimentaux de Génération d'Images.",
+		"missingConfiguration": "Les paramètres de génération d'images ne sont pas disponibles. Configure la Génération d'Images dans les paramètres expérimentaux.",
+		"apiKeyRequired": "La clé API {{provider}} est requise pour la génération d'images. Configure-la dans les paramètres expérimentaux de Génération d'Images.",
+		"modelRequired": "{{provider}} nécessite un ID de modèle pour la génération d'images. Configure-le dans les paramètres expérimentaux de Génération d'Images.",
+		"unsupportedApiMethod": "{{provider}} ne prend pas en charge la méthode API de génération d'images {{apiMethod}}.",
 		"failedWithStatus": "Échec de génération de l'image : {{status}} {{statusText}}",
 		"failedWithMessage": "Échec de génération de l'image : {{message}}",
 		"noImageGenerated": "Aucune image n'a été générée dans la réponse",

@@ -18,11 +18,15 @@
 	},
 	"generateImage": {
 		"openRouterApiKeyRequired": "OpenRouter API-Schlüssel ist für die Bildgenerierung mit OpenRouter-Modellen erforderlich. Bitte konfiguriere ihn in den Experimentellen Einstellungen für Bildgenerierung.",
+		"missingConfiguration": "Bildgenerierungseinstellungen sind nicht verfügbar. Bitte konfiguriere die Bildgenerierung in den experimentellen Einstellungen.",
+		"apiKeyRequired": "{{provider}} API-Schlüssel ist für die Bildgenerierung erforderlich. Bitte konfiguriere ihn in den experimentellen Einstellungen für Bildgenerierung.",
+		"modelRequired": "{{provider}} benötigt eine Modell-ID für die Bildgenerierung. Bitte konfiguriere sie in den experimentellen Einstellungen für Bildgenerierung.",
+		"unsupportedApiMethod": "{{provider}} unterstützt die Bildgenerierungs-API-Methode {{apiMethod}} nicht.",
 		"failedWithStatus": "Bildgenerierung fehlgeschlagen: {{status}} {{statusText}}",
 		"failedWithMessage": "Bildgenerierung fehlgeschlagen: {{message}}",
 		"noImageGenerated": "In der Antwort wurde kein Bild generiert",
 		"invalidImageData": "Ungültige Bilddaten in der Antwort",
-		"invalidImageFormat": "Ungültiges Bildformat erhalten",
+		"invalidImageFormat": "Ungültiges Bildformat empfangen",
 		"unknownError": "Unbekannter Fehler aufgetreten"
 	}
 }

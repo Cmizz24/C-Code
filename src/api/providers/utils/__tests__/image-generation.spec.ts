@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { generateImageWithImagesApi, generateImageWithProvider } from "../image-generation"
+import {
+	generateImageWithImagesApi,
+	generateImageWithProvider,
+	normalizeImageGenerationData,
+} from "../image-generation"
 
 // Mock the i18n module
-vi.mock("../../../i18n", () => ({
+vi.mock("../../../../i18n", () => ({
 	t: (key: string, options?: any) => {
 		// Return a sensible mock for i18n
 		if (key === "tools:generateImage.failedWithMessage" && options?.message) {
@@ -20,6 +24,77 @@ global.FormData = vi.fn(() => ({
 global.Blob = vi.fn() as any
 global.atob = vi.fn((str: string) => {
 	return Buffer.from(str, "base64").toString("binary")
+})
+
+describe("normalizeImageGenerationData", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	afterEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("should return data URLs without fetching", async () => {
+		const result = await normalizeImageGenerationData("data:image/webp;base64,ZmFrZQ==")
+
+		expect(result).toEqual({
+			imageData: "data:image/webp;base64,ZmFrZQ==",
+			imageFormat: "webp",
+		})
+		expect(global.fetch).not.toHaveBeenCalled()
+	})
+
+	it("should fetch external URLs and convert them to data URLs", async () => {
+		const imageBuffer = Buffer.from("external image data")
+		vi.mocked(global.fetch).mockResolvedValue({
+			ok: true,
+			headers: {
+				get: vi.fn().mockReturnValue("image/jpeg"),
+			},
+			arrayBuffer: vi
+				.fn()
+				.mockResolvedValue(
+					imageBuffer.buffer.slice(imageBuffer.byteOffset, imageBuffer.byteOffset + imageBuffer.byteLength),
+				),
+		} as any)
+
+		const result = await normalizeImageGenerationData("https://example.com/generated-image.png")
+
+		expect(result).toEqual({
+			imageData: `data:image/jpeg;base64,${imageBuffer.toString("base64")}`,
+			imageFormat: "jpeg",
+		})
+		expect(global.fetch).toHaveBeenCalledWith("https://example.com/generated-image.png")
+	})
+
+	it("should fall back to the URL extension when content type is not an image", async () => {
+		const imageBuffer = Buffer.from("webp image data")
+		vi.mocked(global.fetch).mockResolvedValue({
+			ok: true,
+			headers: {
+				get: vi.fn().mockReturnValue("application/octet-stream"),
+			},
+			arrayBuffer: vi
+				.fn()
+				.mockResolvedValue(
+					imageBuffer.buffer.slice(imageBuffer.byteOffset, imageBuffer.byteOffset + imageBuffer.byteLength),
+				),
+		} as any)
+
+		const result = await normalizeImageGenerationData("https://example.com/generated-image.webp")
+
+		expect(result).toEqual({
+			imageData: `data:image/webp;base64,${imageBuffer.toString("base64")}`,
+			imageFormat: "webp",
+		})
+	})
+
+	it("should reject unsupported image data", async () => {
+		await expect(normalizeImageGenerationData("not-an-image")).rejects.toThrow(
+			"tools:generateImage.invalidImageFormat",
+		)
+	})
 })
 
 describe("generateImageWithImagesApi", () => {
@@ -139,8 +214,25 @@ describe("generateImageWithImagesApi", () => {
 					data: [{ url: "https://example.com/generated-image.png" }],
 				}),
 			}
+			const imageBuffer = Buffer.from("downloaded image data")
+			const mockImageResponse = {
+				ok: true,
+				headers: {
+					get: vi.fn().mockReturnValue("image/png"),
+				},
+				arrayBuffer: vi
+					.fn()
+					.mockResolvedValue(
+						imageBuffer.buffer.slice(
+							imageBuffer.byteOffset,
+							imageBuffer.byteOffset + imageBuffer.byteLength,
+						),
+					),
+			}
 
-			vi.mocked(global.fetch).mockResolvedValue(mockResponse as any)
+			vi.mocked(global.fetch)
+				.mockResolvedValueOnce(mockResponse as any)
+				.mockResolvedValueOnce(mockImageResponse as any)
 
 			const result = await generateImageWithImagesApi({
 				baseURL: "https://api.example.com/v1",
@@ -151,8 +243,9 @@ describe("generateImageWithImagesApi", () => {
 			})
 
 			expect(result.success).toBe(true)
-			expect(result.imageData).toBe("https://example.com/generated-image.png")
+			expect(result.imageData).toBe(`data:image/png;base64,${imageBuffer.toString("base64")}`)
 			expect(result.imageFormat).toBe("png")
+			expect(global.fetch).toHaveBeenNthCalledWith(2, "https://example.com/generated-image.png")
 		})
 
 		it("should handle empty data array in response", async () => {

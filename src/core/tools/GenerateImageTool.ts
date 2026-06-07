@@ -1,22 +1,16 @@
 import path from "path"
 import fs from "fs/promises"
 import * as vscode from "vscode"
-import {
-	GenerateImageParams,
-	IMAGE_GENERATION_MODEL_IDS,
-	IMAGE_GENERATION_MODELS,
-	getImageGenerationProvider,
-} from "@roo-code/types"
+import { GenerateImageParams } from "@roo-code/types"
 import { Task } from "../task/Task"
 import { formatResponse } from "../prompts/responses"
 import { fileExistsAtPath } from "../../utils/fs"
 import { getReadablePath } from "../../utils/path"
 import { isPathOutsideWorkspace } from "../../utils/pathUtils"
 import { EXPERIMENT_IDS, experiments } from "../../shared/experiments"
-import { OpenRouterHandler } from "../../api/providers/openrouter"
+import { generateImageWithConfiguredProvider } from "../../api/providers/utils/image-generation-provider"
 import { BaseTool, ToolCallbacks } from "./BaseTool"
 import type { ToolUse } from "../../shared/tools"
-import { t } from "../../i18n"
 
 export class GenerateImageTool extends BaseTool<"generate_image"> {
 	readonly name = "generate_image" as const
@@ -121,47 +115,6 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 
 		const isWriteProtected = task.rooProtectedController?.isWriteProtected(relPath) || false
 
-		// Use shared utility for backwards compatibility logic
-		const imageProvider = getImageGenerationProvider(
-			state?.imageGenerationProvider,
-			!!state?.openRouterImageGenerationSelectedModel,
-		)
-
-		// Get the selected model
-		let selectedModel = state?.openRouterImageGenerationSelectedModel
-		let modelInfo = undefined
-
-		// Find the model info matching both value AND provider
-		// (since the same model value can exist for multiple providers)
-		if (selectedModel) {
-			modelInfo = IMAGE_GENERATION_MODELS.find((m) => m.value === selectedModel && m.provider === imageProvider)
-			if (!modelInfo) {
-				// Model doesn't exist for this provider, use first model for selected provider
-				const providerModels = IMAGE_GENERATION_MODELS.filter((m) => m.provider === imageProvider)
-				modelInfo = providerModels[0]
-				selectedModel = modelInfo?.value || IMAGE_GENERATION_MODEL_IDS[0]
-			}
-		} else {
-			// No model selected, use first model for selected provider
-			const providerModels = IMAGE_GENERATION_MODELS.filter((m) => m.provider === imageProvider)
-			modelInfo = providerModels[0]
-			selectedModel = modelInfo?.value || IMAGE_GENERATION_MODEL_IDS[0]
-		}
-
-		// Use the provider selection
-		const modelProvider = imageProvider
-		const apiMethod = modelInfo?.apiMethod
-
-		// Validate API key for OpenRouter
-		const openRouterApiKey = state?.openRouterImageApiKey
-
-		if (imageProvider === "openrouter" && !openRouterApiKey) {
-			const errorMessage = t("tools:generateImage.openRouterApiKeyRequired")
-			await task.say("error", errorMessage)
-			pushToolResult(formatResponse.toolError(errorMessage))
-			return
-		}
-
 		const fullPath = path.resolve(task.cwd, relPath)
 		const isOutsideWorkspace = isPathOutsideWorkspace(fullPath)
 
@@ -190,13 +143,11 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 				return
 			}
 
-			const openRouterHandler = new OpenRouterHandler({} as any)
-			const result = await openRouterHandler.generateImage(
+			const result = await generateImageWithConfiguredProvider({
+				state,
 				prompt,
-				selectedModel,
-				openRouterApiKey!,
-				inputImageData,
-			)
+				inputImage: inputImageData,
+			})
 
 			if (!result.success) {
 				await task.say("error", result.error || "Failed to generate image")
@@ -213,7 +164,7 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 				return
 			}
 
-			const base64Match = result.imageData.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/)
+			const base64Match = result.imageData.match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,(.+)$/)
 			if (!base64Match) {
 				const errorMessage = "Invalid image format received"
 				await task.say("error", errorMessage)
@@ -226,7 +177,7 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 			const base64Data = base64Match[2]
 
 			let finalPath = relPath
-			if (!finalPath.match(/\.(png|jpg|jpeg)$/i)) {
+			if (!finalPath.match(/\.(png|jpg|jpeg|webp|gif)$/i)) {
 				finalPath = `${finalPath}.${imageFormat === "jpeg" ? "jpg" : imageFormat}`
 			}
 

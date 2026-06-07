@@ -867,17 +867,35 @@
 			"description": "Khi được bật, công cụ new_task sẽ yêu cầu cung cấp tham số todos. Điều này đảm bảo tất cả các nhiệm vụ mới bắt đầu với một danh sách mục tiêu rõ ràng. Khi bị tắt (mặc định), tham số todos vẫn là tùy chọn để tương thích ngược."
 		},
 		"IMAGE_GENERATION": {
+			"name": "Bật tạo hình ảnh bằng AI",
+			"description": "Khi bật, C có thể tạo và chỉnh sửa hình ảnh từ prompt bằng một nhà cung cấp tạo hình ảnh được cấu hình riêng.",
 			"providerLabel": "Nhà cung cấp",
-			"providerDescription": "Chọn nhà cung cấp để tạo hình ảnh.",
-			"name": "Bật tạo hình ảnh AI",
-			"description": "Khi được bật, Roo có thể tạo hình ảnh từ lời nhắc văn bản bằng các mô hình tạo hình ảnh của OpenRouter. Yêu cầu khóa API OpenRouter được cấu hình.",
-			"openRouterApiKeyLabel": "Khóa API OpenRouter",
-			"openRouterApiKeyPlaceholder": "Nhập khóa API OpenRouter của bạn",
+			"providerDescription": "Chọn nhà cung cấp dùng cho tạo hình ảnh. Cài đặt này độc lập với hồ sơ nhà cung cấp chat của bạn.",
+			"apiKeyLabel": "Khóa API {{provider}}",
+			"optionalApiKeyLabel": "Khóa API {{provider}} (tùy chọn)",
+			"apiKeyPlaceholder": "Nhập khóa API {{provider}} của bạn",
+			"apiKeyRequiredDescription": "Nhà cung cấp này yêu cầu khóa API để tạo hình ảnh.",
+			"apiKeyOptionalDescription": "Tùy chọn. Chỉ dùng mục này nếu máy chủ cục bộ hoặc proxy của bạn yêu cầu xác thực bearer-token.",
 			"getApiKeyText": "Lấy khóa API của bạn từ",
+			"baseUrlLabel": "URL cơ sở",
+			"baseUrlPlaceholder": "Mặc định: {{url}}",
+			"baseUrlDescription": "Để trống để dùng {{url}}.",
 			"modelSelectionLabel": "Mô hình tạo hình ảnh",
-			"modelSelectionDescription": "Chọn mô hình để sử dụng cho việc tạo hình ảnh",
-			"warningMissingKey": "⚠️ Khóa API OpenRouter là bắt buộc để tạo hình ảnh. Vui lòng cấu hình ở trên.",
-			"successConfigured": "✓ Tạo hình ảnh đã được cấu hình và sẵn sàng sử dụng"
+			"modelSelectionDescription": "Chọn mô hình dùng để tạo hình ảnh",
+			"modelIdLabel": "ID mô hình",
+			"customModelIdPlaceholder": "Nhập ID mô hình",
+			"modelIdPlaceholderWithDefault": "Mặc định: {{model}}",
+			"customModelIdDescription": "Nhập đúng ID mô hình mà nhà cung cấp hoặc máy chủ cục bộ của bạn cung cấp.",
+			"apiMethodLabel": "Phương thức API",
+			"apiMethodDescription": "Chọn dạng endpoint tương thích OpenAI để dùng cho tạo hình ảnh.",
+			"apiMethodLockedDescription": "Mô hình đã chọn dùng phương thức API bắt buộc của {{model}}.",
+			"apiMethodLabels": {
+				"chat_completions": "Chat completions",
+				"images_api": "Images API"
+			},
+			"warningMissingApiKey": "⚠️ {{provider}} yêu cầu khóa API để tạo hình ảnh. Hãy cấu hình ở trên.",
+			"warningMissingModel": "⚠️ {{provider}} yêu cầu ID mô hình để tạo hình ảnh. Hãy cấu hình ở trên.",
+			"successConfigured": "✓ Tạo hình ảnh đã được cấu hình cho {{provider}} và sẵn sàng sử dụng"
 		},
 		"RUN_SLASH_COMMAND": {
 			"name": "Bật lệnh slash do mô hình khởi tạo",

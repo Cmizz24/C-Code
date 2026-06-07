@@ -18,11 +18,15 @@
 	},
 	"generateImage": {
 		"openRouterApiKeyRequired": "OpenRouter मॉडल के साथ छवि निर्माण के लिए OpenRouter API कुंजी आवश्यक है। कृपया इसे छवि निर्माण प्रयोगात्मक सेटिंग में कॉन्फ़िगर करें।",
+		"missingConfiguration": "छवि निर्माण सेटिंग उपलब्ध नहीं हैं। कृपया प्रयोगात्मक सेटिंग में छवि निर्माण कॉन्फ़िगर करें।",
+		"apiKeyRequired": "छवि निर्माण के लिए {{provider}} API कुंजी आवश्यक है। कृपया इसे छवि निर्माण प्रयोगात्मक सेटिंग में कॉन्फ़िगर करें।",
+		"modelRequired": "{{provider}} को छवि निर्माण के लिए मॉडल ID चाहिए। कृपया इसे छवि निर्माण प्रयोगात्मक सेटिंग में कॉन्फ़िगर करें।",
+		"unsupportedApiMethod": "{{provider}} {{apiMethod}} छवि निर्माण API विधि का समर्थन नहीं करता है।",
 		"failedWithStatus": "छवि निर्माण विफल: {{status}} {{statusText}}",
 		"failedWithMessage": "छवि निर्माण विफल: {{message}}",
 		"noImageGenerated": "प्रतिक्रिया में कोई छवि उत्पन्न नहीं हुई",
 		"invalidImageData": "प्रतिक्रिया में अमान्य छवि डेटा",
 		"invalidImageFormat": "अमान्य छवि प्रारूप प्राप्त हुआ",
-		"unknownError": "एक अज्ञात त्रुटि हुई"
+		"unknownError": "अज्ञात त्रुटि हुई"
 	}
 }

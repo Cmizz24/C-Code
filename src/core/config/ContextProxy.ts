@@ -320,9 +320,43 @@ export class ContextProxy {
 					logger.info("Migrated openRouterImageGenerationSelectedModel to global state")
 				}
 
+				if (oldNestedSettings.baseUrl && !this.stateCache.openRouterImageBaseUrl) {
+					await this.originalContext.globalState.update("openRouterImageBaseUrl", oldNestedSettings.baseUrl)
+					this.stateCache.openRouterImageBaseUrl = oldNestedSettings.baseUrl
+					logger.info("Migrated openRouterImageBaseUrl to global state")
+				}
+
+				if (oldNestedSettings.apiMethod && !this.stateCache.openRouterImageGenerationApiMethod) {
+					await this.originalContext.globalState.update(
+						"openRouterImageGenerationApiMethod",
+						oldNestedSettings.apiMethod,
+					)
+					this.stateCache.openRouterImageGenerationApiMethod = oldNestedSettings.apiMethod
+					logger.info("Migrated openRouterImageGenerationApiMethod to global state")
+				}
+
+				if (!this.stateCache.imageGenerationProvider) {
+					await this.originalContext.globalState.update("imageGenerationProvider", "openrouter")
+					this.stateCache.imageGenerationProvider = "openrouter"
+					logger.info("Migrated imageGenerationProvider to openrouter")
+				}
+
 				// Clean up the old nested structure
 				await this.originalContext.globalState.update("openRouterImageGenerationSettings", undefined)
 				logger.info("Removed old nested openRouterImageGenerationSettings")
+			}
+
+			const hasLegacyOpenRouterImageSettings = Boolean(
+				this.secretCache.openRouterImageApiKey ||
+					this.stateCache.openRouterImageGenerationSelectedModel ||
+					this.stateCache.openRouterImageBaseUrl ||
+					this.stateCache.openRouterImageGenerationApiMethod,
+			)
+
+			if (hasLegacyOpenRouterImageSettings && !this.stateCache.imageGenerationProvider) {
+				await this.originalContext.globalState.update("imageGenerationProvider", "openrouter")
+				this.stateCache.imageGenerationProvider = "openrouter"
+				logger.info("Defaulted imageGenerationProvider to openrouter for legacy image generation settings")
 			}
 		} catch (error) {
 			logger.error(

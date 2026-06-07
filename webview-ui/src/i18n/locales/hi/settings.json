@@ -867,17 +867,35 @@
 			"description": "जब सक्षम किया जाता है, तो new_task टूल को todos पैरामीटर प्रदान करने की आवश्यकता होगी। यह सुनिश्चित करता है कि सभी नए कार्य स्पष्ट उद्देश्यों की सूची के साथ शुरू हों। जब अक्षम किया जाता है (डिफ़ॉल्ट), तो todos पैरामीटर पिछड़े संगतता के लिए वैकल्पिक रहता है।"
 		},
 		"IMAGE_GENERATION": {
-			"providerLabel": "प्रदाता",
-			"providerDescription": "छवि निर्माण के लिए प्रदाता चुनें।",
 			"name": "AI छवि निर्माण सक्षम करें",
-			"description": "जब सक्षम किया जाता है, तो Roo OpenRouter के छवि निर्माण मॉडल का उपयोग करके टेक्स्ट प्रॉम्प्ट से छवियां उत्पन्न कर सकता है। एक कॉन्फ़िगर किए गए OpenRouter API कुंजी की आवश्यकता होती है।",
-			"openRouterApiKeyLabel": "OpenRouter API कुंजी",
-			"openRouterApiKeyPlaceholder": "अपनी OpenRouter API कुंजी दर्ज करें",
-			"getApiKeyText": "अपनी API कुंजी प्राप्त करें",
+			"description": "सक्षम होने पर, C अलग से कॉन्फ़िगर किए गए छवि निर्माण प्रदाता का उपयोग करके prompts से छवियाँ बना और संपादित कर सकता है।",
+			"providerLabel": "प्रदाता",
+			"providerDescription": "छवि निर्माण के लिए उपयोग करने वाला प्रदाता चुनें। यह आपके chat प्रदाता प्रोफ़ाइल से स्वतंत्र है।",
+			"apiKeyLabel": "{{provider}} API कुंजी",
+			"optionalApiKeyLabel": "{{provider}} API कुंजी (वैकल्पिक)",
+			"apiKeyPlaceholder": "अपनी {{provider}} API कुंजी दर्ज करें",
+			"apiKeyRequiredDescription": "इस प्रदाता को छवि निर्माण के लिए API कुंजी चाहिए।",
+			"apiKeyOptionalDescription": "वैकल्पिक। इसे केवल तभी उपयोग करें जब आपका स्थानीय सर्वर या proxy bearer-token प्रमाणीकरण मांगता हो।",
+			"getApiKeyText": "अपनी API कुंजी यहाँ से प्राप्त करें",
+			"baseUrlLabel": "Base URL",
+			"baseUrlPlaceholder": "डिफ़ॉल्ट: {{url}}",
+			"baseUrlDescription": "{{url}} उपयोग करने के लिए खाली छोड़ दें।",
 			"modelSelectionLabel": "छवि निर्माण मॉडल",
 			"modelSelectionDescription": "छवि निर्माण के लिए उपयोग करने वाला मॉडल चुनें",
-			"warningMissingKey": "⚠️ छवि निर्माण के लिए OpenRouter API कुंजी आवश्यक है। कृपया इसे ऊपर कॉन्फ़िगर करें।",
-			"successConfigured": "✓ छवि निर्माण कॉन्फ़िगर है और उपयोग के लिए तैयार है"
+			"modelIdLabel": "मॉडल ID",
+			"customModelIdPlaceholder": "एक मॉडल ID दर्ज करें",
+			"modelIdPlaceholderWithDefault": "डिफ़ॉल्ट: {{model}}",
+			"customModelIdDescription": "अपने प्रदाता या स्थानीय सर्वर द्वारा दिया गया सटीक मॉडल ID दर्ज करें।",
+			"apiMethodLabel": "API विधि",
+			"apiMethodDescription": "छवि निर्माण के लिए उपयोग करने वाला OpenAI-compatible endpoint shape चुनें।",
+			"apiMethodLockedDescription": "चुना गया मॉडल {{model}} की आवश्यक API विधि का उपयोग करता है।",
+			"apiMethodLabels": {
+				"chat_completions": "Chat completions",
+				"images_api": "Images API"
+			},
+			"warningMissingApiKey": "⚠️ {{provider}} को छवि निर्माण के लिए API कुंजी चाहिए। इसे ऊपर कॉन्फ़िगर करें।",
+			"warningMissingModel": "⚠️ {{provider}} को छवि निर्माण के लिए मॉडल ID चाहिए। इसे ऊपर कॉन्फ़िगर करें।",
+			"successConfigured": "✓ छवि निर्माण {{provider}} के लिए कॉन्फ़िगर है और उपयोग के लिए तैयार है"
 		},
 		"RUN_SLASH_COMMAND": {
 			"name": "मॉडल द्वारा शुरू किए गए स्लैश कमांड सक्षम करें",

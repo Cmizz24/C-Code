@@ -7,14 +7,16 @@ import * as pathUtils from "../../../utils/pathUtils"
 import * as fileUtils from "../../../utils/fs"
 import { formatResponse } from "../../prompts/responses"
 import { EXPERIMENT_IDS } from "../../../shared/experiments"
-import { OpenRouterHandler } from "../../../api/providers/openrouter"
+import { generateImageWithConfiguredProvider } from "../../../api/providers/utils/image-generation-provider"
 
 // Mock dependencies
 vi.mock("fs/promises")
 vi.mock("../../../utils/pathUtils")
 vi.mock("../../../utils/fs")
 vi.mock("../../../utils/safeWriteJson")
-vi.mock("../../../api/providers/openrouter")
+vi.mock("../../../api/providers/utils/image-generation-provider", () => ({
+	generateImageWithConfiguredProvider: vi.fn(),
+}))
 
 describe("generateImageTool", () => {
 	let mockCline: any
@@ -24,6 +26,11 @@ describe("generateImageTool", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
+		vi.mocked(generateImageWithConfiguredProvider).mockResolvedValue({
+			success: true,
+			imageData: "data:image/png;base64,fakebase64data",
+			imageFormat: "png",
+		})
 
 		// Setup mock Cline instance
 		mockCline = {
@@ -143,19 +150,6 @@ describe("generateImageTool", () => {
 				partial: false,
 			}
 
-			// Mock the OpenRouterHandler generateImage method
-			const mockGenerateImage = vi.fn().mockResolvedValue({
-				success: true,
-				imageData: "data:image/png;base64,fakebase64data",
-			})
-
-			vi.mocked(OpenRouterHandler).mockImplementation(
-				() =>
-					({
-						generateImage: mockGenerateImage,
-					}) as any,
-			)
-
 			await generateImageTool.handle(mockCline as Task, completeBlock as ToolUse<"generate_image">, {
 				askApproval: mockAskApproval,
 				handleError: mockHandleError,
@@ -164,7 +158,14 @@ describe("generateImageTool", () => {
 
 			// Should process the complete block
 			expect(mockAskApproval).toHaveBeenCalled()
-			expect(mockGenerateImage).toHaveBeenCalled()
+			expect(generateImageWithConfiguredProvider).toHaveBeenCalledWith({
+				state: expect.objectContaining({
+					openRouterImageApiKey: "test-api-key",
+					openRouterImageGenerationSelectedModel: "google/gemini-2.5-flash-image",
+				}),
+				prompt: "Generate a test image",
+				inputImage: undefined,
+			})
 			expect(mockCline.requestAgentWriteIntent).toHaveBeenCalledWith("test-image.png")
 			expect(mockCline.releaseAgentWriteIntent).toHaveBeenCalledWith("test-image.png")
 			expect(mockPushToolResult).toHaveBeenCalled()
@@ -189,18 +190,6 @@ describe("generateImageTool", () => {
 				},
 				partial: false,
 			}
-
-			const mockGenerateImage = vi.fn().mockResolvedValue({
-				success: true,
-				imageData: "data:image/png;base64,fakebase64data",
-			})
-
-			vi.mocked(OpenRouterHandler).mockImplementation(
-				() =>
-					({
-						generateImage: mockGenerateImage,
-					}) as any,
-			)
 
 			await generateImageTool.handle(mockCline as Task, completeBlock as ToolUse<"generate_image">, {
 				askApproval: mockAskApproval,
@@ -231,19 +220,6 @@ describe("generateImageTool", () => {
 			// Mock convertToWebviewUri to return a test URI
 			const mockWebviewUri = "https://file+.vscode-resource.vscode-cdn.net/test/workspace/test-image.png"
 			mockCline.providerRef.deref().convertToWebviewUri = vi.fn().mockReturnValue(mockWebviewUri)
-
-			// Mock the OpenRouterHandler generateImage method
-			const mockGenerateImage = vi.fn().mockResolvedValue({
-				success: true,
-				imageData: "data:image/png;base64,fakebase64data",
-			})
-
-			vi.mocked(OpenRouterHandler).mockImplementation(
-				() =>
-					({
-						generateImage: mockGenerateImage,
-					}) as any,
-			)
 
 			await generateImageTool.handle(mockCline as Task, completeBlock as ToolUse<"generate_image">, {
 				askApproval: mockAskApproval,
@@ -359,6 +335,40 @@ describe("generateImageTool", () => {
 	})
 
 	describe("input image validation", () => {
+		it("should pass supported input image data to the configured provider", async () => {
+			const inputBuffer = Buffer.from("source-image-data")
+			vi.mocked(fs.readFile).mockResolvedValue(inputBuffer)
+
+			const block: ToolUse = {
+				type: "tool_use",
+				name: "generate_image",
+				params: {
+					prompt: "Upscale this image",
+					path: "upscaled.png",
+					image: "source.png",
+				},
+				nativeArgs: {
+					prompt: "Upscale this image",
+					path: "upscaled.png",
+					image: "source.png",
+				},
+				partial: false,
+			}
+
+			await generateImageTool.handle(mockCline as Task, block as ToolUse<"generate_image">, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(generateImageWithConfiguredProvider).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: "Upscale this image",
+					inputImage: `data:image/png;base64,${inputBuffer.toString("base64")}`,
+				}),
+			)
+		})
+
 		it("should handle non-existent input image", async () => {
 			vi.mocked(fileUtils.fileExistsAtPath).mockResolvedValue(false)
 

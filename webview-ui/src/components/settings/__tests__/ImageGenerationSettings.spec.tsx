@@ -1,29 +1,56 @@
-import { render, fireEvent } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 
 import { ImageGenerationSettings } from "../ImageGenerationSettings"
 
-// Mock the translation context
+vi.mock("@vscode/webview-ui-toolkit/react", () => ({
+	VSCodeCheckbox: ({ children, checked, onChange }: any) => (
+		<label>
+			<input type="checkbox" checked={checked} onChange={(event) => onChange(event)} />
+			{children}
+		</label>
+	),
+	VSCodeDropdown: ({ children, value, onChange, disabled, className }: any) => (
+		<select value={value} onChange={(event) => onChange(event)} disabled={disabled} className={className}>
+			{children}
+		</select>
+	),
+	VSCodeOption: ({ children, value }: any) => <option value={value}>{children}</option>,
+	VSCodeTextField: ({ value, onInput, placeholder, type, className }: any) => (
+		<input
+			value={value}
+			onChange={(event) => onInput(event)}
+			placeholder={placeholder}
+			type={type ?? "text"}
+			className={className}
+		/>
+	),
+}))
+
 vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
-		t: (key: string) => key,
+		t: (key: string, options?: Record<string, string>) => {
+			if (!options) {
+				return key
+			}
+
+			const renderedOptions = Object.entries(options)
+				.map(([optionKey, optionValue]) => `${optionKey}=${optionValue}`)
+				.join(",")
+
+			return `${key}(${renderedOptions})`
+		},
 	}),
 }))
 
 describe("ImageGenerationSettings", () => {
-	const mockSetImageGenerationProvider = vi.fn()
-	const mockSetOpenRouterImageApiKey = vi.fn()
-	const mockSetImageGenerationSelectedModel = vi.fn()
+	const mockSetImageGenerationSetting = vi.fn()
 	const mockOnChange = vi.fn()
 
 	const defaultProps = {
 		enabled: false,
 		onChange: mockOnChange,
-		imageGenerationProvider: undefined,
-		openRouterImageApiKey: undefined,
-		openRouterImageGenerationSelectedModel: undefined,
-		setImageGenerationProvider: mockSetImageGenerationProvider,
-		setOpenRouterImageApiKey: mockSetOpenRouterImageApiKey,
-		setImageGenerationSelectedModel: mockSetImageGenerationSelectedModel,
+		imageGenerationSettings: {},
+		setImageGenerationSetting: mockSetImageGenerationSetting,
 	}
 
 	beforeEach(() => {
@@ -34,68 +61,211 @@ describe("ImageGenerationSettings", () => {
 		it("should not call setter functions on initial mount with empty configuration", () => {
 			render(<ImageGenerationSettings {...defaultProps} />)
 
-			// Should NOT call setter functions on initial mount to prevent dirty state
-			expect(mockSetImageGenerationProvider).not.toHaveBeenCalled()
-			expect(mockSetOpenRouterImageApiKey).not.toHaveBeenCalled()
-			expect(mockSetImageGenerationSelectedModel).not.toHaveBeenCalled()
+			expect(mockSetImageGenerationSetting).not.toHaveBeenCalled()
 		})
 
 		it("should not call setter functions on initial mount with existing configuration", () => {
 			render(
 				<ImageGenerationSettings
 					{...defaultProps}
-					openRouterImageApiKey="existing-key"
-					openRouterImageGenerationSelectedModel="google/gemini-2.5-flash-image"
+					imageGenerationSettings={{
+						imageGenerationProvider: "openrouter",
+						openRouterImageApiKey: "existing-key",
+						openRouterImageBaseUrl: "https://openrouter.example/api/v1",
+						openRouterImageGenerationSelectedModel: "google/gemini-2.5-flash-image",
+						openRouterImageGenerationApiMethod: "chat_completions",
+					}}
 				/>,
 			)
 
-			// Should NOT call setter functions on initial mount to prevent dirty state
-			expect(mockSetImageGenerationProvider).not.toHaveBeenCalled()
-			expect(mockSetOpenRouterImageApiKey).not.toHaveBeenCalled()
-			expect(mockSetImageGenerationSelectedModel).not.toHaveBeenCalled()
+			expect(mockSetImageGenerationSetting).not.toHaveBeenCalled()
 		})
 	})
 
 	describe("User Interaction Behavior", () => {
-		it("should call setimageGenerationSettings when user changes API key", async () => {
-			// Set provider to "openrouter" so the API key field renders
-			const { getByPlaceholderText } = render(
-				<ImageGenerationSettings {...defaultProps} enabled={true} imageGenerationProvider="openrouter" />,
-			)
+		it("should call onChange when the image generation experiment is toggled", () => {
+			render(<ImageGenerationSettings {...defaultProps} />)
 
-			const apiKeyInput = getByPlaceholderText(
-				"settings:experimental.IMAGE_GENERATION.openRouterApiKeyPlaceholder",
-			)
+			fireEvent.click(screen.getByRole("checkbox"))
 
-			// Simulate user typing
-			fireEvent.input(apiKeyInput, { target: { value: "new-api-key" } })
-
-			// Should call setimageGenerationSettings
-			expect(defaultProps.setOpenRouterImageApiKey).toHaveBeenCalledWith("new-api-key")
+			expect(mockOnChange).toHaveBeenCalledWith(true)
+			expect(mockSetImageGenerationSetting).not.toHaveBeenCalled()
 		})
 
-		// Note: Testing VSCode dropdown components is complex due to their custom nature
-		// The key functionality (not marking as dirty on initial mount) is already tested above
+		it("should update the provider-specific API key when user changes the OpenRouter API key", () => {
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					enabled={true}
+					imageGenerationSettings={{ imageGenerationProvider: "openrouter" }}
+				/>,
+			)
+
+			fireEvent.change(
+				screen.getByPlaceholderText(
+					"settings:experimental.IMAGE_GENERATION.apiKeyPlaceholder(provider=OpenRouter)",
+				),
+				{ target: { value: "new-openrouter-key" } },
+			)
+
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith("openRouterImageApiKey", "new-openrouter-key")
+		})
+
+		it("should update imageGenerationProvider when user changes providers", () => {
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					enabled={true}
+					imageGenerationSettings={{ imageGenerationProvider: "openrouter" }}
+				/>,
+			)
+
+			fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "openai" } })
+
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith("imageGenerationProvider", "openai")
+		})
+
+		it("should update OpenAI-compatible provider-specific fields", () => {
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					enabled={true}
+					imageGenerationSettings={{
+						imageGenerationProvider: "openai",
+						openAiImageApiKey: "existing-openai-key",
+						openAiImageBaseUrl: "https://api.openai.com/v1",
+						openAiImageGenerationSelectedModel: "custom-image-model",
+						openAiImageGenerationApiMethod: "chat_completions",
+					}}
+				/>,
+			)
+
+			fireEvent.change(
+				screen.getByPlaceholderText(
+					"settings:experimental.IMAGE_GENERATION.apiKeyPlaceholder(provider=OpenAI / OpenAI Compatible)",
+				),
+				{ target: { value: "updated-openai-key" } },
+			)
+			fireEvent.change(
+				screen.getByPlaceholderText(
+					"settings:experimental.IMAGE_GENERATION.baseUrlPlaceholder(url=https://api.openai.com/v1)",
+				),
+				{ target: { value: "https://compatible.example/v1" } },
+			)
+			fireEvent.change(screen.getByDisplayValue("custom-image-model"), {
+				target: { value: "updated-custom-model" },
+			})
+			fireEvent.change(
+				screen.getByDisplayValue("settings:experimental.IMAGE_GENERATION.apiMethodLabels.chat_completions"),
+				{
+					target: { value: "images_api" },
+				},
+			)
+
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith("openAiImageApiKey", "updated-openai-key")
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith(
+				"openAiImageBaseUrl",
+				"https://compatible.example/v1",
+			)
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith(
+				"openAiImageGenerationSelectedModel",
+				"updated-custom-model",
+			)
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith("openAiImageGenerationApiMethod", "images_api")
+		})
 	})
 
 	describe("Conditional Rendering", () => {
-		it("should render input fields when enabled is true and provider is openrouter", () => {
-			// Set provider to "openrouter" so the API key field renders
-			const { getByPlaceholderText } = render(
-				<ImageGenerationSettings {...defaultProps} enabled={true} imageGenerationProvider="openrouter" />,
+		it("should render provider-specific fields when enabled is true and provider is OpenRouter", () => {
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					enabled={true}
+					imageGenerationSettings={{ imageGenerationProvider: "openrouter" }}
+				/>,
 			)
 
 			expect(
-				getByPlaceholderText("settings:experimental.IMAGE_GENERATION.openRouterApiKeyPlaceholder"),
+				screen.getByPlaceholderText(
+					"settings:experimental.IMAGE_GENERATION.apiKeyPlaceholder(provider=OpenRouter)",
+				),
+			).toBeInTheDocument()
+			expect(
+				screen.getByPlaceholderText(
+					"settings:experimental.IMAGE_GENERATION.baseUrlPlaceholder(url=https://openrouter.ai/api/v1)",
+				),
+			).toBeInTheDocument()
+			expect(screen.getAllByRole("combobox")).toHaveLength(3)
+			expect(
+				screen.getByText("settings:experimental.IMAGE_GENERATION.warningMissingApiKey(provider=OpenRouter)"),
 			).toBeInTheDocument()
 		})
 
-		it("should not render input fields when enabled is false", () => {
-			const { queryByPlaceholderText } = render(<ImageGenerationSettings {...defaultProps} enabled={false} />)
+		it("should render custom model and unlocked API method fields for OpenAI-compatible image generation", () => {
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					enabled={true}
+					imageGenerationSettings={{
+						imageGenerationProvider: "openai",
+						openAiImageApiKey: "openai-key",
+						openAiImageGenerationSelectedModel: "custom-image-model",
+						openAiImageGenerationApiMethod: "chat_completions",
+					}}
+				/>,
+			)
 
 			expect(
-				queryByPlaceholderText("settings:experimental.IMAGE_GENERATION.openRouterApiKeyPlaceholder"),
+				screen.getByPlaceholderText(
+					"settings:experimental.IMAGE_GENERATION.apiKeyPlaceholder(provider=OpenAI / OpenAI Compatible)",
+				),
+			).toBeInTheDocument()
+			expect(screen.getByDisplayValue("custom-image-model")).toBeInTheDocument()
+			expect(
+				screen.getByDisplayValue("settings:experimental.IMAGE_GENERATION.apiMethodLabels.chat_completions"),
+			).toBeEnabled()
+			expect(
+				screen.getByText(
+					"settings:experimental.IMAGE_GENERATION.successConfigured(provider=OpenAI / OpenAI Compatible)",
+				),
+			).toBeInTheDocument()
+		})
+
+		it("should render optional API key and missing-model warning for local providers", () => {
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					enabled={true}
+					imageGenerationSettings={{ imageGenerationProvider: "ollama" }}
+				/>,
+			)
+
+			expect(
+				screen.getByText("settings:experimental.IMAGE_GENERATION.optionalApiKeyLabel(provider=Ollama)"),
+			).toBeInTheDocument()
+			expect(
+				screen.getByPlaceholderText("settings:experimental.IMAGE_GENERATION.customModelIdPlaceholder"),
+			).toBeInTheDocument()
+			expect(
+				screen.getByText("settings:experimental.IMAGE_GENERATION.warningMissingModel(provider=Ollama)"),
+			).toBeInTheDocument()
+		})
+
+		it("should not render provider configuration fields when disabled", () => {
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					enabled={false}
+					imageGenerationSettings={{ imageGenerationProvider: "openrouter" }}
+				/>,
+			)
+
+			expect(
+				screen.queryByPlaceholderText(
+					"settings:experimental.IMAGE_GENERATION.apiKeyPlaceholder(provider=OpenRouter)",
+				),
 			).not.toBeInTheDocument()
+			expect(screen.queryByText("settings:experimental.IMAGE_GENERATION.providerLabel")).not.toBeInTheDocument()
 		})
 	})
 })

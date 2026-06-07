@@ -38,7 +38,6 @@ import {
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 	DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
 	normalizeParallelTaskConcurrency,
-	ImageGenerationProvider,
 } from "@roo-code/types"
 
 import { vscode } from "@src/utils/vscode"
@@ -73,6 +72,7 @@ import { NotificationSettings } from "./NotificationSettings"
 import { ContextManagementSettings } from "./ContextManagementSettings"
 import { TerminalSettings } from "./TerminalSettings"
 import { ExperimentalSettings } from "./ExperimentalSettings"
+import type { SetImageGenerationSetting } from "./ImageGenerationSettings"
 import { LanguageSettings } from "./LanguageSettings"
 import { About } from "./About"
 import { Section } from "./Section"
@@ -225,7 +225,21 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		includeTaskHistoryInEnhance,
 		imageGenerationProvider,
 		openRouterImageApiKey,
+		openRouterImageBaseUrl,
 		openRouterImageGenerationSelectedModel,
+		openRouterImageGenerationApiMethod,
+		openAiImageApiKey,
+		openAiImageBaseUrl,
+		openAiImageGenerationSelectedModel,
+		openAiImageGenerationApiMethod,
+		ollamaImageApiKey,
+		ollamaImageBaseUrl,
+		ollamaImageGenerationSelectedModel,
+		ollamaImageGenerationApiMethod,
+		lmStudioImageApiKey,
+		lmStudioImageBaseUrl,
+		lmStudioImageGenerationSelectedModel,
+		lmStudioImageGenerationApiMethod,
 		reasoningBlockCollapsed,
 		enterBehavior,
 		includeCurrentTime,
@@ -395,35 +409,53 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		})
 	}, [])
 
-	const setImageGenerationProvider = useCallback((provider: ImageGenerationProvider) => {
-		setCachedState((prevState) => {
-			if (prevState.imageGenerationProvider !== provider) {
-				setChangeDetected(true)
-			}
+	const setImageGenerationSetting = useCallback<SetImageGenerationSetting>(
+		(field, value) => {
+			setCachedStateField(field, value)
+		},
+		[setCachedStateField],
+	)
 
-			return { ...prevState, imageGenerationProvider: provider }
-		})
-	}, [])
-
-	const setOpenRouterImageApiKey = useCallback((apiKey: string) => {
-		setCachedState((prevState) => {
-			if (prevState.openRouterImageApiKey !== apiKey) {
-				setChangeDetected(true)
-			}
-
-			return { ...prevState, openRouterImageApiKey: apiKey }
-		})
-	}, [])
-
-	const setImageGenerationSelectedModel = useCallback((model: string) => {
-		setCachedState((prevState) => {
-			if (prevState.openRouterImageGenerationSelectedModel !== model) {
-				setChangeDetected(true)
-			}
-
-			return { ...prevState, openRouterImageGenerationSelectedModel: model }
-		})
-	}, [])
+	const imageGenerationSettings = useMemo(
+		() => ({
+			imageGenerationProvider,
+			openRouterImageApiKey,
+			openRouterImageBaseUrl,
+			openRouterImageGenerationSelectedModel,
+			openRouterImageGenerationApiMethod,
+			openAiImageApiKey,
+			openAiImageBaseUrl,
+			openAiImageGenerationSelectedModel,
+			openAiImageGenerationApiMethod,
+			ollamaImageApiKey,
+			ollamaImageBaseUrl,
+			ollamaImageGenerationSelectedModel,
+			ollamaImageGenerationApiMethod,
+			lmStudioImageApiKey,
+			lmStudioImageBaseUrl,
+			lmStudioImageGenerationSelectedModel,
+			lmStudioImageGenerationApiMethod,
+		}),
+		[
+			imageGenerationProvider,
+			openRouterImageApiKey,
+			openRouterImageBaseUrl,
+			openRouterImageGenerationSelectedModel,
+			openRouterImageGenerationApiMethod,
+			openAiImageApiKey,
+			openAiImageBaseUrl,
+			openAiImageGenerationSelectedModel,
+			openAiImageGenerationApiMethod,
+			ollamaImageApiKey,
+			ollamaImageBaseUrl,
+			ollamaImageGenerationSelectedModel,
+			ollamaImageGenerationApiMethod,
+			lmStudioImageApiKey,
+			lmStudioImageBaseUrl,
+			lmStudioImageGenerationSelectedModel,
+			lmStudioImageGenerationApiMethod,
+		],
+	)
 
 	const setCustomSupportPromptsField = useCallback((prompts: Record<string, string | undefined>) => {
 		setCachedState((prevState) => {
@@ -518,7 +550,21 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				profileThresholds,
 				imageGenerationProvider,
 				openRouterImageApiKey,
+				openRouterImageBaseUrl,
 				openRouterImageGenerationSelectedModel,
+				openRouterImageGenerationApiMethod,
+				openAiImageApiKey,
+				openAiImageBaseUrl,
+				openAiImageGenerationSelectedModel,
+				openAiImageGenerationApiMethod,
+				ollamaImageApiKey,
+				ollamaImageBaseUrl,
+				ollamaImageGenerationSelectedModel,
+				ollamaImageGenerationApiMethod,
+				lmStudioImageApiKey,
+				lmStudioImageBaseUrl,
+				lmStudioImageGenerationSelectedModel,
+				lmStudioImageGenerationApiMethod,
 				experiments,
 				customSupportPrompts,
 			} as Partial<ExtensionStateContextType> & { smtpPassword?: string }
@@ -1056,14 +1102,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								experiments={experiments}
 								apiConfiguration={apiConfiguration}
 								setApiConfigurationField={setApiConfigurationField}
-								imageGenerationProvider={imageGenerationProvider}
-								openRouterImageApiKey={openRouterImageApiKey as string | undefined}
-								openRouterImageGenerationSelectedModel={
-									openRouterImageGenerationSelectedModel as string | undefined
-								}
-								setImageGenerationProvider={setImageGenerationProvider}
-								setOpenRouterImageApiKey={setOpenRouterImageApiKey}
-								setImageGenerationSelectedModel={setImageGenerationSelectedModel}
+								imageGenerationSettings={imageGenerationSettings}
+								setImageGenerationSetting={setImageGenerationSetting}
 							/>
 						)}
 
