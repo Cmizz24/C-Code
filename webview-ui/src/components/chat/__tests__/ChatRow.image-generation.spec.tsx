@@ -73,15 +73,20 @@ function renderChatRow(message: ClineMessage, onImageApprovalGenerate = vi.fn())
 	return { ...renderResult, onImageApprovalGenerate }
 }
 
-const createImageGenerationSayMessage = (metadata: GeneratedImageMetadata): ClineMessage => ({
+const createImageGenerationSayMessage = (
+	metadata: GeneratedImageMetadata,
+	options: { imageUri?: string; imagePath?: string; tool?: "generateImage" | "imageGenerated" } = {},
+): ClineMessage => ({
 	type: "say",
 	say: "tool",
 	ts: Date.now(),
 	text: JSON.stringify({
-		tool: "imageGenerated",
+		tool: options.tool ?? "generateImage",
 		content: metadata.prompt,
 		path: metadata.outputPath ?? metadata.path,
 		imageGeneration: metadata,
+		...(options.imageUri && { imageUri: options.imageUri }),
+		...(options.imagePath && { imagePath: options.imagePath }),
 	}),
 })
 
@@ -116,6 +121,39 @@ describe("ChatRow - image generation", () => {
 			}
 		},
 	)
+
+	it("renders the completed image preview, output path, and cost inside the unified image-generation tool row", () => {
+		renderChatRow(
+			createImageGenerationSayMessage(
+				{
+					status: "completed",
+					prompt: "Draw a corgi in space",
+					providerLabel: "OpenRouter",
+					model: "google/gemini-2.5-flash-image-preview",
+					outputPath: "images/corgi.png",
+					imageFormat: "png",
+					usage: {
+						cost: 0.0042,
+						currency: "USD",
+					},
+				},
+				{
+					imageUri: "vscode-resource://generated-corgi.png?t=123",
+					imagePath: "/workspace/images/corgi.png",
+				},
+			),
+		)
+
+		expect(screen.getByTestId("image-block")).toHaveTextContent(
+			"vscode-resource://generated-corgi.png?t=123:/workspace/images/corgi.png",
+		)
+		expect(screen.getByText("Image Generation chat:imageGeneration.status.completed")).toBeInTheDocument()
+		expect(screen.getByText("OpenRouter")).toBeInTheDocument()
+		expect(screen.getByText("google/gemini-2.5-flash-image-preview")).toBeInTheDocument()
+		expect(screen.getByText("images/corgi.png")).toBeInTheDocument()
+		expect(screen.getByText("$0.0042")).toBeInTheDocument()
+		expect(screen.queryByText("Draw a corgi in space")).not.toBeInTheDocument()
+	})
 
 	it("renders compact proposed details and an editable prompt for image-generation approval", () => {
 		const message: ClineMessage = {

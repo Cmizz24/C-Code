@@ -100,6 +100,15 @@ const getParallelAgentToolFromMessage = (message: ClineMessage): ClineSayTool | 
 	return tool?.tool === "parallelAgents" ? tool : undefined
 }
 
+const getImageGenerationToolFromMessage = (message: ClineMessage): ClineSayTool | undefined => {
+	if (message.type !== "say" || message.say !== "tool" || !message.text) {
+		return undefined
+	}
+
+	const tool = safeJsonParse<ClineSayTool>(message.text)
+	return tool?.tool === "generateImage" || tool?.tool === "imageGenerated" ? tool : undefined
+}
+
 const isMergeReviewSupersedingMessage = (message: ClineMessage, parallelAgentTool?: ClineSayTool): boolean => {
 	if (parallelAgentTool) {
 		return parallelAgentTool.parallelStatus !== "review"
@@ -405,9 +414,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 									}
 									break
 								case "generateImage":
-									if (typeof tool.content === "string" && inputValueRef.current.trim().length === 0) {
-										setInputValue(tool.content)
-									}
 									setPrimaryButtonText(t("chat:imageGeneration.approval.generate"))
 									setSecondaryButtonText(t("chat:reject.title"))
 									break
@@ -511,7 +517,8 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					switch (lastMessage.say) {
 						case "tool": {
 							const tool = getParallelAgentToolFromMessage(lastMessage)
-							if (tool && tool.parallelStatus !== "review") {
+							const imageGenerationTool = getImageGenerationToolFromMessage(lastMessage)
+							if (imageGenerationTool || (tool && tool.parallelStatus !== "review")) {
 								setClineAsk(undefined)
 								setEnableButtons(false)
 								setPrimaryButtonText(undefined)

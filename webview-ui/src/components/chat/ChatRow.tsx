@@ -868,6 +868,8 @@ export const ChatRowContent = ({
 		}
 		const status = metadata.status ?? "completed"
 		const statusLabel = t(`chat:imageGeneration.status.${status}`)
+		const imageUri = imageTool.imageUri
+		const imagePath = imageTool.imagePath
 
 		return (
 			<>
@@ -879,7 +881,10 @@ export const ChatRowContent = ({
 				</div>
 				<div className="pl-6">
 					<ToolUseBlock className="cursor-default border border-vscode-panel-border">
-						{renderImageGenerationMetadata(metadata)}
+						<div className="flex flex-col gap-3 p-2">
+							{imageUri || imagePath ? <ImageBlock imageUri={imageUri} imagePath={imagePath} /> : null}
+							{renderImageGenerationMetadata(metadata)}
+						</div>
 					</ToolUseBlock>
 				</div>
 			</>
@@ -1444,29 +1449,35 @@ export const ChatRowContent = ({
 					path: tool.path,
 				}
 				const imageApprovalPromptId = `image-generation-approval-prompt-${message.ts}`
+				const imageGenerationStatus = imageGenerationMetadata.status ?? "completed"
+				const shouldRenderApproval = message.type === "ask"
 
 				return (
 					<>
 						<div style={headerStyle}>
-							{tool.isProtected ? (
+							{shouldRenderApproval && tool.isProtected ? (
 								<span
 									className="codicon codicon-lock"
 									style={{ color: "var(--vscode-editorWarning-foreground)", marginBottom: "-1.5px" }}
 								/>
+							) : !shouldRenderApproval ? (
+								renderImageGenerationStatusIcon(imageGenerationStatus)
 							) : (
 								toolIcon("file-media")
 							)}
 							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask"
+								{shouldRenderApproval
 									? tool.isProtected
 										? t("chat:fileOperations.wantsToGenerateImageProtected")
 										: tool.isOutsideWorkspace
 											? t("chat:fileOperations.wantsToGenerateImageOutsideWorkspace")
 											: t("chat:fileOperations.wantsToGenerateImage")
-									: t("chat:fileOperations.didGenerateImage")}
+									: t("chat:imageGeneration.statusTitle", {
+											status: t(`chat:imageGeneration.status.${imageGenerationStatus}`),
+										})}
 							</span>
 						</div>
-						{message.type === "ask" && (
+						{shouldRenderApproval ? (
 							<div className="pl-6">
 								<ToolUseBlock>
 									<div className="flex flex-col gap-3 p-2">
@@ -1502,6 +1513,17 @@ export const ChatRowContent = ({
 												{t("chat:imageGeneration.approval.generate")}
 											</button>
 										</div>
+										{renderImageGenerationMetadata(imageGenerationMetadata)}
+									</div>
+								</ToolUseBlock>
+							</div>
+						) : (
+							<div className="pl-6">
+								<ToolUseBlock className="cursor-default border border-vscode-panel-border">
+									<div className="flex flex-col gap-3 p-2">
+										{tool.imageUri || tool.imagePath ? (
+											<ImageBlock imageUri={tool.imageUri} imagePath={tool.imagePath} />
+										) : null}
 										{renderImageGenerationMetadata(imageGenerationMetadata)}
 									</div>
 								</ToolUseBlock>
@@ -1920,6 +1942,7 @@ export const ChatRowContent = ({
 						case "visualBrowserInspector":
 						case "visual_browser_inspector":
 							return renderVisualBrowserInspectorTool(sayTool)
+						case "generateImage":
 						case "imageGenerated":
 							return renderImageGenerationStatusTool(sayTool)
 						case "runSlashCommand": {

@@ -4,7 +4,14 @@ import * as os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
 
-import type { ClineMessage, ClineSayTool, ExecutionPlan, GlobalState, ProviderSettings } from "@roo-code/types"
+import type {
+	ClineMessage,
+	ClineSayTool,
+	ExecutionPlan,
+	GeneratedImageMetadata,
+	GlobalState,
+	ProviderSettings,
+} from "@roo-code/types"
 
 import { Task } from "../Task"
 import { ClineProvider } from "../../webview/ClineProvider"
@@ -456,6 +463,119 @@ describe("Task persistence", () => {
 
 			expect(mockSaveTaskMessages).toHaveBeenCalledTimes(2)
 			expect(maxInFlight).toBe(1)
+		})
+	})
+
+	describe("image generation message updates", () => {
+		it("coalesces an image-generation approval row into a persisted say/tool update", async () => {
+			const task = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+				startTask: false,
+			})
+			vi.mocked(mockProvider.postMessageToWebview).mockClear()
+			mockSaveTaskMessages.mockClear()
+
+			const pendingMetadata: GeneratedImageMetadata = {
+				status: "pending",
+				prompt: "Draw a fox",
+				path: "images/fox.png",
+			}
+			const approvalTool: ClineSayTool = {
+				tool: "generateImage",
+				path: "images/fox.png",
+				content: "Draw a fox",
+				imageGeneration: pendingMetadata,
+			}
+
+			task.clineMessages.push({
+				type: "ask",
+				ask: "tool",
+				ts: 123,
+				text: JSON.stringify(approvalTool),
+			})
+
+			const completedMetadata: GeneratedImageMetadata = {
+				status: "completed",
+				prompt: "Draw a fox",
+				originalPrompt: "Draw a fox",
+				outputPath: "images/fox.png",
+				usage: { cost: 0.01, currency: "USD" },
+			}
+
+			const didUpdate = await task.updateImageGenerationMessage({
+				metadata: completedMetadata,
+				path: "images/fox.png",
+				content: "Draw a fox",
+				imageUri: "vscode-resource://fox.png?t=1",
+				imagePath: "/mock/workspace/path/images/fox.png",
+			})
+
+			expect(didUpdate).toBe(true)
+			expect(task.clineMessages).toHaveLength(1)
+			const updatedMessage = task.clineMessages[0]
+			expect(updatedMessage).toMatchObject({
+				type: "say",
+				say: "tool",
+				ts: 123,
+				isAnswered: true,
+			})
+			expect(updatedMessage.ask).toBeUndefined()
+
+			const updatedTool = JSON.parse(updatedMessage.text!) as ClineSayTool
+			expect(updatedTool).toMatchObject({
+				tool: "generateImage",
+				path: "images/fox.png",
+				content: "Draw a fox",
+				imageUri: "vscode-resource://fox.png?t=1",
+				imagePath: "/mock/workspace/path/images/fox.png",
+				imageGeneration: expect.objectContaining({
+					status: "completed",
+					outputPath: "images/fox.png",
+				}),
+			})
+			expect(mockProvider.postMessageToWebview).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "messageUpdated",
+					clineMessage: updatedMessage,
+				}),
+			)
+			expect(mockSaveTaskMessages).toHaveBeenCalledTimes(1)
+		})
+
+		it("returns false without persisting when there is no image-generation row to update", async () => {
+			const task = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+				startTask: false,
+			})
+			vi.mocked(mockProvider.postMessageToWebview).mockClear()
+			mockSaveTaskMessages.mockClear()
+
+			task.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "ordinary message",
+				ts: 456,
+			})
+
+			const didUpdate = await task.updateImageGenerationMessage({
+				metadata: {
+					status: "running",
+					prompt: "Draw a fox",
+				},
+			})
+
+			expect(didUpdate).toBe(false)
+			expect(task.clineMessages[0]).toMatchObject({
+				type: "say",
+				say: "text",
+				text: "ordinary message",
+			})
+			expect(mockProvider.postMessageToWebview).not.toHaveBeenCalled()
+			expect(mockSaveTaskMessages).not.toHaveBeenCalled()
 		})
 	})
 

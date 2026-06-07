@@ -24,7 +24,7 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 
 	async execute(params: GenerateImageParams, task: Task, callbacks: ToolCallbacks): Promise<void> {
 		const { prompt, path: relPath, image: inputImagePath } = params
-		const { handleError, pushToolResult, askApproval, askApprovalWithResponse } = callbacks
+		const { pushToolResult, askApproval, askApprovalWithResponse } = callbacks
 
 		const provider = task.providerRef.deref()
 		const state = await provider?.getState()
@@ -142,16 +142,33 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 			...(readableInputImagePath && { inputImage: readableInputImagePath }),
 			...overrides,
 		})
-		const sayImageGenerationStatus = async (metadata: GeneratedImageMetadata) => {
-			await task.say(
-				"tool",
-				JSON.stringify({
-					tool: "imageGenerated",
-					path: metadata.outputPath ?? metadata.path ?? readableOutputPath,
-					content: metadata.prompt,
-					imageGeneration: metadata,
-				}),
-			)
+		const updateImageGenerationStatus = async (
+			metadata: GeneratedImageMetadata,
+			options: { imageUri?: string; imagePath?: string } = {},
+		) => {
+			const toolPayload = {
+				tool: "generateImage" as const,
+				path: metadata.outputPath ?? metadata.path ?? readableOutputPath,
+				content: metadata.prompt,
+				imageGeneration: metadata,
+				...(options.imageUri && { imageUri: options.imageUri }),
+				...(options.imagePath && { imagePath: options.imagePath }),
+			}
+
+			if (typeof task.updateImageGenerationMessage === "function") {
+				const didUpdate = await task.updateImageGenerationMessage({
+					metadata,
+					path: toolPayload.path,
+					content: toolPayload.content,
+					...options,
+				})
+
+				if (didUpdate) {
+					return
+				}
+			}
+
+			await task.say("tool", JSON.stringify(toolPayload))
 		}
 
 		const sharedMessageProps = {
@@ -169,7 +186,7 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 			task.consecutiveMistakeCount = 0
 
 			if (!resolvedConfig.success) {
-				await sayImageGenerationStatus(
+				await updateImageGenerationStatus(
 					createImageGenerationMetadata({ status: "error", error: resolvedConfig.error }),
 				)
 				task.didToolFailInCurrentTurn = true
@@ -201,7 +218,7 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 				...(editedPrompt && editedPrompt !== prompt && { editedPrompt }),
 			})
 
-			await sayImageGenerationStatus(promptMetadata)
+			await updateImageGenerationStatus(promptMetadata)
 
 			const result = await generateImageWithConfiguredProvider({
 				state,
@@ -212,7 +229,7 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 
 			if (!result.success) {
 				const errorMessage = result.error || "Failed to generate image"
-				await sayImageGenerationStatus(
+				await updateImageGenerationStatus(
 					createImageGenerationMetadata({
 						...result.metadata,
 						status: "error",
@@ -221,7 +238,6 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 						error: errorMessage,
 					}),
 				)
-				await task.say("error", errorMessage)
 				task.didToolFailInCurrentTurn = true
 				pushToolResult(formatResponse.toolError(errorMessage))
 				return
@@ -229,7 +245,7 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 
 			if (!result.imageData) {
 				const errorMessage = "No image data received"
-				await sayImageGenerationStatus(
+				await updateImageGenerationStatus(
 					createImageGenerationMetadata({
 						...result.metadata,
 						status: "error",
@@ -238,7 +254,6 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 						error: errorMessage,
 					}),
 				)
-				await task.say("error", errorMessage)
 				task.didToolFailInCurrentTurn = true
 				pushToolResult(formatResponse.toolError(errorMessage))
 				return
@@ -247,7 +262,7 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 			const base64Match = result.imageData.match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,(.+)$/)
 			if (!base64Match) {
 				const errorMessage = "Invalid image format received"
-				await sayImageGenerationStatus(
+				await updateImageGenerationStatus(
 					createImageGenerationMetadata({
 						...result.metadata,
 						status: "error",
@@ -256,7 +271,6 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 						error: errorMessage,
 					}),
 				)
-				await task.say("error", errorMessage)
 				task.didToolFailInCurrentTurn = true
 				pushToolResult(formatResponse.toolError(errorMessage))
 				return
@@ -273,7 +287,7 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 			const writePermission = task.requestAgentWriteIntent(finalPath)
 			if (!writePermission.approved) {
 				const reason = writePermission.reason ?? `Write denied for ${finalPath}`
-				await sayImageGenerationStatus(
+				await updateImageGenerationStatus(
 					createImageGenerationMetadata({
 						...result.metadata,
 						status: "error",
@@ -285,7 +299,7 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 						error: reason,
 					}),
 				)
-				await task.say("error", reason)
+				task.didToolFailInCurrentTurn = true
 				pushToolResult(formatResponse.toolError(reason))
 				return
 			}
@@ -326,19 +340,18 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 				usage: result.usage,
 			})
 
-			await task.say(
-				"image",
-				JSON.stringify({ imageUri, imagePath: fullImagePath, imageGeneration: completedMetadata }),
-			)
+			await updateImageGenerationStatus(completedMetadata, { imageUri, imagePath: fullImagePath })
 			pushToolResult(formatResponse.toolResult(getReadablePath(task.cwd, finalPath)))
 		} catch (error) {
-			await sayImageGenerationStatus(
+			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			await updateImageGenerationStatus(
 				createImageGenerationMetadata({
 					status: "error",
-					error: error instanceof Error ? error.message : "Unknown error",
+					error: errorMessage,
 				}),
 			)
-			await handleError("generating image", error as Error)
+			task.didToolFailInCurrentTurn = true
+			pushToolResult(formatResponse.toolError(`Error generating image: ${errorMessage}`))
 		} finally {
 			if (didAcquireWriteIntent && writeIntentRelPath) {
 				task.releaseAgentWriteIntent(writeIntentRelPath)

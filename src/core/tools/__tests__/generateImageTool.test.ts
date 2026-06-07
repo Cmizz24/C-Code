@@ -60,6 +60,7 @@ describe("generateImageTool", () => {
 			recordToolUsage: vi.fn(),
 			sayAndCreateMissingParamError: vi.fn().mockResolvedValue("Missing parameter error"),
 			say: vi.fn(),
+			updateImageGenerationMessage: vi.fn().mockResolvedValue(true),
 			rooIgnoreController: {
 				validateAccess: vi.fn().mockReturnValue(true),
 			},
@@ -189,6 +190,19 @@ describe("generateImageTool", () => {
 			})
 			expect(mockCline.requestAgentWriteIntent).toHaveBeenCalledWith("test-image.png")
 			expect(mockCline.releaseAgentWriteIntent).toHaveBeenCalledWith("test-image.png")
+			expect(mockCline.updateImageGenerationMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					metadata: expect.objectContaining({ status: "running" }),
+				}),
+			)
+			expect(mockCline.updateImageGenerationMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					metadata: expect.objectContaining({ status: "completed" }),
+					imageUri: expect.stringMatching(/\?t=\d+$/),
+				}),
+			)
+			expect(mockCline.say).not.toHaveBeenCalledWith("tool", expect.anything())
+			expect(mockCline.say).not.toHaveBeenCalledWith("image", expect.anything())
 			expect(mockPushToolResult).toHaveBeenCalled()
 		})
 
@@ -218,7 +232,18 @@ describe("generateImageTool", () => {
 				pushToolResult: mockPushToolResult,
 			})
 
-			expect(mockCline.say).toHaveBeenCalledWith("error", "test-image.png is listed in mustNotTouch for agent-a.")
+			expect(mockCline.updateImageGenerationMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					metadata: expect.objectContaining({
+						status: "error",
+						error: "test-image.png is listed in mustNotTouch for agent-a.",
+					}),
+				}),
+			)
+			expect(mockCline.say).not.toHaveBeenCalledWith(
+				"error",
+				"test-image.png is listed in mustNotTouch for agent-a.",
+			)
 			expect(fs.writeFile).not.toHaveBeenCalled()
 			expect(mockCline.releaseAgentWriteIntent).not.toHaveBeenCalled()
 		})
@@ -248,21 +273,23 @@ describe("generateImageTool", () => {
 				pushToolResult: mockPushToolResult,
 			})
 
-			// Check that cline.say was called with image data containing cache-busting parameter
-			expect(mockCline.say).toHaveBeenCalledWith("image", expect.stringMatching(/"imageUri":"[^"]+\?t=\d+"/))
+			const completedUpdate = mockCline.updateImageGenerationMessage.mock.calls
+				.map(([payload]: any[]) => payload)
+				.find((payload: any) => payload.metadata.status === "completed")
 
-			// Verify the imageUri contains the cache-busting parameter
-			const sayCall = mockCline.say.mock.calls.find((call: any[]) => call[0] === "image")
-			if (sayCall) {
-				const imageData = JSON.parse(sayCall[1])
-				expect(imageData.imageUri).toMatch(/\?t=\d+$/)
-				// Handle both Unix and Windows path separators
-				const expectedPath =
-					process.platform === "win32"
-						? "\\test\\workspace\\test-image.png"
-						: "/test/workspace/test-image.png"
-				expect(imageData.imagePath).toBe(expectedPath)
-			}
+			expect(completedUpdate).toBeDefined()
+			expect(completedUpdate.imageUri).toMatch(/\?t=\d+$/)
+			// Handle both Unix and Windows path separators
+			const expectedPath =
+				process.platform === "win32" ? "\\test\\workspace\\test-image.png" : "/test/workspace/test-image.png"
+			expect(completedUpdate.imagePath).toBe(expectedPath)
+			expect(completedUpdate.metadata).toEqual(
+				expect.objectContaining({
+					status: "completed",
+					outputPath: expect.stringContaining("test-image.png"),
+				}),
+			)
+			expect(mockCline.say).not.toHaveBeenCalledWith("image", expect.anything())
 		})
 
 		it("should send edited approval prompt to the configured provider and emitted metadata", async () => {
@@ -298,15 +325,12 @@ describe("generateImageTool", () => {
 				}),
 			)
 
-			const toolStatusPayloads = mockCline.say.mock.calls
-				.filter((call: any[]) => call[0] === "tool")
-				.map((call: any[]) => JSON.parse(call[1]))
+			const updatePayloads = mockCline.updateImageGenerationMessage.mock.calls.map(([payload]: any[]) => payload)
 
-			expect(toolStatusPayloads).toEqual(
+			expect(updatePayloads).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
-						tool: "imageGenerated",
-						imageGeneration: expect.objectContaining({
+						metadata: expect.objectContaining({
 							status: "running",
 							prompt: "Use the edited prompt",
 							originalPrompt: "Generate a test image",
@@ -315,27 +339,66 @@ describe("generateImageTool", () => {
 					}),
 				]),
 			)
-			expect(toolStatusPayloads).not.toEqual(
+			expect(updatePayloads).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
-						imageGeneration: expect.objectContaining({ status: "completed" }),
+						imageUri: expect.stringMatching(/\?t=\d+$/),
+						imagePath: expect.any(String),
+						metadata: expect.objectContaining({
+							status: "completed",
+							prompt: "Use the edited prompt",
+							originalPrompt: "Generate a test image",
+							editedPrompt: "Use the edited prompt",
+						}),
 					}),
 				]),
 			)
+			expect(mockCline.say).not.toHaveBeenCalledWith("tool", expect.anything())
+			expect(mockCline.say).not.toHaveBeenCalledWith("image", expect.anything())
+		})
 
-			const imageCall = mockCline.say.mock.calls.find((call: any[]) => call[0] === "image")
-			if (!imageCall) {
-				throw new Error("Expected generated image message")
+		it("should render provider failures through the unified image-generation update without duplicate generic errors", async () => {
+			vi.mocked(generateImageWithConfiguredProvider).mockResolvedValueOnce({
+				success: false,
+				error: "Provider failed",
+				metadata: {
+					provider: "openrouter",
+					providerLabel: "OpenRouter",
+					model: "google/gemini-2.5-flash-image",
+				},
+			})
+
+			const completeBlock: ToolUse = {
+				type: "tool_use",
+				name: "generate_image",
+				params: {
+					prompt: "Generate a test image",
+					path: "test-image.png",
+				},
+				nativeArgs: {
+					prompt: "Generate a test image",
+					path: "test-image.png",
+				},
+				partial: false,
 			}
-			const imagePayload = JSON.parse(imageCall[1])
-			expect(imagePayload.imageGeneration).toEqual(
+
+			await generateImageTool.handle(mockCline as Task, completeBlock as ToolUse<"generate_image">, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(mockCline.updateImageGenerationMessage).toHaveBeenCalledWith(
 				expect.objectContaining({
-					status: "completed",
-					prompt: "Use the edited prompt",
-					originalPrompt: "Generate a test image",
-					editedPrompt: "Use the edited prompt",
+					metadata: expect.objectContaining({
+						status: "error",
+						error: "Provider failed",
+					}),
 				}),
 			)
+			expect(mockCline.say).not.toHaveBeenCalledWith("error", expect.stringContaining("Provider failed"))
+			expect(mockHandleError).not.toHaveBeenCalled()
+			expect(mockPushToolResult).toHaveBeenCalledWith(expect.stringContaining("Provider failed"))
 		})
 	})
 
@@ -522,6 +585,7 @@ describe("generateImageTool", () => {
 		})
 
 		it("should emit an error status when image generation settings cannot be resolved", async () => {
+			mockCline.updateImageGenerationMessage.mockResolvedValueOnce(false)
 			vi.mocked(resolveImageGenerationConfig).mockReturnValue({
 				success: false,
 				error: "tools:generateImage.apiKeyRequired(provider=OpenRouter)",
@@ -559,7 +623,7 @@ describe("generateImageTool", () => {
 			expect(toolStatusPayloads).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
-						tool: "imageGenerated",
+						tool: "generateImage",
 						imageGeneration: expect.objectContaining({
 							status: "error",
 							error: "tools:generateImage.apiKeyRequired(provider=OpenRouter)",

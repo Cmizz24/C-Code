@@ -884,6 +884,8 @@ export interface ClineSayTool {
 	question?: string
 	imageData?: string // Base64 encoded image data for generated images
 	imageGeneration?: GeneratedImageMetadata
+	imageUri?: string
+	imagePath?: string
 	// Properties for runSlashCommand tool
 	command?: string
 	args?: string
