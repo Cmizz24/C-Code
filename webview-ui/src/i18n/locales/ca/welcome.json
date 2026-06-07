@@ -11,7 +11,109 @@
 	"landing": {
 		"greeting": "Benvingut a C Code!",
 		"introduction": "Amb una gamma de Modes integrats i ampliables, C Code et permet planificar, arquitectar, codificar, depurar i augmentar la teva productivitat com mai abans.",
-		"getStarted": "Get Started"
+		"getStarted": "Get Started",
+		"setupLocalAi": "Configura AI local",
+		"localAi": {
+			"title": "Configura AI local",
+			"description": "Detecta el teu maquinari, tria un model d'Ollama i descarrega'l amb progrés en directe."
+		},
+		"provider": {
+			"title": "Fes servir un proveïdor d'API",
+			"description": "Tria OpenRouter o porta una clau d'un altre proveïdor."
+		}
+	},
+	"localSetup": {
+		"heading": "Configura AI local",
+		"subtitle": "Respon unes quantes preguntes i C Code et recomanarà un model local d'Ollama que s'ajusti al teu ordinador i pressupost de disc.",
+		"hardware": {
+			"heading": "Comprovació de maquinari i runtime",
+			"detecting": "Detectant el teu ordinador i runtimes d'AI locals…",
+			"system": "{{os}} {{arch}}, {{cores}} nuclis de CPU, {{ram}} de RAM",
+			"disk": "Disc lliure: {{free}}",
+			"gpuDetected": "GPU detectada: {{gpu}}",
+			"gpuUnknown": "L'estat de la GPU és desconegut. Serem conservadors en lloc d'assumir que no tens GPU.",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "Actualitza la comprovació"
+		},
+		"runtimeStatus": {
+			"running": "en execució",
+			"installed-not-running": "instal·lat, no en execució",
+			"missing": "absent",
+			"unknown": "desconegut"
+		},
+		"form": {
+			"usage": {
+				"label": "Com faràs servir l'AI local?",
+				"light": "Ajuda lleugera amb codi",
+				"daily": "Programació diària",
+				"agentic": "Refactors grans i tasques agèntiques"
+			},
+			"preference": {
+				"label": "Per a què ha d'optimitzar la recomanació?",
+				"speed": "Velocitat",
+				"balanced": "Equilibri",
+				"quality": "Qualitat"
+			},
+			"privacy": {
+				"label": "Preferència de privadesa",
+				"localOnly": "Només local",
+				"localPreferred": "Prefereixo local, puc configurar-ho més tard"
+			},
+			"diskBudget": "Pressupost de disc per al model (GB)",
+			"runtime": {
+				"label": "Elecció de runtime",
+				"existing": "Fes servir un runtime local existent",
+				"ollama": "Configura Ollama",
+				"manual": "Configuració manual"
+			},
+			"providerPreference": {
+				"label": "Preferència de runtime local detectat"
+			}
+		},
+		"actions": {
+			"manual": "Configuració manual",
+			"recommend": "Recomana un model",
+			"recommending": "Creant recomanació…",
+			"adjust": "Ajusta les respostes",
+			"installHelp": "Ajuda d'instal·lació d'Ollama",
+			"confirmDownload": "Confirma i descarrega",
+			"cancel": "Cancel·la la configuració",
+			"retry": "Reintenta la descàrrega",
+			"openOllamaDownload": "Obre la descàrrega d'Ollama"
+		},
+		"recommendation": {
+			"heading": "Model local recomanat",
+			"size": "Descàrrega aproximada: {{size}}",
+			"disk": "Disc lliure detectat: {{free}}",
+			"runtime": "Runtime/proveïdor: {{runtime}} des de la seva API local oficial",
+			"confidence": "Confiança de la recomanació: {{confidence}}",
+			"privacyHeading": "Nota de privadesa",
+			"warnings": "Abans de descarregar"
+		},
+		"confidence": {
+			"low": "baixa",
+			"medium": "mitjana",
+			"high": "alta"
+		},
+		"progress": {
+			"heading": "Configurant AI local",
+			"starting": "Iniciant la configuració d'AI local…",
+			"model": "Model: {{model}}",
+			"percent": "{{percent}}% completat",
+			"waiting": "Esperant el progrés d'Ollama…"
+		},
+		"manual": {
+			"heading": "Configuració manual d'Ollama",
+			"description": "C Code no executarà instal·ladors en silenci. Instal·la Ollama pel teu compte, inicia'l i després torna aquí i actualitza la comprovació.",
+			"stepInstall": "Descarrega Ollama des del lloc oficial d'Ollama.",
+			"stepStart": "Inicia Ollama i assegura't que sigui accessible a http://localhost:11434.",
+			"stepRetry": "Torna aquí, actualitza la comprovació del runtime i executa la recomanació de nou."
+		},
+		"success": {
+			"heading": "L'AI local està a punt",
+			"description": "S'ha trobat {{model}} a Ollama i està llest per a inferència local.",
+			"profile": "C Code ha desat i activat un perfil de proveïdor Local AI (Ollama)."
+		}
 	},
 	"providerSignup": {
 		"heading": "Tria el teu proveïdor",

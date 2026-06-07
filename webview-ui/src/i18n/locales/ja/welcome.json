@@ -11,7 +11,103 @@
 	"landing": {
 		"greeting": "C Codeへようこそ！",
 		"introduction": "組み込みおよび拡張可能なモードを備えたC Codeは、計画、アーキテクチャ設計、コーディング、デバッグ、そして今までにない生産性向上を可能にします。",
-		"getStarted": "Get Started"
+		"getStarted": "Get Started",
+		"setupLocalAi": "ローカルAIをセットアップ",
+		"localAi": {
+			"title": "ローカルAIをセットアップ",
+			"description": "ハードウェアを検出し、Ollamaモデルを選び、ライブ進捗付きでダウンロードします。"
+		},
+		"provider": {
+			"title": "APIプロバイダーを使う",
+			"description": "OpenRouterを選ぶか、別のプロバイダーのキーを使います。"
+		}
+	},
+	"localSetup": {
+		"heading": "ローカルAIをセットアップ",
+		"subtitle": "いくつかの質問に答えると、C Codeがあなたのコンピューターとディスク予算に合うローカルOllamaモデルをおすすめします。",
+		"hardware": {
+			"heading": "ハードウェアとruntimeのチェック",
+			"detecting": "コンピューターとローカルAI runtimesを検出しています…",
+			"system": "{{os}} {{arch}}、CPU {{cores}} コア、RAM {{ram}}",
+			"disk": "空きディスク: {{free}}",
+			"gpuDetected": "GPUを検出: {{gpu}}",
+			"gpuUnknown": "GPUの状態は不明です。GPUがないと決めつけず、控えめに判断します。",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "チェックを更新"
+		},
+		"runtimeStatus": {
+			"running": "実行中",
+			"installed-not-running": "インストール済み、未実行",
+			"missing": "未検出",
+			"unknown": "不明"
+		},
+		"form": {
+			"usage": {
+				"label": "ローカルAIをどう使いますか？",
+				"light": "軽いコード支援",
+				"daily": "日常的なコーディング",
+				"agentic": "大規模なリファクタリングとエージェント的タスク"
+			},
+			"preference": {
+				"label": "おすすめは何を重視しますか？",
+				"speed": "速度",
+				"balanced": "バランス",
+				"quality": "品質"
+			},
+			"privacy": {
+				"label": "プライバシー設定",
+				"localOnly": "ローカルのみ",
+				"localPreferred": "ローカル優先、後で設定してもよい"
+			},
+			"diskBudget": "モデルのディスク予算 (GB)",
+			"runtime": {
+				"label": "Runtimeの選択",
+				"existing": "既存のローカルruntimeを使う",
+				"ollama": "Ollamaをセットアップ",
+				"manual": "手動セットアップ"
+			},
+			"providerPreference": { "label": "検出されたローカルruntimeの優先設定" }
+		},
+		"actions": {
+			"manual": "手動セットアップ",
+			"recommend": "モデルをおすすめ",
+			"recommending": "おすすめを作成中…",
+			"adjust": "回答を調整",
+			"installHelp": "Ollamaインストールヘルプ",
+			"confirmDownload": "確認してダウンロード",
+			"cancel": "セットアップをキャンセル",
+			"retry": "ダウンロードを再試行",
+			"openOllamaDownload": "Ollamaダウンロードを開く"
+		},
+		"recommendation": {
+			"heading": "おすすめのローカルモデル",
+			"size": "おおよそのダウンロード: {{size}}",
+			"disk": "検出された空きディスク: {{free}}",
+			"runtime": "Runtime/プロバイダー: 公式ローカルAPIの{{runtime}}",
+			"confidence": "おすすめの信頼度: {{confidence}}",
+			"privacyHeading": "プライバシーメモ",
+			"warnings": "ダウンロード前に"
+		},
+		"confidence": { "low": "低", "medium": "中", "high": "高" },
+		"progress": {
+			"heading": "ローカルAIをセットアップ中",
+			"starting": "ローカルAIセットアップを開始しています…",
+			"model": "モデル: {{model}}",
+			"percent": "{{percent}}% 完了",
+			"waiting": "Ollamaの進捗を待っています…"
+		},
+		"manual": {
+			"heading": "Ollamaの手動セットアップ",
+			"description": "C Codeはインストーラーを勝手に実行しません。自分でOllamaをインストールして起動し、戻ってチェックを更新してください。",
+			"stepInstall": "Ollama公式サイトからOllamaをダウンロードします。",
+			"stepStart": "Ollamaを起動し、http://localhost:11434 で到達できることを確認します。",
+			"stepRetry": "ここに戻り、runtimeチェックを更新して、おすすめをもう一度実行します。"
+		},
+		"success": {
+			"heading": "ローカルAIの準備ができました",
+			"description": "{{model}} がOllamaで見つかり、ローカル推論の準備ができています。",
+			"profile": "C CodeはLocal AI (Ollama)プロバイダープロファイルを保存して有効化しました。"
+		}
 	},
 	"providerSignup": {
 		"heading": "プロバイダーを選択",

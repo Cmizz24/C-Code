@@ -11,7 +11,103 @@
 	"landing": {
 		"greeting": "Selamat datang di C Code!",
 		"introduction": "Dengan berbagai Mode bawaan dan dapat diperluas, C Code memungkinkan Anda merencanakan, merancang, coding, debug, dan meningkatkan produktivitas seperti yang belum pernah terjadi sebelumnya.",
-		"getStarted": "Buat Akun Roo"
+		"getStarted": "Buat Akun Roo",
+		"setupLocalAi": "Siapkan AI lokal",
+		"localAi": {
+			"title": "Siapkan AI lokal",
+			"description": "Deteksi hardware, pilih model Ollama, dan unduh dengan progres langsung."
+		},
+		"provider": {
+			"title": "Gunakan penyedia API",
+			"description": "Pilih OpenRouter atau gunakan key dari penyedia lain."
+		}
+	},
+	"localSetup": {
+		"heading": "Siapkan AI lokal",
+		"subtitle": "Jawab beberapa pertanyaan dan C Code akan merekomendasikan model Ollama lokal yang cocok dengan komputer dan anggaran disk Anda.",
+		"hardware": {
+			"heading": "Pemeriksaan hardware dan runtime",
+			"detecting": "Mendeteksi komputer dan runtime AI lokal Anda…",
+			"system": "{{os}} {{arch}}, {{cores}} core CPU, {{ram}} RAM",
+			"disk": "Disk kosong: {{free}}",
+			"gpuDetected": "GPU terdeteksi: {{gpu}}",
+			"gpuUnknown": "Status GPU tidak diketahui. Kami akan tetap konservatif, bukan menganggap Anda tidak punya GPU.",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "Segarkan pemeriksaan"
+		},
+		"runtimeStatus": {
+			"running": "berjalan",
+			"installed-not-running": "terinstal, tidak berjalan",
+			"missing": "tidak ada",
+			"unknown": "tidak diketahui"
+		},
+		"form": {
+			"usage": {
+				"label": "Bagaimana Anda akan memakai AI lokal?",
+				"light": "Bantuan kode ringan",
+				"daily": "Coding harian",
+				"agentic": "Refactor besar dan tugas agentic"
+			},
+			"preference": {
+				"label": "Rekomendasi harus mengoptimalkan apa?",
+				"speed": "Kecepatan",
+				"balanced": "Seimbang",
+				"quality": "Kualitas"
+			},
+			"privacy": {
+				"label": "Preferensi privasi",
+				"localOnly": "Hanya lokal",
+				"localPreferred": "Lebih suka lokal, boleh konfigurasi nanti"
+			},
+			"diskBudget": "Anggaran disk model (GB)",
+			"runtime": {
+				"label": "Pilihan runtime",
+				"existing": "Gunakan runtime lokal yang sudah ada",
+				"ollama": "Siapkan Ollama",
+				"manual": "Setup manual"
+			},
+			"providerPreference": { "label": "Preferensi runtime lokal yang terdeteksi" }
+		},
+		"actions": {
+			"manual": "Setup manual",
+			"recommend": "Rekomendasikan model",
+			"recommending": "Membuat rekomendasi…",
+			"adjust": "Sesuaikan jawaban",
+			"installHelp": "Bantuan instalasi Ollama",
+			"confirmDownload": "Konfirmasi dan unduh",
+			"cancel": "Batalkan setup",
+			"retry": "Coba unduh lagi",
+			"openOllamaDownload": "Buka unduhan Ollama"
+		},
+		"recommendation": {
+			"heading": "Model lokal yang direkomendasikan",
+			"size": "Perkiraan unduhan: {{size}}",
+			"disk": "Disk kosong terdeteksi: {{free}}",
+			"runtime": "Runtime/penyedia: {{runtime}} dari API lokal resminya",
+			"confidence": "Keyakinan rekomendasi: {{confidence}}",
+			"privacyHeading": "Catatan privasi",
+			"warnings": "Sebelum mengunduh"
+		},
+		"confidence": { "low": "rendah", "medium": "sedang", "high": "tinggi" },
+		"progress": {
+			"heading": "Menyiapkan AI lokal",
+			"starting": "Memulai setup AI lokal…",
+			"model": "Model: {{model}}",
+			"percent": "{{percent}}% selesai",
+			"waiting": "Menunggu progres Ollama…"
+		},
+		"manual": {
+			"heading": "Setup manual Ollama",
+			"description": "C Code tidak akan menjalankan installer diam-diam. Instal Ollama sendiri, jalankan, lalu kembali dan segarkan pemeriksaan.",
+			"stepInstall": "Unduh Ollama dari situs resmi Ollama.",
+			"stepStart": "Jalankan Ollama dan pastikan dapat diakses di http://localhost:11434.",
+			"stepRetry": "Kembali ke sini, segarkan pemeriksaan runtime, dan jalankan rekomendasi lagi."
+		},
+		"success": {
+			"heading": "AI lokal siap",
+			"description": "{{model}} ditemukan di Ollama dan siap untuk inference lokal.",
+			"profile": "C Code menyimpan dan mengaktifkan profil penyedia Local AI (Ollama)."
+		}
 	},
 	"providerSignup": {
 		"heading": "Pilih penyedia Anda",

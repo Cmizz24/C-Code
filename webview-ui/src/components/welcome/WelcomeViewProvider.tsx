@@ -13,6 +13,7 @@ import { Button } from "@src/components/ui"
 import ApiOptions from "../settings/ApiOptions"
 import { Tab, TabContent } from "../common/Tab"
 
+import LocalAiSetupView from "./LocalAiSetupView"
 import RooHero from "./RooHero"
 
 const DEFAULT_WELCOME_API_CONFIGURATION: ProviderSettings = {
@@ -36,7 +37,7 @@ const WelcomeViewProvider = () => {
 	const { apiConfiguration, currentApiConfigName, setApiConfiguration, uriScheme } = useExtensionState()
 	const { t } = useAppTranslation()
 	const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
-	const [showProviderSetup, setShowProviderSetup] = useState(false)
+	const [welcomeStep, setWelcomeStep] = useState<"landing" | "provider" | "local">("landing")
 	const [welcomeApiConfiguration, setWelcomeApiConfiguration] = useState<ProviderSettings>()
 	const effectiveApiConfiguration = welcomeApiConfiguration ?? getWelcomeApiConfiguration(apiConfiguration)
 
@@ -52,13 +53,13 @@ const WelcomeViewProvider = () => {
 	)
 
 	const handleGetStarted = useCallback(() => {
-		if (!showProviderSetup) {
+		if (welcomeStep !== "provider") {
 			const initialApiConfiguration = getWelcomeApiConfiguration(apiConfiguration)
 			setWelcomeApiConfiguration(initialApiConfiguration)
 
 			setApiConfiguration(initialApiConfiguration)
 
-			setShowProviderSetup(true)
+			setWelcomeStep("provider")
 			return
 		}
 
@@ -75,9 +76,9 @@ const WelcomeViewProvider = () => {
 			text: currentApiConfigName,
 			apiConfiguration: effectiveApiConfiguration,
 		})
-	}, [showProviderSetup, apiConfiguration, setApiConfiguration, effectiveApiConfiguration, currentApiConfigName])
+	}, [welcomeStep, apiConfiguration, setApiConfiguration, effectiveApiConfiguration, currentApiConfigName])
 
-	if (!showProviderSetup) {
+	if (welcomeStep === "landing") {
 		return (
 			<Tab>
 				<TabContent className="relative flex flex-col gap-4 p-6 justify-center">
@@ -90,9 +91,27 @@ const WelcomeViewProvider = () => {
 						</p>
 					</div>
 
+					<div className="mt-2 grid gap-3 md:grid-cols-2">
+						<button
+							onClick={() => setWelcomeStep("local")}
+							className="cursor-pointer rounded-md border border-vscode-foreground/20 bg-transparent p-4 text-left text-vscode-foreground hover:bg-vscode-foreground/5">
+							<div className="font-medium">{t("welcome:landing.localAi.title")}</div>
+							<div className="mt-1 text-sm">{t("welcome:landing.localAi.description")}</div>
+						</button>
+						<button
+							onClick={handleGetStarted}
+							className="cursor-pointer rounded-md border border-vscode-foreground/20 bg-transparent p-4 text-left text-vscode-foreground hover:bg-vscode-foreground/5">
+							<div className="font-medium">{t("welcome:landing.provider.title")}</div>
+							<div className="mt-1 text-sm">{t("welcome:landing.provider.description")}</div>
+						</button>
+					</div>
+
 					<div className="mt-2 flex gap-2 items-center">
 						<Button onClick={handleGetStarted} variant="primary">
 							{t("welcome:landing.getStarted")}
+						</Button>
+						<Button onClick={() => setWelcomeStep("local")} variant="secondary">
+							{t("welcome:landing.setupLocalAi")}
 						</Button>
 					</div>
 
@@ -103,6 +122,16 @@ const WelcomeViewProvider = () => {
 							{t("welcome:importSettings")}
 						</button>
 					</div>
+				</TabContent>
+			</Tab>
+		)
+	}
+
+	if (welcomeStep === "local") {
+		return (
+			<Tab>
+				<TabContent className="flex flex-col gap-4 p-6 justify-center">
+					<LocalAiSetupView onBack={() => setWelcomeStep("landing")} />
 				</TabContent>
 			</Tab>
 		)
@@ -130,7 +159,7 @@ const WelcomeViewProvider = () => {
 				</div>
 
 				<div className="-mt-4 flex gap-2">
-					<Button onClick={() => setShowProviderSetup(false)} variant="secondary">
+					<Button onClick={() => setWelcomeStep("landing")} variant="secondary">
 						<ArrowLeft className="size-4" />
 						{t("welcome:providerSignup.goBack")}
 					</Button>

@@ -11,7 +11,103 @@
 	"landing": {
 		"greeting": "C Code में आपका स्वागत है!",
 		"introduction": "अंतर्निहित और विस्तारित मोड्स की एक श्रृंखला के साथ, C Code आपको पहले कभी न देखे गए तरीके से योजना बनाने, आर्किटेक्ट करने, कोड करने, डीबग करने और अपनी उत्पादकता बढ़ाने की अनुमति देता है।",
-		"getStarted": "Roo खाता बनाएं"
+		"getStarted": "Roo खाता बनाएं",
+		"setupLocalAi": "स्थानीय AI सेट अप करें",
+		"localAi": {
+			"title": "स्थानीय AI सेट अप करें",
+			"description": "अपना हार्डवेयर पहचानें, Ollama मॉडल चुनें, और लाइव प्रगति के साथ डाउनलोड करें।"
+		},
+		"provider": {
+			"title": "API प्रदाता इस्तेमाल करें",
+			"description": "OpenRouter चुनें या किसी अन्य प्रदाता की key लाएँ।"
+		}
+	},
+	"localSetup": {
+		"heading": "स्थानीय AI सेट अप करें",
+		"subtitle": "कुछ सवालों के जवाब दें और C Code आपके कंप्यूटर और डिस्क बजट के लिए उपयुक्त स्थानीय Ollama मॉडल सुझाएगा।",
+		"hardware": {
+			"heading": "हार्डवेयर और runtime जाँच",
+			"detecting": "आपके कंप्यूटर और स्थानीय AI runtimes का पता लगाया जा रहा है…",
+			"system": "{{os}} {{arch}}, {{cores}} CPU cores, {{ram}} RAM",
+			"disk": "खाली डिस्क: {{free}}",
+			"gpuDetected": "GPU मिला: {{gpu}}",
+			"gpuUnknown": "GPU स्थिति अज्ञात है। हम यह मानने के बजाय सावधान रहेंगे कि आपके पास GPU नहीं है।",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "जाँच रीफ़्रेश करें"
+		},
+		"runtimeStatus": {
+			"running": "चल रहा है",
+			"installed-not-running": "इंस्टॉल है, चल नहीं रहा",
+			"missing": "मौजूद नहीं",
+			"unknown": "अज्ञात"
+		},
+		"form": {
+			"usage": {
+				"label": "आप स्थानीय AI कैसे इस्तेमाल करेंगे?",
+				"light": "हल्की कोड सहायता",
+				"daily": "दैनिक coding",
+				"agentic": "बड़े refactors और agentic tasks"
+			},
+			"preference": {
+				"label": "सुझाव किसके लिए optimize करे?",
+				"speed": "गति",
+				"balanced": "संतुलित",
+				"quality": "गुणवत्ता"
+			},
+			"privacy": {
+				"label": "Privacy preference",
+				"localOnly": "केवल स्थानीय",
+				"localPreferred": "स्थानीय पसंद है, बाद में configure करना ठीक है"
+			},
+			"diskBudget": "मॉडल डिस्क बजट (GB)",
+			"runtime": {
+				"label": "Runtime choice",
+				"existing": "मौजूदा स्थानीय runtime इस्तेमाल करें",
+				"ollama": "Ollama सेट अप करें",
+				"manual": "मैन्युअल सेटअप"
+			},
+			"providerPreference": { "label": "मिले हुए स्थानीय runtime की preference" }
+		},
+		"actions": {
+			"manual": "मैन्युअल सेटअप",
+			"recommend": "मॉडल सुझाएँ",
+			"recommending": "सुझाव बनाया जा रहा है…",
+			"adjust": "जवाब बदलें",
+			"installHelp": "Ollama install help",
+			"confirmDownload": "पुष्टि करके डाउनलोड करें",
+			"cancel": "सेटअप रद्द करें",
+			"retry": "डाउनलोड फिर से कोशिश करें",
+			"openOllamaDownload": "Ollama डाउनलोड खोलें"
+		},
+		"recommendation": {
+			"heading": "सुझाया गया स्थानीय मॉडल",
+			"size": "लगभग डाउनलोड: {{size}}",
+			"disk": "मिली खाली डिस्क: {{free}}",
+			"runtime": "Runtime/provider: {{runtime}} इसकी आधिकारिक स्थानीय API से",
+			"confidence": "सुझाव confidence: {{confidence}}",
+			"privacyHeading": "Privacy note",
+			"warnings": "डाउनलोड से पहले"
+		},
+		"confidence": { "low": "कम", "medium": "मध्यम", "high": "उच्च" },
+		"progress": {
+			"heading": "स्थानीय AI सेट अप हो रहा है",
+			"starting": "स्थानीय AI सेटअप शुरू हो रहा है…",
+			"model": "मॉडल: {{model}}",
+			"percent": "{{percent}}% पूरा",
+			"waiting": "Ollama प्रगति की प्रतीक्षा…"
+		},
+		"manual": {
+			"heading": "मैन्युअल Ollama सेटअप",
+			"description": "C Code installers को चुपचाप नहीं चलाएगा। Ollama खुद इंस्टॉल करें, उसे शुरू करें, फिर यहाँ वापस आकर जाँच रीफ़्रेश करें।",
+			"stepInstall": "आधिकारिक Ollama साइट से Ollama डाउनलोड करें।",
+			"stepStart": "Ollama शुरू करें और सुनिश्चित करें कि यह http://localhost:11434 पर उपलब्ध है।",
+			"stepRetry": "यहाँ वापस आएँ, runtime जाँच रीफ़्रेश करें, और सुझाव फिर चलाएँ।"
+		},
+		"success": {
+			"heading": "स्थानीय AI तैयार है",
+			"description": "{{model}} Ollama में मिला और स्थानीय inference के लिए तैयार है।",
+			"profile": "C Code ने Local AI (Ollama) provider profile सेव और activate कर दिया है।"
+		}
 	},
 	"providerSignup": {
 		"heading": "अपना प्रदाता चुनें",

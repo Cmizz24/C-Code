@@ -18,6 +18,8 @@ import {
 	type EditQueuedMessagePayload,
 	type TokenUsage,
 	type ToolUsage,
+	type LocalAiRecommendationRequest,
+	type LocalAiSetupStartRequest,
 	RooCodeSettings,
 	ExperimentId,
 	RooCodeEventName,
@@ -89,6 +91,7 @@ import {
 	visualBrowserInspectorService,
 	visualBrowserWebviewRequestToToolParams,
 } from "../../services/visual-browser-inspector/VisualBrowserInspectorService"
+import { localAiSetupManager, probeLocalAi, recommendLocalAiModel } from "../../services/local-ai"
 
 const ALLOWED_VSCODE_SETTINGS = new Set(["terminal.integrated.inheritEnv"])
 
@@ -152,6 +155,10 @@ const VISUAL_BROWSER_INSPECTOR_ONLY_BLOCKED_MESSAGE_TYPES = new Set<WebviewMessa
 	"refreshCustomTools",
 	"switchMode",
 	"debugSetting",
+	"localAiProbe",
+	"localAiRecommend",
+	"localAiStartSetup",
+	"localAiCancelSetup",
 ])
 
 function isVisualBrowserInspectorOnlyBlockedMessage(message: WebviewMessage): boolean {
@@ -1345,6 +1352,77 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				// Silently fail - user hasn't configured LM Studio yet.
 				console.debug("LM Studio models fetch failed:", error)
 			}
+			break
+		}
+		case "localAiProbe": {
+			try {
+				const probe = await probeLocalAi(getCurrentCwd())
+				provider.postMessageToWebview({ type: "localAiProbeResult", payload: probe })
+			} catch (error) {
+				provider.postMessageToWebview({
+					type: "localAiProbeResult",
+					error: error instanceof Error ? error.message : String(error),
+				})
+			}
+			break
+		}
+		case "localAiRecommend": {
+			try {
+				if (!message.payload) {
+					throw new Error("Missing local AI recommendation payload")
+				}
+
+				const recommendation = recommendLocalAiModel(message.payload as LocalAiRecommendationRequest)
+				provider.postMessageToWebview({ type: "localAiRecommendationResult", payload: recommendation })
+			} catch (error) {
+				provider.postMessageToWebview({
+					type: "localAiRecommendationResult",
+					error: error instanceof Error ? error.message : String(error),
+				})
+			}
+			break
+		}
+		case "localAiStartSetup": {
+			try {
+				if (!message.payload) {
+					throw new Error("Missing local AI setup payload")
+				}
+
+				const result = await localAiSetupManager.start(
+					message.payload as LocalAiSetupStartRequest,
+					(progress) => {
+						provider.postMessageToWebview({ type: "localAiSetupProgress", payload: progress })
+					},
+				)
+
+				if (result.success && result.providerSettings && result.profileName) {
+					await provider.upsertProviderProfile(result.profileName, result.providerSettings)
+					provider.postMessageToWebview({
+						type: "localAiSetupProgress",
+						payload: {
+							stage: "success",
+							message: "Local AI setup is complete.",
+							modelTag: result.modelTag,
+						},
+					})
+				}
+
+				provider.postMessageToWebview({ type: "localAiSetupResult", payload: result, success: result.success })
+			} catch (error) {
+				provider.postMessageToWebview({
+					type: "localAiSetupResult",
+					success: false,
+					error: error instanceof Error ? error.message : String(error),
+				})
+			}
+			break
+		}
+		case "localAiCancelSetup": {
+			localAiSetupManager.cancel()
+			provider.postMessageToWebview({
+				type: "localAiSetupProgress",
+				payload: { stage: "cancelled", message: "Local AI setup cancellation requested." },
+			})
 			break
 		}
 		case "requestOpenAiModels":

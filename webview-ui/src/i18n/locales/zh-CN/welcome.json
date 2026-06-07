@@ -11,7 +11,88 @@
 	"landing": {
 		"greeting": "欢迎使用 C Code！",
 		"introduction": "通过一系列内置和可扩展的模式，C Code 让你能够以前所未有的方式进行规划、架构设计、编码、调试并提升工作效率。",
-		"getStarted": "Get Started"
+		"getStarted": "Get Started",
+		"setupLocalAi": "设置本地 AI",
+		"localAi": { "title": "设置本地 AI", "description": "检测你的硬件，选择 Ollama 模型，并显示实时下载进度。" },
+		"provider": { "title": "使用 API 提供商", "description": "选择 OpenRouter，或使用其他提供商的 key。" }
+	},
+	"localSetup": {
+		"heading": "设置本地 AI",
+		"subtitle": "回答几个问题，C Code 会推荐适合你的电脑和磁盘预算的本地 Ollama 模型。",
+		"hardware": {
+			"heading": "硬件和 runtime 检查",
+			"detecting": "正在检测你的电脑和本地 AI runtimes…",
+			"system": "{{os}} {{arch}}，{{cores}} 个 CPU 核心，{{ram}} RAM",
+			"disk": "可用磁盘：{{free}}",
+			"gpuDetected": "检测到 GPU：{{gpu}}",
+			"gpuUnknown": "GPU 状态未知。我们会保守推荐，而不是断定你没有 GPU。",
+			"runtime": "{{runtime}}：{{status}}",
+			"refresh": "刷新检查"
+		},
+		"runtimeStatus": {
+			"running": "运行中",
+			"installed-not-running": "已安装，未运行",
+			"missing": "缺失",
+			"unknown": "未知"
+		},
+		"form": {
+			"usage": {
+				"label": "你会如何使用本地 AI？",
+				"light": "轻量代码帮助",
+				"daily": "日常编码",
+				"agentic": "大型重构和 agentic 任务"
+			},
+			"preference": { "label": "推荐应优先优化什么？", "speed": "速度", "balanced": "均衡", "quality": "质量" },
+			"privacy": { "label": "隐私偏好", "localOnly": "仅本地", "localPreferred": "优先本地，可稍后配置" },
+			"diskBudget": "模型磁盘预算 (GB)",
+			"runtime": {
+				"label": "Runtime 选择",
+				"existing": "使用现有本地 runtime",
+				"ollama": "设置 Ollama",
+				"manual": "手动设置"
+			},
+			"providerPreference": { "label": "检测到的本地 runtime 偏好" }
+		},
+		"actions": {
+			"manual": "手动设置",
+			"recommend": "推荐模型",
+			"recommending": "正在生成推荐…",
+			"adjust": "调整回答",
+			"installHelp": "Ollama 安装帮助",
+			"confirmDownload": "确认并下载",
+			"cancel": "取消设置",
+			"retry": "重试下载",
+			"openOllamaDownload": "打开 Ollama 下载"
+		},
+		"recommendation": {
+			"heading": "推荐的本地模型",
+			"size": "预计下载：{{size}}",
+			"disk": "检测到的可用磁盘：{{free}}",
+			"runtime": "Runtime/提供商：来自官方本地 API 的 {{runtime}}",
+			"confidence": "推荐置信度：{{confidence}}",
+			"privacyHeading": "隐私说明",
+			"warnings": "下载前"
+		},
+		"confidence": { "low": "低", "medium": "中", "high": "高" },
+		"progress": {
+			"heading": "正在设置本地 AI",
+			"starting": "正在启动本地 AI 设置…",
+			"model": "模型：{{model}}",
+			"percent": "已完成 {{percent}}%",
+			"waiting": "等待 Ollama 进度…"
+		},
+		"manual": {
+			"heading": "手动设置 Ollama",
+			"description": "C Code 不会静默运行安装程序。请自行安装并启动 Ollama，然后返回这里刷新检查。",
+			"stepInstall": "从 Ollama 官方网站下载 Ollama。",
+			"stepStart": "启动 Ollama，并确保它可在 http://localhost:11434 访问。",
+			"stepRetry": "返回这里，刷新 runtime 检查，然后再次运行推荐。"
+		},
+		"success": {
+			"heading": "本地 AI 已准备就绪",
+			"description": "已在 Ollama 中找到 {{model}}，可用于本地 inference。",
+			"profile": "C Code 已保存并激活 Local AI (Ollama) 提供商配置。"
+		}
 	},
 	"providerSignup": {
 		"heading": "选择你的供应商",

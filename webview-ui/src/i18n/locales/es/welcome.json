@@ -11,7 +11,109 @@
 	"landing": {
 		"greeting": "¡Bienvenido a C Code!",
 		"introduction": "Con una variedad de Modos integrados y extensibles, C Code te permite planificar, arquitectar, codificar, depurar y aumentar tu productividad como nunca antes.",
-		"getStarted": "Get Started"
+		"getStarted": "Get Started",
+		"setupLocalAi": "Configurar AI local",
+		"localAi": {
+			"title": "Configurar AI local",
+			"description": "Detecta tu hardware, elige un modelo de Ollama y descárgalo con progreso en vivo."
+		},
+		"provider": {
+			"title": "Usar un proveedor de API",
+			"description": "Elige OpenRouter o trae una clave de otro proveedor."
+		}
+	},
+	"localSetup": {
+		"heading": "Configurar AI local",
+		"subtitle": "Responde unas preguntas y C Code recomendará un modelo local de Ollama que encaje con tu computadora y presupuesto de disco.",
+		"hardware": {
+			"heading": "Comprobación de hardware y runtime",
+			"detecting": "Detectando tu computadora y runtimes de AI locales…",
+			"system": "{{os}} {{arch}}, {{cores}} núcleos de CPU, {{ram}} de RAM",
+			"disk": "Disco libre: {{free}}",
+			"gpuDetected": "GPU detectada: {{gpu}}",
+			"gpuUnknown": "El estado de la GPU es desconocido. Seremos conservadores en vez de asumir que no tienes GPU.",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "Actualizar comprobación"
+		},
+		"runtimeStatus": {
+			"running": "en ejecución",
+			"installed-not-running": "instalado, sin ejecutar",
+			"missing": "no encontrado",
+			"unknown": "desconocido"
+		},
+		"form": {
+			"usage": {
+				"label": "¿Cómo usarás la AI local?",
+				"light": "Ayuda ligera con código",
+				"daily": "Programación diaria",
+				"agentic": "Refactors grandes y tareas agénticas"
+			},
+			"preference": {
+				"label": "¿Para qué debe optimizar la recomendación?",
+				"speed": "Velocidad",
+				"balanced": "Equilibrio",
+				"quality": "Calidad"
+			},
+			"privacy": {
+				"label": "Preferencia de privacidad",
+				"localOnly": "Solo local",
+				"localPreferred": "Prefiero local, puedo configurar después"
+			},
+			"diskBudget": "Presupuesto de disco para el modelo (GB)",
+			"runtime": {
+				"label": "Elección de runtime",
+				"existing": "Usar un runtime local existente",
+				"ollama": "Configurar Ollama",
+				"manual": "Configuración manual"
+			},
+			"providerPreference": {
+				"label": "Preferencia de runtime local detectado"
+			}
+		},
+		"actions": {
+			"manual": "Configuración manual",
+			"recommend": "Recomendar un modelo",
+			"recommending": "Creando recomendación…",
+			"adjust": "Ajustar respuestas",
+			"installHelp": "Ayuda para instalar Ollama",
+			"confirmDownload": "Confirmar y descargar",
+			"cancel": "Cancelar configuración",
+			"retry": "Reintentar descarga",
+			"openOllamaDownload": "Abrir descarga de Ollama"
+		},
+		"recommendation": {
+			"heading": "Modelo local recomendado",
+			"size": "Descarga aproximada: {{size}}",
+			"disk": "Disco libre detectado: {{free}}",
+			"runtime": "Runtime/proveedor: {{runtime}} desde su API local oficial",
+			"confidence": "Confianza de la recomendación: {{confidence}}",
+			"privacyHeading": "Nota de privacidad",
+			"warnings": "Antes de descargar"
+		},
+		"confidence": {
+			"low": "baja",
+			"medium": "media",
+			"high": "alta"
+		},
+		"progress": {
+			"heading": "Configurando AI local",
+			"starting": "Iniciando configuración de AI local…",
+			"model": "Modelo: {{model}}",
+			"percent": "{{percent}}% completado",
+			"waiting": "Esperando progreso de Ollama…"
+		},
+		"manual": {
+			"heading": "Configuración manual de Ollama",
+			"description": "C Code no ejecutará instaladores en silencio. Instala Ollama por tu cuenta, inícialo y luego vuelve para actualizar la comprobación.",
+			"stepInstall": "Descarga Ollama desde el sitio oficial de Ollama.",
+			"stepStart": "Inicia Ollama y asegúrate de que esté disponible en http://localhost:11434.",
+			"stepRetry": "Vuelve aquí, actualiza la comprobación del runtime y ejecuta la recomendación otra vez."
+		},
+		"success": {
+			"heading": "La AI local está lista",
+			"description": "{{model}} se encontró en Ollama y está listo para inferencia local.",
+			"profile": "C Code guardó y activó un perfil de proveedor Local AI (Ollama)."
+		}
 	},
 	"providerSignup": {
 		"heading": "Elige tu proveedor",

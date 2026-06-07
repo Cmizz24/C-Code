@@ -11,7 +11,103 @@
 	"landing": {
 		"greeting": "C Code'a Hoş Geldin!",
 		"introduction": "Yerleşik ve genişletilebilir Modlar yelpazesiyle C Code, daha önce hiç olmadığı gibi planlama, mimari tasarım, kodlama, hata ayıklama ve üretkenliğini artırmanı sağlar.",
-		"getStarted": "Roo Hesabı Oluştur"
+		"getStarted": "Roo Hesabı Oluştur",
+		"setupLocalAi": "Yerel AI kur",
+		"localAi": {
+			"title": "Yerel AI kur",
+			"description": "Donanımını algıla, bir Ollama modeli seç ve canlı ilerlemeyle indir."
+		},
+		"provider": {
+			"title": "Bir API sağlayıcısı kullan",
+			"description": "OpenRouter seç veya başka bir sağlayıcının anahtarını kullan."
+		}
+	},
+	"localSetup": {
+		"heading": "Yerel AI kur",
+		"subtitle": "Birkaç soruyu yanıtla, C Code bilgisayarına ve disk bütçene uygun yerel bir Ollama modeli önersin.",
+		"hardware": {
+			"heading": "Donanım ve runtime kontrolü",
+			"detecting": "Bilgisayarın ve yerel AI runtimes algılanıyor…",
+			"system": "{{os}} {{arch}}, {{cores}} CPU çekirdeği, {{ram}} RAM",
+			"disk": "Boş disk: {{free}}",
+			"gpuDetected": "GPU algılandı: {{gpu}}",
+			"gpuUnknown": "GPU durumu bilinmiyor. GPU yok varsaymak yerine temkinli davranacağız.",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "Kontrolü yenile"
+		},
+		"runtimeStatus": {
+			"running": "çalışıyor",
+			"installed-not-running": "kurulu, çalışmıyor",
+			"missing": "eksik",
+			"unknown": "bilinmiyor"
+		},
+		"form": {
+			"usage": {
+				"label": "Yerel AI'ı nasıl kullanacaksın?",
+				"light": "Hafif kod yardımı",
+				"daily": "Günlük kodlama",
+				"agentic": "Büyük refactor'lar ve agentic görevler"
+			},
+			"preference": {
+				"label": "Öneri neyi optimize etsin?",
+				"speed": "Hız",
+				"balanced": "Dengeli",
+				"quality": "Kalite"
+			},
+			"privacy": {
+				"label": "Gizlilik tercihi",
+				"localOnly": "Yalnızca yerel",
+				"localPreferred": "Yerel tercih edilir, sonra yapılandırmak sorun değil"
+			},
+			"diskBudget": "Model disk bütçesi (GB)",
+			"runtime": {
+				"label": "Runtime seçimi",
+				"existing": "Mevcut yerel runtime kullan",
+				"ollama": "Ollama kur",
+				"manual": "Manuel kurulum"
+			},
+			"providerPreference": { "label": "Algılanan yerel runtime tercihi" }
+		},
+		"actions": {
+			"manual": "Manuel kurulum",
+			"recommend": "Model öner",
+			"recommending": "Öneri oluşturuluyor…",
+			"adjust": "Yanıtları ayarla",
+			"installHelp": "Ollama kurulum yardımı",
+			"confirmDownload": "Onayla ve indir",
+			"cancel": "Kurulumu iptal et",
+			"retry": "İndirmeyi tekrar dene",
+			"openOllamaDownload": "Ollama indirmesini aç"
+		},
+		"recommendation": {
+			"heading": "Önerilen yerel model",
+			"size": "Yaklaşık indirme: {{size}}",
+			"disk": "Algılanan boş disk: {{free}}",
+			"runtime": "Runtime/sağlayıcı: resmi yerel API üzerinden {{runtime}}",
+			"confidence": "Öneri güveni: {{confidence}}",
+			"privacyHeading": "Gizlilik notu",
+			"warnings": "İndirmeden önce"
+		},
+		"confidence": { "low": "düşük", "medium": "orta", "high": "yüksek" },
+		"progress": {
+			"heading": "Yerel AI kuruluyor",
+			"starting": "Yerel AI kurulumu başlatılıyor…",
+			"model": "Model: {{model}}",
+			"percent": "{{percent}}% tamamlandı",
+			"waiting": "Ollama ilerlemesi bekleniyor…"
+		},
+		"manual": {
+			"heading": "Manuel Ollama kurulumu",
+			"description": "C Code kurucuları sessizce çalıştırmaz. Ollama'yı kendin kur, başlat, sonra buraya dönüp kontrolü yenile.",
+			"stepInstall": "Ollama'yı resmi Ollama sitesinden indir.",
+			"stepStart": "Ollama'yı başlat ve http://localhost:11434 adresinden erişilebilir olduğundan emin ol.",
+			"stepRetry": "Buraya dön, runtime kontrolünü yenile ve öneriyi tekrar çalıştır."
+		},
+		"success": {
+			"heading": "Yerel AI hazır",
+			"description": "{{model}} Ollama'da bulundu ve yerel inference için hazır.",
+			"profile": "C Code Local AI (Ollama) sağlayıcı profilini kaydetti ve etkinleştirdi."
+		}
 	},
 	"providerSignup": {
 		"heading": "Sağlayıcınızı seçin",

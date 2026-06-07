@@ -11,7 +11,103 @@
 	"landing": {
 		"greeting": "Chào mừng đến với C Code!",
 		"introduction": "Với nhiều Chế độ tích hợp và có thể mở rộng, C Code cho phép bạn lập kế hoạch, thiết kế kiến trúc, viết mã, gỡ lỗi và tăng năng suất như chưa từng có trước đây.",
-		"getStarted": "Tạo tài khoản Roo"
+		"getStarted": "Tạo tài khoản Roo",
+		"setupLocalAi": "Thiết lập AI cục bộ",
+		"localAi": {
+			"title": "Thiết lập AI cục bộ",
+			"description": "Phát hiện phần cứng, chọn mô hình Ollama và tải xuống với tiến trình trực tiếp."
+		},
+		"provider": {
+			"title": "Dùng nhà cung cấp API",
+			"description": "Chọn OpenRouter hoặc dùng key của nhà cung cấp khác."
+		}
+	},
+	"localSetup": {
+		"heading": "Thiết lập AI cục bộ",
+		"subtitle": "Trả lời vài câu hỏi và C Code sẽ đề xuất một mô hình Ollama cục bộ phù hợp với máy tính và ngân sách ổ đĩa của bạn.",
+		"hardware": {
+			"heading": "Kiểm tra phần cứng và runtime",
+			"detecting": "Đang phát hiện máy tính và các runtime AI cục bộ…",
+			"system": "{{os}} {{arch}}, {{cores}} lõi CPU, {{ram}} RAM",
+			"disk": "Ổ đĩa trống: {{free}}",
+			"gpuDetected": "Đã phát hiện GPU: {{gpu}}",
+			"gpuUnknown": "Không rõ trạng thái GPU. Chúng tôi sẽ thận trọng thay vì khẳng định bạn không có GPU.",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "Làm mới kiểm tra"
+		},
+		"runtimeStatus": {
+			"running": "đang chạy",
+			"installed-not-running": "đã cài, chưa chạy",
+			"missing": "thiếu",
+			"unknown": "không rõ"
+		},
+		"form": {
+			"usage": {
+				"label": "Bạn sẽ dùng AI cục bộ thế nào?",
+				"light": "Trợ giúp code nhẹ",
+				"daily": "Lập trình hằng ngày",
+				"agentic": "Refactor lớn và tác vụ agentic"
+			},
+			"preference": {
+				"label": "Đề xuất nên tối ưu cho gì?",
+				"speed": "Tốc độ",
+				"balanced": "Cân bằng",
+				"quality": "Chất lượng"
+			},
+			"privacy": {
+				"label": "Ưu tiên quyền riêng tư",
+				"localOnly": "Chỉ cục bộ",
+				"localPreferred": "Ưu tiên cục bộ, cấu hình sau cũng được"
+			},
+			"diskBudget": "Ngân sách ổ đĩa cho mô hình (GB)",
+			"runtime": {
+				"label": "Chọn runtime",
+				"existing": "Dùng runtime cục bộ hiện có",
+				"ollama": "Thiết lập Ollama",
+				"manual": "Thiết lập thủ công"
+			},
+			"providerPreference": { "label": "Ưu tiên runtime cục bộ đã phát hiện" }
+		},
+		"actions": {
+			"manual": "Thiết lập thủ công",
+			"recommend": "Đề xuất mô hình",
+			"recommending": "Đang tạo đề xuất…",
+			"adjust": "Điều chỉnh câu trả lời",
+			"installHelp": "Trợ giúp cài Ollama",
+			"confirmDownload": "Xác nhận và tải xuống",
+			"cancel": "Hủy thiết lập",
+			"retry": "Thử tải lại",
+			"openOllamaDownload": "Mở tải Ollama"
+		},
+		"recommendation": {
+			"heading": "Mô hình cục bộ được đề xuất",
+			"size": "Tải xuống xấp xỉ: {{size}}",
+			"disk": "Ổ đĩa trống đã phát hiện: {{free}}",
+			"runtime": "Runtime/nhà cung cấp: {{runtime}} từ API cục bộ chính thức",
+			"confidence": "Độ tin cậy đề xuất: {{confidence}}",
+			"privacyHeading": "Ghi chú quyền riêng tư",
+			"warnings": "Trước khi tải"
+		},
+		"confidence": { "low": "thấp", "medium": "trung bình", "high": "cao" },
+		"progress": {
+			"heading": "Đang thiết lập AI cục bộ",
+			"starting": "Đang bắt đầu thiết lập AI cục bộ…",
+			"model": "Mô hình: {{model}}",
+			"percent": "Hoàn tất {{percent}}%",
+			"waiting": "Đang chờ tiến trình Ollama…"
+		},
+		"manual": {
+			"heading": "Thiết lập Ollama thủ công",
+			"description": "C Code sẽ không âm thầm chạy trình cài đặt. Hãy tự cài Ollama, khởi động nó, rồi quay lại làm mới kiểm tra.",
+			"stepInstall": "Tải Ollama từ trang Ollama chính thức.",
+			"stepStart": "Khởi động Ollama và đảm bảo có thể truy cập tại http://localhost:11434.",
+			"stepRetry": "Quay lại đây, làm mới kiểm tra runtime và chạy đề xuất lại."
+		},
+		"success": {
+			"heading": "AI cục bộ đã sẵn sàng",
+			"description": "Đã tìm thấy {{model}} trong Ollama và sẵn sàng cho inference cục bộ.",
+			"profile": "C Code đã lưu và kích hoạt hồ sơ nhà cung cấp Local AI (Ollama)."
+		}
 	},
 	"providerSignup": {
 		"heading": "Chọn nhà cung cấp của bạn",

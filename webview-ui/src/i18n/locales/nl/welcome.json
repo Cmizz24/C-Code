@@ -11,7 +11,103 @@
 	"landing": {
 		"greeting": "Welkom bij C Code!",
 		"introduction": "Met een reeks ingebouwde en uitbreidbare Modi laat C Code je plannen, ontwerpen, coderen, debuggen en je productiviteit verhogen als nooit tevoren.",
-		"getStarted": "Get Started"
+		"getStarted": "Get Started",
+		"setupLocalAi": "Lokale AI instellen",
+		"localAi": {
+			"title": "Lokale AI instellen",
+			"description": "Detecteer je hardware, kies een Ollama-model en download het met live voortgang."
+		},
+		"provider": {
+			"title": "Een API-provider gebruiken",
+			"description": "Kies OpenRouter of gebruik een sleutel van een andere provider."
+		}
+	},
+	"localSetup": {
+		"heading": "Lokale AI instellen",
+		"subtitle": "Beantwoord een paar vragen en C Code raadt een lokaal Ollama-model aan dat past bij je computer en schijfbudget.",
+		"hardware": {
+			"heading": "Hardware- en runtimecontrole",
+			"detecting": "Je computer en lokale AI-runtimes detecteren…",
+			"system": "{{os}} {{arch}}, {{cores}} CPU-cores, {{ram}} RAM",
+			"disk": "Vrije schijf: {{free}}",
+			"gpuDetected": "GPU gedetecteerd: {{gpu}}",
+			"gpuUnknown": "GPU-status onbekend. We blijven conservatief in plaats van aan te nemen dat je geen GPU hebt.",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "Controle vernieuwen"
+		},
+		"runtimeStatus": {
+			"running": "actief",
+			"installed-not-running": "geïnstalleerd, niet actief",
+			"missing": "ontbreekt",
+			"unknown": "onbekend"
+		},
+		"form": {
+			"usage": {
+				"label": "Hoe ga je lokale AI gebruiken?",
+				"light": "Lichte hulp bij code",
+				"daily": "Dagelijks coderen",
+				"agentic": "Grote refactors en agentische taken"
+			},
+			"preference": {
+				"label": "Waarop moet de aanbeveling optimaliseren?",
+				"speed": "Snelheid",
+				"balanced": "Gebalanceerd",
+				"quality": "Kwaliteit"
+			},
+			"privacy": {
+				"label": "Privacyvoorkeur",
+				"localOnly": "Alleen lokaal",
+				"localPreferred": "Lokaal heeft voorkeur, later configureren is oké"
+			},
+			"diskBudget": "Schijfbudget voor model (GB)",
+			"runtime": {
+				"label": "Runtime-keuze",
+				"existing": "Bestaande lokale runtime gebruiken",
+				"ollama": "Ollama instellen",
+				"manual": "Handmatige setup"
+			},
+			"providerPreference": { "label": "Voorkeur voor gedetecteerde lokale runtime" }
+		},
+		"actions": {
+			"manual": "Handmatige setup",
+			"recommend": "Model aanbevelen",
+			"recommending": "Aanbeveling maken…",
+			"adjust": "Antwoorden aanpassen",
+			"installHelp": "Ollama-installatiehulp",
+			"confirmDownload": "Bevestigen en downloaden",
+			"cancel": "Setup annuleren",
+			"retry": "Download opnieuw proberen",
+			"openOllamaDownload": "Ollama-download openen"
+		},
+		"recommendation": {
+			"heading": "Aanbevolen lokaal model",
+			"size": "Geschatte download: {{size}}",
+			"disk": "Gedetecteerde vrije schijf: {{free}}",
+			"runtime": "Runtime/provider: {{runtime}} via de officiële lokale API",
+			"confidence": "Betrouwbaarheid aanbeveling: {{confidence}}",
+			"privacyHeading": "Privacynotitie",
+			"warnings": "Voor het downloaden"
+		},
+		"confidence": { "low": "laag", "medium": "gemiddeld", "high": "hoog" },
+		"progress": {
+			"heading": "Lokale AI instellen",
+			"starting": "Lokale AI-setup starten…",
+			"model": "Model: {{model}}",
+			"percent": "{{percent}}% voltooid",
+			"waiting": "Wachten op Ollama-voortgang…"
+		},
+		"manual": {
+			"heading": "Handmatige Ollama-setup",
+			"description": "C Code voert geen installers stil uit. Installeer Ollama zelf, start het en kom dan terug om de controle te vernieuwen.",
+			"stepInstall": "Download Ollama van de officiële Ollama-site.",
+			"stepStart": "Start Ollama en zorg dat het bereikbaar is op http://localhost:11434.",
+			"stepRetry": "Kom hier terug, vernieuw de runtimecontrole en voer de aanbeveling opnieuw uit."
+		},
+		"success": {
+			"heading": "Lokale AI is klaar",
+			"description": "{{model}} is gevonden in Ollama en is klaar voor lokale inferentie.",
+			"profile": "C Code heeft een Local AI (Ollama)-providerprofiel opgeslagen en geactiveerd."
+		}
 	},
 	"providerSignup": {
 		"heading": "Kies je provider",

@@ -20,6 +20,15 @@ vi.mock("../../../services/command/commands", () => ({
 	getCommands: vi.fn(),
 }))
 
+vi.mock("../../../services/local-ai", () => ({
+	probeLocalAi: vi.fn(),
+	recommendLocalAiModel: vi.fn(),
+	localAiSetupManager: {
+		start: vi.fn(),
+		cancel: vi.fn(),
+	},
+}))
+
 vi.mock("@anthropic-ai/vertex-sdk", () => ({
 	AnthropicVertex: vi.fn(),
 }))
@@ -46,6 +55,7 @@ import { ClineProvider } from "../ClineProvider"
 import { MessageEnhancer } from "../messageEnhancer"
 import { getModels } from "../../../api/providers/fetchers/modelCache"
 import { getCommands } from "../../../services/command/commands"
+import { localAiSetupManager, probeLocalAi, recommendLocalAiModel } from "../../../services/local-ai"
 import { visualBrowserInspectorService } from "../../../services/visual-browser-inspector/VisualBrowserInspectorService"
 import { getCommand } from "../../../utils/commands"
 const { openAiCodexOAuthManager } = await import("../../../integrations/openai-codex/oauth")
@@ -53,6 +63,9 @@ const { fetchOpenAiCodexRateLimitInfo } = await import("../../../integrations/op
 
 const mockGetModels = getModels as Mock<typeof getModels>
 const mockGetCommands = vi.mocked(getCommands)
+const mockProbeLocalAi = vi.mocked(probeLocalAi)
+const mockRecommendLocalAiModel = vi.mocked(recommendLocalAiModel)
+const mockLocalAiSetupManager = vi.mocked(localAiSetupManager)
 const mockGetAccessToken = vi.mocked(openAiCodexOAuthManager.getAccessToken)
 const mockGetAccountId = vi.mocked(openAiCodexOAuthManager.getAccountId)
 const mockFetchOpenAiCodexRateLimitInfo = vi.mocked(fetchOpenAiCodexRateLimitInfo)
@@ -82,6 +95,7 @@ const mockClineProvider = {
 	getCurrentTask: vi.fn(),
 	getTaskWithId: vi.fn(),
 	createTask: vi.fn().mockResolvedValue({ taskId: "mock-task-id" }),
+	upsertProviderProfile: vi.fn(),
 	createTaskWithHistoryItem: vi.fn(),
 	clearTask: vi.fn(),
 	notifyAcceptedFinalParentCompletion: vi.fn(),
@@ -595,6 +609,138 @@ describe("webviewMessageHandler - requestOllamaModels", () => {
 		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
 			type: "ollamaModels",
 			ollamaModels: mockModels,
+		})
+	})
+})
+
+describe("webviewMessageHandler - local AI setup", () => {
+	const probe = {
+		os: "win32",
+		arch: "x64",
+		cpu: { model: "Test CPU", count: 8 },
+		memory: { totalBytes: 16 * 1024 ** 3, totalGb: 16 },
+		disk: { status: "known", freeBytes: 80 * 1024 ** 3, freeGb: 80, path: "C:" },
+		gpu: { status: "unknown", names: [] },
+		runtimes: {
+			ollama: { provider: "ollama", displayName: "Ollama", baseUrl: "http://localhost:11434", status: "running" },
+			lmStudio: {
+				provider: "lmstudio",
+				displayName: "LM Studio",
+				baseUrl: "http://localhost:1234",
+				status: "unknown",
+			},
+		},
+		probedAt: "2026-01-01T00:00:00.000Z",
+	} as any
+
+	const questionnaire = {
+		usageProfile: "daily",
+		preference: "balanced",
+		privacy: "local-only",
+		diskBudgetGb: 8,
+		runtimeChoice: "ollama",
+	} as any
+
+	const recommendation = {
+		provider: "ollama",
+		runtimeDisplayName: "Ollama",
+		baseUrl: "http://localhost:11434",
+		model: {
+			provider: "ollama",
+			tag: "qwen2.5-coder:7b",
+			displayName: "Qwen2.5 Coder 7B",
+			description: "Test model",
+			approximateSizeGb: 4.7,
+			minimumRamGb: 12,
+			recommendedRamGb: 16,
+			tier: "standard",
+			defaultNumCtx: 8192,
+		},
+		ollamaNumCtx: 8192,
+		confidence: "high",
+		reasons: [],
+		warnings: [],
+		diskBudgetGb: 8,
+		privacyNote: "Inference runs locally once Ollama and the selected model are installed.",
+	} as any
+
+	beforeEach(() => {
+		vi.clearAllMocks()
+		mockClineProvider.getState = vi.fn().mockResolvedValue({ apiConfiguration: {}, mode: "code" })
+	})
+
+	it("posts a local AI hardware probe result", async () => {
+		mockProbeLocalAi.mockResolvedValue(probe)
+
+		await webviewMessageHandler(mockClineProvider, { type: "localAiProbe" } as any)
+
+		expect(mockProbeLocalAi).toHaveBeenCalledWith("/mock/workspace")
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "localAiProbeResult",
+			payload: probe,
+		})
+	})
+
+	it("posts a deterministic local AI recommendation", async () => {
+		mockRecommendLocalAiModel.mockReturnValue(recommendation)
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "localAiRecommend",
+			payload: { probe, questionnaire },
+		} as any)
+
+		expect(mockRecommendLocalAiModel).toHaveBeenCalledWith({ probe, questionnaire })
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "localAiRecommendationResult",
+			payload: recommendation,
+		})
+	})
+
+	it("streams setup progress, upserts provider profile, and posts success result", async () => {
+		mockLocalAiSetupManager.start.mockImplementation(async (_request: any, progress: any) => {
+			await progress({ stage: "download", message: "downloading", percent: 42, modelTag: "qwen2.5-coder:7b" })
+			return {
+				success: true,
+				profileName: "Local AI (Ollama)",
+				modelTag: "qwen2.5-coder:7b",
+				providerSettings: {
+					apiProvider: "ollama",
+					ollamaBaseUrl: "http://localhost:11434",
+					ollamaModelId: "qwen2.5-coder:7b",
+					ollamaNumCtx: 8192,
+				},
+			}
+		})
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "localAiStartSetup",
+			payload: { recommendation, questionnaire },
+		} as any)
+
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "localAiSetupProgress",
+			payload: { stage: "download", message: "downloading", percent: 42, modelTag: "qwen2.5-coder:7b" },
+		})
+		expect(mockClineProvider.upsertProviderProfile).toHaveBeenCalledWith("Local AI (Ollama)", {
+			apiProvider: "ollama",
+			ollamaBaseUrl: "http://localhost:11434",
+			ollamaModelId: "qwen2.5-coder:7b",
+			ollamaNumCtx: 8192,
+		})
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "localAiSetupResult",
+			payload: expect.objectContaining({ success: true, modelTag: "qwen2.5-coder:7b" }),
+			success: true,
+		})
+	})
+
+	it("cancels in-progress local AI setup", async () => {
+		await webviewMessageHandler(mockClineProvider, { type: "localAiCancelSetup" } as any)
+
+		expect(mockLocalAiSetupManager.cancel).toHaveBeenCalled()
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "localAiSetupProgress",
+			payload: { stage: "cancelled", message: "Local AI setup cancellation requested." },
 		})
 	})
 })

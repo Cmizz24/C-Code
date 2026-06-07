@@ -11,7 +11,103 @@
 	"landing": {
 		"greeting": "Witaj w C Code!",
 		"introduction": "Dzięki szerokiej gamie wbudowanych i rozszerzalnych Trybów, C Code pozwala planować, projektować architekturę, kodować, debugować i zwiększać produktywność jak nigdy dotąd.",
-		"getStarted": "Get Started"
+		"getStarted": "Get Started",
+		"setupLocalAi": "Skonfiguruj lokalną AI",
+		"localAi": {
+			"title": "Skonfiguruj lokalną AI",
+			"description": "Wykryj sprzęt, wybierz model Ollama i pobierz go z postępem na żywo."
+		},
+		"provider": {
+			"title": "Użyj dostawcy API",
+			"description": "Wybierz OpenRouter albo użyj klucza innego dostawcy."
+		}
+	},
+	"localSetup": {
+		"heading": "Skonfiguruj lokalną AI",
+		"subtitle": "Odpowiedz na kilka pytań, a C Code poleci lokalny model Ollama pasujący do twojego komputera i budżetu dysku.",
+		"hardware": {
+			"heading": "Sprawdzenie sprzętu i runtime",
+			"detecting": "Wykrywanie komputera i lokalnych runtime AI…",
+			"system": "{{os}} {{arch}}, {{cores}} rdzeni CPU, {{ram}} RAM",
+			"disk": "Wolny dysk: {{free}}",
+			"gpuDetected": "Wykryto GPU: {{gpu}}",
+			"gpuUnknown": "Status GPU jest nieznany. Zachowamy ostrożność zamiast zakładać, że nie masz GPU.",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "Odśwież sprawdzenie"
+		},
+		"runtimeStatus": {
+			"running": "działa",
+			"installed-not-running": "zainstalowany, nie działa",
+			"missing": "brak",
+			"unknown": "nieznany"
+		},
+		"form": {
+			"usage": {
+				"label": "Jak będziesz używać lokalnej AI?",
+				"light": "Lekka pomoc w kodzie",
+				"daily": "Codzienne kodowanie",
+				"agentic": "Duże refaktoryzacje i zadania agentowe"
+			},
+			"preference": {
+				"label": "Pod co zoptymalizować rekomendację?",
+				"speed": "Szybkość",
+				"balanced": "Równowaga",
+				"quality": "Jakość"
+			},
+			"privacy": {
+				"label": "Preferencje prywatności",
+				"localOnly": "Tylko lokalnie",
+				"localPreferred": "Preferuję lokalnie, konfiguracja później jest OK"
+			},
+			"diskBudget": "Budżet dysku modelu (GB)",
+			"runtime": {
+				"label": "Wybór runtime",
+				"existing": "Użyj istniejącego lokalnego runtime",
+				"ollama": "Skonfiguruj Ollama",
+				"manual": "Konfiguracja ręczna"
+			},
+			"providerPreference": { "label": "Preferencja wykrytego lokalnego runtime" }
+		},
+		"actions": {
+			"manual": "Konfiguracja ręczna",
+			"recommend": "Poleć model",
+			"recommending": "Tworzenie rekomendacji…",
+			"adjust": "Dostosuj odpowiedzi",
+			"installHelp": "Pomoc instalacji Ollama",
+			"confirmDownload": "Potwierdź i pobierz",
+			"cancel": "Anuluj konfigurację",
+			"retry": "Ponów pobieranie",
+			"openOllamaDownload": "Otwórz pobieranie Ollama"
+		},
+		"recommendation": {
+			"heading": "Polecany model lokalny",
+			"size": "Przybliżone pobieranie: {{size}}",
+			"disk": "Wykryty wolny dysk: {{free}}",
+			"runtime": "Runtime/dostawca: {{runtime}} z oficjalnego lokalnego API",
+			"confidence": "Pewność rekomendacji: {{confidence}}",
+			"privacyHeading": "Informacja o prywatności",
+			"warnings": "Przed pobraniem"
+		},
+		"confidence": { "low": "niska", "medium": "średnia", "high": "wysoka" },
+		"progress": {
+			"heading": "Konfiguracja lokalnej AI",
+			"starting": "Uruchamianie konfiguracji lokalnej AI…",
+			"model": "Model: {{model}}",
+			"percent": "Ukończono {{percent}}%",
+			"waiting": "Oczekiwanie na postęp Ollama…"
+		},
+		"manual": {
+			"heading": "Ręczna konfiguracja Ollama",
+			"description": "C Code nie uruchomi instalatorów po cichu. Zainstaluj Ollama samodzielnie, uruchom ją, a potem wróć i odśwież sprawdzenie.",
+			"stepInstall": "Pobierz Ollama z oficjalnej strony Ollama.",
+			"stepStart": "Uruchom Ollama i upewnij się, że jest dostępna pod http://localhost:11434.",
+			"stepRetry": "Wróć tutaj, odśwież sprawdzenie runtime i uruchom rekomendację ponownie."
+		},
+		"success": {
+			"heading": "Lokalna AI jest gotowa",
+			"description": "{{model}} znaleziono w Ollama i jest gotowy do lokalnej inferencji.",
+			"profile": "C Code zapisał i aktywował profil dostawcy Local AI (Ollama)."
+		}
 	},
 	"providerSignup": {
 		"heading": "Wybierz swojego dostawcę",

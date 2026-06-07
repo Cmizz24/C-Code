@@ -17,6 +17,14 @@ import type { SkillMetadata } from "./skills.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
 import type { GeneratedImageMetadata } from "./image-generation.js"
 import type {
+	LocalAiRecommendationRequest,
+	LocalAiSetupStartRequest,
+	LocalAiSetupProgress,
+	LocalAiSetupResult,
+	LocalAiHardwareProbe,
+	LocalAiRecommendation,
+} from "./local-ai.js"
+import type {
 	VisualBrowserAction,
 	VisualBrowserToolResult,
 	VisualBrowserToolStatus,
@@ -122,6 +130,10 @@ export interface ExtensionMessage {
 		| "fileContent"
 		| "smtpTestResult"
 		| "visualBrowserInspector"
+		| "localAiProbeResult"
+		| "localAiRecommendationResult"
+		| "localAiSetupProgress"
+		| "localAiSetupResult"
 	text?: string
 	/** For fileContent: { path, content, error? } */
 	fileContent?: { path: string; content: string | null; error?: string }
@@ -614,6 +626,10 @@ export interface WebviewMessage {
 		| "updateSkillModes"
 		| "openSkillFile"
 		| "visualBrowserInspector"
+		| "localAiProbe"
+		| "localAiRecommend"
+		| "localAiStartSetup"
+		| "localAiCancelSetup"
 	text?: string
 	taskId?: string
 	editedMessageContent?: string
@@ -768,6 +784,12 @@ export type WebViewMessagePayload =
 	| EditQueuedMessagePayload
 	| VisualBrowserWebviewRequest
 	| VisualBrowserWebviewResponse
+	| LocalAiRecommendationRequest
+	| LocalAiSetupStartRequest
+	| LocalAiSetupProgress
+	| LocalAiSetupResult
+	| LocalAiHardwareProbe
+	| LocalAiRecommendation
 
 export interface IndexingStatus {
 	systemStatus: string
