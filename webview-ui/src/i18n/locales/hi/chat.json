@@ -201,6 +201,46 @@
 		"wantsToGenerateImageProtected": "Roo एक संरक्षित स्थान पर छवि बनाना चाहता है",
 		"didGenerateImage": "Roo ने एक छवि बनाई"
 	},
+	"imageGeneration": {
+		"approval": {
+			"generate": "बनाएँ",
+			"editPromptHint": "स्वीकृत करने से पहले संदेश बॉक्स में Prompt संपादित करें, या इसे जस का तस स्वीकृत करें."
+		},
+		"statusTitle": "छवि निर्माण: {{status}}",
+		"status": {
+			"pending": "स्वीकृति लंबित",
+			"running": "चल रहा है",
+			"completed": "पूर्ण",
+			"error": "त्रुटि"
+		},
+		"metadata": {
+			"prompt": "Prompt",
+			"editedPrompt": "संपादित Prompt",
+			"originalPrompt": "मूल Prompt",
+			"provider": "प्रदाता",
+			"model": "मॉडल",
+			"endpoint": "Endpoint",
+			"endpointType": "Endpoint प्रकार",
+			"localEndpoint": "स्थानीय",
+			"remoteEndpoint": "रिमोट",
+			"apiMethod": "API विधि",
+			"outputPath": "आउटपुट पथ",
+			"inputImage": "इनपुट छवि",
+			"imageFormat": "छवि प्रारूप",
+			"tokensIn": "इनपुट tokens",
+			"tokensOut": "आउटपुट tokens",
+			"totalTokens": "कुल tokens",
+			"images": "छवियाँ",
+			"cost": "लागत",
+			"error": "त्रुटि"
+		},
+		"apiMethods": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API"
+		}
+	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo इस निर्देशिका में शीर्ष स्तर की फ़ाइलें देखना चाहता है",
 		"didViewTopLevel": "Roo ने इस निर्देशिका में शीर्ष स्तर की फ़ाइलें देखीं",

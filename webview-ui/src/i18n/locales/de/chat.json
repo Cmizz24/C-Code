@@ -201,6 +201,46 @@
 		"wantsToGenerateImageProtected": "Roo möchte ein Bild an einem geschützten Ort generieren",
 		"didGenerateImage": "Roo hat ein Bild generiert"
 	},
+	"imageGeneration": {
+		"approval": {
+			"generate": "Generieren",
+			"editPromptHint": "Bearbeite den Prompt im Nachrichtenfeld vor der Genehmigung oder genehmige ihn unverändert."
+		},
+		"statusTitle": "Bildgenerierung: {{status}}",
+		"status": {
+			"pending": "Wartet auf Genehmigung",
+			"running": "Läuft",
+			"completed": "Abgeschlossen",
+			"error": "Fehler"
+		},
+		"metadata": {
+			"prompt": "Prompt",
+			"editedPrompt": "Bearbeiteter Prompt",
+			"originalPrompt": "Ursprünglicher Prompt",
+			"provider": "Anbieter",
+			"model": "Modell",
+			"endpoint": "Endpoint",
+			"endpointType": "Endpoint-Typ",
+			"localEndpoint": "Lokal",
+			"remoteEndpoint": "Remote",
+			"apiMethod": "API-Methode",
+			"outputPath": "Ausgabepfad",
+			"inputImage": "Eingabebild",
+			"imageFormat": "Bildformat",
+			"tokensIn": "Eingabe-tokens",
+			"tokensOut": "Ausgabe-tokens",
+			"totalTokens": "Gesamt-tokens",
+			"images": "Bilder",
+			"cost": "Kosten",
+			"error": "Fehler"
+		},
+		"apiMethods": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API"
+		}
+	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo möchte die Dateien auf oberster Ebene in diesem Verzeichnis anzeigen",
 		"didViewTopLevel": "Roo hat die Dateien auf oberster Ebene in diesem Verzeichnis angezeigt",

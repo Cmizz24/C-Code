@@ -255,6 +255,10 @@
 			"maxConcurrentDescription": "Chọn số agent có thể chạy cùng lúc cho một kế hoạch tác vụ song song đã được phê duyệt ({{min}}–{{max}}). Agent đang chờ sẽ bắt đầu khi agent đang chạy hoàn tất.",
 			"description": "Tự động phê duyệt các kế hoạch tác vụ song song hợp lệ và khởi động agents mà không hiển thị hộp thoại xem trước kế hoạch"
 		},
+		"visualBrowserInspector": {
+			"label": "Trình duyệt",
+			"description": "Tự động phê duyệt các hành động Visual Browser Inspector từ chat, bao gồm mở các trang trình duyệt được kiểm soát, ảnh chụp màn hình, kiểm tra DOM, cắt ảnh, phân tích và tương tác với trang. Điều này không cho phép chỉnh sửa tệp hoặc chạy lệnh terminal."
+		},
 		"followupQuestions": {
 			"label": "Câu hỏi",
 			"description": "Tự động chọn câu trả lời đầu tiên được đề xuất cho các câu hỏi tiếp theo sau thời gian chờ đã cấu hình",
@@ -871,11 +875,12 @@
 			"description": "Khi bật, C có thể tạo và chỉnh sửa hình ảnh từ prompt bằng một nhà cung cấp tạo hình ảnh được cấu hình riêng.",
 			"providerLabel": "Nhà cung cấp",
 			"providerDescription": "Chọn nhà cung cấp dùng cho tạo hình ảnh. Cài đặt này độc lập với hồ sơ nhà cung cấp chat của bạn.",
+			"localProviderNote": "Ollama và LM Studio không thể chọn ở đây vì chúng cung cấp API vision/chat, không phải API tạo hình ảnh. Tạo hình ảnh local có sẵn qua các API tạo hình ảnh thực sự như ComfyUI và Automatic1111 khi được cấu hình.",
 			"apiKeyLabel": "Khóa API {{provider}}",
 			"optionalApiKeyLabel": "Khóa API {{provider}} (tùy chọn)",
 			"apiKeyPlaceholder": "Nhập khóa API {{provider}} của bạn",
 			"apiKeyRequiredDescription": "Nhà cung cấp này yêu cầu khóa API để tạo hình ảnh.",
-			"apiKeyOptionalDescription": "Tùy chọn. Chỉ dùng mục này nếu máy chủ cục bộ hoặc proxy của bạn yêu cầu xác thực bearer-token.",
+			"apiKeyOptionalDescription": "Tùy chọn. Chỉ dùng mục này nếu endpoint, phiên bản local hoặc proxy của bạn yêu cầu xác thực bearer-token.",
 			"getApiKeyText": "Lấy khóa API của bạn từ",
 			"baseUrlLabel": "URL cơ sở",
 			"baseUrlPlaceholder": "Mặc định: {{url}}",
@@ -885,14 +890,20 @@
 			"modelIdLabel": "ID mô hình",
 			"customModelIdPlaceholder": "Nhập ID mô hình",
 			"modelIdPlaceholderWithDefault": "Mặc định: {{model}}",
-			"customModelIdDescription": "Nhập đúng ID mô hình mà nhà cung cấp hoặc máy chủ cục bộ của bạn cung cấp.",
+			"customModelIdDescription": "Nhập đúng ID model do nhà cung cấp hoặc endpoint tương thích OpenAI của bạn cung cấp.",
+			"optionalModelIdDescription": "Tùy chọn. Để trống để dùng checkpoint hiện đang được nhà cung cấp tải.",
 			"apiMethodLabel": "Phương thức API",
 			"apiMethodDescription": "Chọn dạng endpoint tương thích OpenAI để dùng cho tạo hình ảnh.",
 			"apiMethodLockedDescription": "Mô hình đã chọn dùng phương thức API bắt buộc của {{model}}.",
 			"apiMethodLabels": {
 				"chat_completions": "Chat completions",
-				"images_api": "Images API"
+				"images_api": "Images API",
+				"comfyui_api": "ComfyUI API",
+				"automatic1111_api": "Automatic1111 API"
 			},
+			"negativePromptLabel": "Prompt phủ định",
+			"negativePromptPlaceholder": "Nhập nội dung cần tránh trong hình ảnh được tạo",
+			"negativePromptDescription": "Tùy chọn. Giúp nhà cung cấp local tránh chủ thể, phong cách hoặc artifact không mong muốn.",
 			"warningMissingApiKey": "⚠️ {{provider}} yêu cầu khóa API để tạo hình ảnh. Hãy cấu hình ở trên.",
 			"warningMissingModel": "⚠️ {{provider}} yêu cầu ID mô hình để tạo hình ảnh. Hãy cấu hình ở trên.",
 			"successConfigured": "✓ Tạo hình ảnh đã được cấu hình cho {{provider}} và sẵn sàng sử dụng"

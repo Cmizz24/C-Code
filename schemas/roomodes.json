@@ -37,7 +37,17 @@
 							"anyOf": [
 								{
 									"type": "string",
-									"enum": ["read", "edit", "command", "mcp", "modes", "orchestrator", "browser"]
+									"enum": [
+										"read",
+										"edit",
+										"command",
+										"visual_browser_inspector",
+										"image_generation",
+										"mcp",
+										"modes",
+										"orchestrator",
+										"browser"
+									]
 								},
 								{
 									"type": "array",
@@ -50,6 +60,8 @@
 												"read",
 												"edit",
 												"command",
+												"visual_browser_inspector",
+												"image_generation",
 												"mcp",
 												"modes",
 												"orchestrator",

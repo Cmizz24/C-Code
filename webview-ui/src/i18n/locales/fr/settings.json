@@ -256,6 +256,10 @@
 			"maxConcurrentDescription": "Choisis combien d'agents peuvent s'exécuter en même temps pour un plan de tâches parallèles approuvé ({{min}}–{{max}}). Les agents en attente démarrent quand les agents en cours se terminent.",
 			"description": "Approuver automatiquement les plans de tâches parallèles valides et démarrer les agents sans afficher la fenêtre modale d'aperçu du plan"
 		},
+		"visualBrowserInspector": {
+			"label": "Navigateur",
+			"description": "Approuver automatiquement les actions du Visual Browser Inspector depuis le chat, y compris l'ouverture de pages de navigateur contrôlées, les captures d'écran, l'inspection du DOM, les recadrages, l'analyse et les interactions avec la page. Cela n'autorise pas les modifications de fichiers ni les commandes de terminal."
+		},
 		"followupQuestions": {
 			"label": "Question",
 			"description": "Sélectionner automatiquement la première réponse suggérée pour les questions de suivi après le délai configuré",
@@ -871,11 +875,12 @@
 			"description": "Quand c'est activé, C peut générer et modifier des images à partir de prompts avec un fournisseur de génération d'images configuré séparément.",
 			"providerLabel": "Fournisseur",
 			"providerDescription": "Sélectionne le fournisseur à utiliser pour la génération d'images. Il est indépendant de ton profil de fournisseur de chat.",
+			"localProviderNote": "Ollama et LM Studio ne sont pas sélectionnables ici, car ils exposent des APIs de vision/chat, pas des APIs de génération d'images. La génération locale d'images est disponible via de vraies APIs de génération d'images comme ComfyUI et Automatic1111 une fois configurées.",
 			"apiKeyLabel": "Clé API {{provider}}",
 			"optionalApiKeyLabel": "Clé API {{provider}} (facultative)",
 			"apiKeyPlaceholder": "Saisis ta clé API {{provider}}",
 			"apiKeyRequiredDescription": "Ce fournisseur nécessite une clé API pour la génération d'images.",
-			"apiKeyOptionalDescription": "Facultatif. Utilise-la seulement si ton serveur local ou proxy exige une authentification par token bearer.",
+			"apiKeyOptionalDescription": "Facultatif. Utilise ceci seulement si ton endpoint, instance locale ou proxy requiert une authentification par bearer token.",
 			"getApiKeyText": "Obtiens ta clé API depuis",
 			"baseUrlLabel": "URL de base",
 			"baseUrlPlaceholder": "Par défaut : {{url}}",
@@ -885,14 +890,20 @@
 			"modelIdLabel": "ID du modèle",
 			"customModelIdPlaceholder": "Saisis un ID de modèle",
 			"modelIdPlaceholderWithDefault": "Par défaut : {{model}}",
-			"customModelIdDescription": "Saisis l'ID exact du modèle exposé par ton fournisseur ou serveur local.",
+			"customModelIdDescription": "Saisis l'ID exact du modèle exposé par ton fournisseur ou endpoint compatible OpenAI.",
+			"optionalModelIdDescription": "Facultatif. Laisse vide pour utiliser le checkpoint actuellement chargé par le fournisseur.",
 			"apiMethodLabel": "Méthode API",
 			"apiMethodDescription": "Choisis la forme d'endpoint compatible OpenAI à utiliser pour la génération d'images.",
 			"apiMethodLockedDescription": "Le modèle sélectionné utilise la méthode API requise par {{model}}.",
 			"apiMethodLabels": {
 				"chat_completions": "Chat completions",
-				"images_api": "API Images"
+				"images_api": "API Images",
+				"comfyui_api": "ComfyUI API",
+				"automatic1111_api": "Automatic1111 API"
 			},
+			"negativePromptLabel": "Prompt négatif",
+			"negativePromptPlaceholder": "Saisis le contenu à éviter dans les images générées",
+			"negativePromptDescription": "Facultatif. Aide les fournisseurs locaux à éviter les sujets, styles ou artefacts indésirables.",
 			"warningMissingApiKey": "⚠️ {{provider}} nécessite une clé API pour la génération d'images. Configure-la ci-dessus.",
 			"warningMissingModel": "⚠️ {{provider}} nécessite un ID de modèle pour la génération d'images. Configure-le ci-dessus.",
 			"successConfigured": "✓ La génération d'images est configurée pour {{provider}} et prête à l'emploi"

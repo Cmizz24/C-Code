@@ -255,6 +255,10 @@
 			"maxConcurrentDescription": "Wybierz, ilu agentów może działać jednocześnie dla zatwierdzonego planu zadań równoległych ({{min}}–{{max}}). Oczekujący agenci startują, gdy działający agenci zakończą pracę.",
 			"description": "Automatycznie zatwierdzaj prawidłowe plany zadań równoległych i uruchamiaj agentów bez wyświetlania modala podglądu planu"
 		},
+		"visualBrowserInspector": {
+			"label": "Przeglądarka",
+			"description": "Automatycznie zatwierdzaj akcje Visual Browser Inspector z czatu, w tym otwieranie kontrolowanych stron przeglądarki, zrzuty ekranu, inspekcję DOM, wycinki, analizę i interakcje ze stroną. Nie pozwala to na edycję plików ani polecenia terminala."
+		},
 		"followupQuestions": {
 			"label": "Pytanie",
 			"description": "Automatycznie wybierz pierwszą sugerowaną odpowiedź na pytania uzupełniające po skonfigurowanym limicie czasu",
@@ -871,11 +875,12 @@
 			"description": "Po włączeniu C może generować i edytować obrazy z promptów przy użyciu osobno skonfigurowanego dostawcy generowania obrazów.",
 			"providerLabel": "Dostawca",
 			"providerDescription": "Wybierz dostawcę używanego do generowania obrazów. Jest niezależny od profilu dostawcy chatu.",
+			"localProviderNote": "Ollama i LM Studio nie są tutaj dostępne do wyboru, ponieważ udostępniają API vision/chat, a nie API generowania obrazów. Lokalne generowanie obrazów jest dostępne przez prawdziwe API generowania obrazów, takie jak ComfyUI i Automatic1111, gdy są skonfigurowane.",
 			"apiKeyLabel": "Klucz API {{provider}}",
 			"optionalApiKeyLabel": "Klucz API {{provider}} (opcjonalnie)",
 			"apiKeyPlaceholder": "Wpisz klucz API {{provider}}",
 			"apiKeyRequiredDescription": "Ten dostawca wymaga klucza API do generowania obrazów.",
-			"apiKeyOptionalDescription": "Opcjonalnie. Użyj tego tylko wtedy, gdy lokalny serwer lub proxy wymaga uwierzytelniania bearer-token.",
+			"apiKeyOptionalDescription": "Opcjonalne. Używaj tego tylko wtedy, gdy twój endpoint, lokalna instancja lub proxy wymaga uwierzytelniania bearer-token.",
 			"getApiKeyText": "Uzyskaj swój klucz API od",
 			"baseUrlLabel": "Bazowy URL",
 			"baseUrlPlaceholder": "Domyślnie: {{url}}",
@@ -885,14 +890,20 @@
 			"modelIdLabel": "ID modelu",
 			"customModelIdPlaceholder": "Wpisz ID modelu",
 			"modelIdPlaceholderWithDefault": "Domyślnie: {{model}}",
-			"customModelIdDescription": "Wpisz dokładny ID modelu udostępniany przez dostawcę lub lokalny serwer.",
+			"customModelIdDescription": "Wpisz dokładny ID modelu udostępniany przez dostawcę lub endpoint zgodny z OpenAI.",
+			"optionalModelIdDescription": "Opcjonalne. Zostaw puste, aby użyć checkpointu aktualnie załadowanego przez dostawcę.",
 			"apiMethodLabel": "Metoda API",
 			"apiMethodDescription": "Wybierz kształt endpointu zgodnego z OpenAI używany do generowania obrazów.",
 			"apiMethodLockedDescription": "Wybrany model używa wymaganej metody API modelu {{model}}.",
 			"apiMethodLabels": {
 				"chat_completions": "Chat completions",
-				"images_api": "Images API"
+				"images_api": "Images API",
+				"comfyui_api": "ComfyUI API",
+				"automatic1111_api": "Automatic1111 API"
 			},
+			"negativePromptLabel": "Negatywny prompt",
+			"negativePromptPlaceholder": "Wpisz treści, których należy unikać w generowanych obrazach",
+			"negativePromptDescription": "Opcjonalne. Pomaga lokalnym dostawcom unikać niechcianych obiektów, stylów lub artefaktów.",
 			"warningMissingApiKey": "⚠️ {{provider}} wymaga klucza API do generowania obrazów. Skonfiguruj go powyżej.",
 			"warningMissingModel": "⚠️ {{provider}} wymaga ID modelu do generowania obrazów. Skonfiguruj go powyżej.",
 			"successConfigured": "✓ Generowanie obrazów jest skonfigurowane dla {{provider}} i gotowe do użycia"

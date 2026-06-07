@@ -5,22 +5,33 @@ import {
 	getImageGenerationModel,
 	getImageGenerationProvider,
 	IMAGE_GENERATION_PROVIDERS,
+	isActiveImageGenerationProvider,
 	isImageGenerationApiMethod,
+	isLegacyUnsupportedImageGenerationProvider,
+	type ActiveImageGenerationProvider,
 	type ImageGenerationApiMethod,
 	type ImageGenerationProvider,
 	type RooCodeSettings,
 } from "@roo-code/types"
 
 import { t } from "../../../i18n"
-import { generateImageWithImagesApi, generateImageWithProvider, type ImageGenerationResult } from "./image-generation"
+import {
+	generateImageWithAutomatic1111,
+	generateImageWithComfyUi,
+	generateImageWithImagesApi,
+	generateImageWithProvider,
+	type ImageGenerationResult,
+} from "./image-generation"
 
 export interface ResolvedImageGenerationConfig {
-	provider: ImageGenerationProvider
+	provider: ActiveImageGenerationProvider
 	providerLabel: string
 	baseURL: string
+	isLocal: boolean
 	authToken?: string
 	model: string
 	apiMethod: ImageGenerationApiMethod
+	negativePrompt?: string
 }
 
 export type ResolveImageGenerationConfigResult =
@@ -29,13 +40,15 @@ export type ResolveImageGenerationConfigResult =
 
 const trimTrailingSlashes = (value: string) => value.replace(/\/+$/, "")
 
-const normalizeConfiguredBaseUrl = (baseUrl: string | undefined, provider: ImageGenerationProvider): string => {
+const normalizeConfiguredBaseUrl = (baseUrl: string | undefined, provider: ActiveImageGenerationProvider): string => {
 	const fallback = getDefaultImageGenerationBaseUrl(provider)
 	const value = (baseUrl || fallback).trim()
-	return trimTrailingSlashes(value || fallback)
+	const normalized = trimTrailingSlashes(value || fallback)
+
+	return normalized
 }
 
-const getProviderState = (state: Partial<RooCodeSettings>, provider: ImageGenerationProvider) => {
+const getProviderState = (state: Partial<RooCodeSettings>, provider: ActiveImageGenerationProvider) => {
 	switch (provider) {
 		case "openrouter":
 			return {
@@ -51,19 +64,21 @@ const getProviderState = (state: Partial<RooCodeSettings>, provider: ImageGenera
 				model: state.openAiImageGenerationSelectedModel,
 				apiMethod: state.openAiImageGenerationApiMethod,
 			}
-		case "ollama":
+		case "comfyui":
 			return {
-				apiKey: state.ollamaImageApiKey,
-				baseUrl: state.ollamaImageBaseUrl,
-				model: state.ollamaImageGenerationSelectedModel,
-				apiMethod: state.ollamaImageGenerationApiMethod,
+				apiKey: state.comfyUiImageApiKey,
+				baseUrl: state.comfyUiImageBaseUrl,
+				model: state.comfyUiImageGenerationSelectedModel,
+				apiMethod: state.comfyUiImageGenerationApiMethod,
+				negativePrompt: state.comfyUiImageGenerationNegativePrompt,
 			}
-		case "lmstudio":
+		case "automatic1111":
 			return {
-				apiKey: state.lmStudioImageApiKey,
-				baseUrl: state.lmStudioImageBaseUrl,
-				model: state.lmStudioImageGenerationSelectedModel,
-				apiMethod: state.lmStudioImageGenerationApiMethod,
+				apiKey: state.automatic1111ImageApiKey,
+				baseUrl: state.automatic1111ImageBaseUrl,
+				model: state.automatic1111ImageGenerationSelectedModel,
+				apiMethod: state.automatic1111ImageGenerationApiMethod,
+				negativePrompt: state.automatic1111ImageGenerationNegativePrompt,
 			}
 	}
 }
@@ -78,10 +93,26 @@ export function resolveImageGenerationConfig(
 		}
 	}
 
+	if (isLegacyUnsupportedImageGenerationProvider(state.imageGenerationProvider)) {
+		const definition = IMAGE_GENERATION_PROVIDERS[state.imageGenerationProvider]
+		return {
+			success: false,
+			error: t("tools:generateImage.unsupportedProvider", { provider: definition.label }),
+		}
+	}
+
 	const provider = getImageGenerationProvider(
 		state.imageGenerationProvider,
 		!!state.openRouterImageGenerationSelectedModel,
 	)
+
+	if (!isActiveImageGenerationProvider(provider)) {
+		return {
+			success: false,
+			error: t("tools:generateImage.unsupportedProvider", { provider: provider ?? "unknown" }),
+		}
+	}
+
 	const definition = IMAGE_GENERATION_PROVIDERS[provider]
 	const providerState = getProviderState(state, provider)
 	const authToken = providerState.apiKey?.trim()
@@ -94,7 +125,7 @@ export function resolveImageGenerationConfig(
 	}
 
 	const model = (providerState.model || getDefaultImageGenerationModel(provider)).trim()
-	if (!model) {
+	if ((definition.requiresModel ?? true) && !model) {
 		return {
 			success: false,
 			error: t("tools:generateImage.modelRequired", { provider: definition.label }),
@@ -123,9 +154,11 @@ export function resolveImageGenerationConfig(
 			provider,
 			providerLabel: definition.label,
 			baseURL: normalizeConfiguredBaseUrl(providerState.baseUrl, provider),
+			isLocal: definition.isLocal,
 			authToken: authToken || undefined,
 			model,
 			apiMethod,
+			negativePrompt: providerState.negativePrompt?.trim() || undefined,
 		},
 	}
 }
@@ -145,17 +178,43 @@ export async function generateImageWithConfiguredProvider(options: {
 	}
 
 	const { config } = resolved
+	const safeMetadata = {
+		provider: config.provider,
+		providerLabel: config.providerLabel,
+		baseURL: config.baseURL,
+		model: config.model,
+		apiMethod: config.apiMethod,
+		isLocal: config.isLocal,
+	}
+	const withSafeMetadata = (result: ImageGenerationResult): ImageGenerationResult => ({
+		...result,
+		metadata: {
+			...safeMetadata,
+			...result.metadata,
+		},
+	})
 	const generatorOptions = {
 		baseURL: config.baseURL,
 		authToken: config.authToken,
 		model: config.model,
 		prompt: options.prompt,
 		inputImage: options.inputImage,
+		negativePrompt: config.negativePrompt,
+	}
+
+	if (config.provider === "comfyui") {
+		return withSafeMetadata(await generateImageWithComfyUi({ ...generatorOptions, provider: "comfyui" }))
+	}
+
+	if (config.provider === "automatic1111") {
+		return withSafeMetadata(
+			await generateImageWithAutomatic1111({ ...generatorOptions, provider: "automatic1111" }),
+		)
 	}
 
 	if (config.apiMethod === "images_api") {
-		return generateImageWithImagesApi(generatorOptions)
+		return withSafeMetadata(await generateImageWithImagesApi({ ...generatorOptions, provider: config.provider }))
 	}
 
-	return generateImageWithProvider(generatorOptions)
+	return withSafeMetadata(await generateImageWithProvider({ ...generatorOptions, provider: config.provider }))
 }

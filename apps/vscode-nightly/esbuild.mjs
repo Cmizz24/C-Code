@@ -142,7 +142,7 @@ async function main() {
 		plugins,
 		entryPoints: [path.join(srcDir, "extension.ts")],
 		outfile: path.join(distDir, "extension.js"),
-		external: ["vscode"],
+		external: ["vscode", "playwright", "playwright-core"],
 	}
 
 	/**

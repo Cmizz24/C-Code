@@ -26,6 +26,8 @@
 			"read": "Baca File",
 			"edit": "Edit File",
 			"command": "Jalankan Perintah",
+			"visual_browser_inspector": "Inspeksi Browser secara Visual",
+			"image_generation": "Buat Gambar",
 			"mcp": "Gunakan MCP"
 		},
 		"noTools": "Tidak Ada"

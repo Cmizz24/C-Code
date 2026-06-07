@@ -110,7 +110,7 @@ export const globalSettingsSchema = z.object({
 	taskHistory: z.array(historyItemSchema).optional(),
 	dismissedUpsells: z.array(z.string()).optional(),
 
-	// Image generation settings (experimental) - kept independent from chat provider profiles.
+	// Image generation settings - kept independent from chat provider profiles.
 	imageGenerationProvider: z.enum(IMAGE_GENERATION_PROVIDER_IDS).optional(),
 	openRouterImageApiKey: z.string().optional(),
 	openRouterImageBaseUrl: z.string().optional(),
@@ -120,6 +120,16 @@ export const globalSettingsSchema = z.object({
 	openAiImageBaseUrl: z.string().optional(),
 	openAiImageGenerationSelectedModel: z.string().optional(),
 	openAiImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+	comfyUiImageApiKey: z.string().optional(),
+	comfyUiImageBaseUrl: z.string().optional(),
+	comfyUiImageGenerationSelectedModel: z.string().optional(),
+	comfyUiImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+	comfyUiImageGenerationNegativePrompt: z.string().optional(),
+	automatic1111ImageApiKey: z.string().optional(),
+	automatic1111ImageBaseUrl: z.string().optional(),
+	automatic1111ImageGenerationSelectedModel: z.string().optional(),
+	automatic1111ImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+	automatic1111ImageGenerationNegativePrompt: z.string().optional(),
 	ollamaImageApiKey: z.string().optional(),
 	ollamaImageBaseUrl: z.string().optional(),
 	ollamaImageGenerationSelectedModel: z.string().optional(),
@@ -150,6 +160,8 @@ export const globalSettingsSchema = z.object({
 		.min(MIN_PARALLEL_TASK_CONCURRENCY)
 		.max(MAX_PARALLEL_TASK_CONCURRENCY)
 		.optional(),
+	alwaysAllowVisualBrowserInspector: z.boolean().optional(),
+	alwaysAllowImageGeneration: z.boolean().optional(),
 	alwaysAllowExecute: z.boolean().optional(),
 	alwaysAllowFollowupQuestions: z.boolean().optional(),
 	followupAutoApproveTimeoutMs: z.number().optional(),
@@ -340,6 +352,8 @@ export const SECRET_STATE_KEYS = [
 export const GLOBAL_SECRET_KEYS = [
 	"openRouterImageApiKey", // For image generation
 	"openAiImageApiKey", // For image generation
+	"comfyUiImageApiKey", // For image generation with authenticated ComfyUI instances/proxies
+	"automatic1111ImageApiKey", // For image generation with authenticated Automatic1111 instances/proxies
 	"ollamaImageApiKey", // For image generation with authenticated local/cloud instances
 	"lmStudioImageApiKey", // For image generation with authenticated local/proxy instances
 	"smtpPassword", // For SMTP email notifications

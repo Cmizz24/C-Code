@@ -405,7 +405,10 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 									}
 									break
 								case "generateImage":
-									setPrimaryButtonText(t("chat:save.title"))
+									if (typeof tool.content === "string" && inputValueRef.current.trim().length === 0) {
+										setInputValue(tool.content)
+									}
+									setPrimaryButtonText(t("chat:imageGeneration.approval.generate"))
 									setSecondaryButtonText(t("chat:reject.title"))
 									break
 								case "finishTask":

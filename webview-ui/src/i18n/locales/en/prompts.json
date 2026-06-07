@@ -26,6 +26,8 @@
 			"read": "Read Files",
 			"edit": "Edit Files",
 			"command": "Run Commands",
+			"visual_browser_inspector": "Inspect Browser Visually",
+			"image_generation": "Generate Images",
 			"mcp": "Use MCP"
 		},
 		"noTools": "None"

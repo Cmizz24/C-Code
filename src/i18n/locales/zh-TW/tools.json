@@ -17,11 +17,12 @@
 		}
 	},
 	"generateImage": {
-		"openRouterApiKeyRequired": "使用 OpenRouter 模型生成圖像需要 OpenRouter API 金鑰。請在圖像生成實驗設定中配置。",
-		"missingConfiguration": "影像生成設定無法使用。請在實驗設定中配置影像生成。",
-		"apiKeyRequired": "影像生成需要 {{provider}} API 金鑰。請在影像生成實驗設定中配置。",
-		"modelRequired": "{{provider}} 需要模型 ID 才能生成影像。請在影像生成實驗設定中配置。",
+		"openRouterApiKeyRequired": "使用 OpenRouter 模型生成圖像需要 OpenRouter API 金鑰。請在影像生成設定中配置。",
+		"missingConfiguration": "影像生成設定無法使用。請在影像生成設定中配置影像生成。",
+		"apiKeyRequired": "影像生成需要 {{provider}} API 金鑰。請在影像生成設定中配置。",
+		"modelRequired": "{{provider}} 需要模型 ID 才能生成影像。請在影像生成設定中配置。",
 		"unsupportedApiMethod": "{{provider}} 不支援 {{apiMethod}} 影像生成 API 方法。",
+		"unsupportedProvider": "{{provider}} 不支援影像生成。請改用 OpenRouter、OpenAI/OpenAI-compatible、ComfyUI 或 Automatic1111。",
 		"failedWithStatus": "圖像生成失敗：{{status}} {{statusText}}",
 		"failedWithMessage": "圖像生成失敗：{{message}}",
 		"noImageGenerated": "回應中未生成圖像",

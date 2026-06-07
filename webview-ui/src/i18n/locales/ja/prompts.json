@@ -26,6 +26,8 @@
 			"read": "ファイルを読み込む",
 			"edit": "ファイルを編集",
 			"command": "コマンドを実行",
+			"visual_browser_inspector": "ブラウザを視覚的に検査",
+			"image_generation": "画像を生成",
 			"mcp": "MCP を使用"
 		},
 		"noTools": "なし"

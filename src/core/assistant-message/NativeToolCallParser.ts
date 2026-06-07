@@ -44,6 +44,25 @@ type NativeArgsFor<TName extends ToolName> = TName extends keyof NativeToolArgs 
  */
 export type ToolCallStreamEvent = ApiStreamToolCallStartChunk | ApiStreamToolCallDeltaChunk | ApiStreamToolCallEndChunk
 
+const visualBrowserActionValues = new Set([
+	"visual_browser_open",
+	"visual_browser_reload",
+	"visual_browser_back",
+	"visual_browser_forward",
+	"visual_browser_capture",
+	"visual_browser_crop",
+	"visual_browser_inspect_point",
+	"visual_browser_inspect_region",
+	"visual_browser_click",
+	"visual_browser_hover",
+	"visual_browser_type",
+	"visual_browser_scroll",
+	"visual_browser_analyze_screenshot",
+	"visual_browser_analyze_crop",
+	"visual_browser_close",
+	"visual_browser_delete_session",
+])
+
 /**
  * Parser for native tool calls (OpenAI-style function calling).
  * Converts native tool call format to ToolUse format for compatibility
@@ -106,6 +125,120 @@ export class NativeToolCallParser {
 			}
 		}
 		return undefined
+	}
+
+	private static assignOptionalString(target: Record<string, unknown>, key: string, value: unknown): void {
+		if (typeof value === "string") {
+			target[key] = value
+		}
+	}
+
+	private static assignOptionalNumber(target: Record<string, unknown>, key: string, value: unknown): void {
+		const numberValue = this.coerceOptionalNumber(value)
+		if (numberValue !== undefined) {
+			target[key] = numberValue
+		}
+	}
+
+	private static normalizeVisualBrowserRegion(value: unknown):
+		| {
+				x: number
+				y: number
+				width: number
+				height: number
+		  }
+		| undefined {
+		if (!value || typeof value !== "object") {
+			return undefined
+		}
+
+		const region = value as Record<string, unknown>
+		const x = this.coerceOptionalNumber(region.x)
+		const y = this.coerceOptionalNumber(region.y)
+		const width = this.coerceOptionalNumber(region.width)
+		const height = this.coerceOptionalNumber(region.height)
+
+		if (x === undefined || y === undefined || width === undefined || height === undefined) {
+			return undefined
+		}
+
+		return { x, y, width, height }
+	}
+
+	private static normalizeVisualBrowserViewport(value: unknown): unknown {
+		if (typeof value === "string") {
+			return value
+		}
+
+		if (!value || typeof value !== "object") {
+			return undefined
+		}
+
+		const viewport = value as Record<string, unknown>
+		const width = this.coerceOptionalNumber(viewport.width)
+		const height = this.coerceOptionalNumber(viewport.height)
+
+		if (width === undefined || height === undefined) {
+			return undefined
+		}
+
+		return {
+			name: typeof viewport.name === "string" ? viewport.name : "custom",
+			width,
+			height,
+			deviceScaleFactor: this.coerceOptionalNumber(viewport.deviceScaleFactor),
+			isMobile: this.coerceOptionalBoolean(viewport.isMobile),
+			hasTouch: this.coerceOptionalBoolean(viewport.hasTouch),
+		}
+	}
+
+	private static buildVisualBrowserInspectorNativeArgs(
+		args: Record<string, any>,
+	): Record<string, unknown> | undefined {
+		if (typeof args.action !== "string" || !visualBrowserActionValues.has(args.action)) {
+			return undefined
+		}
+
+		const nativeArgs: Record<string, unknown> = { action: args.action }
+
+		this.assignOptionalString(nativeArgs, "url", args.url)
+		this.assignOptionalString(nativeArgs, "sessionId", args.sessionId)
+		this.assignOptionalString(nativeArgs, "screenshotId", args.screenshotId)
+		this.assignOptionalString(nativeArgs, "cropId", args.cropId)
+		this.assignOptionalString(nativeArgs, "selector", args.selector)
+		this.assignOptionalString(nativeArgs, "text", args.text)
+		this.assignOptionalString(nativeArgs, "prompt", args.prompt)
+		this.assignOptionalNumber(nativeArgs, "x", args.x)
+		this.assignOptionalNumber(nativeArgs, "y", args.y)
+		this.assignOptionalNumber(nativeArgs, "deltaX", args.deltaX)
+		this.assignOptionalNumber(nativeArgs, "deltaY", args.deltaY)
+
+		const fullPage = this.coerceOptionalBoolean(args.fullPage)
+		if (fullPage !== undefined) {
+			nativeArgs.fullPage = fullPage
+		}
+
+		const headless = this.coerceOptionalBoolean(args.headless)
+		if (headless !== undefined) {
+			nativeArgs.headless = headless
+		}
+
+		const allowExternal = this.coerceOptionalBoolean(args.allowExternal)
+		if (allowExternal !== undefined) {
+			nativeArgs.allowExternal = allowExternal
+		}
+
+		const region = this.normalizeVisualBrowserRegion(args.region)
+		if (region) {
+			nativeArgs.region = region
+		}
+
+		const viewport = this.normalizeVisualBrowserViewport(args.viewport)
+		if (viewport) {
+			nativeArgs.viewport = viewport
+		}
+
+		return nativeArgs
 	}
 
 	/**
@@ -940,6 +1073,10 @@ export class NativeToolCallParser {
 				}
 				break
 
+			case "visual_browser_inspector":
+				nativeArgs = NativeToolCallParser.buildVisualBrowserInspectorNativeArgs(partialArgs)
+				break
+
 			case "run_slash_command":
 				if (partialArgs.command !== undefined) {
 					nativeArgs = {
@@ -1290,6 +1427,12 @@ export class NativeToolCallParser {
 							image: args.image,
 						} as NativeArgsFor<TName>
 					}
+					break
+
+				case "visual_browser_inspector":
+					nativeArgs = NativeToolCallParser.buildVisualBrowserInspectorNativeArgs(
+						args,
+					) as NativeArgsFor<TName>
 					break
 
 				case "run_slash_command":

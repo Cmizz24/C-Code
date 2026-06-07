@@ -1,13 +1,21 @@
 import type { ToolName } from "@roo-code/types"
 
 import { Task } from "../task/Task"
-import type { ToolUse, HandleError, PushToolResult, AskApproval, NativeToolArgs } from "../../shared/tools"
+import type {
+	ToolUse,
+	HandleError,
+	PushToolResult,
+	AskApproval,
+	AskApprovalWithResponse,
+	NativeToolArgs,
+} from "../../shared/tools"
 
 /**
  * Callbacks passed to tool execution
  */
 export interface ToolCallbacks {
 	askApproval: AskApproval
+	askApprovalWithResponse?: AskApprovalWithResponse
 	handleError: HandleError
 	pushToolResult: PushToolResult
 	toolCallId?: string

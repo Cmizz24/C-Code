@@ -23,6 +23,8 @@ describe("AutoApproveToggle", () => {
 		alwaysAllowModeSwitch: true,
 		alwaysAllowSubtasks: false,
 		alwaysAllowParallelTasks: false,
+		alwaysAllowVisualBrowserInspector: false,
+		alwaysAllowImageGeneration: false,
 		alwaysAllowExecute: true,
 		alwaysAllowFollowupQuestions: false,
 		onToggle: mockOnToggle,
@@ -69,6 +71,18 @@ describe("AutoApproveToggle", () => {
 		fireEvent.click(parallelTasksButton)
 		expect(mockOnToggle).toHaveBeenCalledTimes(3)
 		expect(mockOnToggle).toHaveBeenCalledWith("alwaysAllowParallelTasks", true)
+
+		const visualBrowserInspectorButton = screen.getByTestId(
+			autoApproveSettingsConfig.alwaysAllowVisualBrowserInspector.testId,
+		)
+		fireEvent.click(visualBrowserInspectorButton)
+		expect(mockOnToggle).toHaveBeenCalledTimes(4)
+		expect(mockOnToggle).toHaveBeenCalledWith("alwaysAllowVisualBrowserInspector", true)
+
+		const imageGenerationButton = screen.getByTestId(autoApproveSettingsConfig.alwaysAllowImageGeneration.testId)
+		fireEvent.click(imageGenerationButton)
+		expect(mockOnToggle).toHaveBeenCalledTimes(5)
+		expect(mockOnToggle).toHaveBeenCalledWith("alwaysAllowImageGeneration", true)
 	})
 
 	test("updates aria-pressed attribute after toggle", () => {

@@ -20,11 +20,12 @@
 		}
 	},
 	"generateImage": {
-		"openRouterApiKeyRequired": "Kunci API OpenRouter diperlukan untuk menghasilkan gambar dengan model OpenRouter. Silakan konfigurasikan di pengaturan eksperimental Pembuatan Gambar.",
-		"missingConfiguration": "Pengaturan pembuatan gambar tidak tersedia. Silakan konfigurasikan Pembuatan Gambar di pengaturan eksperimental.",
-		"apiKeyRequired": "Kunci API {{provider}} diperlukan untuk pembuatan gambar. Silakan konfigurasikan di pengaturan eksperimental Pembuatan Gambar.",
-		"modelRequired": "{{provider}} memerlukan ID model untuk pembuatan gambar. Silakan konfigurasikan di pengaturan eksperimental Pembuatan Gambar.",
+		"openRouterApiKeyRequired": "Kunci API OpenRouter diperlukan untuk menghasilkan gambar dengan model OpenRouter. Silakan konfigurasikan di pengaturan Pembuatan Gambar.",
+		"missingConfiguration": "Pengaturan pembuatan gambar tidak tersedia. Silakan konfigurasikan Pembuatan Gambar di pengaturan Pembuatan Gambar.",
+		"apiKeyRequired": "Kunci API {{provider}} diperlukan untuk pembuatan gambar. Silakan konfigurasikan di pengaturan Pembuatan Gambar.",
+		"modelRequired": "{{provider}} memerlukan ID model untuk pembuatan gambar. Silakan konfigurasikan di pengaturan Pembuatan Gambar.",
 		"unsupportedApiMethod": "{{provider}} tidak mendukung metode API pembuatan gambar {{apiMethod}}.",
+		"unsupportedProvider": "{{provider}} tidak didukung untuk pembuatan gambar. Gunakan OpenRouter, OpenAI/OpenAI-compatible, ComfyUI, atau Automatic1111 sebagai gantinya.",
 		"failedWithStatus": "Gagal menghasilkan gambar: {{status}} {{statusText}}",
 		"failedWithMessage": "Gagal menghasilkan gambar: {{message}}",
 		"noImageGenerated": "Tidak ada gambar yang dihasilkan dalam respons",

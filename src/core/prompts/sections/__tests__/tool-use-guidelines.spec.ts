@@ -6,7 +6,21 @@ describe("getToolUseGuidelinesSection", () => {
 
 		expect(guidelines).toContain("1. Assess what information")
 		expect(guidelines).toContain("2. Choose the most appropriate tool")
-		expect(guidelines).toContain("5. If multiple actions are needed")
+		expect(guidelines).toContain("6. If multiple actions are needed")
+	})
+
+	it("should route unsupported actions to capable modes instead of refusing", () => {
+		const guidelines = getToolUseGuidelinesSection()
+
+		expect(guidelines).toContain("current mode cannot perform")
+		expect(guidelines).toContain("required tool or tool group is unavailable")
+		expect(guidelines).toContain("do not refuse or tell the user to do it manually")
+		expect(guidelines).toContain("Use switch_mode for a direct mode change or new_task for delegation")
+		expect(guidelines).toContain("terminal/command work -> Code")
+		expect(guidelines).toContain("Debug for troubleshooting")
+		expect(guidelines).toContain("CLI Tools for pure command-line work")
+		expect(guidelines).toContain("visual_browser_inspector")
+		expect(guidelines).toContain("image_generation")
 	})
 
 	it("should include Windows-safe repository search guidance", () => {

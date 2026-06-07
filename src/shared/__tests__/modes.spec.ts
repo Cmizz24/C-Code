@@ -478,7 +478,7 @@ describe("FileRestrictionError", () => {
 				name: "🪲 Debug",
 				roleDefinition:
 					"You are Roo, a fast, focused incident responder who diagnoses logs, stack traces, failing tests, and bug reports to find root cause and apply the smallest safe fix.",
-				groups: ["read", "edit", "command", "mcp"],
+				groups: ["read", "edit", "command", "mcp", "visual_browser_inspector"],
 			})
 			expect(debugMode?.customInstructions).toContain(
 				"Write or update a regression test before marking the issue complete.",

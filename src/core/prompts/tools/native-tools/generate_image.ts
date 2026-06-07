@@ -2,6 +2,8 @@ import type OpenAI from "openai"
 
 const GENERATE_IMAGE_DESCRIPTION = `Request to generate or edit an image using the configured image-generation provider. This tool can create new images from text prompts or modify existing images based on your instructions. When an input image is provided, the AI will apply the requested edits, transformations, or enhancements to that image.
 
+The configured provider and model must actually support image generation. Use real image-generation providers such as OpenRouter image-output models, OpenAI/OpenAI-compatible Images API models, or configured local image-generation APIs such as ComfyUI or Automatic1111. Vision or image-understanding chat models are not valid image-generation models, and Ollama or LM Studio vision/chat APIs are not image-generation providers in this tool flow. Local ComfyUI and Automatic1111 support currently uses text-to-image flows; use an edit-capable provider when an input image needs to be transformed.
+
 Parameters:
 - prompt: (required) The text prompt describing what to generate or how to edit the image
 - path: (required) The file path where the generated/edited image should be saved (relative to the current workspace directory). The tool will automatically add the appropriate image extension if not provided.
@@ -18,7 +20,7 @@ Example: Upscaling and enhancing an image
 
 const PROMPT_PARAMETER_DESCRIPTION = `Text description of the image to generate or the edits to apply`
 
-const PATH_PARAMETER_DESCRIPTION = `Filesystem path (relative to the workspace) where the resulting image should be saved`
+const PATH_PARAMETER_DESCRIPTION = `Filesystem path (relative to the workspace) where the resulting image should be saved. Supported output extensions: PNG, JPG, JPEG, WEBP, GIF. SVG output is not supported; omit the extension to let the tool choose one automatically.`
 
 const IMAGE_PARAMETER_DESCRIPTION = `Optional path (relative to the workspace) to an existing image to edit; supports PNG, JPG, JPEG, GIF, and WEBP`
 

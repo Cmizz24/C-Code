@@ -196,6 +196,46 @@
 		"wantsToGenerateImageProtected": "Roo wil een afbeelding genereren op een beschermde locatie",
 		"didGenerateImage": "Roo heeft een afbeelding gegenereerd"
 	},
+	"imageGeneration": {
+		"approval": {
+			"generate": "Genereren",
+			"editPromptHint": "Bewerk de Prompt in het berichtvak voordat je goedkeurt, of keur hem ongewijzigd goed."
+		},
+		"statusTitle": "Afbeelding genereren: {{status}}",
+		"status": {
+			"pending": "Wacht op goedkeuring",
+			"running": "Bezig",
+			"completed": "Voltooid",
+			"error": "Fout"
+		},
+		"metadata": {
+			"prompt": "Prompt",
+			"editedPrompt": "Bewerkte Prompt",
+			"originalPrompt": "Oorspronkelijke Prompt",
+			"provider": "Provider",
+			"model": "Model",
+			"endpoint": "Endpoint",
+			"endpointType": "Endpointtype",
+			"localEndpoint": "Lokaal",
+			"remoteEndpoint": "Remote",
+			"apiMethod": "API-methode",
+			"outputPath": "Uitvoerpad",
+			"inputImage": "Invoerafbeelding",
+			"imageFormat": "Afbeeldingsformaat",
+			"tokensIn": "Invoertokens",
+			"tokensOut": "Uitvoertokens",
+			"totalTokens": "Totale tokens",
+			"images": "Afbeeldingen",
+			"cost": "Kosten",
+			"error": "Fout"
+		},
+		"apiMethods": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API"
+		}
+	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo wil de bovenliggende bestanden in deze map bekijken",
 		"didViewTopLevel": "Roo heeft de bovenliggende bestanden in deze map bekeken",

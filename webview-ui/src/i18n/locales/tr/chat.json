@@ -201,6 +201,46 @@
 		"wantsToGenerateImageProtected": "Roo korumalı bir konumda görsel oluşturmak istiyor",
 		"didGenerateImage": "Roo bir görsel oluşturdu"
 	},
+	"imageGeneration": {
+		"approval": {
+			"generate": "Oluştur",
+			"editPromptHint": "Onaylamadan önce mesaj kutusunda Prompt'u düzenle veya olduğu gibi onayla."
+		},
+		"statusTitle": "Görsel oluşturma: {{status}}",
+		"status": {
+			"pending": "Onay bekliyor",
+			"running": "Çalışıyor",
+			"completed": "Tamamlandı",
+			"error": "Hata"
+		},
+		"metadata": {
+			"prompt": "Prompt",
+			"editedPrompt": "Düzenlenmiş Prompt",
+			"originalPrompt": "Orijinal Prompt",
+			"provider": "Sağlayıcı",
+			"model": "Model",
+			"endpoint": "Endpoint",
+			"endpointType": "Endpoint türü",
+			"localEndpoint": "Yerel",
+			"remoteEndpoint": "Uzak",
+			"apiMethod": "API yöntemi",
+			"outputPath": "Çıktı yolu",
+			"inputImage": "Girdi görseli",
+			"imageFormat": "Görsel formatı",
+			"tokensIn": "Girdi tokens",
+			"tokensOut": "Çıktı tokens",
+			"totalTokens": "Toplam tokens",
+			"images": "Görseller",
+			"cost": "Maliyet",
+			"error": "Hata"
+		},
+		"apiMethods": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API"
+		}
+	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo bu dizindeki üst düzey dosyaları görüntülemek istiyor",
 		"didViewTopLevel": "Roo bu dizindeki üst düzey dosyaları görüntüledi",

@@ -5962,6 +5962,7 @@ describe("ClineProvider", () => {
 		expect(state).toHaveProperty("alwaysAllowWrite")
 		expect(state).toHaveProperty("alwaysAllowExecute")
 		expect(state.alwaysAllowParallelTasks).toBe(false)
+		expect(state.alwaysAllowVisualBrowserInspector).toBe(false)
 		expect(state).toHaveProperty("taskHistory")
 		expect(state).toHaveProperty("soundEnabled")
 		expect(state).toHaveProperty("ttsEnabled")

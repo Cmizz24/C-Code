@@ -96,6 +96,11 @@
 				"category": "%configuration.title%"
 			},
 			{
+				"command": "c-code.openVisualBrowserInspector",
+				"title": "%command.openVisualBrowserInspector.title%",
+				"category": "%configuration.title%"
+			},
+			{
 				"command": "c-code.explainCode",
 				"title": "%command.explainCode.title%",
 				"category": "%configuration.title%"
@@ -222,6 +227,11 @@
 					"command": "c-code.popoutButtonClicked",
 					"group": "overflow@2",
 					"when": "view == c-code.SidebarProvider"
+				},
+				{
+					"command": "c-code.openVisualBrowserInspector",
+					"group": "overflow@3",
+					"when": "view == c-code.SidebarProvider"
 				}
 			],
 			"editor/title": [
@@ -243,6 +253,11 @@
 				{
 					"command": "c-code.popoutButtonClicked",
 					"group": "overflow@2",
+					"when": "activeWebviewPanelId == c-code.TabPanelProvider"
+				},
+				{
+					"command": "c-code.openVisualBrowserInspector",
+					"group": "overflow@3",
 					"when": "activeWebviewPanelId == c-code.TabPanelProvider"
 				}
 			]
@@ -477,6 +492,8 @@
 		"partial-json": "^0.1.7",
 		"pdf-parse": "^1.1.1",
 		"pkce-challenge": "^5.0.0",
+		"playwright": "^1.60.0",
+		"pngjs": "^7.0.0",
 		"pretty-bytes": "^7.0.0",
 		"proper-lockfile": "^4.1.2",
 		"ps-tree": "^1.2.0",
@@ -526,6 +543,7 @@
 		"@types/node-cache": "^4.1.3",
 		"@types/node-ipc": "^9.2.3",
 		"@types/nodemailer": "^6.4.17",
+		"@types/pngjs": "^6.0.5",
 		"@types/proper-lockfile": "^4.1.4",
 		"@types/ps-tree": "^1.1.6",
 		"@types/semver-compare": "^1.0.3",

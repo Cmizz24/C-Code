@@ -15,6 +15,14 @@ import type { ModelRecord, RouterModels } from "./model.js"
 import type { OpenAiCodexRateLimitInfo } from "./providers/openai-codex-rate-limits.js"
 import type { SkillMetadata } from "./skills.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
+import type { GeneratedImageMetadata } from "./image-generation.js"
+import type {
+	VisualBrowserAction,
+	VisualBrowserToolResult,
+	VisualBrowserToolStatus,
+	VisualBrowserWebviewRequest,
+	VisualBrowserWebviewResponse,
+} from "./visual-browser-inspector.js"
 import type {
 	AgentActivityEvent,
 	AgentCompletionPacket,
@@ -112,6 +120,7 @@ export interface ExtensionMessage {
 		| "skills"
 		| "fileContent"
 		| "smtpTestResult"
+		| "visualBrowserInspector"
 	text?: string
 	/** For fileContent: { path, content, error? } */
 	fileContent?: { path: string; content: string | null; error?: string }
@@ -271,6 +280,8 @@ export type ExtensionState = Pick<
 	| "alwaysAllowSubtasks"
 	| "alwaysAllowParallelTasks"
 	| "maxConcurrentParallelTasks"
+	| "alwaysAllowVisualBrowserInspector"
+	| "alwaysAllowImageGeneration"
 	| "alwaysAllowFollowupQuestions"
 	| "alwaysAllowExecute"
 	| "followupAutoApproveTimeoutMs"
@@ -322,6 +333,14 @@ export type ExtensionState = Pick<
 	| "openAiImageBaseUrl"
 	| "openAiImageGenerationSelectedModel"
 	| "openAiImageGenerationApiMethod"
+	| "comfyUiImageBaseUrl"
+	| "comfyUiImageGenerationSelectedModel"
+	| "comfyUiImageGenerationApiMethod"
+	| "comfyUiImageGenerationNegativePrompt"
+	| "automatic1111ImageBaseUrl"
+	| "automatic1111ImageGenerationSelectedModel"
+	| "automatic1111ImageGenerationApiMethod"
+	| "automatic1111ImageGenerationNegativePrompt"
 	| "ollamaImageBaseUrl"
 	| "ollamaImageGenerationSelectedModel"
 	| "ollamaImageGenerationApiMethod"
@@ -384,6 +403,8 @@ export type ExtensionState = Pick<
 	hasOpenedModeSelector: boolean
 	openRouterImageApiKey?: string
 	openAiImageApiKey?: string
+	comfyUiImageApiKey?: string
+	automatic1111ImageApiKey?: string
 	ollamaImageApiKey?: string
 	lmStudioImageApiKey?: string
 	smtpPasswordConfigured?: boolean
@@ -591,10 +612,11 @@ export interface WebviewMessage {
 		| "moveSkill"
 		| "updateSkillModes"
 		| "openSkillFile"
+		| "visualBrowserInspector"
 	text?: string
 	taskId?: string
 	editedMessageContent?: string
-	tab?: "settings" | "history" | "mcp" | "modes" | "chat"
+	tab?: "settings" | "history" | "mcp" | "modes" | "chat" | "visualBrowserInspector"
 	disabled?: boolean
 	context?: string
 	dataUri?: string
@@ -743,6 +765,8 @@ export type WebViewMessagePayload =
 	| IndexClearedPayload
 	| UpdateTodoListPayload
 	| EditQueuedMessagePayload
+	| VisualBrowserWebviewRequest
+	| VisualBrowserWebviewResponse
 
 export interface IndexingStatus {
 	systemStatus: string
@@ -787,6 +811,8 @@ export interface ClineSayTool {
 		| "updateTodoList"
 		| "skill"
 		| "parallelAgents"
+		| "visualBrowserInspector"
+		| "visual_browser_inspector"
 	path?: string
 	// Properties for parallelAgents tool status messages
 	executionPlan?: ExecutionPlan
@@ -857,6 +883,7 @@ export interface ClineSayTool {
 	}>
 	question?: string
 	imageData?: string // Base64 encoded image data for generated images
+	imageGeneration?: GeneratedImageMetadata
 	// Properties for runSlashCommand tool
 	command?: string
 	args?: string
@@ -864,6 +891,16 @@ export interface ClineSayTool {
 	description?: string
 	// Properties for skill tool
 	skill?: string
+	// Properties for visualBrowserInspector tool
+	action?: VisualBrowserAction
+	visualBrowserStatus?: VisualBrowserToolStatus
+	visualBrowserResult?: VisualBrowserToolResult
+	sessionId?: string
+	url?: string
+	screenshotId?: string
+	cropId?: string
+	toolCallId?: string
+	message?: string
 }
 
 export interface ClineAskUseMcpServer {

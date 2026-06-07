@@ -255,6 +255,10 @@
 			"maxConcurrentDescription": "选择已批准的并行任务计划可同时运行多少个代理（{{min}}–{{max}}）。等待中的代理会在运行中的代理完成后启动。",
 			"description": "自动批准有效的并行任务计划并启动代理，而不显示计划预览模态框"
 		},
+		"visualBrowserInspector": {
+			"label": "浏览器",
+			"description": "自动批准来自聊天的 Visual Browser Inspector 操作，包括打开受控浏览器页面、截图、DOM 检查、裁剪、分析和页面交互。这不会允许文件编辑或终端命令。"
+		},
 		"followupQuestions": {
 			"label": "问题",
 			"description": "在配置的超时时间后自动选择后续问题的第一个建议答案",
@@ -871,11 +875,12 @@
 			"description": "启用后，C 可以使用单独配置的图像生成提供商，根据 prompt 生成和编辑图像。",
 			"providerLabel": "提供商",
 			"providerDescription": "选择用于图像生成的提供商。它独立于你的 chat 提供商配置文件。",
+			"localProviderNote": "这里不能选择 Ollama 和 LM Studio，因为它们提供的是 vision/chat API，而不是图像生成 API。配置后，可通过 ComfyUI 和 Automatic1111 等真正的图像生成 API 使用本地图像生成。",
 			"apiKeyLabel": "{{provider}} API 密钥",
 			"optionalApiKeyLabel": "{{provider}} API 密钥（可选）",
 			"apiKeyPlaceholder": "输入你的 {{provider}} API 密钥",
 			"apiKeyRequiredDescription": "此提供商需要 API 密钥才能生成图像。",
-			"apiKeyOptionalDescription": "可选。仅当你的本地服务器或 proxy 需要 bearer-token 身份验证时使用。",
+			"apiKeyOptionalDescription": "可选。仅当你的 endpoint、本地实例或代理需要 bearer-token 身份验证时使用。",
 			"getApiKeyText": "从这里获取你的 API 密钥",
 			"baseUrlLabel": "基础 URL",
 			"baseUrlPlaceholder": "默认值：{{url}}",
@@ -885,14 +890,20 @@
 			"modelIdLabel": "模型 ID",
 			"customModelIdPlaceholder": "输入模型 ID",
 			"modelIdPlaceholderWithDefault": "默认值：{{model}}",
-			"customModelIdDescription": "输入你的提供商或本地服务器公开的确切模型 ID。",
+			"customModelIdDescription": "输入你的提供商或 OpenAI 兼容 endpoint 暴露的准确模型 ID。",
+			"optionalModelIdDescription": "可选。留空以使用提供商当前加载的 checkpoint。",
 			"apiMethodLabel": "API 方法",
 			"apiMethodDescription": "选择用于图像生成的 OpenAI 兼容 endpoint 形式。",
 			"apiMethodLockedDescription": "所选模型使用 {{model}} 要求的 API 方法。",
 			"apiMethodLabels": {
 				"chat_completions": "Chat completions",
-				"images_api": "Images API"
+				"images_api": "Images API",
+				"comfyui_api": "ComfyUI API",
+				"automatic1111_api": "Automatic1111 API"
 			},
+			"negativePromptLabel": "Negative prompt",
+			"negativePromptPlaceholder": "输入生成图像中要避免的内容",
+			"negativePromptDescription": "可选。帮助本地提供商避免不需要的主体、风格或瑕疵。",
 			"warningMissingApiKey": "⚠️ {{provider}} 需要 API 密钥才能生成图像。请在上方配置。",
 			"warningMissingModel": "⚠️ {{provider}} 需要模型 ID 才能生成图像。请在上方配置。",
 			"successConfigured": "✓ 已为 {{provider}} 配置图像生成，可以使用"

@@ -255,6 +255,10 @@
 			"maxConcurrentDescription": "承認済みの並列タスクプランで同時に実行できるエージェント数を選択します（{{min}}～{{max}}）。保留中のエージェントは実行中のエージェントが完了すると開始されます。",
 			"description": "有効な並列タスク計画を自動承認し、計画プレビューのモーダルを表示せずにエージェントを開始します"
 		},
+		"visualBrowserInspector": {
+			"label": "ブラウザー",
+			"description": "チャットからの Visual Browser Inspector アクションを自動承認します。制御されたブラウザーページのオープン、スクリーンショット、DOM インスペクション、切り抜き、分析、ページ操作が含まれます。これによりファイル編集やターミナルコマンドは許可されません。"
+		},
 		"followupQuestions": {
 			"label": "質問",
 			"description": "設定された時間が経過すると、フォローアップ質問の最初の提案回答を自動的に選択します",
@@ -871,11 +875,12 @@
 			"description": "有効にすると、C は別途設定した画像生成プロバイダーを使って、prompt から画像を生成・編集できます。",
 			"providerLabel": "プロバイダー",
 			"providerDescription": "画像生成に使用するプロバイダーを選択します。これは chat プロバイダープロファイルとは独立しています。",
+			"localProviderNote": "Ollama と LM Studio は vision/chat API を公開しており、画像生成 API ではないため、ここでは選択できません。ローカル画像生成は、設定済みの ComfyUI や Automatic1111 などの実際の画像生成 API で利用できます。",
 			"apiKeyLabel": "{{provider}} APIキー",
 			"optionalApiKeyLabel": "{{provider}} APIキー（任意）",
 			"apiKeyPlaceholder": "{{provider}} APIキーを入力",
 			"apiKeyRequiredDescription": "このプロバイダーでは画像生成に API キーが必要です。",
-			"apiKeyOptionalDescription": "任意。ローカルサーバーまたは proxy が bearer-token 認証を必要とする場合にのみ使用してください。",
+			"apiKeyOptionalDescription": "任意。endpoint、ローカルインスタンス、またはプロキシが bearer-token 認証を必要とする場合にのみ使用してください。",
 			"getApiKeyText": "APIキーの取得元",
 			"baseUrlLabel": "ベースURL",
 			"baseUrlPlaceholder": "デフォルト: {{url}}",
@@ -885,14 +890,20 @@
 			"modelIdLabel": "モデルID",
 			"customModelIdPlaceholder": "モデルIDを入力",
 			"modelIdPlaceholderWithDefault": "デフォルト: {{model}}",
-			"customModelIdDescription": "プロバイダーまたはローカルサーバーが公開している正確なモデルIDを入力してください。",
+			"customModelIdDescription": "プロバイダーまたは OpenAI 互換 endpoint が公開している正確なモデル ID を入力してください。",
+			"optionalModelIdDescription": "任意。空欄にすると、プロバイダーで現在読み込まれている checkpoint を使用します。",
 			"apiMethodLabel": "APIメソッド",
 			"apiMethodDescription": "画像生成に使用する OpenAI 互換 endpoint の形式を選択してください。",
 			"apiMethodLockedDescription": "選択したモデルは {{model}} に必要な API メソッドを使用します。",
 			"apiMethodLabels": {
 				"chat_completions": "Chat completions",
-				"images_api": "Images API"
+				"images_api": "Images API",
+				"comfyui_api": "ComfyUI API",
+				"automatic1111_api": "Automatic1111 API"
 			},
+			"negativePromptLabel": "Negative prompt",
+			"negativePromptPlaceholder": "生成画像で避けたい内容を入力してください",
+			"negativePromptDescription": "任意。ローカルプロバイダーが不要な被写体、スタイル、アーティファクトを避けるのに役立ちます。",
 			"warningMissingApiKey": "⚠️ {{provider}} で画像生成するには API キーが必要です。上で設定してください。",
 			"warningMissingModel": "⚠️ {{provider}} で画像生成するにはモデルIDが必要です。上で設定してください。",
 			"successConfigured": "✓ {{provider}} の画像生成が設定され、使用準備ができています"

@@ -12,6 +12,7 @@ describe("useAutoApprovalState", () => {
 				alwaysAllowModeSwitch: false,
 				alwaysAllowSubtasks: false,
 				alwaysAllowParallelTasks: false,
+				alwaysAllowVisualBrowserInspector: false,
 				alwaysAllowFollowupQuestions: false,
 			}
 
@@ -29,6 +30,7 @@ describe("useAutoApprovalState", () => {
 				alwaysAllowModeSwitch: undefined,
 				alwaysAllowSubtasks: undefined,
 				alwaysAllowParallelTasks: undefined,
+				alwaysAllowVisualBrowserInspector: undefined,
 				alwaysAllowFollowupQuestions: undefined,
 			}
 
@@ -46,6 +48,7 @@ describe("useAutoApprovalState", () => {
 				alwaysAllowModeSwitch: false,
 				alwaysAllowSubtasks: false,
 				alwaysAllowParallelTasks: false,
+				alwaysAllowVisualBrowserInspector: false,
 				alwaysAllowFollowupQuestions: false,
 			}
 
@@ -63,6 +66,7 @@ describe("useAutoApprovalState", () => {
 				alwaysAllowModeSwitch: false,
 				alwaysAllowSubtasks: false,
 				alwaysAllowParallelTasks: false,
+				alwaysAllowVisualBrowserInspector: false,
 				alwaysAllowFollowupQuestions: false,
 			}
 
@@ -80,7 +84,26 @@ describe("useAutoApprovalState", () => {
 				alwaysAllowModeSwitch: true,
 				alwaysAllowSubtasks: true,
 				alwaysAllowParallelTasks: true,
+				alwaysAllowVisualBrowserInspector: true,
 				alwaysAllowFollowupQuestions: true,
+			}
+
+			const { result } = renderHook(() => useAutoApprovalState(toggles, true))
+
+			expect(result.current.hasEnabledOptions).toBe(true)
+		})
+
+		it("should return true when only visual browser inspector is enabled", () => {
+			const toggles = {
+				alwaysAllowReadOnly: false,
+				alwaysAllowWrite: false,
+				alwaysAllowExecute: false,
+				alwaysAllowMcp: false,
+				alwaysAllowModeSwitch: false,
+				alwaysAllowSubtasks: false,
+				alwaysAllowParallelTasks: false,
+				alwaysAllowVisualBrowserInspector: true,
+				alwaysAllowFollowupQuestions: false,
 			}
 
 			const { result } = renderHook(() => useAutoApprovalState(toggles, true))
@@ -123,6 +146,7 @@ describe("useAutoApprovalState", () => {
 				alwaysAllowModeSwitch: false,
 				alwaysAllowSubtasks: false,
 				alwaysAllowParallelTasks: false,
+				alwaysAllowVisualBrowserInspector: false,
 				alwaysAllowFollowupQuestions: false,
 			}
 

@@ -201,6 +201,46 @@
 		"wantsToGenerateImageProtected": "需要在受保护位置生成图片",
 		"didGenerateImage": "已生成图片"
 	},
+	"imageGeneration": {
+		"approval": {
+			"generate": "生成",
+			"editPromptHint": "批准前可在消息框中编辑 Prompt，或按原样批准。"
+		},
+		"statusTitle": "图片生成：{{status}}",
+		"status": {
+			"pending": "等待批准",
+			"running": "正在运行",
+			"completed": "已完成",
+			"error": "错误"
+		},
+		"metadata": {
+			"prompt": "Prompt",
+			"editedPrompt": "已编辑的 Prompt",
+			"originalPrompt": "原始 Prompt",
+			"provider": "提供商",
+			"model": "模型",
+			"endpoint": "Endpoint",
+			"endpointType": "Endpoint 类型",
+			"localEndpoint": "本地",
+			"remoteEndpoint": "远程",
+			"apiMethod": "API 方法",
+			"outputPath": "输出路径",
+			"inputImage": "输入图片",
+			"imageFormat": "图片格式",
+			"tokensIn": "输入 tokens",
+			"tokensOut": "输出 tokens",
+			"totalTokens": "总 tokens",
+			"images": "图片",
+			"cost": "费用",
+			"error": "错误"
+		},
+		"apiMethods": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API"
+		}
+	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "需要查看目录文件列表",
 		"didViewTopLevel": "已查看目录文件列表",

@@ -2,7 +2,7 @@
 
 import type { ModeConfig } from "@roo-code/types"
 
-import { modes } from "../../../shared/modes"
+import { FileRestrictionError, modes } from "../../../shared/modes"
 import { TOOL_GROUPS } from "../../../shared/tools"
 
 import { validateToolUse, isToolAllowedForMode } from "../validateToolUse"
@@ -15,11 +15,13 @@ describe("mode-validator", () => {
 	describe("isToolAllowedForMode", () => {
 		describe("code mode", () => {
 			it("allows configured code mode tools", () => {
-				// Code mode has read, edit, command, and mcp groups. Mode-switching tools are always available.
+				// Code mode has read, edit, command, mcp, visual browser inspector, and image generation groups. Mode-switching tools are always available.
 				const codeTools = [
 					...TOOL_GROUPS.read.tools,
 					...TOOL_GROUPS.edit.tools,
 					...TOOL_GROUPS.command.tools,
+					...TOOL_GROUPS.visual_browser_inspector.tools,
+					...TOOL_GROUPS.image_generation.tools,
 					...TOOL_GROUPS.mcp.tools,
 					...TOOL_GROUPS.modes.tools,
 				]
@@ -76,6 +78,108 @@ describe("mode-validator", () => {
 				expect(isToolAllowedForMode("write_to_file", "custom-mode", customModes)).toBe(true)
 				// Should not allow tools from other groups
 				expect(isToolAllowedForMode("execute_command", "custom-mode", customModes)).toBe(false)
+			})
+
+			it("does not grant visual browser inspector or image generation from broad command/edit groups", () => {
+				const customModes: ModeConfig[] = [
+					{
+						slug: "broad-groups-mode",
+						name: "Broad Groups Mode",
+						roleDefinition: "Custom role",
+						groups: ["read", "edit", "command"],
+					},
+				]
+
+				expect(isToolAllowedForMode("visual_browser_inspector", "broad-groups-mode", customModes)).toBe(false)
+				expect(isToolAllowedForMode("generate_image", "broad-groups-mode", customModes)).toBe(false)
+			})
+
+			it("allows visual browser inspector and image generation from dedicated groups", () => {
+				const customModes: ModeConfig[] = [
+					{
+						slug: "visual-image-mode",
+						name: "Visual Image Mode",
+						roleDefinition: "Custom role",
+						groups: ["read", "visual_browser_inspector", "image_generation"],
+					},
+				]
+
+				expect(isToolAllowedForMode("visual_browser_inspector", "visual-image-mode", customModes)).toBe(true)
+				expect(isToolAllowedForMode("generate_image", "visual-image-mode", customModes)).toBe(true)
+			})
+
+			it("allows generate_image output paths matching inherited edit restrictions", () => {
+				const customModes: ModeConfig[] = [
+					{
+						slug: "restricted-image-mode",
+						name: "Restricted Image Mode",
+						roleDefinition: "Custom role",
+						groups: [
+							"read",
+							["edit", { fileRegex: "\\.png$", description: "PNG outputs only" }],
+							"image_generation",
+						],
+					},
+				]
+
+				expect(
+					isToolAllowedForMode("generate_image", "restricted-image-mode", customModes, undefined, {
+						path: "assets/generated/mockup.png",
+					}),
+				).toBe(true)
+			})
+
+			it("rejects generate_image output paths outside inherited edit restrictions", () => {
+				const customModes: ModeConfig[] = [
+					{
+						slug: "restricted-image-mode",
+						name: "Restricted Image Mode",
+						roleDefinition: "Custom role",
+						groups: [
+							"read",
+							["edit", { fileRegex: "\\.png$", description: "PNG outputs only" }],
+							"image_generation",
+						],
+					},
+				]
+
+				expect(() =>
+					isToolAllowedForMode("generate_image", "restricted-image-mode", customModes, undefined, {
+						path: "assets/generated/mockup.jpg",
+					}),
+				).toThrow(FileRestrictionError)
+				expect(() =>
+					isToolAllowedForMode("generate_image", "restricted-image-mode", customModes, undefined, {
+						path: "assets/generated/mockup.jpg",
+					}),
+				).toThrow(/PNG outputs only/)
+			})
+
+			it("prefers dedicated image_generation file restrictions over edit restrictions", () => {
+				const customModes: ModeConfig[] = [
+					{
+						slug: "dedicated-image-restriction-mode",
+						name: "Dedicated Image Restriction Mode",
+						roleDefinition: "Custom role",
+						groups: [
+							"read",
+							["edit", { fileRegex: "\\.md$", description: "Markdown files only" }],
+							["image_generation", { fileRegex: "\\.png$", description: "PNG images only" }],
+						],
+					},
+				]
+
+				expect(
+					isToolAllowedForMode("generate_image", "dedicated-image-restriction-mode", customModes, undefined, {
+						path: "assets/generated/mockup.png",
+					}),
+				).toBe(true)
+
+				expect(() =>
+					isToolAllowedForMode("generate_image", "dedicated-image-restriction-mode", customModes, undefined, {
+						path: "docs/mockup.md",
+					}),
+				).toThrow(/PNG images only/)
 			})
 
 			it("allows custom mode to override built-in mode", () => {

@@ -1,6 +1,7 @@
 // npx vitest run core/prompts/tools/__tests__/filter-tools-for-mode.spec.ts
 
 import type OpenAI from "openai"
+import type { ModeConfig } from "@roo-code/types"
 
 import { filterNativeToolsForMode } from "../filter-tools-for-mode"
 
@@ -25,6 +26,10 @@ describe("filterNativeToolsForMode - disabledTools", () => {
 		makeTool("search_replace"),
 		makeTool("edit_file"),
 		makeTool("apply_patch"),
+		makeTool("visual_browser_inspector"),
+		makeTool("generate_image"),
+		makeTool("switch_mode"),
+		makeTool("new_task"),
 	]
 
 	it("removes tools listed in settings.disabledTools", () => {
@@ -58,6 +63,8 @@ describe("filterNativeToolsForMode - disabledTools", () => {
 		expect(resultNames).toContain("search_replace")
 		expect(resultNames).toContain("edit_file")
 		expect(resultNames).toContain("apply_patch")
+		expect(resultNames).toContain("visual_browser_inspector")
+		expect(resultNames).not.toContain("generate_image")
 	})
 
 	it("does not remove any tools when disabledTools is undefined", () => {
@@ -69,6 +76,32 @@ describe("filterNativeToolsForMode - disabledTools", () => {
 		expect(resultNames).toContain("execute_command")
 		expect(resultNames).toContain("read_file")
 		expect(resultNames).toContain("apply_patch")
+		expect(resultNames).toContain("visual_browser_inspector")
+		expect(resultNames).not.toContain("generate_image")
+	})
+
+	it("keeps routing tools available for read-only modes without granting unavailable tool groups", () => {
+		const customModes: ModeConfig[] = [
+			{
+				slug: "read-only-mode",
+				name: "Read Only Mode",
+				roleDefinition: "A mode with only read tools.",
+				groups: ["read"],
+			},
+		]
+
+		const result = filterNativeToolsForMode(nativeTools, "read-only-mode", customModes, {
+			imageGeneration: true,
+		})
+
+		const resultNames = result.map((t) => (t as any).function.name)
+		expect(resultNames).toContain("read_file")
+		expect(resultNames).toContain("switch_mode")
+		expect(resultNames).toContain("new_task")
+		expect(resultNames).not.toContain("execute_command")
+		expect(resultNames).not.toContain("write_to_file")
+		expect(resultNames).not.toContain("visual_browser_inspector")
+		expect(resultNames).not.toContain("generate_image")
 	})
 
 	it("combines disabledTools with other setting-based exclusions", () => {
@@ -96,5 +129,64 @@ describe("filterNativeToolsForMode - disabledTools", () => {
 		const resultNames = result.map((t) => (t as any).function.name)
 		expect(resultNames).not.toContain("search_and_replace")
 		expect(resultNames).not.toContain("edit")
+	})
+
+	it("does not expose visual browser inspector or image generation through broad command/edit groups", () => {
+		const customModes: ModeConfig[] = [
+			{
+				slug: "broad-groups-mode",
+				name: "Broad Groups Mode",
+				roleDefinition: "A mode with only broad tool groups.",
+				groups: ["read", "edit", "command", "mcp"],
+			},
+		]
+
+		const result = filterNativeToolsForMode(nativeTools, "broad-groups-mode", customModes, {
+			imageGeneration: true,
+		})
+
+		const resultNames = result.map((t) => (t as any).function.name)
+		expect(resultNames).toContain("execute_command")
+		expect(resultNames).toContain("write_to_file")
+		expect(resultNames).not.toContain("visual_browser_inspector")
+		expect(resultNames).not.toContain("generate_image")
+	})
+
+	it("exposes visual browser inspector and image generation through dedicated groups", () => {
+		const customModes: ModeConfig[] = [
+			{
+				slug: "visual-image-mode",
+				name: "Visual Image Mode",
+				roleDefinition: "A mode with visual and image generation tools.",
+				groups: ["read", "visual_browser_inspector", "image_generation"],
+			},
+		]
+
+		const result = filterNativeToolsForMode(nativeTools, "visual-image-mode", customModes, {
+			imageGeneration: true,
+		})
+
+		const resultNames = result.map((t) => (t as any).function.name)
+		expect(resultNames).toContain("visual_browser_inspector")
+		expect(resultNames).toContain("generate_image")
+	})
+
+	it("hides generate_image when the image generation experiment is disabled", () => {
+		const customModes: ModeConfig[] = [
+			{
+				slug: "visual-image-mode",
+				name: "Visual Image Mode",
+				roleDefinition: "A mode with visual and image generation tools.",
+				groups: ["read", "visual_browser_inspector", "image_generation"],
+			},
+		]
+
+		const result = filterNativeToolsForMode(nativeTools, "visual-image-mode", customModes, {
+			imageGeneration: false,
+		})
+
+		const resultNames = result.map((t) => (t as any).function.name)
+		expect(resultNames).toContain("visual_browser_inspector")
+		expect(resultNames).not.toContain("generate_image")
 	})
 })

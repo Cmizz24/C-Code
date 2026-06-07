@@ -107,6 +107,22 @@ function getGroupOptions(group: GroupEntry): GroupOptions | undefined {
 	return Array.isArray(group) ? group[1] : undefined
 }
 
+function getEditFileRestriction(groups: readonly GroupEntry[]): GroupOptions | undefined {
+	const editGroup = groups.find((group) => getGroupName(group) === "edit")
+	const options = editGroup ? getGroupOptions(editGroup) : undefined
+	return options?.fileRegex ? options : undefined
+}
+
+function validateFileRestriction(modeName: string, options: GroupOptions, filePath: unknown, tool: string): void {
+	if (typeof filePath !== "string" || !filePath || !options.fileRegex) {
+		return
+	}
+
+	if (!doesFileMatchRegex(filePath, options.fileRegex)) {
+		throw new FileRestrictionError(modeName, options.fileRegex, options.description, filePath, tool)
+	}
+}
+
 function doesFileMatchRegex(filePath: string, pattern: string): boolean {
 	try {
 		const regex = new RegExp(pattern)
@@ -172,6 +188,8 @@ export function isToolAllowedForMode(
 		return false
 	}
 
+	const editFileRestriction = getEditFileRestriction(mode.groups)
+
 	// Check if tool is in any of the mode's groups and respects any group options
 	for (const group of mode.groups) {
 		const groupName = getGroupName(group)
@@ -197,6 +215,14 @@ export function isToolAllowedForMode(
 			continue
 		}
 
+		if (resolvedTool === "generate_image") {
+			const imageFileRestriction = options?.fileRegex ? options : editFileRestriction
+			if (imageFileRestriction) {
+				validateFileRestriction(mode.name, imageFileRestriction, toolParams?.path, tool)
+			}
+			return true
+		}
+
 		// If there are no options, allow the tool
 		if (!options) {
 			return true
@@ -209,8 +235,8 @@ export function isToolAllowedForMode(
 			const isEditOperation = EDIT_OPERATION_PARAMS.some((param) => toolParams?.[param])
 
 			// Handle single file path validation
-			if (filePath && isEditOperation && !doesFileMatchRegex(filePath, options.fileRegex)) {
-				throw new FileRestrictionError(mode.name, options.fileRegex, options.description, filePath, tool)
+			if (filePath && isEditOperation) {
+				validateFileRestriction(mode.name, options, filePath, tool)
 			}
 
 			// Handle apply_patch: extract file paths from patch content and validate each

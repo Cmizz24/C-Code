@@ -60,6 +60,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setAlwaysAllowModeSwitch: (value: boolean) => void
 	setAlwaysAllowSubtasks: (value: boolean) => void
 	setAlwaysAllowParallelTasks: (value: boolean) => void
+	setAlwaysAllowVisualBrowserInspector: (value: boolean) => void
+	setAlwaysAllowImageGeneration: (value: boolean) => void
 	setMaxConcurrentParallelTasks: (value: number) => void
 	setShowRooIgnoredFiles: (value: boolean) => void
 	setEnableSubfolderRules: (value: boolean) => void
@@ -226,6 +228,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		autoApprovalEnabled: false,
 		customModes: [],
 		alwaysAllowParallelTasks: false,
+		alwaysAllowVisualBrowserInspector: false,
+		alwaysAllowImageGeneration: false,
 		maxConcurrentParallelTasks: DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
 		maxOpenTabsContext: 20,
 		maxWorkspaceFiles: 200,
@@ -267,6 +271,16 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		openAiImageBaseUrl: "",
 		openAiImageGenerationSelectedModel: "",
 		openAiImageGenerationApiMethod: "images_api",
+		comfyUiImageApiKey: "",
+		comfyUiImageBaseUrl: "",
+		comfyUiImageGenerationSelectedModel: "",
+		comfyUiImageGenerationApiMethod: "comfyui_api",
+		comfyUiImageGenerationNegativePrompt: "",
+		automatic1111ImageApiKey: "",
+		automatic1111ImageBaseUrl: "",
+		automatic1111ImageGenerationSelectedModel: "",
+		automatic1111ImageGenerationApiMethod: "automatic1111_api",
+		automatic1111ImageGenerationNegativePrompt: "",
 		ollamaImageApiKey: "",
 		ollamaImageBaseUrl: "",
 		ollamaImageGenerationSelectedModel: "",
@@ -504,6 +518,10 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setAlwaysAllowSubtasks: (value) => setState((prevState) => ({ ...prevState, alwaysAllowSubtasks: value })),
 		setAlwaysAllowParallelTasks: (value) =>
 			setState((prevState) => ({ ...prevState, alwaysAllowParallelTasks: value })),
+		setAlwaysAllowVisualBrowserInspector: (value) =>
+			setState((prevState) => ({ ...prevState, alwaysAllowVisualBrowserInspector: value })),
+		setAlwaysAllowImageGeneration: (value) =>
+			setState((prevState) => ({ ...prevState, alwaysAllowImageGeneration: value })),
 		setMaxConcurrentParallelTasks: (value) =>
 			setState((prevState) => ({ ...prevState, maxConcurrentParallelTasks: value })),
 		setAlwaysAllowFollowupQuestions,

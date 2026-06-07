@@ -201,6 +201,46 @@
 		"wantsToGenerateImageProtected": "Roo vol generar una imatge en una ubicació protegida",
 		"didGenerateImage": "Roo ha generat una imatge"
 	},
+	"imageGeneration": {
+		"approval": {
+			"generate": "Genera",
+			"editPromptHint": "Edita el Prompt al quadre de missatge abans d'aprovar-lo, o aprova'l tal com està."
+		},
+		"statusTitle": "Generació d'imatges: {{status}}",
+		"status": {
+			"pending": "Pendent d'aprovació",
+			"running": "En execució",
+			"completed": "Completat",
+			"error": "Error"
+		},
+		"metadata": {
+			"prompt": "Prompt",
+			"editedPrompt": "Prompt editat",
+			"originalPrompt": "Prompt original",
+			"provider": "Proveïdor",
+			"model": "Model",
+			"endpoint": "Endpoint",
+			"endpointType": "Tipus d'endpoint",
+			"localEndpoint": "Local",
+			"remoteEndpoint": "Remot",
+			"apiMethod": "Mètode API",
+			"outputPath": "Camí de sortida",
+			"inputImage": "Imatge d'entrada",
+			"imageFormat": "Format d'imatge",
+			"tokensIn": "Tokens d'entrada",
+			"tokensOut": "Tokens de sortida",
+			"totalTokens": "Tokens totals",
+			"images": "Imatges",
+			"cost": "Cost",
+			"error": "Error"
+		},
+		"apiMethods": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API"
+		}
+	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo vol veure els fitxers de nivell superior en aquest directori",
 		"didViewTopLevel": "Roo ha vist els fitxers de nivell superior en aquest directori",

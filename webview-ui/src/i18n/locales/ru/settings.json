@@ -255,6 +255,10 @@
 			"maxConcurrentDescription": "Выбери, сколько агентов могут одновременно работать для утвержденного плана параллельных задач ({{min}}–{{max}}). Ожидающие агенты запускаются, когда работающие агенты завершаются.",
 			"description": "Автоматически утверждать допустимые планы параллельных задач и запускать агентов без показа модального окна предварительного просмотра плана"
 		},
+		"visualBrowserInspector": {
+			"label": "Браузер",
+			"description": "Автоматически утверждать действия Visual Browser Inspector из чата, включая открытие контролируемых страниц браузера, скриншоты, инспекцию DOM, обрезки, анализ и взаимодействия со страницей. Это не разрешает редактирование файлов или команды терминала."
+		},
 		"followupQuestions": {
 			"label": "Вопрос",
 			"description": "Автоматически выбирать первый предложенный ответ на дополнительные вопросы после настроенного тайм-аута",
@@ -871,11 +875,12 @@
 			"description": "Когда включено, C может генерировать и редактировать изображения по prompt'ам с помощью отдельно настроенного провайдера генерации изображений.",
 			"providerLabel": "Провайдер",
 			"providerDescription": "Выберите провайдера для генерации изображений. Он не зависит от профиля провайдера чата.",
+			"localProviderNote": "Ollama и LM Studio здесь нельзя выбрать, потому что они предоставляют vision/chat API, а не API генерации изображений. Локальная генерация изображений доступна через настоящие API генерации изображений, такие как ComfyUI и Automatic1111, если они настроены.",
 			"apiKeyLabel": "API-ключ {{provider}}",
 			"optionalApiKeyLabel": "API-ключ {{provider}} (необязательно)",
 			"apiKeyPlaceholder": "Введите API-ключ {{provider}}",
 			"apiKeyRequiredDescription": "Этому провайдеру нужен API-ключ для генерации изображений.",
-			"apiKeyOptionalDescription": "Необязательно. Используйте это только если ваш локальный сервер или proxy требует аутентификацию bearer-token.",
+			"apiKeyOptionalDescription": "Необязательно. Используй это только если твой endpoint, локальный экземпляр или прокси требует аутентификацию bearer-token.",
 			"getApiKeyText": "Получите ваш API-ключ у",
 			"baseUrlLabel": "Базовый URL",
 			"baseUrlPlaceholder": "По умолчанию: {{url}}",
@@ -885,14 +890,20 @@
 			"modelIdLabel": "ID модели",
 			"customModelIdPlaceholder": "Введите ID модели",
 			"modelIdPlaceholderWithDefault": "По умолчанию: {{model}}",
-			"customModelIdDescription": "Введите точный ID модели, предоставляемый провайдером или локальным сервером.",
+			"customModelIdDescription": "Введи точный ID модели, который предоставляет твой провайдер или endpoint, совместимый с OpenAI.",
+			"optionalModelIdDescription": "Необязательно. Оставь пустым, чтобы использовать checkpoint, сейчас загруженный провайдером.",
 			"apiMethodLabel": "Метод API",
 			"apiMethodDescription": "Выберите форму endpoint, совместимую с OpenAI, для генерации изображений.",
 			"apiMethodLockedDescription": "Выбранная модель использует обязательный метод API модели {{model}}.",
 			"apiMethodLabels": {
 				"chat_completions": "Chat completions",
-				"images_api": "Images API"
+				"images_api": "Images API",
+				"comfyui_api": "ComfyUI API",
+				"automatic1111_api": "Automatic1111 API"
 			},
+			"negativePromptLabel": "Негативный prompt",
+			"negativePromptPlaceholder": "Введи, чего нужно избегать в сгенерированных изображениях",
+			"negativePromptDescription": "Необязательно. Помогает локальным провайдерам избегать нежелательных объектов, стилей или артефактов.",
 			"warningMissingApiKey": "⚠️ {{provider}} требует API-ключ для генерации изображений. Настройте его выше.",
 			"warningMissingModel": "⚠️ {{provider}} требует ID модели для генерации изображений. Настройте его выше.",
 			"successConfigured": "✓ Генерация изображений настроена для {{provider}} и готова к использованию"

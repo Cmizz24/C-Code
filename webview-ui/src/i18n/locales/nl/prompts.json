@@ -26,6 +26,8 @@
 			"read": "Bestanden lezen",
 			"edit": "Bestanden bewerken",
 			"command": "Commando's uitvoeren",
+			"visual_browser_inspector": "Browser visueel inspecteren",
+			"image_generation": "Afbeeldingen genereren",
 			"mcp": "MCP gebruiken"
 		},
 		"noTools": "Geen"

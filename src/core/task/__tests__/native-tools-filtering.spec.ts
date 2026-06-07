@@ -17,7 +17,7 @@ describe("Native Tools Filtering by Mode", () => {
 				slug: "code",
 				name: "Code",
 				roleDefinition: "Test code",
-				groups: ["read", "edit", "command", "mcp"] as const,
+				groups: ["read", "edit", "command", "mcp", "visual_browser_inspector", "image_generation"] as const,
 			}
 
 			// Import the functions we need to test
@@ -55,6 +55,10 @@ describe("Native Tools Filtering by Mode", () => {
 			expect(architectAllowedTools.has("ask_followup_question")).toBe(true)
 			expect(architectAllowedTools.has("attempt_completion")).toBe(true)
 
+			// Architect should NOT have dedicated visual or image generation tools
+			expect(architectAllowedTools.has("visual_browser_inspector")).toBe(false)
+			expect(architectAllowedTools.has("generate_image")).toBe(false)
+
 			// Test code mode - SHOULD have edit tools
 			const codeAllowedTools = new Set<string>()
 			codeMode.groups.forEach((groupEntry) => {
@@ -84,6 +88,26 @@ describe("Native Tools Filtering by Mode", () => {
 
 			// Code SHOULD have command tools
 			expect(codeAllowedTools.has("execute_command")).toBe(true)
+
+			// Code SHOULD have dedicated visual and image generation tools
+			expect(codeAllowedTools.has("visual_browser_inspector")).toBe(true)
+			expect(codeAllowedTools.has("generate_image")).toBe(true)
+		})
+
+		it("should not infer dedicated visual or image tools from broad command/edit groups", async () => {
+			const broadMode: ModeConfig = {
+				slug: "broad-mode",
+				name: "Broad Mode",
+				roleDefinition: "Test broad mode",
+				groups: ["read", "edit", "command", "mcp"] as const,
+			}
+
+			const { isToolAllowedForMode } = await import("../../tools/validateToolUse")
+
+			expect(isToolAllowedForMode("execute_command", "broad-mode", [broadMode])).toBe(true)
+			expect(isToolAllowedForMode("write_to_file", "broad-mode", [broadMode])).toBe(true)
+			expect(isToolAllowedForMode("visual_browser_inspector", "broad-mode", [broadMode])).toBe(false)
+			expect(isToolAllowedForMode("generate_image", "broad-mode", [broadMode])).toBe(false)
 		})
 
 		it("should filter MCP tools based on use_mcp_tool permission", async () => {
@@ -125,6 +149,13 @@ describe("Native Tools Filtering by Mode", () => {
 			ALWAYS_AVAILABLE_TOOLS.forEach((tool) => {
 				expect(isToolAllowedForMode(tool as any, "restrictive", [restrictiveMode])).toBe(true)
 			})
+
+			expect(isToolAllowedForMode("switch_mode", "restrictive", [restrictiveMode])).toBe(true)
+			expect(isToolAllowedForMode("new_task", "restrictive", [restrictiveMode])).toBe(true)
+			expect(isToolAllowedForMode("execute_command", "restrictive", [restrictiveMode])).toBe(false)
+			expect(isToolAllowedForMode("write_to_file", "restrictive", [restrictiveMode])).toBe(false)
+			expect(isToolAllowedForMode("visual_browser_inspector", "restrictive", [restrictiveMode])).toBe(false)
+			expect(isToolAllowedForMode("generate_image", "restrictive", [restrictiveMode])).toBe(false)
 		})
 
 		it("only includes the background coordination native tool when explicitly requested", async () => {
@@ -156,6 +187,24 @@ describe("Native Tools Filtering by Mode", () => {
 			expect(description).toContain('findstr exit code 1 as "no matches"')
 			expect(description).not.toContain("Prefer to execute complex CLI commands over creating executable scripts")
 			expect(description).not.toContain("touch ./testdata/example.file")
+		})
+
+		it("describes mode routing tools for unavailable current-mode capabilities", async () => {
+			const { getNativeTools } = await import("../../prompts/tools/native-tools")
+
+			const switchModeTool = getNativeTools().find((tool: any) => tool.function.name === "switch_mode") as any
+			const newTaskTool = getNativeTools().find((tool: any) => tool.function.name === "new_task") as any
+
+			expect(switchModeTool.function.description).toContain("requires a capability or tool group")
+			expect(switchModeTool.function.description).toContain("rather than refusing")
+			expect(switchModeTool.function.description).toContain("CLI Tools")
+			expect(switchModeTool.function.description).toContain("visual_browser_inspector")
+			expect(switchModeTool.function.description).toContain("image_generation")
+
+			expect(newTaskTool.function.description).toContain("delegate work to a capable mode")
+			expect(newTaskTool.function.description).toContain("unavailable tools")
+			expect(newTaskTool.function.description).toContain("rather than refusing")
+			expect(newTaskTool.function.description).toContain("Prefer switch_mode")
 		})
 	})
 })

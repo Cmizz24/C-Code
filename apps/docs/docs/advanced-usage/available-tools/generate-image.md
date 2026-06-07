@@ -6,13 +6,15 @@ keywords:
     - image generation
     - image editing
     - OpenRouter
+    - OpenAI
+    - ComfyUI
+    - Automatic1111
     - Roo Code tools
-    - experimental
 ---
 
 # generate_image
 
-The `generate_image` tool creates new images from text prompts or modifies existing images using AI models. It supports two providers: **OpenRouter** and the **Roo provider**. This experimental feature enables visual content generation and transformation within your development workflow.
+The `generate_image` tool creates new images from text prompts or modifies existing images using configured image-generation providers. It supports remote providers such as **OpenRouter** and **OpenAI/OpenAI-compatible** endpoints, plus local image-generation APIs such as **ComfyUI** and **Automatic1111**.
 
 ---
 
@@ -48,18 +50,19 @@ This tool generates images from text descriptions or applies transformations to 
 - **Image-to-image transformation**: Edit or transform existing images
 - Supports multiple input formats (PNG, JPG, JPEG, GIF, WEBP)
 - Automatic file extension handling
-- Powered by **OpenRouter** or the **Roo provider** for access to various AI models
-- Experimental feature with ongoing improvements
+- Powered by configured remote or local image-generation providers
+- Human approval by default, with the proposed prompt shown before generation
+- Prompt edits during approval are sent to the provider
 
 ---
 
 ## Limitations
 
-- Requires OpenRouter or Roo provider API configuration
+- Requires a configured image-generation provider
 - Image quality depends on the AI model and prompt quality
 - Generation time varies based on complexity and model
-- Experimental feature: behavior may change in future releases
-- API usage may incur costs based on OpenRouter pricing
+- Provider behavior and supported models may change over time
+- API usage may incur costs based on your provider pricing
 - Some image transformations may not produce expected results
 
 ---
@@ -69,13 +72,15 @@ This tool generates images from text descriptions or applies transformations to 
 When the `generate_image` tool is invoked, it follows this process:
 
 1. **Parameter Validation**: Validates required `prompt` and `path` parameters.
-2. **Mode Selection**:
+2. **Provider Resolution**: Resolves the configured image-generation provider, model, endpoint, and supported API method.
+3. **Approval**: Requests human approval by default and shows the proposed prompt. If you edit the prompt before approving, Roo sends the edited prompt to the provider.
+4. **Mode Selection**:
     - If `image` parameter is provided: operates in **edit mode** (transform existing image)
     - Otherwise: operates in **generation mode** (create new image from prompt)
-3. **API Request**: Sends request to the configured provider (OpenRouter or Roo) with prompt and optional input image.
-4. **Image Processing**: Receives generated/edited image from the API.
-5. **File Saving**: Saves the image to the specified `path` with appropriate extension.
-6. **Feedback**: Reports success and the location of the generated image.
+5. **API Request**: Sends request to the configured provider with prompt and optional input image.
+6. **Image Processing**: Receives generated/edited image from the API.
+7. **File Saving**: Saves the image to the specified `path` with appropriate extension.
+8. **Feedback**: Reports success, generated image location, and safe provider metadata in chat.
 
 ---
 
@@ -120,9 +125,9 @@ The `generate_image` tool is the programmatic interface to the [Image Generation
 
 ## Configuration
 
-Image generation requires OpenRouter API configuration. See the [Image Generation](/features/image-generation) feature page for detailed setup instructions including:
+Image generation requires provider configuration in the dedicated Image Generation settings. See the [Image Generation](/features/image-generation) feature page for detailed setup instructions including:
 
-- OpenRouter API key configuration
-- Model selection and capabilities
+- Provider selection and API key or local endpoint configuration
+- Model, checkpoint, and API-method capabilities
 - Best practices for prompts
 - Troubleshooting and limitations

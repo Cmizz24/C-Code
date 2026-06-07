@@ -149,6 +149,8 @@ interface PendingEditOperation {
 
 type PlanStartResult = { ok: true } | { ok: false; error: string }
 
+type InitialWebviewTab = "visualBrowserInspector"
+
 export type PlanApprovalResult =
 	| { approved: false }
 	| { approved: true; plan: ExecutionPlan; startResult: PlanStartResult }
@@ -263,6 +265,7 @@ export class ClineProvider
 	// break existing instances of the extension.
 	public static readonly sideBarId = `${Package.name}.SidebarProvider`
 	public static readonly tabPanelId = `${Package.name}.TabPanelProvider`
+	public static readonly visualBrowserInspectorPanelId = `${Package.name}.VisualBrowserInspectorPanelProvider`
 	private static activeInstances: Set<ClineProvider> = new Set()
 	private disposables: vscode.Disposable[] = []
 	private webviewDisposables: vscode.Disposable[] = []
@@ -460,12 +463,16 @@ export class ClineProvider
 	public readonly latestAnnouncementId = "may-2026-c-code-fork-update" // C Code fork update announcement.
 	public readonly providerSettingsManager: ProviderSettingsManager
 	public readonly customModesManager: CustomModesManager
+	public get isVisualBrowserInspectorOnly(): boolean {
+		return this.initialTab === "visualBrowserInspector"
+	}
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
 		private readonly renderContext: "sidebar" | "editor" = "sidebar",
 		public readonly contextProxy: ContextProxy,
+		private readonly initialTab?: InitialWebviewTab,
 	) {
 		super()
 		this.currentWorkspacePath = getWorkspacePath()
@@ -2655,6 +2662,65 @@ export class ClineProvider
 		return findLast(Array.from(this.activeInstances), (instance) => instance.view?.visible === true)
 	}
 
+	private static isMainTaskProvider(instance: ClineProvider): boolean {
+		return !instance._disposed && !instance.isVisualBrowserInspectorOnly
+	}
+
+	public static getVisibleMainInstance(): ClineProvider | undefined {
+		return findLast(
+			Array.from(this.activeInstances),
+			(instance) => ClineProvider.isMainTaskProvider(instance) && instance.view?.visible === true,
+		)
+	}
+
+	public static getMainInstance(): ClineProvider | undefined {
+		return findLast(Array.from(this.activeInstances), (instance) => ClineProvider.isMainTaskProvider(instance))
+	}
+
+	private static async focusInstance(instance: ClineProvider): Promise<void> {
+		const view = instance.view
+
+		try {
+			if (view && "reveal" in view) {
+				view.reveal(undefined, false)
+				return
+			}
+
+			if (view && "show" in view) {
+				view.show(false)
+				return
+			}
+
+			if (instance.renderContext === "sidebar") {
+				await vscode.commands.executeCommand(`${Package.name}.SidebarProvider.focus`)
+			}
+		} catch {
+			// Focusing is best-effort. If VS Code refuses to reveal the view, keep
+			// routing the task through the selected main provider instead of falling
+			// back to the Visual Browser Inspector provider.
+		}
+	}
+
+	public static async getOrOpenMainInstance(): Promise<ClineProvider | undefined> {
+		let mainProvider = ClineProvider.getVisibleMainInstance()
+
+		if (mainProvider) {
+			await ClineProvider.focusInstance(mainProvider)
+			return mainProvider
+		}
+
+		await vscode.commands.executeCommand(`${Package.name}.SidebarProvider.focus`)
+		await delay(100)
+
+		mainProvider = ClineProvider.getVisibleMainInstance() ?? ClineProvider.getMainInstance()
+
+		if (mainProvider) {
+			await ClineProvider.focusInstance(mainProvider)
+		}
+
+		return mainProvider
+	}
+
 	public static async getInstance(): Promise<ClineProvider | undefined> {
 		let visibleProvider = ClineProvider.getVisibleInstance()
 
@@ -3158,6 +3224,18 @@ export class ClineProvider
 		}
 	}
 
+	public static async postMessageToVisualBrowserInspectorPanels(message: ExtensionMessage): Promise<void> {
+		const visualBrowserInspectorProviders = Array.from(this.activeInstances).filter(
+			(instance) => !instance._disposed && instance.isVisualBrowserInspectorOnly,
+		)
+
+		await Promise.all(visualBrowserInspectorProviders.map((instance) => instance.postMessageToWebview(message)))
+	}
+
+	public async postMessageToVisualBrowserInspectorPanels(message: ExtensionMessage): Promise<void> {
+		await ClineProvider.postMessageToVisualBrowserInspectorPanels(message)
+	}
+
 	private async getHMRHtmlContent(webview: vscode.Webview): Promise<string> {
 		let localPort = "5173"
 
@@ -3248,6 +3326,7 @@ export class ClineProvider
 						window.IMAGES_BASE_URI = "${imagesUri}"
 						window.AUDIO_BASE_URI = "${audioUri}"
 						window.MATERIAL_ICONS_BASE_URI = "${materialIconsUri}"
+						window.ROO_INITIAL_TAB = ${JSON.stringify(this.initialTab ?? null)}
 					</script>
 					<title>C Code</title>
 				</head>
@@ -3327,6 +3406,8 @@ export class ClineProvider
 				window.IMAGES_BASE_URI = "${imagesUri}"
 				window.AUDIO_BASE_URI = "${audioUri}"
 				window.MATERIAL_ICONS_BASE_URI = "${materialIconsUri}"
+				window.ROO_INITIAL_TAB = ${JSON.stringify(this.initialTab ?? null)}
+				window.ROO_VISUAL_ONLY = ${JSON.stringify(this.isVisualBrowserInspectorOnly)}
 			</script>
 				<title>C Code</title>
           </head>
@@ -4058,6 +4139,8 @@ export class ClineProvider
 			alwaysAllowSubtasks,
 			alwaysAllowParallelTasks,
 			maxConcurrentParallelTasks,
+			alwaysAllowVisualBrowserInspector,
+			alwaysAllowImageGeneration,
 			allowedMaxRequests,
 			allowedMaxCost,
 			autoCondenseContext,
@@ -4134,6 +4217,16 @@ export class ClineProvider
 			openAiImageBaseUrl,
 			openAiImageGenerationSelectedModel,
 			openAiImageGenerationApiMethod,
+			comfyUiImageApiKey,
+			comfyUiImageBaseUrl,
+			comfyUiImageGenerationSelectedModel,
+			comfyUiImageGenerationApiMethod,
+			comfyUiImageGenerationNegativePrompt,
+			automatic1111ImageApiKey,
+			automatic1111ImageBaseUrl,
+			automatic1111ImageGenerationSelectedModel,
+			automatic1111ImageGenerationApiMethod,
+			automatic1111ImageGenerationNegativePrompt,
 			ollamaImageApiKey,
 			ollamaImageBaseUrl,
 			ollamaImageGenerationSelectedModel,
@@ -4166,6 +4259,8 @@ export class ClineProvider
 			alwaysAllowSubtasks: alwaysAllowSubtasks ?? false,
 			alwaysAllowParallelTasks: alwaysAllowParallelTasks ?? false,
 			maxConcurrentParallelTasks: normalizeParallelTaskConcurrency(maxConcurrentParallelTasks),
+			alwaysAllowVisualBrowserInspector: alwaysAllowVisualBrowserInspector ?? false,
+			alwaysAllowImageGeneration: alwaysAllowImageGeneration ?? false,
 			allowedMaxRequests,
 			allowedMaxCost,
 			autoCondenseContext: autoCondenseContext ?? true,
@@ -4270,6 +4365,16 @@ export class ClineProvider
 			openAiImageBaseUrl,
 			openAiImageGenerationSelectedModel,
 			openAiImageGenerationApiMethod,
+			comfyUiImageApiKey,
+			comfyUiImageBaseUrl,
+			comfyUiImageGenerationSelectedModel,
+			comfyUiImageGenerationApiMethod,
+			comfyUiImageGenerationNegativePrompt,
+			automatic1111ImageApiKey,
+			automatic1111ImageBaseUrl,
+			automatic1111ImageGenerationSelectedModel,
+			automatic1111ImageGenerationApiMethod,
+			automatic1111ImageGenerationNegativePrompt,
 			ollamaImageApiKey,
 			ollamaImageBaseUrl,
 			ollamaImageGenerationSelectedModel,
@@ -4343,6 +4448,8 @@ export class ClineProvider
 			alwaysAllowSubtasks: stateValues.alwaysAllowSubtasks ?? false,
 			alwaysAllowParallelTasks: stateValues.alwaysAllowParallelTasks ?? false,
 			maxConcurrentParallelTasks: normalizeParallelTaskConcurrency(stateValues.maxConcurrentParallelTasks),
+			alwaysAllowVisualBrowserInspector: stateValues.alwaysAllowVisualBrowserInspector ?? false,
+			alwaysAllowImageGeneration: stateValues.alwaysAllowImageGeneration ?? false,
 			alwaysAllowFollowupQuestions: stateValues.alwaysAllowFollowupQuestions ?? false,
 			followupAutoApproveTimeoutMs: stateValues.followupAutoApproveTimeoutMs ?? 60000,
 			diagnosticsEnabled: stateValues.diagnosticsEnabled ?? true,
@@ -4444,6 +4551,16 @@ export class ClineProvider
 			openAiImageBaseUrl: stateValues.openAiImageBaseUrl,
 			openAiImageGenerationSelectedModel: stateValues.openAiImageGenerationSelectedModel,
 			openAiImageGenerationApiMethod: stateValues.openAiImageGenerationApiMethod,
+			comfyUiImageApiKey: stateValues.comfyUiImageApiKey,
+			comfyUiImageBaseUrl: stateValues.comfyUiImageBaseUrl,
+			comfyUiImageGenerationSelectedModel: stateValues.comfyUiImageGenerationSelectedModel,
+			comfyUiImageGenerationApiMethod: stateValues.comfyUiImageGenerationApiMethod,
+			comfyUiImageGenerationNegativePrompt: stateValues.comfyUiImageGenerationNegativePrompt,
+			automatic1111ImageApiKey: stateValues.automatic1111ImageApiKey,
+			automatic1111ImageBaseUrl: stateValues.automatic1111ImageBaseUrl,
+			automatic1111ImageGenerationSelectedModel: stateValues.automatic1111ImageGenerationSelectedModel,
+			automatic1111ImageGenerationApiMethod: stateValues.automatic1111ImageGenerationApiMethod,
+			automatic1111ImageGenerationNegativePrompt: stateValues.automatic1111ImageGenerationNegativePrompt,
 			ollamaImageApiKey: stateValues.ollamaImageApiKey,
 			ollamaImageBaseUrl: stateValues.ollamaImageBaseUrl,
 			ollamaImageGenerationSelectedModel: stateValues.ollamaImageGenerationSelectedModel,

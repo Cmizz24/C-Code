@@ -201,6 +201,46 @@
 		"wantsToGenerateImageProtected": "Roo quiere generar una imagen en una ubicación protegida",
 		"didGenerateImage": "Roo generó una imagen"
 	},
+	"imageGeneration": {
+		"approval": {
+			"generate": "Generar",
+			"editPromptHint": "Edita el Prompt en el cuadro de mensaje antes de aprobar, o apruébalo tal como está."
+		},
+		"statusTitle": "Generación de imágenes: {{status}}",
+		"status": {
+			"pending": "Pendiente de aprobación",
+			"running": "En curso",
+			"completed": "Completada",
+			"error": "Error"
+		},
+		"metadata": {
+			"prompt": "Prompt",
+			"editedPrompt": "Prompt editado",
+			"originalPrompt": "Prompt original",
+			"provider": "Proveedor",
+			"model": "Modelo",
+			"endpoint": "Endpoint",
+			"endpointType": "Tipo de endpoint",
+			"localEndpoint": "Local",
+			"remoteEndpoint": "Remoto",
+			"apiMethod": "Método de API",
+			"outputPath": "Ruta de salida",
+			"inputImage": "Imagen de entrada",
+			"imageFormat": "Formato de imagen",
+			"tokensIn": "Tokens de entrada",
+			"tokensOut": "Tokens de salida",
+			"totalTokens": "Tokens totales",
+			"images": "Imágenes",
+			"cost": "Costo",
+			"error": "Error"
+		},
+		"apiMethods": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API"
+		}
+	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo quiere ver los archivos de nivel superior en este directorio",
 		"didViewTopLevel": "Roo vio los archivos de nivel superior en este directorio",

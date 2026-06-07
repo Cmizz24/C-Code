@@ -200,7 +200,16 @@ describe("CustomModeSchema", () => {
 		test("accepts all available groups", () => {
 			const mode = {
 				...validBaseMode,
-				groups: ["read", "edit", "command", "mcp"] as const,
+				groups: [
+					"read",
+					"edit",
+					"command",
+					"visual_browser_inspector",
+					"image_generation",
+					"mcp",
+					"modes",
+					"orchestrator",
+				] as const,
 			} satisfies ModeConfig
 
 			expect(() => modeConfigSchema.parse(mode)).not.toThrow()

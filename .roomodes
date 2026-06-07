@@ -30,6 +30,7 @@ customModes:
       - read
       - edit
       - command
+      - visual_browser_inspector
     source: project
   - slug: pr-fixer
     name: 🛠️ PR Fixer
@@ -40,6 +41,7 @@ customModes:
       - read
       - edit
       - command
+      - visual_browser_inspector
       - mcp
   - slug: merge-resolver
     name: 🔀 Merge Resolver

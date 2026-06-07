@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 
 import { ImageGenerationSettings } from "../ImageGenerationSettings"
 
@@ -44,11 +44,8 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 
 describe("ImageGenerationSettings", () => {
 	const mockSetImageGenerationSetting = vi.fn()
-	const mockOnChange = vi.fn()
 
 	const defaultProps = {
-		enabled: false,
-		onChange: mockOnChange,
 		imageGenerationSettings: {},
 		setImageGenerationSetting: mockSetImageGenerationSetting,
 	}
@@ -83,12 +80,12 @@ describe("ImageGenerationSettings", () => {
 	})
 
 	describe("User Interaction Behavior", () => {
-		it("should call onChange when the image generation experiment is toggled", () => {
+		it("should render dedicated image generation settings without an experiment toggle", () => {
 			render(<ImageGenerationSettings {...defaultProps} />)
 
-			fireEvent.click(screen.getByRole("checkbox"))
-
-			expect(mockOnChange).toHaveBeenCalledWith(true)
+			expect(screen.queryByRole("checkbox")).not.toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.description")).toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.providerLabel")).toBeInTheDocument()
 			expect(mockSetImageGenerationSetting).not.toHaveBeenCalled()
 		})
 
@@ -96,15 +93,12 @@ describe("ImageGenerationSettings", () => {
 			render(
 				<ImageGenerationSettings
 					{...defaultProps}
-					enabled={true}
 					imageGenerationSettings={{ imageGenerationProvider: "openrouter" }}
 				/>,
 			)
 
 			fireEvent.change(
-				screen.getByPlaceholderText(
-					"settings:experimental.IMAGE_GENERATION.apiKeyPlaceholder(provider=OpenRouter)",
-				),
+				screen.getByPlaceholderText("settings:imageGeneration.apiKeyPlaceholder(provider=OpenRouter)"),
 				{ target: { value: "new-openrouter-key" } },
 			)
 
@@ -115,7 +109,6 @@ describe("ImageGenerationSettings", () => {
 			render(
 				<ImageGenerationSettings
 					{...defaultProps}
-					enabled={true}
 					imageGenerationSettings={{ imageGenerationProvider: "openrouter" }}
 				/>,
 			)
@@ -129,7 +122,6 @@ describe("ImageGenerationSettings", () => {
 			render(
 				<ImageGenerationSettings
 					{...defaultProps}
-					enabled={true}
 					imageGenerationSettings={{
 						imageGenerationProvider: "openai",
 						openAiImageApiKey: "existing-openai-key",
@@ -142,25 +134,22 @@ describe("ImageGenerationSettings", () => {
 
 			fireEvent.change(
 				screen.getByPlaceholderText(
-					"settings:experimental.IMAGE_GENERATION.apiKeyPlaceholder(provider=OpenAI / OpenAI Compatible)",
+					"settings:imageGeneration.apiKeyPlaceholder(provider=OpenAI / OpenAI Compatible)",
 				),
 				{ target: { value: "updated-openai-key" } },
 			)
 			fireEvent.change(
 				screen.getByPlaceholderText(
-					"settings:experimental.IMAGE_GENERATION.baseUrlPlaceholder(url=https://api.openai.com/v1)",
+					"settings:imageGeneration.baseUrlPlaceholder(url=https://api.openai.com/v1)",
 				),
 				{ target: { value: "https://compatible.example/v1" } },
 			)
 			fireEvent.change(screen.getByDisplayValue("custom-image-model"), {
 				target: { value: "updated-custom-model" },
 			})
-			fireEvent.change(
-				screen.getByDisplayValue("settings:experimental.IMAGE_GENERATION.apiMethodLabels.chat_completions"),
-				{
-					target: { value: "images_api" },
-				},
-			)
+			fireEvent.change(screen.getByDisplayValue("settings:imageGeneration.apiMethodLabels.chat_completions"), {
+				target: { value: "images_api" },
+			})
 
 			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith("openAiImageApiKey", "updated-openai-key")
 			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith(
@@ -173,6 +162,47 @@ describe("ImageGenerationSettings", () => {
 			)
 			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith("openAiImageGenerationApiMethod", "images_api")
 		})
+
+		it("should update ComfyUI provider-specific fields", () => {
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					imageGenerationSettings={{
+						imageGenerationProvider: "comfyui",
+						comfyUiImageApiKey: "existing-comfyui-key",
+						comfyUiImageBaseUrl: "http://127.0.0.1:8188",
+						comfyUiImageGenerationSelectedModel: "sdxl.safetensors",
+						comfyUiImageGenerationNegativePrompt: "blurry",
+					}}
+				/>,
+			)
+
+			fireEvent.change(
+				screen.getByPlaceholderText("settings:imageGeneration.apiKeyPlaceholder(provider=ComfyUI)"),
+				{ target: { value: "updated-comfyui-key" } },
+			)
+			fireEvent.change(
+				screen.getByPlaceholderText("settings:imageGeneration.baseUrlPlaceholder(url=http://127.0.0.1:8188)"),
+				{ target: { value: "http://localhost:8188" } },
+			)
+			fireEvent.change(screen.getByDisplayValue("sdxl.safetensors"), {
+				target: { value: "juggernaut.safetensors" },
+			})
+			fireEvent.change(screen.getByPlaceholderText("settings:imageGeneration.negativePromptPlaceholder"), {
+				target: { value: "low quality" },
+			})
+
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith("comfyUiImageApiKey", "updated-comfyui-key")
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith("comfyUiImageBaseUrl", "http://localhost:8188")
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith(
+				"comfyUiImageGenerationSelectedModel",
+				"juggernaut.safetensors",
+			)
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith(
+				"comfyUiImageGenerationNegativePrompt",
+				"low quality",
+			)
+		})
 	})
 
 	describe("Conditional Rendering", () => {
@@ -180,24 +210,21 @@ describe("ImageGenerationSettings", () => {
 			render(
 				<ImageGenerationSettings
 					{...defaultProps}
-					enabled={true}
 					imageGenerationSettings={{ imageGenerationProvider: "openrouter" }}
 				/>,
 			)
 
 			expect(
-				screen.getByPlaceholderText(
-					"settings:experimental.IMAGE_GENERATION.apiKeyPlaceholder(provider=OpenRouter)",
-				),
+				screen.getByPlaceholderText("settings:imageGeneration.apiKeyPlaceholder(provider=OpenRouter)"),
 			).toBeInTheDocument()
 			expect(
 				screen.getByPlaceholderText(
-					"settings:experimental.IMAGE_GENERATION.baseUrlPlaceholder(url=https://openrouter.ai/api/v1)",
+					"settings:imageGeneration.baseUrlPlaceholder(url=https://openrouter.ai/api/v1)",
 				),
 			).toBeInTheDocument()
 			expect(screen.getAllByRole("combobox")).toHaveLength(3)
 			expect(
-				screen.getByText("settings:experimental.IMAGE_GENERATION.warningMissingApiKey(provider=OpenRouter)"),
+				screen.getByText("settings:imageGeneration.warningMissingApiKey(provider=OpenRouter)"),
 			).toBeInTheDocument()
 		})
 
@@ -205,7 +232,6 @@ describe("ImageGenerationSettings", () => {
 			render(
 				<ImageGenerationSettings
 					{...defaultProps}
-					enabled={true}
 					imageGenerationSettings={{
 						imageGenerationProvider: "openai",
 						openAiImageApiKey: "openai-key",
@@ -217,55 +243,106 @@ describe("ImageGenerationSettings", () => {
 
 			expect(
 				screen.getByPlaceholderText(
-					"settings:experimental.IMAGE_GENERATION.apiKeyPlaceholder(provider=OpenAI / OpenAI Compatible)",
+					"settings:imageGeneration.apiKeyPlaceholder(provider=OpenAI / OpenAI Compatible)",
 				),
 			).toBeInTheDocument()
 			expect(screen.getByDisplayValue("custom-image-model")).toBeInTheDocument()
+			expect(screen.getByDisplayValue("settings:imageGeneration.apiMethodLabels.chat_completions")).toBeEnabled()
 			expect(
-				screen.getByDisplayValue("settings:experimental.IMAGE_GENERATION.apiMethodLabels.chat_completions"),
-			).toBeEnabled()
-			expect(
-				screen.getByText(
-					"settings:experimental.IMAGE_GENERATION.successConfigured(provider=OpenAI / OpenAI Compatible)",
-				),
+				screen.getByText("settings:imageGeneration.successConfigured(provider=OpenAI / OpenAI Compatible)"),
 			).toBeInTheDocument()
 		})
 
-		it("should render optional API key and missing-model warning for local providers", () => {
+		it("should render active provider choices only and normalize legacy local providers to OpenRouter", () => {
 			render(
 				<ImageGenerationSettings
 					{...defaultProps}
-					enabled={true}
 					imageGenerationSettings={{ imageGenerationProvider: "ollama" }}
 				/>,
 			)
 
+			const providerSelect = screen.getAllByRole("combobox")[0]
+			expect(providerSelect).toHaveValue("openrouter")
 			expect(
-				screen.getByText("settings:experimental.IMAGE_GENERATION.optionalApiKeyLabel(provider=Ollama)"),
+				within(providerSelect)
+					.getAllByRole("option")
+					.map((option) => option.textContent),
+			).toEqual(["OpenRouter", "OpenAI / OpenAI Compatible", "ComfyUI", "Automatic1111"])
+			expect(within(providerSelect).queryByRole("option", { name: "Ollama" })).not.toBeInTheDocument()
+			expect(within(providerSelect).queryByRole("option", { name: "LM Studio" })).not.toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.providerDescription")).toBeInTheDocument()
+			expect(
+				screen.getByPlaceholderText("settings:imageGeneration.apiKeyPlaceholder(provider=OpenRouter)"),
 			).toBeInTheDocument()
 			expect(
-				screen.getByPlaceholderText("settings:experimental.IMAGE_GENERATION.customModelIdPlaceholder"),
-			).toBeInTheDocument()
-			expect(
-				screen.getByText("settings:experimental.IMAGE_GENERATION.warningMissingModel(provider=Ollama)"),
-			).toBeInTheDocument()
+				screen.queryByText("settings:imageGeneration.optionalApiKeyLabel(provider=Ollama)"),
+			).not.toBeInTheDocument()
 		})
 
-		it("should not render provider configuration fields when disabled", () => {
+		it("should render required local ComfyUI fields and missing-model warning", () => {
 			render(
 				<ImageGenerationSettings
 					{...defaultProps}
-					enabled={false}
+					imageGenerationSettings={{ imageGenerationProvider: "comfyui" }}
+				/>,
+			)
+
+			expect(
+				screen.getByText("settings:imageGeneration.optionalApiKeyLabel(provider=ComfyUI)"),
+			).toBeInTheDocument()
+			expect(
+				screen.getByPlaceholderText("settings:imageGeneration.baseUrlPlaceholder(url=http://127.0.0.1:8188)"),
+			).toBeInTheDocument()
+			expect(screen.getByPlaceholderText("settings:imageGeneration.customModelIdPlaceholder")).toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.negativePromptLabel")).toBeInTheDocument()
+			expect(
+				screen.getByPlaceholderText("settings:imageGeneration.negativePromptPlaceholder"),
+			).toBeInTheDocument()
+			expect(screen.getByDisplayValue("settings:imageGeneration.apiMethodLabels.comfyui_api")).toBeDisabled()
+			expect(
+				screen.getByText("settings:imageGeneration.warningMissingModel(provider=ComfyUI)"),
+			).toBeInTheDocument()
+		})
+
+		it("should render optional Automatic1111 model field without missing-model warning", () => {
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					imageGenerationSettings={{ imageGenerationProvider: "automatic1111" }}
+				/>,
+			)
+
+			expect(
+				screen.getByText("settings:imageGeneration.optionalApiKeyLabel(provider=Automatic1111)"),
+			).toBeInTheDocument()
+			expect(
+				screen.getByPlaceholderText("settings:imageGeneration.baseUrlPlaceholder(url=http://127.0.0.1:7860)"),
+			).toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.optionalModelIdDescription")).toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.negativePromptLabel")).toBeInTheDocument()
+			expect(
+				screen.getByDisplayValue("settings:imageGeneration.apiMethodLabels.automatic1111_api"),
+			).toBeDisabled()
+			expect(
+				screen.queryByText("settings:imageGeneration.warningMissingModel(provider=Automatic1111)"),
+			).not.toBeInTheDocument()
+			expect(
+				screen.getByText("settings:imageGeneration.successConfigured(provider=Automatic1111)"),
+			).toBeInTheDocument()
+		})
+
+		it("should always render provider configuration fields in the dedicated settings panel", () => {
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
 					imageGenerationSettings={{ imageGenerationProvider: "openrouter" }}
 				/>,
 			)
 
 			expect(
-				screen.queryByPlaceholderText(
-					"settings:experimental.IMAGE_GENERATION.apiKeyPlaceholder(provider=OpenRouter)",
-				),
-			).not.toBeInTheDocument()
-			expect(screen.queryByText("settings:experimental.IMAGE_GENERATION.providerLabel")).not.toBeInTheDocument()
+				screen.getByPlaceholderText("settings:imageGeneration.apiKeyPlaceholder(provider=OpenRouter)"),
+			).toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.providerLabel")).toBeInTheDocument()
 		})
 	})
 })

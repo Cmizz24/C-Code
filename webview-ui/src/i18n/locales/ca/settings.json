@@ -255,6 +255,10 @@
 			"maxConcurrentDescription": "Tria quants agents es poden executar alhora per a un pla de tasques paral·leles aprovat ({{min}}–{{max}}). Els agents pendents s'inicien quan els agents en execució acaben.",
 			"description": "Aprova automàticament els plans de tasques paral·leles vàlids i inicia els agents sense mostrar el modal de previsualització del pla"
 		},
+		"visualBrowserInspector": {
+			"label": "Navegador",
+			"description": "Aprova automàticament les accions del Visual Browser Inspector des del xat, incloent-hi l'obertura de pàgines de navegador controlades, captures de pantalla, inspecció del DOM, retalls, anàlisi i interaccions amb la pàgina. Això no permet editar fitxers ni executar comandes de terminal."
+		},
 		"followupQuestions": {
 			"label": "Pregunta",
 			"description": "Seleccionar automàticament la primera resposta suggerida per a preguntes de seguiment després del temps d'espera configurat",
@@ -871,11 +875,12 @@
 			"description": "Quan està activada, C pot generar i editar imatges a partir de prompts amb un proveïdor de generació d'imatges configurat per separat.",
 			"providerLabel": "Proveïdor",
 			"providerDescription": "Selecciona el proveïdor que s'utilitzarà per a la generació d'imatges. És independent del teu perfil de proveïdor de xat.",
+			"localProviderNote": "Ollama i LM Studio no es poden seleccionar aquí perquè exposen APIs de visió/chat, no APIs de generació d'imatges. La generació local d'imatges està disponible amb APIs reals de generació d'imatges com ComfyUI i Automatic1111 quan estan configurades.",
 			"apiKeyLabel": "Clau API de {{provider}}",
 			"optionalApiKeyLabel": "Clau API de {{provider}} (opcional)",
 			"apiKeyPlaceholder": "Introdueix la teva clau API de {{provider}}",
 			"apiKeyRequiredDescription": "Aquest proveïdor requereix una clau API per a la generació d'imatges.",
-			"apiKeyOptionalDescription": "Opcional. Utilitza-la només si el teu servidor local o proxy requereix autenticació amb token bearer.",
+			"apiKeyOptionalDescription": "Opcional. Fes-ho servir només si el teu endpoint, instància local o proxy requereix autenticació amb token bearer.",
 			"getApiKeyText": "Obtén la teva clau API de",
 			"baseUrlLabel": "URL base",
 			"baseUrlPlaceholder": "Predeterminat: {{url}}",
@@ -885,14 +890,20 @@
 			"modelIdLabel": "ID del model",
 			"customModelIdPlaceholder": "Introdueix un ID de model",
 			"modelIdPlaceholderWithDefault": "Predeterminat: {{model}}",
-			"customModelIdDescription": "Introdueix l'ID exacte del model exposat pel teu proveïdor o servidor local.",
+			"customModelIdDescription": "Introdueix l'ID exacte del model exposat pel teu proveïdor o endpoint compatible amb OpenAI.",
+			"optionalModelIdDescription": "Opcional. Deixa-ho en blanc per utilitzar el checkpoint carregat actualment pel proveïdor.",
 			"apiMethodLabel": "Mètode de l'API",
 			"apiMethodDescription": "Tria la forma de l'endpoint compatible amb OpenAI que s'utilitzarà per a la generació d'imatges.",
 			"apiMethodLockedDescription": "El model seleccionat utilitza el mètode d'API requerit de {{model}}.",
 			"apiMethodLabels": {
 				"chat_completions": "Complecions de xat",
-				"images_api": "API d'imatges"
+				"images_api": "API d'imatges",
+				"comfyui_api": "ComfyUI API",
+				"automatic1111_api": "Automatic1111 API"
 			},
+			"negativePromptLabel": "Prompt negatiu",
+			"negativePromptPlaceholder": "Introdueix el contingut a evitar en les imatges generades",
+			"negativePromptDescription": "Opcional. Ajuda els proveïdors locals a evitar subjectes, estils o artefactes no desitjats.",
 			"warningMissingApiKey": "⚠️ {{provider}} requereix una clau API per a la generació d'imatges. Configura-la a dalt.",
 			"warningMissingModel": "⚠️ {{provider}} requereix un ID de model per a la generació d'imatges. Configura'l a dalt.",
 			"successConfigured": "✓ La generació d'imatges està configurada per a {{provider}} i llesta per utilitzar"

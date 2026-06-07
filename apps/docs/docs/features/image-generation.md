@@ -1,5 +1,5 @@
 ---
-description: Generate new images from text prompts or edit existing images in Roo Code using OpenRouter API. Transform, enhance, and save AI-processed images to your workspace with preview support.
+description: Generate new images from text prompts or edit existing images in Roo Code using configured image-generation providers. Transform, enhance, and save AI-processed images to your workspace with preview support.
 keywords:
     - image generation
     - image editing
@@ -7,7 +7,7 @@ keywords:
     - image transformation
     - OpenRouter
     - AI images
-    - experimental feature
+    - image-generation providers
     - image creation
     - prompt to image
     - watercolor
@@ -17,11 +17,7 @@ keywords:
 
 # Image Generation
 
-Generate new images from text prompts or edit existing images in your workspace. Save results to your project with preview in chat. This experimental feature requires an OpenRouter API key.
-
-:::warning Experimental Feature
-Image Generation is an experimental feature that requires enabling in settings and configuring an OpenRouter API key.
-:::
+Generate new images from text prompts or edit existing images in your workspace. Save results to your project with preview in chat. Configure a supported image-generation provider in the dedicated Image Generation settings.
 
 ---
 
@@ -31,8 +27,8 @@ Image Generation is an experimental feature that requires enabling in settings a
 - Edit and transform existing images in your workspace
 - Saves to your workspace at a path you choose; appropriate extension (.png or .jpg) is auto-added if missing
 - Shows a preview of the generated/edited image in the conversation
-- Currently uses Gemini 2.5 Flash Image Preview models via OpenRouter
-- Simple on/off toggle under Experimental settings
+- Supports remote providers such as OpenRouter and OpenAI/OpenAI-compatible endpoints
+- Supports local image-generation APIs such as ComfyUI and Automatic1111
 
 ---
 
@@ -54,46 +50,46 @@ Image Generation is an experimental feature that requires enabling in settings a
 
 ## How It Works
 
-When enabled, Roo sends your prompt (and optionally an existing image) to an image-capable model through OpenRouter. The generated or edited image returned by OpenRouter is saved to the path you specify inside your current workspace. Roo shows a preview in the chat and the file appears in your file explorer.
+When invoked, Roo sends your prompt (and optionally an existing image) to your configured image-generation provider. The generated or edited image returned by the provider is saved to the path you specify inside your current workspace. Roo shows a preview in chat and the file appears in your file explorer.
 
 ---
 
 ## Requirements
 
-- OpenRouter account and API key
-- Internet access
+- A configured image-generation provider
+- Internet access for remote providers, or a reachable local endpoint for local providers
 - An open, writable workspace folder
 
 ---
 
 ## Configuration
 
-### 1. Enable Image Generation (Experimental)
+### 1. Choose an Image Generation Provider
 
-- **Purpose:** Turns the feature on so Roo can create images on request
-- **Default:** Off
-- **Location:** Settings > Experimental
+- **Purpose:** Selects which provider Roo uses for image generation
+- **Default:** OpenRouter
+- **Location:** Settings > Image Generation
+- **Supported providers:** OpenRouter, OpenAI/OpenAI-compatible, ComfyUI, Automatic1111
 
-### 2. OpenRouter API Key
+### 2. Configure Credentials or Local Endpoint
 
-- **Purpose:** Authorizes image generation requests
-- **Default:** Empty (required)
-- **Get your key:** [https://openrouter.ai/keys](https://openrouter.ai/keys)
+- **Remote providers:** Add the required API key. For OpenRouter, get your key at [https://openrouter.ai/keys](https://openrouter.ai/keys).
+- **Local providers:** Configure the local API base URL and any optional auth token.
 
-### 3. Image Generation Model
+### 3. Image Generation Model and API Method
 
 - **Purpose:** Selects which model to use for generation
-- **Default:** Gemini 2.5 Flash Image Preview
-- **Available Models:** Currently limited to Gemini 2.5 Flash Image Preview and its free variant
+- **Default:** Provider-specific default model or local checkpoint
+- **API method:** Uses the provider-supported method, such as Chat Completions, Images API, ComfyUI API, or Automatic1111 API
 
 ---
 
 ## Using Image Generation
 
 1. In chat, ask Roo to generate an image and describe what you want (subject, style, lighting, composition).
-2. Confirm the action when prompted. Roo may ask you to choose a save path (for example: `images/sunset.png`).
+2. Review the proposed prompt and confirm the action when prompted. You can edit the prompt before approving.
 3. Roo generates the image and saves it. If you don't include an extension, the appropriate extension (.png or .jpg) is added based on the output format.
-4. See the image preview in the chat and locate the file in your workspace.
+4. See the image preview and safe provider metadata in chat, then locate the file in your workspace.
 
 ---
 
@@ -133,16 +129,17 @@ Include these elements in your prompts:
 
 ## Limitations
 
-- Experimental feature; availability and model list are limited
-- Currently limited to Gemini 2.5 Flash Image Preview models
+- Provider availability and model lists vary by provider
+- Vision or image-understanding chat models are not image-generation models
+- Local ComfyUI and Automatic1111 support currently uses text-to-image flows; use an edit-capable remote provider when an input image needs to be transformed
 - One image is produced per request
 - Output formats supported: PNG or JPG
 - Supported input formats for editing: PNG, JPG, JPEG, GIF, WEBP only
 - Image paths must be accessible (not blocked by `.rooignore` restrictions)
-- Usage may be subject to your OpenRouter plan limits and costs
+- Usage may be subject to your provider plan limits and costs
 
 ---
 
 ## Status
 
-This feature is experimental and may change or be removed in future versions. Provide feedback through [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues).
+Provider behavior and supported models may change over time. Provide feedback through [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues).

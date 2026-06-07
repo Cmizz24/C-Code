@@ -17,11 +17,12 @@
 		}
 	},
 	"generateImage": {
-		"openRouterApiKeyRequired": "OpenRouter modelleriyle görüntü oluşturma için OpenRouter API anahtarı gereklidir. Lütfen Görüntü Oluşturma deneysel ayarlarında yapılandırın.",
-		"missingConfiguration": "Görüntü oluşturma ayarları kullanılamıyor. Lütfen deneysel ayarlarda Görüntü Oluşturma'yı yapılandırın.",
-		"apiKeyRequired": "Görüntü oluşturma için {{provider}} API anahtarı gereklidir. Lütfen Görüntü Oluşturma deneysel ayarlarında yapılandırın.",
-		"modelRequired": "{{provider}} görüntü oluşturma için model ID'si gerektirir. Lütfen Görüntü Oluşturma deneysel ayarlarında yapılandırın.",
+		"openRouterApiKeyRequired": "OpenRouter modelleriyle görüntü oluşturma için OpenRouter API anahtarı gereklidir. Lütfen Görüntü Oluşturma ayarlarında yapılandırın.",
+		"missingConfiguration": "Görüntü oluşturma ayarları kullanılamıyor. Lütfen Görüntü Oluşturma ayarlarında Görüntü Oluşturma'yı yapılandırın.",
+		"apiKeyRequired": "Görüntü oluşturma için {{provider}} API anahtarı gereklidir. Lütfen Görüntü Oluşturma ayarlarında yapılandırın.",
+		"modelRequired": "{{provider}} görüntü oluşturma için model ID'si gerektirir. Lütfen Görüntü Oluşturma ayarlarında yapılandırın.",
 		"unsupportedApiMethod": "{{provider}} {{apiMethod}} görüntü oluşturma API yöntemini desteklemiyor.",
+		"unsupportedProvider": "{{provider}} görüntü oluşturma için desteklenmiyor. Bunun yerine OpenRouter, OpenAI/OpenAI-compatible, ComfyUI veya Automatic1111 kullan.",
 		"failedWithStatus": "Görüntü oluşturma başarısız: {{status}} {{statusText}}",
 		"failedWithMessage": "Görüntü oluşturma başarısız: {{message}}",
 		"noImageGenerated": "Yanıtta görüntü oluşturulmadı",

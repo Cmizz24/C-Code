@@ -9,6 +9,7 @@ import coordinateAgents from "./coordinate_agents"
 import editTool from "./edit"
 import executeCommand from "./execute_command"
 import generateImage from "./generate_image"
+import visualBrowserInspector from "./visual_browser_inspector"
 import listFiles from "./list_files"
 import newTask from "./new_task"
 import { createPlanParallelTasksTool } from "./plan_parallel_tasks"
@@ -62,6 +63,7 @@ export function getNativeTools(options: NativeToolsOptions = {}): OpenAI.Chat.Ch
 		...(includeAgentCoordinationTool ? [coordinateAgents] : []),
 		executeCommand,
 		generateImage,
+		visualBrowserInspector,
 		listFiles,
 		newTask,
 		createPlanParallelTasksTool({ maxAgents: maxParallelAgents }),

@@ -245,6 +245,46 @@
 		"wantsToInsertWithLineNumber": "Roo ingin menyisipkan konten ke file ini di baris {{lineNumber}}",
 		"wantsToInsertAtEnd": "Roo ingin menambahkan konten ke akhir file ini"
 	},
+	"imageGeneration": {
+		"approval": {
+			"generate": "Buat",
+			"editPromptHint": "Edit Prompt di kotak pesan sebelum menyetujui, atau setujui apa adanya."
+		},
+		"statusTitle": "Pembuatan gambar: {{status}}",
+		"status": {
+			"pending": "Menunggu persetujuan",
+			"running": "Berjalan",
+			"completed": "Selesai",
+			"error": "Error"
+		},
+		"metadata": {
+			"prompt": "Prompt",
+			"editedPrompt": "Prompt yang diedit",
+			"originalPrompt": "Prompt asli",
+			"provider": "Penyedia",
+			"model": "Model",
+			"endpoint": "Endpoint",
+			"endpointType": "Jenis endpoint",
+			"localEndpoint": "Lokal",
+			"remoteEndpoint": "Remote",
+			"apiMethod": "Metode API",
+			"outputPath": "Path output",
+			"inputImage": "Gambar input",
+			"imageFormat": "Format gambar",
+			"tokensIn": "Input tokens",
+			"tokensOut": "Output tokens",
+			"totalTokens": "Total tokens",
+			"images": "Gambar",
+			"cost": "Biaya",
+			"error": "Error"
+		},
+		"apiMethods": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API"
+		}
+	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo ingin melihat file tingkat atas di direktori ini",
 		"didViewTopLevel": "Roo melihat file tingkat atas di direktori ini",

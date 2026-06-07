@@ -263,6 +263,10 @@
 			"maxConcurrentDescription": "選擇已核准的並行任務計畫可同時執行多少個代理（{{min}}–{{max}}）。等待中的代理會在執行中的代理完成後啟動。",
 			"description": "自動核准有效的並行任務計畫並啟動代理，而不顯示計畫預覽對話框"
 		},
+		"visualBrowserInspector": {
+			"label": "瀏覽器",
+			"description": "自動核准來自聊天的 Visual Browser Inspector 動作，包括開啟受控瀏覽器頁面、螢幕截圖、DOM 檢查、裁切、分析和頁面互動。這不會允許檔案編輯或終端機命令。"
+		},
 		"followupQuestions": {
 			"label": "後續提問",
 			"description": "在設定的逾時時間過後，自動選擇後續問題的第一個建議答案",
@@ -881,11 +885,12 @@
 			"description": "啟用後，C 可以使用單獨設定的影像生成供應商，從 prompt 生成和編輯影像。",
 			"providerLabel": "供應商",
 			"providerDescription": "選擇用於影像生成的供應商。這與你的 chat 供應商設定檔相互獨立。",
+			"localProviderNote": "這裡無法選擇 Ollama 和 LM Studio，因為它們提供的是 vision/chat API，而不是影像生成 API。設定後，可透過 ComfyUI 和 Automatic1111 等真正的影像生成 API 使用本機影像生成。",
 			"apiKeyLabel": "{{provider}} API 金鑰",
 			"optionalApiKeyLabel": "{{provider}} API 金鑰（選填）",
 			"apiKeyPlaceholder": "輸入你的 {{provider}} API 金鑰",
 			"apiKeyRequiredDescription": "此供應商需要 API 金鑰才能生成影像。",
-			"apiKeyOptionalDescription": "選填。只有在你的本機伺服器或 proxy 需要 bearer-token 驗證時才使用。",
+			"apiKeyOptionalDescription": "選用。僅當你的 endpoint、本機執行個體或 proxy 需要 bearer-token 驗證時使用。",
 			"getApiKeyText": "從這裡取得你的 API 金鑰",
 			"baseUrlLabel": "基礎 URL",
 			"baseUrlPlaceholder": "預設：{{url}}",
@@ -895,14 +900,20 @@
 			"modelIdLabel": "模型 ID",
 			"customModelIdPlaceholder": "輸入模型 ID",
 			"modelIdPlaceholderWithDefault": "預設：{{model}}",
-			"customModelIdDescription": "輸入你的供應商或本機伺服器公開的確切模型 ID。",
+			"customModelIdDescription": "輸入你的供應商或 OpenAI 相容 endpoint 提供的確切模型 ID。",
+			"optionalModelIdDescription": "選用。留空以使用供應商目前載入的 checkpoint。",
 			"apiMethodLabel": "API 方法",
 			"apiMethodDescription": "選擇用於影像生成的 OpenAI 相容 endpoint 形式。",
 			"apiMethodLockedDescription": "所選模型使用 {{model}} 要求的 API 方法。",
 			"apiMethodLabels": {
 				"chat_completions": "Chat completions",
-				"images_api": "Images API"
+				"images_api": "Images API",
+				"comfyui_api": "ComfyUI API",
+				"automatic1111_api": "Automatic1111 API"
 			},
+			"negativePromptLabel": "Negative prompt",
+			"negativePromptPlaceholder": "輸入生成影像中要避免的內容",
+			"negativePromptDescription": "選用。協助本機供應商避免不需要的主體、風格或瑕疵。",
 			"warningMissingApiKey": "⚠️ {{provider}} 需要 API 金鑰才能生成影像。請在上方設定。",
 			"warningMissingModel": "⚠️ {{provider}} 需要模型 ID 才能生成影像。請在上方設定。",
 			"successConfigured": "✓ 已為 {{provider}} 設定影像生成，可以使用"

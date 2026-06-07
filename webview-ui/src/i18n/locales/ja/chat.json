@@ -201,6 +201,46 @@
 		"wantsToGenerateImageProtected": "Rooは保護された場所で画像を生成したい",
 		"didGenerateImage": "Rooは画像を生成しました"
 	},
+	"imageGeneration": {
+		"approval": {
+			"generate": "生成",
+			"editPromptHint": "承認する前にメッセージボックスでPromptを編集するか、そのまま承認してください。"
+		},
+		"statusTitle": "画像生成: {{status}}",
+		"status": {
+			"pending": "承認待ち",
+			"running": "実行中",
+			"completed": "完了",
+			"error": "エラー"
+		},
+		"metadata": {
+			"prompt": "Prompt",
+			"editedPrompt": "編集済みPrompt",
+			"originalPrompt": "元のPrompt",
+			"provider": "プロバイダー",
+			"model": "モデル",
+			"endpoint": "Endpoint",
+			"endpointType": "Endpoint種別",
+			"localEndpoint": "ローカル",
+			"remoteEndpoint": "リモート",
+			"apiMethod": "APIメソッド",
+			"outputPath": "出力パス",
+			"inputImage": "入力画像",
+			"imageFormat": "画像形式",
+			"tokensIn": "入力tokens",
+			"tokensOut": "出力tokens",
+			"totalTokens": "合計tokens",
+			"images": "画像",
+			"cost": "コスト",
+			"error": "エラー"
+		},
+		"apiMethods": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API"
+		}
+	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Rooはこのディレクトリのトップレベルファイルを表示したい",
 		"didViewTopLevel": "Rooはこのディレクトリのトップレベルファイルを表示しました",

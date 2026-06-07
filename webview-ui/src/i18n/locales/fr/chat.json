@@ -201,6 +201,46 @@
 	"instructions": {
 		"wantsToFetch": "Roo veut récupérer des instructions détaillées pour aider à la tâche actuelle"
 	},
+	"imageGeneration": {
+		"approval": {
+			"generate": "Générer",
+			"editPromptHint": "Modifie le Prompt dans la zone de message avant d’approuver, ou approuve-le tel quel."
+		},
+		"statusTitle": "Génération d’image : {{status}}",
+		"status": {
+			"pending": "En attente d’approbation",
+			"running": "En cours",
+			"completed": "Terminé",
+			"error": "Erreur"
+		},
+		"metadata": {
+			"prompt": "Prompt",
+			"editedPrompt": "Prompt modifié",
+			"originalPrompt": "Prompt original",
+			"provider": "Fournisseur",
+			"model": "Modèle",
+			"endpoint": "Endpoint",
+			"endpointType": "Type d’endpoint",
+			"localEndpoint": "Local",
+			"remoteEndpoint": "Distant",
+			"apiMethod": "Méthode API",
+			"outputPath": "Chemin de sortie",
+			"inputImage": "Image d’entrée",
+			"imageFormat": "Format d’image",
+			"tokensIn": "Tokens d’entrée",
+			"tokensOut": "Tokens de sortie",
+			"totalTokens": "Total des tokens",
+			"images": "Images",
+			"cost": "Coût",
+			"error": "Erreur"
+		},
+		"apiMethods": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API"
+		}
+	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo veut voir les fichiers de premier niveau dans ce répertoire",
 		"didViewTopLevel": "Roo a vu les fichiers de premier niveau dans ce répertoire",
