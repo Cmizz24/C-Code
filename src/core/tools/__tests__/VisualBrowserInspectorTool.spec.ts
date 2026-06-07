@@ -68,7 +68,12 @@ describe("VisualBrowserInspectorTool", () => {
 			cwd: "c:/workspace",
 			say,
 			providerRef: {
-				deref: () => ({ convertToWebviewUri, postMessageToVisualBrowserInspectorPanels }),
+				deref: () => ({
+					context: { globalStorageUri: { fsPath: "c:/global-storage" } },
+					convertToWebviewUri,
+					postMessageToVisualBrowserInspectorPanels,
+					log: vi.fn(),
+				}),
 			},
 		} as unknown as Task
 		const callbacks = {
@@ -92,9 +97,35 @@ describe("VisualBrowserInspectorTool", () => {
 		await visualBrowserInspectorTool.handle(task, block, callbacks)
 
 		expect(callbacks.askApproval).toHaveBeenCalledWith("tool", expect.stringContaining("visual_browser_capture"))
+		const approvalPayload = JSON.parse(callbacks.askApproval.mock.calls[0][1])
+		expect(approvalPayload).toEqual(
+			expect.objectContaining({
+				tool: "visualBrowserInspector",
+				action: "visual_browser_capture",
+				visualBrowserStatus: "running",
+				toolCallId: "tool-call-1",
+				note: expect.stringContaining("Controls only the Playwright browser page"),
+			}),
+		)
 		expect(visualBrowserInspectorService.execute).toHaveBeenCalledWith(block.nativeArgs, {
 			cwd: "c:/workspace",
+			globalStoragePath: "c:/global-storage",
+			log: expect.any(Function),
+			onBrowserInstallStatus: expect.any(Function),
 			toWebviewUri: expect.any(Function),
+		})
+		const [, executeOptions] = vi.mocked(visualBrowserInspectorService.execute).mock.calls[0]
+
+		await executeOptions.onBrowserInstallStatus?.("Downloading Chromium for Visual Browser Inspector.")
+
+		expect(postMessageToVisualBrowserInspectorPanels).toHaveBeenCalledWith({
+			type: "visualBrowserInspector",
+			payload: expect.objectContaining({
+				message: "Downloading Chromium for Visual Browser Inspector.",
+				source: "chat_tool",
+				status: "running",
+				toolCallId: "tool-call-1",
+			}),
 		})
 		expect(postMessageToVisualBrowserInspectorPanels).toHaveBeenCalledWith({
 			type: "visualBrowserInspector",

@@ -54,6 +54,10 @@
 		},
 		"noData": "无图片数据"
 	},
+	"visualBrowserInspector": {
+		"emptyStatus": "当前没有活动的受控 Playwright 浏览器会话。首次使用时，C Code 会自动在扩展存储中准备 Chromium。",
+		"headerDescription": "仅捕获受控的 Playwright 浏览器。首次使用时，C Code 会自动在扩展存储中准备 Chromium。工件会本地保存在 <artifactPath>.roo/visual-browser-inspector</artifactPath> 下。"
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "无效的数据 URI 格式",

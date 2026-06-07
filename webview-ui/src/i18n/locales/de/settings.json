@@ -256,7 +256,7 @@
 			"description": "Gültige Pläne für parallele Aufgaben automatisch genehmigen und Agenten starten, ohne das Modal zur Planvorschau anzuzeigen"
 		},
 		"visualBrowserInspector": {
-			"label": "Browser",
+			"label": "Visual Browser Inspector",
 			"description": "Visual Browser Inspector-Aktionen aus dem Chat automatisch genehmigen, einschließlich Öffnen kontrollierter Browserseiten, Screenshots, DOM-Inspektion, Zuschnitten, Analyse und Seiteninteraktionen. Das erlaubt keine Dateiänderungen oder Terminalbefehle."
 		},
 		"followupQuestions": {

@@ -159,7 +159,9 @@ describe("OrchestratorEventLoop", () => {
 
 		new OrchestratorEventLoop(provider, AgentBus.getInstance()).start(plan)
 
-		await vi.waitFor(() => expect(provider.createAgentWorktree).toHaveBeenCalledWith("ui", "plan-test"))
+		await vi.waitFor(() =>
+			expect(provider.createAgentWorktree).toHaveBeenCalledWith("ui", "plan-test", plan.agents[0]),
+		)
 		expect(provider.createTask).toHaveBeenCalledTimes(1)
 		const [message, images, parentTask, options] = vi.mocked(provider.createTask).mock.calls[0]
 
@@ -298,6 +300,56 @@ describe("OrchestratorEventLoop", () => {
 			expect(options?.systemPromptSuffix).toContain("Avoid manifest-style dumps")
 			expect(options?.systemPromptSuffix).not.toContain("call coordinate_agents with action=read")
 		}
+	})
+
+	it("injects bounded continuation context only for reused agents", async () => {
+		const provider = createProvider({
+			createAgentWorktree: vi.fn(async (_agentId: string, _planId: string, agent: any) => {
+				if (agent?.id === "ui" && agent.continuation) {
+					agent.continuation.reusedWorktreePath = "C:/repo/.roo/reused/ui"
+				}
+				return agent?.id === "ui" ? "C:/repo/.roo/reused/ui" : `C:/repo/.roo/plan-test/${agent?.id ?? "agent"}`
+			}),
+		})
+		const plan = createTwoAgentPlan()
+		plan.agents[0].continuation = {
+			decision: "reused",
+			reason: "relevant prior work",
+			sourcePlanId: "plan-old",
+			sourceAgentId: "ui-old",
+			sourceBranch: "roo/parallel/plan-old/ui-old",
+			sourceWorktreePath: "C:/repo/.roo/old/ui",
+			newPlanId: "plan-test",
+			newAgentId: "ui",
+			newBranch: "roo/parallel/plan-test/ui",
+			context: "Prior result summary: built dashboard shell.\nRelevant prior/current paths:\n- src/Dashboard.tsx",
+		}
+		plan.agents[1].continuation = {
+			decision: "fresh",
+			reason: "irrelevant prior work",
+			newPlanId: "plan-test",
+			newAgentId: "styles",
+			newBranch: "roo/parallel/plan-test/styles",
+		}
+
+		new OrchestratorEventLoop(provider, AgentBus.getInstance()).start(plan)
+
+		await vi.waitFor(() => expect(provider.createTask).toHaveBeenCalledTimes(2))
+		const uiCall = vi.mocked(provider.createTask).mock.calls.find(([, , , options]) => options?.agentId === "ui")
+		const stylesCall = vi
+			.mocked(provider.createTask)
+			.mock.calls.find(([, , , options]) => options?.agentId === "styles")
+		expect(uiCall).toBeDefined()
+		expect(stylesCall).toBeDefined()
+
+		const [uiMessage, , , uiOptions] = uiCall!
+		const [stylesMessage, , , stylesOptions] = stylesCall!
+		expect(uiMessage).toContain("Continuation/reuse context:")
+		expect(uiMessage).toContain("Prior result summary: built dashboard shell")
+		expect(uiOptions?.systemPromptSuffix).toContain("Continuation/reuse context is compact context only")
+		expect(uiOptions?.workspacePath).toBe("C:/repo/.roo/reused/ui")
+		expect(stylesMessage).not.toContain("Continuation/reuse context")
+		expect(stylesOptions?.systemPromptSuffix).not.toContain("Continuation/reuse context")
 	})
 
 	it("includes non-blocking dependency context without delaying child creation", async () => {
@@ -504,7 +556,7 @@ describe("OrchestratorEventLoop", () => {
 			"agent-2",
 			"agent-3",
 		])
-		expect(provider.createAgentWorktree).not.toHaveBeenCalledWith("agent-1", "plan-test")
+		expect(provider.createAgentWorktree).not.toHaveBeenCalledWith("agent-1", "plan-test", expect.anything())
 	})
 
 	it("marks the agent failed instead of leaving a rejected worktree promise", async () => {

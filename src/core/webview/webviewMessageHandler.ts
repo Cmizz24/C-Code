@@ -85,6 +85,7 @@ import {
 	buildVisualBrowserChangeTaskPrompt,
 	buildVisualBrowserFixTaskPrompt,
 	buildVisualBrowserLocalPreviewTaskPrompt,
+	type VisualBrowserExecuteOptions,
 	visualBrowserInspectorService,
 	visualBrowserWebviewRequestToToolParams,
 } from "../../services/visual-browser-inspector/VisualBrowserInspectorService"
@@ -3660,9 +3661,22 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 		}
 
 		case "visualBrowserInspector": {
-			const options = {
+			const options: VisualBrowserExecuteOptions = {
 				cwd: getCurrentCwd(),
+				globalStoragePath: provider.context.globalStorageUri.fsPath,
 				toWebviewUri: provider.convertToWebviewUri.bind(provider),
+				log: provider.log.bind(provider),
+			}
+			options.onBrowserInstallStatus = async (statusMessage: string) => {
+				await provider.postMessageToWebview({
+					type: "visualBrowserInspector",
+					payload: {
+						state: visualBrowserInspectorService.getPanelState(options),
+						source: "panel",
+						status: "running",
+						message: statusMessage,
+					},
+				})
 			}
 			const payload = message.payload as Partial<VisualBrowserWebviewRequest> | undefined
 			let response: VisualBrowserWebviewResponse | undefined

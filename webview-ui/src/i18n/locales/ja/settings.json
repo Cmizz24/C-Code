@@ -256,7 +256,7 @@
 			"description": "有効な並列タスク計画を自動承認し、計画プレビューのモーダルを表示せずにエージェントを開始します"
 		},
 		"visualBrowserInspector": {
-			"label": "ブラウザー",
+			"label": "Visual Browser Inspector",
 			"description": "チャットからの Visual Browser Inspector アクションを自動承認します。制御されたブラウザーページのオープン、スクリーンショット、DOM インスペクション、切り抜き、分析、ページ操作が含まれます。これによりファイル編集やターミナルコマンドは許可されません。"
 		},
 		"followupQuestions": {

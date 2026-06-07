@@ -51,10 +51,44 @@ type WorktreeChangedPathSet = {
 	changedPaths: string[]
 }
 
+export type ReusableWorktreeInspection =
+	| {
+			reusable: true
+			worktreePath: string
+			branch: string
+			repositoryRoot: string
+			gitCommonDir: string
+			currentHead: string
+			worktreeHead: string
+			resetRequired: boolean
+	  }
+	| {
+			reusable: false
+			reason: string
+			worktreePath?: string
+			branch?: string
+			repositoryRoot?: string
+			nonRetryable?: boolean
+	  }
+
+export type ReusedWorktreeResult = {
+	worktreePath: string
+	branch: string
+	repositoryRoot: string
+	resetToCurrentBaseline: boolean
+}
+
 export class WorktreeManagerError extends Error {
 	constructor(message: string) {
 		super(message)
 		this.name = "WorktreeManagerError"
+	}
+}
+
+export class WorktreeManagerGitUnavailableError extends WorktreeManagerError {
+	constructor(message: string) {
+		super(message)
+		this.name = "WorktreeManagerGitUnavailableError"
 	}
 }
 
@@ -86,6 +120,41 @@ export function getWorktreeManagerErrorMessage(error: unknown): string {
 	return String(error)
 }
 
+export function isWorktreeManagerGitUnavailableError(error: unknown): boolean {
+	return error instanceof WorktreeManagerGitUnavailableError || isGitExecutableUnavailableError(error)
+}
+
+function getErrorCode(error: unknown): string | number | undefined {
+	if (!error || typeof error !== "object") {
+		return undefined
+	}
+
+	return (error as { code?: string | number }).code
+}
+
+function isGitExecutableUnavailableError(error: unknown): boolean {
+	const code = getErrorCode(error)
+	const message = formatGitFailure(error)
+
+	return code === "ENOENT" || code === "ENOTDIR" || isGitExecutableUnavailableMessage(message)
+}
+
+function isGitExecutableUnavailableMessage(message: string): boolean {
+	return (
+		/\bgit(?:\.exe)?\b[\s\S]*\bENOENT\b/i.test(message) ||
+		/\bENOENT\b[\s\S]*\bgit(?:\.exe)?\b/i.test(message) ||
+		/'git' is not recognized as an internal or external command/i.test(message) ||
+		/\bgit: command not found\b/i.test(message) ||
+		/\bcommand not found: git\b/i.test(message) ||
+		/\bunable to find git executable\b/i.test(message)
+	)
+}
+
+function formatGitUnavailableMessage(error: unknown, cwd: string): string {
+	const details = formatGitFailure(error).trim()
+	return `Git executable unavailable while preparing parallel worktrees from ${cwd}. Ensure Git is installed and available on PATH, or update VS Code's Git: Path setting to an existing git executable.${details ? `\n${details}` : ""}`
+}
+
 function shellQuote(value: string): string {
 	return `"${value.replace(/"/g, '\\"')}"`
 }
@@ -96,6 +165,10 @@ function sanitizeBranchComponent(value: string): string {
 		.replace(/[^a-zA-Z0-9._/-]+/g, "-")
 		.replace(/^-+|-+$/g, "")
 		.slice(0, 80)
+}
+
+export function getParallelAgentBranchName(planId: string, agentId: string): string {
+	return `roo/parallel/${sanitizeBranchComponent(planId) || "plan"}/${sanitizeBranchComponent(agentId) || "agent"}`
 }
 
 function sanitizePathComponent(value: string): string {
@@ -215,20 +288,184 @@ export class WorktreeManager {
 		const baseline = await this.captureWorkspaceBaseline(planId)
 		const safePlanId = sanitizeBranchComponent(planId) || "plan"
 		const safeAgentId = sanitizeBranchComponent(agentId) || "agent"
-		const branchName = `roo/parallel/${safePlanId}/${safeAgentId}`
+		const branchName = getParallelAgentBranchName(planId, agentId)
 		const worktreePath = this.getParallelWorktreePath(gitRoot, safePlanId, safeAgentId)
 
 		await this.removeExistingWorktreeAtPath(gitRoot, worktreePath)
 
-		await execAsync(
-			`git worktree add -B ${shellQuote(branchName)} ${shellQuote(worktreePath)} ${baseline.commit}`,
-			{
-				cwd: gitRoot,
-			},
-		)
+		try {
+			await execAsync(
+				`git worktree add -B ${shellQuote(branchName)} ${shellQuote(worktreePath)} ${baseline.commit}`,
+				{
+					cwd: gitRoot,
+				},
+			)
+		} catch (error) {
+			if (isGitExecutableUnavailableError(error)) {
+				throw new WorktreeManagerGitUnavailableError(formatGitUnavailableMessage(error, gitRoot))
+			}
+
+			throw error
+		}
 
 		this.createdWorktrees.add(worktreePath)
 		return worktreePath
+	}
+
+	public async inspectReusableWorktree(params: {
+		worktreePath: string
+		branch: string
+		expectedRepositoryRoot?: string
+	}): Promise<ReusableWorktreeInspection> {
+		const worktreePath = params.worktreePath
+		const branch = params.branch
+
+		if (!worktreePath || !branch) {
+			return { reusable: false, reason: "missing reusable worktree path or branch", worktreePath, branch }
+		}
+
+		let gitRoot: string
+		try {
+			gitRoot = await this.validateGitRepository()
+		} catch (error) {
+			return {
+				reusable: false,
+				reason: getWorktreeManagerErrorMessage(error),
+				worktreePath,
+				branch,
+				nonRetryable: isWorktreeManagerGitUnavailableError(error),
+			}
+		}
+
+		if (params.expectedRepositoryRoot && !this.areComparablePathsEqual(params.expectedRepositoryRoot, gitRoot)) {
+			return {
+				reusable: false,
+				reason: "repository root changed since the prior parallel-agent run",
+				worktreePath,
+				branch,
+				repositoryRoot: gitRoot,
+			}
+		}
+
+		try {
+			await fs.stat(worktreePath)
+		} catch {
+			return {
+				reusable: false,
+				reason: "retained worktree path is missing",
+				worktreePath,
+				branch,
+				repositoryRoot: gitRoot,
+			}
+		}
+
+		try {
+			const rootCommonDir = await this.getGitCommonDir(gitRoot)
+			const worktreeCommonDir = await this.getGitCommonDir(worktreePath)
+			if (!this.areComparablePathsEqual(rootCommonDir, worktreeCommonDir)) {
+				return {
+					reusable: false,
+					reason: "retained worktree belongs to a different Git repository",
+					worktreePath,
+					branch,
+					repositoryRoot: gitRoot,
+				}
+			}
+
+			const currentBranchResult = await execAsync("git rev-parse --abbrev-ref HEAD", { cwd: worktreePath })
+			const currentBranch = (
+				typeof currentBranchResult === "string" ? currentBranchResult : currentBranchResult.stdout
+			).trim()
+			if (currentBranch !== branch) {
+				return {
+					reusable: false,
+					reason: `retained worktree is on branch ${currentBranch || "unknown"} instead of ${branch}`,
+					worktreePath,
+					branch,
+					repositoryRoot: gitRoot,
+				}
+			}
+
+			const statusResult = await execAsync("git status --porcelain=v1 --untracked-files=all", {
+				cwd: worktreePath,
+			})
+			const status = (typeof statusResult === "string" ? statusResult : statusResult.stdout).trim()
+			if (status) {
+				return {
+					reusable: false,
+					reason: "retained worktree has uncommitted or untracked changes",
+					worktreePath,
+					branch,
+					repositoryRoot: gitRoot,
+				}
+			}
+
+			const currentHead = await this.getCurrentHead(gitRoot)
+			const worktreeHead = await this.getCurrentHead(worktreePath)
+
+			return {
+				reusable: true,
+				worktreePath,
+				branch,
+				repositoryRoot: gitRoot,
+				gitCommonDir: rootCommonDir,
+				currentHead,
+				worktreeHead,
+				resetRequired: currentHead !== worktreeHead,
+			}
+		} catch (error) {
+			return {
+				reusable: false,
+				reason: getWorktreeManagerErrorMessage(error),
+				worktreePath,
+				branch,
+				repositoryRoot: gitRoot,
+				nonRetryable: isWorktreeManagerGitUnavailableError(error),
+			}
+		}
+	}
+
+	public async reuseWorktree(params: {
+		worktreePath: string
+		sourceBranch: string
+		newBranch: string
+	}): Promise<ReusedWorktreeResult> {
+		const inspection = await this.inspectReusableWorktree({
+			worktreePath: params.worktreePath,
+			branch: params.sourceBranch,
+		})
+
+		if (!inspection.reusable) {
+			const message = `Cannot reuse retained worktree: ${inspection.reason}.`
+			if (inspection.nonRetryable) {
+				throw new WorktreeManagerGitUnavailableError(message)
+			}
+
+			throw new WorktreeManagerError(message)
+		}
+
+		try {
+			await execAsync(`git checkout -B ${shellQuote(params.newBranch)} ${inspection.currentHead}`, {
+				cwd: params.worktreePath,
+			})
+			await execAsync(`git reset --hard ${inspection.currentHead}`, { cwd: params.worktreePath })
+			await execAsync("git clean -fd", { cwd: params.worktreePath })
+		} catch (error) {
+			if (isGitExecutableUnavailableError(error)) {
+				throw new WorktreeManagerGitUnavailableError(formatGitUnavailableMessage(error, params.worktreePath))
+			}
+
+			throw error
+		}
+
+		this.createdWorktrees.add(params.worktreePath)
+
+		return {
+			worktreePath: params.worktreePath,
+			branch: params.newBranch,
+			repositoryRoot: inspection.repositoryRoot,
+			resetToCurrentBaseline: inspection.resetRequired,
+		}
 	}
 
 	private getParallelWorktreePath(gitRoot: string, safePlanId: string, safeAgentId: string): string {
@@ -249,10 +486,22 @@ export class WorktreeManager {
 	public async removeWorktree(worktreePath: string): Promise<void> {
 		try {
 			const gitRoot = await this.resolveGitRoot()
-			await execAsync(`git worktree remove --force ${shellQuote(worktreePath)}`, { cwd: gitRoot })
+			try {
+				await execAsync(`git worktree remove --force ${shellQuote(worktreePath)}`, { cwd: gitRoot })
+			} catch (error) {
+				if (isGitExecutableUnavailableError(error)) {
+					throw new WorktreeManagerGitUnavailableError(formatGitUnavailableMessage(error, gitRoot))
+				}
+
+				throw error
+			}
 		} finally {
 			this.createdWorktrees.delete(worktreePath)
 		}
+	}
+
+	public forgetWorktree(worktreePath: string): void {
+		this.createdWorktrees.delete(worktreePath)
 	}
 
 	private async removeExistingWorktreeAtPath(gitRoot: string, worktreePath: string): Promise<void> {
@@ -271,9 +520,21 @@ export class WorktreeManager {
 		this.createdWorktrees.delete(worktreePath)
 	}
 
-	public async cleanup(): Promise<void> {
+	public async cleanup(options: { retainWorktreePaths?: string[] } = {}): Promise<void> {
+		const retainedWorktrees = new Set(
+			(options.retainWorktreePaths ?? []).map((worktreePath) => this.normalizeComparablePath(worktreePath)),
+		)
 		const worktrees = this.getCreatedWorktrees()
-		await Promise.allSettled(worktrees.map((worktreePath) => this.removeWorktree(worktreePath)))
+		await Promise.allSettled(
+			worktrees.map((worktreePath) => {
+				if (retainedWorktrees.has(this.normalizeComparablePath(worktreePath))) {
+					this.forgetWorktree(worktreePath)
+					return Promise.resolve()
+				}
+
+				return this.removeWorktree(worktreePath)
+			}),
+		)
 		await Promise.allSettled(
 			Array.from(this.workspaceBaselines.values()).map((baseline) => this.deleteBaselineRef(baseline.ref)),
 		)
@@ -783,6 +1044,22 @@ export class WorktreeManager {
 		return stdout.trim()
 	}
 
+	private async getGitCommonDir(cwd: string): Promise<string> {
+		const result = await execAsync("git rev-parse --git-common-dir", { cwd })
+		const stdout = typeof result === "string" ? result : result.stdout
+		const commonDir = stdout.trim()
+		return path.isAbsolute(commonDir) ? commonDir : path.resolve(cwd, commonDir)
+	}
+
+	private normalizeComparablePath(filePath: string): string {
+		const normalized = path.resolve(filePath).replace(/\\/g, "/").replace(/\/+$/g, "")
+		return process.platform === "win32" ? normalized.toLowerCase() : normalized
+	}
+
+	private areComparablePathsEqual(left: string, right: string): boolean {
+		return this.normalizeComparablePath(left) === this.normalizeComparablePath(right)
+	}
+
 	private async deleteBaselineRef(ref: string): Promise<void> {
 		const gitRoot = await this.resolveGitRoot()
 		await execAsync(`git update-ref -d ${shellQuote(ref)}`, { cwd: gitRoot })
@@ -985,6 +1262,10 @@ export class WorktreeManager {
 				throw error
 			}
 
+			if (isGitExecutableUnavailableError(error)) {
+				throw new WorktreeManagerGitUnavailableError(formatGitUnavailableMessage(error, this.repoRoot))
+			}
+
 			throw new WorktreeManagerError(
 				`Parallel worktrees require a Git repository. The active workspace (${this.repoRoot}) is not inside a Git repository. Open a Git-backed workspace or initialize Git before approving a parallel plan.`,
 			)
@@ -999,7 +1280,11 @@ export class WorktreeManager {
 		try {
 			await execAsync("git rev-parse --verify HEAD", { cwd: gitRoot })
 			this.hasValidatedHead = true
-		} catch {
+		} catch (error) {
+			if (isGitExecutableUnavailableError(error)) {
+				throw new WorktreeManagerGitUnavailableError(formatGitUnavailableMessage(error, gitRoot))
+			}
+
 			throw new WorktreeManagerError(
 				"Parallel agents require a Git repository with at least one commit. Commit your current project first, then approve the plan again.",
 			)

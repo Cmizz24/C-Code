@@ -54,6 +54,10 @@
 		},
 		"noData": "Sense dades d'imatge"
 	},
+	"visualBrowserInspector": {
+		"emptyStatus": "No hi ha cap sessió de navegador Playwright controlada activa. En el primer ús, C Code prepara Chromium automàticament a l'emmagatzematge de l'extensió.",
+		"headerDescription": "Només captura del navegador Playwright controlat. C Code prepara Chromium automàticament a l'emmagatzematge de l'extensió en el primer ús. Els artefactes es queden locals a <artifactPath>.roo/visual-browser-inspector</artifactPath>."
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "Format d'URI de dades no vàlid",

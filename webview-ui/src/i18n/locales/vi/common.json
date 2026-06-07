@@ -54,6 +54,10 @@
 		},
 		"noData": "Không có dữ liệu hình ảnh"
 	},
+	"visualBrowserInspector": {
+		"emptyStatus": "Không có phiên trình duyệt Playwright được kiểm soát nào đang hoạt động. Trong lần dùng đầu tiên, C Code tự động chuẩn bị Chromium trong bộ nhớ của tiện ích mở rộng.",
+		"headerDescription": "Chỉ chụp trình duyệt Playwright được kiểm soát. Trong lần dùng đầu tiên, C Code tự động chuẩn bị Chromium trong bộ nhớ của tiện ích mở rộng. Các artifact vẫn ở cục bộ trong <artifactPath>.roo/visual-browser-inspector</artifactPath>."
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "Định dạng URI dữ liệu không hợp lệ",

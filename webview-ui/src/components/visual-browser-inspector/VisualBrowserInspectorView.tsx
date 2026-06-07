@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Trans, useTranslation } from "react-i18next"
 import { useEvent } from "react-use"
+
+import "@src/i18n/setup"
 
 import {
 	type ExtensionMessage,
@@ -17,12 +20,11 @@ import {
 
 import { vscode } from "@src/utils/vscode"
 
-const emptyPanelState: VisualBrowserPanelState = {
+const emptyPanelState: Omit<VisualBrowserPanelState, "statusMessage"> = {
 	screenshots: [],
 	crops: [],
 	inspections: [],
 	findings: [],
-	statusMessage: "No controlled Playwright browser session is active.",
 }
 
 const buttonBaseClass =
@@ -89,7 +91,11 @@ function latestByCreatedAt<T extends { createdAt: string }>(items: T[]): T | und
 }
 
 export default function VisualBrowserInspectorView() {
-	const [panelState, setPanelState] = useState<VisualBrowserPanelState>(emptyPanelState)
+	const { t } = useTranslation("common")
+	const [panelState, setPanelState] = useState<VisualBrowserPanelState>(() => ({
+		...emptyPanelState,
+		statusMessage: t("visualBrowserInspector.emptyStatus"),
+	}))
 	const [url, setUrl] = useState("http://localhost:3000")
 	const [viewport, setViewport] = useState<VisualBrowserViewportPresetName>("mobile")
 	const [allowExternal, setAllowExternal] = useState(false)
@@ -570,11 +576,14 @@ export default function VisualBrowserInspectorView() {
 					<div>
 						<h2 className="m-0 text-lg font-semibold">Visual Browser Inspector</h2>
 						<p className="m-0 text-sm text-vscode-descriptionForeground">
-							Controlled Playwright browser capture only. Artifacts stay local under
-							<code className="ml-1 rounded bg-vscode-textCodeBlock-background px-1">
-								.roo/visual-browser-inspector
-							</code>
-							.
+							<Trans
+								i18nKey="common:visualBrowserInspector.headerDescription"
+								components={{
+									artifactPath: (
+										<code className="ml-1 rounded bg-vscode-textCodeBlock-background px-1" />
+									),
+								}}
+							/>
 						</p>
 					</div>
 					<span className="rounded border border-vscode-panel-border px-2 py-1 text-xs text-vscode-descriptionForeground">

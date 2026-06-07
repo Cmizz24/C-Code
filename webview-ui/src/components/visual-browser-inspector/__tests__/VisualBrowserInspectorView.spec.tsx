@@ -135,6 +135,27 @@ describe("VisualBrowserInspectorView", () => {
 		})
 	})
 
+	it("labels first-use managed Chromium setup in the VBI panel", () => {
+		render(<VisualBrowserInspectorView />)
+
+		expect(
+			screen.getByText(/automatically prepares Chromium in extension storage on first use/i),
+		).toBeInTheDocument()
+
+		dispatchVisualBrowserState({
+			screenshots: [],
+			crops: [],
+			inspections: [],
+			findings: [],
+			statusMessage:
+				"No controlled Playwright browser session is active. On first use, C Code prepares Chromium in extension storage automatically.",
+		})
+
+		expect(
+			screen.getByText(/On first use, C Code prepares Chromium in extension storage automatically/i),
+		).toBeInTheDocument()
+	})
+
 	it("focuses chat-synced screenshots and crops from VBI tool payloads", async () => {
 		render(<VisualBrowserInspectorView />)
 		postMessageMock.mockClear()

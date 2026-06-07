@@ -264,7 +264,7 @@
 			"description": "自動核准有效的並行任務計畫並啟動代理，而不顯示計畫預覽對話框"
 		},
 		"visualBrowserInspector": {
-			"label": "瀏覽器",
+			"label": "Visual Browser Inspector",
 			"description": "自動核准來自聊天的 Visual Browser Inspector 動作，包括開啟受控瀏覽器頁面、螢幕截圖、DOM 檢查、裁切、分析和頁面互動。這不會允許檔案編輯或終端機命令。"
 		},
 		"followupQuestions": {

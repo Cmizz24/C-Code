@@ -256,7 +256,7 @@
 			"description": "Aprobar automáticamente los planes de tareas paralelas válidos e iniciar agentes sin mostrar el modal de vista previa del plan"
 		},
 		"visualBrowserInspector": {
-			"label": "Navegador",
+			"label": "Visual Browser Inspector",
 			"description": "Aprobar automáticamente acciones del Visual Browser Inspector desde el chat, incluyendo abrir páginas de navegador controladas, capturas de pantalla, inspección del DOM, recortes, análisis e interacciones con la página. Esto no permite editar archivos ni ejecutar comandos de terminal."
 		},
 		"followupQuestions": {

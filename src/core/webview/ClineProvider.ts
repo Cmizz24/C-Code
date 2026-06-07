@@ -31,14 +31,18 @@ import {
 	type OpenAiCodexFastStatus,
 	type AgentEvent,
 	type AgentCompletionPacket,
+	type AgentContinuationMetadata,
 	type AgentDependency,
 	type AgentActivityEvent,
 	type AgentCoordinationEvent,
 	type AgentStatus,
 	type AgentStatusUpdate,
+	type AgentPlan,
 	type WriteIntentConflict,
 	type MergeReviewEntry,
 	type ParallelAgentReviewSummary,
+	type ParallelArtifactManifestEntry,
+	type ParallelPlanContinuationMetadata,
 	type ParallelPlanCompletionPacket,
 	type ParallelPlanCompletionStatus,
 	type AgentMergeEvidence,
@@ -121,7 +125,9 @@ import { REQUESTY_BASE_URL } from "../../shared/utils/requesty"
 import { validateAndFixToolResultIds } from "../task/validateToolResultIds"
 import { AgentBus, isGenericOwnershipCoordinationMessage } from "../agents/AgentBus"
 import {
+	getParallelAgentBranchName,
 	getWorktreeManagerErrorMessage,
+	isWorktreeManagerGitUnavailableError,
 	WorktreeManager,
 	WorktreeMergeError,
 	type WorktreeMergeReviewDiagnostics,
@@ -184,6 +190,23 @@ type MergeDocumentPreparationResult = {
 	savedDocuments: MergeAffectedOpenDocument[]
 }
 type MergeDocumentSyncStage = "pre-save" | "auto-approved-block" | "post-merge-sync"
+type PriorParallelAgentRun = {
+	tool: ClineSayTool
+	plan: ExecutionPlan
+	planPacket: ParallelPlanCompletionPacket
+	agentPacketsById: Map<string, AgentCompletionPacket>
+	mergeEntriesByAgentId: Map<string, MergeReviewEntry>
+	repositoryRoot?: string
+	workspaceRoot?: string
+}
+type PriorParallelAgentMatch = {
+	agent: AgentPlan
+	packet?: AgentCompletionPacket
+	mergeEntry?: MergeReviewEntry
+	score: number
+	signals: string[]
+	relevantFiles: string[]
+}
 type ParallelParentVerificationDirective = {
 	sourceOfTruth: "structured_completion_packet"
 	evidenceStatus: "clean-merged" | "requires-attention"
@@ -251,6 +274,9 @@ type EmailNotificationUsageHistoryItem = Pick<
 const PARALLEL_AGENT_ACTIVITY_LIMIT = 50
 const PARALLEL_AGENT_COORDINATION_LIMIT = 24
 const PARALLEL_REVIEW_SUMMARY_PATH = ".roo/parallel-agent-review.md"
+const PARALLEL_CONTINUATION_CONTEXT_LIMIT = 2_500
+const PARALLEL_CONTINUATION_RESULT_LIMIT = 800
+const PARALLEL_CONTINUATION_FILE_LIMIT = 20
 const EMAIL_NOTIFICATION_TASK_OUTCOME_STATE_KEY = "emailNotificationTaskOutcomes.v1"
 const MAX_EMAIL_NOTIFICATION_TASK_OUTCOMES = 500
 const MAX_EMAIL_NOTIFICATION_SUMMARY_LENGTH = 600
@@ -296,6 +322,7 @@ export class ClineProvider
 	private readonly parallelWriteConflicts = new Map<string, WriteIntentConflict>()
 	private readonly parallelAgentCompletionPackets = new Map<string, AgentCompletionPacket>()
 	private parallelPlanCompletionPacket?: ParallelPlanCompletionPacket
+	private parallelContinuation?: ParallelPlanContinuationMetadata
 	private parallelUsageSummary?: ParallelAgentUsageSummary
 	private parallelReviewSummary?: ParallelAgentReviewSummary
 	private readonly emailNotificationTaskTokenUsage = new Map<string, TokenUsage>()
@@ -5195,6 +5222,7 @@ export class ClineProvider
 			this.parallelAgentCompletionPackets.set(packet.agentId, packet)
 		}
 		this.parallelPlanCompletionPacket = tool.parallelPlanCompletionPacket
+		this.parallelContinuation = tool.parallelContinuation ?? tool.executionPlan.continuation
 		this.parallelReviewSummary =
 			tool.parallelReviewSummary ??
 			(tool.parallelStatus === "review"
@@ -5231,6 +5259,499 @@ export class ClineProvider
 			if (entry.worktreePath) {
 				this.worktreePathsByAgentId.set(entry.agentId, entry.worktreePath)
 			}
+		}
+	}
+
+	private async decorateExecutionPlanWithContinuation(plan: ExecutionPlan): Promise<void> {
+		const priorRun = this.findReusablePriorParallelRun()
+		const repositoryRoot = priorRun ? await this.getCurrentRepositoryRootForContinuation() : undefined
+		const decisions: ParallelPlanContinuationMetadata["decisions"] = []
+		let reusedAgentCount = 0
+
+		if (!priorRun) {
+			for (const agent of plan.agents) {
+				agent.continuation = {
+					decision: "fresh",
+					reason: "No prior clean merged parallel-agent run was found in the loaded parent task.",
+					newPlanId: plan.planId,
+					newAgentId: agent.id,
+					newBranch: this.getAgentBranchName(plan.planId, agent.id),
+				}
+				decisions.push({ agentId: agent.id, decision: "fresh", reason: agent.continuation.reason })
+			}
+		} else {
+			const usedPriorAgentIds = new Set<string>()
+			for (const agent of plan.agents) {
+				const match = this.findContinuationMatch(agent, priorRun, usedPriorAgentIds)
+				let continuation = match
+					? await this.buildReusedAgentContinuation(plan, agent, priorRun, match, repositoryRoot)
+					: this.buildFreshAgentContinuation(
+							plan,
+							agent,
+							"No prior agent had strong conservative file/path overlap with this new agent.",
+						)
+
+				if (continuation.decision === "reused" && match) {
+					usedPriorAgentIds.add(match.agent.id)
+					reusedAgentCount += 1
+				} else if (continuation.decision === "reused") {
+					continuation = this.buildFreshAgentContinuation(
+						plan,
+						agent,
+						"Prior agent match was unavailable after hard-gate evaluation.",
+					)
+				}
+
+				agent.continuation = continuation
+				decisions.push({
+					agentId: agent.id,
+					decision: continuation.decision,
+					sourceAgentId: continuation.sourceAgentId,
+					reason: continuation.reason,
+					relevanceScore: continuation.relevanceScore,
+					relevanceSignals: continuation.relevanceSignals,
+				})
+			}
+		}
+
+		plan.continuation = {
+			schemaVersion: 1,
+			workspaceRoot: getWorkspacePath(),
+			repositoryRoot,
+			sourcePlanId: priorRun?.plan.planId,
+			evaluatedAt: Date.now(),
+			reusedAgentCount,
+			freshAgentCount: plan.agents.length - reusedAgentCount,
+			decisions,
+		}
+		this.parallelContinuation = plan.continuation
+	}
+
+	private findReusablePriorParallelRun(): PriorParallelAgentRun | undefined {
+		const task = this.getCurrentTask()
+		if (!task || task.background) {
+			return undefined
+		}
+
+		for (let index = task.clineMessages.length - 1; index >= 0; index -= 1) {
+			const tool = this.tryParseParallelAgentToolMessage(task.clineMessages[index])
+			if (!tool?.executionPlan || tool.parallelStatus !== "merged") {
+				continue
+			}
+
+			const candidate = this.buildPriorParallelAgentRun(tool)
+			if (candidate) {
+				return candidate
+			}
+		}
+
+		return undefined
+	}
+
+	private buildPriorParallelAgentRun(tool: ClineSayTool): PriorParallelAgentRun | undefined {
+		const plan = tool.executionPlan
+		if (!plan) {
+			return undefined
+		}
+
+		const agentPackets = tool.agentCompletionPackets ?? []
+		const planPacket = tool.parallelPlanCompletionPacket
+		if (!planPacket || !this.isCleanMergedPriorRun(plan, planPacket, agentPackets, tool.mergeReviewEntries ?? [])) {
+			return undefined
+		}
+
+		return {
+			tool,
+			plan,
+			planPacket,
+			agentPacketsById: new Map(agentPackets.map((packet) => [packet.agentId, packet])),
+			mergeEntriesByAgentId: new Map((tool.mergeReviewEntries ?? []).map((entry) => [entry.agentId, entry])),
+			repositoryRoot: tool.parallelContinuation?.repositoryRoot ?? plan.continuation?.repositoryRoot,
+			workspaceRoot: tool.parallelContinuation?.workspaceRoot ?? plan.continuation?.workspaceRoot,
+		}
+	}
+
+	private isCleanMergedPriorRun(
+		plan: ExecutionPlan,
+		planPacket: ParallelPlanCompletionPacket,
+		agentPackets: AgentCompletionPacket[],
+		mergeEntries: MergeReviewEntry[],
+	): boolean {
+		if (planPacket.status !== "merged" || planPacket.merge.status !== "merged" || !planPacket.merge.clean) {
+			return false
+		}
+
+		if (
+			planPacket.failedAgentCount > 0 ||
+			planPacket.failedAgents.length > 0 ||
+			planPacket.merge.failedAgents.length > 0 ||
+			planPacket.merge.conflictedFiles.length > 0 ||
+			planPacket.validationSummary.failed > 0 ||
+			planPacket.validationSummary.unknown > 0
+		) {
+			return false
+		}
+
+		if (agentPackets.length !== plan.agents.length || plan.agents.some((agent) => agent.status !== "complete")) {
+			return false
+		}
+
+		const mergeEntriesByAgentId = new Map(mergeEntries.map((entry) => [entry.agentId, entry]))
+		return plan.agents.every((agent) => {
+			const packet = agentPackets.find((candidate) => candidate.agentId === agent.id)
+			const entry = mergeEntriesByAgentId.get(agent.id)
+			return Boolean(
+				packet &&
+					packet.status === "complete" &&
+					packet.merge.result === "merged" &&
+					packet.merge.clean !== false &&
+					packet.merge.worktreePath &&
+					packet.merge.branch &&
+					entry &&
+					entry.mergeStatus === "merged" &&
+					entry.mergeable !== false &&
+					!entry.reviewError &&
+					!entry.mergeError &&
+					(entry.conflictedFiles?.length ?? 0) === 0 &&
+					entry.worktreePath &&
+					entry.branch,
+			)
+		})
+	}
+
+	private findContinuationMatch(
+		agent: AgentPlan,
+		priorRun: PriorParallelAgentRun,
+		usedPriorAgentIds: Set<string>,
+	): PriorParallelAgentMatch | undefined {
+		const candidates = priorRun.plan.agents
+			.filter((priorAgent) => !usedPriorAgentIds.has(priorAgent.id))
+			.map((priorAgent) => this.scoreContinuationMatch(agent, priorAgent, priorRun))
+			.filter((match): match is PriorParallelAgentMatch => match !== undefined && match.score >= 100)
+			.sort((left, right) => right.score - left.score)
+
+		if (candidates.length === 0) {
+			return undefined
+		}
+
+		if (candidates.length > 1 && candidates[0].score === candidates[1].score) {
+			return undefined
+		}
+
+		return candidates[0]
+	}
+
+	private scoreContinuationMatch(
+		agent: AgentPlan,
+		priorAgent: AgentPlan,
+		priorRun: PriorParallelAgentRun,
+	): PriorParallelAgentMatch | undefined {
+		const packet = priorRun.agentPacketsById.get(priorAgent.id)
+		const mergeEntry = priorRun.mergeEntriesByAgentId.get(priorAgent.id)
+		const priorPaths = this.collectPriorAgentRelevantPaths(priorAgent, packet, mergeEntry)
+		const newPaths = this.collectNewAgentRelevantPaths(agent)
+		const relevantFiles = this.getOverlappingPaths(newPaths, priorPaths)
+		const signals: string[] = []
+		let score = 0
+
+		if (relevantFiles.length > 0) {
+			score += 100
+			signals.push("owned/artifact path overlap")
+		}
+
+		if (agent.id === priorAgent.id) {
+			score += 15
+			signals.push("same agent id")
+		}
+
+		if (agent.mode === priorAgent.mode) {
+			score += 5
+			signals.push("same mode")
+		}
+
+		if (this.hasMeaningfulTextOverlap(agent.task, priorAgent.task)) {
+			score += 10
+			signals.push("task wording overlap")
+		}
+
+		return score > 0 ? { agent: priorAgent, packet, mergeEntry, score, signals, relevantFiles } : undefined
+	}
+
+	private async buildReusedAgentContinuation(
+		plan: ExecutionPlan,
+		agent: AgentPlan,
+		priorRun: PriorParallelAgentRun,
+		match: PriorParallelAgentMatch,
+		repositoryRoot?: string,
+	): Promise<AgentContinuationMetadata> {
+		const sourceBranch = match.mergeEntry?.branch ?? match.packet?.merge.branch
+		const sourceWorktreePath = match.mergeEntry?.worktreePath ?? match.packet?.merge.worktreePath
+		const newBranch = this.getAgentBranchName(plan.planId, agent.id)
+
+		if (!sourceBranch || !sourceWorktreePath) {
+			return this.buildFreshAgentContinuation(
+				plan,
+				agent,
+				"Prior agent is missing usable branch/worktree metadata.",
+				match,
+			)
+		}
+
+		if (priorRun.workspaceRoot && !arePathsEqual(priorRun.workspaceRoot, getWorkspacePath())) {
+			return this.buildFreshAgentContinuation(
+				plan,
+				agent,
+				"Prior run workspace root does not match the current workspace.",
+				match,
+			)
+		}
+
+		if (priorRun.repositoryRoot && repositoryRoot && !arePathsEqual(priorRun.repositoryRoot, repositoryRoot)) {
+			return this.buildFreshAgentContinuation(
+				plan,
+				agent,
+				"Prior run repository root does not match the current repository root.",
+				match,
+			)
+		}
+
+		const inspection = await this.ensureWorktreeManager().inspectReusableWorktree({
+			worktreePath: sourceWorktreePath,
+			branch: sourceBranch,
+			expectedRepositoryRoot: priorRun.repositoryRoot ?? repositoryRoot,
+		})
+
+		if (!inspection.reusable) {
+			if (inspection.nonRetryable) {
+				this.log(
+					`[parallel-agents] Retained worktree reuse inspection is unavailable for ${agent.id}; marking candidate fresh without retrying git: ${inspection.reason}`,
+				)
+			}
+
+			return this.buildFreshAgentContinuation(
+				plan,
+				agent,
+				`Retained worktree is not safely reusable: ${inspection.reason}.`,
+				match,
+			)
+		}
+
+		const continuation: AgentContinuationMetadata = {
+			decision: "reused",
+			reason: "Prior clean merged agent has strong conservative path overlap and passed retained worktree safety inspection.",
+			sourcePlanId: priorRun.plan.planId,
+			sourceAgentId: match.agent.id,
+			sourceBranch,
+			sourceWorktreePath,
+			sourceTask: match.agent.task,
+			sourceGoal: priorRun.plan.goal ?? priorRun.plan.sharedContext,
+			newPlanId: plan.planId,
+			newAgentId: agent.id,
+			newBranch,
+			reusedWorktreePath: sourceWorktreePath,
+			resetToCurrentBaseline: inspection.resetRequired,
+			relevanceScore: match.score,
+			relevanceSignals: match.signals,
+			relevantFiles: match.relevantFiles.slice(0, PARALLEL_CONTINUATION_FILE_LIMIT),
+			changeStats: match.mergeEntry?.changeStats,
+		}
+		continuation.context = this.buildAgentContinuationContext(plan, agent, priorRun, match, continuation)
+		return continuation
+	}
+
+	private buildFreshAgentContinuation(
+		plan: ExecutionPlan,
+		agent: AgentPlan,
+		reason: string,
+		match?: PriorParallelAgentMatch,
+	): AgentContinuationMetadata {
+		return {
+			decision: "fresh",
+			reason,
+			sourcePlanId: match?.packet?.planId,
+			sourceAgentId: match?.agent.id,
+			newPlanId: plan.planId,
+			newAgentId: agent.id,
+			newBranch: this.getAgentBranchName(plan.planId, agent.id),
+			relevanceScore: match?.score,
+			relevanceSignals: match?.signals,
+			relevantFiles: match?.relevantFiles.slice(0, PARALLEL_CONTINUATION_FILE_LIMIT),
+		}
+	}
+
+	private buildAgentContinuationContext(
+		plan: ExecutionPlan,
+		agent: AgentPlan,
+		priorRun: PriorParallelAgentRun,
+		match: PriorParallelAgentMatch,
+		continuation: AgentContinuationMetadata,
+	): string {
+		const packet = match.packet
+		const mergeEntry = match.mergeEntry
+		const resultSummary = this.truncateText(
+			packet?.completionResult ?? mergeEntry?.noChangesReason ?? "",
+			PARALLEL_CONTINUATION_RESULT_LIMIT,
+		)
+		const validationNotes = packet?.validation
+			.map((validation) => `${validation.name}: ${validation.status}; ${validation.summary}`)
+			.slice(0, 5)
+			.join(" | ")
+		const files = continuation.relevantFiles ?? []
+		const lines = [
+			"[PARALLEL AGENT CONTINUATION CONTEXT]",
+			"Prior clean merged parallel-agent work is available as compact context only. Do not replay old child history or assume stale code still applies.",
+			`Prior goal: ${this.truncateText(priorRun.plan.goal ?? priorRun.plan.sharedContext, 300)}`,
+			`Prior agent: ${match.agent.id} (${match.agent.mode}) — ${this.truncateText(match.agent.task, 300)}`,
+			resultSummary ? `Prior result summary: ${resultSummary}` : undefined,
+			`Prior merge: ${mergeEntry?.mergeStatus ?? packet?.merge.result ?? "merged"}; branch ${continuation.sourceBranch}; worktree ${continuation.sourceWorktreePath}.`,
+			mergeEntry?.changeStats
+				? `Prior change stats: ${mergeEntry.changeStats.filesChanged} files, +${mergeEntry.changeStats.additions}/-${mergeEntry.changeStats.deletions}.`
+				: undefined,
+			validationNotes ? `Prior validation notes: ${this.truncateText(validationNotes, 500)}` : undefined,
+			files.length
+				? `Relevant prior/current paths (capped):\n${files.map((filePath) => `- ${filePath}`).join("\n")}`
+				: undefined,
+			`Worktree identity: source plan ${continuation.sourcePlanId}, source agent ${continuation.sourceAgentId}, new plan ${plan.planId}, new agent ${agent.id}, new branch ${continuation.newBranch}, reused worktree ${continuation.reusedWorktreePath}, refreshed=${continuation.resetToCurrentBaseline === true}.`,
+			`New plan goal: ${this.truncateText(plan.goal ?? plan.sharedContext, 400)}`,
+			plan.sharedContext ? `New shared context: ${this.truncateText(plan.sharedContext, 500)}` : undefined,
+			plan.sharedContract ? `New shared contract: ${this.truncateText(plan.sharedContract, 500)}` : undefined,
+			`New agent task: ${this.truncateText(agent.task, 500)}`,
+			`New ownership: ${agent.owns.map((ownership) => `${ownership.path} (${ownership.mode})`).join(", ") || "none"}`,
+			`New must-not-touch: ${agent.mustNotTouch.join(", ") || "none"}`,
+			"Constraints: prioritize the new request, new ownership map, current workspace state, and current baseline. Inspect targeted files before editing. Do not delegate or create nested parallel plans.",
+		]
+		return this.truncateText(lines.filter(Boolean).join("\n"), PARALLEL_CONTINUATION_CONTEXT_LIMIT)
+	}
+
+	private collectNewAgentRelevantPaths(agent: AgentPlan): string[] {
+		return this.uniqueNormalizedPaths([
+			...agent.owns.map((ownership) => ownership.path),
+			...agent.mustNotTouch,
+			...this.extractPathLikeTerms(agent.task),
+		])
+	}
+
+	private collectPriorAgentRelevantPaths(
+		agent: AgentPlan,
+		packet?: AgentCompletionPacket,
+		mergeEntry?: MergeReviewEntry,
+	): string[] {
+		return this.uniqueNormalizedPaths([
+			...agent.owns.map((ownership) => ownership.path),
+			...agent.mustNotTouch,
+			...(packet?.ownedPaths.map((ownership) => ownership.path) ?? []),
+			...(packet?.artifactManifest.flatMap(
+				(artifact) => [artifact.path, artifact.previousPath].filter(Boolean) as string[],
+			) ?? []),
+			...this.extractMergeEntryPaths(mergeEntry),
+			...this.extractPathLikeTerms(agent.task),
+		])
+	}
+
+	private extractMergeEntryPaths(entry?: MergeReviewEntry): string[] {
+		if (!entry) {
+			return []
+		}
+
+		return [
+			...computeArtifactManifestFromDiff(entry.diff).flatMap(
+				(artifact: ParallelArtifactManifestEntry) =>
+					[artifact.path, artifact.previousPath].filter(Boolean) as string[],
+			),
+			...(entry.conflictedFiles ?? []),
+		]
+	}
+
+	private extractPathLikeTerms(text: string): string[] {
+		return Array.from(text.matchAll(/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)+(?:\.[A-Za-z0-9_.-]+)?/g)).map(
+			(match) => match[0],
+		)
+	}
+
+	private getOverlappingPaths(leftPaths: string[], rightPaths: string[]): string[] {
+		const overlaps: string[] = []
+		for (const leftPath of leftPaths) {
+			for (const rightPath of rightPaths) {
+				if (this.planPathsOverlap(leftPath, rightPath)) {
+					overlaps.push(leftPath.length >= rightPath.length ? leftPath : rightPath)
+				}
+			}
+		}
+
+		return this.uniqueNormalizedPaths(overlaps).slice(0, PARALLEL_CONTINUATION_FILE_LIMIT)
+	}
+
+	private uniqueNormalizedPaths(paths: string[]): string[] {
+		const seen = new Set<string>()
+		const result: string[] = []
+		for (const filePath of paths) {
+			const normalized = this.normalizePlanPath(filePath)
+			if (!normalized || seen.has(normalized)) {
+				continue
+			}
+			seen.add(normalized)
+			result.push(normalized)
+		}
+		return result
+	}
+
+	private normalizePlanPath(filePath: string | undefined): string {
+		return String(filePath ?? "")
+			.trim()
+			.replace(/\\/g, "/")
+			.replace(/^\.\//, "")
+			.replace(/\/+$/g, "")
+	}
+
+	private planPathsOverlap(leftPath: string, rightPath: string): boolean {
+		const left = this.normalizePlanPath(leftPath)
+		const right = this.normalizePlanPath(rightPath)
+		return Boolean(
+			left && right && (left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`)),
+		)
+	}
+
+	private hasMeaningfulTextOverlap(left: string, right: string): boolean {
+		const leftTerms = new Set(this.extractSignificantTerms(left))
+		return this.extractSignificantTerms(right).some((term) => leftTerms.has(term))
+	}
+
+	private extractSignificantTerms(text: string): string[] {
+		const stopWords = new Set([
+			"the",
+			"and",
+			"for",
+			"with",
+			"from",
+			"that",
+			"this",
+			"task",
+			"agent",
+			"implement",
+			"update",
+			"build",
+		])
+		return text
+			.toLowerCase()
+			.split(/[^a-z0-9]+/)
+			.filter((term) => term.length >= 4 && !stopWords.has(term))
+	}
+
+	private truncateText(text: string | undefined, limit: number): string {
+		const normalized = String(text ?? "")
+			.replace(/\s+/g, " ")
+			.trim()
+		return normalized.length > limit ? `${normalized.slice(0, Math.max(0, limit - 1)).trimEnd()}…` : normalized
+	}
+
+	private async getCurrentRepositoryRootForContinuation(): Promise<string | undefined> {
+		try {
+			return await this.ensureWorktreeManager().validateGitRepository()
+		} catch (error) {
+			this.log(
+				`[parallel-agents] Skipping repository-root continuation gate because git validation failed: ${getWorktreeManagerErrorMessage(error)}`,
+			)
+			return undefined
 		}
 	}
 
@@ -5273,6 +5794,7 @@ export class ClineProvider
 		const resolvePendingPlanApproval = this.pendingPlanApproval
 		this.pendingPlanApproval = undefined
 		resolvePendingPlanApproval?.({ approved: false })
+		await this.decorateExecutionPlanWithContinuation(plan)
 
 		const { autoApprovalEnabled, alwaysAllowParallelTasks } = await this.getState()
 		if (autoApprovalEnabled && alwaysAllowParallelTasks) {
@@ -5305,6 +5827,71 @@ export class ClineProvider
 	}
 
 	public async createAgentWorktree(agentId: string, planId: string): Promise<string> {
+		const agent =
+			this.activeExecutionPlan?.planId === planId
+				? this.activeExecutionPlan.agents.find((candidate) => candidate.id === agentId)
+				: undefined
+		const continuation = agent?.continuation
+		if (
+			agent &&
+			continuation?.decision === "reused" &&
+			continuation.sourceWorktreePath &&
+			continuation.sourceBranch
+		) {
+			try {
+				this.recordParallelAgentActivity(
+					agentId,
+					"Inspecting retained worktree for continuation reuse.",
+					"tool",
+				)
+				const newBranch = continuation.newBranch ?? this.getAgentBranchName(planId, agentId)
+				const reused = await this.ensureWorktreeManager().reuseWorktree({
+					worktreePath: continuation.sourceWorktreePath,
+					sourceBranch: continuation.sourceBranch,
+					newBranch,
+				})
+				agent.worktreePath = reused.worktreePath
+				agent.continuation = {
+					...continuation,
+					newBranch: reused.branch,
+					reusedWorktreePath: reused.worktreePath,
+					resetToCurrentBaseline: reused.resetToCurrentBaseline,
+				}
+				this.worktreePathsByAgentId.set(agentId, reused.worktreePath)
+				this.recordParallelAgentActivity(
+					agentId,
+					`Reusing retained worktree at ${reused.worktreePath}${reused.resetToCurrentBaseline ? " after refreshing to current workspace baseline" : ""}.`,
+					"file",
+				)
+				return reused.worktreePath
+			} catch (error) {
+				const message = getWorktreeManagerErrorMessage(error)
+				if (isWorktreeManagerGitUnavailableError(error)) {
+					this.recordParallelAgentActivity(
+						agentId,
+						`Retained worktree reuse unavailable because Git could not be started: ${message}`,
+						"error",
+					)
+					this.log(`[parallel-agents] Retained worktree reuse unavailable for ${agentId}: ${message}`)
+					throw new Error(message)
+				}
+
+				this.recordParallelAgentActivity(
+					agentId,
+					`Retained worktree reuse skipped; creating a fresh worktree instead: ${message}`,
+					"wait",
+				)
+				agent.continuation = {
+					...continuation,
+					decision: "fresh",
+					reason: `Retained worktree reuse failed: ${message}`,
+					context: undefined,
+					reusedWorktreePath: undefined,
+					resetToCurrentBaseline: undefined,
+				}
+			}
+		}
+
 		try {
 			this.recordParallelAgentActivity(agentId, "Creating isolated worktree.", "tool")
 			const worktreePath = await this.ensureWorktreeManager().createWorktree(agentId, planId)
@@ -5715,10 +6302,21 @@ export class ClineProvider
 			this.removeBackgroundTask(task)
 		}
 
+		this.parallelStatusPhase = "merged"
+		const retainedWorktrees = this.getReusableRetainedWorktreePaths(plan)
 		await Promise.allSettled(
 			plan.agents.map((agent) => {
 				const worktreePath = this.worktreePathsByAgentId.get(agent.id) ?? agent.worktreePath
-				return worktreePath ? this.worktreeManager?.removeWorktree(worktreePath) : Promise.resolve()
+				if (!worktreePath) {
+					return Promise.resolve()
+				}
+
+				if (retainedWorktrees.has(worktreePath)) {
+					this.worktreeManager?.forgetWorktree?.(worktreePath)
+					return Promise.resolve()
+				}
+
+				return this.worktreeManager?.removeWorktree(worktreePath)
 			}),
 		)
 		await this.worktreeManager?.cleanupPlanBaseline(plan.planId)
@@ -6018,6 +6616,7 @@ export class ClineProvider
 	private async teardownParallelExecution(
 		options: { markCancelled?: boolean; resetBus?: boolean; cleanupWorktrees?: boolean } = {},
 	): Promise<void> {
+		const activePlan = this.activeExecutionPlan
 		const planId = this.activeExecutionPlan?.planId ?? this.parallelStatusPlanId
 		const hadParallelState = Boolean(
 			this.activeExecutionPlan ||
@@ -6065,9 +6664,25 @@ export class ClineProvider
 
 		if (options.cleanupWorktrees) {
 			const knownWorktreePaths = Array.from(this.worktreePathsByAgentId.values())
-			await this.worktreeManager?.cleanup()
+			const retainedWorktrees = activePlan ? this.getReusableRetainedWorktreePaths(activePlan) : new Set<string>()
+			const cleanupResult = await Promise.resolve(
+				this.worktreeManager?.cleanup({ retainWorktreePaths: Array.from(retainedWorktrees) }),
+			)
+				.then(() => ({ status: "fulfilled" as const }))
+				.catch((error) => ({ status: "rejected" as const, reason: error }))
+
+			if (cleanupResult.status === "rejected") {
+				this.log(
+					`[parallel-agents] Ignoring worktree cleanup failure during teardown: ${getWorktreeManagerErrorMessage(cleanupResult.reason)}`,
+				)
+			}
+
 			await Promise.allSettled(
-				knownWorktreePaths.map((worktreePath) => this.worktreeManager?.removeWorktree(worktreePath)),
+				knownWorktreePaths.map((worktreePath) =>
+					retainedWorktrees.has(worktreePath)
+						? Promise.resolve()
+						: this.worktreeManager?.removeWorktree(worktreePath),
+				),
 			)
 		}
 
@@ -6165,6 +6780,44 @@ export class ClineProvider
 		}
 	}
 
+	private getReusableRetainedWorktreePaths(plan: ExecutionPlan): Set<string> {
+		if (this.parallelStatusPhase !== "merged") {
+			return new Set()
+		}
+
+		const entriesByAgentId = new Map((this.parallelMergeReviewEntries ?? []).map((entry) => [entry.agentId, entry]))
+		const packetsByAgentId = new Map(
+			this.getParallelAgentCompletionPackets(plan).map((packet) => [packet.agentId, packet]),
+		)
+		const retained = new Set<string>()
+
+		for (const agent of plan.agents) {
+			const entry = entriesByAgentId.get(agent.id)
+			const packet = packetsByAgentId.get(agent.id)
+			const worktreePath =
+				this.worktreePathsByAgentId.get(agent.id) ??
+				entry?.worktreePath ??
+				packet?.merge.worktreePath ??
+				agent.worktreePath
+			if (
+				worktreePath &&
+				agent.status === "complete" &&
+				entry?.mergeStatus === "merged" &&
+				entry.mergeable !== false &&
+				!entry.reviewError &&
+				!entry.mergeError &&
+				(entry.conflictedFiles?.length ?? 0) === 0 &&
+				packet?.status === "complete" &&
+				packet.merge.result === "merged" &&
+				packet.merge.clean !== false
+			) {
+				retained.add(worktreePath)
+			}
+		}
+
+		return retained
+	}
+
 	private resetParallelAgentStatusState(planId?: string): void {
 		this.parallelStatusMessageTs = undefined
 		this.parallelStatusPlanId = planId
@@ -6178,6 +6831,7 @@ export class ClineProvider
 		this.parallelAgentActivities.clear()
 		this.parallelAgentCoordinationEvents = []
 		this.parallelWriteConflicts.clear()
+		this.parallelContinuation = undefined
 	}
 
 	private async ensureParallelAgentStatusMessage(plan: ExecutionPlan): Promise<void> {
@@ -6308,6 +6962,7 @@ export class ClineProvider
 			mergeReviewEntries,
 			agentCompletionPackets,
 			parallelPlanCompletionPacket,
+			parallelContinuation: this.parallelContinuation ?? plan.continuation,
 		}
 	}
 
@@ -6382,6 +7037,7 @@ export class ClineProvider
 			this.parallelAgentCompletionPackets.set(packet.agentId, packet)
 		}
 		this.parallelPlanCompletionPacket = reviewMessage.parallelPlanCompletionPacket
+		this.parallelContinuation = reviewMessage.parallelContinuation ?? reviewMessage.executionPlan.continuation
 		this.parallelReviewSummary =
 			reviewMessage.parallelReviewSummary ??
 			this.buildParallelAgentReviewSummary(reviewMessage.executionPlan, reviewMessage.mergeReviewEntries ?? [])
@@ -7725,15 +8381,7 @@ export class ClineProvider
 	}
 
 	private getAgentBranchName(planId: string, agentId: string): string {
-		return `roo/parallel/${this.sanitizeBranchComponent(planId) || "plan"}/${this.sanitizeBranchComponent(agentId) || "agent"}`
-	}
-
-	private sanitizeBranchComponent(value: string): string {
-		return value
-			.trim()
-			.replace(/[^a-zA-Z0-9._/-]+/g, "-")
-			.replace(/^-+|-+$/g, "")
-			.slice(0, 80)
+		return getParallelAgentBranchName(planId, agentId)
 	}
 
 	private formatGitError(error: unknown): string {

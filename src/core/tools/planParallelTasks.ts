@@ -474,6 +474,7 @@ export function handlePlanParallelTasks(
 
 	const plan: ExecutionPlan = {
 		planId,
+		goal,
 		sharedContext: sharedContext ?? goal,
 		sharedContract: sharedContract ?? "",
 		fileOwnershipMap,

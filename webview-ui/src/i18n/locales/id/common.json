@@ -54,6 +54,10 @@
 		},
 		"noData": "Tidak ada data gambar"
 	},
+	"visualBrowserInspector": {
+		"emptyStatus": "Tidak ada sesi browser Playwright terkontrol yang aktif. Saat pertama kali digunakan, C Code menyiapkan Chromium secara otomatis di penyimpanan ekstensi.",
+		"headerDescription": "Hanya menangkap browser Playwright terkontrol. C Code menyiapkan Chromium secara otomatis di penyimpanan ekstensi saat pertama kali digunakan. Artefak tetap lokal di <artifactPath>.roo/visual-browser-inspector</artifactPath>."
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "Format data URI tidak valid",

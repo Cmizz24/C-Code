@@ -54,6 +54,10 @@
 		},
 		"noData": "Geen afbeeldingsgegevens"
 	},
+	"visualBrowserInspector": {
+		"emptyStatus": "Er is geen gecontroleerde Playwright-browsersessie actief. Bij het eerste gebruik bereidt C Code Chromium automatisch voor in de extensieopslag.",
+		"headerDescription": "Alleen gecontroleerde Playwright-browsercapture. C Code bereidt Chromium bij het eerste gebruik automatisch voor in de extensieopslag. Artefacten blijven lokaal onder <artifactPath>.roo/visual-browser-inspector</artifactPath>."
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "Ongeldig data-URI-formaat",

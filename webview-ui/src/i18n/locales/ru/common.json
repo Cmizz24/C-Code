@@ -54,6 +54,10 @@
 		},
 		"noData": "Нет данных изображения"
 	},
+	"visualBrowserInspector": {
+		"emptyStatus": "Нет активного контролируемого сеанса браузера Playwright. При первом использовании C Code автоматически подготовит Chromium в хранилище расширения.",
+		"headerDescription": "Только захват контролируемого браузера Playwright. При первом использовании C Code автоматически подготовит Chromium в хранилище расширения. Артефакты остаются локально в <artifactPath>.roo/visual-browser-inspector</artifactPath>."
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "Неверный формат URI данных",

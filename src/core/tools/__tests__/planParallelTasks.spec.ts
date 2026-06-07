@@ -228,6 +228,7 @@ describe("handlePlanParallelTasks", () => {
 
 		expect(result.ok).toBe(true)
 		if (result.ok) {
+			expect(result.plan.goal).toBe("Build a dashboard from agreed UI and styling contracts")
 			expect(result.plan.sharedContext).toContain("interface contract")
 			expect(result.plan.sharedContract).toBe(
 				"Use #dashboard-root, data-testid=dashboard-root, .dashboard-card, and CSS variable --dashboard-gap.",

@@ -256,7 +256,7 @@
 			"description": "Geçerli paralel görev planlarını otomatik olarak onayla ve plan önizleme penceresini göstermeden ajanları başlat"
 		},
 		"visualBrowserInspector": {
-			"label": "Tarayıcı",
+			"label": "Visual Browser Inspector",
 			"description": "Chat'ten gelen Visual Browser Inspector eylemlerini otomatik olarak onayla; kontrollü tarayıcı sayfaları açma, ekran görüntüleri, DOM incelemesi, kırpmalar, analiz ve sayfa etkileşimleri dahil. Bu, dosya düzenlemelerine veya terminal komutlarına izin vermez."
 		},
 		"followupQuestions": {

@@ -41,6 +41,7 @@ import type {
 import { visualBrowserViewportPresets } from "@roo-code/types"
 
 import { safeWriteJson } from "../../utils/safeWriteJson"
+import { ensureVisualBrowserPlaywright } from "./PlaywrightBrowserManager"
 
 const VISUAL_BROWSER_ARTIFACT_ROOT = ".roo/visual-browser-inspector"
 const DEFAULT_NAVIGATION_TIMEOUT_MS = 30_000
@@ -49,34 +50,19 @@ const MAX_REGION_ELEMENTS = 50
 const MAX_FIX_TASK_ISSUES = 20
 const MAX_CHANGE_TASK_CONTEXT_ISSUES = 10
 
-type PlaywrightRuntime = Pick<typeof import("playwright"), "chromium">
-
 type VisualBrowserIssueDetails = Omit<
 	VisualBrowserIssue,
 	"screenshotId" | "cropId" | "selectorOrElement" | "boundingBox" | "filesToInspect" | "relatedArtifacts"
 >
 
-let playwrightRuntimePromise: Promise<PlaywrightRuntime> | undefined
-
-async function loadPlaywrightRuntime(): Promise<PlaywrightRuntime> {
-	playwrightRuntimePromise ??= import("playwright")
-		.then((playwright) => ({ chromium: playwright.chromium }))
-		.catch((error) => {
-			playwrightRuntimePromise = undefined
-
-			throw new Error(
-				`Visual Browser Inspector could not load Playwright at runtime: ${error instanceof Error ? error.message : String(error)}`,
-			)
-		})
-
-	return playwrightRuntimePromise
-}
-
 export type ToWebviewUri = (filePath: string) => string
 
 export interface VisualBrowserExecuteOptions {
 	cwd: string
+	globalStoragePath?: string
 	toWebviewUri?: ToWebviewUri
+	log?: (message: string) => void
+	onBrowserInstallStatus?: (message: string) => void | Promise<void>
 }
 
 export interface CropResult {
@@ -836,7 +822,8 @@ export class VisualBrowserInspectorService {
 				crops: [],
 				inspections: [],
 				findings: [],
-				statusMessage: "No controlled Playwright browser session is active.",
+				statusMessage:
+					"No controlled Playwright browser session is active. On first use, C Code prepares Chromium in extension storage automatically.",
 			}
 		}
 
@@ -861,6 +848,9 @@ export class VisualBrowserInspectorService {
 		if (!runtime || runtime.metadata.status === "closed") {
 			runtime = await this.createRuntime({
 				cwd: options.cwd,
+				globalStoragePath: options.globalStoragePath,
+				log: options.log,
+				onBrowserInstallStatus: options.onBrowserInstallStatus,
 				url: normalizedUrl,
 				viewport,
 				headless: params.headless ?? false,
@@ -1514,6 +1504,9 @@ export class VisualBrowserInspectorService {
 
 	private async createRuntime(options: {
 		cwd: string
+		globalStoragePath?: string
+		log?: (message: string) => void
+		onBrowserInstallStatus?: (message: string) => void | Promise<void>
 		url: string
 		viewport: VisualBrowserViewport
 		headless: boolean
@@ -1522,8 +1515,13 @@ export class VisualBrowserInspectorService {
 		const sessionId = createSessionId()
 		const artifacts = createArtifactPaths(options.cwd, sessionId)
 		const createdAt = nowIso()
-		const { chromium } = await loadPlaywrightRuntime()
-		const browser = await chromium.launch({ headless: options.headless })
+		const { chromium, executablePath } = await ensureVisualBrowserPlaywright({
+			cwd: options.cwd,
+			globalStoragePath: options.globalStoragePath,
+			log: options.log,
+			onProgress: options.onBrowserInstallStatus,
+		})
+		const browser = await chromium.launch({ headless: options.headless, executablePath })
 		const context = await browser.newContext({
 			viewport: { width: options.viewport.width, height: options.viewport.height },
 			deviceScaleFactor: options.viewport.deviceScaleFactor ?? 1,

@@ -363,11 +363,15 @@ const renderSettingsViewWithTranslations = (initialState: Record<string, any> = 
 	const onDone = vi.fn()
 	const queryClient = new QueryClient()
 
-	const renderTree = (
+	const renderTree = (targetSection?: string) => (
 		<ExtensionStateContextProvider>
 			<TranslationProvider>
 				<QueryClientProvider client={queryClient}>
-					<SettingsView onDone={onDone} />
+					{targetSection ? (
+						<SettingsView onDone={onDone} targetSection={targetSection} />
+					) : (
+						<SettingsView onDone={onDone} />
+					)}
 				</QueryClientProvider>
 			</TranslationProvider>
 		</ExtensionStateContextProvider>
@@ -383,9 +387,13 @@ const renderSettingsViewWithTranslations = (initialState: Record<string, any> = 
 
 	// Hydrate extension state before SettingsView initializes its local cachedState and TranslationProvider reads language.
 	mockPostMessage({ language: "en", ...initialState })
-	result.rerender(renderTree)
+	result.rerender(renderTree())
 
-	return { ...result, onDone }
+	const activateTab = (tabId: string) => {
+		result.rerender(renderTree(tabId))
+	}
+
+	return { ...result, onDone, activateTab }
 }
 
 describe("SettingsView - Localization", () => {
@@ -443,6 +451,19 @@ describe("SettingsView - Localization", () => {
 
 		expect(container).not.toHaveTextContent("settings:providers.openAiCodexFastMode.label")
 		expect(container).not.toHaveTextContent("settings:providers.openAiCodexRateLimits.title")
+	})
+
+	it("renders the Visual Browser Inspector auto-approve option with an explicit label", () => {
+		const { activateTab } = renderSettingsViewWithTranslations()
+
+		activateTab("autoApprove")
+
+		const content = screen.getByTestId("settings-content")
+		const visualBrowserInspectorToggle = within(content).getByTestId("always-allow-visual-browser-inspector-toggle")
+
+		expect(visualBrowserInspectorToggle).toBeInTheDocument()
+		expect(visualBrowserInspectorToggle).toHaveTextContent("Visual Browser Inspector")
+		expect(visualBrowserInspectorToggle).toHaveAttribute("aria-label", "Visual Browser Inspector")
 	})
 })
 

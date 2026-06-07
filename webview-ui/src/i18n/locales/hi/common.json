@@ -54,6 +54,10 @@
 		},
 		"noData": "कोई छवि डेटा नहीं"
 	},
+	"visualBrowserInspector": {
+		"emptyStatus": "कोई नियंत्रित Playwright ब्राउज़र सत्र सक्रिय नहीं है। पहले उपयोग पर, C Code Chromium को एक्सटेंशन स्टोरेज में अपने आप तैयार करता है।",
+		"headerDescription": "केवल नियंत्रित Playwright ब्राउज़र कैप्चर। C Code पहले उपयोग पर Chromium को एक्सटेंशन स्टोरेज में अपने आप तैयार करता है। आर्टिफैक्ट स्थानीय रूप से <artifactPath>.roo/visual-browser-inspector</artifactPath> में रहते हैं।"
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "अमान्य डेटा URI फॉर्मेट",

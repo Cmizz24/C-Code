@@ -54,6 +54,10 @@
 		},
 		"noData": "이미지 데이터 없음"
 	},
+	"visualBrowserInspector": {
+		"emptyStatus": "제어되는 Playwright 브라우저 세션이 활성 상태가 아닙니다. 처음 사용할 때 C Code가 확장 저장소에 Chromium을 자동으로 준비합니다.",
+		"headerDescription": "제어되는 Playwright 브라우저 캡처만 수행합니다. 처음 사용할 때 C Code가 확장 저장소에 Chromium을 자동으로 준비합니다. 아티팩트는 <artifactPath>.roo/visual-browser-inspector</artifactPath>에 로컬로 유지됩니다."
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "잘못된 데이터 URI 형식",

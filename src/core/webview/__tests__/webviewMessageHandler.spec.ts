@@ -1511,6 +1511,70 @@ describe("webviewMessageHandler - visualBrowserInspector", () => {
 		}
 	})
 
+	it("passes extension storage to VBI service actions and forwards browser setup progress", async () => {
+		const executeSpy = vi.spyOn(visualBrowserInspectorService, "execute").mockResolvedValue({
+			action: "visual_browser_open",
+			session: {
+				sessionId: "session-1",
+				status: "active",
+				url: "http://localhost:3000",
+				createdAt: "2026-01-01T00:00:00.000Z",
+				updatedAt: "2026-01-01T00:00:00.000Z",
+				viewport: { name: "mobile", width: 390, height: 844 },
+				headless: false,
+				allowExternal: false,
+				artifacts: {
+					rootDir: ".roo/visual-browser-inspector/session-1",
+					screenshotsDir: ".roo/visual-browser-inspector/session-1/screenshots",
+					cropsDir: ".roo/visual-browser-inspector/session-1/crops",
+					metadataPath: ".roo/visual-browser-inspector/session-1/metadata.json",
+					findingsPath: ".roo/visual-browser-inspector/session-1/findings.json",
+				},
+			},
+			message: "Controlled Playwright browser session opened.",
+		} as any)
+		const getPanelStateSpy = vi.spyOn(visualBrowserInspectorService, "getPanelState").mockReturnValue({
+			screenshots: [],
+			crops: [],
+			inspections: [],
+			findings: [],
+			statusMessage: "Ready",
+		})
+
+		try {
+			await webviewMessageHandler(mockClineProvider, {
+				type: "visualBrowserInspector",
+				payload: { action: "open", url: "http://localhost:3000", viewport: "mobile" },
+			} as any)
+
+			expect(executeSpy).toHaveBeenCalledWith(
+				expect.objectContaining({ action: "visual_browser_open", url: "http://localhost:3000" }),
+				expect.objectContaining({
+					cwd: "/mock/workspace",
+					globalStoragePath: "/mock/global/storage",
+					toWebviewUri: expect.any(Function),
+					log: expect.any(Function),
+					onBrowserInstallStatus: expect.any(Function),
+				}),
+			)
+
+			const [, options] = executeSpy.mock.calls[0]
+			await options.onBrowserInstallStatus?.("Preparing Chromium for Visual Browser Inspector.")
+
+			expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+				type: "visualBrowserInspector",
+				payload: expect.objectContaining({
+					message: "Preparing Chromium for Visual Browser Inspector.",
+					source: "panel",
+					status: "running",
+				}),
+			})
+		} finally {
+			executeSpy.mockRestore()
+			getPanelStateSpy.mockRestore()
+		}
+	})
+
 	it("routes a VBI follow-up code task to the main C Code provider while leaving the VBI provider in visual mode", async () => {
 		const getMainProviderSpy = vi
 			.spyOn(ClineProvider, "getOrOpenMainInstance")

@@ -54,6 +54,10 @@
 		},
 		"noData": "画像データなし"
 	},
+	"visualBrowserInspector": {
+		"emptyStatus": "制御された Playwright ブラウザーセッションはアクティブではありません。初回使用時に、C Code が拡張機能ストレージ内で Chromium を自動的に準備します。",
+		"headerDescription": "制御された Playwright ブラウザーのキャプチャのみ。初回使用時に、C Code が拡張機能ストレージ内で Chromium を自動的に準備します。アーティファクトは <artifactPath>.roo/visual-browser-inspector</artifactPath> にローカル保存されます。"
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "無効なデータURI形式",

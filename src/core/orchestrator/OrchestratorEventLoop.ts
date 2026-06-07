@@ -25,7 +25,7 @@ type SpawnedTaskRecord = {
 }
 
 type AgentTaskProvider = TaskProviderLike & {
-	createAgentWorktree?: (agentId: string, planId: string) => Promise<string>
+	createAgentWorktree?: (agentId: string, planId: string, agent?: AgentPlan) => Promise<string>
 	removeAgentWorktree?: (worktreePath: string) => Promise<void>
 	showMergeReview?: (plan: ExecutionPlan) => Promise<void>
 }
@@ -183,10 +183,8 @@ export class OrchestratorEventLoop {
 			}
 
 			const plan = this.bus.getExecutionPlan()
-			const agentMessage = this.buildAgentMessage(agent, plan)
-			const systemPromptSuffix = this.buildSystemPromptSuffix(agent, plan)
 			if (plan && this.provider.createAgentWorktree) {
-				agent.worktreePath = await this.provider.createAgentWorktree(agent.id, plan.planId)
+				agent.worktreePath = await this.provider.createAgentWorktree(agent.id, plan.planId, agent)
 			}
 
 			if (!this.running) {
@@ -195,6 +193,9 @@ export class OrchestratorEventLoop {
 				}
 				return
 			}
+
+			const agentMessage = this.buildAgentMessage(agent, plan)
+			const systemPromptSuffix = this.buildSystemPromptSuffix(agent, plan)
 
 			const task = await this.provider.createTask(agentMessage, undefined, this.orchestratorTask, {
 				mode: agent.mode,
@@ -325,6 +326,7 @@ export class OrchestratorEventLoop {
 
 	private buildAgentMessage(agent: AgentPlan, plan?: ExecutionPlan): string {
 		const dependencyContext = this.buildDependencyContext(agent)
+		const continuationContext = this.buildContinuationContext(agent)
 
 		return [
 			`You are agent ${agent.id}, running a normal single ${agent.mode} specialist task.`,
@@ -332,6 +334,7 @@ export class OrchestratorEventLoop {
 			plan?.sharedContract
 				? `Shared contract (must follow and acknowledge before completion):\n${plan.sharedContract}`
 				: undefined,
+			continuationContext ? `Continuation/reuse context:\n${continuationContext}` : undefined,
 			dependencyContext ? `Non-blocking dependency context:\n${dependencyContext}` : undefined,
 			`Task:\n${agent.task}`,
 			`Your primary ownership scope (advisory — you may edit files outside this scope when needed, but prefer files in scope):\n${agent.owns.map((ownership) => `- ${ownership.path} (${ownership.mode})`).join("\n") || "- none"}`,
@@ -357,6 +360,7 @@ export class OrchestratorEventLoop {
 
 	private buildSystemPromptSuffix(agent: AgentPlan, plan?: ExecutionPlan): string {
 		const dependencyContext = this.buildDependencyContext(agent)
+		const continuationContext = this.buildContinuationContext(agent)
 
 		return [
 			"Single-agent task guidance:",
@@ -364,6 +368,9 @@ export class OrchestratorEventLoop {
 			`- Execution plan: ${plan?.planId ?? "unknown"}`,
 			plan?.sharedContract
 				? `- Shared contract (must follow and acknowledge before completion):\n${plan.sharedContract}`
+				: undefined,
+			continuationContext
+				? `- Continuation/reuse context is compact context only. Prioritize the new request, current workspace state, current baseline, and the new ownership map. Never replay old child histories.\n${continuationContext}`
 				: undefined,
 			dependencyContext ? `- Non-blocking dependency context:\n${dependencyContext}` : undefined,
 			"- Treat this as one normal specialist task with one ownership scope, not as a complex orchestration task.",
@@ -400,5 +407,14 @@ export class OrchestratorEventLoop {
 				return `- Coordinate with ${dependency.agentId} (${coordinationPoint}, non-blocking)${dependency.context ? `: ${dependency.context}` : ""}`
 			})
 			.join("\n")
+	}
+
+	private buildContinuationContext(agent: AgentPlan): string {
+		const continuation = agent.continuation
+		if (continuation?.decision !== "reused" || !continuation.context) {
+			return ""
+		}
+
+		return continuation.context
 	}
 }

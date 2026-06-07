@@ -1,6 +1,7 @@
 import * as esbuild from "esbuild"
 import * as fs from "fs"
 import * as path from "path"
+import { createRequire } from "module"
 import { fileURLToPath } from "url"
 import process from "node:process"
 import * as console from "node:console"
@@ -9,6 +10,37 @@ import { copyPaths, copyWasms, copyLocales, setupLocaleWatcher } from "@roo-code
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+const require = createRequire(import.meta.url)
+
+function copyRuntimePackage(srcDir, dstDir) {
+	fs.rmSync(dstDir, { recursive: true, force: true })
+	fs.mkdirSync(dstDir, { recursive: true })
+	fs.cpSync(srcDir, dstDir, {
+		recursive: true,
+		dereference: true,
+		filter: (src) => {
+			const relativePath = path.relative(srcDir, src)
+
+			if (!relativePath) {
+				return true
+			}
+
+			const topLevelEntry = relativePath.split(path.sep)[0]
+			return topLevelEntry !== ".local-browsers" && topLevelEntry !== "node_modules"
+		},
+	})
+}
+
+function copyPlaywrightRuntimePackages(distDir) {
+	const nodeModulesDistDir = path.join(distDir, "node_modules")
+	const playwrightPackageDir = path.dirname(require.resolve("playwright/package.json"))
+	const playwrightRequire = createRequire(path.join(playwrightPackageDir, "package.json"))
+	const playwrightCorePackageDir = path.dirname(playwrightRequire.resolve("playwright-core/package.json"))
+
+	copyRuntimePackage(playwrightPackageDir, path.join(nodeModulesDistDir, "playwright"))
+	copyRuntimePackage(playwrightCorePackageDir, path.join(nodeModulesDistDir, "playwright-core"))
+	console.log(`[extension] Copied Playwright runtime packages into ${nodeModulesDistDir}`)
+}
 
 async function removeDirWithRetries(dirPath, retries = 5, retryDelayMs = 200) {
 	for (let attempt = 0; attempt <= retries; attempt++) {
@@ -84,6 +116,12 @@ async function main() {
 			name: "copyWasms",
 			setup(build) {
 				build.onEnd(() => copyWasms(srcDir, distDir))
+			},
+		},
+		{
+			name: "copyPlaywrightRuntimePackages",
+			setup(build) {
+				build.onEnd(() => copyPlaywrightRuntimePackages(distDir))
 			},
 		},
 		{

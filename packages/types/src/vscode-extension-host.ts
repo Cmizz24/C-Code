@@ -30,6 +30,7 @@ import type {
 	AgentStatusUpdate,
 	ExecutionPlan,
 	MergeReviewEntry,
+	ParallelPlanContinuationMetadata,
 	ParallelAgentReviewSummary,
 	ParallelPlanCompletionPacket,
 	WriteIntentConflict,
@@ -834,6 +835,7 @@ export interface ClineSayTool {
 	mergeReviewEntries?: MergeReviewEntry[]
 	agentCompletionPackets?: AgentCompletionPacket[]
 	parallelPlanCompletionPacket?: ParallelPlanCompletionPacket
+	parallelContinuation?: ParallelPlanContinuationMetadata
 	// For readCommandOutput
 	readStart?: number
 	readEnd?: number

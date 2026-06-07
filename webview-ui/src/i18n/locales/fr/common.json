@@ -54,6 +54,10 @@
 		},
 		"noData": "Aucune donnée d'image"
 	},
+	"visualBrowserInspector": {
+		"emptyStatus": "Aucune session de navigateur Playwright contrôlée n'est active. Au premier usage, C Code prépare automatiquement Chromium dans le stockage de l'extension.",
+		"headerDescription": "Capture du navigateur Playwright contrôlé uniquement. C Code prépare automatiquement Chromium dans le stockage de l'extension au premier usage. Les artefacts restent locaux sous <artifactPath>.roo/visual-browser-inspector</artifactPath>."
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "Format d'URI de données invalide",

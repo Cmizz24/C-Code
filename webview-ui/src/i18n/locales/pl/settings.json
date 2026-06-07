@@ -256,7 +256,7 @@
 			"description": "Automatycznie zatwierdzaj prawidłowe plany zadań równoległych i uruchamiaj agentów bez wyświetlania modala podglądu planu"
 		},
 		"visualBrowserInspector": {
-			"label": "Przeglądarka",
+			"label": "Visual Browser Inspector",
 			"description": "Automatycznie zatwierdzaj akcje Visual Browser Inspector z czatu, w tym otwieranie kontrolowanych stron przeglądarki, zrzuty ekranu, inspekcję DOM, wycinki, analizę i interakcje ze stroną. Nie pozwala to na edycję plików ani polecenia terminala."
 		},
 		"followupQuestions": {
