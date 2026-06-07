@@ -183,6 +183,8 @@ export type BuiltInModeGroup = keyof typeof DEFAULT_MODE_GROUPS
 export type BuiltInModeSlug = (typeof DEFAULT_MODE_GROUPS)[BuiltInModeGroup]["slugs"][number]
 
 const FRONTEND_FILE_REGEX = "\\.(tsx|jsx|css|scss|sass|less|html)$|(^|/)webview-ui/|(^|/)apps/[^/]+/src/"
+const IMAGE_ASSET_FILE_REGEX =
+	"\\.(png|jpe?g|webp|gif)$|(^|/)(images?|assets?|public|static|media|generated|outputs?)(/|$)[^.]*(/[^.]*)*$"
 const BACKEND_FILE_REGEX =
 	"(^|/)(src|apps|packages)/(api|server|services|routes|controllers|middleware|workers|backend|core)(/|$)|\\.(controller|service|route|middleware)\\.(ts|js)$"
 const DATABASE_FILE_REGEX = "(^|/)(migrations|prisma|drizzle|db|database)(/|$)|\\.(sql|prisma)$|schema\\.(ts|js)$"
@@ -244,7 +246,7 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 		description: "Coordinate parallel specialist agents",
 		groups: ["read", "mcp", "orchestrator"],
 		customInstructions:
-			"Use `plan_parallel_tasks` before `new_task` whenever work can be split across agents with independent file ownership. Assign a specialist mode slug to every agent; do not delegate everything to generic Code. Manage shared context, dependencies, must-not-touch paths, and AgentBus coordination. Put README, onboarding, documentation, interface, DOM, and API contracts in shared context; do not make independent implementation agents wait for README/onboarding/documentation agents. If documentation context is truly required before implementation, generate or verify it before spawning parallel agents. For simple single-agent tasks, fall back to sequential Boomerang-style delegation. Never write code yourself.",
+			"Use `plan_parallel_tasks` before `new_task` whenever work can be split across agents with independent file ownership. For simple capability-specific requests, including explicit image generation or image editing, do not create a parallel plan or use browser/MCP workarounds; route once with `switch_mode` or `new_task` to a mode that has the required tool group, using `code` for standalone image-generation requests or a frontend specialist when the image is tied to frontend assets. Assign a specialist mode slug to every agent; do not delegate everything to generic Code. Manage shared context, dependencies, must-not-touch paths, and AgentBus coordination. Put README, onboarding, documentation, interface, DOM, and API contracts in shared context; do not make independent implementation agents wait for README/onboarding/documentation agents. If documentation context is truly required before implementation, generate or verify it before spawning parallel agents. For simple single-agent tasks, fall back to sequential Boomerang-style delegation. Never write code yourself.",
 	},
 	{
 		slug: "ui-ux",
@@ -260,7 +262,7 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 			"command",
 			"mcp",
 			"visual_browser_inspector",
-			"image_generation",
+			["image_generation", { fileRegex: IMAGE_ASSET_FILE_REGEX, description: "Image asset outputs only" }],
 		],
 		customInstructions:
 			"Optimize for clarity, user intent, accessibility, and maintainable frontend patterns. Do not modify backend APIs or persistence unless explicitly delegated; coordinate with `api` or `integration` instead.",
@@ -278,7 +280,7 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 			"command",
 			"mcp",
 			"visual_browser_inspector",
-			"image_generation",
+			["image_generation", { fileRegex: IMAGE_ASSET_FILE_REGEX, description: "Image asset outputs only" }],
 		],
 		customInstructions:
 			"Keep components small, typed, accessible, and easy to compose. Respect existing state-management patterns and add focused component tests when behavior changes.",
@@ -297,7 +299,7 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 			"command",
 			"mcp",
 			"visual_browser_inspector",
-			"image_generation",
+			["image_generation", { fileRegex: IMAGE_ASSET_FILE_REGEX, description: "Image asset outputs only" }],
 		],
 		customInstructions:
 			"Prefer existing design tokens and Tailwind utilities over inline styles. Preserve accessibility and responsiveness. Avoid changing business logic unless required to expose styling hooks.",
@@ -334,7 +336,7 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 			"command",
 			"mcp",
 			"visual_browser_inspector",
-			"image_generation",
+			["image_generation", { fileRegex: IMAGE_ASSET_FILE_REGEX, description: "Image asset outputs only" }],
 		],
 		customInstructions:
 			"Use motion to clarify state changes, not distract. Respect reduced-motion preferences, avoid layout jank, and keep animation logic isolated from business logic.",

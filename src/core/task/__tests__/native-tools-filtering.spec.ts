@@ -194,17 +194,35 @@ describe("Native Tools Filtering by Mode", () => {
 
 			const switchModeTool = getNativeTools().find((tool: any) => tool.function.name === "switch_mode") as any
 			const newTaskTool = getNativeTools().find((tool: any) => tool.function.name === "new_task") as any
+			const generateImageTool = getNativeTools().find(
+				(tool: any) => tool.function.name === "generate_image",
+			) as any
+			const visualBrowserInspectorTool = getNativeTools().find(
+				(tool: any) => tool.function.name === "visual_browser_inspector",
+			) as any
 
 			expect(switchModeTool.function.description).toContain("requires a capability or tool group")
 			expect(switchModeTool.function.description).toContain("rather than refusing")
 			expect(switchModeTool.function.description).toContain("CLI Tools")
 			expect(switchModeTool.function.description).toContain("visual_browser_inspector")
 			expect(switchModeTool.function.description).toContain("image_generation")
+			expect(switchModeTool.function.description).toContain("standalone image-generation requests")
+			expect(switchModeTool.function.description).toContain("browser/MCP/manual web UI workarounds")
 
 			expect(newTaskTool.function.description).toContain("delegate work to a capable mode")
 			expect(newTaskTool.function.description).toContain("unavailable tools")
 			expect(newTaskTool.function.description).toContain("rather than refusing")
 			expect(newTaskTool.function.description).toContain("Prefer switch_mode")
+			expect(newTaskTool.function.description).toContain("explicit image-generation requests")
+			expect(newTaskTool.function.description).toContain("do not delegate to browser/MCP/manual web UI workflows")
+
+			expect(generateImageTool.function.description).toContain("primary path")
+			expect(generateImageTool.function.description).toContain("Do not use Visual Browser Inspector")
+			expect(generateImageTool.function.description).toContain("MCP tools")
+			expect(generateImageTool.function.description).toContain("images/<descriptive-name>.png")
+
+			expect(visualBrowserInspectorTool.function.description).toContain("Do not use this as a substitute")
+			expect(visualBrowserInspectorTool.function.description).toContain("generate_image")
 		})
 	})
 })

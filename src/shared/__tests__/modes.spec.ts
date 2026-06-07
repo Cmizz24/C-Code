@@ -44,6 +44,28 @@ describe("isToolAllowedForMode", () => {
 		expect(isToolAllowedForMode("read_file", "markdown-editor", customModes)).toBe(true)
 	})
 
+	it("configures frontend image-capable modes with dedicated image output restrictions", () => {
+		const frontendImageModes = ["ui-ux", "component", "css-styling", "animation"]
+
+		for (const slug of frontendImageModes) {
+			const mode = modes.find((entry) => entry.slug === slug)
+			expect(mode).toBeDefined()
+
+			const imageGroup = mode?.groups.find(
+				(group) => (Array.isArray(group) ? group[0] : group) === "image_generation",
+			)
+
+			expect(Array.isArray(imageGroup)).toBe(true)
+			expect(Array.isArray(imageGroup) ? imageGroup[1].fileRegex : undefined).toContain("png")
+			expect(Array.isArray(imageGroup) ? imageGroup[1].description : undefined).toContain("Image asset outputs")
+		}
+
+		const orchestrator = modes.find((entry) => entry.slug === "orchestrator")
+		expect(
+			orchestrator?.groups.some((group) => (Array.isArray(group) ? group[0] : group) === "image_generation"),
+		).toBe(false)
+	})
+
 	describe("file restrictions", () => {
 		it("allows editing matching files", () => {
 			// Test markdown editor mode

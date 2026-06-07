@@ -1,6 +1,6 @@
 import type OpenAI from "openai"
 
-const SWITCH_MODE_DESCRIPTION = `Request to switch to a different mode. Use this when the user's task should continue in the current conversation but requires a capability or tool group that the current mode does not have, rather than refusing or telling the user to do it manually. Examples: switch to Code for implementation or file edits, Debug for troubleshooting commands, CLI Tools for pure command-line work when available, a visual-inspection mode for visual_browser_inspector, or an image-capable mode for image_generation. The user must approve the mode switch.`
+const SWITCH_MODE_DESCRIPTION = `Request to switch to a different mode. Use this when the user's task should continue in the current conversation but requires a capability or tool group that the current mode does not have, rather than refusing or telling the user to do it manually. Examples: switch to Code for implementation or file edits, Debug for troubleshooting commands, CLI Tools for pure command-line work when available, a visual-inspection mode for visual_browser_inspector, or an image-capable mode for image_generation. For standalone image-generation requests from a mode without generate_image, switch to Code or another image-capable specialist rather than using browser/MCP/manual web UI workarounds. The user must approve the mode switch.`
 
 const MODE_SLUG_PARAMETER_DESCRIPTION = `Slug of the mode to switch to (e.g., code, ask, architect)`
 

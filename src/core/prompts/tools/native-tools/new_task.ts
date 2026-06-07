@@ -2,7 +2,7 @@ import type OpenAI from "openai"
 
 const NEW_TASK_DESCRIPTION = `Create a new task instance in the chosen mode using your provided message and initial todo list (if required).
 
-Use this to delegate work to a capable mode when the current mode should plan/orchestrate or when the requested operation needs unavailable tools to be handled separately, rather than refusing or telling the user to do it manually. Prefer switch_mode when the same task should simply continue in another mode after user approval; use new_task for delegated subtasks with their own context and todos.
+Use this to delegate work to a capable mode when the current mode should plan/orchestrate or when the requested operation needs unavailable tools to be handled separately, rather than refusing or telling the user to do it manually. For explicit image-generation requests from an orchestrating or restricted mode without generate_image, delegate once to Code for standalone image generation or to an image-capable specialist for frontend image assets; do not delegate to browser/MCP/manual web UI workflows unless the user explicitly asks for browser operation. Prefer switch_mode when the same task should simply continue in another mode after user approval; use new_task for delegated subtasks with their own context and todos.
 
 CRITICAL: This tool MUST be called alone. Do NOT call this tool alongside other tools in the same message turn. If you need to gather information before delegating, use other tools in a separate turn first, then call new_task by itself in the next turn.`
 
