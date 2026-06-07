@@ -880,12 +880,10 @@ describe("SettingsView - Image Generation Settings", () => {
 			openRouterImageGenerationApiMethod: "chat_completions",
 		})
 
-		activateTab("experimental")
+		activateTab("imageGeneration")
 
 		const content = getSettingsContent()
-		const apiKeyInput = within(content).getByPlaceholderText(
-			"settings:experimental.IMAGE_GENERATION.apiKeyPlaceholder",
-		)
+		const apiKeyInput = within(content).getByPlaceholderText("settings:imageGeneration.apiKeyPlaceholder")
 		fireEvent.change(apiKeyInput, { target: { value: "updated-openrouter-key" } })
 
 		const saveButton = screen.getByTestId("save-button")
@@ -921,12 +919,10 @@ describe("SettingsView - Image Generation Settings", () => {
 			openAiImageGenerationApiMethod: "chat_completions",
 		})
 
-		activateTab("experimental")
+		activateTab("imageGeneration")
 
 		const content = getSettingsContent()
-		const baseUrlInput = within(content).getByPlaceholderText(
-			"settings:experimental.IMAGE_GENERATION.baseUrlPlaceholder",
-		)
+		const baseUrlInput = within(content).getByPlaceholderText("settings:imageGeneration.baseUrlPlaceholder")
 		fireEvent.change(baseUrlInput, { target: { value: "https://compatible.example/v1" } })
 
 		const saveButton = screen.getByTestId("save-button")
