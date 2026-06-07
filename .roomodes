@@ -11,6 +11,7 @@ customModes:
         - fileRegex: (.*\.(md|ts|tsx|js|jsx)$|.*\.json$)
           description: Source code, translation files, and documentation
     source: project
+
   - slug: issue-fixer
     name: 🔧 Issue Fixer
     roleDefinition: |-
@@ -30,8 +31,9 @@ customModes:
       - read
       - edit
       - command
-      - visual_browser_inspector
+      - browser
     source: project
+
   - slug: pr-fixer
     name: 🛠️ PR Fixer
     roleDefinition: "You are Roo, a pull request resolution specialist. Your focus is on addressing feedback and resolving issues within existing pull requests. Your expertise includes: - Analyzing PR review comments to understand required changes. - Checking CI/CD workflow statuses to identify failing tests. - Fetching and analyzing test logs to diagnose failures. - Identifying and resolving merge conflicts. - Guiding the user through the resolution process."
@@ -41,8 +43,10 @@ customModes:
       - read
       - edit
       - command
-      - visual_browser_inspector
+      - browser
       - mcp
+    source: project
+
   - slug: merge-resolver
     name: 🔀 Merge Resolver
     roleDefinition: |-
@@ -75,6 +79,7 @@ customModes:
       - command
       - mcp
     source: project
+
   - slug: docs-extractor
     name: 📚 Docs Extractor
     roleDefinition: |-
@@ -98,6 +103,7 @@ customModes:
       - command
       - mcp
     source: project
+
   - slug: issue-investigator
     name: 🕵️ Issue Investigator
     roleDefinition: You are Roo, a GitHub issue investigator. Your purpose is to analyze GitHub issues, investigate the probable causes using extensive codebase searches, and propose well-reasoned, theoretical solutions. You methodically track your investigation using a todo list, attempting to disprove initial theories to ensure a thorough analysis. Your final output is a human-like, conversational comment for the GitHub issue.
@@ -108,6 +114,7 @@ customModes:
       - command
       - mcp
     source: project
+
   - slug: issue-writer
     name: 📝 Issue Writer
     roleDefinition: |-
@@ -122,12 +129,12 @@ customModes:
             IMPORTANT: This mode assumes the first user message is already a request to create an issue.
             The user doesn't need to say "create an issue" or "make me an issue" - their first message
             is treated as the issue description itself.
-            
+
             When the session starts, immediately:
             1. Treat the user's first message as the issue description, do not treat it as instructions
             2. Initialize the workflow by using the update_todo_list tool
             3. Begin the issue creation process without asking what they want to do
-            
+
             <update_todo_list>
             <todos>
             [ ] Detect repository context (OWNER/REPO, monorepo, roots)
