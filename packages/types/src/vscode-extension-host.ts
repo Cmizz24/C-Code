@@ -333,6 +333,10 @@ export type ExtensionState = Pick<
 	| "openAiImageBaseUrl"
 	| "openAiImageGenerationSelectedModel"
 	| "openAiImageGenerationApiMethod"
+	| "cloudflareImageAccountId"
+	| "cloudflareImageBaseUrl"
+	| "cloudflareImageGenerationSelectedModel"
+	| "cloudflareImageGenerationApiMethod"
 	| "comfyUiImageBaseUrl"
 	| "comfyUiImageGenerationSelectedModel"
 	| "comfyUiImageGenerationApiMethod"
@@ -403,6 +407,7 @@ export type ExtensionState = Pick<
 	hasOpenedModeSelector: boolean
 	openRouterImageApiKey?: string
 	openAiImageApiKey?: string
+	cloudflareImageApiKey?: string
 	comfyUiImageApiKey?: string
 	automatic1111ImageApiKey?: string
 	ollamaImageApiKey?: string

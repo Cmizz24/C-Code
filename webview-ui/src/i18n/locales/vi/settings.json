@@ -299,7 +299,7 @@
 		"description": "Khi bật, C có thể tạo và chỉnh sửa hình ảnh từ prompt bằng một nhà cung cấp tạo hình ảnh được cấu hình riêng.",
 		"providerLabel": "Nhà cung cấp",
 		"providerDescription": "Chọn nhà cung cấp dùng cho tạo hình ảnh. Cài đặt này độc lập với hồ sơ nhà cung cấp chat của bạn.",
-		"localProviderNote": "Ollama, LM Studio, ComfyUI và Automatic1111 không thể chọn ở đây vì bảng này hiện tập trung vào OpenRouter và các API tạo hình ảnh tương thích OpenAI.",
+		"localProviderNote": "Cloudflare Workers AI có sẵn cùng OpenRouter và các nhà cung cấp OpenAI/OpenAI-compatible. Ollama, LM Studio, ComfyUI và Automatic1111 không thể chọn trong bảng này.",
 		"apiKeyLabel": "Khóa API {{provider}}",
 		"optionalApiKeyLabel": "Khóa API {{provider}} (tùy chọn)",
 		"apiKeyPlaceholder": "Nhập khóa API {{provider}} của bạn",
@@ -323,7 +323,8 @@
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		},
 		"negativePromptLabel": "Prompt phủ định",
 		"negativePromptPlaceholder": "Nhập nội dung cần tránh trong hình ảnh được tạo",
@@ -333,7 +334,20 @@
 		"successConfigured": "✓ Tạo hình ảnh đã được cấu hình cho {{provider}} và sẵn sàng sử dụng",
 		"modelLabel": "Mô hình tạo hình ảnh",
 		"optionalModelDescription": "Tùy chọn. Để trống để dùng checkpoint hiện đang được nhà cung cấp tải.",
-		"openRouterModelDiscoveryDescription": "OpenRouter /models là công khai, nên danh sách này có thể bao gồm tất cả mô hình có đầu ra hình ảnh; khi bạn cung cấp khóa API hình ảnh, Roo dùng khóa đó cho kết quả theo tài khoản nếu OpenRouter trả về."
+		"openRouterModelDiscoveryDescription": "OpenRouter /models là công khai, nên danh sách này có thể bao gồm tất cả mô hình có đầu ra hình ảnh; khi bạn cung cấp khóa API hình ảnh, Roo dùng khóa đó cho kết quả theo tài khoản nếu OpenRouter trả về.",
+		"cloudflareAccountIdLabel": "ID tài khoản Cloudflare",
+		"cloudflareAccountIdPlaceholder": "Nhập ID tài khoản Cloudflare của bạn",
+		"cloudflareAccountIdDescription": "Bắt buộc. Tìm trong phần tổng quan tài khoản trên dashboard Cloudflare của bạn.",
+		"cloudflareBaseUrlDescription": "Để trống để dùng endpoint API v4 của Cloudflare: {{url}}.",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI dùng endpoint chạy tài khoản Workers AI để tạo hình ảnh.",
+		"warningMissingAccountId": "⚠️ {{provider}} yêu cầu ID tài khoản Cloudflare để tạo hình ảnh. Cấu hình ở trên.",
+		"cloudflarePricing": {
+			"title": "Giá và hạn mức miễn phí của Cloudflare Workers AI",
+			"quotaDescription": "Phân bổ miễn phí: {{freeAllocation}}. Đặt lại lúc {{resetTime}}. Phần vượt mức trả phí: {{paidOverage}}.",
+			"modelColumn": "Mô hình",
+			"priceColumn": "Giá",
+			"neuronsColumn": "Neurons"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "Tài liệu {{provider}}",

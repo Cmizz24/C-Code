@@ -14,7 +14,12 @@ import {
 } from "@roo-code/types"
 
 import { t } from "../../../i18n"
-import { generateImageWithImagesApi, generateImageWithProvider, type ImageGenerationResult } from "./image-generation"
+import {
+	generateImageWithCloudflareWorkersAi,
+	generateImageWithImagesApi,
+	generateImageWithProvider,
+	type ImageGenerationResult,
+} from "./image-generation"
 
 export interface ResolvedImageGenerationConfig {
 	provider: ActiveImageGenerationProvider
@@ -22,6 +27,7 @@ export interface ResolvedImageGenerationConfig {
 	baseURL: string
 	isLocal: boolean
 	authToken?: string
+	accountId?: string
 	model: string
 	apiMethod: ImageGenerationApiMethod
 	negativePrompt?: string
@@ -29,6 +35,7 @@ export interface ResolvedImageGenerationConfig {
 
 type ProviderState = {
 	apiKey?: string
+	accountId?: string
 	baseUrl?: string
 	model?: string
 	apiMethod?: ImageGenerationApiMethod
@@ -65,6 +72,14 @@ const getProviderState = (state: Partial<RooCodeSettings>, provider: ActiveImage
 				model: state.openAiImageGenerationSelectedModel,
 				apiMethod: state.openAiImageGenerationApiMethod,
 			}
+		case "cloudflare":
+			return {
+				apiKey: state.cloudflareImageApiKey,
+				accountId: state.cloudflareImageAccountId,
+				baseUrl: state.cloudflareImageBaseUrl,
+				model: state.cloudflareImageGenerationSelectedModel,
+				apiMethod: state.cloudflareImageGenerationApiMethod,
+			}
 	}
 }
 
@@ -94,11 +109,19 @@ export function resolveImageGenerationConfig(
 	const definition = IMAGE_GENERATION_PROVIDERS[provider]
 	const providerState = getProviderState(state, provider)
 	const authToken = providerState.apiKey?.trim()
+	const accountId = providerState.accountId?.trim()
 
 	if (definition.requiresApiKey && !authToken) {
 		return {
 			success: false,
 			error: t("tools:generateImage.apiKeyRequired", { provider: definition.label }),
+		}
+	}
+
+	if (provider === "cloudflare" && !accountId) {
+		return {
+			success: false,
+			error: t("tools:generateImage.accountIdRequired", { provider: definition.label }),
 		}
 	}
 
@@ -134,6 +157,7 @@ export function resolveImageGenerationConfig(
 			baseURL: normalizeConfiguredBaseUrl(providerState.baseUrl, provider),
 			isLocal: definition.isLocal,
 			authToken: authToken || undefined,
+			accountId: accountId || undefined,
 			model,
 			apiMethod,
 			negativePrompt: providerState.negativePrompt?.trim() || undefined,
@@ -187,6 +211,20 @@ export async function generateImageWithConfiguredProvider(options: {
 				...generatorOptions,
 				outputFormat: options.outputFormat,
 				provider: config.provider,
+			}),
+		)
+	}
+
+	if (config.apiMethod === "workers_ai") {
+		return withSafeMetadata(
+			await generateImageWithCloudflareWorkersAi({
+				baseURL: config.baseURL,
+				authToken: config.authToken,
+				accountId: config.accountId || "",
+				model: config.model,
+				prompt: options.prompt,
+				inputImage: options.inputImage,
+				provider: "cloudflare",
 			}),
 		)
 	}

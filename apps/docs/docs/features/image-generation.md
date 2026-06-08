@@ -6,6 +6,8 @@ keywords:
     - text to image
     - image transformation
     - OpenRouter
+    - Cloudflare Workers AI
+    - Workers AI
     - AI images
     - image-generation providers
     - image creation
@@ -27,7 +29,7 @@ Generate new images from text prompts or edit existing images in your workspace.
 - Edit and transform existing images in your workspace
 - Saves to your workspace at a path you choose; appropriate extension (.png or .jpg) is auto-added if missing
 - Shows a preview of the generated/edited image in the conversation
-- Supports remote providers such as OpenRouter and OpenAI/OpenAI-compatible endpoints
+- Supports remote providers such as OpenRouter, OpenAI/OpenAI-compatible endpoints, and Cloudflare Workers AI
 - Keeps image-generation provider settings separate from chat provider profiles
 
 ---
@@ -69,19 +71,24 @@ When invoked, Roo sends your prompt (and optionally an existing image) to your c
 - **Purpose:** Selects which provider Roo uses for image generation
 - **Default:** OpenRouter
 - **Location:** Settings > Image Generation
-- **Supported providers:** OpenRouter and OpenAI/OpenAI-compatible
+- **Supported providers:** OpenRouter, OpenAI/OpenAI-compatible, and Cloudflare Workers AI
 
 ### 2. Configure Credentials or Compatible Endpoint
 
-- Add the required API key. For OpenRouter, get your key at [https://openrouter.ai/keys](https://openrouter.ai/keys).
+- Add the required API key or token. For OpenRouter, get your key at [https://openrouter.ai/keys](https://openrouter.ai/keys). For Cloudflare Workers AI, configure an API token plus your Cloudflare account ID.
 - For OpenAI-compatible providers or proxies, configure the base URL that exposes an image-generation API.
+- For Cloudflare Workers AI, the default base URL is `https://api.cloudflare.com/client/v4`; Roo sends requests to `/accounts/{account}/ai/run/{model}` and authenticates with `Authorization: Bearer {token}`.
 
 ### 3. Image Generation Model and API Method
 
 - **Purpose:** Selects which model to use for generation
 - **Default:** Provider-specific default model
 - **OpenRouter model list:** Shows available image-output models separately from the normal chat model picker
-- **API method:** Uses the provider-supported method, such as Chat Completions or Images API
+- **API method:** Uses the provider-supported method, such as Chat Completions, Images API, or Workers AI
+
+### 4. Cloudflare Workers AI Pricing Guidance
+
+When Cloudflare Workers AI is selected, the Image Generation settings show Cloudflare's free allocation and Neuron pricing guidance. The displayed guidance includes the free daily allocation, reset time, paid overage rate, and model-specific pricing details where available. Confirm current billing details in the Cloudflare dashboard before generating production assets.
 
 ---
 
@@ -132,7 +139,7 @@ Include these elements in your prompts:
 
 - Provider availability and model lists vary by provider
 - Vision or image-understanding chat models are not image-generation models
-- OpenRouter and OpenAI-compatible provider limits, costs, and model availability can change; confirm current details in the provider dashboard
+- OpenRouter, OpenAI-compatible, and Cloudflare Workers AI provider limits, costs, and model availability can change; confirm current details in the provider dashboard
 - One image is produced per request
 - Output formats supported: PNG or JPG
 - Supported input formats for editing: PNG, JPG, JPEG, GIF, WEBP only

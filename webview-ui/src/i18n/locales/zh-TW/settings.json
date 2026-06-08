@@ -309,7 +309,7 @@
 		"description": "啟用後，C 可以使用單獨設定的影像生成供應商，從 prompt 生成和編輯影像。",
 		"providerLabel": "供應商",
 		"providerDescription": "選擇用於影像生成的供應商。這與你的 chat 供應商設定檔相互獨立。",
-		"localProviderNote": "Ollama、LM Studio、ComfyUI 和 Automatic1111 在這裡無法選擇，因為此面板現在專注於 OpenRouter 和 OpenAI-compatible 影像生成 API。",
+		"localProviderNote": "Cloudflare Workers AI 可與 OpenRouter 和 OpenAI/OpenAI-compatible 供應商一起使用。Ollama、LM Studio、ComfyUI 和 Automatic1111 無法在此面板中選取。",
 		"apiKeyLabel": "{{provider}} API 金鑰",
 		"optionalApiKeyLabel": "{{provider}} API 金鑰（選填）",
 		"apiKeyPlaceholder": "輸入你的 {{provider}} API 金鑰",
@@ -333,7 +333,8 @@
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		},
 		"negativePromptLabel": "Negative prompt",
 		"negativePromptPlaceholder": "輸入生成影像中要避免的內容",
@@ -343,7 +344,20 @@
 		"successConfigured": "✓ 已為 {{provider}} 設定影像生成，可以使用",
 		"modelLabel": "影像生成模型",
 		"optionalModelDescription": "選用。留空以使用供應商目前載入的 checkpoint。",
-		"openRouterModelDiscoveryDescription": "OpenRouter /models 是公開的，因此此清單可能包含所有支援影像輸出的模型；提供影像 API 金鑰時，如果 OpenRouter 回傳帳戶專屬結果，Roo 會使用該金鑰取得這些結果。"
+		"openRouterModelDiscoveryDescription": "OpenRouter /models 是公開的，因此此清單可能包含所有支援影像輸出的模型；提供影像 API 金鑰時，如果 OpenRouter 回傳帳戶專屬結果，Roo 會使用該金鑰取得這些結果。",
+		"cloudflareAccountIdLabel": "Cloudflare 帳戶 ID",
+		"cloudflareAccountIdPlaceholder": "輸入你的 Cloudflare 帳戶 ID",
+		"cloudflareAccountIdDescription": "必填。可在 Cloudflare 儀表板的帳戶概覽中找到。",
+		"cloudflareBaseUrlDescription": "留空以使用 Cloudflare 的 API v4 endpoint：{{url}}。",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI 使用 Workers AI 帳戶執行 endpoint 進行影像生成。",
+		"warningMissingAccountId": "⚠️ {{provider}} 需要 Cloudflare 帳戶 ID 才能生成影像。請在上方設定。",
+		"cloudflarePricing": {
+			"title": "Cloudflare Workers AI 價格與免費額度",
+			"quotaDescription": "免費額度：{{freeAllocation}}。於 {{resetTime}} 重設。付費超額：{{paidOverage}}。",
+			"modelColumn": "模型",
+			"priceColumn": "價格",
+			"neuronsColumn": "Neurons"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} 說明文件",

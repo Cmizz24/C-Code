@@ -299,7 +299,7 @@
 		"description": "Als dit is ingeschakeld, kan C afbeeldingen genereren en bewerken vanuit prompts met een apart geconfigureerde afbeeldingsgeneratieprovider.",
 		"providerLabel": "Provider",
 		"providerDescription": "Selecteer de provider voor afbeeldingsgeneratie. Dit staat los van je chatproviderprofiel.",
-		"localProviderNote": "Ollama, LM Studio, ComfyUI en Automatic1111 zijn hier niet selecteerbaar omdat dit paneel nu focust op OpenRouter en OpenAI-compatible API's voor afbeeldingsgeneratie.",
+		"localProviderNote": "Cloudflare Workers AI is beschikbaar naast OpenRouter en OpenAI/OpenAI-compatible providers. Ollama, LM Studio, ComfyUI en Automatic1111 zijn niet selecteerbaar in dit paneel.",
 		"apiKeyLabel": "{{provider}} API-sleutel",
 		"optionalApiKeyLabel": "{{provider}} API-sleutel (optioneel)",
 		"apiKeyPlaceholder": "Voer je {{provider}} API-sleutel in",
@@ -323,7 +323,8 @@
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		},
 		"negativePromptLabel": "Negatieve prompt",
 		"negativePromptPlaceholder": "Voer inhoud in die je in gegenereerde afbeeldingen wilt vermijden",
@@ -333,7 +334,20 @@
 		"successConfigured": "✓ Afbeeldingsgeneratie is geconfigureerd voor {{provider}} en klaar voor gebruik",
 		"modelLabel": "Afbeeldingsgeneratiemodel",
 		"optionalModelDescription": "Optioneel. Laat leeg om de checkpoint te gebruiken die momenteel door de provider is geladen.",
-		"openRouterModelDiscoveryDescription": "OpenRouter /models is openbaar, dus deze lijst kan alle modellen met afbeeldingsuitvoer bevatten; wanneer je een image API key opgeeft, gebruikt Roo die voor accountspecifieke resultaten wanneer OpenRouter ze terugstuurt."
+		"openRouterModelDiscoveryDescription": "OpenRouter /models is openbaar, dus deze lijst kan alle modellen met afbeeldingsuitvoer bevatten; wanneer je een image API key opgeeft, gebruikt Roo die voor accountspecifieke resultaten wanneer OpenRouter ze terugstuurt.",
+		"cloudflareAccountIdLabel": "Cloudflare-account-ID",
+		"cloudflareAccountIdPlaceholder": "Voer je Cloudflare-account-ID in",
+		"cloudflareAccountIdDescription": "Vereist. Je vindt het in het accountoverzicht van je Cloudflare-dashboard.",
+		"cloudflareBaseUrlDescription": "Laat leeg om Cloudflares API v4-endpoint te gebruiken: {{url}}.",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI gebruikt het Workers AI-account-run-endpoint voor afbeeldingsgeneratie.",
+		"warningMissingAccountId": "⚠️ {{provider}} vereist een Cloudflare-account-ID voor afbeeldingsgeneratie. Configureer het hierboven.",
+		"cloudflarePricing": {
+			"title": "Prijzen en gratis quotum voor Cloudflare Workers AI",
+			"quotaDescription": "Gratis toewijzing: {{freeAllocation}}. Wordt gereset om {{resetTime}}. Betaalde overschrijding: {{paidOverage}}.",
+			"modelColumn": "Model",
+			"priceColumn": "Prijs",
+			"neuronsColumn": "Neurons"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} documentatie",

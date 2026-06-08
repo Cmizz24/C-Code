@@ -22,12 +22,13 @@
 		"apiKeyRequired": "Cần khóa API {{provider}} để tạo hình ảnh. Vui lòng cấu hình trong cài đặt Tạo hình ảnh.",
 		"modelRequired": "{{provider}} yêu cầu ID mô hình để tạo hình ảnh. Vui lòng cấu hình trong cài đặt Tạo hình ảnh.",
 		"unsupportedApiMethod": "{{provider}} không hỗ trợ phương thức API tạo hình ảnh {{apiMethod}}.",
-		"unsupportedProvider": "{{provider}} không được hỗ trợ cho tạo hình ảnh. Hãy dùng OpenRouter hoặc endpoint tạo hình ảnh OpenAI/OpenAI-compatible thay thế.",
+		"unsupportedProvider": "{{provider}} không được hỗ trợ cho tạo hình ảnh. Hãy dùng OpenRouter, OpenAI/OpenAI-compatible hoặc Cloudflare Workers AI thay thế.",
 		"failedWithStatus": "Tạo hình ảnh thất bại: {{status}} {{statusText}}",
 		"failedWithMessage": "Tạo hình ảnh thất bại: {{message}}",
 		"noImageGenerated": "Không có hình ảnh nào được tạo trong phản hồi",
 		"invalidImageData": "Dữ liệu hình ảnh không hợp lệ trong phản hồi",
 		"invalidImageFormat": "Nhận được định dạng hình ảnh không hợp lệ",
-		"unknownError": "Đã xảy ra lỗi không xác định"
+		"unknownError": "Đã xảy ra lỗi không xác định",
+		"accountIdRequired": "Cần ID tài khoản {{provider}} để tạo hình ảnh. Vui lòng cấu hình trong cài đặt Tạo hình ảnh."
 	}
 }

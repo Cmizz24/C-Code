@@ -299,7 +299,7 @@
 		"description": "Quando ativado, C pode gerar e editar imagens a partir de prompts usando um provedor de geração de imagens configurado separadamente.",
 		"providerLabel": "Provedor",
 		"providerDescription": "Selecione o provedor a usar para geração de imagens. Ele é independente do seu perfil de provedor de chat.",
-		"localProviderNote": "Ollama, LM Studio, ComfyUI e Automatic1111 não podem ser selecionados aqui porque este painel agora foca no OpenRouter e em APIs de geração de imagens compatíveis com OpenAI.",
+		"localProviderNote": "Cloudflare Workers AI está disponível junto com OpenRouter e provedores OpenAI/OpenAI-compatible. Ollama, LM Studio, ComfyUI e Automatic1111 não podem ser selecionados neste painel.",
 		"apiKeyLabel": "Chave de API {{provider}}",
 		"optionalApiKeyLabel": "Chave de API {{provider}} (opcional)",
 		"apiKeyPlaceholder": "Insira sua chave de API {{provider}}",
@@ -323,7 +323,8 @@
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		},
 		"negativePromptLabel": "Prompt negativo",
 		"negativePromptPlaceholder": "Insira conteúdo a evitar nas imagens geradas",
@@ -333,7 +334,20 @@
 		"successConfigured": "✓ A geração de imagens está configurada para {{provider}} e pronta para uso",
 		"modelLabel": "Modelo de geração de imagens",
 		"optionalModelDescription": "Opcional. Deixe em branco para usar o checkpoint carregado atualmente pelo provedor.",
-		"openRouterModelDiscoveryDescription": "OpenRouter /models é público, então esta lista pode incluir todos os modelos com saída de imagem; quando você fornece uma chave de API de imagem, o Roo a usa para resultados específicos da conta quando o OpenRouter os retorna."
+		"openRouterModelDiscoveryDescription": "OpenRouter /models é público, então esta lista pode incluir todos os modelos com saída de imagem; quando você fornece uma chave de API de imagem, o Roo a usa para resultados específicos da conta quando o OpenRouter os retorna.",
+		"cloudflareAccountIdLabel": "ID da conta Cloudflare",
+		"cloudflareAccountIdPlaceholder": "Insira o ID da sua conta Cloudflare",
+		"cloudflareAccountIdDescription": "Obrigatório. Encontre-o na visão geral da conta no seu painel da Cloudflare.",
+		"cloudflareBaseUrlDescription": "Deixe em branco para usar o endpoint API v4 da Cloudflare: {{url}}.",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI usa o endpoint de execução da conta Workers AI para geração de imagens.",
+		"warningMissingAccountId": "⚠️ {{provider}} exige um ID da conta Cloudflare para geração de imagens. Configure-o acima.",
+		"cloudflarePricing": {
+			"title": "Preços e cota gratuita do Cloudflare Workers AI",
+			"quotaDescription": "Alocação gratuita: {{freeAllocation}}. Redefine às {{resetTime}}. Excedente pago: {{paidOverage}}.",
+			"modelColumn": "Modelo",
+			"priceColumn": "Preço",
+			"neuronsColumn": "Neurons"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "Documentação do {{provider}}",

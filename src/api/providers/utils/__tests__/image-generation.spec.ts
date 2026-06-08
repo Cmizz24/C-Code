@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import {
 	generateImageWithAutomatic1111,
+	generateImageWithCloudflareWorkersAi,
 	generateImageWithComfyUi,
 	generateImageWithImagesApi,
 	generateImageWithProvider,
@@ -1210,6 +1211,168 @@ describe("generateImageWithComfyUi", () => {
 		expect(result.error).toContain("endpoint=/prompt")
 		expect(result.error).toContain("provider=comfyui")
 		expect(result.error).toContain("model=sdxl.safetensors")
+	})
+})
+
+describe("generateImageWithCloudflareWorkersAi", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	afterEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("should call the account-scoped Workers AI endpoint with JSON prompt payloads", async () => {
+		vi.mocked(global.fetch).mockResolvedValue({
+			ok: true,
+			json: vi.fn().mockResolvedValue({
+				success: true,
+				result: { image: ONE_BY_ONE_PNG_BASE64 },
+			}),
+		} as any)
+
+		const result = await generateImageWithCloudflareWorkersAi({
+			baseURL: "https://api.cloudflare.com/client/v4/",
+			authToken: "cloudflare-token",
+			accountId: "account-123",
+			model: "@cf/black-forest-labs/flux-1-schnell",
+			prompt: "A cute cat",
+		})
+
+		expect(result).toMatchObject({
+			success: true,
+			imageData: `data:image/png;base64,${ONE_BY_ONE_PNG_BASE64}`,
+			imageFormat: "png",
+		})
+		expect(result.usage?.pricingDescription).toContain("FLUX.1 Schnell")
+		expect(result.usage?.quotaDescription).toContain("10,000 Neurons per day")
+		expect(global.fetch).toHaveBeenCalledWith(
+			"https://api.cloudflare.com/client/v4/accounts/account-123/ai/run/@cf/black-forest-labs/flux-1-schnell",
+			expect.objectContaining({
+				method: "POST",
+				headers: expect.objectContaining({
+					Authorization: "Bearer cloudflare-token",
+					"Content-Type": "application/json",
+				}),
+				body: JSON.stringify({ prompt: "A cute cat" }),
+			}),
+		)
+	})
+
+	it("should extract direct Cloudflare image fields and usage metadata", async () => {
+		vi.mocked(global.fetch).mockResolvedValue({
+			ok: true,
+			json: vi.fn().mockResolvedValue({
+				success: true,
+				image: ONE_BY_ONE_PNG_BASE64,
+				usage: { total_neurons: 250, estimated_cost_usd: 0.00275, currency: "USD" },
+			}),
+		} as any)
+
+		const result = await generateImageWithCloudflareWorkersAi({
+			baseURL: "https://api.cloudflare.com/client/v4",
+			accountId: "account-123",
+			model: "@cf/leonardo/phoenix-1.0",
+			prompt: "A cute cat",
+		})
+
+		expect(result).toMatchObject({
+			success: true,
+			imageData: `data:image/png;base64,${ONE_BY_ONE_PNG_BASE64}`,
+			imageFormat: "png",
+			usage: {
+				neurons: 250,
+				estimatedCost: 0.00275,
+				currency: "USD",
+			},
+		})
+	})
+
+	it("should normalize binary Workers AI image responses", async () => {
+		const imageBuffer = Buffer.from("cloudflare image data")
+		vi.mocked(global.fetch).mockResolvedValue({
+			ok: true,
+			headers: {
+				get: vi.fn((header: string) => (header.toLowerCase() === "content-type" ? "image/jpeg" : null)),
+			},
+			arrayBuffer: vi
+				.fn()
+				.mockResolvedValue(
+					imageBuffer.buffer.slice(imageBuffer.byteOffset, imageBuffer.byteOffset + imageBuffer.byteLength),
+				),
+		} as any)
+
+		const result = await generateImageWithCloudflareWorkersAi({
+			baseURL: "https://api.cloudflare.com/client/v4",
+			accountId: "account-123",
+			model: "@cf/black-forest-labs/flux-1-schnell",
+			prompt: "A cute cat",
+		})
+
+		expect(result).toMatchObject({
+			success: true,
+			imageData: `data:image/jpeg;base64,${imageBuffer.toString("base64")}`,
+			imageFormat: "jpeg",
+		})
+	})
+
+	it("should surface Cloudflare error wrapper messages", async () => {
+		vi.mocked(global.fetch).mockResolvedValue({
+			ok: true,
+			json: vi.fn().mockResolvedValue({
+				success: false,
+				errors: [{ message: "Model is not available" }, { message: "Account is not authorized" }],
+			}),
+		} as any)
+
+		const result = await generateImageWithCloudflareWorkersAi({
+			baseURL: "https://api.cloudflare.com/client/v4",
+			accountId: "account-123",
+			model: "@cf/black-forest-labs/flux-1-schnell",
+			prompt: "A cute cat",
+		})
+
+		expect(result).toEqual({
+			success: false,
+			error: "Model is not available; Account is not authorized",
+		})
+	})
+
+	it("should send multipart requests for FLUX.2 image-input Workers AI models", async () => {
+		vi.mocked(global.fetch).mockResolvedValue({
+			ok: true,
+			json: vi.fn().mockResolvedValue({
+				success: true,
+				result: { image: ONE_BY_ONE_PNG_BASE64 },
+			}),
+		} as any)
+
+		const result = await generateImageWithCloudflareWorkersAi({
+			baseURL: "https://api.cloudflare.com/client/v4",
+			authToken: "cloudflare-token",
+			accountId: "account-123",
+			model: "@cf/black-forest-labs/flux-2-dev",
+			prompt: "Make it cinematic",
+			inputImage: `data:image/png;base64,${ONE_BY_ONE_PNG_BASE64}`,
+		})
+
+		expect(result.success).toBe(true)
+		const [callUrl, callOptions] = vi.mocked(global.fetch).mock.calls[0]
+		expect(callUrl).toBe(
+			"https://api.cloudflare.com/client/v4/accounts/account-123/ai/run/@cf/black-forest-labs/flux-2-dev",
+		)
+		expect(callOptions?.headers).toEqual(
+			expect.objectContaining({
+				Authorization: "Bearer cloudflare-token",
+			}),
+		)
+		expect(callOptions?.headers).not.toHaveProperty("Content-Type")
+
+		const formData = callOptions?.body as unknown as { append: ReturnType<typeof vi.fn> }
+		expect(formData.append).toHaveBeenCalledWith("prompt", "Make it cinematic")
+		expect(global.Blob).toHaveBeenCalledWith([expect.any(ArrayBuffer)], { type: "image/png" })
+		expect(formData.append).toHaveBeenCalledWith("image", expect.any(Object), "input.png")
 	})
 })
 

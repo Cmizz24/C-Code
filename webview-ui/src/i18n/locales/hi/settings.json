@@ -299,7 +299,7 @@
 		"description": "सक्षम होने पर, C अलग से कॉन्फ़िगर किए गए छवि निर्माण प्रदाता का उपयोग करके prompts से छवियाँ बना और संपादित कर सकता है।",
 		"providerLabel": "प्रदाता",
 		"providerDescription": "छवि निर्माण के लिए उपयोग करने वाला प्रदाता चुनें। यह आपके chat प्रदाता प्रोफ़ाइल से स्वतंत्र है।",
-		"localProviderNote": "Ollama, LM Studio, ComfyUI और Automatic1111 यहाँ selectable नहीं हैं क्योंकि यह panel अब OpenRouter और OpenAI-compatible image-generation APIs पर केंद्रित है.",
+		"localProviderNote": "Cloudflare Workers AI, OpenRouter और OpenAI/OpenAI-compatible providers के साथ उपलब्ध है। Ollama, LM Studio, ComfyUI और Automatic1111 इस panel में selectable नहीं हैं।",
 		"apiKeyLabel": "{{provider}} API कुंजी",
 		"optionalApiKeyLabel": "{{provider}} API कुंजी (वैकल्पिक)",
 		"apiKeyPlaceholder": "अपनी {{provider}} API कुंजी दर्ज करें",
@@ -323,7 +323,8 @@
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		},
 		"negativePromptLabel": "Negative prompt",
 		"negativePromptPlaceholder": "Generated images में बचाने वाला content दर्ज करें",
@@ -333,7 +334,20 @@
 		"successConfigured": "✓ छवि निर्माण {{provider}} के लिए कॉन्फ़िगर है और उपयोग के लिए तैयार है",
 		"modelLabel": "छवि निर्माण मॉडल",
 		"optionalModelDescription": "वैकल्पिक। provider द्वारा वर्तमान में loaded checkpoint इस्तेमाल करने के लिए खाली छोड़ें.",
-		"openRouterModelDiscoveryDescription": "OpenRouter /models सार्वजनिक है, इसलिए इस सूची में सभी image-output मॉडल शामिल हो सकते हैं; जब आप image API key देते हैं, तो OpenRouter द्वारा लौटाए जाने पर Roo खाते-विशिष्ट परिणामों के लिए इसका उपयोग करता है."
+		"openRouterModelDiscoveryDescription": "OpenRouter /models सार्वजनिक है, इसलिए इस सूची में सभी image-output मॉडल शामिल हो सकते हैं; जब आप image API key देते हैं, तो OpenRouter द्वारा लौटाए जाने पर Roo खाते-विशिष्ट परिणामों के लिए इसका उपयोग करता है.",
+		"cloudflareAccountIdLabel": "Cloudflare Account ID",
+		"cloudflareAccountIdPlaceholder": "अपना Cloudflare account ID दर्ज करें",
+		"cloudflareAccountIdDescription": "ज़रूरी। इसे अपने Cloudflare dashboard के account overview में ढूँढें।",
+		"cloudflareBaseUrlDescription": "Cloudflare का API v4 endpoint इस्तेमाल करने के लिए खाली छोड़ें: {{url}}.",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI, image generation के लिए Workers AI account run endpoint इस्तेमाल करता है।",
+		"warningMissingAccountId": "⚠️ {{provider}} को image generation के लिए Cloudflare account ID चाहिए। इसे ऊपर configure करें।",
+		"cloudflarePricing": {
+			"title": "Cloudflare Workers AI pricing और free quota",
+			"quotaDescription": "Free allocation: {{freeAllocation}}. {{resetTime}} पर reset होता है. Paid overage: {{paidOverage}}.",
+			"modelColumn": "Model",
+			"priceColumn": "Price",
+			"neuronsColumn": "Neurons"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} दस्तावेज़ीकरण",

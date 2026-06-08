@@ -3,6 +3,7 @@ import type { RooCodeSettings } from "@roo-code/types"
 import { generateImageWithConfiguredProvider, resolveImageGenerationConfig } from "../image-generation-provider"
 import {
 	generateImageWithAutomatic1111,
+	generateImageWithCloudflareWorkersAi,
 	generateImageWithComfyUi,
 	generateImageWithImagesApi,
 	generateImageWithProvider,
@@ -23,6 +24,7 @@ vi.mock("../../../../i18n", () => ({
 
 vi.mock("../image-generation", () => ({
 	generateImageWithAutomatic1111: vi.fn(),
+	generateImageWithCloudflareWorkersAi: vi.fn(),
 	generateImageWithComfyUi: vi.fn(),
 	generateImageWithImagesApi: vi.fn(),
 	generateImageWithProvider: vi.fn(),
@@ -102,6 +104,52 @@ describe("resolveImageGenerationConfig", () => {
 			authToken: "openai-key",
 			model: "dall-e-3",
 			apiMethod: "images_api",
+		})
+	})
+
+	it("should require Cloudflare account IDs after validating API tokens", () => {
+		const result = resolveImageGenerationConfig(
+			state({
+				imageGenerationProvider: "cloudflare",
+				cloudflareImageApiKey: "cloudflare-token",
+				cloudflareImageGenerationSelectedModel: "@cf/black-forest-labs/flux-1-schnell",
+			}),
+		)
+
+		expect(result.success).toBe(false)
+		if (result.success) {
+			throw new Error("Expected Cloudflare resolution to fail without an account ID")
+		}
+		expect(result.error).toBe("tools:generateImage.accountIdRequired(provider=Cloudflare Workers AI)")
+	})
+
+	it("should resolve Cloudflare Workers AI settings with a trimmed endpoint and workers_ai method", () => {
+		const result = resolveImageGenerationConfig(
+			state({
+				imageGenerationProvider: "cloudflare",
+				cloudflareImageApiKey: "  cloudflare-token  ",
+				cloudflareImageAccountId: "  account-123  ",
+				cloudflareImageBaseUrl: " https://cloudflare.example/client/v4/// ",
+				cloudflareImageGenerationSelectedModel: "  @cf/black-forest-labs/flux-1-schnell  ",
+				cloudflareImageGenerationApiMethod: "images_api",
+			}),
+		)
+
+		expect(result.success).toBe(true)
+		if (!result.success) {
+			throw new Error(result.error)
+		}
+
+		expect(result.config).toEqual({
+			provider: "cloudflare",
+			providerLabel: "Cloudflare Workers AI",
+			baseURL: "https://cloudflare.example/client/v4",
+			isLocal: false,
+			authToken: "cloudflare-token",
+			accountId: "account-123",
+			model: "@cf/black-forest-labs/flux-1-schnell",
+			apiMethod: "workers_ai",
+			negativePrompt: undefined,
 		})
 	})
 
@@ -214,6 +262,11 @@ describe("generateImageWithConfiguredProvider", () => {
 			imageData: "data:image/png;base64,chatcompletions",
 			imageFormat: "png",
 		})
+		vi.mocked(generateImageWithCloudflareWorkersAi).mockResolvedValue({
+			success: true,
+			imageData: "data:image/png;base64,cloudflare",
+			imageFormat: "png",
+		})
 		vi.mocked(generateImageWithComfyUi).mockResolvedValue({
 			success: true,
 			imageData: "data:image/png;base64,comfyui",
@@ -262,6 +315,7 @@ describe("generateImageWithConfiguredProvider", () => {
 			provider: "openai",
 		})
 		expect(generateImageWithProvider).not.toHaveBeenCalled()
+		expect(generateImageWithCloudflareWorkersAi).not.toHaveBeenCalled()
 		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
 		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
@@ -283,6 +337,7 @@ describe("generateImageWithConfiguredProvider", () => {
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
 		expect(generateImageWithProvider).not.toHaveBeenCalled()
+		expect(generateImageWithCloudflareWorkersAi).not.toHaveBeenCalled()
 		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
 		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
@@ -325,6 +380,7 @@ describe("generateImageWithConfiguredProvider", () => {
 			provider: "openrouter",
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
+		expect(generateImageWithCloudflareWorkersAi).not.toHaveBeenCalled()
 		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
 		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
@@ -365,6 +421,48 @@ describe("generateImageWithConfiguredProvider", () => {
 			provider: "openrouter",
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
+		expect(generateImageWithCloudflareWorkersAi).not.toHaveBeenCalled()
+		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
+		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
+	})
+
+	it("should dispatch Cloudflare Workers AI configurations to the Workers AI helper", async () => {
+		const result = await generateImageWithConfiguredProvider({
+			state: state({
+				imageGenerationProvider: "cloudflare",
+				cloudflareImageApiKey: "cloudflare-token",
+				cloudflareImageAccountId: "account-123",
+				cloudflareImageBaseUrl: "https://cloudflare.example/client/v4/",
+				cloudflareImageGenerationSelectedModel: "@cf/black-forest-labs/flux-1-schnell",
+			}),
+			prompt: "Draw with Cloudflare",
+			inputImage: "data:image/png;base64,input",
+		})
+
+		expect(result).toEqual({
+			success: true,
+			imageData: "data:image/png;base64,cloudflare",
+			imageFormat: "png",
+			metadata: {
+				provider: "cloudflare",
+				providerLabel: "Cloudflare Workers AI",
+				baseURL: "https://cloudflare.example/client/v4",
+				model: "@cf/black-forest-labs/flux-1-schnell",
+				apiMethod: "workers_ai",
+				isLocal: false,
+			},
+		})
+		expect(generateImageWithCloudflareWorkersAi).toHaveBeenCalledWith({
+			baseURL: "https://cloudflare.example/client/v4",
+			authToken: "cloudflare-token",
+			accountId: "account-123",
+			model: "@cf/black-forest-labs/flux-1-schnell",
+			prompt: "Draw with Cloudflare",
+			inputImage: "data:image/png;base64,input",
+			provider: "cloudflare",
+		})
+		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
+		expect(generateImageWithProvider).not.toHaveBeenCalled()
 		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
 		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
@@ -403,6 +501,7 @@ describe("generateImageWithConfiguredProvider", () => {
 			provider: "openrouter",
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
+		expect(generateImageWithCloudflareWorkersAi).not.toHaveBeenCalled()
 		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
 		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
@@ -438,6 +537,7 @@ describe("generateImageWithConfiguredProvider", () => {
 			provider: "openai",
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
+		expect(generateImageWithCloudflareWorkersAi).not.toHaveBeenCalled()
 		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
 		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
@@ -456,6 +556,7 @@ describe("generateImageWithConfiguredProvider", () => {
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
 		expect(generateImageWithProvider).not.toHaveBeenCalled()
+		expect(generateImageWithCloudflareWorkersAi).not.toHaveBeenCalled()
 		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
 		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})

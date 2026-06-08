@@ -299,7 +299,7 @@
 		"description": "Wenn aktiviert, kann C Bilder aus Prompts mit einem separat konfigurierten Bildgenerierungsanbieter erstellen und bearbeiten.",
 		"providerLabel": "Anbieter",
 		"providerDescription": "Wähle den Anbieter für die Bildgenerierung aus. Das ist unabhängig von deinem Chat-Anbieterprofil.",
-		"localProviderNote": "Ollama, LM Studio, ComfyUI und Automatic1111 sind hier nicht auswählbar, weil sich dieses Panel jetzt auf OpenRouter und OpenAI-kompatible Bildgenerierungs-APIs konzentriert.",
+		"localProviderNote": "Cloudflare Workers AI ist zusammen mit OpenRouter und OpenAI/OpenAI-kompatiblen Anbietern verfügbar. Ollama, LM Studio, ComfyUI und Automatic1111 sind in diesem Bereich nicht auswählbar.",
 		"apiKeyLabel": "{{provider}} API-Schlüssel",
 		"optionalApiKeyLabel": "{{provider}} API-Schlüssel (optional)",
 		"apiKeyPlaceholder": "Gib deinen {{provider}} API-Schlüssel ein",
@@ -323,7 +323,8 @@
 			"chat_completions": "Chat Completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		},
 		"negativePromptLabel": "Negativer Prompt",
 		"negativePromptPlaceholder": "Gib Inhalte ein, die in generierten Bildern vermieden werden sollen",
@@ -333,7 +334,20 @@
 		"successConfigured": "✓ Bildgenerierung ist für {{provider}} konfiguriert und einsatzbereit",
 		"modelLabel": "Bildgenerierungsmodell",
 		"optionalModelDescription": "Optional. Leer lassen, um den aktuell vom Anbieter geladenen Checkpoint zu verwenden.",
-		"openRouterModelDiscoveryDescription": "OpenRouter /models ist öffentlich, daher kann die Liste alle Modelle mit Bildausgabe enthalten; wenn du einen Image-API-Schlüssel angibst, verwendet Roo ihn für kontospezifische Ergebnisse, sofern OpenRouter sie zurückgibt."
+		"openRouterModelDiscoveryDescription": "OpenRouter /models ist öffentlich, daher kann die Liste alle Modelle mit Bildausgabe enthalten; wenn du einen Image-API-Schlüssel angibst, verwendet Roo ihn für kontospezifische Ergebnisse, sofern OpenRouter sie zurückgibt.",
+		"cloudflareAccountIdLabel": "Cloudflare-Konto-ID",
+		"cloudflareAccountIdPlaceholder": "Gib deine Cloudflare-Konto-ID ein",
+		"cloudflareAccountIdDescription": "Erforderlich. Du findest sie in der Kontoübersicht deines Cloudflare-Dashboards.",
+		"cloudflareBaseUrlDescription": "Leer lassen, um Cloudflares API-v4-Endpoint zu verwenden: {{url}}.",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI verwendet den Workers-AI-Konto-Run-Endpoint für die Bildgenerierung.",
+		"warningMissingAccountId": "⚠️ {{provider}} benötigt eine Cloudflare-Konto-ID für die Bildgenerierung. Konfiguriere sie oben.",
+		"cloudflarePricing": {
+			"title": "Preise und kostenloses Kontingent für Cloudflare Workers AI",
+			"quotaDescription": "Kostenloses Kontingent: {{freeAllocation}}. Zurückgesetzt um {{resetTime}}. Kostenpflichtige Mehrnutzung: {{paidOverage}}.",
+			"modelColumn": "Modell",
+			"priceColumn": "Preis",
+			"neuronsColumn": "Neurons"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}}-Dokumentation",

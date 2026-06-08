@@ -7,6 +7,8 @@ import {
 	getImageGenerationModels,
 	getImageGenerationProvider,
 	ACTIVE_IMAGE_GENERATION_PROVIDER_DEFINITIONS,
+	CLOUDFLARE_WORKERS_AI_FREE_ALLOCATION,
+	CLOUDFLARE_WORKERS_AI_IMAGE_MODEL_PRICING,
 	IMAGE_GENERATION_PROVIDERS,
 	type ImageGenerationModel,
 	type ImageGenerationApiMethod,
@@ -61,6 +63,7 @@ export const ImageGenerationSettings = ({
 	const configuredModel = getStringSetting(settingsKeys.model)?.trim()
 	const defaultModel = getDefaultImageGenerationModel(currentProvider)
 	const currentModel = configuredModel || defaultModel
+	const configuredAccountId = getStringSetting(settingsKeys.accountId) ?? ""
 	const configuredBaseUrl = getStringSetting(settingsKeys.baseUrl) ?? ""
 	const configuredApiKey = getStringSetting(settingsKeys.apiKey) ?? ""
 	const configuredOpenRouterBaseUrl = getStringSetting("openRouterImageBaseUrl") ?? ""
@@ -131,10 +134,14 @@ export const ImageGenerationSettings = ({
 	const apiMethodLockedByModel = !!currentModelInfo?.apiMethod
 	const configuredNegativePrompt = getStringSetting(settingsKeys.negativePrompt) ?? ""
 	const hasRequiredApiKey = !providerDefinition.requiresApiKey || configuredApiKey.trim().length > 0
+	const hasRequiredAccountId = !settingsKeys.accountId || configuredAccountId.trim().length > 0
 	const requiresModel = providerDefinition.requiresModel ?? true
 	const hasModel = !requiresModel || currentModel.trim().length > 0
-	const isConfigured = hasRequiredApiKey && hasModel
-	const apiMethodDescriptionKey = "settings:imageGeneration.apiMethodDescription"
+	const isConfigured = hasRequiredApiKey && hasRequiredAccountId && hasModel
+	const apiMethodDescriptionKey =
+		currentProvider === "cloudflare"
+			? "settings:imageGeneration.cloudflareApiMethodDescription"
+			: "settings:imageGeneration.apiMethodDescription"
 	const modelFieldPlaceholder = providerDefinition.defaultModel
 		? t("settings:imageGeneration.modelIdPlaceholderWithDefault", {
 				model: providerDefinition.defaultModel,
@@ -151,6 +158,12 @@ export const ImageGenerationSettings = ({
 
 	const handleModelChange = (value: string) => {
 		setImageGenerationSetting(settingsKeys.model, value)
+	}
+
+	const handleAccountIdChange = (value: string) => {
+		if (settingsKeys.accountId) {
+			setImageGenerationSetting(settingsKeys.accountId, value)
+		}
 	}
 
 	const handleNegativePromptChange = (value: string) => {
@@ -182,6 +195,68 @@ export const ImageGenerationSettings = ({
 					</VSCodeOption>
 				))}
 			</VSCodeDropdown>
+		)
+	}
+
+	const renderCloudflarePricing = () => {
+		if (currentProvider !== "cloudflare") {
+			return null
+		}
+
+		return (
+			<div className="rounded border border-vscode-panel-border bg-vscode-editor-background p-3 text-xs text-vscode-descriptionForeground">
+				<div className="mb-2 text-sm font-medium text-vscode-foreground">
+					{t("settings:imageGeneration.cloudflarePricing.title")}
+				</div>
+				<p className="mb-3 mt-0">
+					{t("settings:imageGeneration.cloudflarePricing.quotaDescription", {
+						freeAllocation: CLOUDFLARE_WORKERS_AI_FREE_ALLOCATION.neuronsPerDay,
+						resetTime: CLOUDFLARE_WORKERS_AI_FREE_ALLOCATION.resetTime,
+						paidOverage: CLOUDFLARE_WORKERS_AI_FREE_ALLOCATION.paidOverage,
+					})}
+				</p>
+				<div className="overflow-x-auto">
+					<table className="w-full border-collapse text-left">
+						<thead>
+							<tr className="border-b border-vscode-panel-border">
+								<th className="py-1 pr-3 font-medium text-vscode-foreground">
+									{t("settings:imageGeneration.cloudflarePricing.modelColumn")}
+								</th>
+								<th className="py-1 pr-3 font-medium text-vscode-foreground">
+									{t("settings:imageGeneration.cloudflarePricing.priceColumn")}
+								</th>
+								<th className="py-1 font-medium text-vscode-foreground">
+									{t("settings:imageGeneration.cloudflarePricing.neuronsColumn")}
+								</th>
+							</tr>
+						</thead>
+						<tbody>
+							{CLOUDFLARE_WORKERS_AI_IMAGE_MODEL_PRICING.map((pricing) => (
+								<tr key={pricing.model} className="border-b border-vscode-panel-border last:border-b-0">
+									<td className="py-2 pr-3 align-top">
+										<div className="font-medium text-vscode-foreground">{pricing.label}</div>
+										<div className="font-mono text-[11px]">{pricing.model}</div>
+									</td>
+									<td className="py-2 pr-3 align-top">
+										<ul className="m-0 list-none p-0">
+											{pricing.priceDetails.map((detail) => (
+												<li key={detail}>{detail}</li>
+											))}
+										</ul>
+									</td>
+									<td className="py-2 align-top">
+										<ul className="m-0 list-none p-0">
+											{pricing.neuronDetails.map((detail) => (
+												<li key={detail}>{detail}</li>
+											))}
+										</ul>
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+			</div>
 		)
 	}
 
@@ -253,6 +328,23 @@ export const ImageGenerationSettings = ({
 						</div>
 					)}
 
+					{settingsKeys.accountId && (
+						<div>
+							<label className="block font-medium mb-1">
+								{t("settings:imageGeneration.cloudflareAccountIdLabel")}
+							</label>
+							<VSCodeTextField
+								value={configuredAccountId}
+								onInput={(e: any) => handleAccountIdChange(e.target.value)}
+								placeholder={t("settings:imageGeneration.cloudflareAccountIdPlaceholder")}
+								className="w-full"
+							/>
+							<p className="text-vscode-descriptionForeground text-xs mt-1">
+								{t("settings:imageGeneration.cloudflareAccountIdDescription")}
+							</p>
+						</div>
+					)}
+
 					<div>
 						<label className="block font-medium mb-1">{t("settings:imageGeneration.baseUrlLabel")}</label>
 						<VSCodeTextField
@@ -265,9 +357,13 @@ export const ImageGenerationSettings = ({
 							type="url"
 						/>
 						<p className="text-vscode-descriptionForeground text-xs mt-1">
-							{t("settings:imageGeneration.baseUrlDescription", {
-								url: providerDefinition.defaultBaseUrl,
-							})}
+							{currentProvider === "cloudflare"
+								? t("settings:imageGeneration.cloudflareBaseUrlDescription", {
+										url: providerDefinition.defaultBaseUrl,
+									})
+								: t("settings:imageGeneration.baseUrlDescription", {
+										url: providerDefinition.defaultBaseUrl,
+									})}
 						</p>
 					</div>
 
@@ -320,13 +416,15 @@ export const ImageGenerationSettings = ({
 							))}
 						</VSCodeDropdown>
 						<p className="text-vscode-descriptionForeground text-xs mt-1">
-							{apiMethodLockedByModel && currentModelInfo
+							{apiMethodLockedByModel && currentModelInfo && currentProvider !== "cloudflare"
 								? t("settings:imageGeneration.apiMethodLockedDescription", {
 										model: currentModelInfo.label,
 									})
 								: t(apiMethodDescriptionKey)}
 						</p>
 					</div>
+
+					{renderCloudflarePricing()}
 
 					{!hasRequiredApiKey && (
 						<div className="p-2 bg-vscode-editorWarning-background text-vscode-editorWarning-foreground rounded text-sm">
@@ -336,7 +434,15 @@ export const ImageGenerationSettings = ({
 						</div>
 					)}
 
-					{hasRequiredApiKey && requiresModel && !hasModel && (
+					{hasRequiredApiKey && !hasRequiredAccountId && (
+						<div className="p-2 bg-vscode-editorWarning-background text-vscode-editorWarning-foreground rounded text-sm">
+							{t("settings:imageGeneration.warningMissingAccountId", {
+								provider: providerDefinition.label,
+							})}
+						</div>
+					)}
+
+					{hasRequiredApiKey && hasRequiredAccountId && requiresModel && !hasModel && (
 						<div className="p-2 bg-vscode-editorWarning-background text-vscode-editorWarning-foreground rounded text-sm">
 							{t("settings:imageGeneration.warningMissingModel", {
 								provider: providerDefinition.label,

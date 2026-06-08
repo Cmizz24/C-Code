@@ -170,6 +170,56 @@ describe("ImageGenerationSettings", () => {
 			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith("openAiImageGenerationApiMethod", "images_api")
 		})
 
+		it("should update Cloudflare Workers AI provider-specific fields", () => {
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					imageGenerationSettings={{
+						imageGenerationProvider: "cloudflare",
+						cloudflareImageApiKey: "existing-cloudflare-token",
+						cloudflareImageAccountId: "existing-account-id",
+						cloudflareImageBaseUrl: "https://api.cloudflare.com/client/v4",
+						cloudflareImageGenerationSelectedModel: "@cf/black-forest-labs/flux-1-schnell",
+						cloudflareImageGenerationApiMethod: "workers_ai",
+					}}
+				/>,
+			)
+
+			fireEvent.change(
+				screen.getByPlaceholderText(
+					"settings:imageGeneration.apiKeyPlaceholder(provider=Cloudflare Workers AI)",
+				),
+				{ target: { value: "updated-cloudflare-token" } },
+			)
+			fireEvent.change(screen.getByPlaceholderText("settings:imageGeneration.cloudflareAccountIdPlaceholder"), {
+				target: { value: "updated-account-id" },
+			})
+			fireEvent.change(
+				screen.getByPlaceholderText(
+					"settings:imageGeneration.baseUrlPlaceholder(url=https://api.cloudflare.com/client/v4)",
+				),
+				{ target: { value: "https://cloudflare.example/client/v4" } },
+			)
+			fireEvent.change(screen.getAllByRole("combobox")[1], {
+				target: { value: "@cf/leonardo/phoenix-1.0" },
+			})
+
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith(
+				"cloudflareImageApiKey",
+				"updated-cloudflare-token",
+			)
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith("cloudflareImageAccountId", "updated-account-id")
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith(
+				"cloudflareImageBaseUrl",
+				"https://cloudflare.example/client/v4",
+			)
+			expect(mockSetImageGenerationSetting).toHaveBeenCalledWith(
+				"cloudflareImageGenerationSelectedModel",
+				"@cf/leonardo/phoenix-1.0",
+			)
+			expect(screen.getByDisplayValue("settings:imageGeneration.apiMethodLabels.workers_ai")).toBeDisabled()
+		})
+
 		it("should update OpenRouter fields when a removed provider is saved", () => {
 			render(
 				<ImageGenerationSettings
@@ -332,6 +382,50 @@ describe("ImageGenerationSettings", () => {
 			).toBeInTheDocument()
 		})
 
+		it("should render Cloudflare account, locked Workers AI method, and pricing guidance", () => {
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					imageGenerationSettings={{
+						imageGenerationProvider: "cloudflare",
+						cloudflareImageApiKey: "cloudflare-token",
+					}}
+				/>,
+			)
+
+			expect(
+				screen.getByPlaceholderText(
+					"settings:imageGeneration.apiKeyPlaceholder(provider=Cloudflare Workers AI)",
+				),
+			).toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.cloudflareAccountIdLabel")).toBeInTheDocument()
+			expect(
+				screen.getByPlaceholderText("settings:imageGeneration.cloudflareAccountIdPlaceholder"),
+			).toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.cloudflareAccountIdDescription")).toBeInTheDocument()
+			expect(
+				screen.getByText(
+					"settings:imageGeneration.cloudflareBaseUrlDescription(url=https://api.cloudflare.com/client/v4)",
+				),
+			).toBeInTheDocument()
+			expect(screen.getByDisplayValue("settings:imageGeneration.apiMethodLabels.workers_ai")).toBeDisabled()
+			expect(screen.getByText("settings:imageGeneration.cloudflareApiMethodDescription")).toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.cloudflarePricing.title")).toBeInTheDocument()
+			expect(
+				screen.getByText(
+					"settings:imageGeneration.cloudflarePricing.quotaDescription(freeAllocation=10,000 Neurons per day,resetTime=00:00 UTC,paidOverage=$0.011 / 1,000 Neurons)",
+				),
+			).toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.cloudflarePricing.modelColumn")).toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.cloudflarePricing.priceColumn")).toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.cloudflarePricing.neuronsColumn")).toBeInTheDocument()
+			expect(screen.getAllByText("FLUX.1 Schnell")).toHaveLength(2)
+			expect(screen.getByText("@cf/black-forest-labs/flux-1-schnell")).toBeInTheDocument()
+			expect(
+				screen.getByText("settings:imageGeneration.warningMissingAccountId(provider=Cloudflare Workers AI)"),
+			).toBeInTheDocument()
+		})
+
 		it("should render active provider choices only and normalize removed providers to OpenRouter", () => {
 			render(
 				<ImageGenerationSettings
@@ -346,7 +440,7 @@ describe("ImageGenerationSettings", () => {
 				within(providerSelect)
 					.getAllByRole("option")
 					.map((option) => option.textContent),
-			).toEqual(["OpenRouter", "OpenAI / OpenAI Compatible"])
+			).toEqual(["OpenRouter", "OpenAI / OpenAI Compatible", "Cloudflare Workers AI"])
 			expect(within(providerSelect).queryByRole("option", { name: "ComfyUI" })).not.toBeInTheDocument()
 			expect(within(providerSelect).queryByRole("option", { name: "Automatic1111" })).not.toBeInTheDocument()
 			expect(within(providerSelect).queryByRole("option", { name: "Ollama" })).not.toBeInTheDocument()

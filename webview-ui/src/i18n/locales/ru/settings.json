@@ -299,7 +299,7 @@
 		"description": "Когда включено, C может генерировать и редактировать изображения по prompt'ам с помощью отдельно настроенного провайдера генерации изображений.",
 		"providerLabel": "Провайдер",
 		"providerDescription": "Выберите провайдера для генерации изображений. Он не зависит от профиля провайдера чата.",
-		"localProviderNote": "Ollama, LM Studio, ComfyUI и Automatic1111 здесь нельзя выбрать, потому что эта панель теперь ориентирована на OpenRouter и OpenAI-compatible API генерации изображений.",
+		"localProviderNote": "Cloudflare Workers AI доступен вместе с OpenRouter и провайдерами OpenAI/OpenAI-compatible. Ollama, LM Studio, ComfyUI и Automatic1111 нельзя выбрать на этой панели.",
 		"apiKeyLabel": "API-ключ {{provider}}",
 		"optionalApiKeyLabel": "API-ключ {{provider}} (необязательно)",
 		"apiKeyPlaceholder": "Введите API-ключ {{provider}}",
@@ -323,7 +323,8 @@
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		},
 		"negativePromptLabel": "Негативный prompt",
 		"negativePromptPlaceholder": "Введи, чего нужно избегать в сгенерированных изображениях",
@@ -333,7 +334,20 @@
 		"successConfigured": "✓ Генерация изображений настроена для {{provider}} и готова к использованию",
 		"modelLabel": "Модель генерации изображений",
 		"optionalModelDescription": "Необязательно. Оставь пустым, чтобы использовать checkpoint, сейчас загруженный провайдером.",
-		"openRouterModelDiscoveryDescription": "OpenRouter /models является публичным, поэтому список может включать все модели с выводом изображений; когда ты указываешь API-ключ для изображений, Roo использует его для результатов, связанных с аккаунтом, если OpenRouter их возвращает."
+		"openRouterModelDiscoveryDescription": "OpenRouter /models является публичным, поэтому список может включать все модели с выводом изображений; когда ты указываешь API-ключ для изображений, Roo использует его для результатов, связанных с аккаунтом, если OpenRouter их возвращает.",
+		"cloudflareAccountIdLabel": "ID аккаунта Cloudflare",
+		"cloudflareAccountIdPlaceholder": "Введи ID своего аккаунта Cloudflare",
+		"cloudflareAccountIdDescription": "Обязательно. Найди его в обзоре аккаунта на панели Cloudflare.",
+		"cloudflareBaseUrlDescription": "Оставь пустым, чтобы использовать endpoint API v4 Cloudflare: {{url}}.",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI использует endpoint запуска аккаунта Workers AI для генерации изображений.",
+		"warningMissingAccountId": "⚠️ {{provider}} требует ID аккаунта Cloudflare для генерации изображений. Настрой его выше.",
+		"cloudflarePricing": {
+			"title": "Цены и бесплатная квота Cloudflare Workers AI",
+			"quotaDescription": "Бесплатная квота: {{freeAllocation}}. Сбрасывается в {{resetTime}}. Платное превышение: {{paidOverage}}.",
+			"modelColumn": "Модель",
+			"priceColumn": "Цена",
+			"neuronsColumn": "Neurons"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "Документация {{provider}}",

@@ -120,6 +120,11 @@ export const globalSettingsSchema = z.object({
 	openAiImageBaseUrl: z.string().optional(),
 	openAiImageGenerationSelectedModel: z.string().optional(),
 	openAiImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+	cloudflareImageApiKey: z.string().optional(),
+	cloudflareImageAccountId: z.string().optional(),
+	cloudflareImageBaseUrl: z.string().optional(),
+	cloudflareImageGenerationSelectedModel: z.string().optional(),
+	cloudflareImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
 	comfyUiImageApiKey: z.string().optional(),
 	comfyUiImageBaseUrl: z.string().optional(),
 	comfyUiImageGenerationSelectedModel: z.string().optional(),
@@ -352,6 +357,7 @@ export const SECRET_STATE_KEYS = [
 export const GLOBAL_SECRET_KEYS = [
 	"openRouterImageApiKey", // For image generation
 	"openAiImageApiKey", // For image generation
+	"cloudflareImageApiKey", // For Cloudflare Workers AI image generation
 	"comfyUiImageApiKey", // For image generation with authenticated ComfyUI instances/proxies
 	"automatic1111ImageApiKey", // For image generation with authenticated Automatic1111 instances/proxies
 	"ollamaImageApiKey", // For image generation with authenticated local/cloud instances

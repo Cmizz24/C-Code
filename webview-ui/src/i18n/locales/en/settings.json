@@ -361,7 +361,7 @@
 		"description": "When enabled, C can generate and edit images from prompts using a separately configured image-generation provider.",
 		"providerLabel": "Provider",
 		"providerDescription": "Select the provider to use for image generation. This is independent from your chat provider profile.",
-		"localProviderNote": "Ollama, LM Studio, ComfyUI, and Automatic1111 are not selectable here because this panel now focuses on OpenRouter and OpenAI-compatible image-generation APIs.",
+		"localProviderNote": "Cloudflare Workers AI is available alongside OpenRouter and OpenAI/OpenAI-compatible providers. Ollama, LM Studio, ComfyUI, and Automatic1111 are not selectable in this panel.",
 		"apiKeyLabel": "{{provider}} API Key",
 		"optionalApiKeyLabel": "{{provider}} API Key (optional)",
 		"apiKeyPlaceholder": "Enter your {{provider}} API key",
@@ -385,7 +385,8 @@
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		},
 		"negativePromptLabel": "Negative prompt",
 		"negativePromptPlaceholder": "Enter content to avoid in generated images",
@@ -395,7 +396,20 @@
 		"successConfigured": "✓ Image generation is configured for {{provider}} and ready to use",
 		"modelLabel": "Image Generation Model",
 		"optionalModelDescription": "Optional. Leave blank to use the checkpoint currently loaded by the provider.",
-		"openRouterModelDiscoveryDescription": "OpenRouter /models is public, so this list may include all image-output models; when you provide an image API key, Roo uses it for account-specific results when OpenRouter returns them."
+		"openRouterModelDiscoveryDescription": "OpenRouter /models is public, so this list may include all image-output models; when you provide an image API key, Roo uses it for account-specific results when OpenRouter returns them.",
+		"cloudflareAccountIdLabel": "Cloudflare Account ID",
+		"cloudflareAccountIdPlaceholder": "Enter your Cloudflare account ID",
+		"cloudflareAccountIdDescription": "Required. Find it in your Cloudflare dashboard account overview.",
+		"cloudflareBaseUrlDescription": "Leave blank to use Cloudflare's API v4 endpoint: {{url}}.",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI uses the Workers AI account run endpoint for image generation.",
+		"warningMissingAccountId": "⚠️ {{provider}} requires a Cloudflare account ID for image generation. Configure it above.",
+		"cloudflarePricing": {
+			"title": "Cloudflare Workers AI pricing and free quota",
+			"quotaDescription": "Free allocation: {{freeAllocation}}. Resets at {{resetTime}}. Paid overage: {{paidOverage}}.",
+			"modelColumn": "Model",
+			"priceColumn": "Price",
+			"neuronsColumn": "Neurons"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} documentation",

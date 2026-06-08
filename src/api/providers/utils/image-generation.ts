@@ -1,4 +1,9 @@
-import type { GeneratedImageMetadata, ImageGenerationUsageDetails } from "@roo-code/types"
+import {
+	CLOUDFLARE_WORKERS_AI_FREE_ALLOCATION,
+	CLOUDFLARE_WORKERS_AI_IMAGE_MODEL_PRICING,
+	type GeneratedImageMetadata,
+	type ImageGenerationUsageDetails,
+} from "@roo-code/types"
 
 import { t } from "../../../i18n"
 
@@ -36,9 +41,22 @@ interface ImagesApiResponse {
 	}
 }
 
-type ImageGenerationProviderName = "openrouter" | "openai" | "comfyui" | "automatic1111"
+interface CloudflareWorkersAiResponse {
+	result?: unknown
+	image?: string
+	errors?: Array<{ message?: string }>
+	success?: boolean
+	usage?: unknown
+}
 
-type ImageGenerationApiMethodName = "chat_completions" | "images_api" | "comfyui_api" | "automatic1111_api"
+type ImageGenerationProviderName = "openrouter" | "openai" | "cloudflare" | "comfyui" | "automatic1111"
+
+type ImageGenerationApiMethodName =
+	| "chat_completions"
+	| "images_api"
+	| "workers_ai"
+	| "comfyui_api"
+	| "automatic1111_api"
 
 export interface ImageGenerationResult {
 	success: boolean
@@ -68,6 +86,16 @@ export interface ImagesApiOptions {
 	quality?: string
 	outputFormat?: string
 	provider?: ImageGenerationProviderName
+}
+
+export interface CloudflareWorkersAiImageGenerationOptions {
+	baseURL: string
+	authToken?: string
+	accountId: string
+	model: string
+	prompt: string
+	inputImage?: string
+	provider?: Extract<ImageGenerationProviderName, "cloudflare">
 }
 
 export interface Automatic1111ImageGenerationOptions {
@@ -107,10 +135,10 @@ const buildOptionalAuthHeaders = (authToken?: string): Record<string, string> =>
 	authToken ? { Authorization: `Bearer ${authToken}` } : {}
 
 const IMAGE_GENERATION_CONFIGURATION_GUIDANCE =
-	"Check that the configured image generation provider, base URL, API method, and model support text-to-image or image-edit generation. Use OpenRouter image-output models or an OpenAI/OpenAI-compatible Images API endpoint; vision/image-understanding models can analyze images, but they are not image-generation models."
+	"Check that the configured image generation provider, base URL, API method, and model support text-to-image or image-edit generation. Use OpenRouter image-output models, Cloudflare Workers AI image models, or an OpenAI/OpenAI-compatible Images API endpoint; vision/image-understanding models can analyze images, but they are not image-generation models."
 
 const IMAGE_GENERATION_RESPONSE_GUIDANCE =
-	"Expected image data in one of these response shapes: OpenAI Images API data[0].b64_json or data[0].url; OpenAI-compatible chat choices[0].message.images[].image_url.url; image, message.images, or images values containing base64 image strings; or text content containing a data:image/...;base64 URL or markdown image data URL. Use a real image-generation model through OpenRouter or an OpenAI/OpenAI-compatible Images API endpoint; vision/image-understanding models are not valid image-generation models."
+	"Expected image data in one of these response shapes: OpenAI Images API data[0].b64_json or data[0].url; OpenAI-compatible chat choices[0].message.images[].image_url.url; Cloudflare Workers AI result.image or image base64 values; image, message.images, or images values containing base64 image strings; binary image responses; or text content containing a data:image/...;base64 URL or markdown image data URL. Use a real image-generation model through OpenRouter, Cloudflare Workers AI, or an OpenAI/OpenAI-compatible Images API endpoint; vision/image-understanding models are not valid image-generation models."
 
 const STREAM_EVENTS_PROPERTY = "__streamEvents" as const
 
@@ -203,16 +231,46 @@ const extractImageGenerationUsageDetails = (value: unknown): ImageGenerationUsag
 		"images_count",
 		"generated_images",
 	])
-	const cost = getFirstNumberField(usageRecord, ["cost", "total_cost", "totalCost", "cost_usd"])
+	const neurons = getFirstNumberField(usageRecord, [
+		"neurons",
+		"total_neurons",
+		"totalNeurons",
+		"neuron_count",
+		"neuronCount",
+	])
+	const estimatedNeurons = getFirstNumberField(usageRecord, [
+		"estimatedNeurons",
+		"estimated_neurons",
+		"estimated_total_neurons",
+		"estimatedTotalNeurons",
+	])
+	const cost = getFirstNumberField(usageRecord, ["cost", "total_cost", "totalCost", "cost_usd", "costUsd"])
+	const estimatedCost = getFirstNumberField(usageRecord, [
+		"estimatedCost",
+		"estimated_cost",
+		"estimated_cost_usd",
+		"estimatedCostUsd",
+	])
 	const currency = getFirstStringField(usageRecord, ["currency", "cost_currency"])
+	const pricingDescription = getFirstStringField(usageRecord, [
+		"pricingDescription",
+		"pricing_description",
+		"pricing",
+	])
+	const quotaDescription = getFirstStringField(usageRecord, ["quotaDescription", "quota_description", "quota"])
 
 	const usage: ImageGenerationUsageDetails = {
 		...(tokensIn !== undefined && { tokensIn }),
 		...(tokensOut !== undefined && { tokensOut }),
 		...(totalTokens !== undefined && { totalTokens }),
 		...(imageCount !== undefined && { imageCount }),
+		...(neurons !== undefined && { neurons }),
+		...(estimatedNeurons !== undefined && { estimatedNeurons }),
 		...(cost !== undefined && { cost }),
+		...(estimatedCost !== undefined && { estimatedCost }),
 		...(currency !== undefined && { currency }),
+		...(pricingDescription !== undefined && { pricingDescription }),
+		...(quotaDescription !== undefined && { quotaDescription }),
 	}
 
 	return Object.keys(usage).length > 0 ? usage : undefined
@@ -494,6 +552,15 @@ const getErrorMessageFromErrorResponse = async (
 			return formatProviderError(errorJson.error.message)
 		}
 
+		const cloudflareErrorMessage = getCloudflareWorkersAiErrorMessage(errorJson)
+		if (cloudflareErrorMessage) {
+			return formatProviderError(cloudflareErrorMessage)
+		}
+
+		if (isRecord(errorJson) && typeof errorJson.message === "string" && errorJson.message.trim()) {
+			return formatProviderError(errorJson.message)
+		}
+
 		if (isRecord(errorJson)) {
 			return formatProviderErrorWithDiagnostics(
 				`The image generation provider returned an error response (${formatResponseStatus(response)}). ${IMAGE_GENERATION_CONFIGURATION_GUIDANCE}`,
@@ -513,6 +580,28 @@ const getErrorMessageFromErrorResponse = async (
 	}
 
 	return statusMessage
+}
+
+const getCloudflareWorkersAiErrorMessage = (value: unknown): string | undefined => {
+	if (!isRecord(value)) {
+		return undefined
+	}
+
+	if (Array.isArray(value.errors)) {
+		const messages = value.errors
+			.map((error) => (isRecord(error) && typeof error.message === "string" ? error.message.trim() : undefined))
+			.filter((message): message is string => Boolean(message))
+
+		if (messages.length > 0) {
+			return messages.join("; ")
+		}
+	}
+
+	if (value.success === false) {
+		return "Cloudflare Workers AI returned an unsuccessful response without an error message."
+	}
+
+	return undefined
 }
 
 const getImageFormatFromContentType = (contentType: string | null | undefined): string | undefined => {
@@ -846,6 +935,22 @@ const getImageCandidateFromProviderRecord = (
 		}
 	}
 
+	if (isRecord(record.result)) {
+		const resultCandidate = getImageCandidateFromProviderRecord(
+			record.result as ProviderResponseRecord,
+			fallbackFormat,
+			false,
+		)
+		if (resultCandidate) {
+			return resultCandidate
+		}
+	}
+
+	const directResultCandidate = getImageCandidateFromImageValue(record.result, fallbackFormat)
+	if (directResultCandidate) {
+		return directResultCandidate
+	}
+
 	const data = record.data
 	if (Array.isArray(data)) {
 		const dataCandidate = getImageCandidateFromImagesArray(data, fallbackFormat)
@@ -920,6 +1025,52 @@ const getNoExtractableImageError = (
 	)
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+type CloudflareWorkersAiRequestFormat = (typeof CLOUDFLARE_WORKERS_AI_IMAGE_MODEL_PRICING)[number]["requestFormat"]
+
+const getCloudflareWorkersAiModelPricing = (model: string) =>
+	CLOUDFLARE_WORKERS_AI_IMAGE_MODEL_PRICING.find((pricing) => pricing.model === model.trim())
+
+const getCloudflareWorkersAiRequestFormat = (model: string): CloudflareWorkersAiRequestFormat =>
+	getCloudflareWorkersAiModelPricing(model)?.requestFormat ?? "json"
+
+const buildCloudflareWorkersAiEndpoint = (baseURL: string, accountId: string, model: string): string => {
+	const normalizedBaseUrl = baseURL.trim().replace(/\/+$/, "")
+	const normalizedAccountId = encodeURIComponent(accountId.trim())
+	const normalizedModel = model.trim().replace(/^\/+/, "")
+	return `${normalizedBaseUrl}/accounts/${normalizedAccountId}/ai/run/${normalizedModel}`
+}
+
+const getCloudflareWorkersAiUsageDetails = (
+	model: string,
+	response?: CloudflareWorkersAiResponse,
+): ImageGenerationUsageDetails | undefined => {
+	const usageFromResponse = response
+		? extractImageGenerationUsageDetails(response) ||
+			(isRecord(response.result) ? extractImageGenerationUsageDetails(response.result) : undefined)
+		: undefined
+	const pricing = getCloudflareWorkersAiModelPricing(model)
+
+	const usage: ImageGenerationUsageDetails = {
+		...(usageFromResponse ?? {}),
+		...(pricing && {
+			pricingDescription: `${pricing.label}: ${pricing.priceDetails.join("; ")}. Neurons: ${pricing.neuronDetails.join("; ")}`,
+		}),
+		quotaDescription: `Free allocation: ${CLOUDFLARE_WORKERS_AI_FREE_ALLOCATION.neuronsPerDay}; resets at ${CLOUDFLARE_WORKERS_AI_FREE_ALLOCATION.resetTime}; paid overage: ${CLOUDFLARE_WORKERS_AI_FREE_ALLOCATION.paidOverage}.`,
+	}
+
+	return Object.keys(usage).length > 0 ? usage : undefined
+}
+
+const appendCloudflareWorkersAiInputImage = (formData: FormData, inputImage: string): boolean => {
+	const editInput = getImageEditInputFromDataUrl(inputImage)
+	if (!editInput) {
+		return false
+	}
+
+	formData.append("image", new Blob([editInput.data], { type: editInput.mimeType }), editInput.filename)
+	return true
+}
 
 interface Automatic1111ImageGenerationResponse {
 	images?: unknown[]
@@ -1465,6 +1616,108 @@ export async function generateImageWithProvider(options: ImageGenerationOptions)
 			success: true,
 			...normalizedImage,
 			usage: extractImageGenerationUsageDetails(result),
+		}
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : t("tools:generateImage.unknownError"),
+		}
+	}
+}
+
+/**
+ * Generate an image using Cloudflare Workers AI's account-scoped REST API.
+ */
+export async function generateImageWithCloudflareWorkersAi(
+	options: CloudflareWorkersAiImageGenerationOptions,
+): Promise<ImageGenerationResult> {
+	const { baseURL, authToken, accountId, model, prompt, inputImage, provider = "cloudflare" } = options
+
+	try {
+		const url = buildCloudflareWorkersAiEndpoint(baseURL, accountId, model)
+		const diagnosticsContext: ProviderResponseDiagnosticsContext = {
+			provider,
+			apiMethod: "workers_ai",
+			endpoint: getEndpointPath(url),
+			model,
+		}
+		const requestFormat = getCloudflareWorkersAiRequestFormat(model)
+		let fetchOptions: RequestInit
+
+		if (requestFormat === "multipart") {
+			const formData = new FormData()
+			appendFormDataString(formData, "prompt", prompt)
+			if (inputImage && !appendCloudflareWorkersAiInputImage(formData, inputImage)) {
+				return {
+					success: false,
+					error: formatProviderError(
+						"Cloudflare Workers AI image-to-image generation requires a data:image/...;base64 input image for multipart models.",
+					),
+				}
+			}
+
+			fetchOptions = {
+				method: "POST",
+				headers: buildMultipartImageGenerationHeaders(authToken),
+				body: formData,
+			}
+		} else {
+			fetchOptions = {
+				method: "POST",
+				headers: buildImageGenerationHeaders(authToken),
+				body: JSON.stringify({ prompt }),
+			}
+		}
+
+		const response = await fetch(url, fetchOptions)
+
+		if (!response.ok) {
+			const errorMessage = await getErrorMessageFromErrorResponse(response, diagnosticsContext)
+			return {
+				success: false,
+				error: errorMessage,
+			}
+		}
+
+		const binaryImage = await normalizeBinaryImageResponse(response)
+		if (binaryImage) {
+			return {
+				success: true,
+				...binaryImage,
+				usage: getCloudflareWorkersAiUsageDetails(model),
+			}
+		}
+
+		const parsedResult = await readProviderJsonResponse<CloudflareWorkersAiResponse>(
+			response,
+			"response",
+			diagnosticsContext,
+		)
+		if (!parsedResult.success) {
+			return parsedResult
+		}
+
+		const result = parsedResult.data
+		const cloudflareErrorMessage = getCloudflareWorkersAiErrorMessage(result)
+		if (cloudflareErrorMessage) {
+			return {
+				success: false,
+				error: formatProviderError(cloudflareErrorMessage),
+			}
+		}
+
+		const normalizedImage = await extractImageFromProviderResponse(result as ProviderResponseRecord)
+		if (!normalizedImage) {
+			return {
+				success: false,
+				error: getNoExtractableImageError("workers_ai", diagnosticsContext, parsedResult.diagnostics),
+			}
+		}
+
+		return {
+			success: true,
+			...normalizedImage,
+			usage: getCloudflareWorkersAiUsageDetails(model, result),
 		}
 	} catch (error) {
 		return {

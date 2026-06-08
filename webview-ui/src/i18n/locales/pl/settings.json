@@ -299,7 +299,7 @@
 		"description": "Po włączeniu C może generować i edytować obrazy z promptów przy użyciu osobno skonfigurowanego dostawcy generowania obrazów.",
 		"providerLabel": "Dostawca",
 		"providerDescription": "Wybierz dostawcę używanego do generowania obrazów. Jest niezależny od profilu dostawcy chatu.",
-		"localProviderNote": "Ollama, LM Studio, ComfyUI i Automatic1111 nie są tutaj dostępne do wyboru, bo ten panel skupia się teraz na OpenRouter i API generowania obrazów kompatybilnych z OpenAI.",
+		"localProviderNote": "Cloudflare Workers AI jest dostępne obok OpenRouter i dostawców OpenAI/OpenAI-compatible. Ollama, LM Studio, ComfyUI i Automatic1111 nie są dostępne do wyboru w tym panelu.",
 		"apiKeyLabel": "Klucz API {{provider}}",
 		"optionalApiKeyLabel": "Klucz API {{provider}} (opcjonalnie)",
 		"apiKeyPlaceholder": "Wpisz klucz API {{provider}}",
@@ -323,7 +323,8 @@
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		},
 		"negativePromptLabel": "Negatywny prompt",
 		"negativePromptPlaceholder": "Wpisz treści, których należy unikać w generowanych obrazach",
@@ -333,7 +334,20 @@
 		"successConfigured": "✓ Generowanie obrazów jest skonfigurowane dla {{provider}} i gotowe do użycia",
 		"modelLabel": "Model generowania obrazów",
 		"optionalModelDescription": "Opcjonalne. Zostaw puste, aby użyć checkpointu aktualnie załadowanego przez dostawcę.",
-		"openRouterModelDiscoveryDescription": "OpenRouter /models jest publiczne, więc lista może zawierać wszystkie modele z wyjściem obrazu; gdy podasz klucz API obrazu, Roo użyje go do wyników specyficznych dla konta, jeśli OpenRouter je zwróci."
+		"openRouterModelDiscoveryDescription": "OpenRouter /models jest publiczne, więc lista może zawierać wszystkie modele z wyjściem obrazu; gdy podasz klucz API obrazu, Roo użyje go do wyników specyficznych dla konta, jeśli OpenRouter je zwróci.",
+		"cloudflareAccountIdLabel": "ID konta Cloudflare",
+		"cloudflareAccountIdPlaceholder": "Wpisz ID swojego konta Cloudflare",
+		"cloudflareAccountIdDescription": "Wymagane. Znajdziesz je w podglądzie konta w panelu Cloudflare.",
+		"cloudflareBaseUrlDescription": "Zostaw puste, aby użyć endpointu API v4 Cloudflare: {{url}}.",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI używa endpointu uruchamiania konta Workers AI do generowania obrazów.",
+		"warningMissingAccountId": "⚠️ {{provider}} wymaga ID konta Cloudflare do generowania obrazów. Skonfiguruj je powyżej.",
+		"cloudflarePricing": {
+			"title": "Ceny i darmowy limit Cloudflare Workers AI",
+			"quotaDescription": "Darmowy limit: {{freeAllocation}}. Resetuje się o {{resetTime}}. Płatne przekroczenie: {{paidOverage}}.",
+			"modelColumn": "Model",
+			"priceColumn": "Cena",
+			"neuronsColumn": "Neurons"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "Dokumentacja {{provider}}",

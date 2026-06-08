@@ -1,16 +1,22 @@
 /**
  * API method used for image generation
  */
-export type ImageGenerationApiMethod = "chat_completions" | "images_api" | "comfyui_api" | "automatic1111_api"
+export type ImageGenerationApiMethod =
+	| "chat_completions"
+	| "images_api"
+	| "workers_ai"
+	| "comfyui_api"
+	| "automatic1111_api"
 
 export const IMAGE_GENERATION_API_METHODS = [
 	"chat_completions",
 	"images_api",
+	"workers_ai",
 	"comfyui_api",
 	"automatic1111_api",
 ] as const
 
-export const IMAGE_GENERATION_ACTIVE_PROVIDER_IDS = ["openrouter", "openai"] as const
+export const IMAGE_GENERATION_ACTIVE_PROVIDER_IDS = ["openrouter", "openai", "cloudflare"] as const
 
 export const IMAGE_GENERATION_REMOVED_PROVIDER_IDS = ["comfyui", "automatic1111"] as const
 
@@ -43,8 +49,13 @@ export interface ImageGenerationUsageDetails {
 	tokensOut?: number
 	totalTokens?: number
 	imageCount?: number
+	neurons?: number
+	estimatedNeurons?: number
 	cost?: number
+	estimatedCost?: number
 	currency?: string
+	pricingDescription?: string
+	quotaDescription?: string
 }
 
 export interface GeneratedImageMetadata {
@@ -70,13 +81,16 @@ export interface ImageGenerationProviderSettingsKeys {
 	apiKey?:
 		| "openRouterImageApiKey"
 		| "openAiImageApiKey"
+		| "cloudflareImageApiKey"
 		| "comfyUiImageApiKey"
 		| "automatic1111ImageApiKey"
 		| "ollamaImageApiKey"
 		| "lmStudioImageApiKey"
+	accountId?: "cloudflareImageAccountId"
 	baseUrl:
 		| "openRouterImageBaseUrl"
 		| "openAiImageBaseUrl"
+		| "cloudflareImageBaseUrl"
 		| "comfyUiImageBaseUrl"
 		| "automatic1111ImageBaseUrl"
 		| "ollamaImageBaseUrl"
@@ -84,6 +98,7 @@ export interface ImageGenerationProviderSettingsKeys {
 	model:
 		| "openRouterImageGenerationSelectedModel"
 		| "openAiImageGenerationSelectedModel"
+		| "cloudflareImageGenerationSelectedModel"
 		| "comfyUiImageGenerationSelectedModel"
 		| "automatic1111ImageGenerationSelectedModel"
 		| "ollamaImageGenerationSelectedModel"
@@ -91,6 +106,7 @@ export interface ImageGenerationProviderSettingsKeys {
 	apiMethod:
 		| "openRouterImageGenerationApiMethod"
 		| "openAiImageGenerationApiMethod"
+		| "cloudflareImageGenerationApiMethod"
 		| "comfyUiImageGenerationApiMethod"
 		| "automatic1111ImageGenerationApiMethod"
 		| "ollamaImageGenerationApiMethod"
@@ -122,6 +138,66 @@ export interface ImageGenerationModel {
 	supportsImageInput?: boolean
 	isCustom?: boolean
 }
+
+export const CLOUDFLARE_WORKERS_AI_DEFAULT_BASE_URL = "https://api.cloudflare.com/client/v4"
+
+export const CLOUDFLARE_WORKERS_AI_FREE_ALLOCATION = {
+	neuronsPerDay: "10,000 Neurons per day",
+	resetTime: "00:00 UTC",
+	paidOverage: "$0.011 / 1,000 Neurons",
+} as const
+
+export const CLOUDFLARE_WORKERS_AI_IMAGE_MODEL_PRICING = [
+	{
+		model: "@cf/black-forest-labs/flux-1-schnell",
+		label: "FLUX.1 Schnell",
+		requestFormat: "json",
+		priceDetails: ["$0.0000528 per 512x512 tile", "$0.0001056 per step"],
+		neuronDetails: ["4.80 neurons per 512x512 tile", "9.60 neurons per step"],
+	},
+	{
+		model: "@cf/leonardo/lucid-origin",
+		label: "Leonardo Lucid Origin",
+		requestFormat: "json",
+		priceDetails: ["$0.006996 per 512x512 tile", "$0.000132 per step"],
+		neuronDetails: ["636.00 neurons per 512x512 tile", "12.00 neurons per step"],
+	},
+	{
+		model: "@cf/leonardo/phoenix-1.0",
+		label: "Leonardo Phoenix 1.0",
+		requestFormat: "json",
+		priceDetails: ["$0.005830 per 512x512 tile", "$0.000110 per step"],
+		neuronDetails: ["530.00 neurons per 512x512 tile", "10.00 neurons per step"],
+	},
+	{
+		model: "@cf/black-forest-labs/flux-2-dev",
+		label: "FLUX.2 Dev",
+		requestFormat: "multipart",
+		priceDetails: ["$0.00021 per input 512x512 tile, per step", "$0.00041 per output 512x512 tile, per step"],
+		neuronDetails: [
+			"18.75 neurons per input 512x512 tile, per step",
+			"37.50 neurons per output 512x512 tile, per step",
+		],
+	},
+	{
+		model: "@cf/black-forest-labs/flux-2-klein-4b",
+		label: "FLUX.2 Klein 4B",
+		requestFormat: "multipart",
+		priceDetails: ["$0.000059 per input 512x512 tile", "$0.000287 per output 512x512 tile"],
+		neuronDetails: ["5.37 neurons per input 512x512 tile", "26.05 neurons per output 512x512 tile"],
+	},
+	{
+		model: "@cf/black-forest-labs/flux-2-klein-9b",
+		label: "FLUX.2 Klein 9B",
+		requestFormat: "multipart",
+		priceDetails: ["$0.015 per first MP (1024x1024)", "$0.002 per subsequent MP", "$0.002 per input image MP"],
+		neuronDetails: [
+			"1363.64 neurons per first MP (1024x1024)",
+			"181.82 neurons per subsequent MP",
+			"181.82 neurons per input image MP",
+		],
+	},
+] as const
 
 export const IMAGE_GENERATION_PROVIDERS: Record<ImageGenerationProvider, ImageGenerationProviderDefinition> = {
 	openrouter: {
@@ -158,6 +234,25 @@ export const IMAGE_GENERATION_PROVIDERS: Record<ImageGenerationProvider, ImageGe
 			baseUrl: "openAiImageBaseUrl",
 			model: "openAiImageGenerationSelectedModel",
 			apiMethod: "openAiImageGenerationApiMethod",
+		},
+	},
+	cloudflare: {
+		value: "cloudflare",
+		label: "Cloudflare Workers AI",
+		requiresApiKey: true,
+		isLocal: false,
+		defaultBaseUrl: CLOUDFLARE_WORKERS_AI_DEFAULT_BASE_URL,
+		defaultModel: "@cf/black-forest-labs/flux-1-schnell",
+		defaultApiMethod: "workers_ai",
+		supportedApiMethods: ["workers_ai"],
+		supportsCustomModelId: false,
+		apiKeyUrl: "https://dash.cloudflare.com/profile/api-tokens",
+		settingsKeys: {
+			apiKey: "cloudflareImageApiKey",
+			accountId: "cloudflareImageAccountId",
+			baseUrl: "cloudflareImageBaseUrl",
+			model: "cloudflareImageGenerationSelectedModel",
+			apiMethod: "cloudflareImageGenerationApiMethod",
 		},
 	},
 	comfyui: {
@@ -255,6 +350,47 @@ export const IMAGE_GENERATION_MODELS: ImageGenerationModel[] = [
 	{ value: "openai/gpt-5-image", label: "GPT-5 Image (Paid)", provider: "openrouter" },
 	{ value: "google/gemini-2.5-flash-image", label: "Gemini 2.5 Flash Image (Paid)", provider: "openrouter" },
 	{ value: "openrouter/auto", label: "OpenRouter Auto (Variable/unknown pricing)", provider: "openrouter" },
+
+	// Cloudflare Workers AI models
+	{
+		value: "@cf/black-forest-labs/flux-1-schnell",
+		label: "FLUX.1 Schnell",
+		provider: "cloudflare",
+		apiMethod: "workers_ai",
+	},
+	{
+		value: "@cf/leonardo/lucid-origin",
+		label: "Leonardo Lucid Origin",
+		provider: "cloudflare",
+		apiMethod: "workers_ai",
+	},
+	{
+		value: "@cf/leonardo/phoenix-1.0",
+		label: "Leonardo Phoenix 1.0",
+		provider: "cloudflare",
+		apiMethod: "workers_ai",
+	},
+	{
+		value: "@cf/black-forest-labs/flux-2-dev",
+		label: "FLUX.2 Dev",
+		provider: "cloudflare",
+		apiMethod: "workers_ai",
+		supportsImageInput: true,
+	},
+	{
+		value: "@cf/black-forest-labs/flux-2-klein-4b",
+		label: "FLUX.2 Klein 4B",
+		provider: "cloudflare",
+		apiMethod: "workers_ai",
+		supportsImageInput: true,
+	},
+	{
+		value: "@cf/black-forest-labs/flux-2-klein-9b",
+		label: "FLUX.2 Klein 9B",
+		provider: "cloudflare",
+		apiMethod: "workers_ai",
+		supportsImageInput: true,
+	},
 
 	// OpenAI native / OpenAI-compatible images API models
 	{

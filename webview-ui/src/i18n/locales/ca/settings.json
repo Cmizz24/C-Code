@@ -299,7 +299,7 @@
 		"description": "Quan està activada, C pot generar i editar imatges a partir de prompts amb un proveïdor de generació d'imatges configurat per separat.",
 		"providerLabel": "Proveïdor",
 		"providerDescription": "Selecciona el proveïdor que s'utilitzarà per a la generació d'imatges. És independent del teu perfil de proveïdor de xat.",
-		"localProviderNote": "Ollama, LM Studio, ComfyUI i Automatic1111 no es poden seleccionar aquí perquè aquest panell ara se centra en OpenRouter i APIs de generació d'imatges compatibles amb OpenAI.",
+		"localProviderNote": "Cloudflare Workers AI està disponible juntament amb OpenRouter i proveïdors OpenAI/OpenAI-compatible. Ollama, LM Studio, ComfyUI i Automatic1111 no es poden seleccionar en aquest panell.",
 		"apiKeyLabel": "Clau API de {{provider}}",
 		"optionalApiKeyLabel": "Clau API de {{provider}} (opcional)",
 		"apiKeyPlaceholder": "Introdueix la teva clau API de {{provider}}",
@@ -323,7 +323,8 @@
 			"chat_completions": "Complecions de xat",
 			"images_api": "API d'imatges",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		},
 		"negativePromptLabel": "Prompt negatiu",
 		"negativePromptPlaceholder": "Introdueix el contingut a evitar en les imatges generades",
@@ -333,7 +334,20 @@
 		"successConfigured": "✓ La generació d'imatges està configurada per a {{provider}} i llesta per utilitzar",
 		"modelLabel": "Model de generació d'imatges",
 		"optionalModelDescription": "Opcional. Deixa-ho en blanc per utilitzar el checkpoint carregat actualment pel proveïdor.",
-		"openRouterModelDiscoveryDescription": "OpenRouter /models és públic, així que la llista pot incloure tots els models amb sortida d’imatge; si proporciones una clau API d’imatge, Roo la farà servir per a resultats específics del compte quan OpenRouter els retorni."
+		"openRouterModelDiscoveryDescription": "OpenRouter /models és públic, així que la llista pot incloure tots els models amb sortida d’imatge; si proporciones una clau API d’imatge, Roo la farà servir per a resultats específics del compte quan OpenRouter els retorni.",
+		"cloudflareAccountIdLabel": "ID del compte de Cloudflare",
+		"cloudflareAccountIdPlaceholder": "Introdueix l'ID del teu compte de Cloudflare",
+		"cloudflareAccountIdDescription": "Obligatori. El trobaràs al resum del compte del teu tauler de Cloudflare.",
+		"cloudflareBaseUrlDescription": "Deixa-ho en blanc per fer servir l'endpoint API v4 de Cloudflare: {{url}}.",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI fa servir l'endpoint d'execució del compte de Workers AI per a la generació d'imatges.",
+		"warningMissingAccountId": "⚠️ {{provider}} requereix un ID de compte de Cloudflare per a la generació d'imatges. Configura'l més amunt.",
+		"cloudflarePricing": {
+			"title": "Preus i quota gratuïta de Cloudflare Workers AI",
+			"quotaDescription": "Assignació gratuïta: {{freeAllocation}}. Es reinicia a les {{resetTime}}. Excés de pagament: {{paidOverage}}.",
+			"modelColumn": "Model",
+			"priceColumn": "Preu",
+			"neuronsColumn": "Neurons"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "Documentació de {{provider}}",

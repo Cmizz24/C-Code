@@ -22,12 +22,13 @@
 		"apiKeyRequired": "{{provider}} API key is required for image generation. Please configure it in the Image Generation settings.",
 		"modelRequired": "{{provider}} requires a model ID for image generation. Please configure it in the Image Generation settings.",
 		"unsupportedApiMethod": "{{provider}} does not support the {{apiMethod}} image generation API method.",
-		"unsupportedProvider": "{{provider}} is not supported for image generation. Use OpenRouter or an OpenAI/OpenAI-compatible image-generation endpoint instead.",
+		"unsupportedProvider": "{{provider}} is not supported for image generation. Use OpenRouter, OpenAI/OpenAI-compatible, or Cloudflare Workers AI instead.",
 		"failedWithStatus": "Failed to generate image: {{status}} {{statusText}}",
 		"failedWithMessage": "Failed to generate image: {{message}}",
 		"noImageGenerated": "No image was generated in the response",
 		"invalidImageData": "Invalid image data in response",
 		"invalidImageFormat": "Invalid image format received",
-		"unknownError": "Unknown error occurred"
+		"unknownError": "Unknown error occurred",
+		"accountIdRequired": "{{provider}} account ID is required for image generation. Please configure it in the Image Generation settings."
 	}
 }

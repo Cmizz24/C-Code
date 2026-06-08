@@ -299,7 +299,7 @@
 		"description": "有効にすると、C は別途設定した画像生成プロバイダーを使って、prompt から画像を生成・編集できます。",
 		"providerLabel": "プロバイダー",
 		"providerDescription": "画像生成に使用するプロバイダーを選択します。これは chat プロバイダープロファイルとは独立しています。",
-		"localProviderNote": "Ollama、LM Studio、ComfyUI、Automatic1111 はここでは選択できません。このパネルは OpenRouter と OpenAI-compatible な画像生成 API にフォーカスしています。",
+		"localProviderNote": "Cloudflare Workers AI は OpenRouter および OpenAI/OpenAI-compatible プロバイダーとあわせて利用できます。Ollama、LM Studio、ComfyUI、Automatic1111 はこのパネルでは選択できません。",
 		"apiKeyLabel": "{{provider}} APIキー",
 		"optionalApiKeyLabel": "{{provider}} APIキー（任意）",
 		"apiKeyPlaceholder": "{{provider}} APIキーを入力",
@@ -323,7 +323,8 @@
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		},
 		"negativePromptLabel": "Negative prompt",
 		"negativePromptPlaceholder": "生成画像で避けたい内容を入力してください",
@@ -333,7 +334,20 @@
 		"successConfigured": "✓ {{provider}} の画像生成が設定され、使用準備ができています",
 		"modelLabel": "画像生成モデル",
 		"optionalModelDescription": "任意。空欄にすると、プロバイダーで現在読み込まれている checkpoint を使用します。",
-		"openRouterModelDiscoveryDescription": "OpenRouter /models は公開されているため、この一覧には画像出力対応モデルがすべて含まれる場合があります。画像 API キーを指定すると、OpenRouter が返す場合に Roo はアカウント固有の結果にそれを使用します。"
+		"openRouterModelDiscoveryDescription": "OpenRouter /models は公開されているため、この一覧には画像出力対応モデルがすべて含まれる場合があります。画像 API キーを指定すると、OpenRouter が返す場合に Roo はアカウント固有の結果にそれを使用します。",
+		"cloudflareAccountIdLabel": "Cloudflare アカウント ID",
+		"cloudflareAccountIdPlaceholder": "Cloudflare アカウント ID を入力",
+		"cloudflareAccountIdDescription": "必須です。Cloudflare ダッシュボードのアカウント概要で確認できます。",
+		"cloudflareBaseUrlDescription": "空欄のままにすると Cloudflare の API v4 endpoint を使用します: {{url}}。",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI は、画像生成に Workers AI アカウント実行 endpoint を使用します。",
+		"warningMissingAccountId": "⚠️ {{provider}} で画像生成するには Cloudflare アカウント ID が必要です。上で設定してください。",
+		"cloudflarePricing": {
+			"title": "Cloudflare Workers AI の料金と無料枠",
+			"quotaDescription": "無料枠: {{freeAllocation}}。{{resetTime}} にリセットされます。従量課金の超過分: {{paidOverage}}。",
+			"modelColumn": "モデル",
+			"priceColumn": "料金",
+			"neuronsColumn": "Neurons"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}}のドキュメント",

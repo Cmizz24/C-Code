@@ -428,15 +428,9 @@ describe("SettingsView - Localization", () => {
 				"Select the provider to use for image generation. This is independent from your chat provider profile.",
 			),
 		).toBeInTheDocument()
-		expect(content.getByText("Recommended provider paths and free-limit notes")).toBeInTheDocument()
 		expect(content.getAllByText("OpenRouter").length).toBeGreaterThan(0)
-		expect(content.getAllByText("OpenAI / OpenAI-compatible").length).toBeGreaterThan(0)
-		expect(content.getByText("Google AI Studio / Gemini API")).toBeInTheDocument()
-		expect(
-			content.getByText(
-				"Imagen API free tier is not available in published pricing; AI Studio testing limits vary by region/account.",
-			),
-		).toBeInTheDocument()
+		expect(content.getAllByText("OpenAI / OpenAI Compatible").length).toBeGreaterThan(0)
+		expect(content.getByRole("option", { name: "Cloudflare Workers AI" })).toBeInTheDocument()
 		expect(content.getByText("Provider")).toBeInTheDocument()
 		expect(content.getByText("OpenRouter API Key")).toBeInTheDocument()
 		expect(content.getByPlaceholderText("Enter your OpenRouter API key")).toBeInTheDocument()
@@ -963,6 +957,52 @@ describe("SettingsView - Image Generation Settings", () => {
 					openRouterImageBaseUrl: "https://openrouter.ai/api/v1",
 					openRouterImageGenerationSelectedModel: "google/gemini-2.5-flash-image",
 					openRouterImageGenerationApiMethod: "chat_completions",
+				}),
+			}),
+		)
+	})
+
+	it("saves Cloudflare image generation settings from cached state", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			experiments: { imageGeneration: true },
+			imageGenerationProvider: "cloudflare",
+			cloudflareImageApiKey: "saved-cloudflare-token",
+			cloudflareImageAccountId: "saved-account-id",
+			cloudflareImageBaseUrl: "https://api.cloudflare.com/client/v4",
+			cloudflareImageGenerationSelectedModel: "@cf/black-forest-labs/flux-1-schnell",
+			cloudflareImageGenerationApiMethod: "workers_ai",
+		})
+
+		activateTab("imageGeneration")
+
+		const content = getSettingsContent()
+		fireEvent.change(within(content).getByPlaceholderText("settings:imageGeneration.apiKeyPlaceholder"), {
+			target: { value: "updated-cloudflare-token" },
+		})
+		fireEvent.change(
+			within(content).getByPlaceholderText("settings:imageGeneration.cloudflareAccountIdPlaceholder"),
+			{
+				target: { value: "updated-account-id" },
+			},
+		)
+		fireEvent.change(within(content).getByPlaceholderText("settings:imageGeneration.baseUrlPlaceholder"), {
+			target: { value: "https://api.cloudflare.example/client/v4" },
+		})
+
+		const saveButton = screen.getByTestId("save-button")
+		fireEvent.click(saveButton)
+
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					experiments: expect.objectContaining({ imageGeneration: true }),
+					imageGenerationProvider: "cloudflare",
+					cloudflareImageApiKey: "updated-cloudflare-token",
+					cloudflareImageAccountId: "updated-account-id",
+					cloudflareImageBaseUrl: "https://api.cloudflare.example/client/v4",
+					cloudflareImageGenerationSelectedModel: "@cf/black-forest-labs/flux-1-schnell",
+					cloudflareImageGenerationApiMethod: "workers_ai",
 				}),
 			}),
 		)
