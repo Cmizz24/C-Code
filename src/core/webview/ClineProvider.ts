@@ -142,6 +142,20 @@ async function restoreDelegatedParentMode(
 			getGlobalState?: (...args: any[]) => unknown
 			setValue?: (...args: any[]) => Promise<void>
 		}
+		context?: {
+			workspaceState?: {
+				get?: (...args: any[]) => unknown
+			}
+		}
+		providerSettingsManager?: {
+			getModeConfigId?: (mode: string) => Promise<string | undefined>
+			listConfig?: () => Promise<ProviderSettingsEntry[]>
+			getProfile?: (args: { name: string }) => Promise<ProviderSettings>
+		}
+		activateProviderProfile?: (
+			args: { name: string } | { id: string },
+			options?: { persistModeConfig?: boolean; persistTaskHistory?: boolean; postState?: boolean },
+		) => Promise<void>
 		emit?: (...args: any[]) => boolean
 		postStateToWebview?: () => Promise<void>
 		log?: (message: string) => void
@@ -170,6 +184,8 @@ async function restoreDelegatedParentMode(
 		await contextProxy.setValue("mode", parentMode)
 	}
 
+	await restoreDelegatedParentProviderProfile(provider, parentHistory, parentMode, source)
+
 	provider.emit?.(RooCodeEventName.ModeChanged, parentMode)
 
 	if (options.postState && typeof provider.postStateToWebview === "function") {
@@ -177,6 +193,90 @@ async function restoreDelegatedParentMode(
 	}
 
 	provider.log?.(`[${source}] Restored delegated parent mode '${parentMode}' for parent ${parentHistory.id}.`)
+}
+
+async function restoreDelegatedParentProviderProfile(
+	provider: {
+		contextProxy?: {
+			setValue?: (...args: any[]) => Promise<void>
+		}
+		context?: {
+			workspaceState?: {
+				get?: (...args: any[]) => unknown
+			}
+		}
+		providerSettingsManager?: {
+			getModeConfigId?: (mode: string) => Promise<string | undefined>
+			listConfig?: () => Promise<ProviderSettingsEntry[]>
+			getProfile?: (args: { name: string }) => Promise<ProviderSettings>
+		}
+		activateProviderProfile?: (
+			args: { name: string } | { id: string },
+			options?: { persistModeConfig?: boolean; persistTaskHistory?: boolean; postState?: boolean },
+		) => Promise<void>
+		log?: (message: string) => void
+	},
+	parentHistory: HistoryItem,
+	parentMode: string,
+	source: string,
+): Promise<void> {
+	const lockApiConfigAcrossModes = provider.context?.workspaceState?.get?.("lockApiConfigAcrossModes", false) === true
+	const skipProfileRestore = process.env.ROO_CLI_RUNTIME === "1" || lockApiConfigAcrossModes
+
+	if (skipProfileRestore || typeof provider.activateProviderProfile !== "function") {
+		return
+	}
+
+	const providerSettingsManager = provider.providerSettingsManager
+
+	if (!providerSettingsManager || typeof providerSettingsManager.listConfig !== "function") {
+		return
+	}
+
+	try {
+		const listApiConfig = await providerSettingsManager.listConfig()
+		await provider.contextProxy?.setValue?.("listApiConfigMeta", listApiConfig)
+
+		let profileName = parentHistory.apiConfigName
+
+		if (!profileName && typeof providerSettingsManager.getModeConfigId === "function") {
+			const savedConfigId = await providerSettingsManager.getModeConfigId(parentMode)
+			const profile = savedConfigId ? listApiConfig.find(({ id }) => id === savedConfigId) : undefined
+
+			if (profile?.name && typeof providerSettingsManager.getProfile === "function") {
+				const fullProfile = await providerSettingsManager.getProfile({ name: profile.name })
+				const hasActualSettings = !!fullProfile.apiProvider
+
+				if (hasActualSettings) {
+					profileName = profile.name
+				}
+			}
+		}
+
+		if (!profileName) {
+			return
+		}
+
+		const profileExists = listApiConfig.some(({ name }) => name === profileName)
+
+		if (!profileExists) {
+			provider.log?.(
+				`[${source}] Delegated parent provider profile '${profileName}' no longer exists for parent ${parentHistory.id}.`,
+			)
+			return
+		}
+
+		await provider.activateProviderProfile(
+			{ name: profileName },
+			{ persistModeConfig: false, persistTaskHistory: false, postState: false },
+		)
+	} catch (error) {
+		provider.log?.(
+			`[${source}] Failed to restore delegated parent provider profile for parent ${parentHistory.id}: ${
+				error instanceof Error ? error.message : String(error)
+			}`,
+		)
+	}
 }
 
 /**
@@ -3758,12 +3858,13 @@ export class ClineProvider
 
 	async activateProviderProfile(
 		args: { name: string } | { id: string },
-		options?: { persistModeConfig?: boolean; persistTaskHistory?: boolean },
+		options?: { persistModeConfig?: boolean; persistTaskHistory?: boolean; postState?: boolean },
 	) {
 		const { name, id, ...providerSettings } = await this.providerSettingsManager.activateProfile(args)
 
 		const persistModeConfig = options?.persistModeConfig ?? true
 		const persistTaskHistory = options?.persistTaskHistory ?? true
+		const postState = options?.postState ?? true
 
 		// See `upsertProviderProfile` for a description of what this is doing.
 		await Promise.all([
@@ -3787,7 +3888,9 @@ export class ClineProvider
 			await this.persistStickyProviderProfileToCurrentTask(name)
 		}
 
-		await this.postStateToWebview()
+		if (postState) {
+			await this.postStateToWebview()
+		}
 
 		if (providerSettings.apiProvider) {
 			this.emit(RooCodeEventName.ProviderProfileChanged, { name, provider: providerSettings.apiProvider })

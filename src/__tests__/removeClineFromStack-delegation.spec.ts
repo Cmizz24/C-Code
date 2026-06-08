@@ -89,9 +89,27 @@ describe("ClineProvider.removeClineFromStack() delegation awareness", () => {
 	})
 
 	it("restores user-facing Orchestrator mode when repairing an Orchestrator parent after child removal", async () => {
-		const setValue = vi.fn().mockResolvedValue(undefined)
+		let globalMode = "code"
+		let currentApiConfigName = "code-profile"
+		const postedStates: Array<{ mode: string; currentApiConfigName: string }> = []
+		const setValue = vi.fn().mockImplementation(async (key: string, value: any) => {
+			if (key === "mode") {
+				globalMode = value
+			}
+			if (key === "currentApiConfigName") {
+				currentApiConfigName = value
+			}
+		})
 		const emit = vi.fn()
-		const postStateToWebview = vi.fn().mockResolvedValue(undefined)
+		const postStateToWebview = vi.fn().mockImplementation(async () => {
+			postedStates.push({ mode: globalMode, currentApiConfigName })
+		})
+		const postStateToWebviewWithoutClineMessages = vi.fn().mockImplementation(async () => {
+			postedStates.push({ mode: `without:${globalMode}`, currentApiConfigName })
+		})
+		const activateProviderProfile = vi.fn().mockImplementation(async ({ name }: { name: string }) => {
+			currentApiConfigName = name
+		})
 		const { provider, updateTaskHistory } = buildMockProvider({
 			childTaskId: "child-1",
 			parentTaskId: "parent-1",
@@ -102,12 +120,29 @@ describe("ClineProvider.removeClineFromStack() delegation awareness", () => {
 				mode: "orchestrator",
 			},
 		})
+		;(provider as any).context = {
+			workspaceState: { get: vi.fn(() => false) },
+		}
 		;(provider as any).contextProxy = {
-			getGlobalState: vi.fn(() => "code"),
+			getGlobalState: vi.fn(() => globalMode),
 			setValue,
 		}
+		;(provider as any).providerSettingsManager = {
+			getModeConfigId: vi.fn(async (mode: string) =>
+				mode === "orchestrator" ? "orchestrator-profile-id" : undefined,
+			),
+			listConfig: vi.fn(async () => [
+				{ id: "code-profile-id", name: "code-profile" },
+				{ id: "orchestrator-profile-id", name: "orchestrator-profile" },
+			]),
+			getProfile: vi.fn(async ({ name }: { name: string }) =>
+				name === "orchestrator-profile" ? { apiProvider: "anthropic" } : {},
+			),
+		}
+		;(provider as any).activateProviderProfile = activateProviderProfile
 		;(provider as any).emit = emit
 		;(provider as any).postStateToWebview = postStateToWebview
+		;(provider as any).postStateToWebviewWithoutClineMessages = postStateToWebviewWithoutClineMessages
 
 		await (ClineProvider.prototype as any).removeClineFromStack.call(provider)
 
@@ -115,8 +150,14 @@ describe("ClineProvider.removeClineFromStack() delegation awareness", () => {
 			expect.objectContaining({ id: "parent-1", status: "active", awaitingChildId: undefined }),
 		)
 		expect(setValue).toHaveBeenCalledWith("mode", "orchestrator")
+		expect(activateProviderProfile).toHaveBeenCalledWith(
+			{ name: "orchestrator-profile" },
+			{ persistModeConfig: false, persistTaskHistory: false, postState: false },
+		)
 		expect(emit).toHaveBeenCalledWith(RooCodeEventName.ModeChanged, "orchestrator")
 		expect(postStateToWebview).toHaveBeenCalled()
+		expect(postStateToWebviewWithoutClineMessages).not.toHaveBeenCalled()
+		expect(postedStates.at(-1)).toEqual({ mode: "orchestrator", currentApiConfigName: "orchestrator-profile" })
 	})
 
 	it("does NOT modify parent metadata when the task has no parentTaskId (non-delegated)", async () => {

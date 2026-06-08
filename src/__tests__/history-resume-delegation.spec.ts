@@ -121,8 +121,47 @@ describe("History resume delegation - parent metadata transitions", () => {
 
 	it("reopenParentFromDelegation restores the user-facing mode to an Orchestrator parent", async () => {
 		const providerEmit = vi.fn()
-		const setValue = vi.fn().mockResolvedValue(undefined)
-		const postStateToWebview = vi.fn().mockResolvedValue(undefined)
+		let globalMode = "code"
+		let currentApiConfigName = "code-profile"
+		let apiConfiguration: Record<string, unknown> = { apiProvider: "openrouter", openRouterModelId: "code-model" }
+		const postedStates: Array<{
+			source: string
+			mode: string
+			currentApiConfigName: string
+			apiConfiguration: Record<string, unknown>
+		}> = []
+		const listApiConfigMeta = [
+			{ id: "code-profile-id", name: "code-profile" },
+			{ id: "orchestrator-profile-id", name: "orchestrator-profile" },
+		]
+		const setValue = vi.fn().mockImplementation(async (key: string, value: any) => {
+			if (key === "mode") {
+				globalMode = value
+			}
+			if (key === "currentApiConfigName") {
+				currentApiConfigName = value
+			}
+		})
+		const activateProviderProfile = vi.fn().mockImplementation(async (args: { name: string }) => {
+			currentApiConfigName = args.name
+			apiConfiguration = { apiProvider: "anthropic", apiModelId: "orchestrator-model" }
+		})
+		const postStateToWebview = vi.fn().mockImplementation(async () => {
+			postedStates.push({
+				source: "final",
+				mode: globalMode,
+				currentApiConfigName,
+				apiConfiguration,
+			})
+		})
+		const postStateToWebviewWithoutClineMessages = vi.fn().mockImplementation(async () => {
+			postedStates.push({
+				source: "withoutClineMessages",
+				mode: globalMode,
+				currentApiConfigName,
+				apiConfiguration,
+			})
+		})
 		const log = vi.fn()
 		const histories: Record<string, any> = {
 			"parent-orchestrator": {
@@ -166,11 +205,24 @@ describe("History resume delegation - parent metadata transitions", () => {
 		})
 
 		const provider = {
+			context: {
+				workspaceState: { get: vi.fn(() => false) },
+			},
 			contextProxy: {
 				globalStorageUri: { fsPath: "/tmp" },
-				getGlobalState: vi.fn(() => "code"),
+				getGlobalState: vi.fn(() => globalMode),
 				setValue,
 			},
+			providerSettingsManager: {
+				getModeConfigId: vi.fn(async (mode: string) =>
+					mode === "orchestrator" ? "orchestrator-profile-id" : undefined,
+				),
+				listConfig: vi.fn(async () => listApiConfigMeta),
+				getProfile: vi.fn(async ({ name }: { name: string }) =>
+					name === "orchestrator-profile" ? { apiProvider: "anthropic" } : {},
+				),
+			},
+			activateProviderProfile,
 			getTaskWithId,
 			emit: providerEmit,
 			getCurrentTask: vi.fn(() => ({ taskId: "child-code" })),
@@ -178,6 +230,7 @@ describe("History resume delegation - parent metadata transitions", () => {
 			createTaskWithHistoryItem,
 			updateTaskHistory,
 			postStateToWebview,
+			postStateToWebviewWithoutClineMessages,
 			log,
 		} as unknown as ClineProvider
 
@@ -191,8 +244,19 @@ describe("History resume delegation - parent metadata transitions", () => {
 		})
 
 		expect(setValue).toHaveBeenCalledWith("mode", "orchestrator")
+		expect(activateProviderProfile).toHaveBeenCalledWith(
+			{ name: "orchestrator-profile" },
+			{ persistModeConfig: false, persistTaskHistory: false, postState: false },
+		)
 		expect(providerEmit).toHaveBeenCalledWith(RooCodeEventName.ModeChanged, "orchestrator")
 		expect(postStateToWebview).toHaveBeenCalled()
+		expect(postStateToWebviewWithoutClineMessages).not.toHaveBeenCalled()
+		expect(postedStates.at(-1)).toEqual({
+			source: "final",
+			mode: "orchestrator",
+			currentApiConfigName: "orchestrator-profile",
+			apiConfiguration: { apiProvider: "anthropic", apiModelId: "orchestrator-model" },
+		})
 		expect(createTaskWithHistoryItem).toHaveBeenCalledWith(
 			expect.objectContaining({
 				id: "parent-orchestrator",
