@@ -278,6 +278,8 @@
 			"neurons": "Neurons",
 			"estimatedNeurons": "Estimated neurons",
 			"estimatedRemainingNeurons": "Estimated remaining neurons",
+			"cloudflareUsage": "Estimated Cloudflare usage",
+			"cloudflareUsageValue": "{{used}} / {{quota}} neurons used · {{remaining}} remaining",
 			"usageSource": "Usage source",
 			"estimatedUsedNeuronsToday": "Estimated used today",
 			"dailyQuotaNeurons": "Daily free quota",

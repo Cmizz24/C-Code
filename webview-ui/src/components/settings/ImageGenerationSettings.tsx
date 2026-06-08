@@ -173,6 +173,20 @@ export const ImageGenerationSettings = ({
 		() => dateTimeFormatter.format(new Date(cloudflareUsageSnapshot.resetAt)),
 		[cloudflareUsageSnapshot.resetAt, dateTimeFormatter],
 	)
+	const cloudflareUsagePercent = Math.max(
+		0,
+		Math.min(100, (cloudflareUsageSnapshot.neuronsUsed / cloudflareUsageSnapshot.dailyQuotaNeurons) * 100),
+	)
+	const cloudflareUsageProgressClassName =
+		cloudflareUsagePercent >= 90
+			? "bg-vscode-errorForeground"
+			: cloudflareUsagePercent >= 70
+				? "bg-vscode-editorWarning-foreground"
+				: "bg-vscode-button-background"
+	const cloudflareUsageValue = t("settings:imageGeneration.cloudflareUsage.usedValue", {
+		used: numberFormatter.format(cloudflareUsageSnapshot.neuronsUsed),
+		quota: numberFormatter.format(cloudflareUsageSnapshot.dailyQuotaNeurons),
+	})
 	const modelFieldPlaceholder = providerDefinition.defaultModel
 		? t("settings:imageGeneration.modelIdPlaceholderWithDefault", {
 				model: providerDefinition.defaultModel,
@@ -247,47 +261,38 @@ export const ImageGenerationSettings = ({
 					})}
 				</p>
 				<div className="mb-3 rounded border border-vscode-panel-border bg-vscode-sideBar-background p-3">
-					<div className="mb-2 text-sm font-medium text-vscode-foreground">
-						{t("settings:imageGeneration.cloudflareUsage.title")}
+					<div className="mb-2 flex items-center justify-between gap-3">
+						<div className="text-sm font-medium text-vscode-foreground">
+							{t("settings:imageGeneration.cloudflareUsage.title")}
+						</div>
+						<div className="text-xs text-vscode-descriptionForeground">{cloudflareUsageValue}</div>
 					</div>
-					<div className="grid gap-2 sm:grid-cols-2">
-						<div>
-							<div className="text-vscode-descriptionForeground">
-								{t("settings:imageGeneration.cloudflareUsage.remainingLabel")}
-							</div>
-							<div className="text-sm font-medium text-vscode-foreground">
-								{t("settings:imageGeneration.cloudflareUsage.neuronsValue", {
-									count: numberFormatter.format(cloudflareUsageSnapshot.estimatedRemainingNeurons),
-								})}
-							</div>
-						</div>
-						<div>
-							<div className="text-vscode-descriptionForeground">
-								{t("settings:imageGeneration.cloudflareUsage.usedLabel")}
-							</div>
-							<div className="text-sm font-medium text-vscode-foreground">
-								{t("settings:imageGeneration.cloudflareUsage.usedValue", {
-									used: numberFormatter.format(cloudflareUsageSnapshot.neuronsUsed),
-									quota: numberFormatter.format(cloudflareUsageSnapshot.dailyQuotaNeurons),
-								})}
-							</div>
-						</div>
-						<div>
-							<div className="text-vscode-descriptionForeground">
-								{t("settings:imageGeneration.cloudflareUsage.requestsLabel")}
-							</div>
-							<div className="text-sm font-medium text-vscode-foreground">
-								{numberFormatter.format(cloudflareUsageSnapshot.requestCount)}
-							</div>
-						</div>
-						<div>
-							<div className="text-vscode-descriptionForeground">
-								{t("settings:imageGeneration.cloudflareUsage.resetLabel")}
-							</div>
-							<div className="text-sm font-medium text-vscode-foreground">{cloudflareUsageResetAt}</div>
-						</div>
+					<div
+						className="h-2 w-full overflow-hidden rounded-sm bg-vscode-input-background"
+						role="progressbar"
+						aria-label={t("settings:imageGeneration.cloudflareUsage.title")}
+						aria-valuemin={0}
+						aria-valuemax={100}
+						aria-valuenow={Math.round(cloudflareUsagePercent)}
+						aria-valuetext={cloudflareUsageValue}
+						data-testid="cloudflare-workers-ai-usage-progress">
+						<div
+							className={`h-full transition-all duration-300 ${cloudflareUsageProgressClassName}`}
+							style={{ width: `${cloudflareUsagePercent}%` }}
+						/>
 					</div>
-					<p className="mb-0 mt-3">
+					<div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-vscode-descriptionForeground">
+						<span>
+							{t("settings:imageGeneration.cloudflareUsage.remainingLabel")}:{" "}
+							{t("settings:imageGeneration.cloudflareUsage.neuronsValue", {
+								count: numberFormatter.format(cloudflareUsageSnapshot.estimatedRemainingNeurons),
+							})}
+						</span>
+						<span>
+							{t("settings:imageGeneration.cloudflareUsage.resetLabel")}: {cloudflareUsageResetAt}
+						</span>
+					</div>
+					<p className="mb-0 mt-2">
 						{t("settings:imageGeneration.cloudflareUsage.localEstimateDescription")}
 					</p>
 				</div>

@@ -237,6 +237,8 @@
 			"neurons": "Neurons",
 			"estimatedNeurons": "Geschatte neurons",
 			"estimatedRemainingNeurons": "Geschatte resterende neurons",
+			"cloudflareUsage": "Geschat Cloudflare-gebruik",
+			"cloudflareUsageValue": "{{used}} / {{quota}} neurons gebruikt · {{remaining}} resterend",
 			"usageSource": "Gebruiksbron",
 			"estimatedUsedNeuronsToday": "Vandaag geschat gebruikt",
 			"dailyQuotaNeurons": "Dagelijkse gratis quota",

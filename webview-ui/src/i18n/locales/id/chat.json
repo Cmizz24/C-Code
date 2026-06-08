@@ -286,6 +286,8 @@
 			"neurons": "Neurons",
 			"estimatedNeurons": "Perkiraan neurons",
 			"estimatedRemainingNeurons": "Perkiraan neurons tersisa",
+			"cloudflareUsage": "Perkiraan penggunaan Cloudflare",
+			"cloudflareUsageValue": "{{used}} / {{quota}} neurons digunakan · {{remaining}} tersisa",
 			"usageSource": "Sumber penggunaan",
 			"estimatedUsedNeuronsToday": "Perkiraan digunakan hari ini",
 			"dailyQuotaNeurons": "Quota gratis harian",

@@ -242,6 +242,8 @@
 			"neurons": "Neurons",
 			"estimatedNeurons": "Neurons ước tính",
 			"estimatedRemainingNeurons": "Neurons còn lại ước tính",
+			"cloudflareUsage": "Mức dùng Cloudflare ước tính",
+			"cloudflareUsageValue": "Đã dùng {{used}} / {{quota}} neurons · còn {{remaining}}",
 			"usageSource": "Nguồn sử dụng",
 			"estimatedUsedNeuronsToday": "Ước tính đã dùng hôm nay",
 			"dailyQuotaNeurons": "Quota miễn phí hằng ngày",

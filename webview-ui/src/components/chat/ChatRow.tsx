@@ -695,6 +695,9 @@ export const ChatRowContent = ({
 		})
 	}
 
+	const getNonNegativeFiniteImageGenerationNumber = (value?: number): number | undefined =>
+		typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined
+
 	const formatImageGenerationUsageSource = (
 		source?: NonNullable<GeneratedImageMetadata["usage"]>["usageSource"],
 	): string | undefined => {
@@ -734,6 +737,7 @@ export const ChatRowContent = ({
 		const statusLabel = t(`chat:imageGeneration.status.${status}`)
 		const endpoint = formatSafeEndpoint(metadata.baseURL)
 		const usage = metadata.usage
+		const isCloudflareImageGeneration = metadata.provider === "cloudflare"
 
 		type ImageGenerationDetail = {
 			key: string
@@ -744,7 +748,77 @@ export const ChatRowContent = ({
 			error?: boolean
 		}
 
-		const compactDetails: ImageGenerationDetail[] = [
+		const renderCloudflareUsageProgress = (): React.ReactNode | undefined => {
+			const quota = getNonNegativeFiniteImageGenerationNumber(usage?.dailyQuotaNeurons)
+			const remaining = getNonNegativeFiniteImageGenerationNumber(usage?.estimatedRemainingNeurons)
+			const estimatedUsed = getNonNegativeFiniteImageGenerationNumber(usage?.estimatedUsedNeuronsToday)
+			const used =
+				estimatedUsed ??
+				(quota !== undefined && remaining !== undefined ? Math.max(quota - remaining, 0) : undefined)
+
+			if (!quota || used === undefined) {
+				return undefined
+			}
+
+			const clampedUsed = Math.max(0, Math.min(used, quota))
+			const percent = Math.max(0, Math.min(100, (clampedUsed / quota) * 100))
+			const remainingValue = remaining ?? Math.max(quota - clampedUsed, 0)
+			const usageLabel = t("chat:imageGeneration.metadata.cloudflareUsageValue", {
+				used: formatImageGenerationNumber(clampedUsed),
+				quota: formatImageGenerationNumber(quota),
+				remaining: formatImageGenerationNumber(remainingValue),
+			})
+			const usageBarClassName =
+				percent >= 90
+					? "bg-vscode-errorForeground"
+					: percent >= 70
+						? "bg-vscode-editorWarning-foreground"
+						: "bg-vscode-button-background"
+
+			return (
+				<div className="space-y-1" data-testid="cloudflare-image-generation-usage">
+					<div className="text-vscode-foreground">{usageLabel}</div>
+					<div
+						className="h-2 w-full overflow-hidden rounded-sm bg-vscode-input-background"
+						role="progressbar"
+						aria-label={t("chat:imageGeneration.metadata.cloudflareUsage")}
+						aria-valuemin={0}
+						aria-valuemax={100}
+						aria-valuenow={Math.round(percent)}
+						aria-valuetext={usageLabel}
+						data-testid="cloudflare-image-generation-usage-progress">
+						<div
+							className={`h-full transition-all duration-300 ${usageBarClassName}`}
+							style={{ width: `${percent}%` }}
+						/>
+					</div>
+				</div>
+			)
+		}
+
+		const cloudflareCompactDetails: ImageGenerationDetail[] = [
+			{
+				key: "dimensions",
+				labelKey: "chat:imageGeneration.metadata.dimensions",
+				value: formatImageGenerationDimensions(metadata.imageWidth, metadata.imageHeight),
+			},
+			{ key: "imageFormat", labelKey: "chat:imageGeneration.metadata.imageFormat", value: metadata.imageFormat },
+			{
+				key: "cloudflareUsage",
+				labelKey: "chat:imageGeneration.metadata.cloudflareUsage",
+				value: renderCloudflareUsageProgress(),
+				wide: true,
+			},
+			{
+				key: "error",
+				labelKey: "chat:imageGeneration.metadata.error",
+				value: status === "error" ? metadata.error : undefined,
+				wide: true,
+				error: true,
+			},
+		].filter((detail) => detail.value !== undefined && detail.value !== null && detail.value !== "")
+
+		const standardCompactDetails: ImageGenerationDetail[] = [
 			{
 				key: "provider",
 				labelKey: "chat:imageGeneration.metadata.provider",
@@ -824,6 +898,7 @@ export const ChatRowContent = ({
 				error: true,
 			},
 		].filter((detail) => detail.value !== undefined && detail.value !== null && detail.value !== "")
+		const compactDetails = isCloudflareImageGeneration ? cloudflareCompactDetails : standardCompactDetails
 
 		const fullDetails: ImageGenerationDetail[] = [
 			{
@@ -944,7 +1019,7 @@ export const ChatRowContent = ({
 
 				{compactDetails.length > 0 && renderDetails(compactDetails)}
 
-				{fullDetails.length > 0 && (
+				{!isCloudflareImageGeneration && fullDetails.length > 0 && (
 					<div className="flex flex-col gap-2">
 						<button
 							type="button"

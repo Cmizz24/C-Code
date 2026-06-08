@@ -242,6 +242,8 @@
 			"neurons": "Neurons",
 			"estimatedNeurons": "Tahmini neurons",
 			"estimatedRemainingNeurons": "Tahmini kalan neurons",
+			"cloudflareUsage": "Tahmini Cloudflare kullanımı",
+			"cloudflareUsageValue": "{{used}} / {{quota}} neurons kullanıldı · {{remaining}} kaldı",
 			"usageSource": "Kullanım kaynağı",
 			"estimatedUsedNeuronsToday": "Bugün tahmini kullanılan",
 			"dailyQuotaNeurons": "Günlük ücretsiz quota",

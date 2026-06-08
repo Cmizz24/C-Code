@@ -264,8 +264,8 @@ describe("ChatRow - image generation", () => {
 		expect(screen.getByText("chat:imageGeneration.apiMethods.images_api")).toBeInTheDocument()
 	})
 
-	it("renders Cloudflare neuron, quota, and pricing metadata in chat cards", () => {
-		renderChatRow(
+	it("renders simplified Cloudflare dimensions, format, and usage progress without extra metadata", () => {
+		const { container } = renderChatRow(
 			createImageGenerationSayMessage({
 				status: "completed",
 				prompt: "Draw a Cloudflare-backed image",
@@ -294,34 +294,45 @@ describe("ChatRow - image generation", () => {
 			}),
 		)
 
-		expect(screen.getByText("Cloudflare Workers AI")).toBeInTheDocument()
-		expect(screen.getByText("@cf/leonardo/phoenix-1.0")).toBeInTheDocument()
 		expect(
 			screen.getByText("chat:imageGeneration.metadata.dimensionsValue(width=1,024,height=512)"),
 		).toBeInTheDocument()
-		expect(screen.getByText("$0.00275")).toBeInTheDocument()
-		expect(screen.getByText("250")).toBeInTheDocument()
-		expect(screen.getByText("8,750")).toBeInTheDocument()
+		expect(screen.getByText("png")).toBeInTheDocument()
+		expect(screen.getByText("chat:imageGeneration.metadata.cloudflareUsage")).toBeInTheDocument()
+		expect(
+			screen.getByText(
+				"chat:imageGeneration.metadata.cloudflareUsageValue(used=1,250,quota=10,000,remaining=8,750)",
+			),
+		).toBeInTheDocument()
+
+		const usageProgress = screen.getByRole("progressbar", {
+			name: "chat:imageGeneration.metadata.cloudflareUsage",
+		})
+		expect(usageProgress).toHaveAttribute("aria-valuenow", "13")
+		expect(usageProgress).toHaveAttribute(
+			"aria-valuetext",
+			"chat:imageGeneration.metadata.cloudflareUsageValue(used=1,250,quota=10,000,remaining=8,750)",
+		)
+
+		expect(screen.queryByText("Cloudflare Workers AI")).not.toBeInTheDocument()
+		expect(screen.queryByText("@cf/leonardo/phoenix-1.0")).not.toBeInTheDocument()
+		expect(screen.queryByText("images/cloudflare.png")).not.toBeInTheDocument()
+		expect(screen.queryByText("$0.00275")).not.toBeInTheDocument()
+		expect(screen.queryByText("250")).not.toBeInTheDocument()
+		expect(screen.queryByText("8,750")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.provider")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.model")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.outputPath")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.estimatedCost")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.neurons")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.estimatedNeurons")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.estimatedRemainingNeurons")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.showDetails")).not.toBeInTheDocument()
 		expect(screen.queryByText("Draw a Cloudflare-backed image")).not.toBeInTheDocument()
-
-		fireEvent.click(screen.getByRole("button", { name: "chat:imageGeneration.metadata.showDetails" }))
-
-		expect(
-			screen.getByText("chat:imageGeneration.metadata.usageSources.provider_response_with_local_quota"),
-		).toBeInTheDocument()
-		expect(screen.getByText("1,250")).toBeInTheDocument()
-		expect(screen.getByText("10,000")).toBeInTheDocument()
-		expect(screen.getByText(/2026/)).toBeInTheDocument()
-		expect(
-			screen.getByText(
-				"Free allocation: 10,000 Neurons per day; resets at 00:00 UTC; paid overage: $0.011 / 1,000 Neurons.",
-			),
-		).toBeInTheDocument()
-		expect(
-			screen.getByText(
-				"Leonardo Phoenix 1.0: $0.005830 per 512x512 tile. Neurons: 530.00 neurons per 512x512 tile",
-			),
-		).toBeInTheDocument()
+		expect(container).not.toHaveTextContent("provider_response_with_local_quota")
+		expect(container).not.toHaveTextContent("2026")
+		expect(container).not.toHaveTextContent("Free allocation")
+		expect(container).not.toHaveTextContent("Leonardo Phoenix")
 	})
 
 	it("renders generated image payload metadata compactly without duplicate verbose details", () => {

@@ -242,6 +242,8 @@
 			"neurons": "Neurons",
 			"estimatedNeurons": "推定 neurons",
 			"estimatedRemainingNeurons": "推定残り neurons",
+			"cloudflareUsage": "推定 Cloudflare 使用量",
+			"cloudflareUsageValue": "{{used}} / {{quota}} neurons 使用済み · 残り {{remaining}}",
 			"usageSource": "使用量ソース",
 			"estimatedUsedNeuronsToday": "今日の推定使用量",
 			"dailyQuotaNeurons": "日次無料 quota",

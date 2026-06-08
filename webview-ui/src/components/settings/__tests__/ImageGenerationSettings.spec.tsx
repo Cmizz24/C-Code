@@ -427,7 +427,7 @@ describe("ImageGenerationSettings", () => {
 			).toBeInTheDocument()
 		})
 
-		it("should render locally estimated Cloudflare Workers AI usage left", () => {
+		it("should render locally estimated Cloudflare Workers AI usage left as a compact progress bar", () => {
 			const utcDate = new Date().toISOString().slice(0, 10)
 
 			render(
@@ -448,17 +448,27 @@ describe("ImageGenerationSettings", () => {
 				/>,
 			)
 
+			const usageProgress = screen.getByRole("progressbar", {
+				name: "settings:imageGeneration.cloudflareUsage.title",
+			})
+
 			expect(screen.getByText("settings:imageGeneration.cloudflareUsage.title")).toBeInTheDocument()
-			expect(screen.getByText("settings:imageGeneration.cloudflareUsage.remainingLabel")).toBeInTheDocument()
+			expect(usageProgress).toHaveAttribute("aria-valuenow", "13")
+			expect(usageProgress).toHaveAttribute(
+				"aria-valuetext",
+				"settings:imageGeneration.cloudflareUsage.usedValue(used=1,250,quota=10,000)",
+			)
 			expect(
-				screen.getByText("settings:imageGeneration.cloudflareUsage.neuronsValue(count=8,750)"),
+				screen.getByText(/settings:imageGeneration\.cloudflareUsage\.neuronsValue\(count=8,750\)/),
 			).toBeInTheDocument()
-			expect(screen.getByText("settings:imageGeneration.cloudflareUsage.usedLabel")).toBeInTheDocument()
 			expect(
 				screen.getByText("settings:imageGeneration.cloudflareUsage.usedValue(used=1,250,quota=10,000)"),
 			).toBeInTheDocument()
-			expect(screen.getByText("settings:imageGeneration.cloudflareUsage.requestsLabel")).toBeInTheDocument()
-			expect(screen.getByText("3")).toBeInTheDocument()
+			expect(screen.getByText(/settings:imageGeneration\.cloudflareUsage\.remainingLabel/)).toBeInTheDocument()
+			expect(screen.getByText(/settings:imageGeneration\.cloudflareUsage\.resetLabel/)).toBeInTheDocument()
+			expect(screen.queryByText("settings:imageGeneration.cloudflareUsage.usedLabel")).not.toBeInTheDocument()
+			expect(screen.queryByText("settings:imageGeneration.cloudflareUsage.requestsLabel")).not.toBeInTheDocument()
+			expect(screen.queryByText("3")).not.toBeInTheDocument()
 			expect(
 				screen.getByText("settings:imageGeneration.cloudflareUsage.localEstimateDescription"),
 			).toBeInTheDocument()

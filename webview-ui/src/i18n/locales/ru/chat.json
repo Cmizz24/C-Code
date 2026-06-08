@@ -237,6 +237,8 @@
 			"neurons": "Neurons",
 			"estimatedNeurons": "Оценка neurons",
 			"estimatedRemainingNeurons": "Оценка оставшихся neurons",
+			"cloudflareUsage": "Оценка использования Cloudflare",
+			"cloudflareUsageValue": "{{used}} / {{quota}} neurons использовано · {{remaining}} осталось",
 			"usageSource": "Источник использования",
 			"estimatedUsedNeuronsToday": "Оценочно использовано сегодня",
 			"dailyQuotaNeurons": "Ежедневная бесплатная quota",
