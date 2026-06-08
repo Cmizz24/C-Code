@@ -94,6 +94,10 @@ function nowIso(): string {
 	return new Date().toISOString()
 }
 
+function messageFromError(error: unknown): string {
+	return error instanceof Error ? error.message : String(error)
+}
+
 function clampInteger(value: number, min: number, max: number): number {
 	if (!Number.isFinite(value)) {
 		return min
@@ -843,9 +847,16 @@ export class VisualBrowserInspectorService {
 		}
 
 		const viewport = viewportFromInput(params.viewport)
-		let runtime = params.sessionId ? this.sessions.get(params.sessionId) : undefined
+		const headless = params.headless ?? false
+		let runtime = params.sessionId
+			? this.sessions.get(params.sessionId)
+			: this.currentSessionId
+				? this.sessions.get(this.currentSessionId)
+				: undefined
+		let createdRuntime = false
 
-		if (!runtime || runtime.metadata.status === "closed") {
+		if (!runtime || runtime.metadata.status === "closed" || runtime.metadata.headless !== headless) {
+			await this.closeControlledRuntimes({ log: options.log })
 			runtime = await this.createRuntime({
 				cwd: options.cwd,
 				globalStoragePath: options.globalStoragePath,
@@ -853,28 +864,46 @@ export class VisualBrowserInspectorService {
 				onBrowserInstallStatus: options.onBrowserInstallStatus,
 				url: normalizedUrl,
 				viewport,
-				headless: params.headless ?? false,
+				headless,
 				allowExternal: params.allowExternal ?? false,
 			})
+			createdRuntime = true
 		} else {
-			await runtime.page.setViewportSize({ width: viewport.width, height: viewport.height })
-			runtime.metadata.viewport = viewport
-			runtime.metadata.headless = params.headless ?? runtime.metadata.headless
-			runtime.metadata.allowExternal = params.allowExternal ?? runtime.metadata.allowExternal
-			runtime.metadata.status = "opening"
+			await this.closeControlledRuntimes({ exceptSessionId: runtime.metadata.sessionId, log: options.log })
 		}
 
-		this.currentSessionId = runtime.metadata.sessionId
-		runtime.page.setDefaultTimeout(DEFAULT_ACTION_TIMEOUT_MS)
-		await runtime.page.goto(normalizedUrl, {
-			waitUntil: "domcontentloaded",
-			timeout: DEFAULT_NAVIGATION_TIMEOUT_MS,
-		})
-		await runtime.page
-			.waitForLoadState("networkidle", { timeout: DEFAULT_ACTION_TIMEOUT_MS })
-			.catch(() => undefined)
-		this.touchSession(runtime, { status: "active", url: runtime.page.url() })
-		await this.persist(runtime)
+		try {
+			this.currentSessionId = runtime.metadata.sessionId
+			await runtime.page.setViewportSize({ width: viewport.width, height: viewport.height })
+			runtime.metadata.viewport = viewport
+			runtime.metadata.headless = headless
+			runtime.metadata.allowExternal = params.allowExternal ?? runtime.metadata.allowExternal
+			runtime.metadata.status = "opening"
+			runtime.metadata.error = undefined
+			runtime.page.setDefaultTimeout(DEFAULT_ACTION_TIMEOUT_MS)
+			await runtime.page.goto(normalizedUrl, {
+				waitUntil: "domcontentloaded",
+				timeout: DEFAULT_NAVIGATION_TIMEOUT_MS,
+			})
+			await runtime.page
+				.waitForLoadState("networkidle", { timeout: DEFAULT_ACTION_TIMEOUT_MS })
+				.catch(() => undefined)
+			this.touchSession(runtime, { status: "active", url: this.getRuntimePageUrl(runtime, normalizedUrl) })
+			await this.persist(runtime)
+		} catch (error) {
+			this.touchSession(runtime, {
+				status: "error",
+				url: this.getRuntimePageUrl(runtime, normalizedUrl),
+				error: messageFromError(error),
+			})
+			await this.persistRuntimeSafely(runtime, options.log)
+
+			if (createdRuntime) {
+				await this.closeControlledRuntimes({ onlySessionId: runtime.metadata.sessionId, log: options.log })
+			}
+
+			throw error
+		}
 
 		return this.decorateResult(
 			{
@@ -1461,12 +1490,7 @@ export class VisualBrowserInspectorService {
 		options: VisualBrowserExecuteOptions,
 	): Promise<VisualBrowserToolResult> {
 		const runtime = this.resolveRuntime(params.sessionId)
-		await this.closeRuntime(runtime)
-		this.sessions.delete(runtime.metadata.sessionId)
-		if (this.currentSessionId === runtime.metadata.sessionId) {
-			this.currentSessionId = undefined
-		}
-		await this.persist(runtime)
+		await this.closeControlledRuntimes({ log: options.log })
 
 		return this.decorateResult(
 			{
@@ -1483,11 +1507,7 @@ export class VisualBrowserInspectorService {
 		options: VisualBrowserExecuteOptions,
 	): Promise<VisualBrowserToolResult> {
 		const runtime = this.resolveRuntime(params.sessionId)
-		await this.closeRuntime(runtime)
-		this.sessions.delete(runtime.metadata.sessionId)
-		if (this.currentSessionId === runtime.metadata.sessionId) {
-			this.currentSessionId = undefined
-		}
+		await this.closeControlledRuntimes({ log: options.log })
 
 		const session = { ...runtime.metadata }
 		await fs.rm(runtime.metadata.artifacts.rootDir, { recursive: true, force: true })
@@ -1521,15 +1541,24 @@ export class VisualBrowserInspectorService {
 			log: options.log,
 			onProgress: options.onBrowserInstallStatus,
 		})
-		const browser = await chromium.launch({ headless: options.headless, executablePath })
-		const context = await browser.newContext({
-			viewport: { width: options.viewport.width, height: options.viewport.height },
-			deviceScaleFactor: options.viewport.deviceScaleFactor ?? 1,
-			isMobile: options.viewport.isMobile ?? false,
-			hasTouch: options.viewport.hasTouch ?? false,
-		})
-		const page = await context.newPage()
-		page.setDefaultTimeout(DEFAULT_ACTION_TIMEOUT_MS)
+		let browser: Browser | undefined
+		let context: BrowserContext | undefined
+		let page: Page | undefined
+
+		try {
+			browser = await chromium.launch({ headless: options.headless, executablePath })
+			context = await browser.newContext({
+				viewport: { width: options.viewport.width, height: options.viewport.height },
+				deviceScaleFactor: options.viewport.deviceScaleFactor ?? 1,
+				isMobile: options.viewport.isMobile ?? false,
+				hasTouch: options.viewport.hasTouch ?? false,
+			})
+			page = await context.newPage()
+			page.setDefaultTimeout(DEFAULT_ACTION_TIMEOUT_MS)
+		} catch (error) {
+			await this.closePartialRuntime({ page, context, browser }, options.log)
+			throw error
+		}
 
 		const runtime: VisualBrowserSessionRuntime = {
 			browser,
@@ -1605,13 +1634,90 @@ export class VisualBrowserInspectorService {
 		}
 	}
 
-	private async closeRuntime(runtime: VisualBrowserSessionRuntime): Promise<void> {
+	private getRuntimePageUrl(runtime: VisualBrowserSessionRuntime, fallbackUrl: string): string {
 		try {
-			await runtime.context.close().catch(() => undefined)
-			await runtime.browser.close().catch(() => undefined)
-		} finally {
-			this.touchSession(runtime, { status: "closed", url: runtime.metadata.url })
-			runtime.metadata.closedAt = nowIso()
+			return runtime.page.url() || fallbackUrl
+		} catch {
+			return fallbackUrl
+		}
+	}
+
+	private async closeControlledRuntimes(options: {
+		exceptSessionId?: string
+		onlySessionId?: string
+		log?: (message: string) => void
+	}): Promise<VisualBrowserSessionRuntime[]> {
+		const closedRuntimes: VisualBrowserSessionRuntime[] = []
+
+		for (const runtime of Array.from(this.sessions.values())) {
+			if (options.exceptSessionId && runtime.metadata.sessionId === options.exceptSessionId) {
+				continue
+			}
+
+			if (options.onlySessionId && runtime.metadata.sessionId !== options.onlySessionId) {
+				continue
+			}
+
+			await this.closeRuntime(runtime, options.log)
+			this.sessions.delete(runtime.metadata.sessionId)
+			closedRuntimes.push(runtime)
+			await this.persistRuntimeSafely(runtime, options.log)
+		}
+
+		if (options.exceptSessionId && this.sessions.has(options.exceptSessionId)) {
+			this.currentSessionId = options.exceptSessionId
+		} else if (!this.currentSessionId || !this.sessions.has(this.currentSessionId)) {
+			this.currentSessionId = undefined
+		}
+
+		return closedRuntimes
+	}
+
+	private async closeRuntime(runtime: VisualBrowserSessionRuntime, log?: (message: string) => void): Promise<void> {
+		await this.closeControlledResource("page", () => runtime.page.close(), log)
+		await this.closeControlledResource("context", () => runtime.context.close(), log)
+		await this.closeControlledResource("browser", () => runtime.browser.close(), log)
+		this.touchSession(runtime, { status: "closed", url: runtime.metadata.url })
+		runtime.metadata.closedAt = nowIso()
+	}
+
+	private async closePartialRuntime(
+		resources: { page?: Page; context?: BrowserContext; browser?: Browser },
+		log?: (message: string) => void,
+	): Promise<void> {
+		if (resources.page) {
+			await this.closeControlledResource("page", () => resources.page!.close(), log)
+		}
+
+		if (resources.context) {
+			await this.closeControlledResource("context", () => resources.context!.close(), log)
+		}
+
+		if (resources.browser) {
+			await this.closeControlledResource("browser", () => resources.browser!.close(), log)
+		}
+	}
+
+	private async closeControlledResource(
+		resourceName: string,
+		close: () => Promise<unknown>,
+		log?: (message: string) => void,
+	): Promise<void> {
+		try {
+			await close()
+		} catch (error) {
+			log?.(`Visual Browser Inspector ignored ${resourceName} cleanup error: ${messageFromError(error)}`)
+		}
+	}
+
+	private async persistRuntimeSafely(
+		runtime: VisualBrowserSessionRuntime,
+		log?: (message: string) => void,
+	): Promise<void> {
+		try {
+			await this.persist(runtime)
+		} catch (error) {
+			log?.(`Visual Browser Inspector could not persist cleanup metadata: ${messageFromError(error)}`)
 		}
 	}
 
