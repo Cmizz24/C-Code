@@ -56,7 +56,26 @@
 	},
 	"visualBrowserInspector": {
 		"emptyStatus": "कोई नियंत्रित Playwright ब्राउज़र सत्र सक्रिय नहीं है। पहले उपयोग पर, C Code Chromium को एक्सटेंशन स्टोरेज में अपने आप तैयार करता है।",
-		"headerDescription": "केवल नियंत्रित Playwright ब्राउज़र कैप्चर। C Code पहले उपयोग पर Chromium को एक्सटेंशन स्टोरेज में अपने आप तैयार करता है। आर्टिफैक्ट स्थानीय रूप से <artifactPath>.roo/visual-browser-inspector</artifactPath> में रहते हैं।"
+		"headerDescription": "केवल नियंत्रित Playwright ब्राउज़र कैप्चर। C Code पहले उपयोग पर Chromium को एक्सटेंशन स्टोरेज में अपने आप तैयार करता है। आर्टिफैक्ट स्थानीय रूप से <artifactPath>.roo/visual-browser-inspector</artifactPath> में रहते हैं।",
+		"findings": {
+			"groupedSummary": "{{recommendationCount}} समूहबद्ध अनुशंसा(एँ) follow-up fix tasks के लिए {{issueCount}} पेज-विश्लेषण समस्या(ओं) को कवर करती हैं।",
+			"analysisBasedNotice": "अनुशंसाएँ स्थानीय पेज विश्लेषण से बनती हैं, placeholders नहीं हैं; दोहराई गई समस्याएँ संभावित root cause या fix strategy के आधार पर समूहित होती हैं।",
+			"affectedIssues": "{{count}} समस्या(एँ)",
+			"startFixTaskForRecommendation": "इस अनुशंसा के लिए Fix Task शुरू करें",
+			"userImpactLabel": "यूज़र प्रभाव:",
+			"rootCauseLabel": "संभावित root cause:",
+			"suggestedFixLabel": "सुझाया गया fix:",
+			"recommendationLabel": "अनुशंसा:",
+			"implementationHintLabel": "Implementation hint:",
+			"examplesLabel": "निरीक्षण के लिए रखे गए उदाहरण",
+			"issueNumber": "समस्या {{number}}",
+			"boxLabel": "Box:",
+			"filesToInspectLabel": "जाँचने के लिए फ़ाइलें:",
+			"verificationStepsLabel": "Verification steps",
+			"individualFindingsLabel": "इस समूह में अलग-अलग findings",
+			"screenshotLabel": "Screenshot:",
+			"cropLabel": "Crop:"
+		}
 	},
 	"file": {
 		"errors": {

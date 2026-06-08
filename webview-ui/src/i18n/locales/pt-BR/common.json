@@ -56,7 +56,26 @@
 	},
 	"visualBrowserInspector": {
 		"emptyStatus": "Nenhuma sessão controlada do navegador Playwright está ativa. No primeiro uso, o C Code prepara o Chromium automaticamente no armazenamento da extensão.",
-		"headerDescription": "Somente captura do navegador Playwright controlado. No primeiro uso, o C Code prepara o Chromium automaticamente no armazenamento da extensão. Os artefatos ficam locais em <artifactPath>.roo/visual-browser-inspector</artifactPath>."
+		"headerDescription": "Somente captura do navegador Playwright controlado. No primeiro uso, o C Code prepara o Chromium automaticamente no armazenamento da extensão. Os artefatos ficam locais em <artifactPath>.roo/visual-browser-inspector</artifactPath>.",
+		"findings": {
+			"groupedSummary": "{{recommendationCount}} recomendação(ões) agrupada(s) cobrem {{issueCount}} problema(s) de análise da página para tarefas de correção de acompanhamento.",
+			"analysisBasedNotice": "As recomendações são geradas a partir da análise local da página, não são placeholders; problemas repetidos são agrupados por provável causa raiz ou estratégia de correção.",
+			"affectedIssues": "{{count}} problema(s)",
+			"startFixTaskForRecommendation": "Iniciar tarefa de correção para esta recomendação",
+			"userImpactLabel": "Impacto no usuário:",
+			"rootCauseLabel": "Provável causa raiz:",
+			"suggestedFixLabel": "Correção sugerida:",
+			"recommendationLabel": "Recomendação:",
+			"implementationHintLabel": "Dica de implementação:",
+			"examplesLabel": "Exemplos preservados para inspeção",
+			"issueNumber": "Problema {{number}}",
+			"boxLabel": "Box:",
+			"filesToInspectLabel": "Arquivos para inspecionar:",
+			"verificationStepsLabel": "Etapas de verificação",
+			"individualFindingsLabel": "Findings individuais neste grupo",
+			"screenshotLabel": "Screenshot:",
+			"cropLabel": "Crop:"
+		}
 	},
 	"file": {
 		"errors": {

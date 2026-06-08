@@ -56,7 +56,26 @@
 	},
 	"visualBrowserInspector": {
 		"emptyStatus": "制御された Playwright ブラウザーセッションはアクティブではありません。初回使用時に、C Code が拡張機能ストレージ内で Chromium を自動的に準備します。",
-		"headerDescription": "制御された Playwright ブラウザーのキャプチャのみ。初回使用時に、C Code が拡張機能ストレージ内で Chromium を自動的に準備します。アーティファクトは <artifactPath>.roo/visual-browser-inspector</artifactPath> にローカル保存されます。"
+		"headerDescription": "制御された Playwright ブラウザーのキャプチャのみ。初回使用時に、C Code が拡張機能ストレージ内で Chromium を自動的に準備します。アーティファクトは <artifactPath>.roo/visual-browser-inspector</artifactPath> にローカル保存されます。",
+		"findings": {
+			"groupedSummary": "{{recommendationCount}} 件のグループ化された推奨事項が、フォローアップ修正タスク向けに {{issueCount}} 件のページ分析問題をカバーしています。",
+			"analysisBasedNotice": "推奨事項はローカルページ分析から生成され、プレースホルダーではありません。繰り返しの問題は、考えられる根本原因または修正戦略でグループ化されます。",
+			"affectedIssues": "{{count}} 件の問題",
+			"startFixTaskForRecommendation": "この推奨事項の修正タスクを開始",
+			"userImpactLabel": "ユーザーへの影響:",
+			"rootCauseLabel": "考えられる根本原因:",
+			"suggestedFixLabel": "推奨される修正:",
+			"recommendationLabel": "推奨事項:",
+			"implementationHintLabel": "実装ヒント:",
+			"examplesLabel": "検査用に保持された例",
+			"issueNumber": "問題 {{number}}",
+			"boxLabel": "ボックス:",
+			"filesToInspectLabel": "検査するファイル:",
+			"verificationStepsLabel": "検証手順",
+			"individualFindingsLabel": "このグループ内の個別 findings",
+			"screenshotLabel": "スクリーンショット:",
+			"cropLabel": "Crop:"
+		}
 	},
 	"file": {
 		"errors": {

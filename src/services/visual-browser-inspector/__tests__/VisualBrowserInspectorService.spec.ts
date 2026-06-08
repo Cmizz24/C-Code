@@ -3,6 +3,8 @@ import * as os from "os"
 import * as path from "path"
 import { PNG } from "pngjs"
 
+import type { VisualBrowserIssue } from "@roo-code/types"
+
 vi.mock("playwright", () => {
 	throw new Error("VisualBrowserInspectorService must not resolve Playwright during module import")
 })
@@ -12,6 +14,7 @@ import {
 	buildVisualBrowserFixTaskPrompt,
 	buildVisualBrowserLocalPreviewTaskPrompt,
 	cropPngRegion,
+	groupVisualBrowserIssues,
 	isVisualBrowserLocalUrl,
 	normalizeVisualBrowserUrl,
 	redactVisualBrowserText,
@@ -19,8 +22,93 @@ import {
 } from "../VisualBrowserInspectorService"
 
 describe("VisualBrowserInspectorService helpers", () => {
+	const createVisualBrowserIssue = (overrides: Partial<VisualBrowserIssue>): VisualBrowserIssue => ({
+		severity: "minor",
+		confidence: 0.78,
+		title: "Tiny tap target",
+		category: "accessibility",
+		fixPriority: "low",
+		visualEvidence: "Interactive element is below the common 44×44px tap target guideline.",
+		screenshotId: "shot-1",
+		cropId: null,
+		selectorOrElement: "button",
+		boundingBox: { x: 0, y: 0, width: 24, height: 24 },
+		userImpact: "Touch users may miss the control.",
+		likelyCause: "Touch target padding or explicit dimensions are too small for mobile interaction.",
+		suggestedFix: "Increase padding/min-width/min-height or provide a larger clickable wrapper.",
+		recommendation: "Inspect the owning component before changing styles.",
+		implementationHint: "Adjust reusable size tokens or hit-area styles.",
+		filesToInspect: ["webview-ui/src/components/CheckoutButton.tsx"],
+		verificationSteps: ["Re-run the mobile viewport", "Confirm tap target size"],
+		...overrides,
+	})
+
 	it("does not load Playwright when helper-only service module exports are imported", () => {
 		expect(normalizeVisualBrowserUrl("localhost:3000")).toBe("http://localhost:3000")
+	})
+
+	it("groups repeated simple page-analysis issues into one root-cause recommendation", () => {
+		const groups = groupVisualBrowserIssues([
+			createVisualBrowserIssue({
+				selectorOrElement: "button[data-testid=save]",
+				boundingBox: { x: 10, y: 20, width: 24, height: 24 },
+			}),
+			createVisualBrowserIssue({
+				selectorOrElement: "button[data-testid=delete]",
+				boundingBox: { x: 44, y: 20, width: 24, height: 24 },
+			}),
+			createVisualBrowserIssue({
+				severity: "major",
+				fixPriority: "medium",
+				selectorOrElement: "a[data-testid=details]",
+				boundingBox: { x: 80, y: 20, width: 20, height: 20 },
+			}),
+		])
+
+		expect(groups).toHaveLength(1)
+		expect(groups[0]).toMatchObject({
+			title: "Increase interactive target size",
+			severity: "major",
+			fixPriority: "medium",
+			affectedCount: 3,
+			issueIndexes: [0, 1, 2],
+		})
+		expect(groups[0].summary).toContain("Generated from actual local page analysis")
+		expect(groups[0].recommendation).toContain("one reusable/root-cause fix")
+		expect(groups[0].examples).toHaveLength(3)
+	})
+
+	it("keeps distinct critical issues separate so unique severe defects are not hidden", () => {
+		const groups = groupVisualBrowserIssues([
+			createVisualBrowserIssue({
+				severity: "critical",
+				confidence: 0.96,
+				title: "Broken checkout image",
+				category: "content",
+				fixPriority: "high",
+				selectorOrElement: "img[data-testid=checkout-hero]",
+				visualEvidence: "Hero image failed to load.",
+				likelyCause: "The checkout hero image URL is invalid.",
+				suggestedFix: "Repair the hero image source.",
+				filesToInspect: [],
+			}),
+			createVisualBrowserIssue({
+				severity: "critical",
+				confidence: 0.95,
+				title: "Broken logo image",
+				category: "content",
+				fixPriority: "high",
+				selectorOrElement: "img[data-testid=brand-logo]",
+				visualEvidence: "Logo image failed to load.",
+				likelyCause: "The logo image URL is invalid.",
+				suggestedFix: "Repair the logo image source.",
+				filesToInspect: [],
+			}),
+		])
+
+		expect(groups).toHaveLength(2)
+		expect(groups.map((group) => group.affectedCount)).toEqual([1, 1])
+		expect(groups.every((group) => group.severity === "critical")).toBe(true)
 	})
 
 	it("normalizes URLs and detects localhost or private targets", () => {

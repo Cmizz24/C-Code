@@ -56,7 +56,26 @@
 	},
 	"visualBrowserInspector": {
 		"emptyStatus": "Tidak ada sesi browser Playwright terkontrol yang aktif. Saat pertama kali digunakan, C Code menyiapkan Chromium secara otomatis di penyimpanan ekstensi.",
-		"headerDescription": "Hanya menangkap browser Playwright terkontrol. C Code menyiapkan Chromium secara otomatis di penyimpanan ekstensi saat pertama kali digunakan. Artefak tetap lokal di <artifactPath>.roo/visual-browser-inspector</artifactPath>."
+		"headerDescription": "Hanya menangkap browser Playwright terkontrol. C Code menyiapkan Chromium secara otomatis di penyimpanan ekstensi saat pertama kali digunakan. Artefak tetap lokal di <artifactPath>.roo/visual-browser-inspector</artifactPath>.",
+		"findings": {
+			"groupedSummary": "{{recommendationCount}} rekomendasi terkelompok mencakup {{issueCount}} masalah analisis halaman untuk tugas perbaikan lanjutan.",
+			"analysisBasedNotice": "Rekomendasi dibuat dari analisis halaman lokal, bukan placeholder; masalah berulang dikelompokkan berdasarkan kemungkinan akar penyebab atau strategi perbaikan.",
+			"affectedIssues": "{{count}} masalah",
+			"startFixTaskForRecommendation": "Mulai Tugas Perbaikan untuk rekomendasi ini",
+			"userImpactLabel": "Dampak pengguna:",
+			"rootCauseLabel": "Kemungkinan akar penyebab:",
+			"suggestedFixLabel": "Perbaikan yang disarankan:",
+			"recommendationLabel": "Rekomendasi:",
+			"implementationHintLabel": "Petunjuk implementasi:",
+			"examplesLabel": "Contoh yang disimpan untuk diperiksa",
+			"issueNumber": "Masalah {{number}}",
+			"boxLabel": "Kotak:",
+			"filesToInspectLabel": "File untuk diperiksa:",
+			"verificationStepsLabel": "Langkah verifikasi",
+			"individualFindingsLabel": "Temuan individual dalam grup ini",
+			"screenshotLabel": "Screenshot:",
+			"cropLabel": "Crop:"
+		}
 	},
 	"file": {
 		"errors": {

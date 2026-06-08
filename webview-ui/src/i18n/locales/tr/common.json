@@ -56,7 +56,26 @@
 	},
 	"visualBrowserInspector": {
 		"emptyStatus": "Etkin kontrollü Playwright tarayıcı oturumu yok. İlk kullanımda C Code, Chromium'u uzantı depolamasında otomatik olarak hazırlar.",
-		"headerDescription": "Yalnızca kontrollü Playwright tarayıcı yakalaması. İlk kullanımda C Code, Chromium'u uzantı depolamasında otomatik olarak hazırlar. Artefaktlar <artifactPath>.roo/visual-browser-inspector</artifactPath> altında yerel kalır."
+		"headerDescription": "Yalnızca kontrollü Playwright tarayıcı yakalaması. İlk kullanımda C Code, Chromium'u uzantı depolamasında otomatik olarak hazırlar. Artefaktlar <artifactPath>.roo/visual-browser-inspector</artifactPath> altında yerel kalır.",
+		"findings": {
+			"groupedSummary": "{{recommendationCount}} gruplandırılmış öneri, takip fix görevleri için {{issueCount}} sayfa analizi sorununu kapsar.",
+			"analysisBasedNotice": "Öneriler yerel sayfa analizinden üretilir, placeholder değildir; tekrarlanan sorunlar olası root cause veya fix strategy'ye göre gruplandırılır.",
+			"affectedIssues": "{{count}} sorun",
+			"startFixTaskForRecommendation": "Bu öneri için Fix Görevi başlat",
+			"userImpactLabel": "Kullanıcı etkisi:",
+			"rootCauseLabel": "Olası root cause:",
+			"suggestedFixLabel": "Önerilen fix:",
+			"recommendationLabel": "Öneri:",
+			"implementationHintLabel": "Implementation hint:",
+			"examplesLabel": "İnceleme için korunan örnekler",
+			"issueNumber": "Sorun {{number}}",
+			"boxLabel": "Box:",
+			"filesToInspectLabel": "İncelenecek dosyalar:",
+			"verificationStepsLabel": "Verification steps",
+			"individualFindingsLabel": "Bu gruptaki tekil findings",
+			"screenshotLabel": "Screenshot:",
+			"cropLabel": "Crop:"
+		}
 	},
 	"file": {
 		"errors": {

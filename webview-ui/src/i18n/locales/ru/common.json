@@ -56,7 +56,26 @@
 	},
 	"visualBrowserInspector": {
 		"emptyStatus": "Нет активного контролируемого сеанса браузера Playwright. При первом использовании C Code автоматически подготовит Chromium в хранилище расширения.",
-		"headerDescription": "Только захват контролируемого браузера Playwright. При первом использовании C Code автоматически подготовит Chromium в хранилище расширения. Артефакты остаются локально в <artifactPath>.roo/visual-browser-inspector</artifactPath>."
+		"headerDescription": "Только захват контролируемого браузера Playwright. При первом использовании C Code автоматически подготовит Chromium в хранилище расширения. Артефакты остаются локально в <artifactPath>.roo/visual-browser-inspector</artifactPath>.",
+		"findings": {
+			"groupedSummary": "{{recommendationCount}} сгруппированных рекомендаций покрывают {{issueCount}} проблем анализа страницы для последующих задач исправления.",
+			"analysisBasedNotice": "Рекомендации создаются из локального анализа страницы, а не являются placeholders; повторяющиеся проблемы группируются по вероятной первопричине или стратегии исправления.",
+			"affectedIssues": "{{count}} проблем(ы)",
+			"startFixTaskForRecommendation": "Запустить задачу исправления для этой рекомендации",
+			"userImpactLabel": "Влияние на пользователя:",
+			"rootCauseLabel": "Вероятная первопричина:",
+			"suggestedFixLabel": "Предложенное исправление:",
+			"recommendationLabel": "Рекомендация:",
+			"implementationHintLabel": "Подсказка по реализации:",
+			"examplesLabel": "Примеры сохранены для проверки",
+			"issueNumber": "Проблема {{number}}",
+			"boxLabel": "Box:",
+			"filesToInspectLabel": "Файлы для проверки:",
+			"verificationStepsLabel": "Шаги проверки",
+			"individualFindingsLabel": "Отдельные findings в этой группе",
+			"screenshotLabel": "Screenshot:",
+			"cropLabel": "Crop:"
+		}
 	},
 	"file": {
 		"errors": {

@@ -56,7 +56,26 @@
 	},
 	"visualBrowserInspector": {
 		"emptyStatus": "Keine kontrollierte Playwright-Browser-Sitzung ist aktiv. Beim ersten Einsatz bereitet C Code Chromium automatisch im Erweiterungsspeicher vor.",
-		"headerDescription": "Nur Erfassung des kontrollierten Playwright-Browsers. C Code bereitet Chromium beim ersten Einsatz automatisch im Erweiterungsspeicher vor. Artefakte bleiben lokal unter <artifactPath>.roo/visual-browser-inspector</artifactPath>."
+		"headerDescription": "Nur Erfassung des kontrollierten Playwright-Browsers. C Code bereitet Chromium beim ersten Einsatz automatisch im Erweiterungsspeicher vor. Artefakte bleiben lokal unter <artifactPath>.roo/visual-browser-inspector</artifactPath>.",
+		"findings": {
+			"groupedSummary": "{{recommendationCount}} gruppierte Empfehlung(en) decken {{issueCount}} Seitenanalyse-Problem(e) für Folge-Fix-Aufgaben ab.",
+			"analysisBasedNotice": "Empfehlungen werden aus lokaler Seitenanalyse generiert und sind keine Platzhalter; wiederholte Probleme werden nach wahrscheinlicher Ursache oder Fix-Strategie gruppiert.",
+			"affectedIssues": "{{count}} Problem(e)",
+			"startFixTaskForRecommendation": "Fix-Aufgabe für diese Empfehlung starten",
+			"userImpactLabel": "Auswirkung auf Nutzer:",
+			"rootCauseLabel": "Wahrscheinliche Ursache:",
+			"suggestedFixLabel": "Vorgeschlagener Fix:",
+			"recommendationLabel": "Empfehlung:",
+			"implementationHintLabel": "Implementierungshinweis:",
+			"examplesLabel": "Beispiele zur Prüfung beibehalten",
+			"issueNumber": "Problem {{number}}",
+			"boxLabel": "Box:",
+			"filesToInspectLabel": "Zu prüfende Dateien:",
+			"verificationStepsLabel": "Verifizierungsschritte",
+			"individualFindingsLabel": "Einzelne Befunde in dieser Gruppe",
+			"screenshotLabel": "Screenshot:",
+			"cropLabel": "Zuschnitt:"
+		}
 	},
 	"file": {
 		"errors": {

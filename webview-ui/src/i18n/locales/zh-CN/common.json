@@ -56,7 +56,26 @@
 	},
 	"visualBrowserInspector": {
 		"emptyStatus": "当前没有活动的受控 Playwright 浏览器会话。首次使用时，C Code 会自动在扩展存储中准备 Chromium。",
-		"headerDescription": "仅捕获受控的 Playwright 浏览器。首次使用时，C Code 会自动在扩展存储中准备 Chromium。工件会本地保存在 <artifactPath>.roo/visual-browser-inspector</artifactPath> 下。"
+		"headerDescription": "仅捕获受控的 Playwright 浏览器。首次使用时，C Code 会自动在扩展存储中准备 Chromium。工件会本地保存在 <artifactPath>.roo/visual-browser-inspector</artifactPath> 下。",
+		"findings": {
+			"groupedSummary": "{{recommendationCount}} 条分组建议覆盖 {{issueCount}} 个页面分析问题，可用于后续修复任务。",
+			"analysisBasedNotice": "建议由本地页面分析生成，并非占位符；重复问题会按可能的根因或修复策略分组。",
+			"affectedIssues": "{{count}} 个问题",
+			"startFixTaskForRecommendation": "为此建议启动修复任务",
+			"userImpactLabel": "用户影响：",
+			"rootCauseLabel": "可能根因：",
+			"suggestedFixLabel": "建议修复：",
+			"recommendationLabel": "建议：",
+			"implementationHintLabel": "实现提示：",
+			"examplesLabel": "保留用于检查的示例",
+			"issueNumber": "问题 {{number}}",
+			"boxLabel": "边界框：",
+			"filesToInspectLabel": "要检查的文件：",
+			"verificationStepsLabel": "验证步骤",
+			"individualFindingsLabel": "此分组中的单个 findings",
+			"screenshotLabel": "截图：",
+			"cropLabel": "裁剪："
+		}
 	},
 	"file": {
 		"errors": {

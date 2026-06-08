@@ -56,7 +56,26 @@
 	},
 	"visualBrowserInspector": {
 		"emptyStatus": "제어되는 Playwright 브라우저 세션이 활성 상태가 아닙니다. 처음 사용할 때 C Code가 확장 저장소에 Chromium을 자동으로 준비합니다.",
-		"headerDescription": "제어되는 Playwright 브라우저 캡처만 수행합니다. 처음 사용할 때 C Code가 확장 저장소에 Chromium을 자동으로 준비합니다. 아티팩트는 <artifactPath>.roo/visual-browser-inspector</artifactPath>에 로컬로 유지됩니다."
+		"headerDescription": "제어되는 Playwright 브라우저 캡처만 수행합니다. 처음 사용할 때 C Code가 확장 저장소에 Chromium을 자동으로 준비합니다. 아티팩트는 <artifactPath>.roo/visual-browser-inspector</artifactPath>에 로컬로 유지됩니다.",
+		"findings": {
+			"groupedSummary": "그룹화된 추천 {{recommendationCount}}개가 후속 수정 작업용 페이지 분석 문제 {{issueCount}}개를 포함합니다.",
+			"analysisBasedNotice": "추천은 로컬 페이지 분석에서 생성되며 placeholder가 아닙니다. 반복 문제는 가능한 root cause 또는 fix strategy로 그룹화됩니다.",
+			"affectedIssues": "문제 {{count}}개",
+			"startFixTaskForRecommendation": "이 추천에 대한 수정 작업 시작",
+			"userImpactLabel": "사용자 영향:",
+			"rootCauseLabel": "가능한 root cause:",
+			"suggestedFixLabel": "제안된 fix:",
+			"recommendationLabel": "추천:",
+			"implementationHintLabel": "구현 힌트:",
+			"examplesLabel": "검사를 위해 보존된 예시",
+			"issueNumber": "문제 {{number}}",
+			"boxLabel": "Box:",
+			"filesToInspectLabel": "검사할 파일:",
+			"verificationStepsLabel": "검증 단계",
+			"individualFindingsLabel": "이 그룹의 개별 findings",
+			"screenshotLabel": "Screenshot:",
+			"cropLabel": "Crop:"
+		}
 	},
 	"file": {
 		"errors": {

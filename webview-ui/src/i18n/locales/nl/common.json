@@ -56,7 +56,26 @@
 	},
 	"visualBrowserInspector": {
 		"emptyStatus": "Er is geen gecontroleerde Playwright-browsersessie actief. Bij het eerste gebruik bereidt C Code Chromium automatisch voor in de extensieopslag.",
-		"headerDescription": "Alleen gecontroleerde Playwright-browsercapture. C Code bereidt Chromium bij het eerste gebruik automatisch voor in de extensieopslag. Artefacten blijven lokaal onder <artifactPath>.roo/visual-browser-inspector</artifactPath>."
+		"headerDescription": "Alleen gecontroleerde Playwright-browsercapture. C Code bereidt Chromium bij het eerste gebruik automatisch voor in de extensieopslag. Artefacten blijven lokaal onder <artifactPath>.roo/visual-browser-inspector</artifactPath>.",
+		"findings": {
+			"groupedSummary": "{{recommendationCount}} gegroepeerde aanbeveling(en) dekken {{issueCount}} pagina-analyseproble(e)m(en) voor vervolg-fixtaken.",
+			"analysisBasedNotice": "Aanbevelingen worden gegenereerd uit lokale pagina-analyse en zijn geen placeholders; herhaalde problemen worden gegroepeerd op waarschijnlijke oorzaak of fixstrategie.",
+			"affectedIssues": "{{count}} probleem/problemen",
+			"startFixTaskForRecommendation": "Fix-taak starten voor deze aanbeveling",
+			"userImpactLabel": "Impact op gebruiker:",
+			"rootCauseLabel": "Waarschijnlijke oorzaak:",
+			"suggestedFixLabel": "Voorgestelde fix:",
+			"recommendationLabel": "Aanbeveling:",
+			"implementationHintLabel": "Implementatiehint:",
+			"examplesLabel": "Voorbeelden bewaard voor inspectie",
+			"issueNumber": "Probleem {{number}}",
+			"boxLabel": "Box:",
+			"filesToInspectLabel": "Te inspecteren bestanden:",
+			"verificationStepsLabel": "Verificatiestappen",
+			"individualFindingsLabel": "Individuele bevindingen in deze groep",
+			"screenshotLabel": "Screenshot:",
+			"cropLabel": "Crop:"
+		}
 	},
 	"file": {
 		"errors": {
