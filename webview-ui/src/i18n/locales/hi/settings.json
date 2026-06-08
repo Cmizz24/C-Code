@@ -347,6 +347,16 @@
 			"modelColumn": "Model",
 			"priceColumn": "Price",
 			"neuronsColumn": "Neurons"
+		},
+		"cloudflareUsage": {
+			"title": "आज का अनुमानित Workers AI उपयोग",
+			"remainingLabel": "अनुमानित बचे हुए मुफ्त neurons",
+			"neuronsValue": "{{count}} neurons",
+			"usedLabel": "आज अनुमानित उपयोग",
+			"usedValue": "{{used}} / {{quota}} neurons",
+			"requestsLabel": "ट्रैक किए गए इमेज अनुरोध",
+			"resetLabel": "अगला रीसेट",
+			"localEstimateDescription": "यह C से चलाई गई इमेज जनरेशन के आधार पर स्थानीय अनुमान है। Cloudflare यहाँ दैनिक बची हुई quota के लिए कोई दस्तावेजीकृत API नहीं देता; प्रदाता-पुष्ट उपयोग के लिए अपना Cloudflare dashboard देखो."
 		}
 	},
 	"providers": {

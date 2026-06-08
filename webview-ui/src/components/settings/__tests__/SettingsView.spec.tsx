@@ -1008,6 +1008,59 @@ describe("SettingsView - Image Generation Settings", () => {
 		)
 	})
 
+	it("renders live Cloudflare usage without saving it as cached image settings", () => {
+		const utcDate = new Date().toISOString().slice(0, 10)
+
+		renderSettingsViewWithTranslations(
+			{
+				experiments: { imageGeneration: true },
+				imageGenerationProvider: "cloudflare",
+				cloudflareImageApiKey: "saved-cloudflare-token",
+				cloudflareImageAccountId: "saved-account-id",
+				cloudflareImageBaseUrl: "https://api.cloudflare.com/client/v4",
+				cloudflareImageGenerationSelectedModel: "@cf/black-forest-labs/flux-1-schnell",
+				cloudflareImageGenerationApiMethod: "workers_ai",
+				cloudflareWorkersAiImageUsage: {
+					utcDate,
+					neuronsUsed: 1_250,
+					requestCount: 3,
+					estimatedNeuronsUsed: 1_250,
+					updatedAt: `${utcDate}T08:00:00.000Z`,
+				},
+			},
+			"imageGeneration",
+		)
+
+		const content = screen.getByTestId("settings-content")
+		expect(within(content).getByText("Estimated Workers AI usage today")).toBeInTheDocument()
+		expect(within(content).getByText("Estimated remaining free neurons")).toBeInTheDocument()
+		expect(within(content).getByText("8,750 neurons")).toBeInTheDocument()
+		expect(within(content).getByText("1,250 / 10,000 neurons")).toBeInTheDocument()
+		expect(within(content).getByText("Image requests tracked")).toBeInTheDocument()
+		expect(within(content).getByText("3")).toBeInTheDocument()
+		expect(within(content).getByText(/local estimate based on image generations/i)).toBeInTheDocument()
+		fireEvent.change(within(content).getByDisplayValue("https://api.cloudflare.com/client/v4"), {
+			target: { value: "https://api.cloudflare.example/client/v4" },
+		})
+
+		vi.mocked(vscode.postMessage).mockClear()
+		fireEvent.click(screen.getByTestId("save-button"))
+
+		const updateSettingsMessage = vi
+			.mocked(vscode.postMessage)
+			.mock.calls.find(([message]) => message.type === "updateSettings")?.[0] as any
+
+		expect(updateSettingsMessage).toBeDefined()
+		expect(updateSettingsMessage.updatedSettings).toEqual(
+			expect.objectContaining({
+				imageGenerationProvider: "cloudflare",
+				cloudflareImageBaseUrl: "https://api.cloudflare.example/client/v4",
+				cloudflareImageGenerationApiMethod: "workers_ai",
+			}),
+		)
+		expect(updateSettingsMessage.updatedSettings).not.toHaveProperty("cloudflareWorkersAiImageUsage")
+	})
+
 	it("keeps image generation settings independent from the active chat provider profile", () => {
 		const { activateTab, getSettingsContent } = renderSettingsView({
 			experiments: { imageGeneration: true },

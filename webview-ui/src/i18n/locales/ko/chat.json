@@ -235,13 +235,32 @@
 			"cost": "비용",
 			"error": "오류",
 			"showDetails": "세부 정보 표시",
-			"hideDetails": "세부 정보 숨기기"
+			"hideDetails": "세부 정보 숨기기",
+			"dimensions": "크기",
+			"dimensionsValue": "{{width}} × {{height}} px",
+			"estimatedCost": "예상 비용",
+			"neurons": "Neurons",
+			"estimatedNeurons": "예상 neurons",
+			"estimatedRemainingNeurons": "예상 남은 neurons",
+			"usageSource": "사용량 출처",
+			"estimatedUsedNeuronsToday": "오늘 예상 사용량",
+			"dailyQuotaNeurons": "일일 무료 quota",
+			"quotaResetAt": "Quota 재설정",
+			"quotaDescription": "Quota 참고",
+			"pricingDescription": "가격 참고",
+			"usageSources": {
+				"provider_response": "제공자 응답",
+				"provider_response_with_local_quota": "제공자 응답 + 로컬 quota 추정",
+				"local_estimate": "로컬 추정",
+				"unknown": "알 수 없음"
+			}
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		}
 	},
 	"directoryOperations": {

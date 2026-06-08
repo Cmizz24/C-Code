@@ -230,13 +230,32 @@
 			"cost": "Стоимость",
 			"error": "Ошибка",
 			"showDetails": "Показать сведения",
-			"hideDetails": "Скрыть сведения"
+			"hideDetails": "Скрыть сведения",
+			"dimensions": "Размеры",
+			"dimensionsValue": "{{width}} × {{height}} px",
+			"estimatedCost": "Оценочная стоимость",
+			"neurons": "Neurons",
+			"estimatedNeurons": "Оценка neurons",
+			"estimatedRemainingNeurons": "Оценка оставшихся neurons",
+			"usageSource": "Источник использования",
+			"estimatedUsedNeuronsToday": "Оценочно использовано сегодня",
+			"dailyQuotaNeurons": "Ежедневная бесплатная quota",
+			"quotaResetAt": "Сброс quota",
+			"quotaDescription": "Примечание о quota",
+			"pricingDescription": "Примечание о цене",
+			"usageSources": {
+				"provider_response": "Ответ провайдера",
+				"provider_response_with_local_quota": "Ответ провайдера + локальная оценка quota",
+				"local_estimate": "Локальная оценка",
+				"unknown": "Неизвестно"
+			}
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		}
 	},
 	"directoryOperations": {

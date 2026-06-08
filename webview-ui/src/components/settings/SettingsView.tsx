@@ -1053,6 +1053,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 						{renderTab === "imageGeneration" && (
 							<ImageGenerationSettings
 								imageGenerationSettings={imageGenerationSettings}
+								cloudflareWorkersAiImageUsage={extensionState.cloudflareWorkersAiImageUsage}
 								setImageGenerationSetting={setImageGenerationSetting}
 							/>
 						)}

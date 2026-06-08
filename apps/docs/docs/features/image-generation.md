@@ -29,6 +29,7 @@ Generate new images from text prompts or edit existing images in your workspace.
 - Edit and transform existing images in your workspace
 - Saves to your workspace at a path you choose; appropriate extension (.png or .jpg) is auto-added if missing
 - Shows a preview of the generated/edited image in the conversation
+- Shows safe provider metadata in chat, including usage details when providers report them
 - Supports remote providers such as OpenRouter, OpenAI/OpenAI-compatible endpoints, and Cloudflare Workers AI
 - Keeps image-generation provider settings separate from chat provider profiles
 
@@ -88,7 +89,9 @@ When invoked, Roo sends your prompt (and optionally an existing image) to your c
 
 ### 4. Cloudflare Workers AI Pricing Guidance
 
-When Cloudflare Workers AI is selected, the Image Generation settings show Cloudflare's free allocation and Neuron pricing guidance. The displayed guidance includes the free daily allocation, reset time, paid overage rate, and model-specific pricing details where available. Confirm current billing details in the Cloudflare dashboard before generating production assets.
+When Cloudflare Workers AI is selected, the Image Generation settings show Cloudflare's free allocation and Neuron pricing guidance. The displayed guidance includes the free daily allocation, reset time, paid overage rate, and model-specific pricing details where available.
+
+The settings panel also shows a local estimate of Workers AI image-generation usage for the current UTC day. This estimate tracks image generations run from Roo, derives estimated remaining free Neurons from the 10,000 Neurons per day free allocation, and resets at 00:00 UTC. Cloudflare does not provide Roo a documented daily remaining-quota API here, so use the Cloudflare dashboard as the source of provider-confirmed usage before generating production assets.
 
 ---
 
@@ -97,7 +100,7 @@ When Cloudflare Workers AI is selected, the Image Generation settings show Cloud
 1. In chat, ask Roo to generate an image and describe what you want (subject, style, lighting, composition).
 2. Review the proposed prompt and confirm the action when prompted. You can edit the prompt before approving.
 3. Roo generates the image and saves it. If you don't include an extension, the appropriate extension (.png or .jpg) is added based on the output format.
-4. See the image preview and safe provider metadata in chat, then locate the file in your workspace.
+4. See the image preview and safe provider metadata in chat, then locate the file in your workspace. For Cloudflare Workers AI, chat metadata can include provider-reported or locally estimated Neurons, estimated cost, local daily usage, estimated remaining free Neurons, reset time, and pricing/quota notes when available.
 
 ---
 
@@ -140,6 +143,7 @@ Include these elements in your prompts:
 - Provider availability and model lists vary by provider
 - Vision or image-understanding chat models are not image-generation models
 - OpenRouter, OpenAI-compatible, and Cloudflare Workers AI provider limits, costs, and model availability can change; confirm current details in the provider dashboard
+- Cloudflare Workers AI remaining free Neurons shown in Roo are local estimates based on Roo image generations, not provider-confirmed quota readings
 - One image is produced per request
 - Output formats supported: PNG or JPG
 - Supported input formats for editing: PNG, JPG, JPEG, GIF, WEBP only

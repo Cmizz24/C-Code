@@ -17,6 +17,15 @@ import { languagesSchema } from "./vscode.js"
 import { openAiCodexFastStatusSchema } from "./providers/openai-codex.js"
 import { IMAGE_GENERATION_API_METHODS, IMAGE_GENERATION_PROVIDER_IDS } from "./image-generation.js"
 
+export const cloudflareWorkersAiImageUsageStateSchema = z.object({
+	utcDate: z.string(),
+	neuronsUsed: z.number().nonnegative(),
+	requestCount: z.number().int().nonnegative(),
+	providerReportedNeuronsUsed: z.number().nonnegative().optional(),
+	estimatedNeuronsUsed: z.number().nonnegative().optional(),
+	updatedAt: z.string(),
+})
+
 /**
  * Default delay in milliseconds after writes to allow diagnostics to detect potential problems.
  * This delay is particularly important for Go and other languages where tools like goimports
@@ -125,6 +134,7 @@ export const globalSettingsSchema = z.object({
 	cloudflareImageBaseUrl: z.string().optional(),
 	cloudflareImageGenerationSelectedModel: z.string().optional(),
 	cloudflareImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+	cloudflareWorkersAiImageUsage: cloudflareWorkersAiImageUsageStateSchema.optional(),
 	comfyUiImageApiKey: z.string().optional(),
 	comfyUiImageBaseUrl: z.string().optional(),
 	comfyUiImageGenerationSelectedModel: z.string().optional(),

@@ -235,13 +235,32 @@
 			"cost": "Maliyet",
 			"error": "Hata",
 			"showDetails": "Ayrıntıları göster",
-			"hideDetails": "Ayrıntıları gizle"
+			"hideDetails": "Ayrıntıları gizle",
+			"dimensions": "Boyutlar",
+			"dimensionsValue": "{{width}} × {{height}} px",
+			"estimatedCost": "Tahmini maliyet",
+			"neurons": "Neurons",
+			"estimatedNeurons": "Tahmini neurons",
+			"estimatedRemainingNeurons": "Tahmini kalan neurons",
+			"usageSource": "Kullanım kaynağı",
+			"estimatedUsedNeuronsToday": "Bugün tahmini kullanılan",
+			"dailyQuotaNeurons": "Günlük ücretsiz quota",
+			"quotaResetAt": "Quota sıfırlama",
+			"quotaDescription": "Quota notu",
+			"pricingDescription": "Fiyatlandırma notu",
+			"usageSources": {
+				"provider_response": "Sağlayıcı yanıtı",
+				"provider_response_with_local_quota": "Sağlayıcı yanıtı + yerel quota tahmini",
+				"local_estimate": "Yerel tahmin",
+				"unknown": "Bilinmiyor"
+			}
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		}
 	},
 	"directoryOperations": {

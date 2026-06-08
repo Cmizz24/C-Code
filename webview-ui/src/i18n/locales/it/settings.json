@@ -347,6 +347,16 @@
 			"modelColumn": "Modello",
 			"priceColumn": "Prezzo",
 			"neuronsColumn": "Neurons"
+		},
+		"cloudflareUsage": {
+			"title": "Utilizzo stimato di Workers AI oggi",
+			"remainingLabel": "Neurons gratuiti rimanenti stimati",
+			"neuronsValue": "{{count}} neurons",
+			"usedLabel": "Utilizzo stimato oggi",
+			"usedValue": "{{used}} / {{quota}} neurons",
+			"requestsLabel": "Richieste immagine tracciate",
+			"resetLabel": "Prossimo reset",
+			"localEstimateDescription": "Questa è una stima locale basata sulle generazioni di immagini eseguite da C. Cloudflare non fornisce qui un'API documentata per la quota giornaliera rimanente; controlla la tua dashboard Cloudflare per l'utilizzo confermato dal provider."
 		}
 	},
 	"providers": {

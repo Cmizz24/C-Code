@@ -35,9 +35,17 @@ vi.mock("../../common/ImageBlock", () => ({
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
-		t: (key: string, options?: Record<string, string>) => {
+		t: (key: string, options?: Record<string, unknown>) => {
 			if (key === "chat:imageGeneration.statusTitle") {
 				return `Image Generation ${options?.status ?? ""}`.trim()
+			}
+
+			if (options) {
+				const renderedOptions = Object.entries(options)
+					.map(([optionKey, optionValue]) => `${optionKey}=${optionValue}`)
+					.join(",")
+
+				return `${key}(${renderedOptions})`
 			}
 
 			return key
@@ -254,6 +262,66 @@ describe("ChatRow - image generation", () => {
 		expect(screen.getByText("http://127.0.0.1:8188")).toBeInTheDocument()
 		expect(screen.getByText("chat:imageGeneration.metadata.localEndpoint")).toBeInTheDocument()
 		expect(screen.getByText("chat:imageGeneration.apiMethods.images_api")).toBeInTheDocument()
+	})
+
+	it("renders Cloudflare neuron, quota, and pricing metadata in chat cards", () => {
+		renderChatRow(
+			createImageGenerationSayMessage({
+				status: "completed",
+				prompt: "Draw a Cloudflare-backed image",
+				provider: "cloudflare",
+				providerLabel: "Cloudflare Workers AI",
+				model: "@cf/leonardo/phoenix-1.0",
+				apiMethod: "workers_ai",
+				outputPath: "images/cloudflare.png",
+				imageFormat: "png",
+				imageWidth: 1_024,
+				imageHeight: 512,
+				usage: {
+					neurons: 250,
+					estimatedCost: 0.00275,
+					currency: "USD",
+					usageSource: "provider_response_with_local_quota",
+					dailyQuotaNeurons: 10_000,
+					estimatedUsedNeuronsToday: 1_250,
+					estimatedRemainingNeurons: 8_750,
+					quotaResetAt: "2026-06-09T00:00:00.000Z",
+					quotaDescription:
+						"Free allocation: 10,000 Neurons per day; resets at 00:00 UTC; paid overage: $0.011 / 1,000 Neurons.",
+					pricingDescription:
+						"Leonardo Phoenix 1.0: $0.005830 per 512x512 tile. Neurons: 530.00 neurons per 512x512 tile",
+				},
+			}),
+		)
+
+		expect(screen.getByText("Cloudflare Workers AI")).toBeInTheDocument()
+		expect(screen.getByText("@cf/leonardo/phoenix-1.0")).toBeInTheDocument()
+		expect(
+			screen.getByText("chat:imageGeneration.metadata.dimensionsValue(width=1,024,height=512)"),
+		).toBeInTheDocument()
+		expect(screen.getByText("$0.00275")).toBeInTheDocument()
+		expect(screen.getByText("250")).toBeInTheDocument()
+		expect(screen.getByText("8,750")).toBeInTheDocument()
+		expect(screen.queryByText("Draw a Cloudflare-backed image")).not.toBeInTheDocument()
+
+		fireEvent.click(screen.getByRole("button", { name: "chat:imageGeneration.metadata.showDetails" }))
+
+		expect(
+			screen.getByText("chat:imageGeneration.metadata.usageSources.provider_response_with_local_quota"),
+		).toBeInTheDocument()
+		expect(screen.getByText("1,250")).toBeInTheDocument()
+		expect(screen.getByText("10,000")).toBeInTheDocument()
+		expect(screen.getByText(/2026/)).toBeInTheDocument()
+		expect(
+			screen.getByText(
+				"Free allocation: 10,000 Neurons per day; resets at 00:00 UTC; paid overage: $0.011 / 1,000 Neurons.",
+			),
+		).toBeInTheDocument()
+		expect(
+			screen.getByText(
+				"Leonardo Phoenix 1.0: $0.005830 per 512x512 tile. Neurons: 530.00 neurons per 512x512 tile",
+			),
+		).toBeInTheDocument()
 	})
 
 	it("renders generated image payload metadata compactly without duplicate verbose details", () => {

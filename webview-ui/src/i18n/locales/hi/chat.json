@@ -235,13 +235,32 @@
 			"cost": "लागत",
 			"error": "त्रुटि",
 			"showDetails": "विवरण दिखाएँ",
-			"hideDetails": "विवरण छिपाएँ"
+			"hideDetails": "विवरण छिपाएँ",
+			"dimensions": "आयाम",
+			"dimensionsValue": "{{width}} × {{height}} px",
+			"estimatedCost": "अनुमानित लागत",
+			"neurons": "Neurons",
+			"estimatedNeurons": "अनुमानित neurons",
+			"estimatedRemainingNeurons": "अनुमानित बचे हुए neurons",
+			"usageSource": "उपयोग स्रोत",
+			"estimatedUsedNeuronsToday": "आज अनुमानित उपयोग",
+			"dailyQuotaNeurons": "दैनिक मुफ्त quota",
+			"quotaResetAt": "Quota रीसेट",
+			"quotaDescription": "Quota नोट",
+			"pricingDescription": "मूल्य नोट",
+			"usageSources": {
+				"provider_response": "प्रदाता प्रतिक्रिया",
+				"provider_response_with_local_quota": "प्रदाता प्रतिक्रिया + स्थानीय quota अनुमान",
+				"local_estimate": "स्थानीय अनुमान",
+				"unknown": "अज्ञात"
+			}
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		}
 	},
 	"directoryOperations": {

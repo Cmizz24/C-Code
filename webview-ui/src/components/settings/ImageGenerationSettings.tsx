@@ -3,6 +3,7 @@ import { VSCodeTextField, VSCodeDropdown, VSCodeOption } from "@vscode/webview-u
 import {
 	getDefaultImageGenerationApiMethod,
 	getDefaultImageGenerationModel,
+	getCloudflareWorkersAiImageUsageSnapshot,
 	getImageGenerationModel,
 	getImageGenerationModels,
 	getImageGenerationProvider,
@@ -35,14 +36,16 @@ export type SetImageGenerationSetting = <K extends ImageGenerationSettingField>(
 
 interface ImageGenerationSettingsProps {
 	imageGenerationSettings: ImageGenerationSettingsValues
+	cloudflareWorkersAiImageUsage?: ExtensionStateContextType["cloudflareWorkersAiImageUsage"]
 	setImageGenerationSetting: SetImageGenerationSetting
 }
 
 export const ImageGenerationSettings = ({
 	imageGenerationSettings,
+	cloudflareWorkersAiImageUsage,
 	setImageGenerationSetting,
 }: ImageGenerationSettingsProps) => {
-	const { t } = useAppTranslation()
+	const { t, i18n } = useAppTranslation()
 
 	const getStringSetting = (field: ImageGenerationSettingField | undefined): string | undefined => {
 		if (!field) {
@@ -142,6 +145,34 @@ export const ImageGenerationSettings = ({
 		currentProvider === "cloudflare"
 			? "settings:imageGeneration.cloudflareApiMethodDescription"
 			: "settings:imageGeneration.apiMethodDescription"
+	const numberFormatter = useMemo(
+		() =>
+			new Intl.NumberFormat(i18n.language || undefined, {
+				maximumFractionDigits: 2,
+			}),
+		[i18n.language],
+	)
+	const dateTimeFormatter = useMemo(
+		() =>
+			new Intl.DateTimeFormat(i18n.language || undefined, {
+				year: "numeric",
+				month: "short",
+				day: "numeric",
+				hour: "numeric",
+				minute: "2-digit",
+				timeZone: "UTC",
+				timeZoneName: "short",
+			}),
+		[i18n.language],
+	)
+	const cloudflareUsageSnapshot = useMemo(
+		() => getCloudflareWorkersAiImageUsageSnapshot(cloudflareWorkersAiImageUsage),
+		[cloudflareWorkersAiImageUsage],
+	)
+	const cloudflareUsageResetAt = useMemo(
+		() => dateTimeFormatter.format(new Date(cloudflareUsageSnapshot.resetAt)),
+		[cloudflareUsageSnapshot.resetAt, dateTimeFormatter],
+	)
 	const modelFieldPlaceholder = providerDefinition.defaultModel
 		? t("settings:imageGeneration.modelIdPlaceholderWithDefault", {
 				model: providerDefinition.defaultModel,
@@ -215,6 +246,51 @@ export const ImageGenerationSettings = ({
 						paidOverage: CLOUDFLARE_WORKERS_AI_FREE_ALLOCATION.paidOverage,
 					})}
 				</p>
+				<div className="mb-3 rounded border border-vscode-panel-border bg-vscode-sideBar-background p-3">
+					<div className="mb-2 text-sm font-medium text-vscode-foreground">
+						{t("settings:imageGeneration.cloudflareUsage.title")}
+					</div>
+					<div className="grid gap-2 sm:grid-cols-2">
+						<div>
+							<div className="text-vscode-descriptionForeground">
+								{t("settings:imageGeneration.cloudflareUsage.remainingLabel")}
+							</div>
+							<div className="text-sm font-medium text-vscode-foreground">
+								{t("settings:imageGeneration.cloudflareUsage.neuronsValue", {
+									count: numberFormatter.format(cloudflareUsageSnapshot.estimatedRemainingNeurons),
+								})}
+							</div>
+						</div>
+						<div>
+							<div className="text-vscode-descriptionForeground">
+								{t("settings:imageGeneration.cloudflareUsage.usedLabel")}
+							</div>
+							<div className="text-sm font-medium text-vscode-foreground">
+								{t("settings:imageGeneration.cloudflareUsage.usedValue", {
+									used: numberFormatter.format(cloudflareUsageSnapshot.neuronsUsed),
+									quota: numberFormatter.format(cloudflareUsageSnapshot.dailyQuotaNeurons),
+								})}
+							</div>
+						</div>
+						<div>
+							<div className="text-vscode-descriptionForeground">
+								{t("settings:imageGeneration.cloudflareUsage.requestsLabel")}
+							</div>
+							<div className="text-sm font-medium text-vscode-foreground">
+								{numberFormatter.format(cloudflareUsageSnapshot.requestCount)}
+							</div>
+						</div>
+						<div>
+							<div className="text-vscode-descriptionForeground">
+								{t("settings:imageGeneration.cloudflareUsage.resetLabel")}
+							</div>
+							<div className="text-sm font-medium text-vscode-foreground">{cloudflareUsageResetAt}</div>
+						</div>
+					</div>
+					<p className="mb-0 mt-3">
+						{t("settings:imageGeneration.cloudflareUsage.localEstimateDescription")}
+					</p>
+				</div>
 				<div className="overflow-x-auto">
 					<table className="w-full border-collapse text-left">
 						<thead>

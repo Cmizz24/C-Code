@@ -34,7 +34,7 @@ vi.mock("@src/components/ui/hooks/useRouterModels", () => ({
 
 vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
-		t: (key: string, options?: Record<string, string>) => {
+		t: (key: string, options?: Record<string, unknown>) => {
 			if (!options) {
 				return key
 			}
@@ -45,6 +45,7 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 
 			return `${key}(${renderedOptions})`
 		},
+		i18n: { language: "en" },
 	}),
 }))
 
@@ -423,6 +424,43 @@ describe("ImageGenerationSettings", () => {
 			expect(screen.getByText("@cf/black-forest-labs/flux-1-schnell")).toBeInTheDocument()
 			expect(
 				screen.getByText("settings:imageGeneration.warningMissingAccountId(provider=Cloudflare Workers AI)"),
+			).toBeInTheDocument()
+		})
+
+		it("should render locally estimated Cloudflare Workers AI usage left", () => {
+			const utcDate = new Date().toISOString().slice(0, 10)
+
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					imageGenerationSettings={{
+						imageGenerationProvider: "cloudflare",
+						cloudflareImageApiKey: "cloudflare-token",
+						cloudflareImageAccountId: "account-123",
+					}}
+					cloudflareWorkersAiImageUsage={{
+						utcDate,
+						neuronsUsed: 1_250,
+						requestCount: 3,
+						estimatedNeuronsUsed: 1_250,
+						updatedAt: `${utcDate}T08:00:00.000Z`,
+					}}
+				/>,
+			)
+
+			expect(screen.getByText("settings:imageGeneration.cloudflareUsage.title")).toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.cloudflareUsage.remainingLabel")).toBeInTheDocument()
+			expect(
+				screen.getByText("settings:imageGeneration.cloudflareUsage.neuronsValue(count=8,750)"),
+			).toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.cloudflareUsage.usedLabel")).toBeInTheDocument()
+			expect(
+				screen.getByText("settings:imageGeneration.cloudflareUsage.usedValue(used=1,250,quota=10,000)"),
+			).toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.cloudflareUsage.requestsLabel")).toBeInTheDocument()
+			expect(screen.getByText("3")).toBeInTheDocument()
+			expect(
+				screen.getByText("settings:imageGeneration.cloudflareUsage.localEstimateDescription"),
 			).toBeInTheDocument()
 		})
 

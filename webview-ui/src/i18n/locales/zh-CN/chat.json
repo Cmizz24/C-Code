@@ -235,13 +235,32 @@
 			"cost": "费用",
 			"error": "错误",
 			"showDetails": "显示详情",
-			"hideDetails": "隐藏详情"
+			"hideDetails": "隐藏详情",
+			"dimensions": "尺寸",
+			"dimensionsValue": "{{width}} × {{height}} px",
+			"estimatedCost": "预估费用",
+			"neurons": "Neurons",
+			"estimatedNeurons": "预估 neurons",
+			"estimatedRemainingNeurons": "预估剩余 neurons",
+			"usageSource": "用量来源",
+			"estimatedUsedNeuronsToday": "今日预估已用",
+			"dailyQuotaNeurons": "每日免费 quota",
+			"quotaResetAt": "Quota 重置",
+			"quotaDescription": "Quota 说明",
+			"pricingDescription": "价格说明",
+			"usageSources": {
+				"provider_response": "提供商响应",
+				"provider_response_with_local_quota": "提供商响应 + 本地 quota 估算",
+				"local_estimate": "本地估算",
+				"unknown": "未知"
+			}
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		}
 	},
 	"directoryOperations": {

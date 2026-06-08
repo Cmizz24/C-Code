@@ -347,6 +347,16 @@
 			"modelColumn": "モデル",
 			"priceColumn": "料金",
 			"neuronsColumn": "Neurons"
+		},
+		"cloudflareUsage": {
+			"title": "今日の Workers AI 推定使用量",
+			"remainingLabel": "推定される無料 neurons 残量",
+			"neuronsValue": "{{count}} neurons",
+			"usedLabel": "今日の推定使用量",
+			"usedValue": "{{used}} / {{quota}} neurons",
+			"requestsLabel": "追跡した画像リクエスト",
+			"resetLabel": "次回リセット",
+			"localEstimateDescription": "これは C から実行された画像生成に基づくローカル推定です。Cloudflare はここで日次の残り quota を取得する文書化済み API を提供していません。プロバイダー確認済みの使用量は Cloudflare ダッシュボードで確認してください。"
 		}
 	},
 	"providers": {

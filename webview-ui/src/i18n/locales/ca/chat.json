@@ -235,13 +235,32 @@
 			"cost": "Cost",
 			"error": "Error",
 			"showDetails": "Mostra els detalls",
-			"hideDetails": "Amaga els detalls"
+			"hideDetails": "Amaga els detalls",
+			"dimensions": "Dimensions",
+			"dimensionsValue": "{{width}} × {{height}} px",
+			"estimatedCost": "Cost estimat",
+			"neurons": "Neurons",
+			"estimatedNeurons": "Neurons estimades",
+			"estimatedRemainingNeurons": "Neurons restants estimades",
+			"usageSource": "Font de l'ús",
+			"estimatedUsedNeuronsToday": "Ús estimat avui",
+			"dailyQuotaNeurons": "Quota gratuïta diària",
+			"quotaResetAt": "Reinici de quota",
+			"quotaDescription": "Nota de quota",
+			"pricingDescription": "Nota de preus",
+			"usageSources": {
+				"provider_response": "Resposta del proveïdor",
+				"provider_response_with_local_quota": "Resposta del proveïdor + estimació local de quota",
+				"local_estimate": "Estimació local",
+				"unknown": "Desconegut"
+			}
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		}
 	},
 	"directoryOperations": {

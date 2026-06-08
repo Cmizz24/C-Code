@@ -51,6 +51,16 @@ describe("generateImageTool", () => {
 			imageFormat: "png",
 			metadata: providerMetadata,
 		})
+		const mockProvider = {
+			getState: vi.fn().mockResolvedValue({
+				experiments: {
+					[EXPERIMENT_IDS.IMAGE_GENERATION]: true,
+				},
+				openRouterImageApiKey: "test-api-key",
+				openRouterImageGenerationSelectedModel: "google/gemini-2.5-flash-image",
+			}),
+			updateCloudflareWorkersAiImageUsage: vi.fn().mockResolvedValue(undefined),
+		}
 
 		// Setup mock Cline instance
 		mockCline = {
@@ -68,15 +78,7 @@ describe("generateImageTool", () => {
 				isWriteProtected: vi.fn().mockReturnValue(false),
 			},
 			providerRef: {
-				deref: vi.fn().mockReturnValue({
-					getState: vi.fn().mockResolvedValue({
-						experiments: {
-							[EXPERIMENT_IDS.IMAGE_GENERATION]: true,
-						},
-						openRouterImageApiKey: "test-api-key",
-						openRouterImageGenerationSelectedModel: "google/gemini-2.5-flash-image",
-					}),
-				}),
+				deref: vi.fn().mockReturnValue(mockProvider),
 			},
 			fileContextTracker: {
 				trackFileContext: vi.fn(),
@@ -203,6 +205,7 @@ describe("generateImageTool", () => {
 			)
 			expect(mockCline.say).not.toHaveBeenCalledWith("tool", expect.anything())
 			expect(mockCline.say).not.toHaveBeenCalledWith("image", expect.anything())
+			expect(mockCline.providerRef.deref().updateCloudflareWorkersAiImageUsage).not.toHaveBeenCalled()
 			expect(mockPushToolResult).toHaveBeenCalled()
 		})
 
@@ -399,6 +402,115 @@ describe("generateImageTool", () => {
 			expect(mockCline.say).not.toHaveBeenCalledWith("error", expect.stringContaining("Provider failed"))
 			expect(mockHandleError).not.toHaveBeenCalled()
 			expect(mockPushToolResult).toHaveBeenCalledWith(expect.stringContaining("Provider failed"))
+		})
+	})
+
+	describe("Cloudflare Workers AI usage metadata", () => {
+		it("updates local usage and annotates chat metadata with estimated quota remaining", async () => {
+			const utcDate = new Date().toISOString().slice(0, 10)
+			const cloudflareMetadata = {
+				provider: "cloudflare",
+				providerLabel: "Cloudflare Workers AI",
+				baseURL: "https://api.cloudflare.com/client/v4",
+				model: "@cf/leonardo/phoenix-1.0",
+				apiMethod: "workers_ai",
+				isLocal: false,
+			} as const
+			const mockProvider = mockCline.providerRef.deref()
+
+			mockProvider.getState = vi
+				.fn()
+				.mockResolvedValueOnce({
+					experiments: {
+						[EXPERIMENT_IDS.IMAGE_GENERATION]: true,
+					},
+					cloudflareImageApiKey: "cloudflare-token",
+					cloudflareImageAccountId: "account-123",
+					cloudflareImageBaseUrl: "https://api.cloudflare.com/client/v4",
+					cloudflareImageGenerationSelectedModel: cloudflareMetadata.model,
+					cloudflareImageGenerationApiMethod: "workers_ai",
+				})
+				.mockResolvedValueOnce({
+					cloudflareWorkersAiImageUsage: {
+						utcDate,
+						neuronsUsed: 1_250,
+						requestCount: 3,
+						providerReportedNeuronsUsed: 250,
+						estimatedNeuronsUsed: 1_000,
+						updatedAt: `${utcDate}T08:00:00.000Z`,
+					},
+				})
+			mockProvider.updateCloudflareWorkersAiImageUsage = vi.fn().mockResolvedValue(undefined)
+			vi.mocked(resolveImageGenerationConfig).mockReturnValueOnce({
+				success: true,
+				config: {
+					...cloudflareMetadata,
+					authToken: "cloudflare-token",
+					accountId: "account-123",
+					negativePrompt: undefined,
+				},
+			} as any)
+			vi.mocked(generateImageWithConfiguredProvider).mockResolvedValueOnce({
+				success: true,
+				imageData: `data:image/png;base64,${Buffer.from("cloudflare image data").toString("base64")}`,
+				imageFormat: "png",
+				metadata: cloudflareMetadata,
+				usage: {
+					neurons: 250,
+					estimatedCost: 0.00275,
+					currency: "USD",
+					usageSource: "provider_response",
+				},
+			})
+
+			const completeBlock: ToolUse = {
+				type: "tool_use",
+				name: "generate_image",
+				params: {
+					prompt: "Generate a Cloudflare image",
+					path: "cloudflare-image.png",
+				},
+				nativeArgs: {
+					prompt: "Generate a Cloudflare image",
+					path: "cloudflare-image.png",
+				},
+				partial: false,
+			}
+
+			await generateImageTool.handle(mockCline as Task, completeBlock as ToolUse<"generate_image">, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(mockProvider.updateCloudflareWorkersAiImageUsage).toHaveBeenCalledWith({
+				neurons: 250,
+				source: "provider_response",
+			})
+			const completedUpdate = mockCline.updateImageGenerationMessage.mock.calls
+				.map(([payload]: any[]) => payload)
+				.find((payload: any) => payload.metadata.status === "completed")
+
+			expect(completedUpdate).toEqual(
+				expect.objectContaining({
+					metadata: expect.objectContaining({
+						provider: "cloudflare",
+						providerLabel: "Cloudflare Workers AI",
+						model: "@cf/leonardo/phoenix-1.0",
+						usage: expect.objectContaining({
+							neurons: 250,
+							estimatedCost: 0.00275,
+							currency: "USD",
+							usageSource: "provider_response_with_local_quota",
+							dailyQuotaNeurons: 10_000,
+							estimatedUsedNeuronsToday: 1_250,
+							estimatedRemainingNeurons: 8_750,
+							quotaResetAt: expect.stringMatching(/T00:00:00.000Z$/),
+						}),
+					}),
+				}),
+			)
+			expect(mockPushToolResult).toHaveBeenCalled()
 		})
 	})
 

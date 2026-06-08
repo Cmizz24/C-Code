@@ -29,6 +29,7 @@ import {
 	type ExtensionMessage,
 	type ExtensionState,
 	type OpenAiCodexFastStatus,
+	type CloudflareWorkersAiImageUsageUpdate,
 	type AgentEvent,
 	type AgentCompletionPacket,
 	type AgentDependency,
@@ -54,6 +55,7 @@ import {
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_MODES,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
+	applyCloudflareWorkersAiImageUsageUpdate,
 	getModelId,
 	isRetiredProvider,
 } from "@roo-code/types"
@@ -4217,6 +4219,12 @@ export class ClineProvider
 			openAiImageBaseUrl,
 			openAiImageGenerationSelectedModel,
 			openAiImageGenerationApiMethod,
+			cloudflareImageApiKey,
+			cloudflareImageAccountId,
+			cloudflareImageBaseUrl,
+			cloudflareImageGenerationSelectedModel,
+			cloudflareImageGenerationApiMethod,
+			cloudflareWorkersAiImageUsage,
 			comfyUiImageApiKey,
 			comfyUiImageBaseUrl,
 			comfyUiImageGenerationSelectedModel,
@@ -4365,6 +4373,12 @@ export class ClineProvider
 			openAiImageBaseUrl,
 			openAiImageGenerationSelectedModel,
 			openAiImageGenerationApiMethod,
+			cloudflareImageApiKey,
+			cloudflareImageAccountId,
+			cloudflareImageBaseUrl,
+			cloudflareImageGenerationSelectedModel,
+			cloudflareImageGenerationApiMethod,
+			cloudflareWorkersAiImageUsage,
 			comfyUiImageApiKey,
 			comfyUiImageBaseUrl,
 			comfyUiImageGenerationSelectedModel,
@@ -4556,6 +4570,7 @@ export class ClineProvider
 			cloudflareImageBaseUrl: stateValues.cloudflareImageBaseUrl,
 			cloudflareImageGenerationSelectedModel: stateValues.cloudflareImageGenerationSelectedModel,
 			cloudflareImageGenerationApiMethod: stateValues.cloudflareImageGenerationApiMethod,
+			cloudflareWorkersAiImageUsage: stateValues.cloudflareWorkersAiImageUsage,
 			comfyUiImageApiKey: stateValues.comfyUiImageApiKey,
 			comfyUiImageBaseUrl: stateValues.comfyUiImageBaseUrl,
 			comfyUiImageGenerationSelectedModel: stateValues.comfyUiImageGenerationSelectedModel,
@@ -4585,6 +4600,18 @@ export class ClineProvider
 		}
 
 		await this.contextProxy.updateGlobalState("openAiCodexFastStatus", status)
+		await this.postStateToWebviewWithoutClineMessages()
+	}
+
+	async updateCloudflareWorkersAiImageUsage(update: CloudflareWorkersAiImageUsageUpdate): Promise<void> {
+		const current = this.contextProxy.getGlobalState("cloudflareWorkersAiImageUsage")
+		const next = applyCloudflareWorkersAiImageUsageUpdate(current, update)
+
+		if (JSON.stringify(current) === JSON.stringify(next)) {
+			return
+		}
+
+		await this.contextProxy.updateGlobalState("cloudflareWorkersAiImageUsage", next)
 		await this.postStateToWebviewWithoutClineMessages()
 	}
 

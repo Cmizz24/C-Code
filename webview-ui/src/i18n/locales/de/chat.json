@@ -235,13 +235,32 @@
 			"cost": "Kosten",
 			"error": "Fehler",
 			"showDetails": "Details anzeigen",
-			"hideDetails": "Details ausblenden"
+			"hideDetails": "Details ausblenden",
+			"dimensions": "Abmessungen",
+			"dimensionsValue": "{{width}} × {{height}} px",
+			"estimatedCost": "Geschätzte Kosten",
+			"neurons": "Neurons",
+			"estimatedNeurons": "Geschätzte Neurons",
+			"estimatedRemainingNeurons": "Geschätzte verbleibende Neurons",
+			"usageSource": "Nutzungsquelle",
+			"estimatedUsedNeuronsToday": "Heute geschätzt verwendet",
+			"dailyQuotaNeurons": "Tägliche Gratisquote",
+			"quotaResetAt": "Quota-Reset",
+			"quotaDescription": "Quota-Hinweis",
+			"pricingDescription": "Preishinweis",
+			"usageSources": {
+				"provider_response": "Provider-Antwort",
+				"provider_response_with_local_quota": "Provider-Antwort + lokale Quota-Schätzung",
+				"local_estimate": "Lokale Schätzung",
+				"unknown": "Unbekannt"
+			}
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		}
 	},
 	"directoryOperations": {

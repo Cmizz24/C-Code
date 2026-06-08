@@ -347,6 +347,16 @@
 			"modelColumn": "Model",
 			"priceColumn": "Fiyat",
 			"neuronsColumn": "Neurons"
+		},
+		"cloudflareUsage": {
+			"title": "Bugünkü tahmini Workers AI kullanımı",
+			"remainingLabel": "Tahmini kalan ücretsiz neurons",
+			"neuronsValue": "{{count}} neurons",
+			"usedLabel": "Bugün tahmini kullanılan",
+			"usedValue": "{{used}} / {{quota}} neurons",
+			"requestsLabel": "İzlenen görüntü istekleri",
+			"resetLabel": "Sonraki sıfırlama",
+			"localEstimateDescription": "Bu, C üzerinden çalıştırılan görüntü üretimlerine dayalı yerel bir tahmindir. Cloudflare burada günlük kalan quota için belgelenmiş bir API sağlamaz; sağlayıcı tarafından doğrulanan kullanım için Cloudflare dashboard'unu kontrol et."
 		}
 	},
 	"providers": {

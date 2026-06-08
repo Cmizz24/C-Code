@@ -347,6 +347,16 @@
 			"modelColumn": "Model",
 			"priceColumn": "Prijs",
 			"neuronsColumn": "Neurons"
+		},
+		"cloudflareUsage": {
+			"title": "Geschat Workers AI-gebruik vandaag",
+			"remainingLabel": "Geschatte resterende gratis neurons",
+			"neuronsValue": "{{count}} neurons",
+			"usedLabel": "Vandaag geschat gebruikt",
+			"usedValue": "{{used}} / {{quota}} neurons",
+			"requestsLabel": "Bijgehouden afbeeldingsverzoeken",
+			"resetLabel": "Volgende reset",
+			"localEstimateDescription": "Dit is een lokale schatting op basis van afbeeldingsgeneraties die vanuit C zijn uitgevoerd. Cloudflare biedt hier geen gedocumenteerde API voor resterende dagelijkse quota; controleer je Cloudflare-dashboard voor door de provider bevestigde gebruiksgegevens."
 		}
 	},
 	"providers": {

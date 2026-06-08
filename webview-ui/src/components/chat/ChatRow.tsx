@@ -660,6 +660,52 @@ export const ChatRowContent = ({
 		return cost.toFixed(cost > 0 && cost < 0.01 ? 6 : 4)
 	}
 
+	const formatImageGenerationDateTime = (value?: string): string | undefined => {
+		if (!value) {
+			return undefined
+		}
+
+		const date = new Date(value)
+		if (Number.isNaN(date.getTime())) {
+			return value
+		}
+
+		return new Intl.DateTimeFormat(i18n.language || undefined, {
+			year: "numeric",
+			month: "short",
+			day: "numeric",
+			hour: "numeric",
+			minute: "2-digit",
+			timeZone: "UTC",
+			timeZoneName: "short",
+		}).format(date)
+	}
+
+	const formatImageGenerationDimensions = (width?: number, height?: number): string | undefined => {
+		const formattedWidth = formatImageGenerationNumber(width)
+		const formattedHeight = formatImageGenerationNumber(height)
+
+		if (!formattedWidth || !formattedHeight) {
+			return undefined
+		}
+
+		return t("chat:imageGeneration.metadata.dimensionsValue", {
+			width: formattedWidth,
+			height: formattedHeight,
+		})
+	}
+
+	const formatImageGenerationUsageSource = (
+		source?: NonNullable<GeneratedImageMetadata["usage"]>["usageSource"],
+	): string | undefined => {
+		if (!source) {
+			return undefined
+		}
+
+		const translationKey = `chat:imageGeneration.metadata.usageSources.${source}`
+		return i18n.exists(translationKey) ? t(translationKey) : source.replace(/_/g, " ")
+	}
+
 	const formatImageGenerationApiMethod = (apiMethod?: GeneratedImageMetadata["apiMethod"]): string | undefined => {
 		if (!apiMethod) {
 			return undefined
@@ -706,6 +752,11 @@ export const ChatRowContent = ({
 			},
 			{ key: "model", labelKey: "chat:imageGeneration.metadata.model", value: metadata.model },
 			{
+				key: "dimensions",
+				labelKey: "chat:imageGeneration.metadata.dimensions",
+				value: formatImageGenerationDimensions(metadata.imageWidth, metadata.imageHeight),
+			},
+			{
 				key: "outputPath",
 				labelKey: "chat:imageGeneration.metadata.outputPath",
 				value: metadata.outputPath ?? metadata.path,
@@ -744,6 +795,26 @@ export const ChatRowContent = ({
 				key: "cost",
 				labelKey: "chat:imageGeneration.metadata.cost",
 				value: formatImageGenerationCost(usage?.cost, usage?.currency),
+			},
+			{
+				key: "estimatedCost",
+				labelKey: "chat:imageGeneration.metadata.estimatedCost",
+				value: formatImageGenerationCost(usage?.estimatedCost, usage?.currency),
+			},
+			{
+				key: "neurons",
+				labelKey: "chat:imageGeneration.metadata.neurons",
+				value: formatImageGenerationNumber(usage?.neurons),
+			},
+			{
+				key: "estimatedNeurons",
+				labelKey: "chat:imageGeneration.metadata.estimatedNeurons",
+				value: formatImageGenerationNumber(usage?.estimatedNeurons),
+			},
+			{
+				key: "estimatedRemainingNeurons",
+				labelKey: "chat:imageGeneration.metadata.estimatedRemainingNeurons",
+				value: formatImageGenerationNumber(usage?.estimatedRemainingNeurons),
 			},
 			{
 				key: "error",
@@ -796,6 +867,38 @@ export const ChatRowContent = ({
 				key: "apiMethod",
 				labelKey: "chat:imageGeneration.metadata.apiMethod",
 				value: formatImageGenerationApiMethod(metadata.apiMethod),
+			},
+			{
+				key: "usageSource",
+				labelKey: "chat:imageGeneration.metadata.usageSource",
+				value: formatImageGenerationUsageSource(usage?.usageSource),
+			},
+			{
+				key: "estimatedUsedNeuronsToday",
+				labelKey: "chat:imageGeneration.metadata.estimatedUsedNeuronsToday",
+				value: formatImageGenerationNumber(usage?.estimatedUsedNeuronsToday),
+			},
+			{
+				key: "dailyQuotaNeurons",
+				labelKey: "chat:imageGeneration.metadata.dailyQuotaNeurons",
+				value: formatImageGenerationNumber(usage?.dailyQuotaNeurons),
+			},
+			{
+				key: "quotaResetAt",
+				labelKey: "chat:imageGeneration.metadata.quotaResetAt",
+				value: formatImageGenerationDateTime(usage?.quotaResetAt),
+			},
+			{
+				key: "quotaDescription",
+				labelKey: "chat:imageGeneration.metadata.quotaDescription",
+				value: usage?.quotaDescription,
+				wide: true,
+			},
+			{
+				key: "pricingDescription",
+				labelKey: "chat:imageGeneration.metadata.pricingDescription",
+				value: usage?.pricingDescription,
+				wide: true,
 			},
 		].filter((detail) => detail.value !== undefined && detail.value !== null && detail.value !== "")
 

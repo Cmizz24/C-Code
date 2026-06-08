@@ -1053,6 +1053,7 @@ const getCloudflareWorkersAiUsageDetails = (
 
 	const usage: ImageGenerationUsageDetails = {
 		...(usageFromResponse ?? {}),
+		usageSource: usageFromResponse ? "provider_response" : "unknown",
 		...(pricing && {
 			pricingDescription: `${pricing.label}: ${pricing.priceDetails.join("; ")}. Neurons: ${pricing.neuronDetails.join("; ")}`,
 		}),

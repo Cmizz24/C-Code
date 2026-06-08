@@ -1285,6 +1285,9 @@ describe("generateImageWithCloudflareWorkersAi", () => {
 				neurons: 250,
 				estimatedCost: 0.00275,
 				currency: "USD",
+				usageSource: "provider_response",
+				pricingDescription: expect.stringContaining("Leonardo Phoenix 1.0"),
+				quotaDescription: expect.stringContaining("10,000 Neurons per day"),
 			},
 		})
 	})

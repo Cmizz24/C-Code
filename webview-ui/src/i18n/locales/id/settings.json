@@ -347,6 +347,16 @@
 			"modelColumn": "Model",
 			"priceColumn": "Harga",
 			"neuronsColumn": "Neurons"
+		},
+		"cloudflareUsage": {
+			"title": "Perkiraan penggunaan Workers AI hari ini",
+			"remainingLabel": "Perkiraan neurons gratis tersisa",
+			"neuronsValue": "{{count}} neurons",
+			"usedLabel": "Perkiraan digunakan hari ini",
+			"usedValue": "{{used}} / {{quota}} neurons",
+			"requestsLabel": "Permintaan gambar yang dilacak",
+			"resetLabel": "Reset berikutnya",
+			"localEstimateDescription": "Ini adalah perkiraan lokal berdasarkan generasi gambar yang dijalankan dari C. Cloudflare tidak menyediakan API terdokumentasi untuk sisa quota harian di sini; cek dashboard Cloudflare-mu untuk penggunaan yang dikonfirmasi penyedia."
 		}
 	},
 	"providers": {

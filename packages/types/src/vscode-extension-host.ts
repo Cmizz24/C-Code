@@ -337,6 +337,7 @@ export type ExtensionState = Pick<
 	| "cloudflareImageBaseUrl"
 	| "cloudflareImageGenerationSelectedModel"
 	| "cloudflareImageGenerationApiMethod"
+	| "cloudflareWorkersAiImageUsage"
 	| "comfyUiImageBaseUrl"
 	| "comfyUiImageGenerationSelectedModel"
 	| "comfyUiImageGenerationApiMethod"

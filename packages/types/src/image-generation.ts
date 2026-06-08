@@ -44,6 +44,12 @@ export type LegacyUnsupportedImageGenerationProvider = (typeof IMAGE_GENERATION_
 
 export type ImageGenerationToolStatus = "pending" | "running" | "completed" | "error"
 
+export type ImageGenerationUsageSource =
+	| "provider_response"
+	| "provider_response_with_local_quota"
+	| "local_estimate"
+	| "unknown"
+
 export interface ImageGenerationUsageDetails {
 	tokensIn?: number
 	tokensOut?: number
@@ -54,6 +60,11 @@ export interface ImageGenerationUsageDetails {
 	cost?: number
 	estimatedCost?: number
 	currency?: string
+	usageSource?: ImageGenerationUsageSource
+	dailyQuotaNeurons?: number
+	estimatedUsedNeuronsToday?: number
+	estimatedRemainingNeurons?: number
+	quotaResetAt?: string
 	pricingDescription?: string
 	quotaDescription?: string
 }
@@ -73,6 +84,8 @@ export interface GeneratedImageMetadata {
 	apiMethod?: ImageGenerationApiMethod
 	isLocal?: boolean
 	imageFormat?: string
+	imageWidth?: number
+	imageHeight?: number
 	usage?: ImageGenerationUsageDetails
 	error?: string
 }
@@ -146,6 +159,199 @@ export const CLOUDFLARE_WORKERS_AI_FREE_ALLOCATION = {
 	resetTime: "00:00 UTC",
 	paidOverage: "$0.011 / 1,000 Neurons",
 } as const
+
+export const CLOUDFLARE_WORKERS_AI_DAILY_FREE_NEURONS = 10_000
+
+export const CLOUDFLARE_WORKERS_AI_PAID_OVERAGE_USD_PER_1000_NEURONS = 0.011
+
+export interface CloudflareWorkersAiImageUsageState {
+	utcDate: string
+	neuronsUsed: number
+	requestCount: number
+	providerReportedNeuronsUsed?: number
+	estimatedNeuronsUsed?: number
+	updatedAt: string
+}
+
+export interface CloudflareWorkersAiImageUsageUpdate {
+	neurons: number
+	source: Extract<ImageGenerationUsageSource, "provider_response" | "local_estimate">
+}
+
+export interface CloudflareWorkersAiImageUsageSnapshot extends CloudflareWorkersAiImageUsageState {
+	dailyQuotaNeurons: number
+	estimatedRemainingNeurons: number
+	resetAt: string
+	source: Extract<ImageGenerationUsageSource, "local_estimate">
+}
+
+export interface CloudflareWorkersAiImageGenerationEstimateOptions {
+	model: string
+	imageWidth?: number
+	imageHeight?: number
+	hasInputImage?: boolean
+}
+
+export interface CloudflareWorkersAiImageGenerationEstimate {
+	estimatedNeurons: number
+	estimatedCost: number
+	currency: "USD"
+	outputTileCount: number
+	outputMegapixels: number
+	basis: "image_dimensions" | "default_512_tile"
+}
+
+const roundCloudflareNeuronValue = (value: number): number => Math.round(value * 100) / 100
+
+const roundCloudflareCostValue = (value: number): number => Math.round(value * 1_000_000) / 1_000_000
+
+const getNonNegativeFiniteNumber = (value: unknown): number =>
+	typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0
+
+const getPositiveInteger = (value: unknown): number | undefined => {
+	const numericValue = getNonNegativeFiniteNumber(value)
+	return numericValue > 0 ? Math.trunc(numericValue) : undefined
+}
+
+export function getCloudflareWorkersAiUtcDate(now: Date = new Date()): string {
+	return now.toISOString().slice(0, 10)
+}
+
+export function getCloudflareWorkersAiNextResetIso(now: Date = new Date()): string {
+	const reset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0))
+	return reset.toISOString()
+}
+
+export function getCurrentCloudflareWorkersAiImageUsageState(
+	state?: CloudflareWorkersAiImageUsageState,
+	now: Date = new Date(),
+): CloudflareWorkersAiImageUsageState {
+	const utcDate = getCloudflareWorkersAiUtcDate(now)
+
+	if (!state || state.utcDate !== utcDate) {
+		return {
+			utcDate,
+			neuronsUsed: 0,
+			requestCount: 0,
+			updatedAt: now.toISOString(),
+		}
+	}
+
+	const providerReportedNeuronsUsed = getNonNegativeFiniteNumber(state.providerReportedNeuronsUsed)
+	const estimatedNeuronsUsed = getNonNegativeFiniteNumber(state.estimatedNeuronsUsed)
+
+	return {
+		utcDate,
+		neuronsUsed: getNonNegativeFiniteNumber(state.neuronsUsed),
+		requestCount: Math.trunc(getNonNegativeFiniteNumber(state.requestCount)),
+		...(providerReportedNeuronsUsed > 0 && { providerReportedNeuronsUsed }),
+		...(estimatedNeuronsUsed > 0 && { estimatedNeuronsUsed }),
+		updatedAt: typeof state.updatedAt === "string" && state.updatedAt ? state.updatedAt : now.toISOString(),
+	}
+}
+
+export function getCloudflareWorkersAiImageUsageSnapshot(
+	state?: CloudflareWorkersAiImageUsageState,
+	now: Date = new Date(),
+): CloudflareWorkersAiImageUsageSnapshot {
+	const currentState = getCurrentCloudflareWorkersAiImageUsageState(state, now)
+	const neuronsUsed = roundCloudflareNeuronValue(currentState.neuronsUsed)
+
+	return {
+		...currentState,
+		neuronsUsed,
+		dailyQuotaNeurons: CLOUDFLARE_WORKERS_AI_DAILY_FREE_NEURONS,
+		estimatedRemainingNeurons: roundCloudflareNeuronValue(
+			Math.max(CLOUDFLARE_WORKERS_AI_DAILY_FREE_NEURONS - neuronsUsed, 0),
+		),
+		resetAt: getCloudflareWorkersAiNextResetIso(now),
+		source: "local_estimate",
+	}
+}
+
+export function applyCloudflareWorkersAiImageUsageUpdate(
+	state: CloudflareWorkersAiImageUsageState | undefined,
+	update: CloudflareWorkersAiImageUsageUpdate,
+	now: Date = new Date(),
+): CloudflareWorkersAiImageUsageState {
+	const currentState = getCurrentCloudflareWorkersAiImageUsageState(state, now)
+	const neurons = roundCloudflareNeuronValue(getNonNegativeFiniteNumber(update.neurons))
+
+	if (neurons <= 0) {
+		return currentState
+	}
+
+	const providerReportedNeuronsUsed =
+		update.source === "provider_response"
+			? roundCloudflareNeuronValue(getNonNegativeFiniteNumber(currentState.providerReportedNeuronsUsed) + neurons)
+			: currentState.providerReportedNeuronsUsed
+	const estimatedNeuronsUsed =
+		update.source === "local_estimate"
+			? roundCloudflareNeuronValue(getNonNegativeFiniteNumber(currentState.estimatedNeuronsUsed) + neurons)
+			: currentState.estimatedNeuronsUsed
+
+	return {
+		...currentState,
+		neuronsUsed: roundCloudflareNeuronValue(currentState.neuronsUsed + neurons),
+		requestCount: currentState.requestCount + 1,
+		...(providerReportedNeuronsUsed !== undefined &&
+			providerReportedNeuronsUsed > 0 && { providerReportedNeuronsUsed }),
+		...(estimatedNeuronsUsed !== undefined && estimatedNeuronsUsed > 0 && { estimatedNeuronsUsed }),
+		updatedAt: now.toISOString(),
+	}
+}
+
+export function estimateCloudflareWorkersAiImageGenerationUsage({
+	model,
+	imageWidth,
+	imageHeight,
+	hasInputImage = false,
+}: CloudflareWorkersAiImageGenerationEstimateOptions): CloudflareWorkersAiImageGenerationEstimate {
+	const width = getPositiveInteger(imageWidth)
+	const height = getPositiveInteger(imageHeight)
+	const hasDimensions = width !== undefined && height !== undefined
+	const outputTileCount = hasDimensions ? Math.max(1, Math.ceil(width / 512) * Math.ceil(height / 512)) : 1
+	const outputMegapixels = hasDimensions ? Math.max((width * height) / (1024 * 1024), 1) : 1
+	const normalizedModel = model.trim()
+
+	let estimatedNeurons: number
+
+	switch (normalizedModel) {
+		case "@cf/leonardo/lucid-origin":
+			estimatedNeurons = outputTileCount * 636
+			break
+		case "@cf/leonardo/phoenix-1.0":
+			estimatedNeurons = outputTileCount * 530
+			break
+		case "@cf/black-forest-labs/flux-2-dev":
+			estimatedNeurons = outputTileCount * 37.5 + (hasInputImage ? outputTileCount * 18.75 : 0)
+			break
+		case "@cf/black-forest-labs/flux-2-klein-4b":
+			estimatedNeurons = outputTileCount * 26.05 + (hasInputImage ? outputTileCount * 5.37 : 0)
+			break
+		case "@cf/black-forest-labs/flux-2-klein-9b":
+			estimatedNeurons =
+				1363.64 + Math.max(outputMegapixels - 1, 0) * 181.82 + (hasInputImage ? outputMegapixels * 181.82 : 0)
+			break
+		case "@cf/black-forest-labs/flux-1-schnell":
+		default:
+			estimatedNeurons = outputTileCount * 4.8
+			break
+	}
+
+	const roundedNeurons = roundCloudflareNeuronValue(estimatedNeurons)
+
+	return {
+		estimatedNeurons: roundedNeurons,
+		estimatedCost: roundCloudflareCostValue(
+			(roundedNeurons / 1_000) * CLOUDFLARE_WORKERS_AI_PAID_OVERAGE_USD_PER_1000_NEURONS,
+		),
+		currency: "USD",
+		outputTileCount,
+		outputMegapixels: roundCloudflareNeuronValue(outputMegapixels),
+		basis: hasDimensions ? "image_dimensions" : "default_512_tile",
+	}
+}
 
 export const CLOUDFLARE_WORKERS_AI_IMAGE_MODEL_PRICING = [
 	{

@@ -276,6 +276,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		cloudflareImageBaseUrl: "",
 		cloudflareImageGenerationSelectedModel: "",
 		cloudflareImageGenerationApiMethod: "workers_ai",
+		cloudflareWorkersAiImageUsage: undefined,
 		comfyUiImageApiKey: "",
 		comfyUiImageBaseUrl: "",
 		comfyUiImageGenerationSelectedModel: "",

@@ -347,6 +347,16 @@
 			"modelColumn": "模型",
 			"priceColumn": "价格",
 			"neuronsColumn": "Neurons"
+		},
+		"cloudflareUsage": {
+			"title": "今日 Workers AI 预估用量",
+			"remainingLabel": "预估剩余免费 neurons",
+			"neuronsValue": "{{count}} neurons",
+			"usedLabel": "今日预估已用",
+			"usedValue": "{{used}} / {{quota}} neurons",
+			"requestsLabel": "已跟踪的图片请求",
+			"resetLabel": "下次重置",
+			"localEstimateDescription": "这是基于从 C 运行的图片生成得出的本地估算。Cloudflare 此处没有提供用于查询每日剩余 quota 的已文档化 API；请在你的 Cloudflare dashboard 中查看提供商确认的用量。"
 		}
 	},
 	"providers": {

@@ -409,6 +409,16 @@
 			"modelColumn": "Model",
 			"priceColumn": "Price",
 			"neuronsColumn": "Neurons"
+		},
+		"cloudflareUsage": {
+			"title": "Estimated Workers AI usage today",
+			"remainingLabel": "Estimated remaining free neurons",
+			"neuronsValue": "{{count}} neurons",
+			"usedLabel": "Estimated used today",
+			"usedValue": "{{used}} / {{quota}} neurons",
+			"requestsLabel": "Image requests tracked",
+			"resetLabel": "Next reset",
+			"localEstimateDescription": "This is a local estimate based on image generations run from C. Cloudflare does not provide a documented daily remaining-quota API here; check your Cloudflare dashboard for provider-confirmed usage."
 		}
 	},
 	"providers": {

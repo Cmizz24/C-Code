@@ -347,6 +347,16 @@
 			"modelColumn": "Modell",
 			"priceColumn": "Preis",
 			"neuronsColumn": "Neurons"
+		},
+		"cloudflareUsage": {
+			"title": "Geschätzte Workers AI-Nutzung heute",
+			"remainingLabel": "Geschätzte verbleibende kostenlose Neurons",
+			"neuronsValue": "{{count}} Neurons",
+			"usedLabel": "Heute geschätzt verwendet",
+			"usedValue": "{{used}} / {{quota}} Neurons",
+			"requestsLabel": "Erfasste Bildanfragen",
+			"resetLabel": "Nächster Reset",
+			"localEstimateDescription": "Dies ist eine lokale Schätzung basierend auf Bildgenerierungen, die über C ausgeführt wurden. Cloudflare stellt hier keine dokumentierte API für die verbleibende Tagesquote bereit; prüfe dein Cloudflare-Dashboard für vom Anbieter bestätigte Nutzung."
 		}
 	},
 	"providers": {

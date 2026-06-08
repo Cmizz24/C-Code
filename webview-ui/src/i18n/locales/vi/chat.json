@@ -235,13 +235,32 @@
 			"cost": "Chi phí",
 			"error": "Lỗi",
 			"showDetails": "Hiển thị chi tiết",
-			"hideDetails": "Ẩn chi tiết"
+			"hideDetails": "Ẩn chi tiết",
+			"dimensions": "Kích thước",
+			"dimensionsValue": "{{width}} × {{height}} px",
+			"estimatedCost": "Chi phí ước tính",
+			"neurons": "Neurons",
+			"estimatedNeurons": "Neurons ước tính",
+			"estimatedRemainingNeurons": "Neurons còn lại ước tính",
+			"usageSource": "Nguồn sử dụng",
+			"estimatedUsedNeuronsToday": "Ước tính đã dùng hôm nay",
+			"dailyQuotaNeurons": "Quota miễn phí hằng ngày",
+			"quotaResetAt": "Đặt lại quota",
+			"quotaDescription": "Ghi chú quota",
+			"pricingDescription": "Ghi chú giá",
+			"usageSources": {
+				"provider_response": "Phản hồi nhà cung cấp",
+				"provider_response_with_local_quota": "Phản hồi nhà cung cấp + ước tính quota cục bộ",
+				"local_estimate": "Ước tính cục bộ",
+				"unknown": "Không rõ"
+			}
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		}
 	},
 	"directoryOperations": {
