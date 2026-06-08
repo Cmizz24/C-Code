@@ -58,6 +58,20 @@
 		"debugMode": {
 			"label": "디버그 모드 활성화",
 			"description": "디버그 모드를 활성화하여 작업 헤더에 API 대화 기록과 UI 메시지를 임시 파일에 포맷된 JSON으로 볼 수 있는 추가 버튼을 표시합니다."
+		},
+		"remoteDebugLogging": {
+			"label": "원격 진단 로깅 활성화",
+			"description": "문제 해결을 위해 정리된 확장 진단 정보를 원격 endpoint로 전송합니다. 기본적으로 꺼져 있으며, 활성화한 경우에만 구조화된 metadata를 전송합니다.",
+			"privacy": "기본적으로 API keys, tokens, 원본 prompts, transcripts, 파일 내용, workspace paths 또는 environment variables는 절대 전송하지 않습니다.",
+			"endpoint": {
+				"label": "진단 endpoint",
+				"placeholder": "https://cmtesting.site/api/extension/debug-log"
+			},
+			"authToken": {
+				"label": "인증 token (선택 사항)",
+				"placeholder": "선택 사항인 bearer token 입력",
+				"configuredPlaceholder": "Token이 이미 구성되어 있습니다. 교체하려면 새 token을 입력하세요."
+			}
 		}
 	},
 	"slashCommands": {

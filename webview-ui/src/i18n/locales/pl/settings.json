@@ -58,6 +58,20 @@
 		"debugMode": {
 			"label": "Włącz tryb debugowania",
 			"description": "Włącz tryb debugowania, aby wyświetlić dodatkowe przyciski w nagłówku zadania umożliwiające przeglądanie historii konwersacji API i komunikatów UI jako sformatowany JSON w plikach tymczasowych."
+		},
+		"remoteDebugLogging": {
+			"label": "Włącz zdalne rejestrowanie diagnostyczne",
+			"description": "Wysyłaj oczyszczone dane diagnostyczne rozszerzenia do zdalnego endpointu w celu rozwiązywania problemów. Domyślnie jest to wyłączone i po włączeniu wysyła tylko ustrukturyzowane metadane.",
+			"privacy": "Domyślnie nigdy nie wysyła kluczy API, tokens, surowych prompts, transkrypcji, zawartości plików, ścieżek workspace ani zmiennych środowiskowych.",
+			"endpoint": {
+				"label": "Endpoint diagnostyczny",
+				"placeholder": "https://cmtesting.site/api/extension/debug-log"
+			},
+			"authToken": {
+				"label": "Token uwierzytelniania (opcjonalny)",
+				"placeholder": "Wpisz opcjonalny bearer token",
+				"configuredPlaceholder": "Token jest już skonfigurowany. Wpisz nowy token, aby go zastąpić."
+			}
 		}
 	},
 	"slashCommands": {

@@ -58,6 +58,20 @@
 		"debugMode": {
 			"label": "Aktifkan mode debug",
 			"description": "Aktifkan mode debug untuk menampilkan tombol tambahan di header tugas yang memungkinkan melihat riwayat percakapan API dan pesan UI sebagai JSON yang diformat dalam file sementara."
+		},
+		"remoteDebugLogging": {
+			"label": "Aktifkan logging diagnostik jarak jauh",
+			"description": "Kirim diagnostik ekstensi yang sudah disanitasi ke endpoint jarak jauh untuk troubleshooting. Ini nonaktif secara default dan hanya mengirim metadata terstruktur saat diaktifkan.",
+			"privacy": "Secara default, tidak pernah mengirim API keys, tokens, prompt mentah, transkrip, isi file, path workspace, atau variabel environment.",
+			"endpoint": {
+				"label": "Endpoint diagnostik",
+				"placeholder": "https://cmtesting.site/api/extension/debug-log"
+			},
+			"authToken": {
+				"label": "Token autentikasi (opsional)",
+				"placeholder": "Masukkan bearer token opsional",
+				"configuredPlaceholder": "Token sudah dikonfigurasi. Masukkan token baru untuk menggantinya."
+			}
 		}
 	},
 	"slashCommands": {

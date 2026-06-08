@@ -1,4 +1,5 @@
 import os from "os"
+import { randomUUID } from "crypto"
 import * as path from "path"
 import fs from "fs/promises"
 import EventEmitter from "events"
@@ -55,6 +56,7 @@ import {
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_MODES,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
+	DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT,
 	applyCloudflareWorkersAiImageUsageUpdate,
 	getModelId,
 	isRetiredProvider,
@@ -94,6 +96,12 @@ import {
 	type EmailNotificationPayload,
 	type EmailNotificationSendResult,
 } from "../../services/notifications/EmailNotificationService"
+import {
+	RemoteDebugLogger,
+	type RemoteDebugEvent,
+	type RemoteDebugLoggerConfig,
+	type RemoteDebugSeverity,
+} from "../../services/diagnostics/RemoteDebugLogger"
 
 import { fileExistsAtPath } from "../../utils/fs"
 import { setTtsEnabled, setTtsSpeed } from "../../utils/tts"
@@ -257,6 +265,7 @@ const EMAIL_NOTIFICATION_TASK_OUTCOME_STATE_KEY = "emailNotificationTaskOutcomes
 const MAX_EMAIL_NOTIFICATION_TASK_OUTCOMES = 500
 const MAX_EMAIL_NOTIFICATION_SUMMARY_LENGTH = 600
 const DEFAULT_COMPLETION_EMAIL_SUMMARY = "Task completed successfully."
+const REMOTE_DEBUG_TOKEN_USAGE_EVENT_INTERVAL_MS = 30_000
 
 export class ClineProvider
 	extends EventEmitter<TaskProviderEvents>
@@ -304,6 +313,9 @@ export class ClineProvider
 	private readonly emailNotificationTaskToolUsage = new Map<string, ToolUsage>()
 	private readonly emailNotificationTaskRequestCounts = new Map<string, number>()
 	private readonly emailNotificationTaskContexts = new Map<string, EmailNotificationTaskContext>()
+	private readonly remoteDebugLogger: RemoteDebugLogger
+	private readonly remoteDebugSessionId = randomUUID()
+	private readonly remoteDebugUsageEventTimestamps = new Map<string, number>()
 	private parallelStatusUpdateQueue: Promise<void> = Promise.resolve()
 	private parallelStatusUpdatePromise?: Promise<void>
 	private parallelStatusUpdateRequested = false
@@ -482,6 +494,7 @@ export class ClineProvider
 		this.emailNotificationService = new EmailNotificationService(this.contextProxy, {
 			log: (message) => this.log(message),
 		})
+		this.remoteDebugLogger = new RemoteDebugLogger(() => this.getRemoteDebugLoggerConfig())
 		this.loadEmailNotificationTaskOutcomeState()
 
 		ClineProvider.activeInstances.add(this)
@@ -528,12 +541,23 @@ export class ClineProvider
 		// We do something fairly similar for the IPC-based API.
 		this.taskCreationCallback = (instance: Task) => {
 			this.rememberEmailNotificationTaskContext(instance, "created")
+			this.recordRemoteDebugTaskEvent(instance, "task.created")
 			this.emit(RooCodeEventName.TaskCreated, instance)
 
 			// Create named listener functions so we can remove them later.
-			const onTaskStarted = () => this.emit(RooCodeEventName.TaskStarted, instance.taskId)
+			const onTaskStarted = () => {
+				this.recordRemoteDebugTaskEvent(instance, "task.started")
+				this.emit(RooCodeEventName.TaskStarted, instance.taskId)
+			}
 			const onTaskCompleted = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) => {
 				this.emailNotificationCompletionEventsObserved.add(this.getEmailNotificationTaskInstanceKey(instance))
+				this.recordRemoteDebugTaskEvent(instance, "task.completed", {
+					tokenUsage,
+					toolUsage,
+					properties: {
+						apiRequestCount: this.countApiRequestMessages(instance.clineMessages),
+					},
+				})
 				this.logEmailNotificationDiagnostics("completion-event-observed", {
 					taskId,
 					instanceTaskId: instance.taskId,
@@ -563,6 +587,12 @@ export class ClineProvider
 				this.emit(RooCodeEventName.TaskCompleted, taskId, tokenUsage, toolUsage)
 			}
 			const onTaskAborted = async () => {
+				this.recordRemoteDebugTaskEvent(instance, "task.aborted", {
+					severity: "warn",
+					properties: {
+						abortReason: instance.abortReason,
+					},
+				})
 				this.emit(RooCodeEventName.TaskAborted, instance.taskId)
 
 				try {
@@ -622,6 +652,7 @@ export class ClineProvider
 					this.countApiRequestMessages(instance.clineMessages),
 				)
 				this.postBackgroundAgentUsage(instance, tokenUsage)
+				this.recordRemoteDebugTaskUsageUpdate(instance, taskId, tokenUsage, toolUsage)
 				this.emit(RooCodeEventName.TaskTokenUsageUpdated, taskId, tokenUsage, toolUsage)
 			}
 
@@ -660,6 +691,119 @@ export class ClineProvider
 				() => instance.off(RooCodeEventName.Message, onTaskMessage),
 				() => instance.off(RooCodeEventName.TaskTokenUsageUpdated, onTaskTokenUsageUpdated),
 			])
+		}
+	}
+
+	private getRemoteDebugLoggerConfig(): RemoteDebugLoggerConfig {
+		const stateValues = this.contextProxy.getValues()
+		const enabled = stateValues.remoteDebugLoggingEnabled === true
+
+		return {
+			enabled,
+			endpoint: stateValues.remoteDebugLoggingEndpoint?.trim() || DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT,
+			authToken: enabled ? this.contextProxy.getSecret("remoteDebugLoggingAuthToken") : undefined,
+			installId: enabled ? this.getOrCreateRemoteDebugLoggingInstallId() : undefined,
+			sessionId: this.remoteDebugSessionId,
+			extensionVersion: this.context.extension?.packageJSON?.version ?? "",
+			platform: {
+				os: os.platform(),
+				arch: os.arch(),
+				vscodeVersion: vscode.version,
+			},
+		}
+	}
+
+	private getOrCreateRemoteDebugLoggingInstallId(): string {
+		const existingInstallId = this.contextProxy.getGlobalState("remoteDebugLoggingInstallId")
+
+		if (typeof existingInstallId === "string" && existingInstallId.length > 0) {
+			return existingInstallId
+		}
+
+		const installId = randomUUID()
+		void Promise.resolve(this.contextProxy.updateGlobalState("remoteDebugLoggingInstallId", installId)).catch(
+			() => undefined,
+		)
+
+		return installId
+	}
+
+	private recordRemoteDebugTaskUsageUpdate(
+		task: Task,
+		taskId: string,
+		tokenUsage: TokenUsage,
+		toolUsage: ToolUsage,
+	): void {
+		const now = Date.now()
+		const lastRecordedAt = this.remoteDebugUsageEventTimestamps.get(taskId) ?? 0
+
+		if (now - lastRecordedAt < REMOTE_DEBUG_TOKEN_USAGE_EVENT_INTERVAL_MS) {
+			return
+		}
+
+		this.remoteDebugUsageEventTimestamps.set(taskId, now)
+		this.recordRemoteDebugTaskEvent(task, "task.token_usage_updated", {
+			severity: "debug",
+			tokenUsage,
+			toolUsage,
+		})
+	}
+
+	private recordRemoteDebugTaskEvent(
+		task: Task,
+		type: string,
+		options: {
+			severity?: RemoteDebugSeverity
+			tokenUsage?: TokenUsage
+			toolUsage?: ToolUsage
+			error?: unknown
+			properties?: Record<string, unknown>
+		} = {},
+	): void {
+		if (this.contextProxy.getValues().remoteDebugLoggingEnabled !== true) {
+			return
+		}
+
+		void this.buildRemoteDebugTaskEvent(task, type, options)
+			.then((event) => this.remoteDebugLogger.record(event))
+			.catch(() => undefined)
+	}
+
+	private async buildRemoteDebugTaskEvent(
+		task: Task,
+		type: string,
+		options: {
+			severity?: RemoteDebugSeverity
+			tokenUsage?: TokenUsage
+			toolUsage?: ToolUsage
+			error?: unknown
+			properties?: Record<string, unknown>
+		},
+	): Promise<RemoteDebugEvent> {
+		const mode = await task.getTaskMode().catch(() => undefined)
+		const apiConfiguration = task.apiConfiguration ?? {}
+
+		return {
+			type,
+			severity: options.severity ?? "info",
+			featureArea: "task",
+			taskId: task.taskId,
+			parentTaskId: task.parentTaskId,
+			rootTaskId: task.rootTaskId,
+			agentId: task.agentId,
+			background: task.background === true,
+			mode,
+			provider: apiConfiguration.apiProvider,
+			modelId: getModelId(apiConfiguration),
+			tokenUsage: options.tokenUsage,
+			toolUsage: options.toolUsage,
+			error: options.error,
+			properties: {
+				taskStatus: task.taskStatus,
+				hasParentTask: Boolean(task.parentTask),
+				hasRootTask: Boolean(task.rootTask),
+				...options.properties,
+			},
 		}
 	}
 
@@ -2650,6 +2794,7 @@ export class ClineProvider
 		this.skillsManager = undefined
 		this.customModesManager?.dispose()
 		this.taskHistoryStore.dispose()
+		await this.remoteDebugLogger.dispose()
 		this.flushGlobalStateWriteThrough()
 		this.log("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
@@ -4162,6 +4307,9 @@ export class ClineProvider
 			smtpRecipients,
 			smtpSubjectTemplate,
 			smtpPasswordConfigured,
+			remoteDebugLoggingEnabled,
+			remoteDebugLoggingEndpoint,
+			remoteDebugLoggingAuthTokenConfigured,
 			enableCheckpoints,
 			checkpointTimeout,
 			taskHistory,
@@ -4295,6 +4443,9 @@ export class ClineProvider
 			smtpRecipients: smtpRecipients ?? [],
 			smtpSubjectTemplate: smtpSubjectTemplate ?? "",
 			smtpPasswordConfigured: smtpPasswordConfigured ?? false,
+			remoteDebugLoggingEnabled: remoteDebugLoggingEnabled ?? false,
+			remoteDebugLoggingEndpoint: remoteDebugLoggingEndpoint ?? DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT,
+			remoteDebugLoggingAuthTokenConfigured: remoteDebugLoggingAuthTokenConfigured ?? false,
 			enableCheckpoints: enableCheckpoints ?? true,
 			checkpointTimeout: checkpointTimeout ?? DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
@@ -4489,6 +4640,9 @@ export class ClineProvider
 			smtpRecipients: stateValues.smtpRecipients ?? [],
 			smtpSubjectTemplate: stateValues.smtpSubjectTemplate ?? "",
 			smtpPasswordConfigured: Boolean(this.contextProxy.getSecret("smtpPassword")),
+			remoteDebugLoggingEnabled: stateValues.remoteDebugLoggingEnabled ?? false,
+			remoteDebugLoggingEndpoint: stateValues.remoteDebugLoggingEndpoint ?? DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT,
+			remoteDebugLoggingAuthTokenConfigured: Boolean(this.contextProxy.getSecret("remoteDebugLoggingAuthToken")),
 			enableCheckpoints: stateValues.enableCheckpoints ?? true,
 			checkpointTimeout: stateValues.checkpointTimeout ?? DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 			soundVolume: stateValues.soundVolume,

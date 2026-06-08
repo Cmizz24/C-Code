@@ -90,6 +90,12 @@ export const DEFAULT_CHECKPOINT_TIMEOUT_SECONDS = 15
 export const DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS = 3
 
 /**
+ * Default opt-in remote diagnostics endpoint. No requests are sent unless
+ * remote debug logging is explicitly enabled by the user.
+ */
+export const DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT = "https://cmtesting.site/api/extension/debug-log"
+
+/**
  * Allowed range for the persisted parallel-agent concurrency setting.
  */
 export const MIN_PARALLEL_TASK_CONCURRENCY = 1
@@ -262,6 +268,10 @@ export const globalSettingsSchema = z.object({
 	execaShellPath: z.string().optional(),
 
 	diagnosticsEnabled: z.boolean().optional(),
+	remoteDebugLoggingEnabled: z.boolean().optional(),
+	remoteDebugLoggingEndpoint: z.string().optional(),
+	remoteDebugLoggingAuthToken: z.string().optional(),
+	remoteDebugLoggingInstallId: z.string().optional(),
 
 	rateLimitSeconds: z.number().optional(),
 	experiments: experimentsSchema.optional(),
@@ -373,6 +383,7 @@ export const GLOBAL_SECRET_KEYS = [
 	"ollamaImageApiKey", // For image generation with authenticated local/cloud instances
 	"lmStudioImageApiKey", // For image generation with authenticated local/proxy instances
 	"smtpPassword", // For SMTP email notifications
+	"remoteDebugLoggingAuthToken", // For optional remote diagnostics ingest authentication
 ] as const
 
 // Type for the actual secret storage keys

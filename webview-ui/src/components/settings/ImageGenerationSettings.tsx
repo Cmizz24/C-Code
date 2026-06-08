@@ -281,16 +281,25 @@ export const ImageGenerationSettings = ({
 							style={{ width: `${cloudflareUsagePercent}%` }}
 						/>
 					</div>
-					<div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-vscode-descriptionForeground">
-						<span>
-							{t("settings:imageGeneration.cloudflareUsage.remainingLabel")}:{" "}
-							{t("settings:imageGeneration.cloudflareUsage.neuronsValue", {
-								count: numberFormatter.format(cloudflareUsageSnapshot.estimatedRemainingNeurons),
-							})}
-						</span>
-						<span>
-							{t("settings:imageGeneration.cloudflareUsage.resetLabel")}: {cloudflareUsageResetAt}
-						</span>
+					<div className="mt-2 grid gap-2 text-xs text-vscode-descriptionForeground sm:grid-cols-3">
+						<div className="flex flex-col gap-0.5">
+							<span>{t("settings:imageGeneration.cloudflareUsage.remainingLabel")}</span>
+							<span className="font-medium text-vscode-foreground">
+								{t("settings:imageGeneration.cloudflareUsage.neuronsValue", {
+									count: numberFormatter.format(cloudflareUsageSnapshot.estimatedRemainingNeurons),
+								})}
+							</span>
+						</div>
+						<div className="flex flex-col gap-0.5">
+							<span>{t("settings:imageGeneration.cloudflareUsage.requestsLabel")}</span>
+							<span className="font-medium text-vscode-foreground">
+								{numberFormatter.format(cloudflareUsageSnapshot.requestCount)}
+							</span>
+						</div>
+						<div className="flex flex-col gap-0.5">
+							<span>{t("settings:imageGeneration.cloudflareUsage.resetLabel")}</span>
+							<span className="font-medium text-vscode-foreground">{cloudflareUsageResetAt}</span>
+						</div>
 					</div>
 					<p className="mb-0 mt-2">
 						{t("settings:imageGeneration.cloudflareUsage.localEstimateDescription")}

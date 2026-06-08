@@ -315,6 +315,8 @@ export type ExtensionState = Pick<
 	| "terminalZdotdir"
 	| "execaShellPath"
 	| "diagnosticsEnabled"
+	| "remoteDebugLoggingEnabled"
+	| "remoteDebugLoggingEndpoint"
 	| "language"
 	| "modeApiConfigs"
 	| "customModePrompts"
@@ -420,6 +422,7 @@ export type ExtensionState = Pick<
 	mcpServers?: McpServer[]
 	openAiCodexIsAuthenticated?: boolean
 	debug?: boolean
+	remoteDebugLoggingAuthTokenConfigured?: boolean
 	activeExecutionPlan?: ExecutionPlan
 
 	/**

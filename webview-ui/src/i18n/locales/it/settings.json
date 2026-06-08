@@ -58,6 +58,20 @@
 		"debugMode": {
 			"label": "Abilita modalità debug",
 			"description": "Abilita la modalità debug per mostrare pulsanti aggiuntivi nell'intestazione dell'attività che consentano di visualizzare la cronologia delle conversazioni API e i messaggi dell'interfaccia utente come JSON formattato in file temporanei."
+		},
+		"remoteDebugLogging": {
+			"label": "Abilita logging diagnostico remoto",
+			"description": "Invia diagnostica dell'estensione sanificata a un endpoint remoto per la risoluzione dei problemi. È disattivato per impostazione predefinita e invia solo metadati strutturati quando lo abiliti.",
+			"privacy": "Per impostazione predefinita, non invia mai chiavi API, tokens, prompt grezzi, trascrizioni, contenuti di file, percorsi del workspace o variabili d'ambiente.",
+			"endpoint": {
+				"label": "Endpoint diagnostico",
+				"placeholder": "https://cmtesting.site/api/extension/debug-log"
+			},
+			"authToken": {
+				"label": "Token di autenticazione (opzionale)",
+				"placeholder": "Inserisci un bearer token opzionale",
+				"configuredPlaceholder": "Token già configurato. Inserisci un nuovo token per sostituirlo."
+			}
 		}
 	},
 	"slashCommands": {

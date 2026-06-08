@@ -49,6 +49,7 @@ Discover the powerful features that make Roo Code your ultimate AI-powered codin
 ### Integration Features
 
 - [**MCP (Model Context Protocol)**](/features/mcp/overview) - Connect to external tools and services
+- [**Remote Diagnostic Logging**](/features/remote-diagnostic-logging) - Configure opt-in sanitized diagnostics for server-side troubleshooting
 - [**Shell Integration**](/features/shell-integration) - Seamless terminal command execution
 - [**Marketplace**](/features/marketplace) - Discover and share custom modes
 

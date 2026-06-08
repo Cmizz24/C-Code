@@ -58,6 +58,20 @@
 		"debugMode": {
 			"label": "デバッグモードを有効にする",
 			"description": "デバッグモードを有効にすると、タスクヘッダーにAPI会話履歴とUIメッセージをフォーマットされたJSONとして一時ファイルで表示するための追加ボタンが表示されます。"
+		},
+		"remoteDebugLogging": {
+			"label": "リモート診断ログを有効にする",
+			"description": "トラブルシューティングのため、サニタイズ済みの拡張機能診断をリモートエンドポイントに送信します。これはデフォルトでオフで、有効にした場合のみ構造化メタデータを送信します。",
+			"privacy": "デフォルトでは、API キー、tokens、生の prompts、トランスクリプト、ファイル内容、ワークスペースパス、環境変数は送信しません。",
+			"endpoint": {
+				"label": "診断エンドポイント",
+				"placeholder": "https://cmtesting.site/api/extension/debug-log"
+			},
+			"authToken": {
+				"label": "認証 token（任意）",
+				"placeholder": "任意の bearer token を入力",
+				"configuredPlaceholder": "Token はすでに設定されています。置き換えるには新しい token を入力してください。"
+			}
 		}
 	},
 	"slashCommands": {

@@ -58,6 +58,20 @@
 		"debugMode": {
 			"label": "Enable debug mode",
 			"description": "Enable debug mode to show additional buttons in the task header for viewing API conversation history and UI messages as prettified JSON in temporary files."
+		},
+		"remoteDebugLogging": {
+			"label": "Enable remote diagnostic logging",
+			"description": "Send sanitized extension diagnostics to a remote endpoint for troubleshooting. This is off by default and only sends structured metadata when enabled.",
+			"privacy": "Never sends API keys, tokens, raw prompts, transcripts, file contents, workspace paths, or environment variables by default.",
+			"endpoint": {
+				"label": "Diagnostic endpoint",
+				"placeholder": "https://cmtesting.site/api/extension/debug-log"
+			},
+			"authToken": {
+				"label": "Authentication token (optional)",
+				"placeholder": "Enter an optional bearer token",
+				"configuredPlaceholder": "Token already configured. Enter a new token to replace it."
+			}
 		}
 	},
 	"slashCommands": {

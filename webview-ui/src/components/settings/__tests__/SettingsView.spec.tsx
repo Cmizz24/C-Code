@@ -1341,6 +1341,57 @@ describe("SettingsView - Allowed Commands", () => {
 	})
 })
 
+describe("SettingsView - Remote Diagnostic Logging", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("persists remote diagnostic settings from cached state only when Save is clicked", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			remoteDebugLoggingEnabled: false,
+			remoteDebugLoggingEndpoint: "https://cmtesting.site/api/extension/debug-log",
+			remoteDebugLoggingAuthTokenConfigured: true,
+		})
+
+		activateTab("about")
+
+		const content = getSettingsContent()
+		const enabledCheckbox = within(content).getByLabelText("settings:about.remoteDebugLogging.label")
+		const endpointInput = within(content).getByTestId("remote-debug-endpoint-input") as HTMLInputElement
+		const authTokenInput = within(content).getByTestId("remote-debug-auth-token-input") as HTMLInputElement
+
+		expect(enabledCheckbox).not.toBeChecked()
+		expect(endpointInput).toHaveValue("https://cmtesting.site/api/extension/debug-log")
+		expect(authTokenInput).toHaveAttribute(
+			"placeholder",
+			"settings:about.remoteDebugLogging.authToken.configuredPlaceholder",
+		)
+
+		fireEvent.click(enabledCheckbox)
+		fireEvent.change(endpointInput, { target: { value: "  https://logs.example.com/extension/debug-log  " } })
+		fireEvent.change(authTokenInput, { target: { value: "replacement-token" } })
+
+		expect(vscode.postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+			}),
+		)
+
+		fireEvent.click(screen.getByTestId("save-button"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					remoteDebugLoggingEnabled: true,
+					remoteDebugLoggingEndpoint: "https://logs.example.com/extension/debug-log",
+					remoteDebugLoggingAuthToken: "replacement-token",
+				}),
+			}),
+		)
+	})
+})
+
 describe("SettingsView - Duplicate Commands", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()

@@ -58,6 +58,20 @@
 		"debugMode": {
 			"label": "Bật chế độ debug",
 			"description": "Bật chế độ debug để hiển thị các nút bổ sung trong tiêu đề nhiệm vụ cho phép xem lịch sử hội thoại API và tin nhắn UI dưới dạng JSON được định dạng trong các tệp tạm thời."
+		},
+		"remoteDebugLogging": {
+			"label": "Bật ghi nhật ký chẩn đoán từ xa",
+			"description": "Gửi chẩn đoán tiện ích mở rộng đã được làm sạch tới endpoint từ xa để khắc phục sự cố. Tính năng này tắt theo mặc định và chỉ gửi metadata có cấu trúc khi bạn bật.",
+			"privacy": "Theo mặc định, không bao giờ gửi API keys, tokens, prompts thô, bản chép lời, nội dung tệp, đường dẫn workspace hoặc biến environment.",
+			"endpoint": {
+				"label": "Endpoint chẩn đoán",
+				"placeholder": "https://cmtesting.site/api/extension/debug-log"
+			},
+			"authToken": {
+				"label": "Token xác thực (tùy chọn)",
+				"placeholder": "Nhập bearer token tùy chọn",
+				"configuredPlaceholder": "Token đã được cấu hình. Nhập token mới để thay thế."
+			}
 		}
 	},
 	"slashCommands": {
