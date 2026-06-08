@@ -1,6 +1,7 @@
 // npx vitest run __tests__/removeClineFromStack-delegation.spec.ts
 
 import { describe, it, expect, vi } from "vitest"
+import { RooCodeEventName } from "@roo-code/types"
 import { ClineProvider } from "../core/webview/ClineProvider"
 
 describe("ClineProvider.removeClineFromStack() delegation awareness", () => {
@@ -35,6 +36,8 @@ describe("ClineProvider.removeClineFromStack() delegation awareness", () => {
 		const provider = {
 			clineStack: [childTask] as any[],
 			taskEventListeners: new Map(),
+			emailNotificationCompletionEventsObserved: new Set<string>(),
+			getEmailNotificationTaskInstanceKey: vi.fn((task: any) => `${task.taskId}.${task.instanceId}`),
 			log: vi.fn(),
 			getTaskWithId,
 			updateTaskHistory,
@@ -83,6 +86,37 @@ describe("ClineProvider.removeClineFromStack() delegation awareness", () => {
 
 		// Log the repair
 		expect(provider.log).toHaveBeenCalledWith(expect.stringContaining("Repaired parent parent-1 metadata"))
+	})
+
+	it("restores user-facing Orchestrator mode when repairing an Orchestrator parent after child removal", async () => {
+		const setValue = vi.fn().mockResolvedValue(undefined)
+		const emit = vi.fn()
+		const postStateToWebview = vi.fn().mockResolvedValue(undefined)
+		const { provider, updateTaskHistory } = buildMockProvider({
+			childTaskId: "child-1",
+			parentTaskId: "parent-1",
+			parentHistoryItem: {
+				id: "parent-1",
+				status: "delegated",
+				awaitingChildId: "child-1",
+				mode: "orchestrator",
+			},
+		})
+		;(provider as any).contextProxy = {
+			getGlobalState: vi.fn(() => "code"),
+			setValue,
+		}
+		;(provider as any).emit = emit
+		;(provider as any).postStateToWebview = postStateToWebview
+
+		await (ClineProvider.prototype as any).removeClineFromStack.call(provider)
+
+		expect(updateTaskHistory).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "parent-1", status: "active", awaitingChildId: undefined }),
+		)
+		expect(setValue).toHaveBeenCalledWith("mode", "orchestrator")
+		expect(emit).toHaveBeenCalledWith(RooCodeEventName.ModeChanged, "orchestrator")
+		expect(postStateToWebview).toHaveBeenCalled()
 	})
 
 	it("does NOT modify parent metadata when the task has no parentTaskId (non-delegated)", async () => {
@@ -260,6 +294,8 @@ describe("ClineProvider.removeClineFromStack() delegation awareness", () => {
 		const provider = {
 			clineStack: [taskB] as any[],
 			taskEventListeners: new Map(),
+			emailNotificationCompletionEventsObserved: new Set<string>(),
+			getEmailNotificationTaskInstanceKey: vi.fn((task: any) => `${task.taskId}.${task.instanceId}`),
 			log: vi.fn(),
 			getTaskWithId,
 			updateTaskHistory,

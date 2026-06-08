@@ -56,6 +56,7 @@ export const marketplaceMcpSetupModeSlug = MCP_SETUP_MODE_SLUG
 
 export const legacyModeSlugFallbacks: Readonly<Record<string, string>> = Object.freeze({
 	ask: explainModeSlug,
+	orcestrator: "orchestrator",
 })
 
 export function normalizeModeSlug(slug: string): string {

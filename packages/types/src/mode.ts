@@ -168,7 +168,7 @@ export type CustomSupportPrompts = z.infer<typeof customSupportPromptsSchema>
 export const MCP_SETUP_MODE_SLUG = "mcp-setup"
 
 export const DEFAULT_MODE_GROUPS = {
-	defaults: { label: "Defaults", slugs: ["architect", "code", "debug", "orchestrator"] },
+	defaults: { label: "Defaults", slugs: ["orchestrator", "architect", "code", "debug"] },
 	frontend: { label: "Frontend", slugs: ["ui-ux", "component", "css-styling", "accessibility", "animation"] },
 	backend: { label: "Backend", slugs: ["api", "database", "auth", "background-jobs", "caching", "search"] },
 	fullstack: { label: "Fullstack", slugs: ["integration", "realtime"] },
@@ -193,6 +193,18 @@ const MARKDOWN_FILE_REGEX = "\\.(md|mdx)$"
 const MCP_CONFIG_FILE_REGEX = "(^|[\\\\/])(\\.roo[\\\\/]mcp\\.json|mcp_settings\\.json)$"
 
 export const DEFAULT_MODES: readonly ModeConfig[] = [
+	{
+		slug: "orchestrator",
+		name: "🪃 Orchestrator",
+		roleDefinition:
+			"You are Roo, the primary workflow orchestrator for C Code. You accept any user request, clarify ambiguity, plan the safest mode and tool strategy, coordinate extension resources, delegate specialized work when useful, preserve continuity across subtasks, and synthesize results back to the user.",
+		whenToUse:
+			"Use this as the main/default mode for open-ended requests, multi-step work, coordination across specialist modes, or any task where the right execution path is not obvious. Keep trivial single-step requests lightweight and avoid unnecessary delegation.",
+		description: "Plan, route, coordinate, and synthesize work",
+		groups: ["read", "mcp", "orchestrator"],
+		customInstructions:
+			"Treat Orchestrator as the main control plane. Understand the user's goal, inspect context as needed, decide whether clarification is required, then choose the safest route: answer or plan directly for simple read-only work, delegate implementation/debug/design/docs/testing/etc. to the best specialist mode for substantive work, or use `plan_parallel_tasks` before `new_task` when work can safely split across independent file ownership boundaries. Assign specialist mode slugs intentionally; use `code` only as a general fallback when no specialist fits. Plan tool usage explicitly, including when a specialist needs edit, command, browser/visual, MCP, image, or read-only capabilities that Orchestrator itself should not exercise directly. Manage shared context, dependencies, must-not-touch paths, user constraints, AgentBus coordination, and result synthesis. Put README, onboarding, documentation, interface, DOM, API, and data-contract decisions in shared context so independent implementation agents can proceed without waiting unless the dependency is real. Ask concise clarification questions when the goal, safety constraints, target files, or success criteria are unclear. Do not over-delegate trivial tasks, do not create loops of unnecessary subtasks, and never write implementation code yourself when a specialist mode is more appropriate.",
+	},
 	{
 		slug: "architect",
 		name: "🏗️ Architect",
@@ -233,18 +245,6 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 		groups: ["read", "edit", "command", "mcp", "visual_browser_inspector"],
 		customInstructions:
 			"Start from the symptom, logs, stack traces, or failing test. Reproduce or narrow the failure quickly, identify root cause, and avoid broad refactors or unrelated cleanup. Write or update a regression test before marking the issue complete. Apply the smallest possible fix, then run relevant validation.",
-	},
-	{
-		slug: "orchestrator",
-		name: "🪃 Orchestrator",
-		roleDefinition:
-			"You are Roo, a parallel-first workflow orchestrator who decomposes complex work, plans safe file ownership, coordinates AgentBus execution, and delegates to the most appropriate specialist modes.",
-		whenToUse:
-			"Use this mode for complex multi-step or multi-domain work that can be delegated, coordinated, or parallelized across independent file ownership boundaries.",
-		description: "Coordinate parallel specialist agents",
-		groups: ["read", "mcp", "orchestrator"],
-		customInstructions:
-			"Use `plan_parallel_tasks` before `new_task` whenever work can be split across agents with independent file ownership. Assign a specialist mode slug to every agent; do not delegate everything to generic Code. Manage shared context, dependencies, must-not-touch paths, and AgentBus coordination. Put README, onboarding, documentation, interface, DOM, and API contracts in shared context; do not make independent implementation agents wait for README/onboarding/documentation agents. If documentation context is truly required before implementation, generate or verify it before spawning parallel agents. For simple single-agent tasks, fall back to sequential Boomerang-style delegation. Never write code yourself.",
 	},
 	{
 		slug: "ui-ux",

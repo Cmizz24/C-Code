@@ -51,6 +51,11 @@ describe("Nested delegation resume (A → B → C)", () => {
 	it("C completes → reopens B; then B completes → reopens A; emits correct events; no resume_task asks", async () => {
 		// Track which task is "current" to satisfy provider.reopenParentFromDelegation() child-close logic
 		let currentActiveId: string | undefined = "C"
+		let currentMode = "code"
+		const setValue = vi.fn(async (_key: string, value: string) => {
+			currentMode = value
+		})
+		const postStateToWebview = vi.fn().mockResolvedValue(undefined)
 
 		// History index: A is parent of B, B is parent of C
 		const historyIndex: Record<string, any> = {
@@ -66,7 +71,7 @@ describe("Nested delegation resume (A → B → C)", () => {
 				tokensIn: 0,
 				tokensOut: 0,
 				totalCost: 0,
-				mode: "code",
+				mode: "orchestrator",
 				workspace: "/tmp",
 			},
 			B: {
@@ -137,13 +142,19 @@ describe("Nested delegation resume (A → B → C)", () => {
 		})
 
 		const provider = {
-			contextProxy: { globalStorageUri: { fsPath: "/tmp" } },
+			contextProxy: {
+				globalStorageUri: { fsPath: "/tmp" },
+				getGlobalState: vi.fn(() => currentMode),
+				setValue,
+			},
 			getTaskWithId,
 			emit: emitSpy,
 			getCurrentTask: vi.fn(() => (currentActiveId ? ({ taskId: currentActiveId } as any) : undefined)),
 			removeClineFromStack,
 			createTaskWithHistoryItem,
 			updateTaskHistory,
+			postStateToWebview,
+			log: vi.fn(),
 			// Wire through provider method so attemptCompletionTool can call it
 			reopenParentFromDelegation: vi.fn(async (params: any) => {
 				return await (ClineProvider.prototype as any).reopenParentFromDelegation.call(provider, params)
@@ -195,6 +206,7 @@ describe("Nested delegation resume (A → B → C)", () => {
 
 		// After C completes, B must be current
 		expect(currentActiveId).toBe("B")
+		expect(setValue).not.toHaveBeenCalledWith("mode", "orchestrator")
 
 		// Events emitted: C -> B hop
 		const eventNamesAfterC = emitSpy.mock.calls.map((c: any[]) => c[0])
@@ -238,6 +250,9 @@ describe("Nested delegation resume (A → B → C)", () => {
 		// Note: delegation resume may fall back to a non-tool_result user message when the parent history
 		// does not contain a new_task tool_use. This should not prevent reopening the parent.
 		expect(currentActiveId).toBe("A")
+		expect(currentMode).toBe("orchestrator")
+		expect(setValue).toHaveBeenCalledWith("mode", "orchestrator")
+		expect(postStateToWebview).toHaveBeenCalled()
 
 		// Ensure no resume_task asks were scheduled: verified indirectly by startTask:false on both hops
 		// (asserted in createTaskWithHistoryItem mock)

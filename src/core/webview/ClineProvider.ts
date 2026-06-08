@@ -134,6 +134,51 @@ import {
 } from "../agents/WorktreeManager"
 import { OrchestratorEventLoop } from "../orchestrator/OrchestratorEventLoop"
 
+const ORCHESTRATOR_MODE_SLUG = "orchestrator"
+
+async function restoreDelegatedParentMode(
+	provider: {
+		contextProxy?: {
+			getGlobalState?: (...args: any[]) => unknown
+			setValue?: (...args: any[]) => Promise<void>
+		}
+		emit?: (...args: any[]) => boolean
+		postStateToWebview?: () => Promise<void>
+		log?: (message: string) => void
+	},
+	parentHistory: HistoryItem,
+	source: string,
+	options: { postState?: boolean } = {},
+): Promise<void> {
+	const parentMode = parentHistory.mode ? normalizeModeSlug(parentHistory.mode) : undefined
+
+	if (parentMode !== ORCHESTRATOR_MODE_SLUG) {
+		return
+	}
+
+	const contextProxy = provider.contextProxy
+
+	if (typeof contextProxy?.setValue !== "function") {
+		return
+	}
+
+	const currentModeValue =
+		typeof contextProxy.getGlobalState === "function" ? contextProxy.getGlobalState("mode") : undefined
+	const currentMode = typeof currentModeValue === "string" ? normalizeModeSlug(currentModeValue) : undefined
+
+	if (currentMode !== parentMode) {
+		await contextProxy.setValue("mode", parentMode)
+	}
+
+	provider.emit?.(RooCodeEventName.ModeChanged, parentMode)
+
+	if (options.postState && typeof provider.postStateToWebview === "function") {
+		await provider.postStateToWebview()
+	}
+
+	provider.log?.(`[${source}] Restored delegated parent mode '${parentMode}' for parent ${parentHistory.id}.`)
+}
+
 /**
  * https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
  * https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
@@ -2511,6 +2556,9 @@ export class ClineProvider
 							...parentHistory,
 							status: "active",
 							awaitingChildId: undefined,
+						})
+						await restoreDelegatedParentMode(this, parentHistory, "ClineProvider#removeClineFromStack", {
+							postState: true,
 						})
 						this.log(
 							`[ClineProvider#removeClineFromStack] Repaired parent ${parentTaskId} metadata: delegated → active (child ${childTaskId} removed)`,
@@ -8881,6 +8929,8 @@ export class ClineProvider
 			// Auto-resume parent without ask("resume_task")
 			await parentInstance.resumeAfterDelegation()
 		}
+
+		await restoreDelegatedParentMode(this, updatedHistory, "reopenParentFromDelegation", { postState: true })
 
 		// 9) Emit TaskDelegationResumed (provider-level)
 		try {
