@@ -15,7 +15,7 @@
 		"setupLocalAi": "Lokale AI einrichten",
 		"localAi": {
 			"title": "Lokale AI einrichten",
-			"description": "Erkenne deine Hardware, wähle ein Ollama-Modell aus und lade es mit Live-Fortschritt herunter."
+			"description": "Erkenne deine Hardware, wähle Ollama oder LM Studio und richte ein lokales Modell ein."
 		},
 		"provider": {
 			"title": "API-Anbieter verwenden",
@@ -24,7 +24,7 @@
 	},
 	"localSetup": {
 		"heading": "Lokale AI einrichten",
-		"subtitle": "Beantworte ein paar Fragen und C Code empfiehlt dir ein lokales Ollama-Modell, das zu deinem Computer und deinem Speicherbudget passt.",
+		"subtitle": "Beantworte ein paar Fragen, und C Code hilft dir, Ollama einzurichten oder einen vorhandenen LM Studio-Server zu verwenden.",
 		"hardware": {
 			"heading": "Hardware- und Runtime-Prüfung",
 			"detecting": "Dein Computer und lokale AI-Runtimes werden erkannt…",
@@ -39,7 +39,8 @@
 			"running": "läuft",
 			"installed-not-running": "installiert, läuft nicht",
 			"missing": "fehlt",
-			"unknown": "unbekannt"
+			"unknown": "unbekannt",
+			"detection-failed": "Erkennung fehlgeschlagen"
 		},
 		"form": {
 			"usage": {
@@ -64,10 +65,20 @@
 				"label": "Runtime-Auswahl",
 				"existing": "Vorhandene lokale Runtime verwenden",
 				"ollama": "Ollama einrichten",
-				"manual": "Manuelle Einrichtung"
+				"manual": "Manuelle Einrichtung",
+				"lmStudio": "LM Studio verwenden"
 			},
 			"providerPreference": {
 				"label": "Präferenz für erkannte lokale Runtime"
+			},
+			"provider": {
+				"label": "Lokaler Anbieter",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "Am stärksten automatisierter Weg: C Code kann das empfohlene Ollama-Modell mit Fortschritt herunterladen.",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "Verwende LM Studio, wenn du den App-basierten Modellmanager und lokalen Server bevorzugst.",
+				"lmStudioReadyDescription": "LM Studio läuft mit {{models}} verfügbaren Modell(en).",
+				"readyBadge": "Bereit"
 			}
 		},
 		"actions": {
@@ -80,7 +91,10 @@
 			"cancel": "Einrichtung abbrechen",
 			"retry": "Download erneut versuchen",
 			"openOllamaDownload": "Ollama-Download öffnen",
-			"useApiProvider": "API-Anbieter verwenden"
+			"useApiProvider": "API-Anbieter verwenden",
+			"useLmStudio": "LM Studio-Modell verwenden",
+			"openLmStudioDownload": "LM Studio-Download öffnen",
+			"openLmStudioServerDocs": "LM Studio-Serveranleitung öffnen"
 		},
 		"recommendation": {
 			"heading": "Empfohlenes lokales Modell",
@@ -105,19 +119,30 @@
 			"starting": "Lokale AI-Einrichtung wird gestartet…",
 			"model": "Modell: {{model}}",
 			"percent": "{{percent}}% abgeschlossen",
-			"waiting": "Warte auf Ollama-Fortschritt…"
+			"waiting": "Warte auf Fortschritt der lokalen Runtime…"
 		},
 		"manual": {
-			"heading": "Manuelle Ollama-Einrichtung",
-			"description": "C Code führt keine Installer still aus. Installiere Ollama selbst, starte es und komm dann zurück, um die Prüfung zu aktualisieren.",
-			"stepInstall": "Lade Ollama von der offiziellen Ollama-Website herunter.",
-			"stepStart": "Starte Ollama und stelle sicher, dass es unter http://localhost:11434 erreichbar ist.",
+			"heading": "Manuelle lokale AI-Einrichtung",
+			"description": "C Code führt keine Installer stillschweigend aus. Installiere Ollama oder LM Studio selbst, starte den lokalen Server und komm dann zurück, um die Prüfung zu aktualisieren.",
+			"stepInstall": "Lade Ollama oder LM Studio von der offiziellen Website herunter.",
+			"stepStart": "Starte Ollama oder den lokalen LM Studio-Server und stelle sicher, dass er unter seiner lokalen Standard-URL erreichbar ist.",
 			"stepRetry": "Komm hierher zurück, aktualisiere die Runtime-Prüfung und führe die Empfehlung erneut aus."
 		},
 		"success": {
 			"heading": "Lokale AI ist bereit",
-			"description": "{{model}} wurde in Ollama gefunden und ist bereit für lokale Inferenz.",
-			"profile": "C Code hat ein Local AI (Ollama)-Anbieterprofil gespeichert und aktiviert."
+			"description": "{{model}} ist bereit für lokale Inferenz.",
+			"profile": "C Code hat ein Local AI (Ollama)-Anbieterprofil gespeichert und aktiviert.",
+			"lmStudioProfile": "C Code hat ein Local AI (LM Studio)-Anbieterprofil gespeichert und aktiviert."
+		},
+		"lmStudio": {
+			"statusHeading": "LM Studio-Status: {{status}}",
+			"ready": "Wähle eines der von LM Studio gemeldeten Modelle aus und erstelle damit ein lokales Anbieterprofil.",
+			"noModels": "LM Studio ist erreichbar, meldet aber keine verwendbaren Modelle. Lade oder öffne ein Chat-Modell in LM Studio und aktualisiere dann die Prüfung.",
+			"serverStopped": "LM Studio scheint installiert zu sein, aber der lokale Server läuft nicht. Starte den lokalen Server in LM Studio und aktualisiere dann die Prüfung.",
+			"detectionFailed": "LM Studio-Erkennung fehlgeschlagen: {{error}}",
+			"missing": "LM Studio ist nicht installiert oder nicht erreichbar. Öffne die offizielle Download-Seite, installiere LM Studio, lade ein Modell herunter, starte den lokalen Server und aktualisiere dann die Prüfung.",
+			"unknownError": "unbekannter Fehler",
+			"modelLabel": "LM Studio-Modell"
 		}
 	},
 	"providerSignup": {

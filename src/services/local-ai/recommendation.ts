@@ -6,6 +6,8 @@ import type {
 	LocalAiRecommendationRequest,
 } from "@roo-code/types"
 
+import { LM_STUDIO_DEFAULT_BASE_URL, OLLAMA_DEFAULT_BASE_URL } from "./hardware"
+
 const TIER_SCORE: Record<LocalAiModelCatalogItem["tier"], number> = {
 	tiny: 0,
 	small: 1,
@@ -17,6 +19,8 @@ const TIER_SCORE: Record<LocalAiModelCatalogItem["tier"], number> = {
 const PRACTICAL_LOCAL_CODING_RAM_GB = 12
 const LOW_RAM_WITH_WEAK_GPU_GB = 16
 const VERY_LOW_FREE_DISK_GB = 6
+
+const LM_STUDIO_MANUAL_MODEL_TAG = "LM Studio model"
 
 const WEAK_GPU_PATTERNS = [
 	/\bintel(?:\(r\))?\s+(?:uhd|hd|iris)\b/i,
@@ -188,11 +192,106 @@ const getDiskLimitGb = (probe: LocalAiHardwareProbe, questionnaire: LocalAiQuest
 	return Math.max(0, Math.min(configuredBudget, probe.disk.freeGb - 2))
 }
 
+const getLmStudioModelIds = (probe: LocalAiHardwareProbe) => probe.runtimes.lmStudio.models?.filter(Boolean) ?? []
+
+const hasUsableLmStudioModels = (probe: LocalAiHardwareProbe) =>
+	probe.runtimes.lmStudio.status === "running" && getLmStudioModelIds(probe).length > 0
+
+const buildLmStudioModelItem = (modelId: string): LocalAiModelCatalogItem => ({
+	provider: "lmstudio",
+	tag: modelId,
+	displayName: modelId,
+	description: "Existing LM Studio model available through the local server.",
+	approximateSizeGb: 0,
+	minimumRamGb: 0,
+	recommendedRamGb: 0,
+	tier: "standard",
+})
+
+const selectLmStudioModelId = (probe: LocalAiHardwareProbe, questionnaire: LocalAiQuestionnaire) => {
+	const models = getLmStudioModelIds(probe)
+	return questionnaire.selectedModel && models.includes(questionnaire.selectedModel)
+		? questionnaire.selectedModel
+		: models[0]
+}
+
+const buildLmStudioRecommendation = (
+	probe: LocalAiHardwareProbe,
+	questionnaire: LocalAiQuestionnaire,
+): LocalAiRecommendation => {
+	const runtime = probe.runtimes.lmStudio
+	const modelId = selectLmStudioModelId(probe, questionnaire)
+	const warnings: string[] = []
+	const reasons: string[] = []
+
+	if (modelId) {
+		reasons.push("LM Studio is reachable through its local OpenAI-compatible server.")
+		reasons.push(`Selected existing LM Studio model: ${modelId}.`)
+
+		return {
+			provider: "lmstudio",
+			recommendedSetup: "existing",
+			runtimeDisplayName: "LM Studio",
+			baseUrl: runtime.baseUrl || LM_STUDIO_DEFAULT_BASE_URL,
+			model: buildLmStudioModelItem(modelId),
+			confidence: "high",
+			reasons,
+			hasWeakHardwareWarning: false,
+			warnings,
+			freeDiskGb: probe.disk.freeGb,
+			diskBudgetGb: questionnaire.diskBudgetGb,
+			privacyNote: "Inference runs locally through LM Studio's local server with your selected model.",
+		}
+	}
+
+	if (runtime.status === "running") {
+		warnings.push(
+			"LM Studio is running, but no usable models were reported. Download or load a chat model in LM Studio, then refresh this check.",
+		)
+	} else if (runtime.status === "installed-not-running") {
+		warnings.push(
+			"LM Studio appears to be installed, but the local server is not running. Start the LM Studio local server, then refresh this check.",
+		)
+	} else if (runtime.status === "detection-failed") {
+		warnings.push(`LM Studio detection failed: ${runtime.error ?? "unknown error"}`)
+	} else {
+		warnings.push(
+			"LM Studio is not installed or its local server is not reachable. Download LM Studio, install a model, start the local server, then refresh this check.",
+		)
+	}
+
+	reasons.push(
+		"LM Studio model downloads are managed inside LM Studio, so C Code will not run installers or download models silently.",
+	)
+
+	return {
+		provider: "lmstudio",
+		recommendedSetup: "manual",
+		runtimeDisplayName: "LM Studio",
+		baseUrl: runtime.baseUrl || LM_STUDIO_DEFAULT_BASE_URL,
+		model: buildLmStudioModelItem(questionnaire.selectedModel || LM_STUDIO_MANUAL_MODEL_TAG),
+		confidence: "low",
+		reasons,
+		hasWeakHardwareWarning: false,
+		warnings,
+		freeDiskGb: probe.disk.freeGb,
+		diskBudgetGb: questionnaire.diskBudgetGb,
+		privacyNote: "Inference stays local once LM Studio is installed, the server is running, and a model is loaded.",
+	}
+}
+
 export function recommendLocalAiModel(
 	request: LocalAiRecommendationRequest,
 	catalog: LocalAiModelCatalogItem[] = LOCAL_AI_MODEL_CATALOG,
 ): LocalAiRecommendation {
 	const { probe, questionnaire } = request
+	const wantsLmStudio = questionnaire.runtimeChoice === "lmstudio" || questionnaire.providerPreference === "lmstudio"
+	const wantsExistingRuntime = questionnaire.runtimeChoice === "existing"
+
+	if (wantsLmStudio || (wantsExistingRuntime && hasUsableLmStudioModels(probe))) {
+		return buildLmStudioRecommendation(probe, questionnaire)
+	}
+
 	const reasons: string[] = []
 	const warnings: string[] = []
 	const ramGb = probe.memory.totalGb
@@ -214,11 +313,8 @@ export function recommendLocalAiModel(
 		warnings.push("Free disk space could not be detected; the recommendation uses only your disk budget.")
 	}
 
-	if (questionnaire.providerPreference === "lmstudio" && probe.runtimes.lmStudio.status === "running") {
-		warnings.push("LM Studio is reachable, but guided first-run model downloads currently use Ollama.")
-	}
-
 	const candidates = catalog
+		.filter((model) => model.provider === "ollama")
 		.filter((model) => TIER_SCORE[model.tier] <= targetScore)
 		.filter((model) => model.minimumRamGb <= ramGb)
 		.filter((model) => model.approximateSizeGb <= questionnaire.diskBudgetGb)
@@ -230,6 +326,7 @@ export function recommendLocalAiModel(
 		})
 
 	const fallbackCandidates = catalog
+		.filter((model) => model.provider === "ollama")
 		.filter((model) => model.approximateSizeGb <= questionnaire.diskBudgetGb)
 		.filter((model) => model.approximateSizeGb <= diskLimitGb)
 		.sort((a, b) => a.approximateSizeGb - b.approximateSizeGb)
@@ -269,7 +366,7 @@ export function recommendLocalAiModel(
 		provider: "ollama",
 		recommendedSetup: "local",
 		runtimeDisplayName: "Ollama",
-		baseUrl: probe.runtimes.ollama.baseUrl || "http://localhost:11434",
+		baseUrl: probe.runtimes.ollama.baseUrl || OLLAMA_DEFAULT_BASE_URL,
 		model,
 		ollamaNumCtx: confidence === "high" ? model.defaultNumCtx : undefined,
 		confidence,

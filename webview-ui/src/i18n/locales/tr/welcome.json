@@ -15,7 +15,7 @@
 		"setupLocalAi": "Yerel AI kur",
 		"localAi": {
 			"title": "Yerel AI kur",
-			"description": "Donanımını algıla, bir Ollama modeli seç ve canlı ilerlemeyle indir."
+			"description": "Donanımını algıla, Ollama veya LM Studio seç ve yerel bir model kur."
 		},
 		"provider": {
 			"title": "Bir API sağlayıcısı kullan",
@@ -24,7 +24,7 @@
 	},
 	"localSetup": {
 		"heading": "Yerel AI kur",
-		"subtitle": "Birkaç soruyu yanıtla, C Code bilgisayarına ve disk bütçene uygun yerel bir Ollama modeli önersin.",
+		"subtitle": "Birkaç soruyu yanıtla; C Code, Ollama kurmana veya mevcut bir LM Studio sunucusunu kullanmana yardımcı olacak.",
 		"hardware": {
 			"heading": "Donanım ve runtime kontrolü",
 			"detecting": "Bilgisayarın ve yerel AI runtimes algılanıyor…",
@@ -39,7 +39,8 @@
 			"running": "çalışıyor",
 			"installed-not-running": "kurulu, çalışmıyor",
 			"missing": "eksik",
-			"unknown": "bilinmiyor"
+			"unknown": "bilinmiyor",
+			"detection-failed": "algılama başarısız"
 		},
 		"form": {
 			"usage": {
@@ -64,9 +65,21 @@
 				"label": "Runtime seçimi",
 				"existing": "Mevcut yerel runtime kullan",
 				"ollama": "Ollama kur",
-				"manual": "Manuel kurulum"
+				"manual": "Manuel kurulum",
+				"lmStudio": "LM Studio kullan"
 			},
-			"providerPreference": { "label": "Algılanan yerel runtime tercihi" }
+			"providerPreference": {
+				"label": "Algılanan yerel runtime tercihi"
+			},
+			"provider": {
+				"label": "Yerel sağlayıcı",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "En otomatik yol: C Code önerilen Ollama modelini ilerleme göstererek indirebilir.",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "Uygulama tabanlı model yöneticisini ve yerel sunucusunu tercih ediyorsan LM Studio kullan.",
+				"lmStudioReadyDescription": "LM Studio {{models}} kullanılabilir model ile çalışıyor.",
+				"readyBadge": "Hazır"
+			}
 		},
 		"actions": {
 			"manual": "Manuel kurulum",
@@ -78,7 +91,10 @@
 			"cancel": "Kurulumu iptal et",
 			"retry": "İndirmeyi tekrar dene",
 			"openOllamaDownload": "Ollama indirmesini aç",
-			"useApiProvider": "Bir API sağlayıcısı kullan"
+			"useApiProvider": "Bir API sağlayıcısı kullan",
+			"useLmStudio": "LM Studio modelini kullan",
+			"openLmStudioDownload": "LM Studio indirmesini aç",
+			"openLmStudioServerDocs": "LM Studio sunucu rehberini aç"
 		},
 		"recommendation": {
 			"heading": "Önerilen yerel model",
@@ -93,25 +109,40 @@
 			"warnings": "İndirmeden önce",
 			"weakHardwareWarning": "Yerel AI modelleri bu donanımda yavaş olabilir veya beklendiği gibi çalışmayabilir."
 		},
-		"confidence": { "low": "düşük", "medium": "orta", "high": "yüksek" },
+		"confidence": {
+			"low": "düşük",
+			"medium": "orta",
+			"high": "yüksek"
+		},
 		"progress": {
 			"heading": "Yerel AI kuruluyor",
 			"starting": "Yerel AI kurulumu başlatılıyor…",
 			"model": "Model: {{model}}",
 			"percent": "{{percent}}% tamamlandı",
-			"waiting": "Ollama ilerlemesi bekleniyor…"
+			"waiting": "Yerel runtime ilerlemesi bekleniyor…"
 		},
 		"manual": {
-			"heading": "Manuel Ollama kurulumu",
-			"description": "C Code kurucuları sessizce çalıştırmaz. Ollama'yı kendin kur, başlat, sonra buraya dönüp kontrolü yenile.",
-			"stepInstall": "Ollama'yı resmi Ollama sitesinden indir.",
-			"stepStart": "Ollama'yı başlat ve http://localhost:11434 adresinden erişilebilir olduğundan emin ol.",
+			"heading": "Manuel yerel AI kurulumu",
+			"description": "C Code kurulum dosyalarını sessizce çalıştırmaz. Ollama veya LM Studio'yu kendin kur, yerel sunucuyu başlat, sonra geri dönüp kontrolü yenile.",
+			"stepInstall": "Ollama veya LM Studio'yu resmi siteden indir.",
+			"stepStart": "Ollama'yı veya LM Studio yerel sunucusunu başlat ve varsayılan yerel URL'sinden erişilebilir olduğundan emin ol.",
 			"stepRetry": "Buraya dön, runtime kontrolünü yenile ve öneriyi tekrar çalıştır."
 		},
 		"success": {
 			"heading": "Yerel AI hazır",
-			"description": "{{model}} Ollama'da bulundu ve yerel inference için hazır.",
-			"profile": "C Code Local AI (Ollama) sağlayıcı profilini kaydetti ve etkinleştirdi."
+			"description": "{{model}} yerel inference için hazır.",
+			"profile": "C Code Local AI (Ollama) sağlayıcı profilini kaydetti ve etkinleştirdi.",
+			"lmStudioProfile": "C Code, Local AI (LM Studio) sağlayıcı profilini kaydetti ve etkinleştirdi."
+		},
+		"lmStudio": {
+			"statusHeading": "LM Studio durumu: {{status}}",
+			"ready": "LM Studio'nun bildirdiği modellerden birini seç, ardından yerel sağlayıcı profili oluşturmak için kullan.",
+			"noModels": "LM Studio erişilebilir, ancak kullanılabilir model bildirmedi. LM Studio içinde bir sohbet modeli indir veya yükle, sonra kontrolü yenile.",
+			"serverStopped": "LM Studio kurulu görünüyor, ancak yerel sunucu çalışmıyor. LM Studio içinde yerel sunucuyu başlat, sonra kontrolü yenile.",
+			"detectionFailed": "LM Studio algılaması başarısız: {{error}}",
+			"missing": "LM Studio kurulu değil veya erişilemiyor. Resmi indirme sayfasını aç, LM Studio'yu kur, bir model indir, yerel sunucuyu başlat ve kontrolü yenile.",
+			"unknownError": "bilinmeyen hata",
+			"modelLabel": "LM Studio modeli"
 		}
 	},
 	"providerSignup": {

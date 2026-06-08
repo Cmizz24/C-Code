@@ -13,8 +13,10 @@ import {
 import type {
 	ExtensionMessage,
 	LocalAiHardwareProbe,
+	LocalAiProviderPreference,
 	LocalAiQuestionnaire,
 	LocalAiRecommendation,
+	LocalAiRuntimeStatus,
 	LocalAiSetupProgress,
 	LocalAiSetupResult,
 } from "@roo-code/types"
@@ -24,6 +26,8 @@ import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { vscode } from "@src/utils/vscode"
 
 const OLLAMA_INSTALL_URL = "https://ollama.com/download"
+const LM_STUDIO_DOWNLOAD_URL = "https://lmstudio.ai/download"
+const LM_STUDIO_SERVER_DOCS_URL = "https://lmstudio.ai/docs/basics/server"
 
 const DEFAULT_QUESTIONNAIRE: LocalAiQuestionnaire = {
 	usageProfile: "daily",
@@ -31,6 +35,7 @@ const DEFAULT_QUESTIONNAIRE: LocalAiQuestionnaire = {
 	privacy: "local-only",
 	diskBudgetGb: 8,
 	runtimeChoice: "ollama",
+	providerPreference: "ollama",
 }
 
 type LocalAiStep = "questionnaire" | "recommendation" | "progress" | "success" | "manual"
@@ -58,6 +63,8 @@ const getRuntimeSummary = (probe?: LocalAiHardwareProbe) => {
 
 const getProgressPercent = (progress?: LocalAiSetupProgress) => progress?.percent ?? 0
 
+const getRuntimeModels = (runtime?: LocalAiRuntimeStatus) => runtime?.models?.filter(Boolean) ?? []
+
 const LocalAiSetupView = ({ onBack, onApiProviderSetup }: LocalAiSetupViewProps) => {
 	const { t } = useAppTranslation()
 	const [step, setStep] = useState<LocalAiStep>("questionnaire")
@@ -72,13 +79,29 @@ const LocalAiSetupView = ({ onBack, onApiProviderSetup }: LocalAiSetupViewProps)
 	const [setupError, setSetupError] = useState<string>()
 
 	const detectedRuntimes = useMemo(() => getRuntimeSummary(probe), [probe])
-	const hasMultipleLocalRuntimes = detectedRuntimes.filter((runtime) => runtime.status === "running").length > 1
+	const lmStudioRuntime = probe?.runtimes.lmStudio
+	const lmStudioModels = useMemo(() => getRuntimeModels(lmStudioRuntime), [lmStudioRuntime])
+	const isLmStudioReady = lmStudioRuntime?.status === "running" && lmStudioModels.length > 0
+	const isLmStudioSelected =
+		questionnaire.runtimeChoice === "lmstudio" || questionnaire.providerPreference === "lmstudio"
 
 	const updateQuestionnaire = useCallback(
 		<K extends keyof LocalAiQuestionnaire>(field: K, value: LocalAiQuestionnaire[K]) => {
 			setQuestionnaire((current) => ({ ...current, [field]: value }))
 		},
 		[],
+	)
+
+	const selectProvider = useCallback(
+		(provider: LocalAiProviderPreference) => {
+			setQuestionnaire((current) => ({
+				...current,
+				runtimeChoice: provider,
+				providerPreference: provider,
+				selectedModel: provider === "lmstudio" ? (current.selectedModel ?? lmStudioModels[0]) : undefined,
+			}))
+		},
+		[lmStudioModels],
 	)
 
 	const requestProbe = useCallback(() => {
@@ -102,8 +125,15 @@ const LocalAiSetupView = ({ onBack, onApiProviderSetup }: LocalAiSetupViewProps)
 						setProbeError(message.error)
 						return
 					}
-
-					setProbe(message.payload as LocalAiHardwareProbe)
+					const nextProbe = message.payload as LocalAiHardwareProbe
+					setProbe(nextProbe)
+					const nextLmStudioModels = getRuntimeModels(nextProbe.runtimes.lmStudio)
+					if (nextLmStudioModels.length > 0) {
+						setQuestionnaire((current) => ({
+							...current,
+							selectedModel: current.selectedModel ?? nextLmStudioModels[0],
+						}))
+					}
 					break
 				}
 				case "localAiRecommendationResult": {
@@ -189,8 +219,154 @@ const LocalAiSetupView = ({ onBack, onApiProviderSetup }: LocalAiSetupViewProps)
 	}, [])
 
 	const handleOpenInstall = useCallback((url = OLLAMA_INSTALL_URL) => {
+		if (url === LM_STUDIO_DOWNLOAD_URL) {
+			vscode.postMessage({ type: "localAiOpenDownload" })
+			return
+		}
+
 		vscode.postMessage({ type: "openExternal", url })
 	}, [])
+
+	const handleRuntimeChoiceChange = useCallback(
+		(value: LocalAiQuestionnaire["runtimeChoice"]) => {
+			if (value === "ollama" || value === "lmstudio") {
+				selectProvider(value)
+				return
+			}
+
+			setQuestionnaire((current) => ({
+				...current,
+				runtimeChoice: value,
+				providerPreference:
+					value === "existing"
+						? isLmStudioReady
+							? "lmstudio"
+							: (current.providerPreference ?? "ollama")
+						: current.providerPreference,
+			}))
+		},
+		[isLmStudioReady, selectProvider],
+	)
+
+	const getInstallActionLabel = useCallback(
+		(url?: string) =>
+			url?.includes("lmstudio.ai")
+				? t("welcome:localSetup.actions.openLmStudioDownload")
+				: t("welcome:localSetup.actions.openOllamaDownload"),
+		[t],
+	)
+
+	const renderLmStudioGuidance = () => {
+		if (!lmStudioRuntime) {
+			return null
+		}
+
+		const statusText = t(`welcome:localSetup.runtimeStatus.${lmStudioRuntime.status}`)
+		const guidanceKey = isLmStudioReady
+			? "ready"
+			: lmStudioRuntime.status === "running"
+				? "noModels"
+				: lmStudioRuntime.status === "installed-not-running"
+					? "serverStopped"
+					: lmStudioRuntime.status === "detection-failed"
+						? "detectionFailed"
+						: "missing"
+
+		return (
+			<div
+				data-testid="lm-studio-guidance"
+				className="rounded border border-vscode-foreground/20 p-3 text-sm space-y-2">
+				<div className="font-medium">
+					{t("welcome:localSetup.lmStudio.statusHeading", { status: statusText })}
+				</div>
+				<div>
+					{t(`welcome:localSetup.lmStudio.${guidanceKey}`, {
+						error: lmStudioRuntime.error ?? t("welcome:localSetup.lmStudio.unknownError"),
+						models: lmStudioModels.length,
+					})}
+				</div>
+				{isLmStudioReady && (
+					<label className="flex flex-col gap-1">
+						<span>{t("welcome:localSetup.lmStudio.modelLabel")}</span>
+						<select
+							data-testid="lm-studio-model-select"
+							className="rounded border border-vscode-foreground/20 bg-vscode-input-background p-2 text-vscode-input-foreground"
+							value={questionnaire.selectedModel ?? lmStudioModels[0]}
+							onChange={(event) => updateQuestionnaire("selectedModel", event.target.value)}>
+							{lmStudioModels.map((model) => (
+								<option key={model} value={model}>
+									{model}
+								</option>
+							))}
+						</select>
+					</label>
+				)}
+				{!isLmStudioReady && (
+					<div className="flex flex-wrap gap-2">
+						<Button variant="secondary" size="sm" onClick={() => handleOpenInstall(LM_STUDIO_DOWNLOAD_URL)}>
+							<ExternalLink className="size-4" />
+							{t("welcome:localSetup.actions.openLmStudioDownload")}
+						</Button>
+						<Button
+							variant="secondary"
+							size="sm"
+							onClick={() => handleOpenInstall(LM_STUDIO_SERVER_DOCS_URL)}>
+							<ExternalLink className="size-4" />
+							{t("welcome:localSetup.actions.openLmStudioServerDocs")}
+						</Button>
+					</div>
+				)}
+			</div>
+		)
+	}
+
+	const renderProviderChoices = () => (
+		<div className="space-y-2">
+			<div className="text-sm font-medium">{t("welcome:localSetup.form.provider.label")}</div>
+			<div className="grid gap-3 md:grid-cols-2">
+				<button
+					type="button"
+					data-testid="local-ai-provider-ollama"
+					aria-pressed={questionnaire.providerPreference !== "lmstudio"}
+					onClick={() => selectProvider("ollama")}
+					className={`cursor-pointer rounded-md border p-3 text-left text-vscode-foreground ${
+						questionnaire.providerPreference !== "lmstudio"
+							? "border-vscode-button-background bg-vscode-foreground/10"
+							: "border-vscode-foreground/20 bg-transparent hover:bg-vscode-foreground/5"
+					}`}>
+					<div className="font-medium">{t("welcome:localSetup.form.provider.ollamaTitle")}</div>
+					<div className="mt-1 text-sm">{t("welcome:localSetup.form.provider.ollamaDescription")}</div>
+				</button>
+				<button
+					type="button"
+					data-testid="local-ai-provider-lmstudio"
+					aria-pressed={questionnaire.providerPreference === "lmstudio"}
+					onClick={() => selectProvider("lmstudio")}
+					className={`cursor-pointer rounded-md border p-3 text-left text-vscode-foreground ${
+						questionnaire.providerPreference === "lmstudio"
+							? "border-vscode-button-background bg-vscode-foreground/10"
+							: "border-vscode-foreground/20 bg-transparent hover:bg-vscode-foreground/5"
+					}`}>
+					<div className="flex items-center justify-between gap-2 font-medium">
+						<span>{t("welcome:localSetup.form.provider.lmStudioTitle")}</span>
+						{isLmStudioReady && (
+							<span className="rounded bg-vscode-button-background px-2 py-0.5 text-xs text-vscode-button-foreground">
+								{t("welcome:localSetup.form.provider.readyBadge")}
+							</span>
+						)}
+					</div>
+					<div className="mt-1 text-sm">
+						{isLmStudioReady
+							? t("welcome:localSetup.form.provider.lmStudioReadyDescription", {
+									models: lmStudioModels.length,
+								})
+							: t("welcome:localSetup.form.provider.lmStudioDescription")}
+					</div>
+				</button>
+			</div>
+			{isLmStudioSelected && renderLmStudioGuidance()}
+		</div>
+	)
 
 	const renderProbeSummary = () => (
 		<div className="rounded-md border border-vscode-foreground/20 p-3 text-sm space-y-2">
@@ -307,35 +483,17 @@ const LocalAiSetupView = ({ onBack, onApiProviderSetup }: LocalAiSetupViewProps)
 						className="rounded border border-vscode-foreground/20 bg-vscode-input-background p-2 text-vscode-input-foreground"
 						value={questionnaire.runtimeChoice}
 						onChange={(event) =>
-							updateQuestionnaire(
-								"runtimeChoice",
-								event.target.value as LocalAiQuestionnaire["runtimeChoice"],
-							)
+							handleRuntimeChoiceChange(event.target.value as LocalAiQuestionnaire["runtimeChoice"])
 						}>
 						<option value="existing">{t("welcome:localSetup.form.runtime.existing")}</option>
 						<option value="ollama">{t("welcome:localSetup.form.runtime.ollama")}</option>
+						<option value="lmstudio">{t("welcome:localSetup.form.runtime.lmStudio")}</option>
 						<option value="manual">{t("welcome:localSetup.form.runtime.manual")}</option>
 					</select>
 				</label>
-
-				{hasMultipleLocalRuntimes && (
-					<label className="flex flex-col gap-1 text-sm">
-						<span>{t("welcome:localSetup.form.providerPreference.label")}</span>
-						<select
-							className="rounded border border-vscode-foreground/20 bg-vscode-input-background p-2 text-vscode-input-foreground"
-							value={questionnaire.providerPreference ?? "ollama"}
-							onChange={(event) =>
-								updateQuestionnaire(
-									"providerPreference",
-									event.target.value as LocalAiQuestionnaire["providerPreference"],
-								)
-							}>
-							<option value="ollama">Ollama</option>
-							<option value="lmstudio">LM Studio</option>
-						</select>
-					</label>
-				)}
 			</div>
+
+			{renderProviderChoices()}
 
 			{setupError && (
 				<div className="rounded border border-vscode-errorForeground/40 p-2 text-sm text-vscode-errorForeground">
@@ -369,6 +527,8 @@ const LocalAiSetupView = ({ onBack, onApiProviderSetup }: LocalAiSetupViewProps)
 		}
 
 		const recommendsApiProvider = recommendation.recommendedSetup === "api-provider"
+		const recommendsLmStudio = recommendation.provider === "lmstudio"
+		const needsManualLmStudioSetup = recommendsLmStudio && recommendation.recommendedSetup === "manual"
 		const hasWeakHardwareWarning = recommendation.hasWeakHardwareWarning === true
 
 		return (
@@ -473,6 +633,21 @@ const LocalAiSetupView = ({ onBack, onApiProviderSetup }: LocalAiSetupViewProps)
 								{t("welcome:localSetup.actions.useApiProvider")}
 							</Button>
 						</>
+					) : needsManualLmStudioSetup ? (
+						<>
+							<Button variant="secondary" onClick={() => handleOpenInstall(LM_STUDIO_DOWNLOAD_URL)}>
+								<ExternalLink className="size-4" />
+								{t("welcome:localSetup.actions.openLmStudioDownload")}
+							</Button>
+							<Button variant="secondary" onClick={() => handleOpenInstall(LM_STUDIO_SERVER_DOCS_URL)}>
+								<ExternalLink className="size-4" />
+								{t("welcome:localSetup.actions.openLmStudioServerDocs")}
+							</Button>
+							<Button variant="primary" onClick={requestProbe}>
+								<RefreshCcw className="size-4" />
+								{t("welcome:localSetup.hardware.refresh")}
+							</Button>
+						</>
 					) : (
 						<>
 							{hasWeakHardwareWarning && (
@@ -480,12 +655,22 @@ const LocalAiSetupView = ({ onBack, onApiProviderSetup }: LocalAiSetupViewProps)
 									{t("welcome:localSetup.actions.useApiProvider")}
 								</Button>
 							)}
-							<Button variant="secondary" onClick={() => handleOpenInstall()}>
+							<Button
+								variant="secondary"
+								onClick={() =>
+									handleOpenInstall(
+										recommendsLmStudio ? LM_STUDIO_SERVER_DOCS_URL : OLLAMA_INSTALL_URL,
+									)
+								}>
 								<ExternalLink className="size-4" />
-								{t("welcome:localSetup.actions.installHelp")}
+								{recommendsLmStudio
+									? t("welcome:localSetup.actions.openLmStudioServerDocs")
+									: t("welcome:localSetup.actions.installHelp")}
 							</Button>
 							<Button variant="primary" onClick={handleStartSetup}>
-								{t("welcome:localSetup.actions.confirmDownload")}
+								{recommendsLmStudio
+									? t("welcome:localSetup.actions.useLmStudio")
+									: t("welcome:localSetup.actions.confirmDownload")}
 							</Button>
 						</>
 					)}
@@ -525,7 +710,7 @@ const LocalAiSetupView = ({ onBack, onApiProviderSetup }: LocalAiSetupViewProps)
 				{setupResult?.installUrl && (
 					<Button variant="secondary" onClick={() => handleOpenInstall(setupResult.installUrl)}>
 						<ExternalLink className="size-4" />
-						{t("welcome:localSetup.actions.openOllamaDownload")}
+						{getInstallActionLabel(setupResult.installUrl)}
 					</Button>
 				)}
 			</div>
@@ -563,6 +748,10 @@ const LocalAiSetupView = ({ onBack, onApiProviderSetup }: LocalAiSetupViewProps)
 					<ExternalLink className="size-4" />
 					{t("welcome:localSetup.actions.openOllamaDownload")}
 				</Button>
+				<Button variant="secondary" onClick={() => handleOpenInstall(LM_STUDIO_DOWNLOAD_URL)}>
+					<ExternalLink className="size-4" />
+					{t("welcome:localSetup.actions.openLmStudioDownload")}
+				</Button>
 				<Button variant="primary" onClick={requestProbe}>
 					{t("welcome:localSetup.hardware.refresh")}
 				</Button>
@@ -582,7 +771,13 @@ const LocalAiSetupView = ({ onBack, onApiProviderSetup }: LocalAiSetupViewProps)
 						model: setupResult?.modelTag ?? recommendation?.model.tag ?? "Ollama",
 					})}
 				</p>
-				<p className="m-0 text-sm">{t("welcome:localSetup.success.profile")}</p>
+				<p className="m-0 text-sm">
+					{t(
+						recommendation?.provider === "lmstudio"
+							? "welcome:localSetup.success.lmStudioProfile"
+							: "welcome:localSetup.success.profile",
+					)}
+				</p>
 			</div>
 		</div>
 	)

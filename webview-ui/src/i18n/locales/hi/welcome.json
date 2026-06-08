@@ -15,7 +15,7 @@
 		"setupLocalAi": "स्थानीय AI सेट अप करें",
 		"localAi": {
 			"title": "स्थानीय AI सेट अप करें",
-			"description": "अपना हार्डवेयर पहचानें, Ollama मॉडल चुनें, और लाइव प्रगति के साथ डाउनलोड करें।"
+			"description": "अपना हार्डवेयर पहचानो, Ollama या LM Studio चुनो और एक स्थानीय मॉडल सेट करो."
 		},
 		"provider": {
 			"title": "API प्रदाता इस्तेमाल करें",
@@ -24,7 +24,7 @@
 	},
 	"localSetup": {
 		"heading": "स्थानीय AI सेट अप करें",
-		"subtitle": "कुछ सवालों के जवाब दें और C Code आपके कंप्यूटर और डिस्क बजट के लिए उपयुक्त स्थानीय Ollama मॉडल सुझाएगा।",
+		"subtitle": "कुछ सवालों के जवाब दो और C Code तुम्हें Ollama सेट करने या मौजूदा LM Studio सर्वर इस्तेमाल करने में मदद करेगा.",
 		"hardware": {
 			"heading": "हार्डवेयर और runtime जाँच",
 			"detecting": "आपके कंप्यूटर और स्थानीय AI runtimes का पता लगाया जा रहा है…",
@@ -39,7 +39,8 @@
 			"running": "चल रहा है",
 			"installed-not-running": "इंस्टॉल है, चल नहीं रहा",
 			"missing": "मौजूद नहीं",
-			"unknown": "अज्ञात"
+			"unknown": "अज्ञात",
+			"detection-failed": "डिटेक्शन विफल"
 		},
 		"form": {
 			"usage": {
@@ -64,9 +65,21 @@
 				"label": "Runtime choice",
 				"existing": "मौजूदा स्थानीय runtime इस्तेमाल करें",
 				"ollama": "Ollama सेट अप करें",
-				"manual": "मैन्युअल सेटअप"
+				"manual": "मैन्युअल सेटअप",
+				"lmStudio": "LM Studio इस्तेमाल करो"
 			},
-			"providerPreference": { "label": "मिले हुए स्थानीय runtime की preference" }
+			"providerPreference": {
+				"label": "मिले हुए स्थानीय runtime की preference"
+			},
+			"provider": {
+				"label": "स्थानीय प्रदाता",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "सबसे स्वचालित रास्ता: C Code सुझाए गए Ollama मॉडल को प्रगति के साथ डाउनलोड कर सकता है.",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "अगर तुम्हें ऐप-आधारित मॉडल मैनेजर और स्थानीय सर्वर पसंद है, तो LM Studio इस्तेमाल करो.",
+				"lmStudioReadyDescription": "LM Studio {{models}} उपलब्ध मॉडल के साथ चल रहा है.",
+				"readyBadge": "तैयार"
+			}
 		},
 		"actions": {
 			"manual": "मैन्युअल सेटअप",
@@ -78,7 +91,10 @@
 			"cancel": "सेटअप रद्द करें",
 			"retry": "डाउनलोड फिर से कोशिश करें",
 			"openOllamaDownload": "Ollama डाउनलोड खोलें",
-			"useApiProvider": "API provider का उपयोग करें"
+			"useApiProvider": "API provider का उपयोग करें",
+			"useLmStudio": "LM Studio मॉडल इस्तेमाल करो",
+			"openLmStudioDownload": "LM Studio डाउनलोड खोलो",
+			"openLmStudioServerDocs": "LM Studio सर्वर गाइड खोलो"
 		},
 		"recommendation": {
 			"heading": "सुझाया गया स्थानीय मॉडल",
@@ -93,25 +109,40 @@
 			"warnings": "डाउनलोड से पहले",
 			"weakHardwareWarning": "इस हार्डवेयर पर स्थानीय AI मॉडल धीमे हो सकते हैं या उम्मीद के मुताबिक काम नहीं कर सकते।"
 		},
-		"confidence": { "low": "कम", "medium": "मध्यम", "high": "उच्च" },
+		"confidence": {
+			"low": "कम",
+			"medium": "मध्यम",
+			"high": "उच्च"
+		},
 		"progress": {
 			"heading": "स्थानीय AI सेट अप हो रहा है",
 			"starting": "स्थानीय AI सेटअप शुरू हो रहा है…",
 			"model": "मॉडल: {{model}}",
 			"percent": "{{percent}}% पूरा",
-			"waiting": "Ollama प्रगति की प्रतीक्षा…"
+			"waiting": "स्थानीय runtime की प्रगति का इंतज़ार हो रहा है…"
 		},
 		"manual": {
-			"heading": "मैन्युअल Ollama सेटअप",
-			"description": "C Code installers को चुपचाप नहीं चलाएगा। Ollama खुद इंस्टॉल करें, उसे शुरू करें, फिर यहाँ वापस आकर जाँच रीफ़्रेश करें।",
-			"stepInstall": "आधिकारिक Ollama साइट से Ollama डाउनलोड करें।",
-			"stepStart": "Ollama शुरू करें और सुनिश्चित करें कि यह http://localhost:11434 पर उपलब्ध है।",
+			"heading": "मैन्युअल स्थानीय AI सेटअप",
+			"description": "C Code चुपचाप इंस्टॉलर नहीं चलाएगा. Ollama या LM Studio खुद इंस्टॉल करो, स्थानीय सर्वर शुरू करो, फिर वापस आकर जाँच रीफ़्रेश करो.",
+			"stepInstall": "Ollama या LM Studio को आधिकारिक साइट से डाउनलोड करो.",
+			"stepStart": "Ollama या LM Studio स्थानीय सर्वर शुरू करो और पक्का करो कि वह अपनी डिफ़ॉल्ट स्थानीय URL पर पहुँच योग्य है.",
 			"stepRetry": "यहाँ वापस आएँ, runtime जाँच रीफ़्रेश करें, और सुझाव फिर चलाएँ।"
 		},
 		"success": {
 			"heading": "स्थानीय AI तैयार है",
-			"description": "{{model}} Ollama में मिला और स्थानीय inference के लिए तैयार है।",
-			"profile": "C Code ने Local AI (Ollama) provider profile सेव और activate कर दिया है।"
+			"description": "{{model}} स्थानीय inference के लिए तैयार है.",
+			"profile": "C Code ने Local AI (Ollama) provider profile सेव और activate कर दिया है।",
+			"lmStudioProfile": "C Code ने Local AI (LM Studio) प्रदाता प्रोफ़ाइल सेव और सक्रिय कर दी है."
+		},
+		"lmStudio": {
+			"statusHeading": "LM Studio स्थिति: {{status}}",
+			"ready": "LM Studio द्वारा बताए गए किसी मॉडल को चुनो, फिर उससे स्थानीय प्रदाता प्रोफ़ाइल बनाओ.",
+			"noModels": "LM Studio पहुँच योग्य है, लेकिन उसने कोई उपयोगी मॉडल नहीं बताया. LM Studio में चैट मॉडल डाउनलोड या लोड करो, फिर जाँच रीफ़्रेश करो.",
+			"serverStopped": "LM Studio इंस्टॉल लगता है, लेकिन स्थानीय सर्वर नहीं चल रहा. LM Studio में स्थानीय सर्वर शुरू करो, फिर जाँच रीफ़्रेश करो.",
+			"detectionFailed": "LM Studio डिटेक्शन विफल: {{error}}",
+			"missing": "LM Studio इंस्टॉल नहीं है या पहुँच योग्य नहीं है. आधिकारिक डाउनलोड पेज खोलो, LM Studio इंस्टॉल करो, मॉडल डाउनलोड करो, स्थानीय सर्वर शुरू करो, फिर जाँच रीफ़्रेश करो.",
+			"unknownError": "अज्ञात त्रुटि",
+			"modelLabel": "LM Studio मॉडल"
 		}
 	},
 	"providerSignup": {

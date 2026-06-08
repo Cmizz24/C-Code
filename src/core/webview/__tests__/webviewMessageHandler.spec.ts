@@ -21,6 +21,7 @@ vi.mock("../../../services/command/commands", () => ({
 }))
 
 vi.mock("../../../services/local-ai", () => ({
+	LM_STUDIO_DOWNLOAD_URL: "https://lmstudio.ai/download",
 	probeLocalAi: vi.fn(),
 	recommendLocalAiModel: vi.fn(),
 	localAiSetupManager: {
@@ -55,7 +56,12 @@ import { ClineProvider } from "../ClineProvider"
 import { MessageEnhancer } from "../messageEnhancer"
 import { getModels } from "../../../api/providers/fetchers/modelCache"
 import { getCommands } from "../../../services/command/commands"
-import { localAiSetupManager, probeLocalAi, recommendLocalAiModel } from "../../../services/local-ai"
+import {
+	LM_STUDIO_DOWNLOAD_URL,
+	localAiSetupManager,
+	probeLocalAi,
+	recommendLocalAiModel,
+} from "../../../services/local-ai"
 import { visualBrowserInspectorService } from "../../../services/visual-browser-inspector/VisualBrowserInspectorService"
 import { getCommand } from "../../../utils/commands"
 const { openAiCodexOAuthManager } = await import("../../../integrations/openai-codex/oauth")
@@ -121,10 +127,18 @@ vi.mock("vscode", () => {
 	const showTextDocument = vi.fn().mockResolvedValue(undefined)
 	const createTextEditorDecorationType = vi.fn(() => ({ dispose: vi.fn() }))
 	const executeCommand = vi.fn().mockResolvedValue(undefined)
+	const openExternal = vi.fn().mockResolvedValue(true)
+	const parse = vi.fn((value: string) => ({ toString: () => value, fsPath: value }))
 
 	return {
+		Uri: {
+			parse,
+		},
 		commands: {
 			executeCommand,
+		},
+		env: {
+			openExternal,
 		},
 		window: {
 			showInformationMessage,
@@ -626,8 +640,8 @@ describe("webviewMessageHandler - local AI setup", () => {
 			lmStudio: {
 				provider: "lmstudio",
 				displayName: "LM Studio",
-				baseUrl: "http://localhost:1234",
-				status: "unknown",
+				baseUrl: "http://localhost:1234/v1",
+				status: "missing",
 			},
 		},
 		probedAt: "2026-01-01T00:00:00.000Z",
@@ -731,6 +745,69 @@ describe("webviewMessageHandler - local AI setup", () => {
 			type: "localAiSetupResult",
 			payload: expect.objectContaining({ success: true, modelTag: "qwen2.5-coder:7b" }),
 			success: true,
+		})
+	})
+
+	it("upserts an LM Studio provider profile when LM Studio setup succeeds", async () => {
+		const lmStudioRecommendation = {
+			...recommendation,
+			provider: "lmstudio",
+			recommendedSetup: "existing",
+			runtimeDisplayName: "LM Studio",
+			baseUrl: "http://localhost:1234/v1",
+			model: { ...recommendation.model, provider: "lmstudio", tag: "local-model", displayName: "local-model" },
+		} as any
+		const lmStudioQuestionnaire = {
+			...questionnaire,
+			runtimeChoice: "lmstudio",
+			providerPreference: "lmstudio",
+			selectedModel: "local-model",
+		} as any
+
+		mockLocalAiSetupManager.start.mockImplementation(async (_request: any, progress: any) => {
+			await progress({ stage: "configure", message: "Configuring LM Studio", modelTag: "local-model" })
+			return {
+				success: true,
+				profileName: "Local AI (LM Studio)",
+				modelTag: "local-model",
+				providerSettings: {
+					apiProvider: "lmstudio",
+					lmStudioBaseUrl: "http://localhost:1234/v1",
+					lmStudioModelId: "local-model",
+				},
+			}
+		})
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "localAiStartSetup",
+			payload: { recommendation: lmStudioRecommendation, questionnaire: lmStudioQuestionnaire },
+		} as any)
+
+		expect(mockClineProvider.upsertProviderProfile).toHaveBeenCalledWith("Local AI (LM Studio)", {
+			apiProvider: "lmstudio",
+			lmStudioBaseUrl: "http://localhost:1234/v1",
+			lmStudioModelId: "local-model",
+		})
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "localAiSetupResult",
+			payload: expect.objectContaining({ success: true, modelTag: "local-model" }),
+			success: true,
+		})
+	})
+
+	it("opens the official LM Studio download page without running an installer", async () => {
+		await webviewMessageHandler(mockClineProvider, { type: "localAiOpenDownload" } as any)
+
+		expect(vscode.Uri.parse).toHaveBeenCalledWith(LM_STUDIO_DOWNLOAD_URL)
+		expect(vscode.env.openExternal).toHaveBeenCalledWith(
+			expect.objectContaining({ fsPath: LM_STUDIO_DOWNLOAD_URL }),
+		)
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "localAiSetupProgress",
+			payload: expect.objectContaining({
+				stage: "runtime",
+				installUrl: LM_STUDIO_DOWNLOAD_URL,
+			}),
 		})
 	})
 

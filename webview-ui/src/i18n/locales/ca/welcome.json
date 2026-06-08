@@ -15,7 +15,7 @@
 		"setupLocalAi": "Configura AI local",
 		"localAi": {
 			"title": "Configura AI local",
-			"description": "Detecta el teu maquinari, tria un model d'Ollama i descarrega'l amb progrés en directe."
+			"description": "Detecta el teu maquinari, tria Ollama o LM Studio i configura un model local."
 		},
 		"provider": {
 			"title": "Fes servir un proveïdor d'API",
@@ -24,7 +24,7 @@
 	},
 	"localSetup": {
 		"heading": "Configura AI local",
-		"subtitle": "Respon unes quantes preguntes i C Code et recomanarà un model local d'Ollama que s'ajusti al teu ordinador i pressupost de disc.",
+		"subtitle": "Respon unes quantes preguntes i C Code t'ajudarà a configurar Ollama o a fer servir un servidor LM Studio existent.",
 		"hardware": {
 			"heading": "Comprovació de maquinari i runtime",
 			"detecting": "Detectant el teu ordinador i runtimes d'AI locals…",
@@ -39,7 +39,8 @@
 			"running": "en execució",
 			"installed-not-running": "instal·lat, no en execució",
 			"missing": "absent",
-			"unknown": "desconegut"
+			"unknown": "desconegut",
+			"detection-failed": "detecció fallida"
 		},
 		"form": {
 			"usage": {
@@ -64,10 +65,20 @@
 				"label": "Elecció de runtime",
 				"existing": "Fes servir un runtime local existent",
 				"ollama": "Configura Ollama",
-				"manual": "Configuració manual"
+				"manual": "Configuració manual",
+				"lmStudio": "Fes servir LM Studio"
 			},
 			"providerPreference": {
 				"label": "Preferència de runtime local detectat"
+			},
+			"provider": {
+				"label": "Proveïdor local",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "Camí més automatitzat: C Code pot descarregar el model d'Ollama recomanat amb progrés.",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "Fes servir LM Studio si prefereixes el seu gestor de models basat en app i servidor local.",
+				"lmStudioReadyDescription": "LM Studio s'està executant amb {{models}} model(s) disponible(s).",
+				"readyBadge": "A punt"
 			}
 		},
 		"actions": {
@@ -80,7 +91,10 @@
 			"cancel": "Cancel·la la configuració",
 			"retry": "Reintenta la descàrrega",
 			"openOllamaDownload": "Obre la descàrrega d'Ollama",
-			"useApiProvider": "Utilitza un proveïdor d'API"
+			"useApiProvider": "Utilitza un proveïdor d'API",
+			"useLmStudio": "Fes servir el model de LM Studio",
+			"openLmStudioDownload": "Obre la descàrrega de LM Studio",
+			"openLmStudioServerDocs": "Obre la guia del servidor de LM Studio"
 		},
 		"recommendation": {
 			"heading": "Model local recomanat",
@@ -105,19 +119,30 @@
 			"starting": "Iniciant la configuració d'AI local…",
 			"model": "Model: {{model}}",
 			"percent": "{{percent}}% completat",
-			"waiting": "Esperant el progrés d'Ollama…"
+			"waiting": "Esperant el progrés del runtime local…"
 		},
 		"manual": {
-			"heading": "Configuració manual d'Ollama",
-			"description": "C Code no executarà instal·ladors en silenci. Instal·la Ollama pel teu compte, inicia'l i després torna aquí i actualitza la comprovació.",
-			"stepInstall": "Descarrega Ollama des del lloc oficial d'Ollama.",
-			"stepStart": "Inicia Ollama i assegura't que sigui accessible a http://localhost:11434.",
+			"heading": "Configuració manual d'AI local",
+			"description": "C Code no executarà instal·ladors en silenci. Instal·la Ollama o LM Studio pel teu compte, inicia el servidor local i després torna aquí i actualitza la comprovació.",
+			"stepInstall": "Descarrega Ollama o LM Studio des del lloc oficial.",
+			"stepStart": "Inicia Ollama o el servidor local de LM Studio i assegura't que sigui accessible a la seva URL local predeterminada.",
 			"stepRetry": "Torna aquí, actualitza la comprovació del runtime i executa la recomanació de nou."
 		},
 		"success": {
 			"heading": "L'AI local està a punt",
-			"description": "S'ha trobat {{model}} a Ollama i està llest per a inferència local.",
-			"profile": "C Code ha desat i activat un perfil de proveïdor Local AI (Ollama)."
+			"description": "{{model}} està a punt per a inferència local.",
+			"profile": "C Code ha desat i activat un perfil de proveïdor Local AI (Ollama).",
+			"lmStudioProfile": "C Code ha desat i activat un perfil de proveïdor Local AI (LM Studio)."
+		},
+		"lmStudio": {
+			"statusHeading": "Estat de LM Studio: {{status}}",
+			"ready": "Tria un dels models informats per LM Studio i després fes-lo servir per crear un perfil de proveïdor local.",
+			"noModels": "LM Studio és accessible, però no ha informat cap model usable. Descarrega o carrega un model de xat a LM Studio i actualitza la comprovació.",
+			"serverStopped": "LM Studio sembla instal·lat, però el servidor local no s'està executant. Inicia el servidor local a LM Studio i actualitza la comprovació.",
+			"detectionFailed": "La detecció de LM Studio ha fallat: {{error}}",
+			"missing": "LM Studio no està instal·lat o no és accessible. Obre la pàgina oficial de descàrrega, instal·la LM Studio, descarrega un model, inicia el servidor local i actualitza la comprovació.",
+			"unknownError": "error desconegut",
+			"modelLabel": "Model de LM Studio"
 		}
 	},
 	"providerSignup": {

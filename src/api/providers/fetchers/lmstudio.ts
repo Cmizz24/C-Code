@@ -9,12 +9,22 @@ const modelsWithLoadedDetails = new Set<string>()
 
 export const hasLoadedFullDetails = (modelId: string): boolean => modelsWithLoadedDetails.has(modelId)
 
+const normalizeLmStudioUrls = (baseUrl = "http://localhost:1234") => {
+	const trimmedBaseUrl = (baseUrl || "http://localhost:1234").trim().replace(/\/+$/, "")
+	const apiBaseUrl = trimmedBaseUrl.endsWith("/v1") ? trimmedBaseUrl : `${trimmedBaseUrl}/v1`
+	const serverBaseUrl = apiBaseUrl.replace(/\/v1$/, "")
+	const lmsUrl = serverBaseUrl.replace(/^http:\/\//, "ws://").replace(/^https:\/\//, "wss://")
+
+	return { apiBaseUrl, serverBaseUrl, lmsUrl }
+}
+
 export const forceFullModelDetailsLoad = async (baseUrl: string, modelId: string): Promise<void> => {
+	const { apiBaseUrl, lmsUrl } = normalizeLmStudioUrls(baseUrl)
+
 	try {
 		// Test the connection to LM Studio first
 		// Crrors will be caught further down.
-		await axios.get(`${baseUrl}/v1/models`)
-		const lmsUrl = baseUrl.replace(/^http:\/\//, "ws://").replace(/^https:\/\//, "wss://")
+		await axios.get(`${apiBaseUrl}/models`)
 
 		const client = new LMStudioClient({ baseUrl: lmsUrl })
 		await client.llm.model(modelId)
@@ -54,10 +64,9 @@ export async function getLMStudioModels(baseUrl = "http://localhost:1234"): Prom
 	modelsWithLoadedDetails.clear()
 	// clearing the input can leave an empty string; use the default in that case
 	baseUrl = baseUrl === "" ? "http://localhost:1234" : baseUrl
+	const { apiBaseUrl, lmsUrl } = normalizeLmStudioUrls(baseUrl)
 
 	const models: Record<string, ModelInfo> = {}
-	// ws is required to connect using the LMStudio library
-	const lmsUrl = baseUrl.replace(/^http:\/\//, "ws://").replace(/^https:\/\//, "wss://")
 
 	try {
 		if (!URL.canParse(lmsUrl)) {
@@ -66,7 +75,7 @@ export async function getLMStudioModels(baseUrl = "http://localhost:1234"): Prom
 
 		// test the connection to LM Studio first
 		// errors will be caught further down
-		await axios.get(`${baseUrl}/v1/models`)
+		await axios.get(`${apiBaseUrl}/models`)
 
 		const client = new LMStudioClient({ baseUrl: lmsUrl })
 

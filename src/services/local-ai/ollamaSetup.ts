@@ -1,6 +1,7 @@
 import { spawn } from "child_process"
 
 import type {
+	LocalAiProviderPreference,
 	LocalAiSetupProgress,
 	LocalAiSetupResult,
 	LocalAiSetupStartRequest,
@@ -8,6 +9,7 @@ import type {
 } from "@roo-code/types"
 
 import { detectOllamaRuntime, OLLAMA_DEFAULT_BASE_URL } from "./hardware"
+import { configureLmStudioProvider } from "./lmStudioSetup"
 
 export const OLLAMA_INSTALL_URL = "https://ollama.com/download"
 export const LOCAL_AI_PROFILE_NAME = "Local AI (Ollama)"
@@ -194,6 +196,11 @@ export class LocalAiSetupManager {
 
 	async start(request: LocalAiSetupStartRequest, reportProgress: ProgressReporter): Promise<LocalAiSetupResult> {
 		this.currentAbortController?.abort()
+
+		if (request.recommendation.provider === ("lmstudio" satisfies LocalAiProviderPreference)) {
+			return configureLmStudioProvider(request, reportProgress)
+		}
+
 		const abortController = new AbortController()
 		this.currentAbortController = abortController
 		const { signal } = abortController

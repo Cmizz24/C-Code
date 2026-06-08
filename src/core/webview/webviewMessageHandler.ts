@@ -91,7 +91,12 @@ import {
 	visualBrowserInspectorService,
 	visualBrowserWebviewRequestToToolParams,
 } from "../../services/visual-browser-inspector/VisualBrowserInspectorService"
-import { localAiSetupManager, probeLocalAi, recommendLocalAiModel } from "../../services/local-ai"
+import {
+	LM_STUDIO_DOWNLOAD_URL,
+	localAiSetupManager,
+	probeLocalAi,
+	recommendLocalAiModel,
+} from "../../services/local-ai"
 
 const ALLOWED_VSCODE_SETTINGS = new Set(["terminal.integrated.inheritEnv"])
 
@@ -158,6 +163,7 @@ const VISUAL_BROWSER_INSPECTOR_ONLY_BLOCKED_MESSAGE_TYPES = new Set<WebviewMessa
 	"localAiProbe",
 	"localAiRecommend",
 	"localAiStartSetup",
+	"localAiOpenDownload",
 	"localAiCancelSetup",
 ])
 
@@ -1415,6 +1421,19 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					error: error instanceof Error ? error.message : String(error),
 				})
 			}
+			break
+		}
+		case "localAiOpenDownload": {
+			await vscode.env.openExternal(vscode.Uri.parse(LM_STUDIO_DOWNLOAD_URL))
+			provider.postMessageToWebview({
+				type: "localAiSetupProgress",
+				payload: {
+					stage: "runtime",
+					message:
+						"Opened the official LM Studio download page. Install LM Studio manually, then refresh the local AI check.",
+					installUrl: LM_STUDIO_DOWNLOAD_URL,
+				},
+			})
 			break
 		}
 		case "localAiCancelSetup": {

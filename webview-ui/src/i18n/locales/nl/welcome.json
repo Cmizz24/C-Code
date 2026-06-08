@@ -15,7 +15,7 @@
 		"setupLocalAi": "Lokale AI instellen",
 		"localAi": {
 			"title": "Lokale AI instellen",
-			"description": "Detecteer je hardware, kies een Ollama-model en download het met live voortgang."
+			"description": "Detecteer je hardware, kies Ollama of LM Studio en stel een lokaal model in."
 		},
 		"provider": {
 			"title": "Een API-provider gebruiken",
@@ -24,7 +24,7 @@
 	},
 	"localSetup": {
 		"heading": "Lokale AI instellen",
-		"subtitle": "Beantwoord een paar vragen en C Code raadt een lokaal Ollama-model aan dat past bij je computer en schijfbudget.",
+		"subtitle": "Beantwoord een paar vragen en C Code helpt je Ollama in te stellen of een bestaande LM Studio-server te gebruiken.",
 		"hardware": {
 			"heading": "Hardware- en runtimecontrole",
 			"detecting": "Je computer en lokale AI-runtimes detecteren…",
@@ -39,7 +39,8 @@
 			"running": "actief",
 			"installed-not-running": "geïnstalleerd, niet actief",
 			"missing": "ontbreekt",
-			"unknown": "onbekend"
+			"unknown": "onbekend",
+			"detection-failed": "detectie mislukt"
 		},
 		"form": {
 			"usage": {
@@ -64,9 +65,21 @@
 				"label": "Runtime-keuze",
 				"existing": "Bestaande lokale runtime gebruiken",
 				"ollama": "Ollama instellen",
-				"manual": "Handmatige setup"
+				"manual": "Handmatige setup",
+				"lmStudio": "LM Studio gebruiken"
 			},
-			"providerPreference": { "label": "Voorkeur voor gedetecteerde lokale runtime" }
+			"providerPreference": {
+				"label": "Voorkeur voor gedetecteerde lokale runtime"
+			},
+			"provider": {
+				"label": "Lokale provider",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "Meest geautomatiseerde route: C Code kan het aanbevolen Ollama-model met voortgang downloaden.",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "Gebruik LM Studio als je de app-gebaseerde modelmanager en lokale server verkiest.",
+				"lmStudioReadyDescription": "LM Studio draait met {{models}} beschikbaar(e) model(len).",
+				"readyBadge": "Klaar"
+			}
 		},
 		"actions": {
 			"manual": "Handmatige setup",
@@ -78,7 +91,10 @@
 			"cancel": "Setup annuleren",
 			"retry": "Download opnieuw proberen",
 			"openOllamaDownload": "Ollama-download openen",
-			"useApiProvider": "Een API-provider gebruiken"
+			"useApiProvider": "Een API-provider gebruiken",
+			"useLmStudio": "LM Studio-model gebruiken",
+			"openLmStudioDownload": "LM Studio-download openen",
+			"openLmStudioServerDocs": "LM Studio-servergids openen"
 		},
 		"recommendation": {
 			"heading": "Aanbevolen lokaal model",
@@ -93,25 +109,40 @@
 			"warnings": "Voor het downloaden",
 			"weakHardwareWarning": "Lokale AI-modellen kunnen traag zijn of werken mogelijk niet zoals bedoeld op deze hardware."
 		},
-		"confidence": { "low": "laag", "medium": "gemiddeld", "high": "hoog" },
+		"confidence": {
+			"low": "laag",
+			"medium": "gemiddeld",
+			"high": "hoog"
+		},
 		"progress": {
 			"heading": "Lokale AI instellen",
 			"starting": "Lokale AI-setup starten…",
 			"model": "Model: {{model}}",
 			"percent": "{{percent}}% voltooid",
-			"waiting": "Wachten op Ollama-voortgang…"
+			"waiting": "Wachten op voortgang van de lokale runtime…"
 		},
 		"manual": {
-			"heading": "Handmatige Ollama-setup",
-			"description": "C Code voert geen installers stil uit. Installeer Ollama zelf, start het en kom dan terug om de controle te vernieuwen.",
-			"stepInstall": "Download Ollama van de officiële Ollama-site.",
-			"stepStart": "Start Ollama en zorg dat het bereikbaar is op http://localhost:11434.",
+			"heading": "Handmatige lokale AI-instelling",
+			"description": "C Code voert geen installers stilletjes uit. Installeer Ollama of LM Studio zelf, start de lokale server en kom daarna terug om de controle te vernieuwen.",
+			"stepInstall": "Download Ollama of LM Studio van de officiële site.",
+			"stepStart": "Start Ollama of de lokale LM Studio-server en zorg dat die bereikbaar is op de standaard lokale URL.",
 			"stepRetry": "Kom hier terug, vernieuw de runtimecontrole en voer de aanbeveling opnieuw uit."
 		},
 		"success": {
 			"heading": "Lokale AI is klaar",
-			"description": "{{model}} is gevonden in Ollama en is klaar voor lokale inferentie.",
-			"profile": "C Code heeft een Local AI (Ollama)-providerprofiel opgeslagen en geactiveerd."
+			"description": "{{model}} is klaar voor lokale inferentie.",
+			"profile": "C Code heeft een Local AI (Ollama)-providerprofiel opgeslagen en geactiveerd.",
+			"lmStudioProfile": "C Code heeft een Local AI (LM Studio)-providerprofiel opgeslagen en geactiveerd."
+		},
+		"lmStudio": {
+			"statusHeading": "LM Studio-status: {{status}}",
+			"ready": "Kies een van de modellen die LM Studio meldt en gebruik het om een lokaal providerprofiel te maken.",
+			"noModels": "LM Studio is bereikbaar, maar meldt geen bruikbare modellen. Download of laad een chatmodel in LM Studio en vernieuw daarna de controle.",
+			"serverStopped": "LM Studio lijkt geïnstalleerd, maar de lokale server draait niet. Start de lokale server in LM Studio en vernieuw daarna de controle.",
+			"detectionFailed": "LM Studio-detectie mislukt: {{error}}",
+			"missing": "LM Studio is niet geïnstalleerd of niet bereikbaar. Open de officiële downloadpagina, installeer LM Studio, download een model, start de lokale server en vernieuw daarna de controle.",
+			"unknownError": "onbekende fout",
+			"modelLabel": "LM Studio-model"
 		}
 	},
 	"providerSignup": {

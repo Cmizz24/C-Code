@@ -15,7 +15,7 @@
 		"setupLocalAi": "로컬 AI 설정",
 		"localAi": {
 			"title": "로컬 AI 설정",
-			"description": "하드웨어를 감지하고 Ollama 모델을 선택한 뒤 실시간 진행률과 함께 다운로드합니다."
+			"description": "하드웨어를 감지하고 Ollama 또는 LM Studio를 선택해 로컬 모델을 설정합니다."
 		},
 		"provider": {
 			"title": "API 제공자 사용",
@@ -24,7 +24,7 @@
 	},
 	"localSetup": {
 		"heading": "로컬 AI 설정",
-		"subtitle": "몇 가지 질문에 답하면 C Code가 컴퓨터와 디스크 예산에 맞는 로컬 Ollama 모델을 추천합니다.",
+		"subtitle": "몇 가지 질문에 답하면 C Code가 Ollama 설정 또는 기존 LM Studio 서버 사용을 도와줍니다.",
 		"hardware": {
 			"heading": "하드웨어 및 runtime 확인",
 			"detecting": "컴퓨터와 로컬 AI runtimes를 감지하는 중…",
@@ -39,7 +39,8 @@
 			"running": "실행 중",
 			"installed-not-running": "설치됨, 실행 중 아님",
 			"missing": "없음",
-			"unknown": "알 수 없음"
+			"unknown": "알 수 없음",
+			"detection-failed": "감지 실패"
 		},
 		"form": {
 			"usage": {
@@ -64,9 +65,21 @@
 				"label": "Runtime 선택",
 				"existing": "기존 로컬 runtime 사용",
 				"ollama": "Ollama 설정",
-				"manual": "수동 설정"
+				"manual": "수동 설정",
+				"lmStudio": "LM Studio 사용"
 			},
-			"providerPreference": { "label": "감지된 로컬 runtime 선호" }
+			"providerPreference": {
+				"label": "감지된 로컬 runtime 선호"
+			},
+			"provider": {
+				"label": "로컬 제공자",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "가장 자동화된 경로: C Code가 추천 Ollama 모델을 진행 상황과 함께 다운로드할 수 있습니다.",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "앱 기반 모델 관리자와 로컬 서버를 선호한다면 LM Studio를 사용하세요.",
+				"lmStudioReadyDescription": "LM Studio가 {{models}}개의 사용 가능한 모델과 함께 실행 중입니다.",
+				"readyBadge": "준비됨"
+			}
 		},
 		"actions": {
 			"manual": "수동 설정",
@@ -78,7 +91,10 @@
 			"cancel": "설정 취소",
 			"retry": "다운로드 재시도",
 			"openOllamaDownload": "Ollama 다운로드 열기",
-			"useApiProvider": "API provider 사용"
+			"useApiProvider": "API provider 사용",
+			"useLmStudio": "LM Studio 모델 사용",
+			"openLmStudioDownload": "LM Studio 다운로드 열기",
+			"openLmStudioServerDocs": "LM Studio 서버 가이드 열기"
 		},
 		"recommendation": {
 			"heading": "추천 로컬 모델",
@@ -93,25 +109,40 @@
 			"warnings": "다운로드 전 확인",
 			"weakHardwareWarning": "이 하드웨어에서는 로컬 AI 모델이 느리거나 의도한 대로 작동하지 않을 수 있습니다."
 		},
-		"confidence": { "low": "낮음", "medium": "중간", "high": "높음" },
+		"confidence": {
+			"low": "낮음",
+			"medium": "중간",
+			"high": "높음"
+		},
 		"progress": {
 			"heading": "로컬 AI 설정 중",
 			"starting": "로컬 AI 설정 시작 중…",
 			"model": "모델: {{model}}",
 			"percent": "{{percent}}% 완료",
-			"waiting": "Ollama 진행률 대기 중…"
+			"waiting": "로컬 runtime 진행 상황을 기다리는 중…"
 		},
 		"manual": {
-			"heading": "수동 Ollama 설정",
-			"description": "C Code는 설치 프로그램을 조용히 실행하지 않습니다. 직접 Ollama를 설치하고 시작한 뒤 돌아와 확인을 새로고침하세요.",
-			"stepInstall": "공식 Ollama 사이트에서 Ollama를 다운로드하세요.",
-			"stepStart": "Ollama를 시작하고 http://localhost:11434 에서 접근 가능한지 확인하세요.",
+			"heading": "수동 로컬 AI 설정",
+			"description": "C Code는 설치 프로그램을 몰래 실행하지 않습니다. Ollama 또는 LM Studio를 직접 설치하고 로컬 서버를 시작한 다음 돌아와서 검사를 새로고침하세요.",
+			"stepInstall": "공식 사이트에서 Ollama 또는 LM Studio를 다운로드하세요.",
+			"stepStart": "Ollama 또는 LM Studio 로컬 서버를 시작하고 기본 로컬 URL에서 연결되는지 확인하세요.",
 			"stepRetry": "여기로 돌아와 runtime 확인을 새로고침하고 추천을 다시 실행하세요."
 		},
 		"success": {
 			"heading": "로컬 AI 준비 완료",
-			"description": "{{model}}이 Ollama에서 확인되었고 로컬 inference 준비가 끝났습니다.",
-			"profile": "C Code가 Local AI (Ollama) 제공자 프로필을 저장하고 활성화했습니다."
+			"description": "{{model}}은 로컬 추론을 사용할 준비가 되었습니다.",
+			"profile": "C Code가 Local AI (Ollama) 제공자 프로필을 저장하고 활성화했습니다.",
+			"lmStudioProfile": "C Code가 Local AI (LM Studio) 제공자 프로필을 저장하고 활성화했습니다."
+		},
+		"lmStudio": {
+			"statusHeading": "LM Studio 상태: {{status}}",
+			"ready": "LM Studio가 보고한 모델 중 하나를 선택한 다음 로컬 제공자 프로필을 만드세요.",
+			"noModels": "LM Studio에 연결할 수 있지만 사용 가능한 모델을 보고하지 않았습니다. LM Studio에서 채팅 모델을 다운로드하거나 로드한 다음 검사를 새로고침하세요.",
+			"serverStopped": "LM Studio가 설치된 것 같지만 로컬 서버가 실행 중이 아닙니다. LM Studio에서 로컬 서버를 시작한 다음 검사를 새로고침하세요.",
+			"detectionFailed": "LM Studio 감지 실패: {{error}}",
+			"missing": "LM Studio가 설치되어 있지 않거나 연결할 수 없습니다. 공식 다운로드 페이지를 열고 LM Studio를 설치한 뒤 모델을 다운로드하고 로컬 서버를 시작한 다음 검사를 새로고침하세요.",
+			"unknownError": "알 수 없는 오류",
+			"modelLabel": "LM Studio 모델"
 		}
 	},
 	"providerSignup": {

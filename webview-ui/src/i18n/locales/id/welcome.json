@@ -15,7 +15,7 @@
 		"setupLocalAi": "Siapkan AI lokal",
 		"localAi": {
 			"title": "Siapkan AI lokal",
-			"description": "Deteksi hardware, pilih model Ollama, dan unduh dengan progres langsung."
+			"description": "Deteksi hardware-mu, pilih Ollama atau LM Studio, lalu siapkan model lokal."
 		},
 		"provider": {
 			"title": "Gunakan penyedia API",
@@ -24,7 +24,7 @@
 	},
 	"localSetup": {
 		"heading": "Siapkan AI lokal",
-		"subtitle": "Jawab beberapa pertanyaan dan C Code akan merekomendasikan model Ollama lokal yang cocok dengan komputer dan anggaran disk Anda.",
+		"subtitle": "Jawab beberapa pertanyaan dan C Code akan membantu menyiapkan Ollama atau memakai server LM Studio yang sudah ada.",
 		"hardware": {
 			"heading": "Pemeriksaan hardware dan runtime",
 			"detecting": "Mendeteksi komputer dan runtime AI lokal Anda…",
@@ -39,7 +39,8 @@
 			"running": "berjalan",
 			"installed-not-running": "terinstal, tidak berjalan",
 			"missing": "tidak ada",
-			"unknown": "tidak diketahui"
+			"unknown": "tidak diketahui",
+			"detection-failed": "deteksi gagal"
 		},
 		"form": {
 			"usage": {
@@ -64,9 +65,21 @@
 				"label": "Pilihan runtime",
 				"existing": "Gunakan runtime lokal yang sudah ada",
 				"ollama": "Siapkan Ollama",
-				"manual": "Setup manual"
+				"manual": "Setup manual",
+				"lmStudio": "Gunakan LM Studio"
 			},
-			"providerPreference": { "label": "Preferensi runtime lokal yang terdeteksi" }
+			"providerPreference": {
+				"label": "Preferensi runtime lokal yang terdeteksi"
+			},
+			"provider": {
+				"label": "Penyedia lokal",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "Jalur paling otomatis: C Code bisa mengunduh model Ollama yang direkomendasikan dengan progres.",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "Gunakan LM Studio jika kamu lebih suka pengelola model berbasis aplikasi dan server lokalnya.",
+				"lmStudioReadyDescription": "LM Studio berjalan dengan {{models}} model tersedia.",
+				"readyBadge": "Siap"
+			}
 		},
 		"actions": {
 			"manual": "Setup manual",
@@ -78,7 +91,10 @@
 			"cancel": "Batalkan setup",
 			"retry": "Coba unduh lagi",
 			"openOllamaDownload": "Buka unduhan Ollama",
-			"useApiProvider": "Gunakan penyedia API"
+			"useApiProvider": "Gunakan penyedia API",
+			"useLmStudio": "Gunakan model LM Studio",
+			"openLmStudioDownload": "Buka unduhan LM Studio",
+			"openLmStudioServerDocs": "Buka panduan server LM Studio"
 		},
 		"recommendation": {
 			"heading": "Model lokal yang direkomendasikan",
@@ -93,25 +109,40 @@
 			"warnings": "Sebelum mengunduh",
 			"weakHardwareWarning": "Model AI lokal mungkin lambat atau tidak berfungsi seperti yang diharapkan di hardware ini."
 		},
-		"confidence": { "low": "rendah", "medium": "sedang", "high": "tinggi" },
+		"confidence": {
+			"low": "rendah",
+			"medium": "sedang",
+			"high": "tinggi"
+		},
 		"progress": {
 			"heading": "Menyiapkan AI lokal",
 			"starting": "Memulai setup AI lokal…",
 			"model": "Model: {{model}}",
 			"percent": "{{percent}}% selesai",
-			"waiting": "Menunggu progres Ollama…"
+			"waiting": "Menunggu progres runtime lokal…"
 		},
 		"manual": {
-			"heading": "Setup manual Ollama",
-			"description": "C Code tidak akan menjalankan installer diam-diam. Instal Ollama sendiri, jalankan, lalu kembali dan segarkan pemeriksaan.",
-			"stepInstall": "Unduh Ollama dari situs resmi Ollama.",
-			"stepStart": "Jalankan Ollama dan pastikan dapat diakses di http://localhost:11434.",
+			"heading": "Penyiapan AI lokal manual",
+			"description": "C Code tidak akan menjalankan installer diam-diam. Instal Ollama atau LM Studio sendiri, mulai server lokal, lalu kembali dan segarkan pemeriksaan.",
+			"stepInstall": "Unduh Ollama atau LM Studio dari situs resmi.",
+			"stepStart": "Mulai Ollama atau server lokal LM Studio dan pastikan dapat dijangkau di URL lokal default-nya.",
 			"stepRetry": "Kembali ke sini, segarkan pemeriksaan runtime, dan jalankan rekomendasi lagi."
 		},
 		"success": {
 			"heading": "AI lokal siap",
-			"description": "{{model}} ditemukan di Ollama dan siap untuk inference lokal.",
-			"profile": "C Code menyimpan dan mengaktifkan profil penyedia Local AI (Ollama)."
+			"description": "{{model}} siap untuk inferensi lokal.",
+			"profile": "C Code menyimpan dan mengaktifkan profil penyedia Local AI (Ollama).",
+			"lmStudioProfile": "C Code menyimpan dan mengaktifkan profil penyedia Local AI (LM Studio)."
+		},
+		"lmStudio": {
+			"statusHeading": "Status LM Studio: {{status}}",
+			"ready": "Pilih salah satu model yang dilaporkan LM Studio, lalu gunakan untuk membuat profil penyedia lokal.",
+			"noModels": "LM Studio dapat dijangkau, tetapi tidak melaporkan model yang bisa digunakan. Unduh atau muat model chat di LM Studio, lalu segarkan pemeriksaan.",
+			"serverStopped": "LM Studio tampaknya terinstal, tetapi server lokal tidak berjalan. Mulai server lokal di LM Studio, lalu segarkan pemeriksaan.",
+			"detectionFailed": "Deteksi LM Studio gagal: {{error}}",
+			"missing": "LM Studio tidak terinstal atau tidak dapat dijangkau. Buka halaman unduhan resmi, instal LM Studio, unduh model, mulai server lokal, lalu segarkan pemeriksaan.",
+			"unknownError": "error tidak dikenal",
+			"modelLabel": "Model LM Studio"
 		}
 	},
 	"providerSignup": {

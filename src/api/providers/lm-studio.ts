@@ -17,6 +17,11 @@ import { getModelsFromCache } from "./fetchers/modelCache"
 import { getApiRequestTimeout } from "./utils/timeout-config"
 import { handleOpenAIError } from "./utils/openai-error-handler"
 
+const normalizeLmStudioApiBaseUrl = (baseUrl = "http://localhost:1234") => {
+	const trimmedBaseUrl = baseUrl.trim().replace(/\/+$/, "")
+	return trimmedBaseUrl.endsWith("/v1") ? trimmedBaseUrl : `${trimmedBaseUrl}/v1`
+}
+
 export class LmStudioHandler extends BaseProvider implements SingleCompletionHandler {
 	protected options: ApiHandlerOptions
 	private client: OpenAI
@@ -30,7 +35,7 @@ export class LmStudioHandler extends BaseProvider implements SingleCompletionHan
 		const apiKey = "noop"
 
 		this.client = new OpenAI({
-			baseURL: (this.options.lmStudioBaseUrl || "http://localhost:1234") + "/v1",
+			baseURL: normalizeLmStudioApiBaseUrl(this.options.lmStudioBaseUrl || "http://localhost:1234"),
 			apiKey: apiKey,
 			timeout: getApiRequestTimeout(),
 		})

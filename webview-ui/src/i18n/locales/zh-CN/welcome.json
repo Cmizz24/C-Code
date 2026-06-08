@@ -13,12 +13,18 @@
 		"introduction": "通过一系列内置和可扩展的模式，C Code 让你能够以前所未有的方式进行规划、架构设计、编码、调试并提升工作效率。",
 		"getStarted": "Get Started",
 		"setupLocalAi": "设置本地 AI",
-		"localAi": { "title": "设置本地 AI", "description": "检测你的硬件，选择 Ollama 模型，并显示实时下载进度。" },
-		"provider": { "title": "使用 API 提供商", "description": "选择 OpenRouter，或使用其他提供商的 key。" }
+		"localAi": {
+			"title": "设置本地 AI",
+			"description": "检测你的硬件，选择 Ollama 或 LM Studio，并设置本地模型。"
+		},
+		"provider": {
+			"title": "使用 API 提供商",
+			"description": "选择 OpenRouter，或使用其他提供商的 key。"
+		}
 	},
 	"localSetup": {
 		"heading": "设置本地 AI",
-		"subtitle": "回答几个问题，C Code 会推荐适合你的电脑和磁盘预算的本地 Ollama 模型。",
+		"subtitle": "回答几个问题，C Code 会帮助你设置 Ollama，或使用现有的 LM Studio 服务器。",
 		"hardware": {
 			"heading": "硬件和 runtime 检查",
 			"detecting": "正在检测你的电脑和本地 AI runtimes…",
@@ -33,7 +39,8 @@
 			"running": "运行中",
 			"installed-not-running": "已安装，未运行",
 			"missing": "缺失",
-			"unknown": "未知"
+			"unknown": "未知",
+			"detection-failed": "检测失败"
 		},
 		"form": {
 			"usage": {
@@ -42,16 +49,37 @@
 				"daily": "日常编码",
 				"agentic": "大型重构和 agentic 任务"
 			},
-			"preference": { "label": "推荐应优先优化什么？", "speed": "速度", "balanced": "均衡", "quality": "质量" },
-			"privacy": { "label": "隐私偏好", "localOnly": "仅本地", "localPreferred": "优先本地，可稍后配置" },
+			"preference": {
+				"label": "推荐应优先优化什么？",
+				"speed": "速度",
+				"balanced": "均衡",
+				"quality": "质量"
+			},
+			"privacy": {
+				"label": "隐私偏好",
+				"localOnly": "仅本地",
+				"localPreferred": "优先本地，可稍后配置"
+			},
 			"diskBudget": "模型磁盘预算 (GB)",
 			"runtime": {
 				"label": "Runtime 选择",
 				"existing": "使用现有本地 runtime",
 				"ollama": "设置 Ollama",
-				"manual": "手动设置"
+				"manual": "手动设置",
+				"lmStudio": "使用 LM Studio"
 			},
-			"providerPreference": { "label": "检测到的本地 runtime 偏好" }
+			"providerPreference": {
+				"label": "检测到的本地 runtime 偏好"
+			},
+			"provider": {
+				"label": "本地提供商",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "自动化程度最高的路径：C Code 可以带进度下载推荐的 Ollama 模型。",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "如果你更喜欢 LM Studio 的应用式模型管理器和本地服务器，请使用 LM Studio。",
+				"lmStudioReadyDescription": "LM Studio 正在运行，已有 {{models}} 个可用模型。",
+				"readyBadge": "就绪"
+			}
 		},
 		"actions": {
 			"manual": "手动设置",
@@ -63,7 +91,10 @@
 			"cancel": "取消设置",
 			"retry": "重试下载",
 			"openOllamaDownload": "打开 Ollama 下载",
-			"useApiProvider": "使用 API 提供商"
+			"useApiProvider": "使用 API 提供商",
+			"useLmStudio": "使用 LM Studio 模型",
+			"openLmStudioDownload": "打开 LM Studio 下载页",
+			"openLmStudioServerDocs": "打开 LM Studio 服务器指南"
 		},
 		"recommendation": {
 			"heading": "推荐的本地模型",
@@ -78,25 +109,40 @@
 			"warnings": "下载前",
 			"weakHardwareWarning": "在这台硬件上，本地 AI 模型可能会很慢，或无法按预期工作。"
 		},
-		"confidence": { "low": "低", "medium": "中", "high": "高" },
+		"confidence": {
+			"low": "低",
+			"medium": "中",
+			"high": "高"
+		},
 		"progress": {
 			"heading": "正在设置本地 AI",
 			"starting": "正在启动本地 AI 设置…",
 			"model": "模型：{{model}}",
 			"percent": "已完成 {{percent}}%",
-			"waiting": "等待 Ollama 进度…"
+			"waiting": "正在等待本地 runtime 进度…"
 		},
 		"manual": {
-			"heading": "手动设置 Ollama",
-			"description": "C Code 不会静默运行安装程序。请自行安装并启动 Ollama，然后返回这里刷新检查。",
-			"stepInstall": "从 Ollama 官方网站下载 Ollama。",
-			"stepStart": "启动 Ollama，并确保它可在 http://localhost:11434 访问。",
+			"heading": "手动设置本地 AI",
+			"description": "C Code 不会静默运行安装程序。请自行安装 Ollama 或 LM Studio，启动本地服务器，然后回来刷新检查。",
+			"stepInstall": "从官方网站下载 Ollama 或 LM Studio。",
+			"stepStart": "启动 Ollama 或 LM Studio 本地服务器，并确保它可通过默认本地 URL 访问。",
 			"stepRetry": "返回这里，刷新 runtime 检查，然后再次运行推荐。"
 		},
 		"success": {
 			"heading": "本地 AI 已准备就绪",
-			"description": "已在 Ollama 中找到 {{model}}，可用于本地 inference。",
-			"profile": "C Code 已保存并激活 Local AI (Ollama) 提供商配置。"
+			"description": "{{model}} 已准备好用于本地推理。",
+			"profile": "C Code 已保存并激活 Local AI (Ollama) 提供商配置。",
+			"lmStudioProfile": "C Code 已保存并激活 Local AI (LM Studio) 提供商配置。"
+		},
+		"lmStudio": {
+			"statusHeading": "LM Studio 状态：{{status}}",
+			"ready": "选择 LM Studio 报告的一个模型，然后用它创建本地提供商配置。",
+			"noModels": "LM Studio 可访问，但未报告可用模型。请在 LM Studio 中下载或加载聊天模型，然后刷新检查。",
+			"serverStopped": "LM Studio 似乎已安装，但本地服务器未运行。请在 LM Studio 中启动本地服务器，然后刷新检查。",
+			"detectionFailed": "LM Studio 检测失败：{{error}}",
+			"missing": "LM Studio 未安装或无法访问。请打开官方下载页面，安装 LM Studio，下载模型，启动本地服务器，然后刷新检查。",
+			"unknownError": "未知错误",
+			"modelLabel": "LM Studio 模型"
 		}
 	},
 	"providerSignup": {

@@ -15,7 +15,7 @@
 		"setupLocalAi": "Thiết lập AI cục bộ",
 		"localAi": {
 			"title": "Thiết lập AI cục bộ",
-			"description": "Phát hiện phần cứng, chọn mô hình Ollama và tải xuống với tiến trình trực tiếp."
+			"description": "Phát hiện phần cứng của bạn, chọn Ollama hoặc LM Studio và thiết lập một model cục bộ."
 		},
 		"provider": {
 			"title": "Dùng nhà cung cấp API",
@@ -24,7 +24,7 @@
 	},
 	"localSetup": {
 		"heading": "Thiết lập AI cục bộ",
-		"subtitle": "Trả lời vài câu hỏi và C Code sẽ đề xuất một mô hình Ollama cục bộ phù hợp với máy tính và ngân sách ổ đĩa của bạn.",
+		"subtitle": "Trả lời vài câu hỏi và C Code sẽ giúp bạn thiết lập Ollama hoặc dùng một máy chủ LM Studio hiện có.",
 		"hardware": {
 			"heading": "Kiểm tra phần cứng và runtime",
 			"detecting": "Đang phát hiện máy tính và các runtime AI cục bộ…",
@@ -39,7 +39,8 @@
 			"running": "đang chạy",
 			"installed-not-running": "đã cài, chưa chạy",
 			"missing": "thiếu",
-			"unknown": "không rõ"
+			"unknown": "không rõ",
+			"detection-failed": "phát hiện thất bại"
 		},
 		"form": {
 			"usage": {
@@ -64,9 +65,21 @@
 				"label": "Chọn runtime",
 				"existing": "Dùng runtime cục bộ hiện có",
 				"ollama": "Thiết lập Ollama",
-				"manual": "Thiết lập thủ công"
+				"manual": "Thiết lập thủ công",
+				"lmStudio": "Dùng LM Studio"
 			},
-			"providerPreference": { "label": "Ưu tiên runtime cục bộ đã phát hiện" }
+			"providerPreference": {
+				"label": "Ưu tiên runtime cục bộ đã phát hiện"
+			},
+			"provider": {
+				"label": "Nhà cung cấp cục bộ",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "Cách tự động nhất: C Code có thể tải model Ollama được đề xuất kèm tiến trình.",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "Dùng LM Studio nếu bạn thích trình quản lý model trong ứng dụng và máy chủ cục bộ của nó.",
+				"lmStudioReadyDescription": "LM Studio đang chạy với {{models}} model khả dụng.",
+				"readyBadge": "Sẵn sàng"
+			}
 		},
 		"actions": {
 			"manual": "Thiết lập thủ công",
@@ -78,7 +91,10 @@
 			"cancel": "Hủy thiết lập",
 			"retry": "Thử tải lại",
 			"openOllamaDownload": "Mở tải Ollama",
-			"useApiProvider": "Dùng nhà cung cấp API"
+			"useApiProvider": "Dùng nhà cung cấp API",
+			"useLmStudio": "Dùng model LM Studio",
+			"openLmStudioDownload": "Mở trang tải LM Studio",
+			"openLmStudioServerDocs": "Mở hướng dẫn máy chủ LM Studio"
 		},
 		"recommendation": {
 			"heading": "Mô hình cục bộ được đề xuất",
@@ -93,25 +109,40 @@
 			"warnings": "Trước khi tải",
 			"weakHardwareWarning": "Các mô hình AI cục bộ có thể chậm hoặc không hoạt động như mong đợi trên phần cứng này."
 		},
-		"confidence": { "low": "thấp", "medium": "trung bình", "high": "cao" },
+		"confidence": {
+			"low": "thấp",
+			"medium": "trung bình",
+			"high": "cao"
+		},
 		"progress": {
 			"heading": "Đang thiết lập AI cục bộ",
 			"starting": "Đang bắt đầu thiết lập AI cục bộ…",
 			"model": "Mô hình: {{model}}",
 			"percent": "Hoàn tất {{percent}}%",
-			"waiting": "Đang chờ tiến trình Ollama…"
+			"waiting": "Đang chờ tiến trình runtime cục bộ…"
 		},
 		"manual": {
-			"heading": "Thiết lập Ollama thủ công",
-			"description": "C Code sẽ không âm thầm chạy trình cài đặt. Hãy tự cài Ollama, khởi động nó, rồi quay lại làm mới kiểm tra.",
-			"stepInstall": "Tải Ollama từ trang Ollama chính thức.",
-			"stepStart": "Khởi động Ollama và đảm bảo có thể truy cập tại http://localhost:11434.",
+			"heading": "Thiết lập AI cục bộ thủ công",
+			"description": "C Code sẽ không âm thầm chạy trình cài đặt. Tự cài Ollama hoặc LM Studio, khởi động máy chủ cục bộ, rồi quay lại và làm mới kiểm tra.",
+			"stepInstall": "Tải Ollama hoặc LM Studio từ trang chính thức.",
+			"stepStart": "Khởi động Ollama hoặc máy chủ cục bộ LM Studio và đảm bảo có thể truy cập tại URL cục bộ mặc định của nó.",
 			"stepRetry": "Quay lại đây, làm mới kiểm tra runtime và chạy đề xuất lại."
 		},
 		"success": {
 			"heading": "AI cục bộ đã sẵn sàng",
-			"description": "Đã tìm thấy {{model}} trong Ollama và sẵn sàng cho inference cục bộ.",
-			"profile": "C Code đã lưu và kích hoạt hồ sơ nhà cung cấp Local AI (Ollama)."
+			"description": "{{model}} đã sẵn sàng cho inference cục bộ.",
+			"profile": "C Code đã lưu và kích hoạt hồ sơ nhà cung cấp Local AI (Ollama).",
+			"lmStudioProfile": "C Code đã lưu và kích hoạt hồ sơ nhà cung cấp Local AI (LM Studio)."
+		},
+		"lmStudio": {
+			"statusHeading": "Trạng thái LM Studio: {{status}}",
+			"ready": "Chọn một trong các model do LM Studio báo cáo, rồi dùng nó để tạo hồ sơ nhà cung cấp cục bộ.",
+			"noModels": "Có thể truy cập LM Studio, nhưng nó không báo cáo model dùng được. Tải xuống hoặc nạp một model chat trong LM Studio, rồi làm mới kiểm tra.",
+			"serverStopped": "Có vẻ LM Studio đã được cài đặt, nhưng máy chủ cục bộ chưa chạy. Khởi động máy chủ cục bộ trong LM Studio, rồi làm mới kiểm tra.",
+			"detectionFailed": "Phát hiện LM Studio thất bại: {{error}}",
+			"missing": "LM Studio chưa được cài đặt hoặc không thể truy cập. Mở trang tải xuống chính thức, cài LM Studio, tải một model, khởi động máy chủ cục bộ, rồi làm mới kiểm tra.",
+			"unknownError": "lỗi không xác định",
+			"modelLabel": "Model LM Studio"
 		}
 	},
 	"providerSignup": {

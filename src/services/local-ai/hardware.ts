@@ -1,11 +1,13 @@
 import * as os from "os"
 import * as path from "path"
+import * as fs from "fs/promises"
 import { execFile } from "child_process"
 
 import type { LocalAiDiskInfo, LocalAiGpuInfo, LocalAiHardwareProbe, LocalAiRuntimeStatus } from "@roo-code/types"
 
 export const OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434"
-export const LM_STUDIO_DEFAULT_BASE_URL = "http://localhost:1234"
+export const LM_STUDIO_DEFAULT_SERVER_URL = "http://localhost:1234"
+export const LM_STUDIO_DEFAULT_BASE_URL = `${LM_STUDIO_DEFAULT_SERVER_URL}/v1`
 
 const bytesToGb = (bytes: number) => Math.round((bytes / 1024 ** 3) * 10) / 10
 
@@ -40,6 +42,26 @@ const fetchJson = async <T>(url: string, timeoutMs = 1_500): Promise<T> => {
 	} finally {
 		clearTimeout(timeout)
 	}
+}
+
+export const normalizeLmStudioBaseUrl = (baseUrl = LM_STUDIO_DEFAULT_BASE_URL) => {
+	const trimmedBaseUrl = (baseUrl || LM_STUDIO_DEFAULT_BASE_URL).trim().replace(/\/+$/, "")
+	return trimmedBaseUrl.endsWith("/v1") ? trimmedBaseUrl : `${trimmedBaseUrl}/v1`
+}
+
+export const getLmStudioServerUrl = (baseUrl = LM_STUDIO_DEFAULT_BASE_URL) =>
+	normalizeLmStudioBaseUrl(baseUrl).replace(/\/v1$/, "")
+
+const formatRuntimeDetectionError = (error: unknown) => {
+	const message = error instanceof Error ? error.message : String(error)
+	return message.replace(/^Error:\s*/i, "").slice(0, 180)
+}
+
+const isConnectionFailure = (error: unknown) => {
+	const message = formatRuntimeDetectionError(error)
+	return /abort|timeout|timed out|fetch failed|failed to fetch|econnrefused|econnreset|enotfound|network|connect/i.test(
+		message,
+	)
 }
 
 const parseWindowsDriveName = (cwd: string) => {
@@ -142,6 +164,62 @@ const getOllamaVersionFromCommand = async () => {
 	}
 }
 
+const pathExists = async (filePath: string) => {
+	try {
+		await fs.access(filePath)
+		return true
+	} catch {
+		return false
+	}
+}
+
+const getLmStudioVersionFromCommand = async () => {
+	try {
+		const output = await runCommand("lms", ["--version"], 2_000)
+		return output || "LM Studio CLI detected"
+	} catch {
+		return undefined
+	}
+}
+
+const getLmStudioAppInstallHint = async () => {
+	const candidates: string[] = []
+
+	if (process.platform === "win32") {
+		const localAppData = process.env.LOCALAPPDATA
+		const programFiles = process.env.ProgramFiles
+		const programFilesX86 = process.env["ProgramFiles(x86)"]
+
+		if (localAppData) {
+			candidates.push(
+				path.join(localAppData, "Programs", "LM Studio", "LM Studio.exe"),
+				path.join(localAppData, "LM Studio", "LM Studio.exe"),
+			)
+		}
+		if (programFiles) {
+			candidates.push(path.join(programFiles, "LM Studio", "LM Studio.exe"))
+		}
+		if (programFilesX86) {
+			candidates.push(path.join(programFilesX86, "LM Studio", "LM Studio.exe"))
+		}
+	} else if (process.platform === "darwin") {
+		candidates.push("/Applications/LM Studio.app")
+	} else {
+		candidates.push("/usr/bin/lm-studio", "/usr/local/bin/lm-studio", "/opt/LM Studio/lm-studio")
+	}
+
+	for (const candidate of candidates) {
+		if (await pathExists(candidate)) {
+			return "LM Studio app detected"
+		}
+	}
+
+	return undefined
+}
+
+const getLmStudioInstallHint = async () =>
+	(await getLmStudioVersionFromCommand()) ?? (await getLmStudioAppInstallHint())
+
 export async function detectOllamaRuntime(baseUrl = OLLAMA_DEFAULT_BASE_URL): Promise<LocalAiRuntimeStatus> {
 	try {
 		const versionResponse = await fetchJson<{ version?: string }>(`${baseUrl}/api/version`)
@@ -179,23 +257,34 @@ export async function detectOllamaRuntime(baseUrl = OLLAMA_DEFAULT_BASE_URL): Pr
 }
 
 export async function detectLmStudioRuntime(baseUrl = LM_STUDIO_DEFAULT_BASE_URL): Promise<LocalAiRuntimeStatus> {
+	const apiBaseUrl = normalizeLmStudioBaseUrl(baseUrl)
+
 	try {
-		const response = await fetchJson<{ data?: Array<{ id?: string }> }>(`${baseUrl}/v1/models`)
+		const response = await fetchJson<{ data?: Array<{ id?: string }> }>(`${apiBaseUrl}/models`)
 
 		return {
 			provider: "lmstudio",
 			displayName: "LM Studio",
-			baseUrl,
+			baseUrl: apiBaseUrl,
 			status: "running",
 			models: (response.data ?? []).map((model) => model.id).filter(Boolean) as string[],
 		}
 	} catch (error) {
+		const installHint = await getLmStudioInstallHint()
+		const conciseError = formatRuntimeDetectionError(error)
+		const status = isConnectionFailure(error)
+			? installHint
+				? "installed-not-running"
+				: "missing"
+			: "detection-failed"
+
 		return {
 			provider: "lmstudio",
 			displayName: "LM Studio",
-			baseUrl,
-			status: "unknown",
-			error: error instanceof Error ? error.message : String(error),
+			baseUrl: apiBaseUrl,
+			status,
+			version: installHint,
+			error: conciseError,
 		}
 	}
 }

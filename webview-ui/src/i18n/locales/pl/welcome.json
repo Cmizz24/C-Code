@@ -15,7 +15,7 @@
 		"setupLocalAi": "Skonfiguruj lokalną AI",
 		"localAi": {
 			"title": "Skonfiguruj lokalną AI",
-			"description": "Wykryj sprzęt, wybierz model Ollama i pobierz go z postępem na żywo."
+			"description": "Wykryj swój sprzęt, wybierz Ollama albo LM Studio i skonfiguruj lokalny model."
 		},
 		"provider": {
 			"title": "Użyj dostawcy API",
@@ -24,7 +24,7 @@
 	},
 	"localSetup": {
 		"heading": "Skonfiguruj lokalną AI",
-		"subtitle": "Odpowiedz na kilka pytań, a C Code poleci lokalny model Ollama pasujący do twojego komputera i budżetu dysku.",
+		"subtitle": "Odpowiedz na kilka pytań, a C Code pomoże ci skonfigurować Ollama albo użyć istniejącego serwera LM Studio.",
 		"hardware": {
 			"heading": "Sprawdzenie sprzętu i runtime",
 			"detecting": "Wykrywanie komputera i lokalnych runtime AI…",
@@ -39,7 +39,8 @@
 			"running": "działa",
 			"installed-not-running": "zainstalowany, nie działa",
 			"missing": "brak",
-			"unknown": "nieznany"
+			"unknown": "nieznany",
+			"detection-failed": "wykrywanie nie powiodło się"
 		},
 		"form": {
 			"usage": {
@@ -64,9 +65,21 @@
 				"label": "Wybór runtime",
 				"existing": "Użyj istniejącego lokalnego runtime",
 				"ollama": "Skonfiguruj Ollama",
-				"manual": "Konfiguracja ręczna"
+				"manual": "Konfiguracja ręczna",
+				"lmStudio": "Użyj LM Studio"
 			},
-			"providerPreference": { "label": "Preferencja wykrytego lokalnego runtime" }
+			"providerPreference": {
+				"label": "Preferencja wykrytego lokalnego runtime"
+			},
+			"provider": {
+				"label": "Lokalny dostawca",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "Najbardziej zautomatyzowana ścieżka: C Code może pobrać rekomendowany model Ollama z postępem.",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "Użyj LM Studio, jeśli wolisz jego menedżer modeli w aplikacji i lokalny serwer.",
+				"lmStudioReadyDescription": "LM Studio działa z {{models}} dostępnymi modelami.",
+				"readyBadge": "Gotowe"
+			}
 		},
 		"actions": {
 			"manual": "Konfiguracja ręczna",
@@ -78,7 +91,10 @@
 			"cancel": "Anuluj konfigurację",
 			"retry": "Ponów pobieranie",
 			"openOllamaDownload": "Otwórz pobieranie Ollama",
-			"useApiProvider": "Użyj dostawcy API"
+			"useApiProvider": "Użyj dostawcy API",
+			"useLmStudio": "Użyj modelu LM Studio",
+			"openLmStudioDownload": "Otwórz pobieranie LM Studio",
+			"openLmStudioServerDocs": "Otwórz przewodnik serwera LM Studio"
 		},
 		"recommendation": {
 			"heading": "Polecany model lokalny",
@@ -93,25 +109,40 @@
 			"warnings": "Przed pobraniem",
 			"weakHardwareWarning": "Lokalne modele AI mogą działać wolno albo nie działać zgodnie z oczekiwaniami na tym sprzęcie."
 		},
-		"confidence": { "low": "niska", "medium": "średnia", "high": "wysoka" },
+		"confidence": {
+			"low": "niska",
+			"medium": "średnia",
+			"high": "wysoka"
+		},
 		"progress": {
 			"heading": "Konfiguracja lokalnej AI",
 			"starting": "Uruchamianie konfiguracji lokalnej AI…",
 			"model": "Model: {{model}}",
 			"percent": "Ukończono {{percent}}%",
-			"waiting": "Oczekiwanie na postęp Ollama…"
+			"waiting": "Oczekiwanie na postęp lokalnego runtime…"
 		},
 		"manual": {
-			"heading": "Ręczna konfiguracja Ollama",
-			"description": "C Code nie uruchomi instalatorów po cichu. Zainstaluj Ollama samodzielnie, uruchom ją, a potem wróć i odśwież sprawdzenie.",
-			"stepInstall": "Pobierz Ollama z oficjalnej strony Ollama.",
-			"stepStart": "Uruchom Ollama i upewnij się, że jest dostępna pod http://localhost:11434.",
+			"heading": "Ręczna konfiguracja lokalnej AI",
+			"description": "C Code nie uruchomi instalatorów po cichu. Zainstaluj Ollama albo LM Studio samodzielnie, uruchom lokalny serwer, a potem wróć i odśwież sprawdzenie.",
+			"stepInstall": "Pobierz Ollama albo LM Studio z oficjalnej strony.",
+			"stepStart": "Uruchom Ollama albo lokalny serwer LM Studio i upewnij się, że jest osiągalny pod domyślnym lokalnym URL.",
 			"stepRetry": "Wróć tutaj, odśwież sprawdzenie runtime i uruchom rekomendację ponownie."
 		},
 		"success": {
 			"heading": "Lokalna AI jest gotowa",
-			"description": "{{model}} znaleziono w Ollama i jest gotowy do lokalnej inferencji.",
-			"profile": "C Code zapisał i aktywował profil dostawcy Local AI (Ollama)."
+			"description": "{{model}} jest gotowy do lokalnego wnioskowania.",
+			"profile": "C Code zapisał i aktywował profil dostawcy Local AI (Ollama).",
+			"lmStudioProfile": "C Code zapisał i aktywował profil dostawcy Local AI (LM Studio)."
+		},
+		"lmStudio": {
+			"statusHeading": "Status LM Studio: {{status}}",
+			"ready": "Wybierz jeden z modeli zgłoszonych przez LM Studio, a potem użyj go do utworzenia lokalnego profilu dostawcy.",
+			"noModels": "LM Studio jest osiągalne, ale nie zgłosiło użytecznych modeli. Pobierz lub załaduj model czatu w LM Studio, a potem odśwież sprawdzenie.",
+			"serverStopped": "LM Studio wygląda na zainstalowane, ale lokalny serwer nie działa. Uruchom lokalny serwer w LM Studio, a potem odśwież sprawdzenie.",
+			"detectionFailed": "Wykrywanie LM Studio nie powiodło się: {{error}}",
+			"missing": "LM Studio nie jest zainstalowane albo nie jest osiągalne. Otwórz oficjalną stronę pobierania, zainstaluj LM Studio, pobierz model, uruchom lokalny serwer i odśwież sprawdzenie.",
+			"unknownError": "nieznany błąd",
+			"modelLabel": "Model LM Studio"
 		}
 	},
 	"providerSignup": {

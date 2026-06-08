@@ -629,6 +629,7 @@ export interface WebviewMessage {
 		| "localAiProbe"
 		| "localAiRecommend"
 		| "localAiStartSetup"
+		| "localAiOpenDownload"
 		| "localAiCancelSetup"
 	text?: string
 	taskId?: string

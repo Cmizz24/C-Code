@@ -14,8 +14,8 @@ const baseProbe: LocalAiHardwareProbe = {
 		lmStudio: {
 			provider: "lmstudio",
 			displayName: "LM Studio",
-			baseUrl: "http://localhost:1234",
-			status: "unknown",
+			baseUrl: "http://localhost:1234/v1",
+			status: "missing",
 		},
 	},
 	probedAt: "2026-01-01T00:00:00.000Z",
@@ -118,5 +118,52 @@ describe("recommendLocalAiModel", () => {
 			"Free disk space could not be detected; the recommendation uses only your disk budget.",
 		)
 		expect(recommendation.model.tag).not.toBe("qwen2.5-coder:32b")
+	})
+
+	it("recommends an existing LM Studio model when the server is running with models", () => {
+		const probe: LocalAiHardwareProbe = {
+			...baseProbe,
+			runtimes: {
+				...baseProbe.runtimes,
+				lmStudio: {
+					provider: "lmstudio",
+					displayName: "LM Studio",
+					baseUrl: "http://localhost:1234/v1",
+					status: "running",
+					models: ["first-local-model", "preferred-local-model"],
+				},
+			},
+		}
+
+		const recommendation = recommendLocalAiModel({
+			probe,
+			questionnaire: { ...baseQuestionnaire, runtimeChoice: "existing", selectedModel: "preferred-local-model" },
+		})
+
+		expect(recommendation.provider).toBe("lmstudio")
+		expect(recommendation.recommendedSetup).toBe("existing")
+		expect(recommendation.baseUrl).toBe("http://localhost:1234/v1")
+		expect(recommendation.model).toEqual(
+			expect.objectContaining({
+				provider: "lmstudio",
+				tag: "preferred-local-model",
+				displayName: "preferred-local-model",
+			}),
+		)
+		expect(recommendation.ollamaNumCtx).toBeUndefined()
+	})
+
+	it("returns manual LM Studio guidance when LM Studio is selected but unavailable", () => {
+		const recommendation = recommendLocalAiModel({
+			probe: baseProbe,
+			questionnaire: { ...baseQuestionnaire, runtimeChoice: "lmstudio", providerPreference: "lmstudio" },
+		})
+
+		expect(recommendation.provider).toBe("lmstudio")
+		expect(recommendation.recommendedSetup).toBe("manual")
+		expect(recommendation.confidence).toBe("low")
+		expect(recommendation.warnings).toContain(
+			"LM Studio is not installed or its local server is not reachable. Download LM Studio, install a model, start the local server, then refresh this check.",
+		)
 	})
 })

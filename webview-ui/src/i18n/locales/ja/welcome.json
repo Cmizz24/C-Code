@@ -15,7 +15,7 @@
 		"setupLocalAi": "ローカルAIをセットアップ",
 		"localAi": {
 			"title": "ローカルAIをセットアップ",
-			"description": "ハードウェアを検出し、Ollamaモデルを選び、ライブ進捗付きでダウンロードします。"
+			"description": "ハードウェアを検出し、Ollama または LM Studio を選んでローカルモデルをセットアップします。"
 		},
 		"provider": {
 			"title": "APIプロバイダーを使う",
@@ -24,7 +24,7 @@
 	},
 	"localSetup": {
 		"heading": "ローカルAIをセットアップ",
-		"subtitle": "いくつかの質問に答えると、C Codeがあなたのコンピューターとディスク予算に合うローカルOllamaモデルをおすすめします。",
+		"subtitle": "いくつかの質問に答えると、C Code が Ollama のセットアップまたは既存の LM Studio サーバーの利用を支援します。",
 		"hardware": {
 			"heading": "ハードウェアとruntimeのチェック",
 			"detecting": "コンピューターとローカルAI runtimesを検出しています…",
@@ -39,7 +39,8 @@
 			"running": "実行中",
 			"installed-not-running": "インストール済み、未実行",
 			"missing": "未検出",
-			"unknown": "不明"
+			"unknown": "不明",
+			"detection-failed": "検出に失敗"
 		},
 		"form": {
 			"usage": {
@@ -64,9 +65,21 @@
 				"label": "Runtimeの選択",
 				"existing": "既存のローカルruntimeを使う",
 				"ollama": "Ollamaをセットアップ",
-				"manual": "手動セットアップ"
+				"manual": "手動セットアップ",
+				"lmStudio": "LM Studio を使う"
 			},
-			"providerPreference": { "label": "検出されたローカルruntimeの優先設定" }
+			"providerPreference": {
+				"label": "検出されたローカルruntimeの優先設定"
+			},
+			"provider": {
+				"label": "ローカルプロバイダー",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "最も自動化された方法: C Code が推奨 Ollama モデルを進捗付きでダウンロードできます。",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "アプリベースのモデル管理とローカルサーバーを使いたい場合は LM Studio を選んでください。",
+				"lmStudioReadyDescription": "LM Studio は {{models}} 個の利用可能なモデルで実行中です。",
+				"readyBadge": "準備完了"
+			}
 		},
 		"actions": {
 			"manual": "手動セットアップ",
@@ -78,7 +91,10 @@
 			"cancel": "セットアップをキャンセル",
 			"retry": "ダウンロードを再試行",
 			"openOllamaDownload": "Ollamaダウンロードを開く",
-			"useApiProvider": "APIプロバイダーを使う"
+			"useApiProvider": "APIプロバイダーを使う",
+			"useLmStudio": "LM Studio モデルを使う",
+			"openLmStudioDownload": "LM Studio ダウンロードを開く",
+			"openLmStudioServerDocs": "LM Studio サーバーガイドを開く"
 		},
 		"recommendation": {
 			"heading": "おすすめのローカルモデル",
@@ -93,25 +109,40 @@
 			"warnings": "ダウンロード前に",
 			"weakHardwareWarning": "このハードウェアでは、ローカル AI モデルが遅くなったり、意図したとおりに動作しない場合があります。"
 		},
-		"confidence": { "low": "低", "medium": "中", "high": "高" },
+		"confidence": {
+			"low": "低",
+			"medium": "中",
+			"high": "高"
+		},
 		"progress": {
 			"heading": "ローカルAIをセットアップ中",
 			"starting": "ローカルAIセットアップを開始しています…",
 			"model": "モデル: {{model}}",
 			"percent": "{{percent}}% 完了",
-			"waiting": "Ollamaの進捗を待っています…"
+			"waiting": "ローカル runtime の進捗を待機中…"
 		},
 		"manual": {
-			"heading": "Ollamaの手動セットアップ",
-			"description": "C Codeはインストーラーを勝手に実行しません。自分でOllamaをインストールして起動し、戻ってチェックを更新してください。",
-			"stepInstall": "Ollama公式サイトからOllamaをダウンロードします。",
-			"stepStart": "Ollamaを起動し、http://localhost:11434 で到達できることを確認します。",
+			"heading": "ローカル AI の手動セットアップ",
+			"description": "C Code はインストーラーを黙って実行しません。Ollama または LM Studio を自分でインストールし、ローカルサーバーを起動してから戻ってチェックを更新してください。",
+			"stepInstall": "公式サイトから Ollama または LM Studio をダウンロードしてください。",
+			"stepStart": "Ollama または LM Studio のローカルサーバーを起動し、既定のローカル URL で到達できることを確認してください。",
 			"stepRetry": "ここに戻り、runtimeチェックを更新して、おすすめをもう一度実行します。"
 		},
 		"success": {
 			"heading": "ローカルAIの準備ができました",
-			"description": "{{model}} がOllamaで見つかり、ローカル推論の準備ができています。",
-			"profile": "C CodeはLocal AI (Ollama)プロバイダープロファイルを保存して有効化しました。"
+			"description": "{{model}} はローカル推論の準備ができています。",
+			"profile": "C CodeはLocal AI (Ollama)プロバイダープロファイルを保存して有効化しました。",
+			"lmStudioProfile": "C Code は Local AI (LM Studio) プロバイダープロファイルを保存して有効化しました。"
+		},
+		"lmStudio": {
+			"statusHeading": "LM Studio ステータス: {{status}}",
+			"ready": "LM Studio が報告したモデルのいずれかを選び、ローカルプロバイダープロファイルを作成します。",
+			"noModels": "LM Studio には到達できますが、利用可能なモデルが報告されていません。LM Studio でチャットモデルをダウンロードまたはロードしてから、チェックを更新してください。",
+			"serverStopped": "LM Studio はインストールされているようですが、ローカルサーバーが実行されていません。LM Studio でローカルサーバーを起動してから、チェックを更新してください。",
+			"detectionFailed": "LM Studio の検出に失敗しました: {{error}}",
+			"missing": "LM Studio がインストールされていないか、到達できません。公式ダウンロードページを開き、LM Studio をインストールし、モデルをダウンロードし、ローカルサーバーを起動してからチェックを更新してください。",
+			"unknownError": "不明なエラー",
+			"modelLabel": "LM Studio モデル"
 		}
 	},
 	"providerSignup": {

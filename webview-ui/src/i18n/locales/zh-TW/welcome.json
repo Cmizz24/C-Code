@@ -13,12 +13,18 @@
 		"introduction": "C Code 提供一系列內建和可擴充的模式，讓您以前所未有的方式規劃專案、設計架構、編寫程式碼、除錯並提升工作效率。",
 		"getStarted": "Get Started",
 		"setupLocalAi": "設定本機 AI",
-		"localAi": { "title": "設定本機 AI", "description": "偵測你的硬體、選擇 Ollama 模型，並顯示即時下載進度。" },
-		"provider": { "title": "使用 API 提供者", "description": "選擇 OpenRouter，或使用其他提供者的 key。" }
+		"localAi": {
+			"title": "設定本機 AI",
+			"description": "偵測你的硬體，選擇 Ollama 或 LM Studio，並設定本機模型。"
+		},
+		"provider": {
+			"title": "使用 API 提供者",
+			"description": "選擇 OpenRouter，或使用其他提供者的 key。"
+		}
 	},
 	"localSetup": {
 		"heading": "設定本機 AI",
-		"subtitle": "回答幾個問題，C Code 會推薦符合你的電腦和磁碟預算的本機 Ollama 模型。",
+		"subtitle": "回答幾個問題，C Code 會協助你設定 Ollama，或使用現有的 LM Studio 伺服器。",
 		"hardware": {
 			"heading": "硬體與 runtime 檢查",
 			"detecting": "正在偵測你的電腦和本機 AI runtimes…",
@@ -33,7 +39,8 @@
 			"running": "執行中",
 			"installed-not-running": "已安裝，未執行",
 			"missing": "缺少",
-			"unknown": "未知"
+			"unknown": "未知",
+			"detection-failed": "偵測失敗"
 		},
 		"form": {
 			"usage": {
@@ -48,15 +55,31 @@
 				"balanced": "平衡",
 				"quality": "品質"
 			},
-			"privacy": { "label": "隱私偏好", "localOnly": "僅本機", "localPreferred": "優先本機，可稍後設定" },
+			"privacy": {
+				"label": "隱私偏好",
+				"localOnly": "僅本機",
+				"localPreferred": "優先本機，可稍後設定"
+			},
 			"diskBudget": "模型磁碟預算 (GB)",
 			"runtime": {
 				"label": "Runtime 選擇",
 				"existing": "使用現有本機 runtime",
 				"ollama": "設定 Ollama",
-				"manual": "手動設定"
+				"manual": "手動設定",
+				"lmStudio": "使用 LM Studio"
 			},
-			"providerPreference": { "label": "偵測到的本機 runtime 偏好" }
+			"providerPreference": {
+				"label": "偵測到的本機 runtime 偏好"
+			},
+			"provider": {
+				"label": "本機供應商",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "自動化程度最高的路徑：C Code 可以帶進度下載建議的 Ollama 模型。",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "如果你偏好 LM Studio 的應用程式模型管理器和本機伺服器，請使用 LM Studio。",
+				"lmStudioReadyDescription": "LM Studio 正在執行，已有 {{models}} 個可用模型。",
+				"readyBadge": "就緒"
+			}
 		},
 		"actions": {
 			"manual": "手動設定",
@@ -68,7 +91,10 @@
 			"cancel": "取消設定",
 			"retry": "重試下載",
 			"openOllamaDownload": "開啟 Ollama 下載",
-			"useApiProvider": "使用 API 供應商"
+			"useApiProvider": "使用 API 供應商",
+			"useLmStudio": "使用 LM Studio 模型",
+			"openLmStudioDownload": "開啟 LM Studio 下載頁",
+			"openLmStudioServerDocs": "開啟 LM Studio 伺服器指南"
 		},
 		"recommendation": {
 			"heading": "推薦的本機模型",
@@ -83,25 +109,40 @@
 			"warnings": "下載前",
 			"weakHardwareWarning": "在這台硬體上，本地 AI 模型可能會很慢，或無法按預期運作。"
 		},
-		"confidence": { "low": "低", "medium": "中", "high": "高" },
+		"confidence": {
+			"low": "低",
+			"medium": "中",
+			"high": "高"
+		},
 		"progress": {
 			"heading": "正在設定本機 AI",
 			"starting": "正在開始本機 AI 設定…",
 			"model": "模型：{{model}}",
 			"percent": "已完成 {{percent}}%",
-			"waiting": "正在等待 Ollama 進度…"
+			"waiting": "正在等待本機 runtime 進度…"
 		},
 		"manual": {
-			"heading": "手動設定 Ollama",
-			"description": "C Code 不會靜默執行安裝程式。請自行安裝並啟動 Ollama，然後回來重新整理檢查。",
-			"stepInstall": "從 Ollama 官方網站下載 Ollama。",
-			"stepStart": "啟動 Ollama，並確認可在 http://localhost:11434 存取。",
+			"heading": "手動設定本機 AI",
+			"description": "C Code 不會靜默執行安裝程式。請自行安裝 Ollama 或 LM Studio，啟動本機伺服器，然後回來重新整理檢查。",
+			"stepInstall": "從官方網站下載 Ollama 或 LM Studio。",
+			"stepStart": "啟動 Ollama 或 LM Studio 本機伺服器，並確認可透過預設本機 URL 連線。",
 			"stepRetry": "回到這裡，重新整理 runtime 檢查，然後再次執行推薦。"
 		},
 		"success": {
 			"heading": "本機 AI 已準備就緒",
-			"description": "已在 Ollama 中找到 {{model}}，可用於本機 inference。",
-			"profile": "C Code 已儲存並啟用 Local AI (Ollama) 提供者設定檔。"
+			"description": "{{model}} 已準備好用於本機推論。",
+			"profile": "C Code 已儲存並啟用 Local AI (Ollama) 提供者設定檔。",
+			"lmStudioProfile": "C Code 已儲存並啟用 Local AI (LM Studio) 供應商設定檔。"
+		},
+		"lmStudio": {
+			"statusHeading": "LM Studio 狀態：{{status}}",
+			"ready": "選擇 LM Studio 回報的其中一個模型，然後用它建立本機供應商設定檔。",
+			"noModels": "LM Studio 可連線，但未回報可用模型。請在 LM Studio 中下載或載入聊天模型，然後重新整理檢查。",
+			"serverStopped": "LM Studio 似乎已安裝，但本機伺服器未執行。請在 LM Studio 中啟動本機伺服器，然後重新整理檢查。",
+			"detectionFailed": "LM Studio 偵測失敗：{{error}}",
+			"missing": "LM Studio 未安裝或無法連線。請開啟官方下載頁面、安裝 LM Studio、下載模型、啟動本機伺服器，然後重新整理檢查。",
+			"unknownError": "未知錯誤",
+			"modelLabel": "LM Studio 模型"
 		}
 	},
 	"providerSignup": {

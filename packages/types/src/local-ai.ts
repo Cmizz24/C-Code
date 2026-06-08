@@ -6,7 +6,7 @@ export type LocalAiPreference = "speed" | "balanced" | "quality"
 
 export type LocalAiPrivacyPreference = "local-only" | "local-preferred"
 
-export type LocalAiRuntimeChoice = "existing" | "ollama" | "manual"
+export type LocalAiRuntimeChoice = "existing" | "ollama" | "lmstudio" | "manual"
 
 export type LocalAiProviderPreference = "ollama" | "lmstudio"
 
@@ -17,6 +17,7 @@ export interface LocalAiQuestionnaire {
 	diskBudgetGb: number
 	runtimeChoice: LocalAiRuntimeChoice
 	providerPreference?: LocalAiProviderPreference
+	selectedModel?: string
 }
 
 export interface LocalAiCpuInfo {
@@ -46,7 +47,7 @@ export interface LocalAiRuntimeStatus {
 	provider: LocalAiProviderPreference
 	displayName: string
 	baseUrl: string
-	status: "running" | "installed-not-running" | "missing" | "unknown"
+	status: "running" | "installed-not-running" | "missing" | "detection-failed" | "unknown"
 	version?: string
 	models?: string[]
 	error?: string
@@ -67,7 +68,7 @@ export interface LocalAiHardwareProbe {
 }
 
 export interface LocalAiModelCatalogItem {
-	provider: "ollama"
+	provider: LocalAiProviderPreference
 	tag: string
 	displayName: string
 	description: string
@@ -85,8 +86,8 @@ export interface LocalAiRecommendationRequest {
 }
 
 export interface LocalAiRecommendation {
-	provider: "ollama"
-	recommendedSetup?: "local" | "api-provider"
+	provider: LocalAiProviderPreference
+	recommendedSetup?: "local" | "existing" | "manual" | "api-provider"
 	runtimeDisplayName: string
 	baseUrl: string
 	model: LocalAiModelCatalogItem

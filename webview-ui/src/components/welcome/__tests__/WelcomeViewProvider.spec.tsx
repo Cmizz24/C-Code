@@ -121,8 +121,8 @@ const mockProbe = {
 		lmStudio: {
 			provider: "lmstudio",
 			displayName: "LM Studio",
-			baseUrl: "http://localhost:1234",
-			status: "unknown",
+			baseUrl: "http://localhost:1234/v1",
+			status: "missing",
 		},
 	},
 	probedAt: "2026-01-01T00:00:00.000Z",
@@ -173,6 +173,53 @@ const mockWeakRecommendation = {
 	reasons: ["Detected about 7.7 GB RAM and 8 CPU cores."],
 	hasWeakHardwareWarning: true,
 	warnings: [],
+}
+
+const mockLmStudioProbe = {
+	...mockProbe,
+	runtimes: {
+		...mockProbe.runtimes,
+		lmStudio: {
+			provider: "lmstudio",
+			displayName: "LM Studio",
+			baseUrl: "http://localhost:1234/v1",
+			status: "running",
+			models: ["local-model", "second-local-model"],
+		},
+	},
+}
+
+const mockLmStudioRecommendation = {
+	provider: "lmstudio",
+	recommendedSetup: "existing",
+	runtimeDisplayName: "LM Studio",
+	baseUrl: "http://localhost:1234/v1",
+	model: {
+		provider: "lmstudio",
+		tag: "local-model",
+		displayName: "local-model",
+		description: "Existing LM Studio model available through the local server.",
+		approximateSizeGb: 0,
+		minimumRamGb: 0,
+		recommendedRamGb: 0,
+		tier: "standard",
+	},
+	confidence: "high",
+	reasons: ["LM Studio is reachable through its local OpenAI-compatible server."],
+	hasWeakHardwareWarning: false,
+	warnings: [],
+	freeDiskGb: 80,
+	diskBudgetGb: 8,
+	privacyNote: "Inference runs locally through LM Studio's local server with your selected model.",
+}
+
+const mockManualLmStudioRecommendation = {
+	...mockLmStudioRecommendation,
+	recommendedSetup: "manual",
+	confidence: "low",
+	warnings: [
+		"LM Studio is not installed or its local server is not reachable. Download LM Studio, install a model, start the local server, then refresh this check.",
+	],
 }
 
 describe("WelcomeViewProvider", () => {
@@ -365,6 +412,68 @@ describe("WelcomeViewProvider", () => {
 		expect(screen.getByText(/welcome:localSetup.actions.confirmDownload/)).toBeInTheDocument()
 	})
 
+	it("selects LM Studio and requests a recommendation with the reported local model", async () => {
+		renderWelcomeViewProvider()
+
+		openLocalAiSetup()
+		dispatchExtensionMessage({ type: "localAiProbeResult", payload: mockLmStudioProbe })
+
+		fireEvent.click(screen.getByTestId("local-ai-provider-lmstudio"))
+		fireEvent.click(screen.getByText(/welcome:localSetup.actions.recommend/))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({
+			type: "localAiRecommend",
+			payload: expect.objectContaining({
+				probe: mockLmStudioProbe,
+				questionnaire: expect.objectContaining({
+					runtimeChoice: "lmstudio",
+					providerPreference: "lmstudio",
+					selectedModel: "local-model",
+				}),
+			}),
+		})
+	})
+
+	it("uses an existing LM Studio recommendation without starting an Ollama download", async () => {
+		renderWelcomeViewProvider()
+
+		openLocalAiSetup()
+		dispatchExtensionMessage({ type: "localAiProbeResult", payload: mockLmStudioProbe })
+		fireEvent.click(screen.getByTestId("local-ai-provider-lmstudio"))
+		fireEvent.click(screen.getByText(/welcome:localSetup.actions.recommend/))
+		dispatchExtensionMessage({ type: "localAiRecommendationResult", payload: mockLmStudioRecommendation })
+
+		await waitFor(() => expect(screen.getByText("local-model")).toBeInTheDocument())
+		fireEvent.click(screen.getByText(/welcome:localSetup.actions.useLmStudio/))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({
+			type: "localAiStartSetup",
+			payload: expect.objectContaining({ recommendation: mockLmStudioRecommendation }),
+		})
+	})
+
+	it("shows manual LM Studio guidance when LM Studio needs user setup", async () => {
+		renderWelcomeViewProvider()
+
+		openLocalAiSetup()
+		dispatchExtensionMessage({ type: "localAiProbeResult", payload: mockProbe })
+		fireEvent.click(screen.getByTestId("local-ai-provider-lmstudio"))
+		fireEvent.click(screen.getByText(/welcome:localSetup.actions.recommend/))
+		dispatchExtensionMessage({ type: "localAiRecommendationResult", payload: mockManualLmStudioRecommendation })
+
+		await waitFor(() =>
+			expect(screen.getByText(/welcome:localSetup.actions.openLmStudioDownload/)).toBeInTheDocument(),
+		)
+		fireEvent.click(screen.getByText(/welcome:localSetup.actions.openLmStudioDownload/))
+		fireEvent.click(screen.getByText(/welcome:localSetup.actions.openLmStudioServerDocs/))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "localAiOpenDownload" })
+		expect(vscode.postMessage).toHaveBeenCalledWith({
+			type: "openExternal",
+			url: "https://lmstudio.ai/docs/basics/server",
+		})
+	})
+
 	it("shows one weak-hardware warning while still allowing local setup to continue", async () => {
 		renderWelcomeViewProvider()
 
@@ -435,7 +544,7 @@ describe("WelcomeViewProvider", () => {
 		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "localAiCancelSetup" })
 	})
 
-	it("shows manual local AI setup and opens official Ollama download", () => {
+	it("shows manual local AI setup and opens official local runtime downloads", () => {
 		renderWelcomeViewProvider()
 
 		openLocalAiSetup()
@@ -446,6 +555,10 @@ describe("WelcomeViewProvider", () => {
 		fireEvent.click(screen.getByText(/welcome:localSetup.actions.openOllamaDownload/))
 
 		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "openExternal", url: "https://ollama.com/download" })
+
+		fireEvent.click(screen.getByText(/welcome:localSetup.actions.openLmStudioDownload/))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "localAiOpenDownload" })
 	})
 
 	it("imports settings from the landing screen", () => {
