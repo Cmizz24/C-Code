@@ -16,7 +16,7 @@ import type { OpenAiCodexRateLimitInfo } from "./providers/openai-codex-rate-lim
 import type { SkillMetadata } from "./skills.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
 import type { GeneratedImageMetadata } from "./image-generation.js"
-import type { MemoryScope, MemoryStatus, MemorySummary } from "./memory.js"
+import type { MemoryKind, MemoryRankBreakdown, MemoryScope, MemoryStatus, MemorySummary } from "./memory.js"
 import type {
 	LocalAiRecommendationRequest,
 	LocalAiSetupStartRequest,
@@ -35,6 +35,8 @@ import type {
 
 export type MemoryAction =
 	| "refresh"
+	| "approveMemory"
+	| "archiveMemory"
 	| "approveWorkspacePending"
 	| "archiveWorkspacePending"
 	| "archiveWorkspace"
@@ -673,6 +675,8 @@ export interface WebviewMessage {
 	forceShow?: boolean
 	commands?: string[]
 	memoryAction?: MemoryAction
+	memoryId?: string
+	memoryScope?: MemoryScope
 	audioType?: AudioType
 	serverName?: string
 	toolName?: string
@@ -834,6 +838,23 @@ export interface IndexingStatusUpdateMessage {
 	values: IndexingStatus
 }
 
+export interface MemorySearchChatResult {
+	id: string
+	scope: MemoryScope
+	kind: MemoryKind
+	status: MemoryStatus
+	title?: string
+	lesson: string
+	tags?: string[]
+	pathTags?: string[]
+	mode?: string
+	toolName?: string
+	mistakeSignature?: string
+	confidence?: number
+	score?: number
+	breakdown?: MemoryRankBreakdown
+}
+
 export interface LanguageModelChatSelector {
 	vendor?: string
 	family?: string
@@ -911,7 +932,14 @@ export interface ClineSayTool {
 	query?: string
 	scope?: MemoryScope | "all"
 	status?: MemoryStatus | "all"
+	memoryId?: string
 	candidateId?: string
+	title?: string
+	tags?: string[]
+	pathTags?: string[]
+	toolName?: string
+	mistakeSignature?: string
+	memoryResults?: MemorySearchChatResult[]
 	autoApproved?: boolean
 	reusedExisting?: boolean
 	batchFiles?: Array<{

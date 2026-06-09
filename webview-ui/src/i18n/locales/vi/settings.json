@@ -260,6 +260,10 @@
 			"label": "Visual Browser Inspector",
 			"description": "Tự động phê duyệt các hành động Visual Browser Inspector từ chat, bao gồm mở các trang trình duyệt được kiểm soát, ảnh chụp màn hình, kiểm tra DOM, cắt ảnh, phân tích và tương tác với trang. Điều này không cho phép chỉnh sửa tệp hoặc chạy lệnh terminal."
 		},
+		"memory": {
+			"label": "Bộ nhớ",
+			"description": "Tự động phê duyệt việc lưu bộ nhớ lỗi từ chat và lỗi công cụ. Khi tắt, bộ nhớ đang chờ vẫn có thể được xem lại từ chat hoặc cài đặt Bộ nhớ."
+		},
 		"followupQuestions": {
 			"label": "Câu hỏi",
 			"description": "Tự động chọn câu trả lời đầu tiên được đề xuất cho các câu hỏi tiếp theo sau thời gian chờ đã cấu hình",

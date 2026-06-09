@@ -1038,6 +1038,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								alwaysAllowParallelTasks={alwaysAllowParallelTasks}
 								alwaysAllowVisualBrowserInspector={alwaysAllowVisualBrowserInspector}
 								alwaysAllowImageGeneration={alwaysAllowImageGeneration}
+								memoryAutoApproveMistakeMemory={memoryAutoApproveMistakeMemory}
 								maxConcurrentParallelTasks={maxConcurrentParallelTasks}
 								alwaysAllowExecute={alwaysAllowExecute}
 								alwaysAllowFollowupQuestions={alwaysAllowFollowupQuestions}

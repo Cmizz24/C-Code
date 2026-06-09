@@ -260,6 +260,10 @@
 			"label": "Visual Browser Inspector",
 			"description": "Automatycznie zatwierdzaj akcje Visual Browser Inspector z czatu, w tym otwieranie kontrolowanych stron przeglądarki, zrzuty ekranu, inspekcję DOM, wycinki, analizę i interakcje ze stroną. Nie pozwala to na edycję plików ani polecenia terminala."
 		},
+		"memory": {
+			"label": "Pamięć",
+			"description": "Automatycznie zatwierdzaj zapisywanie pamięci błędów z czatu i błędów narzędzi. Gdy to jest wyłączone, oczekującą pamięć nadal możesz sprawdzić z czatu lub ustawień pamięci."
+		},
 		"followupQuestions": {
 			"label": "Pytanie",
 			"description": "Automatycznie wybierz pierwszą sugerowaną odpowiedź na pytania uzupełniające po skonfigurowanym limicie czasu",

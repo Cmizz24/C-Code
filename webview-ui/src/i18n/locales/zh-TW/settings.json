@@ -268,6 +268,10 @@
 			"label": "Visual Browser Inspector",
 			"description": "自動核准來自聊天的 Visual Browser Inspector 動作，包括開啟受控瀏覽器頁面、螢幕截圖、DOM 檢查、裁切、分析和頁面互動。這不會允許檔案編輯或終端機命令。"
 		},
+		"memory": {
+			"label": "記憶",
+			"description": "自動核准來自聊天和工具錯誤的錯誤記憶儲存。關閉時，仍可從聊天或記憶設定檢閱待處理記憶。"
+		},
 		"followupQuestions": {
 			"label": "後續提問",
 			"description": "在設定的逾時時間過後，自動選擇後續問題的第一個建議答案",

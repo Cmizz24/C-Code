@@ -260,6 +260,10 @@
 			"label": "Visual Browser Inspector",
 			"description": "Aprova automàticament les accions del Visual Browser Inspector des del xat, incloent-hi l'obertura de pàgines de navegador controlades, captures de pantalla, inspecció del DOM, retalls, anàlisi i interaccions amb la pàgina. Això no permet editar fitxers ni executar comandes de terminal."
 		},
+		"memory": {
+			"label": "Memòria",
+			"description": "Aprova automàticament els desats de memòria d’errors des del xat i els errors d’eines. Quan això està desactivat, la memòria pendent encara es pot revisar des del xat o des de la configuració de Memòria."
+		},
 		"followupQuestions": {
 			"label": "Pregunta",
 			"description": "Seleccionar automàticament la primera resposta suggerida per a preguntes de seguiment després del temps d'espera configurat",

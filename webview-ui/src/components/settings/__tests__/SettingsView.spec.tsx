@@ -1196,6 +1196,36 @@ describe("SettingsView - Auto Approve Visual Browser Inspector", () => {
 	})
 })
 
+describe("SettingsView - Auto Approve Memory", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("saves the mistake memory auto-approval toggle from cached state", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({ memoryAutoApproveMistakeMemory: false })
+
+		activateTab("autoApprove")
+
+		const content = getSettingsContent()
+		const memoryToggle = within(content).getByTestId("memory-auto-approve-mistake-toggle")
+		expect(memoryToggle).toHaveAttribute("aria-pressed", "false")
+
+		fireEvent.click(memoryToggle)
+
+		const saveButton = screen.getByTestId("save-button")
+		fireEvent.click(saveButton)
+
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					memoryAutoApproveMistakeMemory: true,
+				}),
+			}),
+		)
+	})
+})
+
 describe("SettingsView - Allowed Commands", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()

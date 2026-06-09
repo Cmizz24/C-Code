@@ -33,6 +33,27 @@ function getStatuses(params: MemorySearchToolParams): MemoryStatus[] {
 	return params.includePending ? ["active", "pending"] : ["active"]
 }
 
+type MemorySearchResult = Awaited<ReturnType<typeof retrieveMemories>>[number]
+
+function toChatMemorySearchResult(result: MemorySearchResult) {
+	return {
+		id: result.memory.id,
+		scope: result.memory.scope,
+		kind: result.memory.kind,
+		status: result.memory.status,
+		title: result.memory.title,
+		lesson: result.memory.lesson,
+		tags: result.memory.tags,
+		pathTags: result.memory.pathTags,
+		mode: result.memory.mode,
+		toolName: result.memory.toolName,
+		mistakeSignature: result.memory.mistakeSignature,
+		confidence: result.memory.confidence,
+		score: Number(result.score.toFixed(4)),
+		breakdown: result.breakdown,
+	}
+}
+
 export class MemorySearchTool extends BaseTool<"memory_search"> {
 	readonly name = "memory_search" as const
 
@@ -70,6 +91,7 @@ export class MemorySearchTool extends BaseTool<"memory_search"> {
 				maxEntries: normalizeLimit(params.limit),
 				rooIgnoreController: task.rooIgnoreController,
 			})
+			const memoryResults = results.map(toChatMemorySearchResult)
 
 			task.consecutiveMistakeCount = 0
 			await task
@@ -84,6 +106,7 @@ export class MemorySearchTool extends BaseTool<"memory_search"> {
 							results.length > 0
 								? `Found ${results.length} matching ${results.length === 1 ? "memory" : "memories"}.`
 								: "No matching memories found.",
+						memoryResults,
 					} satisfies ClineSayTool),
 					undefined,
 					false,
@@ -96,20 +119,7 @@ export class MemorySearchTool extends BaseTool<"memory_search"> {
 				JSON.stringify(
 					{
 						query,
-						results: results.map((result) => ({
-							id: result.memory.id,
-							scope: result.memory.scope,
-							kind: result.memory.kind,
-							status: result.memory.status,
-							title: result.memory.title,
-							lesson: result.memory.lesson,
-							tags: result.memory.tags,
-							pathTags: result.memory.pathTags,
-							mode: result.memory.mode,
-							confidence: result.memory.confidence,
-							score: Number(result.score.toFixed(4)),
-							breakdown: result.breakdown,
-						})),
+						results: memoryResults,
 					},
 					null,
 					2,

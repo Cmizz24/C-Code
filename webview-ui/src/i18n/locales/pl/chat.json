@@ -483,14 +483,30 @@
 			"superseded": "Zastąpiona",
 			"archived": "Zarchiwizowana",
 			"all": "Wszystkie stany"
+		},
+		"fields": {
+			"title": "Tytuł",
+			"signature": "Podpis",
+			"tool": "Narzędzie",
+			"mode": "Tryb",
+			"tags": "Tagi",
+			"paths": "Ścieżki",
+			"score": "Wynik"
 		}
 	},
 	"memorySearch": {
-		"wantsToSearch": "Roo chce przeszukać pamięć {{scope}} pod kątem <code>{{query}}</code>"
+		"wantsToSearch": "Roo chce przeszukać pamięć {{scope}} pod kątem <code>{{query}}</code>",
+		"resultsFound_one": "Znaleziono 1 pasującą pamięć",
+		"resultsFound_other": "Znaleziono {{count}} pasujących pamięci",
+		"noResults": "Nie znaleziono pasujących pamięci",
+		"untitledResult": "Wynik pamięci"
 	},
 	"mistakeMemory": {
 		"savedPending": "Zapisano oczekującą pamięć błędu",
 		"savedActive": "Zapisano aktywną pamięć błędu",
+		"savedArchived": "Zarchiwizowano pamięć błędu",
+		"approveAction": "Zatwierdź pamięć",
+		"archiveAction": "Archiwizuj pamięć",
 		"autoApproved": "Zatwierdzono automatycznie",
 		"reusedExisting": "Zaktualizowano istniejącą pamięć"
 	},

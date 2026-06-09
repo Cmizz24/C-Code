@@ -260,6 +260,10 @@
 			"label": "Visual Browser Inspector",
 			"description": "Keur Visual Browser Inspector-acties vanuit de chat automatisch goed, inclusief het openen van gecontroleerde browserpagina's, screenshots, DOM-inspectie, uitsneden, analyse en pagina-interacties. Dit staat geen bestandsbewerkingen of terminalopdrachten toe."
 		},
+		"memory": {
+			"label": "Memory",
+			"description": "Keur foutmemory-opslag vanuit chat en toolfouten automatisch goed. Als dit uit staat, kun je memory in behandeling nog steeds bekijken vanuit chat of de Memory-instellingen."
+		},
 		"followupQuestions": {
 			"label": "Vraag",
 			"description": "Selecteer automatisch het eerste voorgestelde antwoord voor vervolgvragen na de geconfigureerde time-out",

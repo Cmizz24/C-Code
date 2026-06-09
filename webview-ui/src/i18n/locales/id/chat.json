@@ -320,14 +320,30 @@
 			"superseded": "Digantikan",
 			"archived": "Diarsipkan",
 			"all": "Semua status"
+		},
+		"fields": {
+			"title": "Judul",
+			"signature": "Tanda tangan",
+			"tool": "Alat",
+			"mode": "Mode",
+			"tags": "Tag",
+			"paths": "Jalur",
+			"score": "Skor"
 		}
 	},
 	"memorySearch": {
-		"wantsToSearch": "Roo ingin mencari memori {{scope}} untuk <code>{{query}}</code>"
+		"wantsToSearch": "Roo ingin mencari memori {{scope}} untuk <code>{{query}}</code>",
+		"resultsFound_one": "Ditemukan 1 memori yang cocok",
+		"resultsFound_other": "Ditemukan {{count}} memori yang cocok",
+		"noResults": "Tidak ada memori yang cocok",
+		"untitledResult": "Hasil memori"
 	},
 	"mistakeMemory": {
 		"savedPending": "Memori kesalahan tertunda disimpan",
 		"savedActive": "Memori kesalahan aktif disimpan",
+		"savedArchived": "Memori kesalahan diarsipkan",
+		"approveAction": "Setujui memori",
+		"archiveAction": "Arsipkan memori",
 		"autoApproved": "Disetujui otomatis",
 		"reusedExisting": "Memori yang ada diperbarui"
 	},

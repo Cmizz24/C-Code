@@ -483,14 +483,30 @@
 			"superseded": "Substituída",
 			"archived": "Arquivada",
 			"all": "Todos os status"
+		},
+		"fields": {
+			"title": "Título",
+			"signature": "Assinatura",
+			"tool": "Ferramenta",
+			"mode": "Modo",
+			"tags": "Tags",
+			"paths": "Caminhos",
+			"score": "Pontuação"
 		}
 	},
 	"memorySearch": {
-		"wantsToSearch": "Roo quer pesquisar na memória {{scope}} por <code>{{query}}</code>"
+		"wantsToSearch": "Roo quer pesquisar na memória {{scope}} por <code>{{query}}</code>",
+		"resultsFound_one": "1 memória correspondente encontrada",
+		"resultsFound_other": "{{count}} memórias correspondentes encontradas",
+		"noResults": "Nenhuma memória correspondente encontrada",
+		"untitledResult": "Resultado de memória"
 	},
 	"mistakeMemory": {
 		"savedPending": "Memória de erro pendente salva",
 		"savedActive": "Memória de erro ativa salva",
+		"savedArchived": "Memória de erro arquivada",
+		"approveAction": "Aprovar memória",
+		"archiveAction": "Arquivar memória",
 		"autoApproved": "Aprovada automaticamente",
 		"reusedExisting": "Memória existente atualizada"
 	},

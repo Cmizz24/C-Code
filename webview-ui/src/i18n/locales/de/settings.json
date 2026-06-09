@@ -260,6 +260,10 @@
 			"label": "Visual Browser Inspector",
 			"description": "Visual Browser Inspector-Aktionen aus dem Chat automatisch genehmigen, einschließlich Öffnen kontrollierter Browserseiten, Screenshots, DOM-Inspektion, Zuschnitten, Analyse und Seiteninteraktionen. Das erlaubt keine Dateiänderungen oder Terminalbefehle."
 		},
+		"memory": {
+			"label": "Memory",
+			"description": "Fehler-Memory-Speicherungen aus Chat und Tool-Fehlern automatisch genehmigen. Wenn dies deaktiviert ist, kannst du ausstehende Memories weiterhin im Chat oder in den Memory-Einstellungen prüfen."
+		},
 		"followupQuestions": {
 			"label": "Frage",
 			"description": "Automatisch die erste vorgeschlagene Antwort für Folgefragen nach der konfigurierten Zeitüberschreitung auswählen",

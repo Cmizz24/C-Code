@@ -25,6 +25,7 @@ describe("AutoApproveToggle", () => {
 		alwaysAllowParallelTasks: false,
 		alwaysAllowVisualBrowserInspector: false,
 		alwaysAllowImageGeneration: false,
+		memoryAutoApproveMistakeMemory: false,
 		alwaysAllowExecute: true,
 		alwaysAllowFollowupQuestions: false,
 		onToggle: mockOnToggle,

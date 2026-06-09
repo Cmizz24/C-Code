@@ -260,6 +260,10 @@
 			"label": "Visual Browser Inspector",
 			"description": "自动批准来自聊天的 Visual Browser Inspector 操作，包括打开受控浏览器页面、截图、DOM 检查、裁剪、分析和页面交互。这不会允许文件编辑或终端命令。"
 		},
+		"memory": {
+			"label": "记忆",
+			"description": "自动批准来自聊天和工具错误的错误记忆保存。关闭时，仍可在聊天或记忆设置中审查待处理记忆。"
+		},
 		"followupQuestions": {
 			"label": "问题",
 			"description": "在配置的超时时间后自动选择后续问题的第一个建议答案",

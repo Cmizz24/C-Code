@@ -315,14 +315,30 @@
 			"superseded": "已取代",
 			"archived": "已封存",
 			"all": "所有狀態"
+		},
+		"fields": {
+			"title": "標題",
+			"signature": "簽名",
+			"tool": "工具",
+			"mode": "模式",
+			"tags": "標籤",
+			"paths": "路徑",
+			"score": "分數"
 		}
 	},
 	"memorySearch": {
-		"wantsToSearch": "Roo 想在{{scope}}記憶中搜尋 <code>{{query}}</code>"
+		"wantsToSearch": "Roo 想在{{scope}}記憶中搜尋 <code>{{query}}</code>",
+		"resultsFound_one": "找到 1 筆相符記憶",
+		"resultsFound_other": "找到 {{count}} 筆相符記憶",
+		"noResults": "找不到相符記憶",
+		"untitledResult": "記憶結果"
 	},
 	"mistakeMemory": {
 		"savedPending": "已儲存待處理的錯誤記憶",
 		"savedActive": "已儲存啟用中的錯誤記憶",
+		"savedArchived": "已封存錯誤記憶",
+		"approveAction": "核准記憶",
+		"archiveAction": "封存記憶",
 		"autoApproved": "已自動核准",
 		"reusedExisting": "已更新現有記憶"
 	},

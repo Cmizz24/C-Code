@@ -260,6 +260,10 @@
 			"label": "Visual Browser Inspector",
 			"description": "Aprobar automáticamente acciones del Visual Browser Inspector desde el chat, incluyendo abrir páginas de navegador controladas, capturas de pantalla, inspección del DOM, recortes, análisis e interacciones con la página. Esto no permite editar archivos ni ejecutar comandos de terminal."
 		},
+		"memory": {
+			"label": "Memoria",
+			"description": "Aprueba automáticamente guardados de memorias de errores desde el chat y errores de herramientas. Cuando está desactivado, la memoria pendiente aún se puede revisar desde el chat o los ajustes de Memoria."
+		},
 		"followupQuestions": {
 			"label": "Pregunta",
 			"description": "Seleccionar automáticamente la primera respuesta sugerida para preguntas de seguimiento después del tiempo de espera configurado",

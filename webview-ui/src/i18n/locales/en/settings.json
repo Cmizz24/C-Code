@@ -320,6 +320,10 @@
 			"label": "Visual Browser Inspector",
 			"description": "Automatically approve Visual Browser Inspector actions from chat, including opening controlled browser pages, screenshots, DOM inspection, crops, analysis, and page interactions. This does not allow file edits or terminal commands."
 		},
+		"memory": {
+			"label": "Memory",
+			"description": "Automatically approve mistake-memory saves from chat and tool errors. Pending memory can still be reviewed from chat or Memory settings when this is off."
+		},
 		"followupQuestions": {
 			"label": "Question",
 			"description": "Automatically select the first suggested answer for follow-up questions after the configured timeout",

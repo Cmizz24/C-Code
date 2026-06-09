@@ -484,14 +484,30 @@
 			"superseded": "Đã thay thế",
 			"archived": "Đã lưu trữ",
 			"all": "Tất cả trạng thái"
+		},
+		"fields": {
+			"title": "Tiêu đề",
+			"signature": "Chữ ký",
+			"tool": "Công cụ",
+			"mode": "Chế độ",
+			"tags": "Thẻ",
+			"paths": "Đường dẫn",
+			"score": "Điểm"
 		}
 	},
 	"memorySearch": {
-		"wantsToSearch": "Roo muốn tìm trong bộ nhớ {{scope}} cho <code>{{query}}</code>"
+		"wantsToSearch": "Roo muốn tìm trong bộ nhớ {{scope}} cho <code>{{query}}</code>",
+		"resultsFound_one": "Đã tìm thấy 1 bộ nhớ phù hợp",
+		"resultsFound_other": "Đã tìm thấy {{count}} bộ nhớ phù hợp",
+		"noResults": "Không tìm thấy bộ nhớ phù hợp",
+		"untitledResult": "Kết quả bộ nhớ"
 	},
 	"mistakeMemory": {
 		"savedPending": "Đã lưu một bộ nhớ lỗi đang chờ",
 		"savedActive": "Đã lưu một bộ nhớ lỗi đang hoạt động",
+		"savedArchived": "Đã lưu trữ bộ nhớ lỗi",
+		"approveAction": "Phê duyệt bộ nhớ",
+		"archiveAction": "Lưu trữ bộ nhớ",
 		"autoApproved": "Đã tự động phê duyệt",
 		"reusedExisting": "Đã cập nhật bộ nhớ hiện có"
 	},

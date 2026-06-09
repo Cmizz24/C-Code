@@ -483,14 +483,30 @@
 			"superseded": "Superseded",
 			"archived": "Archived",
 			"all": "सभी statuses"
+		},
+		"fields": {
+			"title": "शीर्षक",
+			"signature": "Signature",
+			"tool": "Tool",
+			"mode": "Mode",
+			"tags": "Tags",
+			"paths": "Paths",
+			"score": "Score"
 		}
 	},
 	"memorySearch": {
-		"wantsToSearch": "Roo {{scope}} memory में <code>{{query}}</code> खोजना चाहता है"
+		"wantsToSearch": "Roo {{scope}} memory में <code>{{query}}</code> खोजना चाहता है",
+		"resultsFound_one": "1 matching memory मिली",
+		"resultsFound_other": "{{count}} matching memories मिलीं",
+		"noResults": "कोई matching memory नहीं मिली",
+		"untitledResult": "Memory result"
 	},
 	"mistakeMemory": {
 		"savedPending": "एक pending गलती memory सेव की गई",
 		"savedActive": "एक active गलती memory सेव की गई",
+		"savedArchived": "गलती memory archive की गई",
+		"approveAction": "Memory मंज़ूर करें",
+		"archiveAction": "Memory archive करें",
 		"autoApproved": "अपने-आप मंज़ूर",
 		"reusedExisting": "मौजूदा memory अपडेट की गई"
 	},

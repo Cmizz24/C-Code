@@ -483,14 +483,30 @@
 			"superseded": "Vervangen",
 			"archived": "Gearchiveerd",
 			"all": "Alle statussen"
+		},
+		"fields": {
+			"title": "Titel",
+			"signature": "Handtekening",
+			"tool": "Tool",
+			"mode": "Modus",
+			"tags": "Tags",
+			"paths": "Paden",
+			"score": "Score"
 		}
 	},
 	"memorySearch": {
-		"wantsToSearch": "Roo wil {{scope}} memory doorzoeken op <code>{{query}}</code>"
+		"wantsToSearch": "Roo wil {{scope}} memory doorzoeken op <code>{{query}}</code>",
+		"resultsFound_one": "1 overeenkomende memory gevonden",
+		"resultsFound_other": "{{count}} overeenkomende memories gevonden",
+		"noResults": "Geen overeenkomende memories gevonden",
+		"untitledResult": "Memoryresultaat"
 	},
 	"mistakeMemory": {
 		"savedPending": "Foutmemory in behandeling opgeslagen",
 		"savedActive": "Actieve foutmemory opgeslagen",
+		"savedArchived": "Foutmemory gearchiveerd",
+		"approveAction": "Memory goedkeuren",
+		"archiveAction": "Memory archiveren",
 		"autoApproved": "Automatisch goedgekeurd",
 		"reusedExisting": "Bestaande memory bijgewerkt"
 	},

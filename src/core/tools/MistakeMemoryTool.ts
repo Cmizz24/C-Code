@@ -49,7 +49,7 @@ export class MistakeMemoryTool extends BaseTool<"mistake_memory"> {
 			}
 
 			const requestedActive = params.approve === true
-			const autoApproved = state?.memoryAutoApproveMistakeMemory === true
+			const autoApproved = state?.autoApprovalEnabled === true && state?.memoryAutoApproveMistakeMemory === true
 			const scope = normalizeScope(params.scope)
 			if (scope === "workspace" && state?.memoryWorkspaceEnabled === false) {
 				pushToolResult("Workspace memory is disabled in settings; no memory was saved.")
@@ -111,9 +111,16 @@ export class MistakeMemoryTool extends BaseTool<"mistake_memory"> {
 			const toolPayload = {
 				tool: "mistakeMemory",
 				content: result.memory.lesson,
+				memoryId: result.memory.id,
 				scope: result.memory.scope,
 				status: result.memory.status,
 				candidateId: result.candidate?.id,
+				title: result.memory.title,
+				tags: result.memory.tags,
+				pathTags: result.memory.pathTags,
+				mode: result.memory.mode,
+				toolName: result.memory.toolName,
+				mistakeSignature: result.memory.mistakeSignature,
 				autoApproved,
 				reusedExisting: result.reusedExisting,
 				message,

@@ -52,9 +52,13 @@ describe("memory_search tool", () => {
 			kind: "lesson",
 			status: "active",
 			source: "manual",
+			title: "Settings cached-state lesson",
 			lesson: "When editing MemorySettings.tsx, bind inputs to cached state.",
+			tags: ["settings", "cached-state"],
 			pathTags: ["webview-ui/src/components/settings/MemorySettings.tsx"],
 			mode: "code",
+			toolName: "apply_patch",
+			confidence: 0.8,
 			workspacePath: task.cwd,
 		})
 		const before = await storage.readStore("workspace", task.cwd)
@@ -79,8 +83,17 @@ describe("memory_search tool", () => {
 		expect(output.results[0]).toEqual(
 			expect.objectContaining({
 				scope: "workspace",
+				kind: "lesson",
+				status: "active",
+				title: "Settings cached-state lesson",
 				lesson: "When editing MemorySettings.tsx, bind inputs to cached state.",
+				tags: ["settings", "cached-state"],
 				pathTags: ["webview-ui/src/components/settings/MemorySettings.tsx"],
+				mode: "code",
+				toolName: "apply_patch",
+				confidence: 0.8,
+				score: expect.any(Number),
+				breakdown: expect.objectContaining({ lexicalSimilarity: expect.any(Number) }),
 			}),
 		)
 		expect(task.say).toHaveBeenCalledWith(
@@ -99,6 +112,14 @@ describe("memory_search tool", () => {
 				query: "MemorySettings.tsx cached state",
 				scope: "workspace",
 				status: "active",
+				memoryResults: [
+					expect.objectContaining({
+						title: "Settings cached-state lesson",
+						lesson: "When editing MemorySettings.tsx, bind inputs to cached state.",
+						pathTags: ["webview-ui/src/components/settings/MemorySettings.tsx"],
+						score: expect.any(Number),
+					}),
+				],
 			}),
 		)
 		expect(await storage.readStore("workspace", task.cwd)).toEqual(before)
@@ -172,9 +193,18 @@ describe("mistake_memory tool", () => {
 		expect(sayPayload).toEqual(
 			expect.objectContaining({
 				tool: "mistakeMemory",
+				memoryId: output.id,
+				candidateId: output.candidateId,
 				scope: "workspace",
 				status: "pending",
+				title: "Mistake lesson for execute_command",
+				tags: ["validation", "mistake"],
+				pathTags: ["src/core/task/Task.ts"],
+				mode: "code",
+				toolName: "execute_command",
+				mistakeSignature: expect.stringMatching(/^mistake:/),
 				autoApproved: false,
+				message: "Saved pending mistake-memory candidate for user review.",
 			}),
 		)
 
@@ -229,8 +259,8 @@ describe("mistake_memory tool", () => {
 		expect(store.candidates).toHaveLength(0)
 	})
 
-	it("auto-approves mistake memories when the setting is enabled", async () => {
-		const task = createTask(tempDir, { memoryAutoApproveMistakeMemory: true })
+	it("auto-approves mistake memories when global auto-approval and the setting are enabled", async () => {
+		const task = createTask(tempDir, { autoApprovalEnabled: true, memoryAutoApproveMistakeMemory: true })
 		const callbacks = {
 			askApproval: vi.fn(),
 			handleError: vi.fn(),
@@ -253,6 +283,17 @@ describe("mistake_memory tool", () => {
 		expect(output.status).toBe("active")
 		expect(output.autoApproved).toBe(true)
 		expect(output.candidateId).toBeUndefined()
+		const sayPayload = JSON.parse((task.say as any).mock.calls[0][1])
+		expect(sayPayload).toEqual(
+			expect.objectContaining({
+				tool: "mistakeMemory",
+				memoryId: output.id,
+				status: "active",
+				autoApproved: true,
+				message: "Saved auto-approved active mistake memory.",
+			}),
+		)
+		expect(sayPayload).not.toHaveProperty("candidateId")
 
 		const store = await new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd }).readStore(
 			"workspace",
@@ -260,6 +301,49 @@ describe("mistake_memory tool", () => {
 		)
 		expect(store.memories[0].status).toBe("active")
 		expect(store.candidates).toHaveLength(0)
+	})
+
+	it("keeps mistake memories pending when only the memory auto-approve setting is enabled", async () => {
+		const task = createTask(tempDir, { memoryAutoApproveMistakeMemory: true })
+		const callbacks = {
+			askApproval: vi.fn(),
+			handleError: vi.fn(),
+			pushToolResult: vi.fn(),
+		}
+		const block: ToolUse<"mistake_memory"> = {
+			type: "tool_use",
+			name: "mistake_memory",
+			params: {},
+			partial: false,
+			nativeArgs: {
+				lesson: "Only auto-approve mistake memory when common auto-approval is also enabled.",
+			},
+		}
+
+		await mistakeMemoryTool.handle(task, block, callbacks)
+
+		expect(callbacks.askApproval).not.toHaveBeenCalled()
+		const output = JSON.parse(callbacks.pushToolResult.mock.calls[0][0])
+		expect(output.status).toBe("pending")
+		expect(output.autoApproved).toBe(false)
+		expect(output.candidateId).toMatch(/^cand_/)
+		const sayPayload = JSON.parse((task.say as any).mock.calls[0][1])
+		expect(sayPayload).toEqual(
+			expect.objectContaining({
+				tool: "mistakeMemory",
+				memoryId: output.id,
+				status: "pending",
+				autoApproved: false,
+				candidateId: output.candidateId,
+			}),
+		)
+
+		const store = await new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd }).readStore(
+			"workspace",
+			task.cwd,
+		)
+		expect(store.memories[0].status).toBe("pending")
+		expect(store.candidates[0].status).toBe("pending")
 	})
 
 	it("does not save when mistake memory or selected scope is disabled", async () => {

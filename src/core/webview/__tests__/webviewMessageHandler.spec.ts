@@ -1420,7 +1420,29 @@ describe("webviewMessageHandler - memory", () => {
 			memoryAction: "approveWorkspacePending",
 		})
 
-		expect((mockClineProvider as any).handleMemoryAction).toHaveBeenCalledWith("approveWorkspacePending")
+		expect((mockClineProvider as any).handleMemoryAction).toHaveBeenCalledWith("approveWorkspacePending", {
+			memoryId: undefined,
+			memoryScope: undefined,
+			messageTs: undefined,
+		})
+		expect((mockClineProvider as any).postMemoryStateToWebview).toHaveBeenCalledTimes(1)
+		expect(mockClineProvider.postStateToWebview).not.toHaveBeenCalled()
+	})
+
+	it("passes direct chat memory action details to the provider", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "memoryAction",
+			memoryAction: "approveMemory",
+			memoryId: "mem_123",
+			memoryScope: "workspace",
+			messageTs: 123456,
+		})
+
+		expect((mockClineProvider as any).handleMemoryAction).toHaveBeenCalledWith("approveMemory", {
+			memoryId: "mem_123",
+			memoryScope: "workspace",
+			messageTs: 123456,
+		})
 		expect((mockClineProvider as any).postMemoryStateToWebview).toHaveBeenCalledTimes(1)
 		expect(mockClineProvider.postStateToWebview).not.toHaveBeenCalled()
 	})

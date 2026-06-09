@@ -260,6 +260,10 @@
 			"label": "Visual Browser Inspector",
 			"description": "Chat'ten gelen Visual Browser Inspector eylemlerini otomatik olarak onayla; kontrollü tarayıcı sayfaları açma, ekran görüntüleri, DOM incelemesi, kırpmalar, analiz ve sayfa etkileşimleri dahil. Bu, dosya düzenlemelerine veya terminal komutlarına izin vermez."
 		},
+		"memory": {
+			"label": "Bellek",
+			"description": "Sohbetten ve araç hatalarından gelen hata anısı kayıtlarını otomatik olarak onaylar. Bu kapalıyken bekleyen bellek yine de sohbetten veya Bellek ayarlarından gözden geçirilebilir."
+		},
 		"followupQuestions": {
 			"label": "Soru",
 			"description": "Yapılandırılan zaman aşımından sonra takip sorularına ilişkin ilk önerilen yanıtı otomatik olarak seç",

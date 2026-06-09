@@ -484,14 +484,30 @@
 			"superseded": "已被取代",
 			"archived": "已归档",
 			"all": "所有状态"
+		},
+		"fields": {
+			"title": "标题",
+			"signature": "签名",
+			"tool": "工具",
+			"mode": "模式",
+			"tags": "标签",
+			"paths": "路径",
+			"score": "分数"
 		}
 	},
 	"memorySearch": {
-		"wantsToSearch": "Roo 想在{{scope}}记忆中搜索 <code>{{query}}</code>"
+		"wantsToSearch": "Roo 想在{{scope}}记忆中搜索 <code>{{query}}</code>",
+		"resultsFound_one": "找到 1 条匹配记忆",
+		"resultsFound_other": "找到 {{count}} 条匹配记忆",
+		"noResults": "未找到匹配记忆",
+		"untitledResult": "记忆结果"
 	},
 	"mistakeMemory": {
 		"savedPending": "已保存待处理的错误记忆",
 		"savedActive": "已保存活跃的错误记忆",
+		"savedArchived": "已归档错误记忆",
+		"approveAction": "批准记忆",
+		"archiveAction": "归档记忆",
 		"autoApproved": "已自动批准",
 		"reusedExisting": "已更新现有记忆"
 	},

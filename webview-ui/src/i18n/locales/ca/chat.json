@@ -483,14 +483,30 @@
 			"superseded": "Substituïda",
 			"archived": "Arxivada",
 			"all": "Tots els estats"
+		},
+		"fields": {
+			"title": "Títol",
+			"signature": "Signatura",
+			"tool": "Eina",
+			"mode": "Mode",
+			"tags": "Etiquetes",
+			"paths": "Rutes",
+			"score": "Puntuació"
 		}
 	},
 	"memorySearch": {
-		"wantsToSearch": "Roo vol cercar {{scope}} memòria per <code>{{query}}</code>"
+		"wantsToSearch": "Roo vol cercar {{scope}} memòria per <code>{{query}}</code>",
+		"resultsFound_one": "S'ha trobat 1 memòria coincident",
+		"resultsFound_other": "S'han trobat {{count}} memòries coincidents",
+		"noResults": "No s'han trobat memòries coincidents",
+		"untitledResult": "Resultat de memòria"
 	},
 	"mistakeMemory": {
 		"savedPending": "S’ha desat una memòria d’error pendent",
 		"savedActive": "S’ha desat una memòria d’error activa",
+		"savedArchived": "Memòria d’error arxivada",
+		"approveAction": "Aprova memòria",
+		"archiveAction": "Arxiva memòria",
 		"autoApproved": "Aprovada automàticament",
 		"reusedExisting": "Memòria existent actualitzada"
 	},

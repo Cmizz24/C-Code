@@ -312,14 +312,30 @@
 			"superseded": "Superseded",
 			"archived": "Archived",
 			"all": "All statuses"
+		},
+		"fields": {
+			"title": "Title",
+			"signature": "Signature",
+			"tool": "Tool",
+			"mode": "Mode",
+			"tags": "Tags",
+			"paths": "Paths",
+			"score": "Score"
 		}
 	},
 	"memorySearch": {
-		"wantsToSearch": "C wants to search {{scope}} memory for <code>{{query}}</code>"
+		"wantsToSearch": "C wants to search {{scope}} memory for <code>{{query}}</code>",
+		"resultsFound_one": "Found 1 matching memory",
+		"resultsFound_other": "Found {{count}} matching memories",
+		"noResults": "No matching memories found",
+		"untitledResult": "Memory result"
 	},
 	"mistakeMemory": {
 		"savedPending": "Saved a pending mistake memory",
 		"savedActive": "Saved an active mistake memory",
+		"savedArchived": "Archived a mistake memory",
+		"approveAction": "Approve memory",
+		"archiveAction": "Archive memory",
 		"autoApproved": "Auto-approved",
 		"reusedExisting": "Updated existing memory"
 	},

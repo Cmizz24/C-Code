@@ -260,6 +260,10 @@
 			"label": "Visual Browser Inspector",
 			"description": "चैट से Visual Browser Inspector की कार्रवाइयों को अपने आप स्वीकृत करें, जिनमें नियंत्रित ब्राउज़र पेज खोलना, स्क्रीनशॉट, DOM निरीक्षण, क्रॉप, विश्लेषण और पेज इंटरैक्शन शामिल हैं। इससे फ़ाइल संपादन या terminal commands की अनुमति नहीं मिलती।"
 		},
+		"memory": {
+			"label": "Memory",
+			"description": "Chat और tool errors से mistake-memory saves को अपने-आप approve करें. यह off होने पर pending memory को chat या Memory settings से review किया जा सकता है."
+		},
 		"followupQuestions": {
 			"label": "प्रश्न",
 			"description": "कॉन्फ़िगर किए गए टाइमआउट के बाद अनुवर्ती प्रश्नों के लिए पहले सुझाए गए उत्तर को स्वचालित रूप से चुनें",

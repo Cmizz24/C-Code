@@ -13,6 +13,8 @@ import type {
 	ClineSayTool,
 	GeneratedImageMetadata,
 	ImageGenerationToolStatus,
+	MemorySearchChatResult,
+	MemoryScope,
 } from "@roo-code/types"
 
 import { Mode } from "@roo/modes"
@@ -79,6 +81,7 @@ import {
 import { cn } from "@/lib/utils"
 import { PathTooltip } from "../ui/PathTooltip"
 import { OpenMarkdownPreviewButton } from "./OpenMarkdownPreviewButton"
+import { Button } from "../ui"
 
 // Helper function to get previous todos before a specific message
 function getPreviousTodos(messages: ClineMessage[], currentMessageTs: number): any[] {
@@ -432,6 +435,191 @@ export const ChatRowContent = ({
 		cursor: "default",
 		marginBottom: "10px",
 		wordBreak: "break-word",
+	}
+
+	const codicon = (name: string) => (
+		<span
+			className={`codicon codicon-${name}`}
+			style={{ color: "var(--vscode-foreground)", marginBottom: "-1.5px" }}></span>
+	)
+
+	const isDirectMemoryScope = (scope: ClineSayTool["scope"]): scope is MemoryScope =>
+		scope === "workspace" || scope === "global"
+
+	const postDirectMemoryAction = (memoryTool: ClineSayTool, memoryAction: "approveMemory" | "archiveMemory") => {
+		if (!memoryTool.memoryId || !isDirectMemoryScope(memoryTool.scope)) {
+			return
+		}
+
+		vscode.postMessage({
+			type: "memoryAction",
+			memoryAction,
+			memoryId: memoryTool.memoryId,
+			memoryScope: memoryTool.scope,
+			messageTs: message.ts,
+		})
+	}
+
+	const renderMemoryBadges = (
+		memory: Pick<
+			ClineSayTool | MemorySearchChatResult,
+			"scope" | "status" | "tags" | "pathTags" | "mode" | "toolName"
+		> & {
+			autoApproved?: boolean
+			reusedExisting?: boolean
+		},
+	) => (
+		<div className="flex flex-wrap gap-1">
+			{memory.scope && <VSCodeBadge>{t(`chat:memory.scopes.${memory.scope}`)}</VSCodeBadge>}
+			{memory.status && <VSCodeBadge>{t(`chat:memory.statuses.${memory.status}`)}</VSCodeBadge>}
+			{memory.mode && <VSCodeBadge>{memory.mode}</VSCodeBadge>}
+			{memory.toolName && <VSCodeBadge>{memory.toolName}</VSCodeBadge>}
+			{memory.tags?.map((tag) => <VSCodeBadge key={`tag-${tag}`}>{tag}</VSCodeBadge>)}
+			{memory.pathTags?.map((pathTag) => <VSCodeBadge key={`path-${pathTag}`}>{pathTag}</VSCodeBadge>)}
+			{memory.autoApproved && <VSCodeBadge>{t("chat:mistakeMemory.autoApproved")}</VSCodeBadge>}
+			{memory.reusedExisting && <VSCodeBadge>{t("chat:mistakeMemory.reusedExisting")}</VSCodeBadge>}
+		</div>
+	)
+
+	const renderMemoryDetails = (memory: ClineSayTool | MemorySearchChatResult) => {
+		const details = [
+			["chat:memory.fields.title", memory.title],
+			["chat:memory.fields.signature", memory.mistakeSignature],
+			["chat:memory.fields.tool", memory.toolName],
+			["chat:memory.fields.mode", memory.mode],
+			["chat:memory.fields.tags", memory.tags?.join(", ")],
+			["chat:memory.fields.paths", memory.pathTags?.join(", ")],
+		].filter((detail): detail is [string, string] => Boolean(detail[1]))
+
+		if (details.length === 0) {
+			return null
+		}
+
+		return (
+			<dl className="grid gap-1 text-xs text-vscode-descriptionForeground sm:grid-cols-2">
+				{details.map(([labelKey, value]) => (
+					<div key={labelKey} className="min-w-0">
+						<dt className="font-medium text-vscode-foreground">{t(labelKey)}</dt>
+						<dd className="break-words">{value}</dd>
+					</div>
+				))}
+			</dl>
+		)
+	}
+
+	const renderMemoryResultCard = (result: MemorySearchChatResult) => (
+		<ToolUseBlock key={result.id} className="cursor-default border border-vscode-panel-border">
+			<ToolUseBlockHeader className="flex flex-col items-start gap-2 px-3 py-2">
+				<div className="flex w-full flex-col gap-1">
+					<div className="font-medium text-vscode-foreground break-words">
+						{result.title || t("chat:memorySearch.untitledResult")}
+					</div>
+					<div className="text-vscode-foreground break-words">{result.lesson}</div>
+				</div>
+				{renderMemoryBadges(result)}
+				{renderMemoryDetails(result)}
+				{typeof result.score === "number" && (
+					<div className="text-xs text-vscode-descriptionForeground">
+						{t("chat:memory.fields.score")}: {result.score.toFixed(4)}
+					</div>
+				)}
+			</ToolUseBlockHeader>
+		</ToolUseBlock>
+	)
+
+	const renderMemorySearchTool = (memoryTool: ClineSayTool) => {
+		const scope = t(`chat:memory.scopes.${memoryTool.scope ?? "all"}`)
+		const results = memoryTool.memoryResults ?? []
+
+		return (
+			<>
+				<div style={headerStyle}>
+					{codicon("database")}
+					<span style={{ fontWeight: "bold" }}>
+						<Trans
+							i18nKey="chat:memorySearch.wantsToSearch"
+							components={{ code: <code></code> }}
+							values={{ query: memoryTool.query, scope }}
+						/>
+					</span>
+				</div>
+				<div className="pl-6">
+					<ToolUseBlock className="cursor-default border border-vscode-panel-border">
+						<ToolUseBlockHeader className="flex flex-col items-start gap-2 px-3 py-2">
+							<div className="text-sm font-medium text-vscode-foreground">
+								{results.length > 0
+									? t("chat:memorySearch.resultsFound", { count: results.length })
+									: t("chat:memorySearch.noResults")}
+							</div>
+							{results.length > 0 && (
+								<div className="flex w-full flex-col gap-2">{results.map(renderMemoryResultCard)}</div>
+							)}
+						</ToolUseBlockHeader>
+					</ToolUseBlock>
+				</div>
+			</>
+		)
+	}
+
+	const renderMistakeMemoryTool = (memoryTool: ClineSayTool) => {
+		const status = memoryTool.status ?? "pending"
+		const titleKey =
+			status === "active"
+				? "chat:mistakeMemory.savedActive"
+				: status === "archived"
+					? "chat:mistakeMemory.savedArchived"
+					: "chat:mistakeMemory.savedPending"
+		const canAct = status === "pending" && memoryTool.memoryId && isDirectMemoryScope(memoryTool.scope)
+
+		return (
+			<>
+				<div style={headerStyle}>
+					{codicon(status === "active" ? "check" : status === "archived" ? "archive" : "lightbulb")}
+					<span style={{ fontWeight: "bold" }}>{t(titleKey)}</span>
+				</div>
+				{memoryTool.content && (
+					<div className="pl-6">
+						<ToolUseBlock className="cursor-default border border-vscode-panel-border">
+							<ToolUseBlockHeader className="flex flex-col items-start gap-3 px-3 py-2">
+								<div className="flex w-full flex-col gap-1">
+									{memoryTool.title && (
+										<div className="font-medium text-vscode-foreground break-words">
+											{memoryTool.title}
+										</div>
+									)}
+									<div className="text-vscode-foreground break-words">{memoryTool.content}</div>
+									{memoryTool.message && (
+										<div className="text-xs text-vscode-descriptionForeground break-words">
+											{memoryTool.message}
+										</div>
+									)}
+								</div>
+								{renderMemoryBadges(memoryTool)}
+								{renderMemoryDetails(memoryTool)}
+								{canAct && (
+									<div className="flex flex-wrap gap-2">
+										<Button
+											type="button"
+											size="sm"
+											variant="primary"
+											onClick={() => postDirectMemoryAction(memoryTool, "approveMemory")}>
+											{t("chat:mistakeMemory.approveAction")}
+										</Button>
+										<Button
+											type="button"
+											size="sm"
+											variant="secondary"
+											onClick={() => postDirectMemoryAction(memoryTool, "archiveMemory")}>
+											{t("chat:mistakeMemory.archiveAction")}
+										</Button>
+									</div>
+								)}
+							</ToolUseBlockHeader>
+						</ToolUseBlock>
+					</div>
+				)}
+			</>
+		)
 	}
 
 	const tool = useMemo(
@@ -964,57 +1152,10 @@ export const ChatRowContent = ({
 				)
 			}
 			case "memorySearch": {
-				const scope = t(`chat:memory.scopes.${tool.scope ?? "all"}`)
-
-				return (
-					<div style={headerStyle}>
-						{toolIcon("database")}
-						<span style={{ fontWeight: "bold" }}>
-							<Trans
-								i18nKey="chat:memorySearch.wantsToSearch"
-								components={{ code: <code></code> }}
-								values={{ query: tool.query, scope }}
-							/>
-						</span>
-					</div>
-				)
+				return renderMemorySearchTool(tool)
 			}
 			case "mistakeMemory": {
-				const status = tool.status ?? "pending"
-				const titleKey =
-					status === "active" ? "chat:mistakeMemory.savedActive" : "chat:mistakeMemory.savedPending"
-
-				return (
-					<>
-						<div style={headerStyle}>
-							{toolIcon(status === "active" ? "check" : "lightbulb")}
-							<span style={{ fontWeight: "bold" }}>{t(titleKey)}</span>
-						</div>
-						{tool.content && (
-							<div className="pl-6">
-								<ToolUseBlock className="cursor-default border border-vscode-panel-border">
-									<ToolUseBlockHeader className="flex flex-col items-start gap-2 px-3 py-2">
-										<div className="text-vscode-foreground break-words">{tool.content}</div>
-										<div className="flex flex-wrap gap-1">
-											{tool.scope && (
-												<VSCodeBadge>{t(`chat:memory.scopes.${tool.scope}`)}</VSCodeBadge>
-											)}
-											{tool.status && (
-												<VSCodeBadge>{t(`chat:memory.statuses.${tool.status}`)}</VSCodeBadge>
-											)}
-											{tool.autoApproved && (
-												<VSCodeBadge>{t("chat:mistakeMemory.autoApproved")}</VSCodeBadge>
-											)}
-											{tool.reusedExisting && (
-												<VSCodeBadge>{t("chat:mistakeMemory.reusedExisting")}</VSCodeBadge>
-											)}
-										</div>
-									</ToolUseBlockHeader>
-								</ToolUseBlock>
-							</div>
-						)}
-					</>
-				)
+				return renderMistakeMemoryTool(tool)
 			}
 			case "updateTodoList" as any: {
 				const todos = (tool as any).todos || []
@@ -2004,76 +2145,10 @@ export const ChatRowContent = ({
 							)
 						}
 						case "memorySearch": {
-							const scope = t(`chat:memory.scopes.${sayTool.scope ?? "all"}`)
-
-							return (
-								<div style={headerStyle}>
-									<span
-										className="codicon codicon-database"
-										style={{ color: "var(--vscode-foreground)", marginBottom: "-1.5px" }}></span>
-									<span style={{ fontWeight: "bold" }}>
-										<Trans
-											i18nKey="chat:memorySearch.wantsToSearch"
-											components={{ code: <code></code> }}
-											values={{ query: sayTool.query, scope }}
-										/>
-									</span>
-								</div>
-							)
+							return renderMemorySearchTool(sayTool)
 						}
 						case "mistakeMemory": {
-							const status = sayTool.status ?? "pending"
-							const titleKey =
-								status === "active"
-									? "chat:mistakeMemory.savedActive"
-									: "chat:mistakeMemory.savedPending"
-
-							return (
-								<>
-									<div style={headerStyle}>
-										<span
-											className={`codicon codicon-${status === "active" ? "check" : "lightbulb"}`}
-											style={{
-												color: "var(--vscode-foreground)",
-												marginBottom: "-1.5px",
-											}}></span>
-										<span style={{ fontWeight: "bold" }}>{t(titleKey)}</span>
-									</div>
-									{sayTool.content && (
-										<div className="pl-6">
-											<ToolUseBlock className="cursor-default border border-vscode-panel-border">
-												<ToolUseBlockHeader className="flex flex-col items-start gap-2 px-3 py-2">
-													<div className="text-vscode-foreground break-words">
-														{sayTool.content}
-													</div>
-													<div className="flex flex-wrap gap-1">
-														{sayTool.scope && (
-															<VSCodeBadge>
-																{t(`chat:memory.scopes.${sayTool.scope}`)}
-															</VSCodeBadge>
-														)}
-														{sayTool.status && (
-															<VSCodeBadge>
-																{t(`chat:memory.statuses.${sayTool.status}`)}
-															</VSCodeBadge>
-														)}
-														{sayTool.autoApproved && (
-															<VSCodeBadge>
-																{t("chat:mistakeMemory.autoApproved")}
-															</VSCodeBadge>
-														)}
-														{sayTool.reusedExisting && (
-															<VSCodeBadge>
-																{t("chat:mistakeMemory.reusedExisting")}
-															</VSCodeBadge>
-														)}
-													</div>
-												</ToolUseBlockHeader>
-											</ToolUseBlock>
-										</div>
-									)}
-								</>
-							)
+							return renderMistakeMemoryTool(sayTool)
 						}
 						default:
 							return null

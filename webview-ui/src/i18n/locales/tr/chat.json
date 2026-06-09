@@ -484,14 +484,30 @@
 			"superseded": "Yerine yenisi geçti",
 			"archived": "Arşivlendi",
 			"all": "Tüm durumlar"
+		},
+		"fields": {
+			"title": "Başlık",
+			"signature": "İmza",
+			"tool": "Araç",
+			"mode": "Mod",
+			"tags": "Etiketler",
+			"paths": "Yollar",
+			"score": "Puan"
 		}
 	},
 	"memorySearch": {
-		"wantsToSearch": "Roo {{scope}} bellekte <code>{{query}}</code> aramak istiyor"
+		"wantsToSearch": "Roo {{scope}} bellekte <code>{{query}}</code> aramak istiyor",
+		"resultsFound_one": "Eşleşen 1 bellek bulundu",
+		"resultsFound_other": "Eşleşen {{count}} bellek bulundu",
+		"noResults": "Eşleşen bellek bulunamadı",
+		"untitledResult": "Bellek sonucu"
 	},
 	"mistakeMemory": {
 		"savedPending": "Bekleyen bir hata anısı kaydedildi",
 		"savedActive": "Aktif bir hata anısı kaydedildi",
+		"savedArchived": "Hata anısı arşivlendi",
+		"approveAction": "Belleği onayla",
+		"archiveAction": "Belleği arşivle",
 		"autoApproved": "Otomatik onaylandı",
 		"reusedExisting": "Mevcut bellek güncellendi"
 	},

@@ -16,6 +16,7 @@ export function useAutoApprovalToggles() {
 		alwaysAllowParallelTasks,
 		alwaysAllowVisualBrowserInspector,
 		alwaysAllowImageGeneration,
+		memoryAutoApproveMistakeMemory,
 		alwaysAllowFollowupQuestions,
 	} = useExtensionState()
 
@@ -30,6 +31,7 @@ export function useAutoApprovalToggles() {
 			alwaysAllowParallelTasks,
 			alwaysAllowVisualBrowserInspector,
 			alwaysAllowImageGeneration,
+			memoryAutoApproveMistakeMemory,
 			alwaysAllowFollowupQuestions,
 		}),
 		[
@@ -42,6 +44,7 @@ export function useAutoApprovalToggles() {
 			alwaysAllowParallelTasks,
 			alwaysAllowVisualBrowserInspector,
 			alwaysAllowImageGeneration,
+			memoryAutoApproveMistakeMemory,
 			alwaysAllowFollowupQuestions,
 		],
 	)

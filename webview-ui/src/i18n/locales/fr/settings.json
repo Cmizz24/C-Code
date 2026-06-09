@@ -261,6 +261,10 @@
 			"label": "Visual Browser Inspector",
 			"description": "Approuver automatiquement les actions du Visual Browser Inspector depuis le chat, y compris l'ouverture de pages de navigateur contrôlées, les captures d'écran, l'inspection du DOM, les recadrages, l'analyse et les interactions avec la page. Cela n'autorise pas les modifications de fichiers ni les commandes de terminal."
 		},
+		"memory": {
+			"label": "Mémoire",
+			"description": "Approuve automatiquement les enregistrements de mémoires d’erreur depuis le chat et les erreurs d’outils. Quand c’est désactivé, tu peux toujours examiner les mémoires en attente depuis le chat ou les paramètres de mémoire."
+		},
 		"followupQuestions": {
 			"label": "Question",
 			"description": "Sélectionner automatiquement la première réponse suggérée pour les questions de suivi après le délai configuré",

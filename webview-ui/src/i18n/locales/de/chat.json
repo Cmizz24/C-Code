@@ -483,14 +483,30 @@
 			"superseded": "Ersetzt",
 			"archived": "Archiviert",
 			"all": "Alle Status"
+		},
+		"fields": {
+			"title": "Titel",
+			"signature": "Signatur",
+			"tool": "Tool",
+			"mode": "Modus",
+			"tags": "Tags",
+			"paths": "Pfade",
+			"score": "Score"
 		}
 	},
 	"memorySearch": {
-		"wantsToSearch": "Roo möchte {{scope}} Memory nach <code>{{query}}</code> durchsuchen"
+		"wantsToSearch": "Roo möchte {{scope}} Memory nach <code>{{query}}</code> durchsuchen",
+		"resultsFound_one": "1 passende Memory gefunden",
+		"resultsFound_other": "{{count}} passende Memories gefunden",
+		"noResults": "Keine passenden Memories gefunden",
+		"untitledResult": "Memory-Ergebnis"
 	},
 	"mistakeMemory": {
 		"savedPending": "Ausstehende Fehler-Memory gespeichert",
 		"savedActive": "Aktive Fehler-Memory gespeichert",
+		"savedArchived": "Fehler-Memory archiviert",
+		"approveAction": "Memory genehmigen",
+		"archiveAction": "Memory archivieren",
 		"autoApproved": "Automatisch genehmigt",
 		"reusedExisting": "Vorhandene Memory aktualisiert"
 	},

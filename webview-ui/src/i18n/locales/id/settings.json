@@ -260,6 +260,10 @@
 			"label": "Visual Browser Inspector",
 			"description": "Setujui otomatis tindakan Visual Browser Inspector dari chat, termasuk membuka halaman browser terkontrol, screenshot, inspeksi DOM, crop, analisis, dan interaksi halaman. Ini tidak mengizinkan pengeditan file atau perintah terminal."
 		},
+		"memory": {
+			"label": "Memori",
+			"description": "Setujui otomatis penyimpanan memori kesalahan dari chat dan error alat. Saat ini nonaktif, memori tertunda tetap bisa ditinjau dari chat atau pengaturan Memori."
+		},
 		"followupQuestions": {
 			"label": "Pertanyaan",
 			"description": "Secara otomatis memilih jawaban pertama yang disarankan untuk pertanyaan lanjutan setelah batas waktu yang dikonfigurasi",

@@ -484,14 +484,30 @@
 			"superseded": "Заменена",
 			"archived": "Архивирована",
 			"all": "Все статусы"
+		},
+		"fields": {
+			"title": "Название",
+			"signature": "Сигнатура",
+			"tool": "Инструмент",
+			"mode": "Режим",
+			"tags": "Теги",
+			"paths": "Пути",
+			"score": "Оценка"
 		}
 	},
 	"memorySearch": {
-		"wantsToSearch": "Roo хочет найти в памяти {{scope}} <code>{{query}}</code>"
+		"wantsToSearch": "Roo хочет найти в памяти {{scope}} <code>{{query}}</code>",
+		"resultsFound_one": "Найдена 1 подходящая запись памяти",
+		"resultsFound_other": "Найдено {{count}} подходящих записей памяти",
+		"noResults": "Подходящие записи памяти не найдены",
+		"untitledResult": "Результат памяти"
 	},
 	"mistakeMemory": {
 		"savedPending": "Сохранена ожидающая память об ошибке",
 		"savedActive": "Сохранена активная память об ошибке",
+		"savedArchived": "Память об ошибке архивирована",
+		"approveAction": "Одобрить память",
+		"archiveAction": "Архивировать память",
 		"autoApproved": "Одобрено автоматически",
 		"reusedExisting": "Существующая память обновлена"
 	},

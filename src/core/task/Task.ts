@@ -5004,7 +5004,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				return
 			}
 
-			const autoApproved = state?.memoryAutoApproveMistakeMemory === true
+			const autoApproved = state?.autoApprovalEnabled === true && state?.memoryAutoApproveMistakeMemory === true
 
 			const storage = new MemoryStorage({
 				globalStoragePath: this.globalStoragePath,
@@ -5034,9 +5034,16 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				JSON.stringify({
 					tool: "mistakeMemory",
 					content: result.memory.lesson,
+					memoryId: result.memory.id,
 					scope: result.memory.scope,
 					status: result.memory.status,
 					candidateId: result.candidate?.id,
+					title: result.memory.title,
+					tags: result.memory.tags,
+					pathTags: result.memory.pathTags,
+					mode: result.memory.mode,
+					toolName: result.memory.toolName,
+					mistakeSignature: result.memory.mistakeSignature,
 					autoApproved,
 					reusedExisting: result.reusedExisting,
 					message:

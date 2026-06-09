@@ -14,6 +14,7 @@ type AutoApproveToggles = Pick<
 	| "alwaysAllowParallelTasks"
 	| "alwaysAllowVisualBrowserInspector"
 	| "alwaysAllowImageGeneration"
+	| "memoryAutoApproveMistakeMemory"
 	| "alwaysAllowExecute"
 	| "alwaysAllowFollowupQuestions"
 >
@@ -84,6 +85,13 @@ export const autoApproveSettingsConfig: Record<AutoApproveSetting, AutoApproveCo
 		descriptionKey: "settings:autoApprove.imageGeneration.description",
 		icon: "file-media",
 		testId: "always-allow-image-generation-toggle",
+	},
+	memoryAutoApproveMistakeMemory: {
+		key: "memoryAutoApproveMistakeMemory",
+		labelKey: "settings:autoApprove.memory.label",
+		descriptionKey: "settings:autoApprove.memory.description",
+		icon: "database",
+		testId: "memory-auto-approve-mistake-toggle",
 	},
 	alwaysAllowExecute: {
 		key: "alwaysAllowExecute",

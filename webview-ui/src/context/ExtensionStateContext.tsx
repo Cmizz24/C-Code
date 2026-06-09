@@ -65,6 +65,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setAlwaysAllowParallelTasks: (value: boolean) => void
 	setAlwaysAllowVisualBrowserInspector: (value: boolean) => void
 	setAlwaysAllowImageGeneration: (value: boolean) => void
+	setMemoryAutoApproveMistakeMemory: (value: boolean) => void
 	setMaxConcurrentParallelTasks: (value: number) => void
 	setShowRooIgnoredFiles: (value: boolean) => void
 	setEnableSubfolderRules: (value: boolean) => void
@@ -537,6 +538,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 			setState((prevState) => ({ ...prevState, alwaysAllowVisualBrowserInspector: value })),
 		setAlwaysAllowImageGeneration: (value) =>
 			setState((prevState) => ({ ...prevState, alwaysAllowImageGeneration: value })),
+		setMemoryAutoApproveMistakeMemory: (value) =>
+			setState((prevState) => ({ ...prevState, memoryAutoApproveMistakeMemory: value })),
 		setMaxConcurrentParallelTasks: (value) =>
 			setState((prevState) => ({ ...prevState, maxConcurrentParallelTasks: value })),
 		setAlwaysAllowFollowupQuestions,

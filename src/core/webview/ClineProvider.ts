@@ -64,6 +64,8 @@ import {
 	getModelId,
 	isRetiredProvider,
 	type MemoryAction,
+	type MemoryEntry,
+	type MemoryScope,
 	type MemorySummary,
 } from "@roo-code/types"
 import {
@@ -4264,12 +4266,53 @@ export class ClineProvider
 		return memorySummary
 	}
 
-	public async handleMemoryAction(action: MemoryAction): Promise<MemorySummary> {
+	public async handleMemoryAction(
+		action: MemoryAction,
+		options: { memoryId?: string; memoryScope?: MemoryScope; messageTs?: number } = {},
+	): Promise<MemorySummary> {
 		const storage = this.createMemoryStorage()
 
 		switch (action) {
 			case "refresh":
 				break
+			case "approveMemory": {
+				if (!options.memoryId) {
+					break
+				}
+
+				const memory = await storage.updateMemoryStatus(options.memoryId, "active", {
+					scope: options.memoryScope,
+					workspacePath: this.cwd,
+					reason: "Approved from chat memory card",
+				})
+
+				if (memory) {
+					await this.updateMemoryToolMessage(memory, {
+						messageTs: options.messageTs,
+						message: "Approved active mistake memory.",
+					})
+				}
+				break
+			}
+			case "archiveMemory": {
+				if (!options.memoryId) {
+					break
+				}
+
+				const memory = await storage.updateMemoryStatus(options.memoryId, "archived", {
+					scope: options.memoryScope,
+					workspacePath: this.cwd,
+					reason: "Archived from chat memory card",
+				})
+
+				if (memory) {
+					await this.updateMemoryToolMessage(memory, {
+						messageTs: options.messageTs,
+						message: "Archived mistake memory.",
+					})
+				}
+				break
+			}
 			case "approveWorkspacePending":
 				await storage.updatePendingMemoriesStatus("workspace", "active", {
 					workspacePath: this.cwd,
@@ -4307,6 +4350,83 @@ export class ClineProvider
 		}
 
 		return storage.getSummary(this.cwd)
+	}
+
+	private async updateMemoryToolMessage(
+		memory: MemoryEntry,
+		options: { messageTs?: number; message: string },
+	): Promise<void> {
+		const task = this.getCurrentTask()
+		if (!task) {
+			return
+		}
+
+		const messageIndex = this.findMemoryToolMessageIndex(task.clineMessages, memory.id, options.messageTs)
+		if (messageIndex === -1) {
+			return
+		}
+
+		const currentMessage = task.clineMessages[messageIndex]
+		if (!currentMessage?.text) {
+			return
+		}
+
+		const payload = this.tryParseToolPayload(currentMessage.text)
+		if (!payload || payload.tool !== "mistakeMemory") {
+			return
+		}
+
+		const updatedPayload: ClineSayTool = {
+			...payload,
+			content: memory.lesson,
+			memoryId: memory.id,
+			scope: memory.scope,
+			status: memory.status,
+			title: memory.title,
+			tags: memory.tags,
+			pathTags: memory.pathTags,
+			mode: memory.mode,
+			toolName: memory.toolName,
+			mistakeSignature: memory.mistakeSignature,
+			message: options.message,
+			autoApproved: memory.status === "active" ? payload.autoApproved : false,
+		}
+
+		const updatedMessage: ClineMessage = {
+			...currentMessage,
+			text: JSON.stringify(updatedPayload),
+		}
+		const updatedMessages = [...task.clineMessages]
+		updatedMessages[messageIndex] = updatedMessage
+
+		await task.overwriteClineMessages(updatedMessages)
+		await this.postMessageToWebview({ type: "messageUpdated", clineMessage: updatedMessage })
+	}
+
+	private findMemoryToolMessageIndex(messages: ClineMessage[], memoryId: string, messageTs?: number): number {
+		if (messageTs !== undefined) {
+			const index = messages.findIndex((message) => message.ts === messageTs)
+			if (index !== -1 && this.isMemoryToolMessageForMemory(messages[index], memoryId)) {
+				return index
+			}
+		}
+
+		for (let index = messages.length - 1; index >= 0; index--) {
+			if (this.isMemoryToolMessageForMemory(messages[index], memoryId)) {
+				return index
+			}
+		}
+
+		return -1
+	}
+
+	private isMemoryToolMessageForMemory(message: ClineMessage | undefined, memoryId: string): boolean {
+		if (!message?.text || message.type !== "say" || message.say !== "tool") {
+			return false
+		}
+
+		const payload = this.tryParseToolPayload(message.text)
+		return payload?.tool === "mistakeMemory" && payload.memoryId === memoryId
 	}
 
 	/**
