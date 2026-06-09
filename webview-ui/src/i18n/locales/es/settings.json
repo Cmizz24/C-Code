@@ -34,6 +34,7 @@
 		"checkpoints": "Puntos de control",
 		"notifications": "Notificaciones",
 		"contextManagement": "Contexto",
+		"memory": "Memoria",
 		"terminal": "Terminal",
 		"slashCommands": "Comandos de Barra",
 		"prompts": "Indicaciones",
@@ -750,6 +751,66 @@
 		"enableSubfolderRules": {
 			"label": "Activar reglas de subcarpetas",
 			"description": "Descubrir y cargar recursivamente archivos .roo/rules y AGENTS.md desde subdirectorios. Útil para monorepos con reglas por paquete."
+		}
+	},
+	"memory": {
+		"mode": {
+			"label": "Modo de memoria",
+			"description": "Usa el modo automático para activar la memoria en modelos con menos de 1M de token de contexto y desactivarla en modelos con contexto mayor, a menos que lo sobrescribas.",
+			"options": {
+				"auto": "Automático",
+				"enabled": "Siempre activada",
+				"disabled": "Desactivada"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Usar memoria del espacio de trabajo",
+			"description": "Recupera y guarda lecciones limitadas a este espacio de trabajo sin almacenar rutas absolutas del espacio de trabajo."
+		},
+		"globalEnabled": {
+			"label": "Usar memoria global",
+			"description": "Recupera y guarda lecciones que pueden aplicarse en distintos espacios de trabajo."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Capturar memorias de errores",
+			"description": "Crea lecciones pendientes a partir de correcciones, errores de validación y errores repetidos de herramientas. Las lecciones pendientes no se usan de forma permanente hasta que se aprueban."
+		},
+		"maxCharacters": {
+			"label": "Presupuesto de caracteres de memoria",
+			"description": "Número máximo de caracteres de contexto de memoria que se inyectan en una solicitud. Cuando hay presión de contexto, la memoria se recorta u omite primero."
+		},
+		"maxEntries": {
+			"label": "Entradas máximas de memoria",
+			"description": "Número máximo de entradas de memoria activas que se incluyen en una solicitud."
+		},
+		"pendingCandidateLimit": {
+			"label": "Límite de memorias de errores pendientes",
+			"description": "Número máximo de candidatos de memoria de errores pendientes que se conservan antes de podar los candidatos más antiguos."
+		},
+		"management": {
+			"title": "Gestión de memoria",
+			"description": "Revisa los recuentos de memorias del espacio de trabajo y globales, aprueba lecciones pendientes, archiva memorias o borra la memoria almacenada."
+		},
+		"summary": {
+			"workspace": "Memoria del espacio de trabajo",
+			"global": "Memoria global",
+			"active": "Activa",
+			"pending": "Pendiente",
+			"archived": "Archivada",
+			"total": "Total"
+		},
+		"actions": {
+			"refresh": "Actualizar",
+			"approvePending": "Aprobar pendientes",
+			"archivePending": "Archivar pendientes",
+			"archiveAll": "Archivar todo",
+			"clear": "Borrar"
+		},
+		"confirm": {
+			"title": "Confirmar acción de memoria",
+			"description": "Esta acción de memoria cambia o elimina lecciones guardadas. Esto no se puede deshacer si se borra la memoria.",
+			"cancel": "Cancelar",
+			"confirm": "Continuar"
 		}
 	},
 	"terminal": {

@@ -35,6 +35,7 @@
 		"checkpoints": "Checkpoints",
 		"notifications": "Notifications",
 		"contextManagement": "Context",
+		"memory": "Memory",
 		"terminal": "Terminal",
 		"slashCommands": "Slash Commands",
 		"prompts": "Prompts",
@@ -812,6 +813,66 @@
 		"enableSubfolderRules": {
 			"label": "Enable subfolder rules",
 			"description": "Recursively discover and load .roo/rules and AGENTS.md files from subdirectories. Useful for monorepos with per-package rules."
+		}
+	},
+	"memory": {
+		"mode": {
+			"label": "Memory mode",
+			"description": "Use automatic mode to enable memory for models under 1M context tokens and disable it for larger-context models unless you override it.",
+			"options": {
+				"auto": "Automatic",
+				"enabled": "Always enabled",
+				"disabled": "Disabled"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Use workspace memory",
+			"description": "Retrieve and save lessons scoped to this workspace without storing absolute workspace paths."
+		},
+		"globalEnabled": {
+			"label": "Use global memory",
+			"description": "Retrieve and save lessons that can apply across workspaces."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Capture mistake memories",
+			"description": "Create pending lessons from corrections, validation failures, and repeated tool errors. Pending lessons are not used permanently until approved."
+		},
+		"maxCharacters": {
+			"label": "Memory character budget",
+			"description": "Maximum characters of memory context to inject into a request. Under context pressure, memory is trimmed or skipped first."
+		},
+		"maxEntries": {
+			"label": "Maximum memory entries",
+			"description": "Maximum number of active memory entries to include in a request."
+		},
+		"pendingCandidateLimit": {
+			"label": "Pending mistake memory limit",
+			"description": "Maximum number of pending mistake-memory candidates to keep before older candidates are pruned."
+		},
+		"management": {
+			"title": "Memory management",
+			"description": "Review counts for workspace and global memories, approve pending lessons, archive memories, or clear stored memory."
+		},
+		"summary": {
+			"workspace": "Workspace memory",
+			"global": "Global memory",
+			"active": "Active",
+			"pending": "Pending",
+			"archived": "Archived",
+			"total": "Total"
+		},
+		"actions": {
+			"refresh": "Refresh",
+			"approvePending": "Approve pending",
+			"archivePending": "Archive pending",
+			"archiveAll": "Archive all",
+			"clear": "Clear"
+		},
+		"confirm": {
+			"title": "Confirm memory action",
+			"description": "This memory action changes or removes stored lessons. This cannot be undone for cleared memory.",
+			"cancel": "Cancel",
+			"confirm": "Continue"
 		}
 	},
 	"terminal": {

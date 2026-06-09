@@ -34,6 +34,7 @@
 		"checkpoints": "Checkpoints",
 		"notifications": "Notificações",
 		"contextManagement": "Contexto",
+		"memory": "Memória",
 		"terminal": "Terminal",
 		"slashCommands": "Comandos de Barra",
 		"prompts": "Prompts",
@@ -750,6 +751,66 @@
 		"enableSubfolderRules": {
 			"label": "Ativar regras de subpastas",
 			"description": "Descobrir e carregar recursivamente arquivos .roo/rules e AGENTS.md de subdiretórios. Útil para monorepos com regras por pacote."
+		}
+	},
+	"memory": {
+		"mode": {
+			"label": "Modo de memória",
+			"description": "Use o modo automático para ativar a memória em modelos com menos de 1M de token de contexto e desativá-la em modelos com contexto maior, a menos que você substitua isso manualmente.",
+			"options": {
+				"auto": "Automático",
+				"enabled": "Sempre ativada",
+				"disabled": "Desativada"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Usar memória do workspace",
+			"description": "Recupere e salve lições limitadas a este workspace sem armazenar caminhos absolutos do workspace."
+		},
+		"globalEnabled": {
+			"label": "Usar memória global",
+			"description": "Recupere e salve lições que podem se aplicar a vários workspaces."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Capturar memórias de erros",
+			"description": "Crie lições pendentes a partir de correções, falhas de validação e erros repetidos de ferramentas. Lições pendentes não são usadas permanentemente até serem aprovadas."
+		},
+		"maxCharacters": {
+			"label": "Orçamento de caracteres da memória",
+			"description": "Máximo de caracteres de contexto de memória a injetar em uma solicitação. Sob pressão de contexto, a memória é reduzida ou ignorada primeiro."
+		},
+		"maxEntries": {
+			"label": "Máximo de entradas de memória",
+			"description": "Número máximo de entradas de memória ativas a incluir em uma solicitação."
+		},
+		"pendingCandidateLimit": {
+			"label": "Limite de memórias de erros pendentes",
+			"description": "Número máximo de candidatos pendentes de mistake-memory a manter antes de remover candidatos mais antigos."
+		},
+		"management": {
+			"title": "Gerenciamento de memória",
+			"description": "Revise contagens de memórias do workspace e globais, aprove lições pendentes, arquive memórias ou limpe a memória armazenada."
+		},
+		"summary": {
+			"workspace": "Memória do workspace",
+			"global": "Memória global",
+			"active": "Ativa",
+			"pending": "Pendente",
+			"archived": "Arquivada",
+			"total": "Total"
+		},
+		"actions": {
+			"refresh": "Atualizar",
+			"approvePending": "Aprovar pendentes",
+			"archivePending": "Arquivar pendentes",
+			"archiveAll": "Arquivar tudo",
+			"clear": "Limpar"
+		},
+		"confirm": {
+			"title": "Confirmar ação de memória",
+			"description": "Esta ação de memória altera ou remove lições armazenadas. Isso não pode ser desfeito para memória limpa.",
+			"cancel": "Cancelar",
+			"confirm": "Continuar"
 		}
 	},
 	"terminal": {

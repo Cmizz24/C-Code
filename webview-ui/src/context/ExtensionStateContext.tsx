@@ -17,6 +17,9 @@ import {
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 	DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
+	DEFAULT_MEMORY_MAX_CHARACTERS,
+	DEFAULT_MEMORY_MAX_ENTRIES,
+	DEFAULT_MEMORY_PENDING_CANDIDATE_LIMIT,
 } from "@roo-code/types"
 
 import { findLastIndex } from "@roo/array"
@@ -291,6 +294,13 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		lmStudioImageGenerationApiMethod: "images_api",
 		includeCurrentTime: true,
 		includeCurrentCost: true,
+		memoryEnabled: undefined,
+		memoryWorkspaceEnabled: true,
+		memoryGlobalEnabled: true,
+		memoryMistakeMemoryEnabled: true,
+		memoryMaxCharacters: DEFAULT_MEMORY_MAX_CHARACTERS,
+		memoryMaxEntries: DEFAULT_MEMORY_MAX_ENTRIES,
+		memoryPendingCandidateLimit: DEFAULT_MEMORY_PENDING_CANDIDATE_LIMIT,
 		lockApiConfigAcrossModes: false,
 	})
 
@@ -384,6 +394,10 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 				}
 				case "commands": {
 					setCommands(message.commands ?? [])
+					break
+				}
+				case "memorySummary": {
+					setState((prevState) => ({ ...prevState, memorySummary: message.memorySummary }))
 					break
 				}
 				case "messageUpdated": {

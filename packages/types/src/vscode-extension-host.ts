@@ -16,6 +16,7 @@ import type { OpenAiCodexRateLimitInfo } from "./providers/openai-codex-rate-lim
 import type { SkillMetadata } from "./skills.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
 import type { GeneratedImageMetadata } from "./image-generation.js"
+import type { MemorySummary } from "./memory.js"
 import type {
 	LocalAiRecommendationRequest,
 	LocalAiSetupStartRequest,
@@ -31,6 +32,18 @@ import type {
 	VisualBrowserWebviewRequest,
 	VisualBrowserWebviewResponse,
 } from "./visual-browser-inspector.js"
+
+export type MemoryAction =
+	| "refresh"
+	| "approveWorkspacePending"
+	| "archiveWorkspacePending"
+	| "archiveWorkspace"
+	| "clearWorkspace"
+	| "approveGlobalPending"
+	| "archiveGlobalPending"
+	| "archiveGlobal"
+	| "clearGlobal"
+
 import type {
 	AgentActivityEvent,
 	AgentCompletionPacket,
@@ -134,6 +147,7 @@ export interface ExtensionMessage {
 		| "localAiRecommendationResult"
 		| "localAiSetupProgress"
 		| "localAiSetupResult"
+		| "memorySummary"
 	text?: string
 	/** For fileContent: { path, content, error? } */
 	fileContent?: { path: string; content: string | null; error?: string }
@@ -197,6 +211,7 @@ export interface ExtensionMessage {
 	hasCheckpoint?: boolean
 	context?: string
 	commands?: Command[]
+	memorySummary?: MemorySummary
 	queuedMessages?: QueuedMessage[]
 	list?: string[] // For dismissedUpsells
 	tools?: SerializedCustomToolDefinition[] // For customToolsResult
@@ -367,11 +382,19 @@ export type ExtensionState = Pick<
 	| "includeCurrentTime"
 	| "includeCurrentCost"
 	| "maxGitStatusFiles"
+	| "memoryEnabled"
+	| "memoryWorkspaceEnabled"
+	| "memoryGlobalEnabled"
+	| "memoryMistakeMemoryEnabled"
+	| "memoryMaxCharacters"
+	| "memoryMaxEntries"
+	| "memoryPendingCandidateLimit"
 	| "requestDelaySeconds"
 	| "showWorktreesInHomeScreen"
 	| "disabledTools"
 > & {
 	lockApiConfigAcrossModes?: boolean
+	memorySummary?: MemorySummary
 	version: string
 	clineMessages: ClineMessage[]
 	currentTaskId?: string
@@ -631,6 +654,7 @@ export interface WebviewMessage {
 		| "localAiStartSetup"
 		| "localAiOpenDownload"
 		| "localAiCancelSetup"
+		| "memoryAction"
 	text?: string
 	taskId?: string
 	editedMessageContent?: string
@@ -647,6 +671,7 @@ export interface WebviewMessage {
 	isLaunchAction?: boolean
 	forceShow?: boolean
 	commands?: string[]
+	memoryAction?: MemoryAction
 	audioType?: AudioType
 	serverName?: string
 	toolName?: string
@@ -821,6 +846,8 @@ export interface ClineSayTool {
 		| "appliedDiff"
 		| "newFileCreated"
 		| "codebaseSearch"
+		| "memorySearch"
+		| "mistakeMemory"
 		| "readFile"
 		| "readCommandOutput"
 		| "listFilesTopLevel"

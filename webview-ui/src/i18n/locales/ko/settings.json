@@ -34,6 +34,7 @@
 		"checkpoints": "체크포인트",
 		"notifications": "알림",
 		"contextManagement": "컨텍스트",
+		"memory": "메모리",
 		"terminal": "터미널",
 		"slashCommands": "슬래시 명령",
 		"prompts": "프롬프트",
@@ -750,6 +751,66 @@
 		"enableSubfolderRules": {
 			"label": "하위 폴더 규칙 활성화",
 			"description": "하위 디렉토리에서 .roo/rules 및 AGENTS.md 파일을 재귀적으로 검색하고 로드합니다. 패키지별 규칙이 있는 모노레포에 유용합니다."
+		}
+	},
+	"memory": {
+		"mode": {
+			"label": "메모리 모드",
+			"description": "자동 모드를 사용하면 context token 이 1M 미만인 모델에서는 메모리를 켜고, 더 큰 컨텍스트 모델에서는 직접 덮어쓰지 않는 한 꺼 둬.",
+			"options": {
+				"auto": "자동",
+				"enabled": "항상 켜기",
+				"disabled": "꺼짐"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "워크스페이스 메모리 사용",
+			"description": "절대 워크스페이스 경로를 저장하지 않고 이 워크스페이스에 한정된 교훈을 가져오고 저장해."
+		},
+		"globalEnabled": {
+			"label": "글로벌 메모리 사용",
+			"description": "여러 워크스페이스에 적용될 수 있는 교훈을 가져오고 저장해."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "실수 메모리 캡처",
+			"description": "수정, 검증 실패, 반복되는 tool 오류에서 보류 중인 교훈을 만들어. 보류 중인 교훈은 승인되기 전까지 영구적으로 사용되지 않아."
+		},
+		"maxCharacters": {
+			"label": "메모리 문자 예산",
+			"description": "요청에 주입할 메모리 컨텍스트의 최대 문자 수. 컨텍스트 압박이 있으면 메모리가 먼저 줄어들거나 건너뛰어져."
+		},
+		"maxEntries": {
+			"label": "최대 메모리 항목",
+			"description": "요청에 포함할 활성 메모리 항목의 최대 수."
+		},
+		"pendingCandidateLimit": {
+			"label": "보류 중인 실수 메모리 제한",
+			"description": "오래된 후보를 정리하기 전에 유지할 보류 중인 mistake-memory 후보의 최대 수."
+		},
+		"management": {
+			"title": "메모리 관리",
+			"description": "워크스페이스 및 글로벌 메모리 수를 확인하고, 보류 중인 교훈을 승인하고, 메모리를 보관하거나 저장된 메모리를 지워."
+		},
+		"summary": {
+			"workspace": "워크스페이스 메모리",
+			"global": "글로벌 메모리",
+			"active": "활성",
+			"pending": "보류 중",
+			"archived": "보관됨",
+			"total": "전체"
+		},
+		"actions": {
+			"refresh": "새로 고침",
+			"approvePending": "보류 항목 승인",
+			"archivePending": "보류 항목 보관",
+			"archiveAll": "모두 보관",
+			"clear": "지우기"
+		},
+		"confirm": {
+			"title": "메모리 작업 확인",
+			"description": "이 메모리 작업은 저장된 교훈을 변경하거나 제거해. 지운 메모리는 되돌릴 수 없어.",
+			"cancel": "취소",
+			"confirm": "계속"
 		}
 	},
 	"terminal": {

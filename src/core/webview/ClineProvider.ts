@@ -55,11 +55,16 @@ import {
 	openRouterDefaultModelId,
 	DEFAULT_WRITE_DELAY_MS,
 	normalizeParallelTaskConcurrency,
+	DEFAULT_MEMORY_MAX_CHARACTERS,
+	DEFAULT_MEMORY_MAX_ENTRIES,
+	DEFAULT_MEMORY_PENDING_CANDIDATE_LIMIT,
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_MODES,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 	getModelId,
 	isRetiredProvider,
+	type MemoryAction,
+	type MemorySummary,
 } from "@roo-code/types"
 import {
 	aggregateTaskCostsRecursive,
@@ -113,6 +118,7 @@ import { forceFullModelDetailsLoad, hasLoadedFullDetails } from "../../api/provi
 import { ContextProxy } from "../config/ContextProxy"
 import { ProviderSettingsManager } from "../config/ProviderSettingsManager"
 import { CustomModesManager } from "../config/CustomModesManager"
+import { MemoryStorage } from "../memory"
 import { Task } from "../task/Task"
 
 import { webviewMessageHandler } from "./webviewMessageHandler"
@@ -4240,6 +4246,62 @@ export class ClineProvider
 		this.postMessageToWebview({ type: "state", state: rest })
 	}
 
+	private createMemoryStorage(): MemoryStorage {
+		return new MemoryStorage({
+			globalStoragePath: this.contextProxy.globalStorageUri.fsPath,
+			workspacePath: this.cwd,
+		})
+	}
+
+	public async getMemorySummary(): Promise<MemorySummary> {
+		return this.createMemoryStorage().getSummary(this.cwd)
+	}
+
+	public async handleMemoryAction(action: MemoryAction): Promise<MemorySummary> {
+		const storage = this.createMemoryStorage()
+
+		switch (action) {
+			case "refresh":
+				break
+			case "approveWorkspacePending":
+				await storage.updatePendingMemoriesStatus("workspace", "active", {
+					workspacePath: this.cwd,
+					reason: "Approved from memory settings",
+				})
+				break
+			case "archiveWorkspacePending":
+				await storage.updatePendingMemoriesStatus("workspace", "archived", {
+					workspacePath: this.cwd,
+					reason: "Archived from memory settings",
+				})
+				break
+			case "archiveWorkspace":
+				await storage.archiveScope("workspace", this.cwd)
+				break
+			case "clearWorkspace":
+				await storage.clearWorkspaceMemory(this.cwd)
+				break
+			case "approveGlobalPending":
+				await storage.updatePendingMemoriesStatus("global", "active", {
+					reason: "Approved from memory settings",
+				})
+				break
+			case "archiveGlobalPending":
+				await storage.updatePendingMemoriesStatus("global", "archived", {
+					reason: "Archived from memory settings",
+				})
+				break
+			case "archiveGlobal":
+				await storage.archiveScope("global")
+				break
+			case "clearGlobal":
+				await storage.clearGlobalMemory()
+				break
+		}
+
+		return storage.getSummary(this.cwd)
+	}
+
 	/**
 	 * Merges allowed commands from global state and workspace configuration
 	 * with proper validation and deduplication
@@ -4386,6 +4448,13 @@ export class ClineProvider
 			includeCurrentTime,
 			includeCurrentCost,
 			maxGitStatusFiles,
+			memoryEnabled,
+			memoryWorkspaceEnabled,
+			memoryGlobalEnabled,
+			memoryMistakeMemoryEnabled,
+			memoryMaxCharacters,
+			memoryMaxEntries,
+			memoryPendingCandidateLimit,
 			imageGenerationProvider,
 			openRouterImageApiKey,
 			openRouterImageBaseUrl,
@@ -4534,6 +4603,14 @@ export class ClineProvider
 			includeCurrentTime: includeCurrentTime ?? true,
 			includeCurrentCost: includeCurrentCost ?? true,
 			maxGitStatusFiles: maxGitStatusFiles ?? 0,
+			memoryEnabled,
+			memoryWorkspaceEnabled: memoryWorkspaceEnabled ?? true,
+			memoryGlobalEnabled: memoryGlobalEnabled ?? true,
+			memoryMistakeMemoryEnabled: memoryMistakeMemoryEnabled ?? true,
+			memoryMaxCharacters: memoryMaxCharacters ?? DEFAULT_MEMORY_MAX_CHARACTERS,
+			memoryMaxEntries: memoryMaxEntries ?? DEFAULT_MEMORY_MAX_ENTRIES,
+			memoryPendingCandidateLimit: memoryPendingCandidateLimit ?? DEFAULT_MEMORY_PENDING_CANDIDATE_LIMIT,
+			memorySummary: await this.getMemorySummary(),
 			imageGenerationProvider,
 			openRouterImageApiKey,
 			openRouterImageBaseUrl,
@@ -4720,6 +4797,15 @@ export class ClineProvider
 			includeCurrentTime: stateValues.includeCurrentTime ?? true,
 			includeCurrentCost: stateValues.includeCurrentCost ?? true,
 			maxGitStatusFiles: stateValues.maxGitStatusFiles ?? 0,
+			memoryEnabled: stateValues.memoryEnabled,
+			memoryWorkspaceEnabled: stateValues.memoryWorkspaceEnabled ?? true,
+			memoryGlobalEnabled: stateValues.memoryGlobalEnabled ?? true,
+			memoryMistakeMemoryEnabled: stateValues.memoryMistakeMemoryEnabled ?? true,
+			memoryMaxCharacters: stateValues.memoryMaxCharacters ?? DEFAULT_MEMORY_MAX_CHARACTERS,
+			memoryMaxEntries: stateValues.memoryMaxEntries ?? DEFAULT_MEMORY_MAX_ENTRIES,
+			memoryPendingCandidateLimit:
+				stateValues.memoryPendingCandidateLimit ?? DEFAULT_MEMORY_PENDING_CANDIDATE_LIMIT,
+			memorySummary: await this.getMemorySummary(),
 			imageGenerationProvider: stateValues.imageGenerationProvider,
 			openRouterImageApiKey: stateValues.openRouterImageApiKey,
 			openRouterImageBaseUrl: stateValues.openRouterImageBaseUrl,

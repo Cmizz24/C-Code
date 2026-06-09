@@ -136,6 +136,13 @@ import { MessageManager } from "../message-manager"
 import { validateAndFixToolResultIds } from "./validateToolResultIds"
 import { mergeConsecutiveApiMessages } from "./mergeConsecutiveApiMessages"
 import {
+	appendMemoryPromptToLastUserMessage,
+	buildMemoryPromptForRequest,
+	buildToolErrorLesson,
+	createMistakeMemoryCandidate,
+	MemoryStorage,
+} from "../memory"
+import {
 	AgentBus,
 	type AgentCompletionCoordinationGate,
 	type GetAgentCoordinationOptions,
@@ -4502,6 +4509,29 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const mergedForApi = mergeConsecutiveApiMessages(messagesSinceLastSummary, { roles: ["user"] })
 		const messagesWithoutImages = maybeRemoveImageBlocks(mergedForApi, this.api)
 		const cleanConversationHistory = this.buildCleanConversationHistory(messagesWithoutImages as ApiMessage[])
+		const modelInfo = this.api.getModel().info
+		let requestConversationHistory: typeof cleanConversationHistory = cleanConversationHistory
+		try {
+			const memoryPrompt = await buildMemoryPromptForRequest({
+				globalStoragePath: this.globalStoragePath,
+				workspacePath: this.cwd,
+				modelInfo,
+				modelId: this.api.getModel().id,
+				apiConfiguration: apiConfiguration ?? this.apiConfiguration,
+				settings: state,
+				mode: taskMode,
+				requestMessages: cleanConversationHistory,
+				rooIgnoreController: this.rooIgnoreController,
+				contextTokens,
+			})
+			requestConversationHistory = appendMemoryPromptToLastUserMessage(cleanConversationHistory, memoryPrompt)
+		} catch (error) {
+			console.warn(
+				`[Task#${this.taskId}] Failed to build ephemeral memory context: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			)
+		}
 
 		// Check auto-approval limits
 		const approvalResult = await this.autoApprovalHandler.checkAutoApprovalLimits(
@@ -4516,8 +4546,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		// Whether we include tools is determined by whether we have any tools to send.
-		const modelInfo = this.api.getModel().info
-
 		// Build complete tools array: native tools + dynamic MCP tools
 		// When includeAllToolsWithRestrictions is true, returns all tools but provides
 		// allowedFunctionNames for providers (like Gemini) that need to see all tool
@@ -4584,7 +4612,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		// The provider accepts reasoning items alongside standard messages; cast to the expected parameter type.
 		const stream = this.api.createMessage(
 			systemPrompt,
-			cleanConversationHistory as unknown as Anthropic.Messages.MessageParam[],
+			requestConversationHistory as unknown as Anthropic.Messages.MessageParam[],
 			metadata,
 		)
 		const iterator = stream[Symbol.asyncIterator]()
@@ -4940,7 +4968,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.toolUsage[toolName].attempts++
 	}
 
-	public recordToolError(toolName: ToolName, error?: string) {
+	public recordToolError(
+		toolName: ToolName,
+		error?: string,
+		source: "tool_error" | "validation_error" = "tool_error",
+	) {
 		if (!this.toolUsage[toolName]) {
 			this.toolUsage[toolName] = { attempts: 0, failures: 0 }
 		}
@@ -4949,7 +4981,53 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		if (error) {
 			this.emit(RooCodeEventName.TaskToolFailed, this.taskId, toolName, error)
+			this.queueMistakeMemoryFromToolError(toolName, error, source)
 		}
+	}
+
+	private queueMistakeMemoryFromToolError(
+		toolName: ToolName,
+		error: string,
+		source: "tool_error" | "validation_error" = "tool_error",
+	): void {
+		const provider = this.providerRef.deref()
+		if (!provider) {
+			return
+		}
+
+		void (async () => {
+			const state = await provider.getState()
+			if (state?.memoryMistakeMemoryEnabled === false) {
+				return
+			}
+
+			const storage = new MemoryStorage({
+				globalStoragePath: this.globalStoragePath,
+				workspacePath: this.cwd,
+			})
+			await createMistakeMemoryCandidate({
+				storage,
+				lesson: buildToolErrorLesson(toolName, error),
+				error,
+				toolName,
+				filePaths: [],
+				tags: ["tool-error"],
+				scope: "workspace",
+				source,
+				approved: false,
+				pendingCandidateLimit: state?.memoryPendingCandidateLimit,
+				workspacePath: this.cwd,
+				mode: await this.getTaskMode(),
+				originTaskId: this.taskId,
+				confidence: 0.6,
+			})
+		})().catch((candidateError) => {
+			console.warn(
+				`[Task#${this.taskId}] Failed to create mistake-memory candidate: ${
+					candidateError instanceof Error ? candidateError.message : String(candidateError)
+				}`,
+			)
+		})
 	}
 
 	// Getters

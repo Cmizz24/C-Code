@@ -34,6 +34,7 @@
 		"checkpoints": "チェックポイント",
 		"notifications": "通知",
 		"contextManagement": "コンテキスト",
+		"memory": "メモリ",
 		"terminal": "ターミナル",
 		"slashCommands": "スラッシュコマンド",
 		"prompts": "プロンプト",
@@ -750,6 +751,66 @@
 		"enableSubfolderRules": {
 			"label": "サブフォルダルールを有効化",
 			"description": "サブディレクトリから.roo/rulesとAGENTS.mdファイルを再帰的に検出してロードします。パッケージごとのルールを持つモノレポに便利です。"
+		}
+	},
+	"memory": {
+		"mode": {
+			"label": "メモリモード",
+			"description": "自動モードでは、context token が 1M 未満のモデルでメモリを有効にし、それ以上の大きなコンテキストのモデルでは、手動で上書きしない限り無効にするよ。",
+			"options": {
+				"auto": "自動",
+				"enabled": "常に有効",
+				"disabled": "無効"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "ワークスペースメモリを使う",
+			"description": "絶対ワークスペースパスを保存せずに、このワークスペースに限定した教訓を取得して保存するよ。"
+		},
+		"globalEnabled": {
+			"label": "グローバルメモリを使う",
+			"description": "複数のワークスペースに適用できる教訓を取得して保存するよ。"
+		},
+		"mistakeMemoryEnabled": {
+			"label": "ミスのメモリを記録する",
+			"description": "修正、検証失敗、繰り返し発生する tool エラーから保留中の教訓を作成するよ。保留中の教訓は承認されるまで永続的には使われないよ。"
+		},
+		"maxCharacters": {
+			"label": "メモリ文字数予算",
+			"description": "リクエストに注入するメモリコンテキストの最大文字数。コンテキストに余裕がない場合、メモリが最初に短縮またはスキップされるよ。"
+		},
+		"maxEntries": {
+			"label": "最大メモリエントリ数",
+			"description": "リクエストに含めるアクティブなメモリエントリの最大数。"
+		},
+		"pendingCandidateLimit": {
+			"label": "保留中のミスメモリ制限",
+			"description": "古い候補が削除される前に保持する、保留中の mistake-memory 候補の最大数。"
+		},
+		"management": {
+			"title": "メモリ管理",
+			"description": "ワークスペースとグローバルメモリの件数を確認し、保留中の教訓を承認し、メモリをアーカイブするか、保存済みメモリをクリアするよ。"
+		},
+		"summary": {
+			"workspace": "ワークスペースメモリ",
+			"global": "グローバルメモリ",
+			"active": "アクティブ",
+			"pending": "保留中",
+			"archived": "アーカイブ済み",
+			"total": "合計"
+		},
+		"actions": {
+			"refresh": "更新",
+			"approvePending": "保留中を承認",
+			"archivePending": "保留中をアーカイブ",
+			"archiveAll": "すべてアーカイブ",
+			"clear": "クリア"
+		},
+		"confirm": {
+			"title": "メモリアクションを確認",
+			"description": "このメモリアクションは保存済みの教訓を変更または削除するよ。クリアしたメモリは元に戻せないよ。",
+			"cancel": "キャンセル",
+			"confirm": "続行"
 		}
 	},
 	"terminal": {

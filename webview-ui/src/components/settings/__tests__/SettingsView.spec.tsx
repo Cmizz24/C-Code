@@ -973,6 +973,116 @@ describe("SettingsView - Image Generation Settings", () => {
 	})
 })
 
+describe("SettingsView - Memory Settings", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("renders memory settings and summary values", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			memoryEnabled: undefined,
+			memoryWorkspaceEnabled: true,
+			memoryGlobalEnabled: false,
+			memoryMistakeMemoryEnabled: true,
+			memoryMaxCharacters: 3200,
+			memoryMaxEntries: 6,
+			memoryPendingCandidateLimit: 24,
+			memorySummary: {
+				workspace: { active: 3, pending: 2, archived: 1, total: 6 },
+				global: { active: 4, pending: 1, archived: 0, total: 5 },
+			},
+		})
+
+		activateTab("memory")
+
+		const content = getSettingsContent()
+		expect(within(content).getByTestId("memory-workspace-enabled-checkbox")).toBeChecked()
+		expect(within(content).getByTestId("memory-global-enabled-checkbox")).not.toBeChecked()
+		expect(within(content).getByTestId("memory-mistake-enabled-checkbox")).toBeChecked()
+		expect(within(content).getByTestId("memory-max-characters-input")).toHaveValue(3200)
+		expect(within(content).getByTestId("memory-max-entries-input")).toHaveValue(6)
+		expect(within(content).getByTestId("memory-pending-limit-input")).toHaveValue(24)
+		expect(within(content).getByText("3")).toBeInTheDocument()
+		expect(within(content).getByText("6")).toBeInTheDocument()
+		expect(within(content).getByText("5")).toBeInTheDocument()
+	})
+
+	it("saves memory settings from cached state", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			memoryEnabled: true,
+			memoryWorkspaceEnabled: true,
+			memoryGlobalEnabled: true,
+			memoryMistakeMemoryEnabled: true,
+			memoryMaxCharacters: 2400,
+			memoryMaxEntries: 8,
+			memoryPendingCandidateLimit: 100,
+		})
+
+		activateTab("memory")
+
+		const content = getSettingsContent()
+		fireEvent.click(within(content).getByTestId("memory-workspace-enabled-checkbox"))
+		fireEvent.click(within(content).getByTestId("memory-global-enabled-checkbox"))
+		fireEvent.click(within(content).getByTestId("memory-mistake-enabled-checkbox"))
+		fireEvent.change(within(content).getByTestId("memory-max-characters-input"), { target: { value: "4200" } })
+		fireEvent.change(within(content).getByTestId("memory-max-entries-input"), { target: { value: "12" } })
+		fireEvent.change(within(content).getByTestId("memory-pending-limit-input"), { target: { value: "75" } })
+
+		fireEvent.click(screen.getByTestId("save-button"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					memoryEnabled: true,
+					memoryWorkspaceEnabled: false,
+					memoryGlobalEnabled: false,
+					memoryMistakeMemoryEnabled: false,
+					memoryMaxCharacters: 4200,
+					memoryMaxEntries: 12,
+					memoryPendingCandidateLimit: 75,
+				}),
+			}),
+		)
+	})
+
+	it("posts non-destructive memory management actions immediately", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView()
+
+		activateTab("memory")
+
+		const content = getSettingsContent()
+		fireEvent.click(within(content).getByTestId("memory-refresh-button"))
+		fireEvent.click(within(content).getByTestId("memory-approve-workspace-pending-button"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "memoryAction", memoryAction: "refresh" })
+		expect(vscode.postMessage).toHaveBeenCalledWith({
+			type: "memoryAction",
+			memoryAction: "approveWorkspacePending",
+		})
+	})
+
+	it("requires confirmation before posting destructive memory actions", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView()
+
+		activateTab("memory")
+
+		const content = getSettingsContent()
+		const dialog = within(content).getByTestId("alert-dialog")
+		expect(dialog).toHaveAttribute("data-open", "false")
+
+		fireEvent.click(within(content).getByTestId("memory-clear-workspace-button"))
+
+		expect(dialog).toHaveAttribute("data-open", "true")
+		expect(vscode.postMessage).not.toHaveBeenCalledWith({ type: "memoryAction", memoryAction: "clearWorkspace" })
+
+		fireEvent.click(within(content).getByTestId("alert-dialog-action"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "memoryAction", memoryAction: "clearWorkspace" })
+		expect(dialog).toHaveAttribute("data-open", "false")
+	})
+})
+
 describe("SettingsView - Auto Approve Parallel Tasks", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()

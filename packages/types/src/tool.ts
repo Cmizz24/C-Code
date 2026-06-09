@@ -11,6 +11,7 @@ export const toolGroups = [
 	"visual_browser_inspector",
 	"image_generation",
 	"mcp",
+	"memory",
 	"modes",
 	"orchestrator",
 ] as const
@@ -52,6 +53,8 @@ export const toolNames = [
 	"plan_parallel_tasks",
 	"coordinate_agents",
 	"codebase_search",
+	"memory_search",
+	"mistake_memory",
 	"update_todo_list",
 	"run_slash_command",
 	"skill",

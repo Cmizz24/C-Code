@@ -34,6 +34,7 @@
 		"checkpoints": "Kontrollpunkte",
 		"notifications": "Benachrichtigungen",
 		"contextManagement": "Kontext",
+		"memory": "Speicher",
 		"terminal": "Terminal",
 		"slashCommands": "Slash-Befehle",
 		"prompts": "Eingabeaufforderungen",
@@ -750,6 +751,66 @@
 		"enableSubfolderRules": {
 			"label": "Unterordner-Regeln aktivieren",
 			"description": "Rekursiv .roo/rules und AGENTS.md-Dateien aus Unterverzeichnissen laden. Nützlich für Monorepos mit paketspezifischen Regeln."
+		}
+	},
+	"memory": {
+		"mode": {
+			"label": "Speichermodus",
+			"description": "Nutze den automatischen Modus, um Speicher für Modelle mit weniger als 1M Kontext-token zu aktivieren und ihn für Modelle mit größerem Kontext zu deaktivieren, sofern du das nicht überschreibst.",
+			"options": {
+				"auto": "Automatisch",
+				"enabled": "Immer aktiviert",
+				"disabled": "Deaktiviert"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Workspace-Speicher verwenden",
+			"description": "Rufe Lektionen ab und speichere sie für diesen Workspace, ohne absolute Workspace-Pfade zu speichern."
+		},
+		"globalEnabled": {
+			"label": "Globalen Speicher verwenden",
+			"description": "Rufe Lektionen ab und speichere sie, die workspaceübergreifend gelten können."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Fehler-Speicher erfassen",
+			"description": "Erstelle aus Korrekturen, Validierungsfehlern und wiederholten Tool-Fehlern ausstehende Lektionen. Ausstehende Lektionen werden erst dauerhaft genutzt, wenn sie genehmigt sind."
+		},
+		"maxCharacters": {
+			"label": "Zeichenbudget für Speicher",
+			"description": "Maximale Anzahl von Zeichen aus dem Speicherkontext, die in eine Anfrage eingefügt werden. Bei Kontextdruck wird Speicher zuerst gekürzt oder übersprungen."
+		},
+		"maxEntries": {
+			"label": "Maximale Speichereinträge",
+			"description": "Maximale Anzahl aktiver Speichereinträge, die in eine Anfrage aufgenommen werden."
+		},
+		"pendingCandidateLimit": {
+			"label": "Limit für ausstehende Fehler-Speicher",
+			"description": "Maximale Anzahl ausstehender Fehler-Speicher-Kandidaten, die behalten werden, bevor ältere Kandidaten entfernt werden."
+		},
+		"management": {
+			"title": "Speicherverwaltung",
+			"description": "Prüfe Zählungen für Workspace- und globale Speicher, genehmige ausstehende Lektionen, archiviere Speicher oder lösche gespeicherten Speicher."
+		},
+		"summary": {
+			"workspace": "Workspace-Speicher",
+			"global": "Globaler Speicher",
+			"active": "Aktiv",
+			"pending": "Ausstehend",
+			"archived": "Archiviert",
+			"total": "Gesamt"
+		},
+		"actions": {
+			"refresh": "Aktualisieren",
+			"approvePending": "Ausstehende genehmigen",
+			"archivePending": "Ausstehende archivieren",
+			"archiveAll": "Alle archivieren",
+			"clear": "Löschen"
+		},
+		"confirm": {
+			"title": "Speicheraktion bestätigen",
+			"description": "Diese Speicheraktion ändert oder entfernt gespeicherte Lektionen. Für gelöschten Speicher kann dies nicht rückgängig gemacht werden.",
+			"cancel": "Abbrechen",
+			"confirm": "Fortfahren"
 		}
 	},
 	"terminal": {

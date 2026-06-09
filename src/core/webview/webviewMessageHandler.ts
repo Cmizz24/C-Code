@@ -836,6 +836,8 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					if (key === "language") {
 						newValue = value ?? "en"
 						changeLanguage(newValue as Language)
+					} else if (key === "memoryEnabled") {
+						newValue = value === null ? undefined : value
 					} else if (key === "maxConcurrentParallelTasks") {
 						newValue = normalizeParallelTaskConcurrency(value)
 					} else if (key === "allowedCommands") {
@@ -927,6 +929,17 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			}
 
 			break
+
+		case "memoryAction": {
+			if (!message.memoryAction) {
+				break
+			}
+
+			const memorySummary = await provider.handleMemoryAction(message.memoryAction)
+			await provider.postMessageToWebview({ type: "memorySummary", memorySummary })
+			await provider.postStateToWebviewWithoutClineMessages()
+			break
+		}
 
 		case "testSmtpSettings": {
 			const result = await provider.testSmtpSettings()

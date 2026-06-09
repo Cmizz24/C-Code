@@ -34,6 +34,7 @@
 		"checkpoints": "Points de contrôle",
 		"notifications": "Notifications",
 		"contextManagement": "Contexte",
+		"memory": "Mémoire",
 		"terminal": "Terminal",
 		"slashCommands": "Commandes Slash",
 		"prompts": "Invites",
@@ -750,6 +751,66 @@
 		"enableSubfolderRules": {
 			"label": "Activer les règles des sous-dossiers",
 			"description": "Découvrir et charger récursivement les fichiers .roo/rules et AGENTS.md depuis les sous-répertoires. Utile pour les monorepos avec des règles par package."
+		}
+	},
+	"memory": {
+		"mode": {
+			"label": "Mode de mémoire",
+			"description": "Utilise le mode automatique pour activer la mémoire avec les modèles sous 1M de token de contexte et la désactiver pour les modèles à contexte plus large, sauf si tu choisis le contraire.",
+			"options": {
+				"auto": "Automatique",
+				"enabled": "Toujours activée",
+				"disabled": "Désactivée"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Utiliser la mémoire de l'espace de travail",
+			"description": "Récupère et enregistre des leçons limitées à cet espace de travail sans stocker de chemins absolus de l'espace de travail."
+		},
+		"globalEnabled": {
+			"label": "Utiliser la mémoire globale",
+			"description": "Récupère et enregistre des leçons applicables à plusieurs espaces de travail."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Capturer les mémoires d'erreurs",
+			"description": "Crée des leçons en attente à partir de corrections, d'erreurs de validation et d'erreurs d'outils répétées. Les leçons en attente ne sont pas utilisées de façon permanente tant qu'elles ne sont pas approuvées."
+		},
+		"maxCharacters": {
+			"label": "Budget de caractères de mémoire",
+			"description": "Nombre maximal de caractères de contexte de mémoire à injecter dans une requête. Sous pression de contexte, la mémoire est d'abord réduite ou ignorée."
+		},
+		"maxEntries": {
+			"label": "Nombre maximal d'entrées mémoire",
+			"description": "Nombre maximal d'entrées mémoire actives à inclure dans une requête."
+		},
+		"pendingCandidateLimit": {
+			"label": "Limite des mémoires d'erreurs en attente",
+			"description": "Nombre maximal de candidats de mémoire d'erreurs en attente à conserver avant de supprimer les plus anciens."
+		},
+		"management": {
+			"title": "Gestion de la mémoire",
+			"description": "Consulte les compteurs des mémoires de l'espace de travail et globales, approuve les leçons en attente, archive des mémoires ou efface la mémoire stockée."
+		},
+		"summary": {
+			"workspace": "Mémoire de l'espace de travail",
+			"global": "Mémoire globale",
+			"active": "Active",
+			"pending": "En attente",
+			"archived": "Archivée",
+			"total": "Total"
+		},
+		"actions": {
+			"refresh": "Actualiser",
+			"approvePending": "Approuver les éléments en attente",
+			"archivePending": "Archiver les éléments en attente",
+			"archiveAll": "Tout archiver",
+			"clear": "Effacer"
+		},
+		"confirm": {
+			"title": "Confirmer l'action mémoire",
+			"description": "Cette action mémoire modifie ou supprime des leçons stockées. L'effacement de la mémoire est irréversible.",
+			"cancel": "Annuler",
+			"confirm": "Continuer"
 		}
 	},
 	"terminal": {

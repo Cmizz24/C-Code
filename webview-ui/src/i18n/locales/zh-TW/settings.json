@@ -34,6 +34,7 @@
 		"checkpoints": "檢查點",
 		"notifications": "通知",
 		"contextManagement": "上下文",
+		"memory": "記憶",
 		"terminal": "終端機",
 		"slashCommands": "斜線命令",
 		"prompts": "提示詞",
@@ -760,6 +761,66 @@
 		"enableSubfolderRules": {
 			"label": "啟用子資料夾規則",
 			"description": "遞迴發現並載入子目錄中的 .roo/rules 和 AGENTS.md 檔案。適用於具有每包規則的 monorepo。"
+		}
+	},
+	"memory": {
+		"mode": {
+			"label": "記憶模式",
+			"description": "使用自動模式：對 context token 低於 1M 的模型啟用記憶；對更大脈絡模型保持停用，除非你手動覆寫。",
+			"options": {
+				"auto": "自動",
+				"enabled": "一律啟用",
+				"disabled": "已停用"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "使用工作區記憶",
+			"description": "擷取並儲存限定在此工作區的經驗，不儲存絕對工作區路徑。"
+		},
+		"globalEnabled": {
+			"label": "使用全域記憶",
+			"description": "擷取並儲存可跨工作區套用的經驗。"
+		},
+		"mistakeMemoryEnabled": {
+			"label": "擷取錯誤記憶",
+			"description": "根據修正、驗證失敗和重複的 tool 錯誤建立待處理經驗。待處理經驗在核准前不會永久使用。"
+		},
+		"maxCharacters": {
+			"label": "記憶字元預算",
+			"description": "注入請求的記憶脈絡最大字元數。在脈絡壓力較高時，記憶會優先被裁剪或略過。"
+		},
+		"maxEntries": {
+			"label": "最大記憶項目數",
+			"description": "一個請求中包含的最大作用中記憶項目數。"
+		},
+		"pendingCandidateLimit": {
+			"label": "待處理錯誤記憶限制",
+			"description": "在裁剪較舊候選項之前，保留的待處理 mistake-memory 候選項最大數量。"
+		},
+		"management": {
+			"title": "記憶管理",
+			"description": "檢視工作區和全域記憶計數，核准待處理經驗，封存記憶，或清除已儲存的記憶。"
+		},
+		"summary": {
+			"workspace": "工作區記憶",
+			"global": "全域記憶",
+			"active": "作用中",
+			"pending": "待處理",
+			"archived": "已封存",
+			"total": "總計"
+		},
+		"actions": {
+			"refresh": "重新整理",
+			"approvePending": "核准待處理",
+			"archivePending": "封存待處理",
+			"archiveAll": "全部封存",
+			"clear": "清除"
+		},
+		"confirm": {
+			"title": "確認記憶動作",
+			"description": "此記憶動作會變更或移除已儲存的經驗。清除的記憶無法復原。",
+			"cancel": "取消",
+			"confirm": "繼續"
 		}
 	},
 	"terminal": {

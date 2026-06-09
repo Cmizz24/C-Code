@@ -34,6 +34,7 @@
 		"checkpoints": "Kontrol Noktaları",
 		"notifications": "Bildirimler",
 		"contextManagement": "Bağlam",
+		"memory": "Bellek",
 		"terminal": "Terminal",
 		"slashCommands": "Eğik Çizgi Komutları",
 		"prompts": "Promptlar",
@@ -750,6 +751,66 @@
 		"enableSubfolderRules": {
 			"label": "Alt klasör kurallarını etkinleştir",
 			"description": "Alt dizinlerden .roo/rules ve AGENTS.md dosyalarını yinelemeli olarak keşfet ve yükle. Paket başına kuralları olan monorepo'lar için kullanışlı."
+		}
+	},
+	"memory": {
+		"mode": {
+			"label": "Bellek modu",
+			"description": "1M context token altındaki modellerde belleği etkinleştirmek ve daha büyük bağlamlı modellerde, sen geçersiz kılmadıkça devre dışı bırakmak için otomatik modu kullan.",
+			"options": {
+				"auto": "Otomatik",
+				"enabled": "Her zaman etkin",
+				"disabled": "Devre dışı"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Workspace belleğini kullan",
+			"description": "Mutlak workspace yollarını saklamadan bu workspace'e kapsamlı dersleri getir ve kaydet."
+		},
+		"globalEnabled": {
+			"label": "Global belleği kullan",
+			"description": "Birden çok workspace için geçerli olabilecek dersleri getir ve kaydet."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Hata belleklerini yakala",
+			"description": "Düzeltmelerden, doğrulama hatalarından ve tekrarlanan tool hatalarından bekleyen dersler oluştur. Bekleyen dersler onaylanana kadar kalıcı olarak kullanılmaz."
+		},
+		"maxCharacters": {
+			"label": "Bellek karakter bütçesi",
+			"description": "Bir isteğe eklenecek bellek bağlamının maksimum karakter sayısı. Bağlam baskısı altında bellek önce kısaltılır veya atlanır."
+		},
+		"maxEntries": {
+			"label": "Maksimum bellek girdisi",
+			"description": "Bir isteğe dahil edilecek maksimum aktif bellek girdisi sayısı."
+		},
+		"pendingCandidateLimit": {
+			"label": "Bekleyen hata belleği sınırı",
+			"description": "Eski adaylar budanmadan önce tutulacak maksimum bekleyen mistake-memory adayı sayısı."
+		},
+		"management": {
+			"title": "Bellek yönetimi",
+			"description": "Workspace ve global bellek sayılarını gözden geçir, bekleyen dersleri onayla, bellekleri arşivle veya saklanan belleği temizle."
+		},
+		"summary": {
+			"workspace": "Workspace belleği",
+			"global": "Global bellek",
+			"active": "Aktif",
+			"pending": "Beklemede",
+			"archived": "Arşivlendi",
+			"total": "Toplam"
+		},
+		"actions": {
+			"refresh": "Yenile",
+			"approvePending": "Bekleyenleri onayla",
+			"archivePending": "Bekleyenleri arşivle",
+			"archiveAll": "Tümünü arşivle",
+			"clear": "Temizle"
+		},
+		"confirm": {
+			"title": "Bellek eylemini onayla",
+			"description": "Bu bellek eylemi saklanan dersleri değiştirir veya kaldırır. Temizlenen bellek için bu geri alınamaz.",
+			"cancel": "İptal",
+			"confirm": "Devam et"
 		}
 	},
 	"terminal": {

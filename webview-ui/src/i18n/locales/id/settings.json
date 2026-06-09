@@ -34,6 +34,7 @@
 		"checkpoints": "Checkpoint",
 		"notifications": "Notifikasi",
 		"contextManagement": "Konteks",
+		"memory": "Memori",
 		"terminal": "Terminal",
 		"slashCommands": "Perintah Slash",
 		"prompts": "Prompt",
@@ -750,6 +751,66 @@
 		"enableSubfolderRules": {
 			"label": "Aktifkan aturan subfolder",
 			"description": "Temukan dan muat file .roo/rules dan AGENTS.md secara rekursif dari subdirektori. Berguna untuk monorepo dengan aturan per-paket."
+		}
+	},
+	"memory": {
+		"mode": {
+			"label": "Mode memori",
+			"description": "Gunakan mode otomatis untuk mengaktifkan memori pada model dengan context token di bawah 1M dan menonaktifkannya untuk model berkonteks lebih besar, kecuali kamu menimpanya.",
+			"options": {
+				"auto": "Otomatis",
+				"enabled": "Selalu aktif",
+				"disabled": "Nonaktif"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Gunakan memori workspace",
+			"description": "Ambil dan simpan pelajaran yang dibatasi ke workspace ini tanpa menyimpan path absolut workspace."
+		},
+		"globalEnabled": {
+			"label": "Gunakan memori global",
+			"description": "Ambil dan simpan pelajaran yang bisa berlaku di beberapa workspace."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Tangkap memori kesalahan",
+			"description": "Buat pelajaran tertunda dari koreksi, kegagalan validasi, dan error tool yang berulang. Pelajaran tertunda tidak digunakan permanen sampai disetujui."
+		},
+		"maxCharacters": {
+			"label": "Batas karakter memori",
+			"description": "Jumlah maksimum karakter konteks memori yang disisipkan ke request. Saat tekanan konteks tinggi, memori dipangkas atau dilewati terlebih dahulu."
+		},
+		"maxEntries": {
+			"label": "Entri memori maksimum",
+			"description": "Jumlah maksimum entri memori aktif yang disertakan dalam request."
+		},
+		"pendingCandidateLimit": {
+			"label": "Batas memori kesalahan tertunda",
+			"description": "Jumlah maksimum kandidat mistake-memory tertunda yang disimpan sebelum kandidat lama dipangkas."
+		},
+		"management": {
+			"title": "Manajemen memori",
+			"description": "Tinjau jumlah memori workspace dan global, setujui pelajaran tertunda, arsipkan memori, atau hapus memori tersimpan."
+		},
+		"summary": {
+			"workspace": "Memori workspace",
+			"global": "Memori global",
+			"active": "Aktif",
+			"pending": "Tertunda",
+			"archived": "Diarsipkan",
+			"total": "Total"
+		},
+		"actions": {
+			"refresh": "Segarkan",
+			"approvePending": "Setujui yang tertunda",
+			"archivePending": "Arsipkan yang tertunda",
+			"archiveAll": "Arsipkan semua",
+			"clear": "Hapus"
+		},
+		"confirm": {
+			"title": "Konfirmasi aksi memori",
+			"description": "Aksi memori ini mengubah atau menghapus pelajaran tersimpan. Ini tidak bisa dibatalkan untuk memori yang dihapus.",
+			"cancel": "Batal",
+			"confirm": "Lanjutkan"
 		}
 	},
 	"terminal": {

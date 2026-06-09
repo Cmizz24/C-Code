@@ -2,6 +2,8 @@
  * Tool parameter type definitions for native protocol
  */
 
+export type { MemorySearchToolParams, MistakeMemoryToolParams } from "./memory.js"
+
 /**
  * Read mode for the read_file tool.
  * - "slice": Simple offset/limit reading (default)

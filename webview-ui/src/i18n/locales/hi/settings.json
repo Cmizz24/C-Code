@@ -34,6 +34,7 @@
 		"checkpoints": "चेकपॉइंट",
 		"notifications": "सूचनाएँ",
 		"contextManagement": "संदर्भ",
+		"memory": "मेमोरी",
 		"terminal": "टर्मिनल",
 		"slashCommands": "स्लैश कमांड",
 		"prompts": "प्रॉम्प्ट्स",
@@ -750,6 +751,66 @@
 		"enableSubfolderRules": {
 			"label": "सबफ़ोल्डर नियम सक्षम करें",
 			"description": "उपनिर्देशिकाओं से .roo/rules और AGENTS.md फ़ाइलों को पुनरावर्ती रूप से खोजें और लोड करें। प्रति-पैकेज नियमों वाले मोनोरेपो के लिए उपयोगी।"
+		}
+	},
+	"memory": {
+		"mode": {
+			"label": "मेमोरी मोड",
+			"description": "1M से कम context token वाले मॉडल के लिए मेमोरी चालू करने और बड़े context मॉडल के लिए उसे बंद रखने के लिए ऑटोमैटिक मोड इस्तेमाल करो, जब तक तुम इसे ओवरराइड न करो.",
+			"options": {
+				"auto": "ऑटोमैटिक",
+				"enabled": "हमेशा चालू",
+				"disabled": "बंद"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Workspace मेमोरी इस्तेमाल करो",
+			"description": "इस workspace तक सीमित सबक वापस लाओ और सेव करो, बिना absolute workspace paths स्टोर किए."
+		},
+		"globalEnabled": {
+			"label": "Global मेमोरी इस्तेमाल करो",
+			"description": "ऐसे सबक वापस लाओ और सेव करो जो कई workspaces में लागू हो सकते हैं."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "गलती वाली मेमोरी कैप्चर करो",
+			"description": "Corrections, validation failures, और बार-बार होने वाली tool errors से pending सबक बनाओ. Pending सबक approval तक permanent रूप से इस्तेमाल नहीं होते."
+		},
+		"maxCharacters": {
+			"label": "मेमोरी character budget",
+			"description": "किसी request में inject किए जाने वाले memory context के maximum characters. Context pressure में memory पहले trim या skip होती है."
+		},
+		"maxEntries": {
+			"label": "Maximum memory entries",
+			"description": "किसी request में शामिल की जाने वाली active memory entries की maximum संख्या."
+		},
+		"pendingCandidateLimit": {
+			"label": "Pending mistake memory limit",
+			"description": "पुराने candidates prune होने से पहले रखे जाने वाले pending mistake-memory candidates की maximum संख्या."
+		},
+		"management": {
+			"title": "मेमोरी मैनेजमेंट",
+			"description": "Workspace और global memories की counts देखो, pending lessons approve करो, memories archive करो, या stored memory clear करो."
+		},
+		"summary": {
+			"workspace": "Workspace memory",
+			"global": "Global memory",
+			"active": "Active",
+			"pending": "Pending",
+			"archived": "Archived",
+			"total": "Total"
+		},
+		"actions": {
+			"refresh": "Refresh",
+			"approvePending": "Pending approve करो",
+			"archivePending": "Pending archive करो",
+			"archiveAll": "सब archive करो",
+			"clear": "Clear"
+		},
+		"confirm": {
+			"title": "मेमोरी action confirm करो",
+			"description": "यह memory action stored lessons को बदलता या हटाता है. Cleared memory के लिए इसे undo नहीं किया जा सकता.",
+			"cancel": "Cancel",
+			"confirm": "Continue"
 		}
 	},
 	"terminal": {

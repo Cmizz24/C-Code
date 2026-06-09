@@ -34,6 +34,7 @@
 		"checkpoints": "Punts de control",
 		"notifications": "Notificacions",
 		"contextManagement": "Context",
+		"memory": "Memòria",
 		"terminal": "Terminal",
 		"slashCommands": "Comandes de barra",
 		"prompts": "Indicacions",
@@ -750,6 +751,66 @@
 		"enableSubfolderRules": {
 			"label": "Activa les regles dels subdirectoris",
 			"description": "Descobreix i carrega recursivament fitxers .roo/rules i AGENTS.md des de subdirectoris. Útil per a monorepos amb regles per paquet."
+		}
+	},
+	"memory": {
+		"mode": {
+			"label": "Mode de memòria",
+			"description": "Fes servir el mode automàtic per activar la memòria en models amb menys d'1M de token de context i desactivar-la en models amb context més gran, tret que ho sobreescriguis.",
+			"options": {
+				"auto": "Automàtic",
+				"enabled": "Sempre activada",
+				"disabled": "Desactivada"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Fes servir la memòria de l'espai de treball",
+			"description": "Recupera i desa lliçons limitades a aquest espai de treball sense emmagatzemar rutes absolutes de l'espai de treball."
+		},
+		"globalEnabled": {
+			"label": "Fes servir la memòria global",
+			"description": "Recupera i desa lliçons que es poden aplicar a diversos espais de treball."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Captura memòries d'errors",
+			"description": "Crea lliçons pendents a partir de correccions, errors de validació i errors repetits d'eines. Les lliçons pendents no s'usen permanentment fins que s'aproven."
+		},
+		"maxCharacters": {
+			"label": "Pressupost de caràcters de memòria",
+			"description": "Nombre màxim de caràcters de context de memòria que s'injecten en una sol·licitud. Amb pressió de context, la memòria es retalla o s'omet primer."
+		},
+		"maxEntries": {
+			"label": "Entrades de memòria màximes",
+			"description": "Nombre màxim d'entrades de memòria actives que s'inclouen en una sol·licitud."
+		},
+		"pendingCandidateLimit": {
+			"label": "Límit de memòries d'errors pendents",
+			"description": "Nombre màxim de candidats de memòria d'errors pendents que es conserven abans de podar els candidats més antics."
+		},
+		"management": {
+			"title": "Gestió de memòria",
+			"description": "Revisa els recomptes de memòries de l'espai de treball i globals, aprova lliçons pendents, arxiva memòries o esborra la memòria desada."
+		},
+		"summary": {
+			"workspace": "Memòria de l'espai de treball",
+			"global": "Memòria global",
+			"active": "Activa",
+			"pending": "Pendent",
+			"archived": "Arxivada",
+			"total": "Total"
+		},
+		"actions": {
+			"refresh": "Actualitza",
+			"approvePending": "Aprova pendents",
+			"archivePending": "Arxiva pendents",
+			"archiveAll": "Arxiva-ho tot",
+			"clear": "Esborra"
+		},
+		"confirm": {
+			"title": "Confirma l'acció de memòria",
+			"description": "Aquesta acció de memòria canvia o elimina lliçons desades. Això no es pot desfer en el cas de memòria esborrada.",
+			"cancel": "Cancel·la",
+			"confirm": "Continua"
 		}
 	},
 	"terminal": {

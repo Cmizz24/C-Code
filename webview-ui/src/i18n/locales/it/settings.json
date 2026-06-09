@@ -34,6 +34,7 @@
 		"checkpoints": "Punti di controllo",
 		"notifications": "Notifiche",
 		"contextManagement": "Contesto",
+		"memory": "Memoria",
 		"terminal": "Terminal",
 		"slashCommands": "Comandi Slash",
 		"prompts": "Prompt",
@@ -750,6 +751,66 @@
 		"enableSubfolderRules": {
 			"label": "Abilita regole sottocartelle",
 			"description": "Scopri e carica ricorsivamente i file .roo/rules e AGENTS.md dalle sottodirectory. Utile per i monorepo con regole per pacchetto."
+		}
+	},
+	"memory": {
+		"mode": {
+			"label": "Modalità memoria",
+			"description": "Usa la modalità automatica per attivare la memoria nei modelli con meno di 1M di token di contesto e disattivarla nei modelli con contesto più ampio, a meno che tu non la sovrascriva.",
+			"options": {
+				"auto": "Automatica",
+				"enabled": "Sempre attiva",
+				"disabled": "Disattivata"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Usa la memoria del workspace",
+			"description": "Recupera e salva lezioni limitate a questo workspace senza memorizzare percorsi assoluti del workspace."
+		},
+		"globalEnabled": {
+			"label": "Usa la memoria globale",
+			"description": "Recupera e salva lezioni applicabili in più workspace."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Cattura memorie degli errori",
+			"description": "Crea lezioni in sospeso da correzioni, errori di validazione ed errori ripetuti dei tool. Le lezioni in sospeso non vengono usate in modo permanente finché non sono approvate."
+		},
+		"maxCharacters": {
+			"label": "Budget di caratteri della memoria",
+			"description": "Numero massimo di caratteri di contesto memoria da iniettare in una richiesta. Sotto pressione di contesto, la memoria viene tagliata o saltata per prima."
+		},
+		"maxEntries": {
+			"label": "Voci memoria massime",
+			"description": "Numero massimo di voci memoria attive da includere in una richiesta."
+		},
+		"pendingCandidateLimit": {
+			"label": "Limite memorie degli errori in sospeso",
+			"description": "Numero massimo di candidati mistake-memory in sospeso da conservare prima di eliminare quelli più vecchi."
+		},
+		"management": {
+			"title": "Gestione memoria",
+			"description": "Controlla i conteggi delle memorie del workspace e globali, approva lezioni in sospeso, archivia memorie o cancella la memoria salvata."
+		},
+		"summary": {
+			"workspace": "Memoria del workspace",
+			"global": "Memoria globale",
+			"active": "Attive",
+			"pending": "In sospeso",
+			"archived": "Archiviate",
+			"total": "Totale"
+		},
+		"actions": {
+			"refresh": "Aggiorna",
+			"approvePending": "Approva in sospeso",
+			"archivePending": "Archivia in sospeso",
+			"archiveAll": "Archivia tutto",
+			"clear": "Cancella"
+		},
+		"confirm": {
+			"title": "Conferma azione memoria",
+			"description": "Questa azione di memoria modifica o rimuove lezioni salvate. Non può essere annullata per la memoria cancellata.",
+			"cancel": "Annulla",
+			"confirm": "Continua"
 		}
 	},
 	"terminal": {

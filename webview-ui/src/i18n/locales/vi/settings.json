@@ -34,6 +34,7 @@
 		"checkpoints": "Điểm kiểm tra",
 		"notifications": "Thông báo",
 		"contextManagement": "Ngữ cảnh",
+		"memory": "Bộ nhớ",
 		"terminal": "Terminal",
 		"slashCommands": "Lệnh Gạch Chéo",
 		"prompts": "Lời nhắc",
@@ -750,6 +751,66 @@
 		"enableSubfolderRules": {
 			"label": "Bật quy tắc thư mục con",
 			"description": "Khám phá và tải đệ quy các tệp .roo/rules và AGENTS.md từ các thư mục con. Hữu ích cho monorepo có quy tắc theo gói."
+		}
+	},
+	"memory": {
+		"mode": {
+			"label": "Chế độ bộ nhớ",
+			"description": "Dùng chế độ tự động để bật bộ nhớ cho các model dưới 1M context token và tắt với model có ngữ cảnh lớn hơn, trừ khi bạn ghi đè thủ công.",
+			"options": {
+				"auto": "Tự động",
+				"enabled": "Luôn bật",
+				"disabled": "Tắt"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Dùng bộ nhớ workspace",
+			"description": "Truy xuất và lưu bài học trong phạm vi workspace này mà không lưu đường dẫn tuyệt đối của workspace."
+		},
+		"globalEnabled": {
+			"label": "Dùng bộ nhớ global",
+			"description": "Truy xuất và lưu bài học có thể áp dụng trên nhiều workspace."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Ghi lại bộ nhớ lỗi",
+			"description": "Tạo bài học đang chờ từ các chỉnh sửa, lỗi xác thực và lỗi tool lặp lại. Bài học đang chờ không được dùng lâu dài cho đến khi được duyệt."
+		},
+		"maxCharacters": {
+			"label": "Ngân sách ký tự bộ nhớ",
+			"description": "Số ký tự tối đa của ngữ cảnh bộ nhớ được chèn vào một request. Khi áp lực ngữ cảnh cao, bộ nhớ sẽ bị rút gọn hoặc bỏ qua trước."
+		},
+		"maxEntries": {
+			"label": "Số mục bộ nhớ tối đa",
+			"description": "Số lượng tối đa các mục bộ nhớ đang hoạt động được đưa vào một request."
+		},
+		"pendingCandidateLimit": {
+			"label": "Giới hạn bộ nhớ lỗi đang chờ",
+			"description": "Số lượng tối đa candidate mistake-memory đang chờ được giữ trước khi các candidate cũ hơn bị cắt bỏ."
+		},
+		"management": {
+			"title": "Quản lý bộ nhớ",
+			"description": "Xem số lượng bộ nhớ workspace và global, duyệt bài học đang chờ, lưu trữ bộ nhớ hoặc xóa bộ nhớ đã lưu."
+		},
+		"summary": {
+			"workspace": "Bộ nhớ workspace",
+			"global": "Bộ nhớ global",
+			"active": "Đang hoạt động",
+			"pending": "Đang chờ",
+			"archived": "Đã lưu trữ",
+			"total": "Tổng"
+		},
+		"actions": {
+			"refresh": "Làm mới",
+			"approvePending": "Duyệt mục đang chờ",
+			"archivePending": "Lưu trữ mục đang chờ",
+			"archiveAll": "Lưu trữ tất cả",
+			"clear": "Xóa"
+		},
+		"confirm": {
+			"title": "Xác nhận hành động bộ nhớ",
+			"description": "Hành động bộ nhớ này thay đổi hoặc xóa các bài học đã lưu. Không thể hoàn tác khi bộ nhớ đã bị xóa.",
+			"cancel": "Hủy",
+			"confirm": "Tiếp tục"
 		}
 	},
 	"terminal": {
