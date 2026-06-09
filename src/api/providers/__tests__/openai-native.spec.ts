@@ -411,7 +411,7 @@ describe("OpenAiNativeHandler", () => {
 					content: [{ type: "input_text", text: "Hello!" }],
 				},
 			])
-			expect(parsedBody.reasoning?.effort).toBe("medium")
+			expect(parsedBody.reasoning?.effort).toBe("none")
 			expect(parsedBody.reasoning?.summary).toBe("auto")
 			expect(parsedBody.text?.verbosity).toBe("medium")
 			// GPT-5 models don't include temperature
@@ -1276,6 +1276,18 @@ describe("GPT-5 streaming event coverage (additional)", () => {
 			openAiNativeApiKey: "test-api-key",
 			apiModelId: "codex-mini-latest",
 		}
+
+		it("should expose current codex-mini-latest metadata", () => {
+			handler = new OpenAiNativeHandler(mockOptions)
+
+			const modelInfo = handler.getModel()
+			expect(modelInfo.id).toBe("codex-mini-latest")
+			expect(modelInfo.info.maxTokens).toBe(100_000)
+			expect(modelInfo.info.contextWindow).toBe(200_000)
+			expect(modelInfo.info.supportsImages).toBe(true)
+			expect(modelInfo.info.supportsPromptCache).toBe(true)
+			expect(modelInfo.info.cacheReadsPrice).toBe(0.375)
+		})
 
 		it("should handle codex-mini-latest streaming response", async () => {
 			// Mock fetch for Codex Mini responses API

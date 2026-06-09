@@ -122,7 +122,7 @@ export const openAiNativeModels = {
 		supportsPromptCache: true,
 		promptCacheRetention: "24h",
 		supportsReasoningEffort: ["none", "low", "medium", "high", "xhigh"],
-		reasoningEffort: "medium",
+		reasoningEffort: "none",
 		inputPrice: 1.75,
 		outputPrice: 14.0,
 		cacheReadsPrice: 0.175,
@@ -180,6 +180,7 @@ export const openAiNativeModels = {
 		inputPrice: 1.75,
 		outputPrice: 14.0,
 		cacheReadsPrice: 0.175,
+		deprecated: true,
 		description: "GPT-5.2 Chat: Optimized for conversational AI and chat use cases",
 	},
 	"gpt-5.3-chat-latest": {
@@ -192,6 +193,7 @@ export const openAiNativeModels = {
 		inputPrice: 1.75,
 		outputPrice: 14.0,
 		cacheReadsPrice: 0.175,
+		deprecated: true,
 		description: "GPT-5.3 Chat: Optimized for conversational AI and chat use cases",
 	},
 	"gpt-5.1": {
@@ -203,7 +205,7 @@ export const openAiNativeModels = {
 		supportsPromptCache: true,
 		promptCacheRetention: "24h",
 		supportsReasoningEffort: ["none", "low", "medium", "high"],
-		reasoningEffort: "medium",
+		reasoningEffort: "none",
 		inputPrice: 1.25,
 		outputPrice: 10.0,
 		cacheReadsPrice: 0.125,
@@ -545,16 +547,15 @@ export const openAiNativeModels = {
 		],
 	},
 	"codex-mini-latest": {
-		maxTokens: 16_384,
+		maxTokens: 100_000,
 		contextWindow: 200_000,
-		supportsImages: false,
-		supportsPromptCache: false,
+		supportsImages: true,
+		supportsPromptCache: true,
 		inputPrice: 1.5,
 		outputPrice: 6,
 		cacheReadsPrice: 0.375,
 		supportsTemperature: false,
-		description:
-			"Codex Mini: Cloud-based software engineering agent powered by codex-1, a version of o3 optimized for coding tasks. Trained with reinforcement learning to generate human-style code, adhere to instructions, and iteratively run tests.",
+		description: "Codex Mini: Fine-tuned o4-mini model optimized for Codex CLI and coding tasks.",
 	},
 	// Dated clones (snapshots) preserved for backward compatibility
 	"gpt-5-2025-08-07": {
@@ -617,12 +618,8 @@ export const openAiNativeModels = {
 } as const satisfies Record<string, ModelInfo>
 
 export const openAiModelInfoSaneDefaults: ModelInfo = {
-	maxTokens: -1,
 	contextWindow: 128_000,
-	supportsImages: true,
 	supportsPromptCache: false,
-	inputPrice: 0,
-	outputPrice: 0,
 }
 
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation

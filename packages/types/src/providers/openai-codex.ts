@@ -39,6 +39,8 @@ export type OpenAiCodexFastStatus = z.infer<typeof openAiCodexFastStatusSchema>
  * Models available through the Codex OAuth flow.
  * These models are accessible to ChatGPT Plus/Pro subscribers.
  * Costs are 0 as they are covered by the subscription.
+ * The ChatGPT/Codex backend does not expose a stable public model-list endpoint,
+ * so this provider intentionally uses curated static metadata instead of dynamic auto-update.
  */
 export const openAiCodexModels = {
 	"gpt-5.1-codex-max": {
@@ -83,7 +85,8 @@ export const openAiCodexModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		supportsTemperature: false,
-		description: "GPT-5.3 Codex: OpenAI's flagship coding model via ChatGPT subscription",
+		deprecated: true,
+		description: "GPT-5.3 Codex: Deprecated coding model via ChatGPT subscription",
 	},
 	"gpt-5.3-codex-spark": {
 		maxTokens: 8192,
@@ -121,7 +124,7 @@ export const openAiCodexModels = {
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsReasoningEffort: ["none", "low", "medium", "high"],
-		reasoningEffort: "medium",
+		reasoningEffort: "none",
 		// Subscription-based: no per-token costs
 		inputPrice: 0,
 		outputPrice: 0,
@@ -191,7 +194,7 @@ export const openAiCodexModels = {
 	},
 	"gpt-5.5": {
 		maxTokens: 128000,
-		contextWindow: 256000,
+		contextWindow: 400000,
 		includedTools: ["apply_patch"],
 		excludedTools: ["apply_diff", "write_to_file"],
 		supportsImages: true,
@@ -244,10 +247,11 @@ export const openAiCodexModels = {
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsReasoningEffort: ["none", "low", "medium", "high", "xhigh"],
-		reasoningEffort: "medium",
+		reasoningEffort: "none",
 		inputPrice: 0,
 		outputPrice: 0,
 		supportsTemperature: false,
-		description: "GPT-5.2: Latest GPT model via ChatGPT subscription",
+		deprecated: true,
+		description: "GPT-5.2: Deprecated GPT model via ChatGPT subscription",
 	},
 } as const satisfies Record<string, ModelInfo>

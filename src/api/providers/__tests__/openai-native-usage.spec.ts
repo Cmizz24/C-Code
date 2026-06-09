@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { OpenAiNativeHandler } from "../openai-native"
-import { openAiNativeModels } from "@roo-code/types"
+import { type ModelInfo, openAiNativeModels } from "@roo-code/types"
 
 describe("OpenAiNativeHandler - normalizeUsage", () => {
 	let handler: OpenAiNativeHandler
@@ -388,11 +388,16 @@ describe("OpenAiNativeHandler - normalizeUsage", () => {
 
 			const chatModelBody = buildRequestBodyForModel("gpt-5.3-chat-latest")
 			expect(chatModelBody.prompt_cache_retention).toBeUndefined()
+
+			const codexMiniBody = buildRequestBodyForModel("codex-mini-latest")
+			expect(codexMiniBody.prompt_cache_retention).toBeUndefined()
 		})
 
-		it("should not set prompt_cache_retention when the model does not support prompt caching", () => {
+		it("should not set prompt_cache_retention when the model has no extended retention policy", () => {
 			const modelId = "codex-mini-latest"
-			expect(openAiNativeModels[modelId as keyof typeof openAiNativeModels].supportsPromptCache).toBe(false)
+			const model = openAiNativeModels[modelId as keyof typeof openAiNativeModels] as ModelInfo
+			expect(model.supportsPromptCache).toBe(true)
+			expect(model.promptCacheRetention).toBeUndefined()
 
 			const body = buildRequestBodyForModel(modelId)
 			expect(body.prompt_cache_retention).toBeUndefined()

@@ -50,7 +50,7 @@ describe("OpenAiCodexHandler.getModel", () => {
 	})
 
 	it.each([
-		["gpt-5.5", 256_000],
+		["gpt-5.5", 400_000],
 		["gpt-5.4", 200_000],
 	])("should use ChatGPT subscription model context window: %s", (apiModelId, contextWindow) => {
 		const handler = new OpenAiCodexHandler({ apiModelId })
@@ -65,9 +65,19 @@ describe("OpenAiCodexHandler.getModel", () => {
 		const model = handler.getModel()
 
 		expect(model.id).toBe("gpt-5.5")
-		expect(model.info.contextWindow).toBe(256_000)
+		expect(model.info.contextWindow).toBe(400_000)
 		expect(model.info.reasoningEffort).toBe("medium")
 	})
+
+	it.each(["gpt-5.2", "gpt-5.3-codex"])(
+		"should mark deprecated ChatGPT/Codex subscription model %s",
+		(apiModelId) => {
+			const handler = new OpenAiCodexHandler({ apiModelId })
+			const model = handler.getModel()
+
+			expect(model.info.deprecated).toBe(true)
+		},
+	)
 })
 
 describe("OpenAiCodexHandler Fast mode request body", () => {

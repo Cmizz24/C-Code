@@ -248,6 +248,10 @@ describe("static provider model fetchers", () => {
 				contextWindow: 128_000,
 				supportsPromptCache: false,
 			})
+			expect(models["openai-dynamic-model"].maxTokens).toBeUndefined()
+			expect(models["openai-dynamic-model"].supportsImages).toBeUndefined()
+			expect(models["openai-dynamic-model"].inputPrice).toBeUndefined()
+			expect(models["openai-dynamic-model"].outputPrice).toBeUndefined()
 		})
 	})
 

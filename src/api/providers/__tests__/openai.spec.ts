@@ -573,7 +573,11 @@ describe("OpenAiHandler", () => {
 			expect(model.id).toBe(mockOptions.openAiModelId)
 			expect(model.info).toBeDefined()
 			expect(model.info.contextWindow).toBe(128_000)
-			expect(model.info.supportsImages).toBe(true)
+			expect(model.info.supportsPromptCache).toBe(false)
+			expect(model.info.maxTokens).toBeUndefined()
+			expect(model.info.supportsImages).toBeUndefined()
+			expect(model.info.inputPrice).toBeUndefined()
+			expect(model.info.outputPrice).toBeUndefined()
 		})
 
 		it("should handle undefined model ID", () => {

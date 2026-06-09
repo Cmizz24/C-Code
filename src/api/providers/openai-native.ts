@@ -24,6 +24,7 @@ import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { getModelParams } from "../transform/model-params"
 
 import { BaseProvider } from "./base-provider"
+import { getModelsFromCache } from "./fetchers/modelCache"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
 import { isMcpTool } from "../../utils/mcp-name"
 import { sanitizeOpenAiCallId } from "../../utils/tool-id"
@@ -1429,10 +1430,23 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 	override getModel() {
 		const modelId = this.options.apiModelId
 
-		let id =
-			modelId && modelId in openAiNativeModels ? (modelId as OpenAiNativeModelId) : openAiNativeDefaultModelId
+		let id: string
+		let info: ModelInfo
 
-		const info: ModelInfo = openAiNativeModels[id]
+		if (modelId && modelId in openAiNativeModels) {
+			id = modelId
+			info = openAiNativeModels[modelId as OpenAiNativeModelId]
+		} else {
+			const dynamicInfo = modelId ? getModelsFromCache("openai-native")?.[modelId] : undefined
+
+			if (modelId && dynamicInfo) {
+				id = modelId
+				info = dynamicInfo
+			} else {
+				id = openAiNativeDefaultModelId
+				info = openAiNativeModels[openAiNativeDefaultModelId]
+			}
+		}
 
 		const params = getModelParams({
 			format: "openai",
