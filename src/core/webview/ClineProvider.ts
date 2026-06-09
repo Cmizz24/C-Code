@@ -97,9 +97,14 @@ import {
 } from "../../services/notifications/EmailNotificationService"
 import {
 	RemoteDebugLogger,
+	type RemoteDebugApiRequestSummary,
 	type RemoteDebugEvent,
 	type RemoteDebugLoggerConfig,
+	type RemoteDebugMessageSummary,
+	type RemoteDebugOperationSummary,
+	type RemoteDebugRuntimeSummary,
 	type RemoteDebugSeverity,
+	type RemoteDebugTaskSummary,
 } from "../../services/diagnostics/RemoteDebugLogger"
 
 import { fileExistsAtPath } from "../../utils/fs"
@@ -257,6 +262,21 @@ type EmailNotificationUsageHistoryItem = Pick<
 	"id" | "tokensIn" | "tokensOut" | "cacheWrites" | "cacheReads" | "totalCost" | "childIds" | "completedByChildId"
 >
 
+type RemoteDebugTaskEventOptions = {
+	severity?: RemoteDebugSeverity
+	tokenUsage?: TokenUsage
+	toolUsage?: ToolUsage
+	operation?: RemoteDebugOperationSummary
+	taskSummary?: RemoteDebugTaskSummary
+	apiRequest?: RemoteDebugApiRequestSummary
+	message?: RemoteDebugMessageSummary
+	runtime?: RemoteDebugRuntimeSummary
+	error?: unknown
+	properties?: Record<string, unknown>
+	flushImmediately?: boolean
+	featureArea?: string
+}
+
 const PARALLEL_AGENT_ACTIVITY_LIMIT = 50
 const PARALLEL_AGENT_COORDINATION_LIMIT = 24
 const PARALLEL_REVIEW_SUMMARY_PATH = ".roo/parallel-agent-review.md"
@@ -265,6 +285,11 @@ const MAX_EMAIL_NOTIFICATION_TASK_OUTCOMES = 500
 const MAX_EMAIL_NOTIFICATION_SUMMARY_LENGTH = 600
 const DEFAULT_COMPLETION_EMAIL_SUMMARY = "Task completed successfully."
 const REMOTE_DEBUG_TOKEN_USAGE_EVENT_INTERVAL_MS = 30_000
+const REMOTE_DEBUG_MAX_PARSEABLE_MESSAGE_TEXT_LENGTH = 5_000
+const REMOTE_DEBUG_ERROR_SAY_TYPES = new Set(["error", "diff_error", "rooignore_error", "condense_context_error"])
+const REMOTE_DEBUG_WARNING_SAY_TYPES = new Set(["too_many_tools_warning", "shell_integration_warning"])
+const REMOTE_DEBUG_ERROR_ASK_TYPES = new Set(["api_req_failed"])
+const REMOTE_DEBUG_WARNING_ASK_TYPES = new Set(["mistake_limit_reached", "auto_approval_max_req_reached"])
 
 export class ClineProvider
 	extends EventEmitter<TaskProviderEvents>
@@ -277,6 +302,21 @@ export class ClineProvider
 	public static readonly tabPanelId = `${Package.name}.TabPanelProvider`
 	public static readonly visualBrowserInspectorPanelId = `${Package.name}.VisualBrowserInspectorPanelProvider`
 	private static activeInstances: Set<ClineProvider> = new Set()
+	private static remoteDebugRuntimeHandlersRegistered = false
+	private static readonly remoteDebugUnhandledRejectionHandler = (reason: unknown): void => {
+		ClineProvider.recordRemoteDebugRuntimeErrorForActiveInstance(reason, {
+			source: "process",
+			origin: "unhandledRejection",
+			unhandled: true,
+		})
+	}
+	private static readonly remoteDebugUncaughtExceptionMonitorHandler = (error: Error, origin: string): void => {
+		ClineProvider.recordRemoteDebugRuntimeErrorForActiveInstance(error, {
+			source: "process",
+			origin,
+			unhandled: true,
+		})
+	}
 	private disposables: vscode.Disposable[] = []
 	private webviewDisposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
@@ -497,6 +537,7 @@ export class ClineProvider
 		this.loadEmailNotificationTaskOutcomeState()
 
 		ClineProvider.activeInstances.add(this)
+		ClineProvider.registerRemoteDebugRuntimeHandlers()
 
 		this.updateGlobalState("codebaseIndexModels", EMBEDDING_MODEL_PROFILES)
 
@@ -540,12 +581,16 @@ export class ClineProvider
 		// We do something fairly similar for the IPC-based API.
 		this.taskCreationCallback = (instance: Task) => {
 			this.rememberEmailNotificationTaskContext(instance, "created")
-			this.recordRemoteDebugTaskEvent(instance, "task.created")
+			this.recordRemoteDebugTaskEvent(instance, "task.created", {
+				operation: { stage: "lifecycle", status: "created" },
+			})
 			this.emit(RooCodeEventName.TaskCreated, instance)
 
 			// Create named listener functions so we can remove them later.
 			const onTaskStarted = () => {
-				this.recordRemoteDebugTaskEvent(instance, "task.started")
+				this.recordRemoteDebugTaskEvent(instance, "task.started", {
+					operation: { stage: "lifecycle", status: "started" },
+				})
 				this.emit(RooCodeEventName.TaskStarted, instance.taskId)
 			}
 			const onTaskCompleted = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) => {
@@ -553,6 +598,7 @@ export class ClineProvider
 				this.recordRemoteDebugTaskEvent(instance, "task.completed", {
 					tokenUsage,
 					toolUsage,
+					operation: { stage: "lifecycle", status: "completed" },
 					properties: {
 						apiRequestCount: this.countApiRequestMessages(instance.clineMessages),
 					},
@@ -586,8 +632,11 @@ export class ClineProvider
 				this.emit(RooCodeEventName.TaskCompleted, taskId, tokenUsage, toolUsage)
 			}
 			const onTaskAborted = async () => {
+				const streamingFailed = instance.abortReason === "streaming_failed"
 				this.recordRemoteDebugTaskEvent(instance, "task.aborted", {
-					severity: "warn",
+					severity: streamingFailed ? "error" : "warn",
+					operation: { stage: "lifecycle", status: "aborted", result: instance.abortReason },
+					flushImmediately: streamingFailed,
 					properties: {
 						abortReason: instance.abortReason,
 					},
@@ -630,18 +679,74 @@ export class ClineProvider
 					)
 				}
 			}
-			const onTaskFocused = () => this.emit(RooCodeEventName.TaskFocused, instance.taskId)
-			const onTaskUnfocused = () => this.emit(RooCodeEventName.TaskUnfocused, instance.taskId)
-			const onTaskActive = (taskId: string) => this.emit(RooCodeEventName.TaskActive, taskId)
-			const onTaskInteractive = (taskId: string) => this.emit(RooCodeEventName.TaskInteractive, taskId)
-			const onTaskResumable = (taskId: string) => this.emit(RooCodeEventName.TaskResumable, taskId)
-			const onTaskIdle = (taskId: string) => this.emit(RooCodeEventName.TaskIdle, taskId)
-			const onTaskPaused = (taskId: string) => this.emit(RooCodeEventName.TaskPaused, taskId)
-			const onTaskUnpaused = (taskId: string) => this.emit(RooCodeEventName.TaskUnpaused, taskId)
-			const onTaskSpawned = (taskId: string) => this.emit(RooCodeEventName.TaskSpawned, taskId)
-			const onTaskUserMessage = (taskId: string) => this.emit(RooCodeEventName.TaskUserMessage, taskId)
+			const onTaskFocused = () => {
+				this.recordRemoteDebugTaskEvent(instance, "task.focused", {
+					severity: "debug",
+					operation: { stage: "lifecycle", status: "focused" },
+				})
+				this.emit(RooCodeEventName.TaskFocused, instance.taskId)
+			}
+			const onTaskUnfocused = () => {
+				this.recordRemoteDebugTaskEvent(instance, "task.unfocused", {
+					severity: "debug",
+					operation: { stage: "lifecycle", status: "unfocused" },
+				})
+				this.emit(RooCodeEventName.TaskUnfocused, instance.taskId)
+			}
+			const onTaskActive = (taskId: string) => {
+				this.recordRemoteDebugTaskEvent(instance, "task.active", {
+					severity: "debug",
+					operation: { stage: "status", status: "active" },
+				})
+				this.emit(RooCodeEventName.TaskActive, taskId)
+			}
+			const onTaskInteractive = (taskId: string) => {
+				this.recordRemoteDebugTaskEvent(instance, "task.interactive", {
+					operation: { stage: "status", status: "interactive" },
+				})
+				this.emit(RooCodeEventName.TaskInteractive, taskId)
+			}
+			const onTaskResumable = (taskId: string) => {
+				this.recordRemoteDebugTaskEvent(instance, "task.resumable", {
+					operation: { stage: "status", status: "resumable" },
+				})
+				this.emit(RooCodeEventName.TaskResumable, taskId)
+			}
+			const onTaskIdle = (taskId: string) => {
+				this.recordRemoteDebugTaskEvent(instance, "task.idle", {
+					severity: "debug",
+					operation: { stage: "status", status: "idle" },
+				})
+				this.emit(RooCodeEventName.TaskIdle, taskId)
+			}
+			const onTaskPaused = (taskId: string) => {
+				this.recordRemoteDebugTaskEvent(instance, "task.paused", {
+					severity: "warn",
+					operation: { stage: "lifecycle", status: "paused" },
+				})
+				this.emit(RooCodeEventName.TaskPaused, taskId)
+			}
+			const onTaskUnpaused = (taskId: string) => {
+				this.recordRemoteDebugTaskEvent(instance, "task.unpaused", {
+					operation: { stage: "lifecycle", status: "unpaused" },
+				})
+				this.emit(RooCodeEventName.TaskUnpaused, taskId)
+			}
+			const onTaskSpawned = (taskId: string) => {
+				this.recordRemoteDebugTaskEvent(instance, "task.spawned", {
+					operation: { stage: "lifecycle", status: "spawned" },
+				})
+				this.emit(RooCodeEventName.TaskSpawned, taskId)
+			}
+			const onTaskUserMessage = (taskId: string) => {
+				this.recordRemoteDebugTaskEvent(instance, "task.user_message", {
+					operation: { stage: "input", status: "received" },
+				})
+				this.emit(RooCodeEventName.TaskUserMessage, taskId)
+			}
 			const onTaskMessage = ({ action, message }: { action: "created" | "updated"; message: ClineMessage }) => {
 				this.handleBackgroundAgentMessage(instance, action, message)
+				this.recordRemoteDebugTaskMessageEvent(instance, action, message)
 			}
 			const onTaskTokenUsageUpdated = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) => {
 				this.rememberEmailNotificationTaskUsage(
@@ -653,6 +758,19 @@ export class ClineProvider
 				this.postBackgroundAgentUsage(instance, tokenUsage)
 				this.recordRemoteDebugTaskUsageUpdate(instance, taskId, tokenUsage, toolUsage)
 				this.emit(RooCodeEventName.TaskTokenUsageUpdated, taskId, tokenUsage, toolUsage)
+			}
+			const onTaskToolFailed = (taskId: string, tool: string, error: string) => {
+				this.recordRemoteDebugTaskEvent(instance, "task.tool_failed", {
+					severity: "error",
+					operation: { stage: "tool", status: "failed" },
+					message: { tool },
+					error: new Error("Tool execution failed"),
+					flushImmediately: true,
+					properties: {
+						eventTaskIdMatches: taskId === instance.taskId,
+						errorLength: error.length,
+					},
+				})
 			}
 
 			// Attach the listeners.
@@ -671,6 +789,7 @@ export class ClineProvider
 			instance.on(RooCodeEventName.TaskUserMessage, onTaskUserMessage)
 			instance.on(RooCodeEventName.Message, onTaskMessage)
 			instance.on(RooCodeEventName.TaskTokenUsageUpdated, onTaskTokenUsageUpdated)
+			instance.on(RooCodeEventName.TaskToolFailed, onTaskToolFailed)
 
 			// Store the cleanup functions for later removal.
 			this.taskEventListeners.set(instance, [
@@ -689,6 +808,7 @@ export class ClineProvider
 				() => instance.off(RooCodeEventName.TaskSpawned, onTaskSpawned),
 				() => instance.off(RooCodeEventName.Message, onTaskMessage),
 				() => instance.off(RooCodeEventName.TaskTokenUsageUpdated, onTaskTokenUsageUpdated),
+				() => instance.off(RooCodeEventName.TaskToolFailed, onTaskToolFailed),
 			])
 		}
 	}
@@ -728,6 +848,61 @@ export class ClineProvider
 		return installId
 	}
 
+	private static registerRemoteDebugRuntimeHandlers(): void {
+		if (ClineProvider.remoteDebugRuntimeHandlersRegistered) {
+			return
+		}
+
+		ClineProvider.remoteDebugRuntimeHandlersRegistered = true
+		process.on("unhandledRejection", ClineProvider.remoteDebugUnhandledRejectionHandler)
+		process.on("uncaughtExceptionMonitor", ClineProvider.remoteDebugUncaughtExceptionMonitorHandler)
+	}
+
+	private static recordRemoteDebugRuntimeErrorForActiveInstance(
+		error: unknown,
+		runtime: RemoteDebugRuntimeSummary,
+	): void {
+		try {
+			const instance = Array.from(ClineProvider.activeInstances)
+				.reverse()
+				.find((candidate) => candidate.isDebugModeEnabled())
+
+			instance?.recordRemoteDebugRuntimeError(error, runtime)
+		} catch {
+			// Diagnostics must never affect extension runtime error handling.
+		}
+	}
+
+	private recordRemoteDebugRuntimeError(error: unknown, runtime: RemoteDebugRuntimeSummary): void {
+		if (!this.isDebugModeEnabled()) {
+			return
+		}
+
+		const currentTask = this.getCurrentTask()
+		if (currentTask) {
+			this.recordRemoteDebugTaskEvent(currentTask, "runtime.error", {
+				severity: "error",
+				featureArea: "runtime",
+				operation: { stage: "runtime", status: "error" },
+				runtime,
+				error,
+				flushImmediately: true,
+			})
+			return
+		}
+
+		this.remoteDebugLogger.record(
+			{
+				type: "runtime.error",
+				severity: "error",
+				featureArea: "runtime",
+				runtime,
+				error,
+			},
+			{ flushImmediately: true },
+		)
+	}
+
 	private recordRemoteDebugTaskUsageUpdate(
 		task: Task,
 		taskId: string,
@@ -746,39 +921,26 @@ export class ClineProvider
 			severity: "debug",
 			tokenUsage,
 			toolUsage,
+			operation: { stage: "usage", status: "updated" },
 		})
 	}
 
-	private recordRemoteDebugTaskEvent(
-		task: Task,
-		type: string,
-		options: {
-			severity?: RemoteDebugSeverity
-			tokenUsage?: TokenUsage
-			toolUsage?: ToolUsage
-			error?: unknown
-			properties?: Record<string, unknown>
-		} = {},
-	): void {
+	private recordRemoteDebugTaskEvent(task: Task, type: string, options: RemoteDebugTaskEventOptions = {}): void {
 		if (!this.isDebugModeEnabled()) {
 			return
 		}
 
 		void this.buildRemoteDebugTaskEvent(task, type, options)
-			.then((event) => this.remoteDebugLogger.record(event))
+			.then((event) =>
+				this.remoteDebugLogger.record(event, { flushImmediately: options.flushImmediately === true }),
+			)
 			.catch(() => undefined)
 	}
 
 	private async buildRemoteDebugTaskEvent(
 		task: Task,
 		type: string,
-		options: {
-			severity?: RemoteDebugSeverity
-			tokenUsage?: TokenUsage
-			toolUsage?: ToolUsage
-			error?: unknown
-			properties?: Record<string, unknown>
-		},
+		options: RemoteDebugTaskEventOptions,
 	): Promise<RemoteDebugEvent> {
 		const mode = await task.getTaskMode().catch(() => undefined)
 		const apiConfiguration = task.apiConfiguration ?? {}
@@ -786,7 +948,7 @@ export class ClineProvider
 		return {
 			type,
 			severity: options.severity ?? "info",
-			featureArea: "task",
+			featureArea: options.featureArea ?? "task",
 			taskId: task.taskId,
 			parentTaskId: task.parentTaskId,
 			rootTaskId: task.rootTaskId,
@@ -797,6 +959,11 @@ export class ClineProvider
 			modelId: getModelId(apiConfiguration),
 			tokenUsage: options.tokenUsage,
 			toolUsage: options.toolUsage,
+			operation: options.operation,
+			taskSummary: options.taskSummary ?? this.buildRemoteDebugTaskSummary(task, options.message),
+			apiRequest: options.apiRequest,
+			message: options.message,
+			runtime: options.runtime,
 			error: options.error,
 			properties: {
 				taskStatus: task.taskStatus,
@@ -805,6 +972,317 @@ export class ClineProvider
 				...options.properties,
 			},
 		}
+	}
+
+	private recordRemoteDebugTaskMessageEvent(task: Task, action: "created" | "updated", message: ClineMessage): void {
+		const messageSummary = this.buildRemoteDebugMessageSummary(message, action)
+		const apiRequest = this.buildRemoteDebugApiRequestSummary(task, message)
+		const severity = this.getRemoteDebugMessageSeverity(messageSummary, apiRequest)
+
+		if (message.partial === true && !apiRequest && severity === "debug" && action === "updated") {
+			return
+		}
+
+		const stage = apiRequest ? "api_request" : "message"
+		const status = apiRequest?.status ?? action
+		const type = apiRequest ? `task.api_request.${status ?? "updated"}` : "task.message"
+
+		this.recordRemoteDebugTaskEvent(task, type, {
+			severity,
+			operation: { stage, status },
+			message: messageSummary,
+			apiRequest,
+			flushImmediately: severity === "error",
+		})
+	}
+
+	private buildRemoteDebugTaskSummary(task: Task, lastMessage?: RemoteDebugMessageSummary): RemoteDebugTaskSummary {
+		const messages = Array.isArray(task.clineMessages) ? task.clineMessages : []
+		const toolUsage = task.toolUsage ?? {}
+		const toolUsageCounts = this.countRemoteDebugToolUsage(toolUsage)
+
+		return {
+			status: typeof task.taskStatus === "string" ? task.taskStatus : undefined,
+			messageCount: messages.length,
+			askCount: messages.filter((message) => message.type === "ask").length,
+			sayCount: messages.filter((message) => message.type === "say").length,
+			apiRequestCount: this.countApiRequestMessages(messages),
+			apiRetryCount: messages.filter((message) => message.type === "say" && message.say === "api_req_retried")
+				.length,
+			apiFailureCount: this.countRemoteDebugApiFailures(messages),
+			toolAttemptCount: toolUsageCounts.attempts,
+			toolFailureCount: toolUsageCounts.failures,
+			consecutiveMistakeCount: this.getFiniteRemoteDebugNumber(task.consecutiveMistakeCount),
+			consecutiveNoToolUseCount: this.getFiniteRemoteDebugNumber(task.consecutiveNoToolUseCount),
+			consecutiveNoAssistantMessagesCount: this.getFiniteRemoteDebugNumber(
+				task.consecutiveNoAssistantMessagesCount,
+			),
+			hasParentTask: Boolean(task.parentTask),
+			hasRootTask: Boolean(task.rootTask),
+			lastMessage: lastMessage ?? this.buildRemoteDebugMessageSummary(messages.at(-1)),
+		}
+	}
+
+	private buildRemoteDebugMessageSummary(
+		message?: ClineMessage,
+		action?: "created" | "updated",
+	): RemoteDebugMessageSummary | undefined {
+		if (!message) {
+			return undefined
+		}
+
+		const textLength = typeof message.text === "string" ? message.text.length : undefined
+		const imageCount = Array.isArray(message.images) ? message.images.length : undefined
+
+		return {
+			action,
+			type: message.type,
+			ask: message.type === "ask" ? message.ask : undefined,
+			say: message.type === "say" ? message.say : undefined,
+			partial: message.partial === true,
+			hasText: typeof textLength === "number" && textLength > 0,
+			textLength,
+			hasImages: typeof imageCount === "number" && imageCount > 0,
+			imageCount,
+			hasReasoning: typeof message.reasoning === "string" && message.reasoning.length > 0,
+			hasCheckpoint: Boolean(message.checkpoint),
+			hasProgressStatus: Boolean(message.progressStatus),
+			hasContextCondense: Boolean(message.contextCondense),
+			hasContextTruncation: Boolean(message.contextTruncation),
+			apiProtocol: message.apiProtocol,
+			isProtected: message.isProtected,
+			isAnswered: message.isAnswered,
+			tool: this.tryGetRemoteDebugMessageToolName(message),
+		}
+	}
+
+	private buildRemoteDebugApiRequestSummary(
+		task: Task,
+		message: ClineMessage,
+	): RemoteDebugApiRequestSummary | undefined {
+		const requestCount = this.countApiRequestMessages(task.clineMessages)
+		const requestIndex =
+			this.getRemoteDebugApiRequestIndex(task.clineMessages, message) ?? (requestCount || undefined)
+		const apiReqInfo = this.tryParseRemoteDebugApiReqInfo(message)
+		const protocol = apiReqInfo?.protocol ?? this.findLatestRemoteDebugApiProtocol(task.clineMessages, message)
+
+		if (message.type === "ask" && message.ask === "api_req_failed") {
+			return { protocol, status: "failed", requestIndex, requestCount }
+		}
+
+		if (message.type !== "say") {
+			return undefined
+		}
+
+		switch (message.say) {
+			case "api_req_started":
+				return {
+					...apiReqInfo,
+					protocol,
+					status: this.getRemoteDebugApiRequestStatus(apiReqInfo),
+					requestIndex,
+					requestCount,
+				}
+			case "api_req_finished":
+				return { protocol, status: "finished", requestIndex, requestCount }
+			case "api_req_retried":
+				return { protocol, status: "retried", requestIndex, requestCount }
+			case "api_req_retry_delayed": {
+				const retryDelayMs = this.extractRemoteDebugRetryDelayMs(message.text)
+				return {
+					protocol,
+					status: message.partial === true ? "retry_delay_countdown" : "retry_delayed",
+					requestIndex,
+					requestCount,
+					retryDelayMs,
+				}
+			}
+			case "api_req_rate_limit_wait":
+				return {
+					protocol,
+					status: "rate_limit_wait",
+					requestIndex,
+					requestCount,
+					retryDelayMs: this.extractRemoteDebugRetryDelayMs(message.text),
+				}
+			case "api_req_deleted":
+				return { protocol, status: "deleted", requestIndex, requestCount }
+			default:
+				return undefined
+		}
+	}
+
+	private getRemoteDebugMessageSeverity(
+		message: RemoteDebugMessageSummary | undefined,
+		apiRequest?: RemoteDebugApiRequestSummary,
+	): RemoteDebugSeverity {
+		if (
+			(message?.say && REMOTE_DEBUG_ERROR_SAY_TYPES.has(message.say)) ||
+			(message?.ask && REMOTE_DEBUG_ERROR_ASK_TYPES.has(message.ask)) ||
+			apiRequest?.status === "failed" ||
+			apiRequest?.streamingFailed === true
+		) {
+			return "error"
+		}
+
+		if (
+			(message?.say && REMOTE_DEBUG_WARNING_SAY_TYPES.has(message.say)) ||
+			(message?.ask && REMOTE_DEBUG_WARNING_ASK_TYPES.has(message.ask)) ||
+			apiRequest?.status === "retried" ||
+			apiRequest?.status === "retry_delayed" ||
+			apiRequest?.status === "retry_delay_countdown" ||
+			apiRequest?.status === "rate_limit_wait" ||
+			apiRequest?.status === "cancelled" ||
+			apiRequest?.status === "deleted"
+		) {
+			return "warn"
+		}
+
+		if (apiRequest || message?.partial === true) {
+			return "debug"
+		}
+
+		return "info"
+	}
+
+	private getRemoteDebugApiRequestStatus(apiReqInfo?: RemoteDebugApiRequestSummary): string {
+		if (apiReqInfo?.streamingFailed === true || apiReqInfo?.cancelReason === "streaming_failed") {
+			return "failed"
+		}
+
+		if (apiReqInfo?.cancelReason) {
+			return "cancelled"
+		}
+
+		if (
+			typeof apiReqInfo?.tokensIn === "number" ||
+			typeof apiReqInfo?.tokensOut === "number" ||
+			typeof apiReqInfo?.cost === "number"
+		) {
+			return "completed"
+		}
+
+		return "started"
+	}
+
+	private tryParseRemoteDebugApiReqInfo(message: ClineMessage): RemoteDebugApiRequestSummary | undefined {
+		if (message.type !== "say" || message.say !== "api_req_started") {
+			return undefined
+		}
+
+		const data = this.tryParseRemoteDebugJsonObject(message.text)
+		const cancelReason = typeof data?.cancelReason === "string" ? data.cancelReason : undefined
+		const streamingFailed = cancelReason === "streaming_failed" || typeof data?.streamingFailedMessage === "string"
+
+		return {
+			protocol: this.getRemoteDebugString(data?.apiProtocol ?? message.apiProtocol),
+			tokensIn: this.getFiniteRemoteDebugNumber(data?.tokensIn),
+			tokensOut: this.getFiniteRemoteDebugNumber(data?.tokensOut),
+			cacheWrites: this.getFiniteRemoteDebugNumber(data?.cacheWrites),
+			cacheReads: this.getFiniteRemoteDebugNumber(data?.cacheReads),
+			cost: this.getFiniteRemoteDebugNumber(data?.cost),
+			cancelReason,
+			streamingFailed,
+		}
+	}
+
+	private tryParseRemoteDebugJsonObject(text: string | undefined): Record<string, unknown> | undefined {
+		if (!text || text.length > REMOTE_DEBUG_MAX_PARSEABLE_MESSAGE_TEXT_LENGTH) {
+			return undefined
+		}
+
+		try {
+			const parsed = JSON.parse(text) as unknown
+			return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+				? (parsed as Record<string, unknown>)
+				: undefined
+		} catch {
+			return undefined
+		}
+	}
+
+	private tryGetRemoteDebugMessageToolName(message: ClineMessage): string | undefined {
+		if (message.ask !== "tool" && message.say !== "tool") {
+			return undefined
+		}
+
+		const parsed = this.tryParseRemoteDebugJsonObject(message.text)
+		return this.getRemoteDebugString(parsed?.tool)
+	}
+
+	private findLatestRemoteDebugApiProtocol(messages: ClineMessage[], message: ClineMessage): string | undefined {
+		const messageIndex = messages.indexOf(message)
+		const searchUntil = messageIndex >= 0 ? messageIndex : messages.length - 1
+
+		for (let index = searchUntil; index >= 0; index--) {
+			const apiReqInfo = this.tryParseRemoteDebugApiReqInfo(messages[index])
+			if (apiReqInfo?.protocol) {
+				return apiReqInfo.protocol
+			}
+		}
+
+		return undefined
+	}
+
+	private getRemoteDebugApiRequestIndex(messages: ClineMessage[], message: ClineMessage): number | undefined {
+		if (message.type === "say" && message.say === "api_req_started") {
+			const apiMessages = messages.filter(
+				(candidate) => candidate.type === "say" && candidate.say === "api_req_started",
+			)
+			const index = apiMessages.indexOf(message)
+			return index >= 0 ? index + 1 : undefined
+		}
+
+		const messageIndex = messages.indexOf(message)
+		if (messageIndex < 0) {
+			return undefined
+		}
+
+		return messages
+			.slice(0, messageIndex + 1)
+			.filter((candidate) => candidate.type === "say" && candidate.say === "api_req_started").length
+	}
+
+	private extractRemoteDebugRetryDelayMs(text: string | undefined): number | undefined {
+		if (!text || text.length > REMOTE_DEBUG_MAX_PARSEABLE_MESSAGE_TEXT_LENGTH) {
+			return undefined
+		}
+
+		const retryTimerMatch = text.match(/<retry_timer>(\d+)<\/retry_timer>/)
+		if (!retryTimerMatch) {
+			return undefined
+		}
+
+		return Number(retryTimerMatch[1]) * 1000
+	}
+
+	private countRemoteDebugApiFailures(messages: ClineMessage[]): number {
+		return messages.filter((message) => {
+			if (message.type === "ask" && message.ask === "api_req_failed") {
+				return true
+			}
+
+			const apiReqInfo = this.tryParseRemoteDebugApiReqInfo(message)
+			return apiReqInfo?.streamingFailed === true || apiReqInfo?.cancelReason === "streaming_failed"
+		}).length
+	}
+
+	private countRemoteDebugToolUsage(toolUsage: ToolUsage): { attempts: number; failures: number } {
+		return Object.values(toolUsage).reduce(
+			(counts, usage) => ({
+				attempts: counts.attempts + (this.getFiniteRemoteDebugNumber(usage?.attempts) ?? 0),
+				failures: counts.failures + (this.getFiniteRemoteDebugNumber(usage?.failures) ?? 0),
+			}),
+			{ attempts: 0, failures: 0 },
+		)
+	}
+
+	private getFiniteRemoteDebugNumber(value: unknown): number | undefined {
+		return typeof value === "number" && Number.isFinite(value) ? value : undefined
+	}
+
+	private getRemoteDebugString(value: unknown): string | undefined {
+		return typeof value === "string" && value.length > 0 ? value : undefined
 	}
 
 	/**

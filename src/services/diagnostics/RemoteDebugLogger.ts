@@ -4,6 +4,89 @@ import { REMOTE_DEBUG_LOGGING_ENDPOINT, type TokenUsage, type ToolUsage } from "
 
 export type RemoteDebugSeverity = "debug" | "info" | "warn" | "error"
 
+export type RemoteDebugOperationSummary = {
+	stage?: string
+	status?: string
+	trigger?: string
+	attempt?: number
+	durationMs?: number
+	result?: string
+}
+
+export type RemoteDebugTaskSummary = {
+	status?: string
+	messageCount?: number
+	askCount?: number
+	sayCount?: number
+	apiRequestCount?: number
+	apiRetryCount?: number
+	apiFailureCount?: number
+	toolAttemptCount?: number
+	toolFailureCount?: number
+	consecutiveMistakeCount?: number
+	consecutiveNoToolUseCount?: number
+	consecutiveNoAssistantMessagesCount?: number
+	hasParentTask?: boolean
+	hasRootTask?: boolean
+	lastMessage?: RemoteDebugMessageSummary
+}
+
+export type RemoteDebugApiRequestSummary = {
+	protocol?: string
+	status?: string
+	requestIndex?: number
+	requestCount?: number
+	retryAttempt?: number
+	retryDelayMs?: number
+	tokensIn?: number
+	tokensOut?: number
+	cacheWrites?: number
+	cacheReads?: number
+	cost?: number
+	cancelReason?: string
+	streamingFailed?: boolean
+}
+
+export type RemoteDebugMessageSummary = {
+	action?: "created" | "updated"
+	type?: "ask" | "say"
+	ask?: string
+	say?: string
+	partial?: boolean
+	hasText?: boolean
+	textLength?: number
+	hasImages?: boolean
+	imageCount?: number
+	hasReasoning?: boolean
+	hasCheckpoint?: boolean
+	hasProgressStatus?: boolean
+	hasContextCondense?: boolean
+	hasContextTruncation?: boolean
+	apiProtocol?: string
+	isProtected?: boolean
+	isAnswered?: boolean
+	tool?: string
+}
+
+export type RemoteDebugDeliverySummary = {
+	status?: string
+	attempt?: number
+	maxRetries?: number
+	retryDelayMs?: number
+	batchEventCount?: number
+	queuedEventCount?: number
+	droppedEventCount?: number
+	requestTimeoutMs?: number
+}
+
+export type RemoteDebugRuntimeSummary = {
+	source?: string
+	origin?: string
+	unhandled?: boolean
+	component?: string
+	operation?: string
+}
+
 export type RemoteDebugEvent = {
 	type: string
 	severity?: RemoteDebugSeverity
@@ -19,6 +102,12 @@ export type RemoteDebugEvent = {
 	modelId?: string
 	tokenUsage?: TokenUsage
 	toolUsage?: ToolUsage
+	operation?: RemoteDebugOperationSummary
+	taskSummary?: RemoteDebugTaskSummary
+	apiRequest?: RemoteDebugApiRequestSummary
+	message?: RemoteDebugMessageSummary
+	delivery?: RemoteDebugDeliverySummary
+	runtime?: RemoteDebugRuntimeSummary
 	error?: unknown
 	properties?: Record<string, unknown>
 }
@@ -50,6 +139,10 @@ type QueueItem = {
 	attempts: number
 }
 
+export type RemoteDebugRecordOptions = {
+	flushImmediately?: boolean
+}
+
 type RemoteDebugLoggerOptions = {
 	fetchImpl?: typeof fetch
 	batchSize?: number
@@ -74,7 +167,7 @@ const MAX_OBJECT_DEPTH = 5
 const SECRET_KEY_PATTERN =
 	/(api[-_]?key|apikey|authorization|auth[-_]?token|access[-_]?token|refresh[-_]?token|password|secret|credential|cookie|bearer|private[-_]?key)/i
 const RAW_CONTENT_KEY_PATTERN =
-	/^(prompt|userPrompt|userMessage|task|text|content|contents|fileContent|fileContents|raw|request|response|headers|env|environment|workspacePath|filePath|path|cwd|clineMessages|apiConversationHistory|images)$/i
+	/^(prompt|userPrompt|userMessage|task|transcript|conversation|conversationHistory|text|content|contents|fileContent|fileContents|raw|request|response|requestBody|responseBody|body|headers|env|environment|environmentDetails|workspace|workspaceName|workspacePath|filePath|path|cwd|command|commandOutput|stdout|stderr|diff|patch|clineMessages|apiConversationHistory|images)$/i
 const HASHED_IDENTIFIER_KEYS = new Set(["taskId", "parentTaskId", "rootTaskId", "agentId"])
 
 const hashIdentifier = (value: string) => crypto.createHash("sha256").update(value).digest("hex").slice(0, 16)
@@ -172,6 +265,12 @@ export const sanitizeRemoteDebugEvent = (event: RemoteDebugEvent): SanitizedRemo
 		modelId: event.modelId ? redactString(event.modelId, 160) : undefined,
 		tokenUsage: sanitizeValue(event.tokenUsage, "tokenUsage") as TokenUsage | undefined,
 		toolUsage: sanitizeValue(event.toolUsage, "toolUsage") as ToolUsage | undefined,
+		operation: sanitizeValue(event.operation, "operation") as RemoteDebugOperationSummary | undefined,
+		taskSummary: sanitizeValue(event.taskSummary, "taskSummary") as RemoteDebugTaskSummary | undefined,
+		apiRequest: sanitizeValue(event.apiRequest, "apiRequest") as RemoteDebugApiRequestSummary | undefined,
+		message: sanitizeValue(event.message, "message") as RemoteDebugMessageSummary | undefined,
+		delivery: sanitizeValue(event.delivery, "delivery") as RemoteDebugDeliverySummary | undefined,
+		runtime: sanitizeValue(event.runtime, "runtime") as RemoteDebugRuntimeSummary | undefined,
 		error: sanitizeRemoteDebugError(event.error),
 		properties: Object.keys(sanitizedProperties).length > 0 ? sanitizedProperties : undefined,
 	}
@@ -201,6 +300,7 @@ export class RemoteDebugLogger {
 	private recentEventTimestamps: number[] = []
 	private backoffUntil = 0
 	private disposed = false
+	private droppedEventsSinceLastFlush = 0
 
 	constructor(
 		private readonly getConfig: () => RemoteDebugLoggerConfig,
@@ -216,7 +316,7 @@ export class RemoteDebugLogger {
 		this.log = options.log
 	}
 
-	record(event: RemoteDebugEvent): void {
+	record(event: RemoteDebugEvent, options: RemoteDebugRecordOptions = {}): void {
 		try {
 			if (this.disposed) {
 				return
@@ -228,15 +328,22 @@ export class RemoteDebugLogger {
 			}
 
 			if (!this.consumeRateLimitSlot()) {
+				this.droppedEventsSinceLastFlush++
 				return
 			}
 
 			this.queue.push({ event: sanitizeRemoteDebugEvent(event), attempts: 0 })
 			if (this.queue.length > this.maxQueueSize) {
-				this.queue.splice(0, this.queue.length - this.maxQueueSize)
+				const droppedCount = this.queue.length - this.maxQueueSize
+				this.queue.splice(0, droppedCount)
+				this.droppedEventsSinceLastFlush += droppedCount
 			}
 
-			if (this.queue.length >= this.batchSize) {
+			if (
+				options.flushImmediately === true ||
+				event.severity === "error" ||
+				this.queue.length >= this.batchSize
+			) {
 				this.scheduleFlush(0)
 			} else {
 				this.scheduleFlush(this.flushIntervalMs)
@@ -282,7 +389,11 @@ export class RemoteDebugLogger {
 
 	private scheduleFlush(delayMs: number): void {
 		if (this.flushTimer) {
-			return
+			if (delayMs > 0) {
+				return
+			}
+
+			this.clearFlushTimer()
 		}
 
 		this.flushTimer = setTimeout(() => {
@@ -325,6 +436,7 @@ export class RemoteDebugLogger {
 		}
 
 		const batch = this.queue.splice(0, this.batchSize)
+		const highestBatchAttempt = batch.reduce((highestAttempt, item) => Math.max(highestAttempt, item.attempts), 0)
 		const controller = new AbortController()
 		const timeout = setTimeout(() => controller.abort(), this.requestTimeoutMs)
 
@@ -345,6 +457,18 @@ export class RemoteDebugLogger {
 					sessionId: config.sessionId,
 					extensionVersion: config.extensionVersion,
 					platform: sanitizeValue(config.platform, "platform"),
+					delivery: sanitizeValue(
+						{
+							status: highestBatchAttempt > 0 ? "retry" : "initial",
+							attempt: highestBatchAttempt + 1,
+							maxRetries: this.maxRetries,
+							batchEventCount: batch.length,
+							queuedEventCount: this.queue.length,
+							droppedEventCount: this.droppedEventsSinceLastFlush || undefined,
+							requestTimeoutMs: this.requestTimeoutMs,
+						},
+						"delivery",
+					),
 					events: batch.map((item) => item.event),
 				}),
 				signal: controller.signal,
@@ -355,6 +479,7 @@ export class RemoteDebugLogger {
 			}
 
 			this.backoffUntil = 0
+			this.droppedEventsSinceLastFlush = 0
 		} catch (error) {
 			this.log?.(
 				`Remote diagnostics flush failed: ${sanitizeRemoteDebugError(error)?.message ?? "unknown error"}`,
@@ -366,11 +491,23 @@ export class RemoteDebugLogger {
 			if (retryable.length > 0) {
 				this.queue.unshift(...retryable)
 				if (this.queue.length > this.maxQueueSize) {
+					const droppedCount = this.queue.length - this.maxQueueSize
 					this.queue.splice(this.maxQueueSize)
+					this.droppedEventsSinceLastFlush += droppedCount
 				}
 
 				const highestAttempt = Math.max(...retryable.map((item) => item.attempts))
 				const backoffMs = Math.min(60_000, 1_000 * 2 ** Math.max(0, highestAttempt - 1))
+				this.enqueueDeliveryStatusEvent({
+					status: "retry_scheduled",
+					attempt: highestAttempt,
+					maxRetries: this.maxRetries,
+					retryDelayMs: backoffMs,
+					batchEventCount: batch.length,
+					queuedEventCount: this.queue.length,
+					droppedEventCount: this.droppedEventsSinceLastFlush || undefined,
+					requestTimeoutMs: this.requestTimeoutMs,
+				})
 				this.backoffUntil = Date.now() + backoffMs
 				this.scheduleFlush(backoffMs)
 			}
@@ -380,6 +517,24 @@ export class RemoteDebugLogger {
 
 		if (!this.disposed && this.queue.length > 0 && Date.now() >= this.backoffUntil) {
 			this.scheduleFlush(this.flushIntervalMs)
+		}
+	}
+
+	private enqueueDeliveryStatusEvent(delivery: RemoteDebugDeliverySummary): void {
+		this.queue.push({
+			event: sanitizeRemoteDebugEvent({
+				type: `diagnostics.delivery.${delivery.status ?? "updated"}`,
+				severity: delivery.status === "retry_scheduled" ? "warn" : "debug",
+				featureArea: "diagnostics",
+				delivery,
+			}),
+			attempts: 0,
+		})
+
+		if (this.queue.length > this.maxQueueSize) {
+			const droppedCount = this.queue.length - this.maxQueueSize
+			this.queue.splice(0, droppedCount)
+			this.droppedEventsSinceLastFlush += droppedCount
 		}
 	}
 }

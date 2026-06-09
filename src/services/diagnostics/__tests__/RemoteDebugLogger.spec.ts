@@ -1,6 +1,11 @@
 import { REMOTE_DEBUG_LOGGING_ENDPOINT } from "@roo-code/types"
 
-import { RemoteDebugLogger, sanitizeRemoteDebugEvent, type RemoteDebugLoggerConfig } from "../RemoteDebugLogger"
+import {
+	RemoteDebugLogger,
+	sanitizeRemoteDebugEvent,
+	type RemoteDebugEvent,
+	type RemoteDebugLoggerConfig,
+} from "../RemoteDebugLogger"
 
 const createSuccessFetchMock = () => vi.fn<typeof fetch>(async () => ({ ok: true, status: 204 }) as Response)
 
@@ -8,19 +13,24 @@ const createLogger = (
 	config: RemoteDebugLoggerConfig,
 	fetchImpl: typeof fetch = createSuccessFetchMock() as unknown as typeof fetch,
 	log?: (message: string) => void,
+	options: { batchSize?: number; flushIntervalMs?: number; maxRetries?: number; requestTimeoutMs?: number } = {},
 ) =>
 	new RemoteDebugLogger(() => config, {
 		fetchImpl,
-		batchSize: 1,
-		flushIntervalMs: 60_000,
-		maxRetries: 0,
-		requestTimeoutMs: 100,
+		batchSize: options.batchSize ?? 1,
+		flushIntervalMs: options.flushIntervalMs ?? 60_000,
+		maxRetries: options.maxRetries ?? 0,
+		requestTimeoutMs: options.requestTimeoutMs ?? 100,
 		log,
 	})
 
 describe("RemoteDebugLogger", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+	})
+
+	afterEach(() => {
+		vi.useRealTimers()
 	})
 
 	it("does not send when remote diagnostics are disabled", async () => {
@@ -98,6 +108,7 @@ describe("RemoteDebugLogger", () => {
 			}),
 		)
 		expect(headers.Authorization).toBeUndefined()
+		expect(Object.keys(headers).some((header) => header.toLowerCase() === "authorization")).toBe(false)
 
 		const payload = JSON.parse(request?.body as string)
 		expect(payload).toEqual(
@@ -112,6 +123,16 @@ describe("RemoteDebugLogger", () => {
 					arch: "x64",
 					vscodeVersion: "1.100.0",
 				},
+			}),
+		)
+		expect(payload.delivery).toEqual(
+			expect.objectContaining({
+				status: "initial",
+				attempt: 1,
+				maxRetries: 0,
+				batchEventCount: 1,
+				queuedEventCount: 0,
+				requestTimeoutMs: 100,
 			}),
 		)
 
@@ -143,6 +164,163 @@ describe("RemoteDebugLogger", () => {
 		expect(serializedPayload).not.toContain("build my private app")
 		expect(serializedPayload).not.toContain("C:\\Users\\clayton")
 		expect(serializedPayload).not.toContain("https://example.com/private")
+	})
+
+	it("preserves structured advanced event summaries while redacting raw diagnostic content", () => {
+		const event = sanitizeRemoteDebugEvent({
+			type: "task.api_request.failed",
+			severity: "error",
+			featureArea: "task",
+			taskId: "task-advanced-id",
+			parentTaskId: "parent-advanced-id",
+			rootTaskId: "root-advanced-id",
+			agentId: "agent-advanced-id",
+			operation: {
+				stage: "api_request",
+				status: "failed",
+				trigger: "message",
+				attempt: 2,
+				durationMs: 345,
+				result: "streaming_failed",
+			},
+			taskSummary: {
+				status: "active",
+				messageCount: 5,
+				askCount: 1,
+				sayCount: 4,
+				apiRequestCount: 2,
+				apiRetryCount: 1,
+				apiFailureCount: 1,
+				toolAttemptCount: 3,
+				toolFailureCount: 1,
+				lastMessage: {
+					type: "ask",
+					ask: "api_req_failed",
+					hasText: true,
+					textLength: 72,
+					text: "raw private prompt",
+				} as any,
+			},
+			apiRequest: {
+				protocol: "anthropic",
+				status: "failed",
+				requestIndex: 2,
+				requestCount: 2,
+				retryAttempt: 1,
+				retryDelayMs: 2_000,
+				tokensIn: 100,
+				tokensOut: 50,
+				cacheWrites: 10,
+				cacheReads: 5,
+				cost: 0.123,
+				cancelReason: "streaming_failed",
+				streamingFailed: true,
+				request: "POST https://example.com/private?token=secret raw private prompt",
+			} as any,
+			message: {
+				action: "created",
+				type: "ask",
+				ask: "api_req_failed",
+				hasText: true,
+				textLength: 1_234,
+				tool: "read_file",
+				text: "C:\\Users\\clayton\\secret.txt raw command output",
+			} as any,
+			runtime: {
+				source: "process",
+				origin: "unhandledRejection",
+				unhandled: true,
+				component: "provider",
+				operation: "stream token=secret-token at https://example.com/private",
+			},
+			properties: {
+				workspaceName: "private-workspace",
+				commandOutput: "secret command output",
+				safeMessage: "Retry scheduled at https://example.com/private from C:\\Users\\clayton\\project",
+				safeCount: 2,
+			},
+		} as RemoteDebugEvent)
+
+		expect(event.taskId).toMatch(/^[a-f0-9]{16}$/)
+		expect(event.taskId).not.toBe("task-advanced-id")
+		expect(event.agentId).toMatch(/^[a-f0-9]{16}$/)
+		expect(event.operation).toEqual(
+			expect.objectContaining({
+				stage: "api_request",
+				status: "failed",
+				attempt: 2,
+				durationMs: 345,
+			}),
+		)
+		expect(event.taskSummary).toEqual(
+			expect.objectContaining({
+				messageCount: 5,
+				apiRequestCount: 2,
+				apiFailureCount: 1,
+				toolFailureCount: 1,
+			}),
+		)
+		expect((event.taskSummary?.lastMessage as any).text).toBe("[REDACTED]")
+		expect(event.apiRequest).toEqual(
+			expect.objectContaining({
+				protocol: "anthropic",
+				status: "failed",
+				requestIndex: 2,
+				tokensIn: 100,
+				streamingFailed: true,
+			}),
+		)
+		expect((event.apiRequest as any).request).toBe("[REDACTED]")
+		expect(event.message).toEqual(
+			expect.objectContaining({
+				action: "created",
+				type: "ask",
+				ask: "api_req_failed",
+				hasText: true,
+				textLength: 1_234,
+				tool: "read_file",
+			}),
+		)
+		expect((event.message as any).text).toBe("[REDACTED]")
+		expect(event.runtime?.operation).toBe("stream token=[REDACTED] at [REDACTED_URL]")
+		expect(event.properties?.workspaceName).toBe("[REDACTED]")
+		expect(event.properties?.commandOutput).toBe("[REDACTED]")
+		expect(event.properties?.safeMessage).toBe("Retry scheduled at [REDACTED_URL] from [REDACTED_PATH]")
+		expect(event.properties?.safeCount).toBe(2)
+
+		const serializedEvent = JSON.stringify(event)
+		expect(serializedEvent).not.toContain("task-advanced-id")
+		expect(serializedEvent).not.toContain("agent-advanced-id")
+		expect(serializedEvent).not.toContain("raw private prompt")
+		expect(serializedEvent).not.toContain("raw command output")
+		expect(serializedEvent).not.toContain("secret-token")
+		expect(serializedEvent).not.toContain("https://example.com/private")
+		expect(serializedEvent).not.toContain("C:\\Users\\clayton")
+	})
+
+	it("flushes error events immediately instead of waiting for the batch interval", async () => {
+		vi.useFakeTimers()
+		const fetchMock = createSuccessFetchMock()
+		const logger = createLogger(
+			{
+				enabled: true,
+			},
+			fetchMock as unknown as typeof fetch,
+			undefined,
+			{ batchSize: 10, flushIntervalMs: 60_000 },
+		)
+
+		logger.record({ type: "task.message", severity: "info" })
+		await vi.advanceTimersByTimeAsync(0)
+		expect(fetchMock).not.toHaveBeenCalled()
+
+		logger.record({ type: "runtime.error", severity: "error", error: new Error("unhandled runtime error") })
+		await vi.advanceTimersByTimeAsync(0)
+
+		expect(fetchMock).toHaveBeenCalledTimes(1)
+		const [, request] = fetchMock.mock.calls[0]
+		const payload = JSON.parse(request?.body as string) as { events: Array<{ type: string }> }
+		expect(payload.events.map((event) => event.type)).toEqual(["task.message", "runtime.error"])
 	})
 
 	it("redacts secrets, raw content, paths, URLs, and environment data", () => {

@@ -873,7 +873,7 @@ describe("ClineProvider", () => {
 			})
 
 			await vi.waitFor(() => expect(recordSpy).toHaveBeenCalledTimes(1))
-			expect(recordSpy).toHaveBeenCalledWith(
+			expect(recordSpy.mock.calls[0][0]).toEqual(
 				expect.objectContaining({
 					type: "task.completed",
 					taskId: "task-remote-debug",
@@ -886,6 +886,167 @@ describe("ClineProvider", () => {
 			setDebugSetting(false)
 			;(provider as any).recordRemoteDebugTaskEvent(task, "task.completed")
 			expect(recordSpy).not.toHaveBeenCalled()
+		})
+
+		test("records privacy-safe message and API request summaries without raw message text", async () => {
+			setDebugSetting(false)
+			const recordSpy = vi.spyOn((provider as any).remoteDebugLogger, "record").mockImplementation(() => {})
+			const task = new Task({
+				...defaultTaskOptions,
+				taskId: "task-api-summary",
+				apiConfiguration: {
+					apiProvider: "anthropic",
+					apiModelId: "claude-sonnet-4",
+				},
+			} as any)
+			;(provider as any).taskCreationCallback(task)
+
+			setDebugSetting(true)
+			const apiRequestText = JSON.stringify({
+				apiProtocol: "anthropic",
+				tokensIn: 123,
+				tokensOut: 45,
+				cacheWrites: 6,
+				cacheReads: 7,
+				cost: 0.89,
+				request:
+					"POST https://example.com/private?token=secret C:\\Users\\clayton\\prompt.txt raw private prompt",
+			})
+			const message: ClineMessage = {
+				type: "say",
+				say: "api_req_started",
+				text: apiRequestText,
+				partial: false,
+				ts: 1_700_000_010,
+			}
+
+			task.clineMessages.push(message)
+			task.emit(RooCodeEventName.Message, { action: "updated", message })
+
+			await vi.waitFor(() => expect(recordSpy).toHaveBeenCalledTimes(1))
+			const [event, recordOptions] = recordSpy.mock.calls[0] as [any, any]
+
+			expect(recordOptions).toEqual({ flushImmediately: false })
+			expect(event).toEqual(
+				expect.objectContaining({
+					type: "task.api_request.completed",
+					severity: "debug",
+					featureArea: "task",
+					taskId: "task-api-summary",
+					provider: "anthropic",
+					modelId: "claude-sonnet-4",
+					operation: {
+						stage: "api_request",
+						status: "completed",
+					},
+				}),
+			)
+			expect(event.apiRequest).toEqual(
+				expect.objectContaining({
+					protocol: "anthropic",
+					status: "completed",
+					requestIndex: 1,
+					requestCount: 1,
+					tokensIn: 123,
+					tokensOut: 45,
+					cacheWrites: 6,
+					cacheReads: 7,
+					cost: 0.89,
+				}),
+			)
+			expect(event.apiRequest.request).toBeUndefined()
+			expect(event.message).toEqual(
+				expect.objectContaining({
+					action: "updated",
+					type: "say",
+					say: "api_req_started",
+					hasText: true,
+					textLength: apiRequestText.length,
+				}),
+			)
+			expect(event.message.text).toBeUndefined()
+			expect(event.taskSummary).toEqual(
+				expect.objectContaining({
+					messageCount: 1,
+					askCount: 0,
+					sayCount: 1,
+					apiRequestCount: 1,
+					apiFailureCount: 0,
+					lastMessage: event.message,
+				}),
+			)
+
+			const serializedEvent = JSON.stringify(event)
+			expect(serializedEvent).not.toContain("raw private prompt")
+			expect(serializedEvent).not.toContain("C:\\Users\\clayton")
+			expect(serializedEvent).not.toContain("https://example.com/private")
+			expect(serializedEvent).not.toContain("token=secret")
+		})
+
+		test("flushes tool failures immediately with sanitized tool diagnostics", async () => {
+			setDebugSetting(false)
+			const recordSpy = vi.spyOn((provider as any).remoteDebugLogger, "record").mockImplementation(() => {})
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-tool-failure" } as any)
+			;(provider as any).taskCreationCallback(task)
+
+			setDebugSetting(true)
+			const rawToolError = "raw command output token=secret-token at C:\\Users\\clayton\\project\\file.ts"
+			task.emit(RooCodeEventName.TaskToolFailed, task.taskId, "read_file", rawToolError)
+
+			await vi.waitFor(() => expect(recordSpy).toHaveBeenCalledTimes(1))
+			const [event, recordOptions] = recordSpy.mock.calls[0] as [any, any]
+
+			expect(recordOptions).toEqual({ flushImmediately: true })
+			expect(event).toEqual(
+				expect.objectContaining({
+					type: "task.tool_failed",
+					severity: "error",
+					operation: { stage: "tool", status: "failed" },
+					message: { tool: "read_file" },
+				}),
+			)
+			expect(event.error).toBeInstanceOf(Error)
+			expect(event.error.message).toBe("Tool execution failed")
+			expect(event.properties).toEqual(
+				expect.objectContaining({
+					eventTaskIdMatches: true,
+					errorLength: rawToolError.length,
+				}),
+			)
+			expect(JSON.stringify(event)).not.toContain(rawToolError)
+			expect(JSON.stringify(event)).not.toContain("secret-token")
+			expect(JSON.stringify(event)).not.toContain("C:\\Users\\clayton")
+		})
+
+		test("records runtime errors for the active debug-enabled provider with immediate flushing", async () => {
+			setDebugSetting(true)
+			const recordSpy = vi.spyOn((provider as any).remoteDebugLogger, "record").mockImplementation(() => {})
+
+			;(ClineProvider as any).recordRemoteDebugRuntimeErrorForActiveInstance(
+				new Error("Unhandled rejection token=secret-token at https://example.com/private"),
+				{
+					source: "process",
+					origin: "unhandledRejection",
+					unhandled: true,
+				},
+			)
+
+			await vi.waitFor(() => expect(recordSpy).toHaveBeenCalledTimes(1))
+			const [event, recordOptions] = recordSpy.mock.calls[0] as [any, any]
+
+			expect(recordOptions).toEqual({ flushImmediately: true })
+			expect(event).toEqual(
+				expect.objectContaining({
+					type: "runtime.error",
+					severity: "error",
+					featureArea: "runtime",
+					runtime: {
+						source: "process",
+						origin: "unhandledRejection",
+						unhandled: true,
+					},
+				}),
+			)
 		})
 	})
 

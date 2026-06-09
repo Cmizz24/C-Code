@@ -27,6 +27,7 @@ Remote diagnostic logging sends sanitized C-Code extension diagnostics to the fi
 - **No Authorization header:** Diagnostic requests do not include a Bearer token or other user-provided secret.
 - **Fail closed:** Disabled debug mode, invalid internal endpoint configuration, unreachable servers, and failed sends never interrupt extension workflows.
 - **Non-blocking delivery:** Events are queued, batched, rate limited, retried with backoff, and dropped silently after retry limits.
+- **Operational metadata only:** Events include structured summaries for lifecycle, API-request, message, tool, delivery, and runtime-error diagnostics, never raw task content.
 
 ---
 
@@ -50,6 +51,7 @@ C-Code does **not** send these by default:
 - API keys, auth tokens, passwords, cookies, credentials, private keys, or other secrets
 - Raw prompts, user messages, transcripts, or conversation history
 - Full file contents or raw request/response bodies
+- Command output, stdout/stderr, raw shell text, or generated diffs/patches
 - Workspace paths, file paths, current working directories, or environment variables
 - Raw URLs, raw headers, or images
 - User-entered diagnostics tokens, because there is no diagnostics token setting
@@ -62,7 +64,11 @@ Safe fields may include:
 - Event type, timestamp, severity, and feature area
 - Safe mode/provider/tool/model names
 - Redacted error message and stack details
+- Safe task lifecycle/status counts, such as message counts, API request counts, retry counts, and tool failure counts
+- Safe API request summaries, such as request index, status, retry delay, protocol, token counts, cache counts, cost, cancel reason, and streaming-failure flags
+- Safe message metadata, such as message type, ask/say category, partial flag, text length, image count, and tool name
 - Safe token, cost, and tool-usage summaries
+- Runtime error summaries, such as source, origin, component, operation label, and whether the error was unhandled
 - Hashed task/agent identifiers
 
 Sensitive-looking values are redacted before sending. Task and agent identifiers are hashed, so the receiver can correlate related diagnostic events without receiving the original IDs.
@@ -97,6 +103,14 @@ Example body:
 		"arch": "x64",
 		"vscodeVersion": "1.100.0"
 	},
+	"delivery": {
+		"status": "initial",
+		"attempt": 1,
+		"maxRetries": 3,
+		"batchEventCount": 2,
+		"queuedEventCount": 0,
+		"requestTimeoutMs": 5000
+	},
 	"events": [
 		{
 			"type": "task.completed",
@@ -117,9 +131,50 @@ Example body:
 					"failures": 0
 				}
 			},
+			"operation": {
+				"stage": "lifecycle",
+				"status": "completed"
+			},
+			"taskSummary": {
+				"status": "completed",
+				"messageCount": 14,
+				"askCount": 3,
+				"sayCount": 11,
+				"apiRequestCount": 2,
+				"apiRetryCount": 0,
+				"apiFailureCount": 0,
+				"toolAttemptCount": 2,
+				"toolFailureCount": 0,
+				"hasParentTask": false,
+				"hasRootTask": false,
+				"lastMessage": {
+					"type": "say",
+					"say": "completion_result",
+					"hasText": true,
+					"textLength": 142
+				}
+			},
 			"properties": {
 				"outcome": "completed",
 				"background": false
+			}
+		},
+		{
+			"type": "runtime.error",
+			"severity": "error",
+			"timestamp": "2026-06-08T23:00:01.000Z",
+			"featureArea": "runtime",
+			"taskId": "7f2a1d0e8b9c4a11",
+			"runtime": {
+				"source": "process",
+				"origin": "unhandledRejection",
+				"unhandled": true,
+				"component": "provider"
+			},
+			"error": {
+				"name": "Error",
+				"message": "Request failed at [REDACTED_URL]",
+				"stack": "Error: Request failed at [REDACTED_URL]"
 			}
 		}
 	]
@@ -127,6 +182,19 @@ Example body:
 ```
 
 Treat the schema as versioned by `version` and `X-C-Code-Diagnostics-Version`. Receivers should ignore unknown fields for forward compatibility.
+
+### Event coverage
+
+When debug mode is enabled, C-Code may emit sanitized events for:
+
+- Task creation, start, completion, abort, focus, pause, resume, idle, active, interactive, resumable, spawned, and user-message lifecycle transitions.
+- Message creation/update metadata, including API request lifecycle messages such as started, finished, retried, retry delayed, rate-limit wait, deleted, and failed.
+- Token and tool usage updates, including aggregate tool attempts and failures.
+- Tool failures surfaced by runtime events. These are recorded as error severity and request immediate flush.
+- Extension-process runtime errors, including unhandled rejections and uncaught exception monitor notifications. These are recorded as error severity and request immediate flush.
+- Delivery metadata for retries, queued events, dropped events, timeouts, and retry scheduling.
+
+Error-severity events and explicit immediate-flush events are queued and flushed as soon as practical. The flush remains non-blocking and fail-closed; it must not slow or crash task execution.
 
 ---
 
@@ -137,6 +205,7 @@ The fixed receiver at `https://cmtesting.site/api/extension/debug-log` should:
 - Accept only `POST` with `Content-Type: application/json`.
 - Require TLS and redirect or reject cleartext HTTP.
 - Validate `version`, `source`, `sentAt`, top-level metadata, event array size, and event field types.
+- Validate optional `delivery`, `operation`, `taskSummary`, `apiRequest`, `message`, `runtime`, `tokenUsage`, and `toolUsage` objects by allowlisted fields and type checks.
 - Enforce small payload limits; C-Code sends structured metadata, not content.
 - Return any `2xx` status for successful ingestion.
 - Return `429` when intentionally rate limiting.
@@ -250,6 +319,8 @@ export async function POST(request: NextRequest) {
 - Prefer storing only the fields you need for troubleshooting.
 - Use retention policies to delete old diagnostic events.
 - Consider optional server-side install/session allowlisting when investigating a specific incident.
+- Treat every received value as untrusted even though the extension sanitizes before sending.
+- Avoid rehydrating or enriching diagnostic payloads with raw prompts, transcripts, command output, file contents, paths, headers, query strings, or environment data.
 
 ---
 
