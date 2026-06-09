@@ -548,6 +548,10 @@ describe("ClineProvider", () => {
 		AgentBus.reset()
 		;(vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: "/test/workspace" } }]
 		;(vscode.workspace as any).textDocuments = []
+		;(vscode.workspace.getConfiguration as any).mockReturnValue({
+			get: vi.fn().mockReturnValue(undefined),
+			update: vi.fn(),
+		})
 		;(vscode.workspace.getWorkspaceFolder as any).mockReturnValue({ uri: { fsPath: "/test/workspace" } })
 		;(vscode.workspace.openTextDocument as any).mockImplementation(
 			async (uriOrPath: string | { fsPath?: string; scheme?: string }) => ({
@@ -725,6 +729,15 @@ describe("ClineProvider", () => {
 			read_file: { attempts: 2, failures: 1 },
 		}) as ToolUsage
 
+	const setDebugSetting = (enabled: boolean) => {
+		const get = vi.fn((key: string, defaultValue?: unknown) => (key === "debug" ? enabled : defaultValue))
+		;(vscode.workspace.getConfiguration as any).mockReturnValue({
+			get,
+			update: vi.fn(),
+		})
+		return get
+	}
+
 	const installEmailNotificationServiceMock = (
 		sendTaskNotification = vi.fn().mockResolvedValue({ attempted: true, sent: true }),
 	) => {
@@ -813,6 +826,67 @@ describe("ClineProvider", () => {
 		// @ts-ignore - accessing private property for testing
 		provider.view = mockWebviewView
 		expect(ClineProvider.getVisibleInstance()).toBe(provider)
+	})
+
+	describe("remote diagnostic debug opt-in", () => {
+		test("keeps remote diagnostics disabled by default without creating an install id", () => {
+			const config = (provider as any).getRemoteDebugLoggerConfig()
+
+			expect(config.enabled).toBe(false)
+			expect(config.installId).toBeUndefined()
+			expect(mockContext.globalState.update).not.toHaveBeenCalledWith(
+				"remoteDebugLoggingInstallId",
+				expect.any(String),
+			)
+		})
+
+		test("enables remote diagnostics from the VS Code debug setting without endpoint or token config", () => {
+			setDebugSetting(true)
+
+			const config = (provider as any).getRemoteDebugLoggerConfig()
+
+			expect(config.enabled).toBe(true)
+			expect(config.installId).toEqual(expect.any(String))
+			expect(config.endpoint).toBeUndefined()
+			expect(config.authToken).toBeUndefined()
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("remoteDebugLoggingInstallId", config.installId)
+		})
+
+		test("records task diagnostics only while debug mode is enabled", async () => {
+			const recordSpy = vi.spyOn((provider as any).remoteDebugLogger, "record").mockImplementation(() => {})
+			const task = new Task({
+				...defaultTaskOptions,
+				taskId: "task-remote-debug",
+				apiConfiguration: {
+					apiProvider: "openrouter",
+					apiModelId: "openrouter/model",
+				},
+			} as any)
+
+			setDebugSetting(false)
+			;(provider as any).recordRemoteDebugTaskEvent(task, "task.started")
+			expect(recordSpy).not.toHaveBeenCalled()
+
+			setDebugSetting(true)
+			;(provider as any).recordRemoteDebugTaskEvent(task, "task.completed", {
+				properties: { outcome: "completed" },
+			})
+
+			await vi.waitFor(() => expect(recordSpy).toHaveBeenCalledTimes(1))
+			expect(recordSpy).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "task.completed",
+					taskId: "task-remote-debug",
+					provider: "openrouter",
+					modelId: "openrouter/model",
+				}),
+			)
+
+			recordSpy.mockClear()
+			setDebugSetting(false)
+			;(provider as any).recordRemoteDebugTaskEvent(task, "task.completed")
+			expect(recordSpy).not.toHaveBeenCalled()
+		})
 	})
 
 	describe("email notification lifecycle dispatch", () => {
@@ -7496,7 +7570,7 @@ describe("ClineProvider - Router Models", () => {
 		await messageHandler({ type: "requestRouterModels" })
 
 		// Verify getModels was called for each provider with correct options
-		expect(getModels).toHaveBeenCalledWith({ provider: "openrouter" })
+		expect(getModels).toHaveBeenCalledWith({ provider: "openrouter", apiKey: "openrouter-key" })
 		expect(getModels).toHaveBeenCalledWith({ provider: "requesty", apiKey: "requesty-key" })
 		expect(getModels).toHaveBeenCalledWith({ provider: "unbound" })
 		expect(getModels).toHaveBeenCalledWith({ provider: "vercel-ai-gateway" })

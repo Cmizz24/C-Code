@@ -38,7 +38,6 @@ import {
 	type ExperimentId,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 	DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
-	DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT,
 	normalizeParallelTaskConcurrency,
 } from "@roo-code/types"
 
@@ -207,10 +206,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		smtpRecipientsText,
 		smtpSubjectTemplate,
 		smtpPasswordConfigured,
-		remoteDebugLoggingEnabled,
-		remoteDebugLoggingEndpoint,
-		remoteDebugLoggingAuthToken,
-		remoteDebugLoggingAuthTokenConfigured,
 		terminalOutputPreviewSize,
 		terminalShellIntegrationTimeout,
 		terminalShellIntegrationDisabled, // Added from upstream
@@ -567,8 +562,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				smtpFromAddress: smtpFromAddress ?? "",
 				smtpRecipients: smtpRecipients ?? [],
 				smtpSubjectTemplate: smtpSubjectTemplate ?? "",
-				remoteDebugLoggingEnabled: remoteDebugLoggingEnabled ?? false,
-				remoteDebugLoggingEndpoint: remoteDebugLoggingEndpoint?.trim() || DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT,
 				enableCheckpoints: enableCheckpoints ?? false,
 				checkpointTimeout: checkpointTimeout ?? DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 				writeDelayMs,
@@ -642,19 +635,13 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				customSupportPrompts,
 			} as Partial<ExtensionStateContextType> & {
 				smtpPassword?: string
-				remoteDebugLoggingAuthToken?: string
 			}
 
 			if (smtpPassword && smtpPassword.length > 0) {
 				updatedSettings.smtpPassword = smtpPassword
 			}
 
-			if (remoteDebugLoggingAuthToken && remoteDebugLoggingAuthToken.length > 0) {
-				updatedSettings.remoteDebugLoggingAuthToken = remoteDebugLoggingAuthToken
-			}
-
 			const savedSmtpPassword = Boolean(updatedSettings.smtpPassword)
-			const savedRemoteDebugLoggingAuthToken = Boolean(updatedSettings.remoteDebugLoggingAuthToken)
 
 			vscode.postMessage({
 				type: "updateSettings",
@@ -670,14 +657,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 
 			if (savedSmtpPassword) {
 				setCachedState((prevState) => ({ ...prevState, smtpPassword: "", smtpPasswordConfigured: true }))
-			}
-
-			if (savedRemoteDebugLoggingAuthToken) {
-				setCachedState((prevState) => ({
-					...prevState,
-					remoteDebugLoggingAuthToken: "",
-					remoteDebugLoggingAuthTokenConfigured: true,
-				}))
 			}
 		}
 	}
@@ -1212,27 +1191,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 						)}
 
 						{/* About Section */}
-						{renderTab === "about" && (
-							<About
-								debug={cachedState.debug}
-								setDebug={setDebug}
-								remoteDebugLoggingEnabled={remoteDebugLoggingEnabled ?? false}
-								remoteDebugLoggingEndpoint={
-									remoteDebugLoggingEndpoint ?? DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT
-								}
-								remoteDebugLoggingAuthToken={remoteDebugLoggingAuthToken ?? ""}
-								remoteDebugLoggingAuthTokenConfigured={remoteDebugLoggingAuthTokenConfigured ?? false}
-								setRemoteDebugLoggingEnabled={(enabled) =>
-									setCachedStateField("remoteDebugLoggingEnabled", enabled)
-								}
-								setRemoteDebugLoggingEndpoint={(endpoint) =>
-									setCachedStateField("remoteDebugLoggingEndpoint", endpoint)
-								}
-								setRemoteDebugLoggingAuthToken={(token) =>
-									setCachedStateField("remoteDebugLoggingAuthToken", token)
-								}
-							/>
-						)}
+						{renderTab === "about" && <About debug={cachedState.debug} setDebug={setDebug} />}
 					</SearchIndexProvider>
 				</TabContent>
 			</div>

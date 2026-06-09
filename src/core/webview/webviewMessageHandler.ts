@@ -22,7 +22,6 @@ import {
 	ExperimentId,
 	RooCodeEventName,
 	normalizeParallelTaskConcurrency,
-	DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT,
 	checkoutDiffPayloadSchema,
 	checkoutRestorePayloadSchema,
 	type RouterModels,
@@ -825,11 +824,6 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 						changeLanguage(newValue as Language)
 					} else if (key === "maxConcurrentParallelTasks") {
 						newValue = normalizeParallelTaskConcurrency(value)
-					} else if (key === "remoteDebugLoggingEndpoint") {
-						newValue =
-							typeof value === "string" && value.trim().length > 0
-								? value.trim()
-								: DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT
 					} else if (key === "allowedCommands") {
 						const commands = value ?? []
 

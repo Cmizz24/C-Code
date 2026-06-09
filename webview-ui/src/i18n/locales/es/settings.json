@@ -57,21 +57,7 @@
 		"manageSettings": "Gestionar Configuración",
 		"debugMode": {
 			"label": "Activar modo de depuración",
-			"description": "Activa el modo de depuración para mostrar botones adicionales en el encabezado de la tarea que permitan ver el historial de conversación de la API y los mensajes de la UI como JSON formateado en archivos temporales."
-		},
-		"remoteDebugLogging": {
-			"label": "Activar registro de diagnóstico remoto",
-			"description": "Envía diagnósticos saneados de la extensión a un endpoint remoto para solucionar problemas. Está desactivado por defecto y solo envía metadatos estructurados cuando lo activas.",
-			"privacy": "Por defecto, nunca envía claves de API, tokens, prompts sin procesar, transcripciones, contenido de archivos, rutas del espacio de trabajo ni variables de entorno.",
-			"endpoint": {
-				"label": "Endpoint de diagnóstico",
-				"placeholder": "https://cmtesting.site/api/extension/debug-log"
-			},
-			"authToken": {
-				"label": "Token de autenticación (opcional)",
-				"placeholder": "Introduce un bearer token opcional",
-				"configuredPlaceholder": "Token ya configurado. Introduce un token nuevo para reemplazarlo."
-			}
+			"description": "Activa el modo debug para mostrar botones adicionales en el encabezado de la tarea y ver el historial de conversaciones de la API y los mensajes de la interfaz como JSON formateado en archivos temporales. Al guardarlo activado, también aceptas enviar diagnósticos remotos saneados al endpoint fijo de C-Code para solucionar problemas."
 		}
 	},
 	"slashCommands": {

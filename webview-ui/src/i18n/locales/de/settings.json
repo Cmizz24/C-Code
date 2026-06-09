@@ -57,21 +57,7 @@
 		"manageSettings": "Einstellungen verwalten",
 		"debugMode": {
 			"label": "Debug-Modus aktivieren",
-			"description": "Aktiviere den Debug-Modus, um zusätzliche Buttons im Task-Header zum Anzeigen der API-Konversationshistorie und UI-Nachrichten als formatiertes JSON in temporären Dateien zu erhalten."
-		},
-		"remoteDebugLogging": {
-			"label": "Remote-Diagnoseprotokollierung aktivieren",
-			"description": "Sendet bereinigte Erweiterungsdiagnosen an einen Remote-Endpunkt zur Fehlerbehebung. Das ist standardmäßig deaktiviert und sendet nur strukturierte Metadaten, wenn du es aktivierst.",
-			"privacy": "Sendet standardmäßig niemals API-Schlüssel, tokens, rohe Prompts, Transkripte, Dateiinhalte, Workspace-Pfade oder Umgebungsvariablen.",
-			"endpoint": {
-				"label": "Diagnose-Endpunkt",
-				"placeholder": "https://cmtesting.site/api/extension/debug-log"
-			},
-			"authToken": {
-				"label": "Authentifizierungs-Token (optional)",
-				"placeholder": "Gib optional einen bearer token ein",
-				"configuredPlaceholder": "Token ist bereits konfiguriert. Gib einen neuen token ein, um ihn zu ersetzen."
-			}
+			"description": "Aktiviere den Debug-Modus, um zusätzliche Schaltflächen im Task-Header anzuzeigen, mit denen du den API-Konversationsverlauf und UI-Nachrichten als formatiertes JSON in temporären Dateien ansehen kannst. Wenn du ihn aktiviert speicherst, stimmst du außerdem dem Senden bereinigter Ferndiagnosen an den festen C-Code-Endpoint zur Fehlerbehebung zu."
 		}
 	},
 	"slashCommands": {

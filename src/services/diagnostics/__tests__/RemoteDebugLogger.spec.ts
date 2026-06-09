@@ -1,4 +1,4 @@
-import { DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT } from "@roo-code/types"
+import { REMOTE_DEBUG_LOGGING_ENDPOINT } from "@roo-code/types"
 
 import { RemoteDebugLogger, sanitizeRemoteDebugEvent, type RemoteDebugLoggerConfig } from "../RemoteDebugLogger"
 
@@ -28,7 +28,6 @@ describe("RemoteDebugLogger", () => {
 		const logger = createLogger(
 			{
 				enabled: false,
-				endpoint: DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT,
 			},
 			fetchMock as unknown as typeof fetch,
 		)
@@ -45,29 +44,11 @@ describe("RemoteDebugLogger", () => {
 		expect(fetchMock).not.toHaveBeenCalled()
 	})
 
-	it("drops events for invalid or non-HTTPS endpoints", async () => {
-		const fetchMock = createSuccessFetchMock()
-		const logger = createLogger(
-			{
-				enabled: true,
-				endpoint: "http://cmtesting.site/api/extension/debug-log",
-			},
-			fetchMock as unknown as typeof fetch,
-		)
-
-		logger.record({ type: "task.started" })
-		await logger.flushNow()
-
-		expect(fetchMock).not.toHaveBeenCalled()
-	})
-
 	it("sends sanitized batches when enabled", async () => {
 		const fetchMock = createSuccessFetchMock()
 		const logger = createLogger(
 			{
 				enabled: true,
-				endpoint: DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT,
-				authToken: "server-token",
 				installId: "install-id",
 				sessionId: "session-id",
 				extensionVersion: "1.2.3",
@@ -101,7 +82,7 @@ describe("RemoteDebugLogger", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(1)
 
 		const [endpoint, request] = fetchMock.mock.calls[0]
-		expect(endpoint).toBe(DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT)
+		expect(endpoint).toBe(REMOTE_DEBUG_LOGGING_ENDPOINT)
 		expect(request).toEqual(
 			expect.objectContaining({
 				method: "POST",
@@ -114,9 +95,9 @@ describe("RemoteDebugLogger", () => {
 			expect.objectContaining({
 				"Content-Type": "application/json",
 				"X-C-Code-Diagnostics-Version": "1",
-				Authorization: "Bearer server-token",
 			}),
 		)
+		expect(headers.Authorization).toBeUndefined()
 
 		const payload = JSON.parse(request?.body as string)
 		expect(payload).toEqual(
@@ -213,7 +194,6 @@ describe("RemoteDebugLogger", () => {
 		const logger = createLogger(
 			{
 				enabled: true,
-				endpoint: DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT,
 			},
 			fetchMock as unknown as typeof fetch,
 			log,

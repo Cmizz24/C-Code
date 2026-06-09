@@ -17,7 +17,6 @@ import {
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 	DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
-	DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT,
 } from "@roo-code/types"
 
 import { findLastIndex } from "@roo/array"
@@ -137,7 +136,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	skills?: SkillMetadata[]
 	smtpPassword?: string // Local-only pending password entry; never populated from extension state.
 	smtpRecipientsText?: string // Local-only textarea buffer mapped to smtpRecipients on save.
-	remoteDebugLoggingAuthToken?: string // Local-only pending token entry; never populated from extension state.
 }
 
 const extensionStateContextKey = Symbol.for("roo-code.webview.ExtensionStateContext")
@@ -213,9 +211,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		smtpRecipients: [],
 		smtpSubjectTemplate: "",
 		smtpPasswordConfigured: false,
-		remoteDebugLoggingEnabled: false,
-		remoteDebugLoggingEndpoint: DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT,
-		remoteDebugLoggingAuthTokenConfigured: false,
 		enableCheckpoints: true,
 		checkpointTimeout: DEFAULT_CHECKPOINT_TIMEOUT_SECONDS, // Default to 15 seconds
 		language: "en", // Default language code

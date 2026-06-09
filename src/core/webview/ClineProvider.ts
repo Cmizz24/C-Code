@@ -56,7 +56,6 @@ import {
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_MODES,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
-	DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT,
 	applyCloudflareWorkersAiImageUsageUpdate,
 	getModelId,
 	isRetiredProvider,
@@ -694,14 +693,15 @@ export class ClineProvider
 		}
 	}
 
+	private isDebugModeEnabled(): boolean {
+		return vscode.workspace.getConfiguration(Package.name).get<boolean>("debug", false) === true
+	}
+
 	private getRemoteDebugLoggerConfig(): RemoteDebugLoggerConfig {
-		const stateValues = this.contextProxy.getValues()
-		const enabled = stateValues.remoteDebugLoggingEnabled === true
+		const enabled = this.isDebugModeEnabled()
 
 		return {
 			enabled,
-			endpoint: stateValues.remoteDebugLoggingEndpoint?.trim() || DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT,
-			authToken: enabled ? this.contextProxy.getSecret("remoteDebugLoggingAuthToken") : undefined,
 			installId: enabled ? this.getOrCreateRemoteDebugLoggingInstallId() : undefined,
 			sessionId: this.remoteDebugSessionId,
 			extensionVersion: this.context.extension?.packageJSON?.version ?? "",
@@ -760,7 +760,7 @@ export class ClineProvider
 			properties?: Record<string, unknown>
 		} = {},
 	): void {
-		if (this.contextProxy.getValues().remoteDebugLoggingEnabled !== true) {
+		if (!this.isDebugModeEnabled()) {
 			return
 		}
 
@@ -4307,9 +4307,6 @@ export class ClineProvider
 			smtpRecipients,
 			smtpSubjectTemplate,
 			smtpPasswordConfigured,
-			remoteDebugLoggingEnabled,
-			remoteDebugLoggingEndpoint,
-			remoteDebugLoggingAuthTokenConfigured,
 			enableCheckpoints,
 			checkpointTimeout,
 			taskHistory,
@@ -4443,9 +4440,6 @@ export class ClineProvider
 			smtpRecipients: smtpRecipients ?? [],
 			smtpSubjectTemplate: smtpSubjectTemplate ?? "",
 			smtpPasswordConfigured: smtpPasswordConfigured ?? false,
-			remoteDebugLoggingEnabled: remoteDebugLoggingEnabled ?? false,
-			remoteDebugLoggingEndpoint: remoteDebugLoggingEndpoint ?? DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT,
-			remoteDebugLoggingAuthTokenConfigured: remoteDebugLoggingAuthTokenConfigured ?? false,
 			enableCheckpoints: enableCheckpoints ?? true,
 			checkpointTimeout: checkpointTimeout ?? DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
@@ -4640,9 +4634,6 @@ export class ClineProvider
 			smtpRecipients: stateValues.smtpRecipients ?? [],
 			smtpSubjectTemplate: stateValues.smtpSubjectTemplate ?? "",
 			smtpPasswordConfigured: Boolean(this.contextProxy.getSecret("smtpPassword")),
-			remoteDebugLoggingEnabled: stateValues.remoteDebugLoggingEnabled ?? false,
-			remoteDebugLoggingEndpoint: stateValues.remoteDebugLoggingEndpoint ?? DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT,
-			remoteDebugLoggingAuthTokenConfigured: Boolean(this.contextProxy.getSecret("remoteDebugLoggingAuthToken")),
 			enableCheckpoints: stateValues.enableCheckpoints ?? true,
 			checkpointTimeout: stateValues.checkpointTimeout ?? DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 			soundVolume: stateValues.soundVolume,

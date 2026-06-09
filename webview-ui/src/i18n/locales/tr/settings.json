@@ -57,21 +57,7 @@
 		"manageSettings": "Ayarları Yönet",
 		"debugMode": {
 			"label": "Debug modunu etkinleştir",
-			"description": "Görev başlığında API konuşma geçmişini ve UI mesajlarını geçici dosyalarda biçimlendirilmiş JSON olarak görüntülemek için ek düğmeler göstermek üzere debug modunu etkinleştirin."
-		},
-		"remoteDebugLogging": {
-			"label": "Uzaktan tanılama günlüklerini etkinleştir",
-			"description": "Sorun giderme için temizlenmiş eklenti tanılamalarını uzak bir endpoint'e gönder. Bu varsayılan olarak kapalıdır ve etkinleştirildiğinde yalnızca yapılandırılmış metadata gönderir.",
-			"privacy": "Varsayılan olarak API keys, tokens, ham prompts, transcriptler, dosya içerikleri, workspace yolları veya environment variables asla gönderilmez.",
-			"endpoint": {
-				"label": "Tanılama endpoint'i",
-				"placeholder": "https://cmtesting.site/api/extension/debug-log"
-			},
-			"authToken": {
-				"label": "Kimlik doğrulama token'ı (isteğe bağlı)",
-				"placeholder": "İsteğe bağlı bearer token gir",
-				"configuredPlaceholder": "Token zaten yapılandırılmış. Değiştirmek için yeni bir token gir."
-			}
+			"description": "API konuşma geçmişini ve UI mesajlarını geçici dosyalarda biçimlendirilmiş JSON olarak görüntülemek üzere görev başlığında ek düğmeler göstermek için debug modunu etkinleştir. Açık olarak kaydedildiğinde, sorun giderme için temizlenmiş uzak tanı verilerini C-Code'un sabit endpoint'ine göndermeyi de kabul etmiş olursun."
 		}
 	},
 	"slashCommands": {

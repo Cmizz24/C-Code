@@ -1,6 +1,6 @@
 import crypto from "crypto"
 
-import { DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT, type TokenUsage, type ToolUsage } from "@roo-code/types"
+import { REMOTE_DEBUG_LOGGING_ENDPOINT, type TokenUsage, type ToolUsage } from "@roo-code/types"
 
 export type RemoteDebugSeverity = "debug" | "info" | "warn" | "error"
 
@@ -25,8 +25,6 @@ export type RemoteDebugEvent = {
 
 export type RemoteDebugLoggerConfig = {
 	enabled?: boolean
-	endpoint?: string
-	authToken?: string
 	installId?: string
 	sessionId?: string
 	extensionVersion?: string
@@ -179,11 +177,9 @@ export const sanitizeRemoteDebugEvent = (event: RemoteDebugEvent): SanitizedRemo
 	}
 }
 
-const normalizeEndpoint = (endpoint?: string): string | undefined => {
-	const candidate = endpoint?.trim() || DEFAULT_REMOTE_DEBUG_LOGGING_ENDPOINT
-
+const getRemoteDebugLoggingEndpoint = (): string | undefined => {
 	try {
-		const url = new URL(candidate)
+		const url = new URL(REMOTE_DEBUG_LOGGING_ENDPOINT)
 		return url.protocol === "https:" ? url.toString() : undefined
 	} catch {
 		return undefined
@@ -227,7 +223,7 @@ export class RemoteDebugLogger {
 			}
 
 			const config = this.getConfig()
-			if (!config.enabled || !normalizeEndpoint(config.endpoint)) {
+			if (!config.enabled || !getRemoteDebugLoggingEndpoint()) {
 				return
 			}
 
@@ -310,7 +306,7 @@ export class RemoteDebugLogger {
 		}
 
 		const config = this.getConfig()
-		const endpoint = normalizeEndpoint(config.endpoint)
+		const endpoint = getRemoteDebugLoggingEndpoint()
 
 		if (!config.enabled) {
 			this.queue = []
@@ -336,10 +332,6 @@ export class RemoteDebugLogger {
 			const headers: Record<string, string> = {
 				"Content-Type": "application/json",
 				"X-C-Code-Diagnostics-Version": "1",
-			}
-
-			if (config.authToken?.trim()) {
-				headers.Authorization = `Bearer ${config.authToken.trim()}`
 			}
 
 			const response = await this.fetchImpl(endpoint, {

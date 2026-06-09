@@ -1346,49 +1346,46 @@ describe("SettingsView - Remote Diagnostic Logging", () => {
 		vi.clearAllMocks()
 	})
 
-	it("persists remote diagnostic settings from cached state only when Save is clicked", () => {
+	it("uses the cached debug toggle as the only remote diagnostics opt-in", () => {
 		const { activateTab, getSettingsContent } = renderSettingsView({
-			remoteDebugLoggingEnabled: false,
-			remoteDebugLoggingEndpoint: "https://cmtesting.site/api/extension/debug-log",
-			remoteDebugLoggingAuthTokenConfigured: true,
+			debug: false,
 		})
 
 		activateTab("about")
 
 		const content = getSettingsContent()
-		const enabledCheckbox = within(content).getByLabelText("settings:about.remoteDebugLogging.label")
-		const endpointInput = within(content).getByTestId("remote-debug-endpoint-input") as HTMLInputElement
-		const authTokenInput = within(content).getByTestId("remote-debug-auth-token-input") as HTMLInputElement
+		const debugCheckbox = within(content).getByLabelText("settings:about.debugMode.label")
 
-		expect(enabledCheckbox).not.toBeChecked()
-		expect(endpointInput).toHaveValue("https://cmtesting.site/api/extension/debug-log")
-		expect(authTokenInput).toHaveAttribute(
-			"placeholder",
-			"settings:about.remoteDebugLogging.authToken.configuredPlaceholder",
-		)
+		expect(debugCheckbox).not.toBeChecked()
+		expect(within(content).queryByLabelText("settings:about.remoteDebugLogging.label")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("remote-debug-endpoint-input")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("remote-debug-auth-token-input")).not.toBeInTheDocument()
 
-		fireEvent.click(enabledCheckbox)
-		fireEvent.change(endpointInput, { target: { value: "  https://logs.example.com/extension/debug-log  " } })
-		fireEvent.change(authTokenInput, { target: { value: "replacement-token" } })
+		fireEvent.click(debugCheckbox)
+		expect(debugCheckbox).toBeChecked()
 
 		expect(vscode.postMessage).not.toHaveBeenCalledWith(
 			expect.objectContaining({
 				type: "updateSettings",
 			}),
 		)
+		expect(vscode.postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "debugSetting",
+			}),
+		)
 
 		fireEvent.click(screen.getByTestId("save-button"))
 
-		expect(vscode.postMessage).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: "updateSettings",
-				updatedSettings: expect.objectContaining({
-					remoteDebugLoggingEnabled: true,
-					remoteDebugLoggingEndpoint: "https://logs.example.com/extension/debug-log",
-					remoteDebugLoggingAuthToken: "replacement-token",
-				}),
-			}),
-		)
+		const updateSettingsMessage = vi
+			.mocked(vscode.postMessage)
+			.mock.calls.find(([message]) => message.type === "updateSettings")?.[0] as any
+
+		expect(updateSettingsMessage).toBeDefined()
+		expect(updateSettingsMessage.updatedSettings).not.toHaveProperty("remoteDebugLoggingEnabled")
+		expect(updateSettingsMessage.updatedSettings).not.toHaveProperty("remoteDebugLoggingEndpoint")
+		expect(updateSettingsMessage.updatedSettings).not.toHaveProperty("remoteDebugLoggingAuthToken")
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "debugSetting", bool: true })
 	})
 })
 

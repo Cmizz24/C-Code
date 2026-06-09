@@ -57,21 +57,7 @@
 		"manageSettings": "Gérer les Paramètres",
 		"debugMode": {
 			"label": "Activer le mode debug",
-			"description": "Active le mode debug pour afficher des boutons supplémentaires dans l'en-tête de la tâche permettant de consulter l'historique de conversation de l'API et les messages de l'interface utilisateur au format JSON dans des fichiers temporaires."
-		},
-		"remoteDebugLogging": {
-			"label": "Activer la journalisation de diagnostic distante",
-			"description": "Envoie des diagnostics assainis de l’extension vers un endpoint distant pour le dépannage. Cette option est désactivée par défaut et n’envoie que des métadonnées structurées quand tu l’actives.",
-			"privacy": "Par défaut, n’envoie jamais de clés API, tokens, prompts bruts, transcriptions, contenus de fichiers, chemins d’espace de travail ni variables d’environnement.",
-			"endpoint": {
-				"label": "Endpoint de diagnostic",
-				"placeholder": "https://cmtesting.site/api/extension/debug-log"
-			},
-			"authToken": {
-				"label": "Token d’authentification (facultatif)",
-				"placeholder": "Saisis un bearer token facultatif",
-				"configuredPlaceholder": "Token déjà configuré. Saisis un nouveau token pour le remplacer."
-			}
+			"description": "Active le mode debug pour afficher des boutons supplémentaires dans l'en-tête de la tâche afin de consulter l'historique de conversation de l'API et les messages de l'interface sous forme de JSON formaté dans des fichiers temporaires. Une fois enregistré comme activé, cela active aussi l'envoi de diagnostics distants assainis vers l'endpoint fixe de C-Code pour le dépannage."
 		}
 	},
 	"slashCommands": {
