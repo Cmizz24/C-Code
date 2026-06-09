@@ -13,6 +13,7 @@ export function resolveMemorySettings(settings?: MemoryGlobalSettings): Resolved
 		memoryWorkspaceEnabled: settings?.memoryWorkspaceEnabled ?? true,
 		memoryGlobalEnabled: settings?.memoryGlobalEnabled ?? true,
 		memoryMistakeMemoryEnabled: settings?.memoryMistakeMemoryEnabled ?? true,
+		memoryAutoApproveMistakeMemory: settings?.memoryAutoApproveMistakeMemory ?? false,
 		memoryMaxCharacters: settings?.memoryMaxCharacters ?? DEFAULT_MEMORY_MAX_CHARACTERS,
 		memoryMaxEntries: settings?.memoryMaxEntries ?? DEFAULT_MEMORY_MAX_ENTRIES,
 		memoryPendingCandidateLimit: settings?.memoryPendingCandidateLimit ?? DEFAULT_MEMORY_PENDING_CANDIDATE_LIMIT,

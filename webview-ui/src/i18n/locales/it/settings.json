@@ -775,6 +775,10 @@
 			"label": "Cattura memorie degli errori",
 			"description": "Crea lezioni in sospeso da correzioni, errori di validazione ed errori ripetuti dei tool. Le lezioni in sospeso non vengono usate in modo permanente finché non sono approvate."
 		},
+		"autoApproveMistakeMemory": {
+			"label": "Approva automaticamente le memorie degli errori",
+			"description": "Salva le nuove lezioni di memoria degli errori come attive subito dopo la redazione, invece di creare candidate in sospeso. Tienilo disattivato a meno che tu non ti fidi dell’automazione."
+		},
 		"maxCharacters": {
 			"label": "Budget di caratteri della memoria",
 			"description": "Numero massimo di caratteri di contesto memoria da iniettare in una richiesta. Sotto pressione di contesto, la memoria viene tagliata o saltata per prima."

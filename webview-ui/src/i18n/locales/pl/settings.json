@@ -775,6 +775,10 @@
 			"label": "Przechwytuj pamięć błędów",
 			"description": "Twórz oczekujące lekcje z poprawek, błędów walidacji i powtarzających się błędów tool. Oczekujące lekcje nie są używane na stałe, dopóki ich nie zatwierdzisz."
 		},
+		"autoApproveMistakeMemory": {
+			"label": "Automatycznie zatwierdzaj pamięć błędów",
+			"description": "Zapisuj nowe lekcje pamięci błędów jako aktywne od razu po redakcji, zamiast tworzyć oczekujące kandydatury. Pozostaw to wyłączone, chyba że ufasz automatyzacji."
+		},
 		"maxCharacters": {
 			"label": "Budżet znaków pamięci",
 			"description": "Maksymalna liczba znaków kontekstu pamięci wstrzykiwana do żądania. Przy presji kontekstu pamięć jest najpierw skracana albo pomijana."

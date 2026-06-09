@@ -470,6 +470,30 @@
 		"didSearch_other": "S'han trobat {{count}} resultats",
 		"resultTooltip": "Puntuació de similitud: {{score}} (fes clic per obrir el fitxer)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Espai de treball",
+			"global": "Global",
+			"all": "Tota la memòria"
+		},
+		"statuses": {
+			"active": "Activa",
+			"pending": "Pendent",
+			"stale": "Obsoleta",
+			"superseded": "Substituïda",
+			"archived": "Arxivada",
+			"all": "Tots els estats"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo vol cercar {{scope}} memòria per <code>{{query}}</code>"
+	},
+	"mistakeMemory": {
+		"savedPending": "S’ha desat una memòria d’error pendent",
+		"savedActive": "S’ha desat una memòria d’error activa",
+		"autoApproved": "Aprovada automàticament",
+		"reusedExisting": "Memòria existent actualitzada"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "Aprovar tot"

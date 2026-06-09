@@ -775,6 +775,10 @@
 			"label": "Ghi lại bộ nhớ lỗi",
 			"description": "Tạo bài học đang chờ từ các chỉnh sửa, lỗi xác thực và lỗi tool lặp lại. Bài học đang chờ không được dùng lâu dài cho đến khi được duyệt."
 		},
+		"autoApproveMistakeMemory": {
+			"label": "Tự động phê duyệt bộ nhớ lỗi",
+			"description": "Lưu các bài học bộ nhớ lỗi mới ở trạng thái hoạt động ngay sau khi biên tập, thay vì tạo ứng viên đang chờ. Hãy tắt tùy chọn này trừ khi bạn tin tưởng cơ chế tự động."
+		},
 		"maxCharacters": {
 			"label": "Ngân sách ký tự bộ nhớ",
 			"description": "Số ký tự tối đa của ngữ cảnh bộ nhớ được chèn vào một request. Khi áp lực ngữ cảnh cao, bộ nhớ sẽ bị rút gọn hoặc bỏ qua trước."

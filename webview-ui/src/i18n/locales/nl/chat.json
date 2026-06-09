@@ -470,6 +470,30 @@
 		"didSearch_other": "{{count}} resultaten gevonden",
 		"resultTooltip": "Gelijkenisscore: {{score}} (klik om bestand te openen)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Werkruimte",
+			"global": "Globaal",
+			"all": "Alle memory"
+		},
+		"statuses": {
+			"active": "Actief",
+			"pending": "In behandeling",
+			"stale": "Verouderd",
+			"superseded": "Vervangen",
+			"archived": "Gearchiveerd",
+			"all": "Alle statussen"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo wil {{scope}} memory doorzoeken op <code>{{query}}</code>"
+	},
+	"mistakeMemory": {
+		"savedPending": "Foutmemory in behandeling opgeslagen",
+		"savedActive": "Actieve foutmemory opgeslagen",
+		"autoApproved": "Automatisch goedgekeurd",
+		"reusedExisting": "Bestaande memory bijgewerkt"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "Alles goedkeuren"

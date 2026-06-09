@@ -775,6 +775,10 @@
 			"label": "Foutgeheugens vastleggen",
 			"description": "Maak wachtende lessen van correcties, validatiefouten en herhaalde tool-fouten. Wachtende lessen worden pas permanent gebruikt nadat ze zijn goedgekeurd."
 		},
+		"autoApproveMistakeMemory": {
+			"label": "Foutmemories automatisch goedkeuren",
+			"description": "Sla nieuwe lessen voor foutmemories direct na redactie op als actief, in plaats van kandidaten in behandeling te maken. Laat dit uit tenzij je de automatisering vertrouwt."
+		},
 		"maxCharacters": {
 			"label": "Tekenbudget voor geheugen",
 			"description": "Maximum aantal tekens geheugencontext om in een verzoek te injecteren. Bij contextdruk wordt geheugen eerst ingekort of overgeslagen."

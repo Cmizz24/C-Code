@@ -470,6 +470,30 @@
 		"didSearch_other": "{{count}}件の結果が見つかりました",
 		"resultTooltip": "類似度スコア: {{score}} (クリックしてファイルを開く)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "ワークスペース",
+			"global": "グローバル",
+			"all": "すべてのメモリ"
+		},
+		"statuses": {
+			"active": "アクティブ",
+			"pending": "保留中",
+			"stale": "古い",
+			"superseded": "置き換え済み",
+			"archived": "アーカイブ済み",
+			"all": "すべての状態"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Rooは{{scope}}メモリで <code>{{query}}</code> を検索したい"
+	},
+	"mistakeMemory": {
+		"savedPending": "保留中のミスメモリを保存しました",
+		"savedActive": "アクティブなミスメモリを保存しました",
+		"autoApproved": "自動承認済み",
+		"reusedExisting": "既存のメモリを更新しました"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "すべて承認"

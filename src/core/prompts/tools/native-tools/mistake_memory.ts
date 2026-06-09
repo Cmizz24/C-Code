@@ -2,7 +2,7 @@ import type OpenAI from "openai"
 
 const MISTAKE_MEMORY_DESCRIPTION = `Create a concise mistake-memory lesson so Roo can avoid repeating a correction, tool failure, validation failure, or bad action pattern. Store the lesson, not raw transcripts or file contents.
 
-By default this creates a pending memory candidate. Set approve to true only when the user has explicitly approved saving this lesson as active memory in the current flow. Even then, Roo will ask for approval before activating it.
+By default this creates a pending memory candidate. If the user has enabled automatic mistake-memory approval, the lesson can be saved as active immediately after redaction and safety filtering. Set approve to true only when the user has explicitly approved saving this lesson as active memory in the current flow; when automatic approval is off, Roo will still ask for approval before activating it.
 
 Parameters:
 - lesson: (required) Concise reusable lesson to remember.
@@ -12,7 +12,7 @@ Parameters:
 - file_paths: optional related workspace-relative paths; ignored/protected paths must not be included.
 - tags: optional short tags.
 - scope: workspace or global. Defaults to workspace.
-- approve: optional boolean. False creates a pending candidate; true requests user approval to activate.`
+- approve: optional boolean. False creates a pending candidate unless the user-enabled auto-approve setting is on; true requests user approval to activate when auto-approve is off.`
 
 export default {
 	type: "function",

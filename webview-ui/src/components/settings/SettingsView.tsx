@@ -266,6 +266,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		memoryWorkspaceEnabled,
 		memoryGlobalEnabled,
 		memoryMistakeMemoryEnabled,
+		memoryAutoApproveMistakeMemory,
 		memoryMaxCharacters,
 		memoryMaxEntries,
 		memoryPendingCandidateLimit,
@@ -598,6 +599,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				memoryWorkspaceEnabled: memoryWorkspaceEnabled ?? true,
 				memoryGlobalEnabled: memoryGlobalEnabled ?? true,
 				memoryMistakeMemoryEnabled: memoryMistakeMemoryEnabled ?? true,
+				memoryAutoApproveMistakeMemory: memoryAutoApproveMistakeMemory ?? false,
 				memoryMaxCharacters: Math.min(Math.max(0, memoryMaxCharacters ?? 2400), 20_000),
 				memoryMaxEntries: Math.min(Math.max(0, memoryMaxEntries ?? 8), 50),
 				memoryPendingCandidateLimit: Math.min(Math.max(0, memoryPendingCandidateLimit ?? 100), 1_000),
@@ -1132,6 +1134,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								memoryWorkspaceEnabled={memoryWorkspaceEnabled}
 								memoryGlobalEnabled={memoryGlobalEnabled}
 								memoryMistakeMemoryEnabled={memoryMistakeMemoryEnabled}
+								memoryAutoApproveMistakeMemory={memoryAutoApproveMistakeMemory}
 								memoryMaxCharacters={memoryMaxCharacters}
 								memoryMaxEntries={memoryMaxEntries}
 								memoryPendingCandidateLimit={memoryPendingCandidateLimit}

@@ -302,6 +302,30 @@
 		"didSearch_other": "找到 {{count}} 個結果",
 		"resultTooltip": "相似度評分：{{score}}（點選以開啟檔案）"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "工作區",
+			"global": "全域",
+			"all": "所有記憶"
+		},
+		"statuses": {
+			"active": "啟用中",
+			"pending": "待處理",
+			"stale": "過期",
+			"superseded": "已取代",
+			"archived": "已封存",
+			"all": "所有狀態"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo 想在{{scope}}記憶中搜尋 <code>{{query}}</code>"
+	},
+	"mistakeMemory": {
+		"savedPending": "已儲存待處理的錯誤記憶",
+		"savedActive": "已儲存啟用中的錯誤記憶",
+		"autoApproved": "已自動核准",
+		"reusedExisting": "已更新現有記憶"
+	},
 	"commandOutput": "命令輸出",
 	"commandExecution": {
 		"abort": "中止",

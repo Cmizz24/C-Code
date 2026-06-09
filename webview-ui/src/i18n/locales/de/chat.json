@@ -470,6 +470,30 @@
 		"didSearch_other": "{{count}} Ergebnisse gefunden",
 		"resultTooltip": "Ähnlichkeitswert: {{score}} (klicken zum Öffnen der Datei)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Workspace",
+			"global": "Global",
+			"all": "Alle Memories"
+		},
+		"statuses": {
+			"active": "Aktiv",
+			"pending": "Ausstehend",
+			"stale": "Veraltet",
+			"superseded": "Ersetzt",
+			"archived": "Archiviert",
+			"all": "Alle Status"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo möchte {{scope}} Memory nach <code>{{query}}</code> durchsuchen"
+	},
+	"mistakeMemory": {
+		"savedPending": "Ausstehende Fehler-Memory gespeichert",
+		"savedActive": "Aktive Fehler-Memory gespeichert",
+		"autoApproved": "Automatisch genehmigt",
+		"reusedExisting": "Vorhandene Memory aktualisiert"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "Alle genehmigen"

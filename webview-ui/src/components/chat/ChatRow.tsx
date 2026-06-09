@@ -963,6 +963,59 @@ export const ChatRowContent = ({
 					</div>
 				)
 			}
+			case "memorySearch": {
+				const scope = t(`chat:memory.scopes.${tool.scope ?? "all"}`)
+
+				return (
+					<div style={headerStyle}>
+						{toolIcon("database")}
+						<span style={{ fontWeight: "bold" }}>
+							<Trans
+								i18nKey="chat:memorySearch.wantsToSearch"
+								components={{ code: <code></code> }}
+								values={{ query: tool.query, scope }}
+							/>
+						</span>
+					</div>
+				)
+			}
+			case "mistakeMemory": {
+				const status = tool.status ?? "pending"
+				const titleKey =
+					status === "active" ? "chat:mistakeMemory.savedActive" : "chat:mistakeMemory.savedPending"
+
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon(status === "active" ? "check" : "lightbulb")}
+							<span style={{ fontWeight: "bold" }}>{t(titleKey)}</span>
+						</div>
+						{tool.content && (
+							<div className="pl-6">
+								<ToolUseBlock className="cursor-default border border-vscode-panel-border">
+									<ToolUseBlockHeader className="flex flex-col items-start gap-2 px-3 py-2">
+										<div className="text-vscode-foreground break-words">{tool.content}</div>
+										<div className="flex flex-wrap gap-1">
+											{tool.scope && (
+												<VSCodeBadge>{t(`chat:memory.scopes.${tool.scope}`)}</VSCodeBadge>
+											)}
+											{tool.status && (
+												<VSCodeBadge>{t(`chat:memory.statuses.${tool.status}`)}</VSCodeBadge>
+											)}
+											{tool.autoApproved && (
+												<VSCodeBadge>{t("chat:mistakeMemory.autoApproved")}</VSCodeBadge>
+											)}
+											{tool.reusedExisting && (
+												<VSCodeBadge>{t("chat:mistakeMemory.reusedExisting")}</VSCodeBadge>
+											)}
+										</div>
+									</ToolUseBlockHeader>
+								</ToolUseBlock>
+							</div>
+						)}
+					</>
+				)
+			}
 			case "updateTodoList" as any: {
 				const todos = (tool as any).todos || []
 				// Get previous todos from the latest todos in the task context
@@ -1948,6 +2001,78 @@ export const ChatRowContent = ({
 										</span>
 									)}
 								</div>
+							)
+						}
+						case "memorySearch": {
+							const scope = t(`chat:memory.scopes.${sayTool.scope ?? "all"}`)
+
+							return (
+								<div style={headerStyle}>
+									<span
+										className="codicon codicon-database"
+										style={{ color: "var(--vscode-foreground)", marginBottom: "-1.5px" }}></span>
+									<span style={{ fontWeight: "bold" }}>
+										<Trans
+											i18nKey="chat:memorySearch.wantsToSearch"
+											components={{ code: <code></code> }}
+											values={{ query: sayTool.query, scope }}
+										/>
+									</span>
+								</div>
+							)
+						}
+						case "mistakeMemory": {
+							const status = sayTool.status ?? "pending"
+							const titleKey =
+								status === "active"
+									? "chat:mistakeMemory.savedActive"
+									: "chat:mistakeMemory.savedPending"
+
+							return (
+								<>
+									<div style={headerStyle}>
+										<span
+											className={`codicon codicon-${status === "active" ? "check" : "lightbulb"}`}
+											style={{
+												color: "var(--vscode-foreground)",
+												marginBottom: "-1.5px",
+											}}></span>
+										<span style={{ fontWeight: "bold" }}>{t(titleKey)}</span>
+									</div>
+									{sayTool.content && (
+										<div className="pl-6">
+											<ToolUseBlock className="cursor-default border border-vscode-panel-border">
+												<ToolUseBlockHeader className="flex flex-col items-start gap-2 px-3 py-2">
+													<div className="text-vscode-foreground break-words">
+														{sayTool.content}
+													</div>
+													<div className="flex flex-wrap gap-1">
+														{sayTool.scope && (
+															<VSCodeBadge>
+																{t(`chat:memory.scopes.${sayTool.scope}`)}
+															</VSCodeBadge>
+														)}
+														{sayTool.status && (
+															<VSCodeBadge>
+																{t(`chat:memory.statuses.${sayTool.status}`)}
+															</VSCodeBadge>
+														)}
+														{sayTool.autoApproved && (
+															<VSCodeBadge>
+																{t("chat:mistakeMemory.autoApproved")}
+															</VSCodeBadge>
+														)}
+														{sayTool.reusedExisting && (
+															<VSCodeBadge>
+																{t("chat:mistakeMemory.reusedExisting")}
+															</VSCodeBadge>
+														)}
+													</div>
+												</ToolUseBlockHeader>
+											</ToolUseBlock>
+										</div>
+									)}
+								</>
 							)
 						}
 						default:

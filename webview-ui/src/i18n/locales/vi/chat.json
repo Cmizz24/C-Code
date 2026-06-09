@@ -471,6 +471,30 @@
 		"didSearch_other": "Đã tìm thấy {{count}} kết quả",
 		"resultTooltip": "Điểm tương tự: {{score}} (nhấp để mở tệp)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Workspace",
+			"global": "Toàn cục",
+			"all": "Tất cả bộ nhớ"
+		},
+		"statuses": {
+			"active": "Hoạt động",
+			"pending": "Đang chờ",
+			"stale": "Cũ",
+			"superseded": "Đã thay thế",
+			"archived": "Đã lưu trữ",
+			"all": "Tất cả trạng thái"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo muốn tìm trong bộ nhớ {{scope}} cho <code>{{query}}</code>"
+	},
+	"mistakeMemory": {
+		"savedPending": "Đã lưu một bộ nhớ lỗi đang chờ",
+		"savedActive": "Đã lưu một bộ nhớ lỗi đang hoạt động",
+		"autoApproved": "Đã tự động phê duyệt",
+		"reusedExisting": "Đã cập nhật bộ nhớ hiện có"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "Chấp nhận tất cả"

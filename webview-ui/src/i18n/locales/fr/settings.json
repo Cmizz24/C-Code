@@ -775,6 +775,10 @@
 			"label": "Capturer les mémoires d'erreurs",
 			"description": "Crée des leçons en attente à partir de corrections, d'erreurs de validation et d'erreurs d'outils répétées. Les leçons en attente ne sont pas utilisées de façon permanente tant qu'elles ne sont pas approuvées."
 		},
+		"autoApproveMistakeMemory": {
+			"label": "Approuver automatiquement les mémoires d’erreurs",
+			"description": "Enregistre les nouvelles leçons de mémoire d’erreurs comme actives immédiatement après la rédaction, au lieu de créer des candidates en attente. Garde cette option désactivée sauf si tu fais confiance à l’automatisation."
+		},
 		"maxCharacters": {
 			"label": "Budget de caractères de mémoire",
 			"description": "Nombre maximal de caractères de contexte de mémoire à injecter dans une requête. Sous pression de contexte, la mémoire est d'abord réduite ou ignorée."

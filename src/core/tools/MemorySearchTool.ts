@@ -1,4 +1,4 @@
-import type { MemorySearchToolParams, MemoryStatus } from "@roo-code/types"
+import type { ClineSayTool, MemorySearchToolParams, MemoryStatus } from "@roo-code/types"
 
 import { DEFAULT_MEMORY_MAX_ENTRIES } from "@roo-code/types"
 import { extractPathHintsFromText, MemoryStorage, retrieveMemories } from "../memory"
@@ -72,6 +72,26 @@ export class MemorySearchTool extends BaseTool<"memory_search"> {
 			})
 
 			task.consecutiveMistakeCount = 0
+			await task
+				.say(
+					"tool",
+					JSON.stringify({
+						tool: "memorySearch",
+						query,
+						scope: params.scope ?? "all",
+						status: params.status ?? (params.includePending ? "all" : "active"),
+						message:
+							results.length > 0
+								? `Found ${results.length} matching ${results.length === 1 ? "memory" : "memories"}.`
+								: "No matching memories found.",
+					} satisfies ClineSayTool),
+					undefined,
+					false,
+					undefined,
+					undefined,
+					{ isNonInteractive: true },
+				)
+				.catch(() => {})
 			pushToolResult(
 				JSON.stringify(
 					{
@@ -102,14 +122,18 @@ export class MemorySearchTool extends BaseTool<"memory_search"> {
 
 	override async handlePartial(task: Task, block: ToolUse<"memory_search">): Promise<void> {
 		await task
-			.ask(
+			.say(
 				"tool",
 				JSON.stringify({
 					tool: "memorySearch",
 					query: block.params.query ?? "",
 					scope: block.params.scope ?? "all",
 				}),
+				undefined,
 				block.partial,
+				undefined,
+				undefined,
+				{ isNonInteractive: true },
 			)
 			.catch(() => {})
 	}

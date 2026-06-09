@@ -775,6 +775,10 @@
 			"label": "गलती वाली मेमोरी कैप्चर करो",
 			"description": "Corrections, validation failures, और बार-बार होने वाली tool errors से pending सबक बनाओ. Pending सबक approval तक permanent रूप से इस्तेमाल नहीं होते."
 		},
+		"autoApproveMistakeMemory": {
+			"label": "गलती की memories को अपने-आप मंज़ूर करें",
+			"description": "नई गलती-memory lessons को redaction के तुरंत बाद pending candidates बनाने के बजाय active के रूप में सेव करें। इसे तब तक बंद रखें जब तक तुम्हें automation पर भरोसा न हो।"
+		},
 		"maxCharacters": {
 			"label": "मेमोरी character budget",
 			"description": "किसी request में inject किए जाने वाले memory context के maximum characters. Context pressure में memory पहले trim या skip होती है."

@@ -775,6 +775,10 @@
 			"label": "Capturar memorias de errores",
 			"description": "Crea lecciones pendientes a partir de correcciones, errores de validación y errores repetidos de herramientas. Las lecciones pendientes no se usan de forma permanente hasta que se aprueban."
 		},
+		"autoApproveMistakeMemory": {
+			"label": "Aprobar automáticamente recuerdos de errores",
+			"description": "Guarda las nuevas lecciones de recuerdos de errores como activas inmediatamente después de la redacción, en lugar de crear candidatas pendientes. Mantén esto desactivado a menos que confíes en la automatización."
+		},
 		"maxCharacters": {
 			"label": "Presupuesto de caracteres de memoria",
 			"description": "Número máximo de caracteres de contexto de memoria que se inyectan en una solicitud. Cuando hay presión de contexto, la memoria se recorta u omite primero."

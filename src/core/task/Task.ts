@@ -5000,12 +5000,17 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			if (state?.memoryMistakeMemoryEnabled === false) {
 				return
 			}
+			if (state?.memoryWorkspaceEnabled === false) {
+				return
+			}
+
+			const autoApproved = state?.memoryAutoApproveMistakeMemory === true
 
 			const storage = new MemoryStorage({
 				globalStoragePath: this.globalStoragePath,
 				workspacePath: this.cwd,
 			})
-			await createMistakeMemoryCandidate({
+			const result = await createMistakeMemoryCandidate({
 				storage,
 				lesson: buildToolErrorLesson(toolName, error),
 				error,
@@ -5014,13 +5019,37 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				tags: ["tool-error"],
 				scope: "workspace",
 				source,
-				approved: false,
+				approved: autoApproved,
 				pendingCandidateLimit: state?.memoryPendingCandidateLimit,
 				workspacePath: this.cwd,
 				mode: await this.getTaskMode(),
 				originTaskId: this.taskId,
 				confidence: 0.6,
 			})
+
+			await provider.postMemoryStateToWebview().catch(() => {})
+
+			await this.say(
+				"tool",
+				JSON.stringify({
+					tool: "mistakeMemory",
+					content: result.memory.lesson,
+					scope: result.memory.scope,
+					status: result.memory.status,
+					candidateId: result.candidate?.id,
+					autoApproved,
+					reusedExisting: result.reusedExisting,
+					message:
+						result.memory.status === "active"
+							? "Saved auto-approved active mistake memory from a tool error."
+							: "Saved pending mistake-memory candidate from a tool error for user review.",
+				}),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				{ isNonInteractive: true },
+			).catch(() => {})
 		})().catch((candidateError) => {
 			console.warn(
 				`[Task#${this.taskId}] Failed to create mistake-memory candidate: ${

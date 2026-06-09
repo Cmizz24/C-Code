@@ -775,6 +775,10 @@
 			"label": "Tangkap memori kesalahan",
 			"description": "Buat pelajaran tertunda dari koreksi, kegagalan validasi, dan error tool yang berulang. Pelajaran tertunda tidak digunakan permanen sampai disetujui."
 		},
+		"autoApproveMistakeMemory": {
+			"label": "Setujui memori kesalahan otomatis",
+			"description": "Simpan pelajaran memori kesalahan baru sebagai aktif segera setelah redaksi, alih-alih membuat kandidat tertunda. Biarkan ini nonaktif kecuali kamu memercayai otomatisasinya."
+		},
 		"maxCharacters": {
 			"label": "Batas karakter memori",
 			"description": "Jumlah maksimum karakter konteks memori yang disisipkan ke request. Saat tekanan konteks tinggi, memori dipangkas atau dilewati terlebih dahulu."

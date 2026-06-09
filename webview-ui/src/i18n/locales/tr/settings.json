@@ -775,6 +775,10 @@
 			"label": "Hata belleklerini yakala",
 			"description": "Düzeltmelerden, doğrulama hatalarından ve tekrarlanan tool hatalarından bekleyen dersler oluştur. Bekleyen dersler onaylanana kadar kalıcı olarak kullanılmaz."
 		},
+		"autoApproveMistakeMemory": {
+			"label": "Hata anılarını otomatik onayla",
+			"description": "Yeni hata anısı derslerini redaksiyondan hemen sonra bekleyen adaylar oluşturmak yerine aktif olarak kaydet. Otomasyona güvenmiyorsan bunu kapalı tut."
+		},
 		"maxCharacters": {
 			"label": "Bellek karakter bütçesi",
 			"description": "Bir isteğe eklenecek bellek bağlamının maksimum karakter sayısı. Bağlam baskısı altında bellek önce kısaltılır veya atlanır."

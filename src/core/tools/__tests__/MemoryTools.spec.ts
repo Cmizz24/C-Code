@@ -9,18 +9,22 @@ import { memorySearchTool } from "../MemorySearchTool"
 import { mistakeMemoryTool } from "../MistakeMemoryTool"
 
 function createTask(globalStoragePath: string, state: Record<string, unknown> = {}): Task {
+	const provider = {
+		context: { globalStorageUri: { fsPath: globalStoragePath } },
+		getState: vi.fn().mockResolvedValue(state),
+		postMemoryStateToWebview: vi.fn().mockResolvedValue(undefined),
+	}
+
 	return {
 		cwd: path.join(globalStoragePath, "workspace"),
 		taskId: "task-1",
 		consecutiveMistakeCount: 0,
 		didToolFailInCurrentTurn: false,
 		providerRef: {
-			deref: () => ({
-				context: { globalStorageUri: { fsPath: globalStoragePath } },
-				getState: vi.fn().mockResolvedValue(state),
-			}),
+			deref: () => provider,
 		},
 		getTaskMode: vi.fn().mockResolvedValue("code"),
+		say: vi.fn().mockResolvedValue(undefined),
 		sayAndCreateMissingParamError: vi.fn().mockResolvedValue("missing parameter"),
 		recordToolError: vi.fn(),
 		rooIgnoreController: {
@@ -77,6 +81,24 @@ describe("memory_search tool", () => {
 				scope: "workspace",
 				lesson: "When editing MemorySettings.tsx, bind inputs to cached state.",
 				pathTags: ["webview-ui/src/components/settings/MemorySettings.tsx"],
+			}),
+		)
+		expect(task.say).toHaveBeenCalledWith(
+			"tool",
+			expect.stringContaining("memorySearch"),
+			undefined,
+			false,
+			undefined,
+			undefined,
+			{ isNonInteractive: true },
+		)
+		const sayPayload = JSON.parse((task.say as any).mock.calls[0][1])
+		expect(sayPayload).toEqual(
+			expect.objectContaining({
+				tool: "memorySearch",
+				query: "MemorySettings.tsx cached state",
+				scope: "workspace",
+				status: "active",
 			}),
 		)
 		expect(await storage.readStore("workspace", task.cwd)).toEqual(before)
@@ -136,6 +158,25 @@ describe("mistake_memory tool", () => {
 		const output = JSON.parse(callbacks.pushToolResult.mock.calls[0][0])
 		expect(output.status).toBe("pending")
 		expect(output.candidateId).toMatch(/^cand_/)
+		expect((task.providerRef.deref() as any).postMemoryStateToWebview).toHaveBeenCalledTimes(1)
+		expect(task.say).toHaveBeenCalledWith(
+			"tool",
+			expect.stringContaining("mistakeMemory"),
+			undefined,
+			false,
+			undefined,
+			undefined,
+			{ isNonInteractive: true },
+		)
+		const sayPayload = JSON.parse((task.say as any).mock.calls[0][1])
+		expect(sayPayload).toEqual(
+			expect.objectContaining({
+				tool: "mistakeMemory",
+				scope: "workspace",
+				status: "pending",
+				autoApproved: false,
+			}),
+		)
 
 		const store = await new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd }).readStore(
 			"workspace",
@@ -183,6 +224,39 @@ describe("mistake_memory tool", () => {
 		expect(output.candidateId).toBeUndefined()
 		const store = await new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd }).readStore(
 			"global",
+		)
+		expect(store.memories[0].status).toBe("active")
+		expect(store.candidates).toHaveLength(0)
+	})
+
+	it("auto-approves mistake memories when the setting is enabled", async () => {
+		const task = createTask(tempDir, { memoryAutoApproveMistakeMemory: true })
+		const callbacks = {
+			askApproval: vi.fn(),
+			handleError: vi.fn(),
+			pushToolResult: vi.fn(),
+		}
+		const block: ToolUse<"mistake_memory"> = {
+			type: "tool_use",
+			name: "mistake_memory",
+			params: {},
+			partial: false,
+			nativeArgs: {
+				lesson: "Read the latest terminal output before retrying a failing command.",
+			},
+		}
+
+		await mistakeMemoryTool.handle(task, block, callbacks)
+
+		expect(callbacks.askApproval).not.toHaveBeenCalled()
+		const output = JSON.parse(callbacks.pushToolResult.mock.calls[0][0])
+		expect(output.status).toBe("active")
+		expect(output.autoApproved).toBe(true)
+		expect(output.candidateId).toBeUndefined()
+
+		const store = await new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd }).readStore(
+			"workspace",
+			task.cwd,
 		)
 		expect(store.memories[0].status).toBe("active")
 		expect(store.candidates).toHaveLength(0)

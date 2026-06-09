@@ -33,6 +33,7 @@ type MemorySettingsProps = HTMLAttributes<HTMLDivElement> & {
 	memoryWorkspaceEnabled?: boolean
 	memoryGlobalEnabled?: boolean
 	memoryMistakeMemoryEnabled?: boolean
+	memoryAutoApproveMistakeMemory?: boolean
 	memoryMaxCharacters?: number
 	memoryMaxEntries?: number
 	memoryPendingCandidateLimit?: number
@@ -42,6 +43,7 @@ type MemorySettingsProps = HTMLAttributes<HTMLDivElement> & {
 		| "memoryWorkspaceEnabled"
 		| "memoryGlobalEnabled"
 		| "memoryMistakeMemoryEnabled"
+		| "memoryAutoApproveMistakeMemory"
 		| "memoryMaxCharacters"
 		| "memoryMaxEntries"
 		| "memoryPendingCandidateLimit"
@@ -94,6 +96,7 @@ export const MemorySettings = ({
 	memoryWorkspaceEnabled,
 	memoryGlobalEnabled,
 	memoryMistakeMemoryEnabled,
+	memoryAutoApproveMistakeMemory,
 	memoryMaxCharacters,
 	memoryMaxEntries,
 	memoryPendingCandidateLimit,
@@ -188,6 +191,21 @@ export const MemorySettings = ({
 					</VSCodeCheckbox>
 					<div className="text-vscode-descriptionForeground text-sm">
 						{t("settings:memory.mistakeMemoryEnabled.description")}
+					</div>
+				</SearchableSetting>
+
+				<SearchableSetting
+					settingId="memory-auto-approve-mistake"
+					section="memory"
+					label={t("settings:memory.autoApproveMistakeMemory.label")}>
+					<VSCodeCheckbox
+						data-testid="memory-auto-approve-mistake-checkbox"
+						checked={memoryAutoApproveMistakeMemory ?? false}
+						onChange={(e: any) => setCachedStateField("memoryAutoApproveMistakeMemory", e.target.checked)}>
+						<span className="font-medium">{t("settings:memory.autoApproveMistakeMemory.label")}</span>
+					</VSCodeCheckbox>
+					<div className="text-vscode-descriptionForeground text-sm">
+						{t("settings:memory.autoApproveMistakeMemory.description")}
 					</div>
 				</SearchableSetting>
 

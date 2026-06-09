@@ -56,6 +56,10 @@ describe("memory settings", () => {
 	it("auto-enables memory below 1M context and disables it at or above 1M unless manually overridden", () => {
 		const automatic = resolveMemorySettings()
 
+		expect(automatic.memoryAutoApproveMistakeMemory).toBe(false)
+		expect(resolveMemorySettings({ memoryAutoApproveMistakeMemory: true }).memoryAutoApproveMistakeMemory).toBe(
+			true,
+		)
 		expect(isMemoryEnabledForModel(automatic, modelInfo(999_999))).toBe(true)
 		expect(isMemoryEnabledForModel(automatic, modelInfo(1_000_000))).toBe(false)
 		expect(isMemoryEnabledForModel(resolveMemorySettings({ memoryEnabled: true }), modelInfo(2_000_000))).toBe(true)
@@ -129,6 +133,23 @@ describe("memory storage", () => {
 		const archived = await storage.updateMemoryStatus(pending.id, "archived", { scope: "workspace", workspacePath })
 		expect(archived?.status).toBe("archived")
 		expect((await storage.readStore("workspace", workspacePath)).candidates[0].status).toBe("rejected")
+	})
+
+	it("creates active mistake memories without pending candidates when approved", async () => {
+		const { memory: approved, candidate } = await createMistakeMemoryCandidate({
+			storage,
+			lesson: "When validation output changes, re-check the failing assertion before editing again.",
+			error: "Assertion changed",
+			toolName: "execute_command",
+			workspacePath,
+			approved: true,
+		})
+
+		expect(approved.status).toBe("active")
+		expect(candidate).toBeUndefined()
+		const store = await storage.readStore("workspace", workspacePath)
+		expect(store.memories.find((entry) => entry.id === approved.id)?.status).toBe("active")
+		expect(store.candidates).toHaveLength(0)
 	})
 
 	it("prunes older pending candidates when the pending candidate limit is reached", async () => {

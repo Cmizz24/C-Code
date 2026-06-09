@@ -470,6 +470,30 @@
 		"didSearch_other": "Trovati {{count}} risultati",
 		"resultTooltip": "Punteggio di somiglianza: {{score}} (clicca per aprire il file)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Workspace",
+			"global": "Globale",
+			"all": "Tutta la memoria"
+		},
+		"statuses": {
+			"active": "Attiva",
+			"pending": "In sospeso",
+			"stale": "Obsoleta",
+			"superseded": "Sostituita",
+			"archived": "Archiviata",
+			"all": "Tutti gli stati"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo vuole cercare nella memoria {{scope}} <code>{{query}}</code>"
+	},
+	"mistakeMemory": {
+		"savedPending": "Memoria di errore in sospeso salvata",
+		"savedActive": "Memoria di errore attiva salvata",
+		"autoApproved": "Approvata automaticamente",
+		"reusedExisting": "Memoria esistente aggiornata"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "Approva tutto"

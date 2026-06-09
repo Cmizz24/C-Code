@@ -298,6 +298,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		memoryWorkspaceEnabled: true,
 		memoryGlobalEnabled: true,
 		memoryMistakeMemoryEnabled: true,
+		memoryAutoApproveMistakeMemory: false,
 		memoryMaxCharacters: DEFAULT_MEMORY_MAX_CHARACTERS,
 		memoryMaxEntries: DEFAULT_MEMORY_MAX_ENTRIES,
 		memoryPendingCandidateLimit: DEFAULT_MEMORY_PENDING_CANDIDATE_LIMIT,

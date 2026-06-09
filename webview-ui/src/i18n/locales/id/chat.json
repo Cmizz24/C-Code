@@ -307,6 +307,30 @@
 		"didSearch_other": "Ditemukan {{count}} hasil",
 		"resultTooltip": "Skor kemiripan: {{score}} (klik untuk membuka file)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Workspace",
+			"global": "Global",
+			"all": "Semua memori"
+		},
+		"statuses": {
+			"active": "Aktif",
+			"pending": "Tertunda",
+			"stale": "Usang",
+			"superseded": "Digantikan",
+			"archived": "Diarsipkan",
+			"all": "Semua status"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo ingin mencari memori {{scope}} untuk <code>{{query}}</code>"
+	},
+	"mistakeMemory": {
+		"savedPending": "Memori kesalahan tertunda disimpan",
+		"savedActive": "Memori kesalahan aktif disimpan",
+		"autoApproved": "Disetujui otomatis",
+		"reusedExisting": "Memori yang ada diperbarui"
+	},
 	"commandOutput": "Keluaran Perintah",
 	"commandExecution": {
 		"abort": "Batalkan",

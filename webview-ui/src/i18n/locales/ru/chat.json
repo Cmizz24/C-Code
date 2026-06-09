@@ -471,6 +471,30 @@
 		"didSearch_other": "Найдено {{count}} результатов",
 		"resultTooltip": "Оценка схожести: {{score}} (нажмите, чтобы открыть файл)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Рабочая область",
+			"global": "Глобальная",
+			"all": "Вся память"
+		},
+		"statuses": {
+			"active": "Активная",
+			"pending": "Ожидает",
+			"stale": "Устаревшая",
+			"superseded": "Заменена",
+			"archived": "Архивирована",
+			"all": "Все статусы"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo хочет найти в памяти {{scope}} <code>{{query}}</code>"
+	},
+	"mistakeMemory": {
+		"savedPending": "Сохранена ожидающая память об ошибке",
+		"savedActive": "Сохранена активная память об ошибке",
+		"autoApproved": "Одобрено автоматически",
+		"reusedExisting": "Существующая память обновлена"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "Одобрить все"

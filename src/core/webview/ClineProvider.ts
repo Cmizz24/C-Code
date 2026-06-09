@@ -4257,6 +4257,13 @@ export class ClineProvider
 		return this.createMemoryStorage().getSummary(this.cwd)
 	}
 
+	public async postMemoryStateToWebview(): Promise<MemorySummary> {
+		const memorySummary = await this.getMemorySummary()
+		await this.postMessageToWebview({ type: "memorySummary", memorySummary })
+		await this.postStateToWebviewWithoutClineMessages()
+		return memorySummary
+	}
+
 	public async handleMemoryAction(action: MemoryAction): Promise<MemorySummary> {
 		const storage = this.createMemoryStorage()
 
@@ -4452,6 +4459,7 @@ export class ClineProvider
 			memoryWorkspaceEnabled,
 			memoryGlobalEnabled,
 			memoryMistakeMemoryEnabled,
+			memoryAutoApproveMistakeMemory,
 			memoryMaxCharacters,
 			memoryMaxEntries,
 			memoryPendingCandidateLimit,
@@ -4607,6 +4615,7 @@ export class ClineProvider
 			memoryWorkspaceEnabled: memoryWorkspaceEnabled ?? true,
 			memoryGlobalEnabled: memoryGlobalEnabled ?? true,
 			memoryMistakeMemoryEnabled: memoryMistakeMemoryEnabled ?? true,
+			memoryAutoApproveMistakeMemory: memoryAutoApproveMistakeMemory ?? false,
 			memoryMaxCharacters: memoryMaxCharacters ?? DEFAULT_MEMORY_MAX_CHARACTERS,
 			memoryMaxEntries: memoryMaxEntries ?? DEFAULT_MEMORY_MAX_ENTRIES,
 			memoryPendingCandidateLimit: memoryPendingCandidateLimit ?? DEFAULT_MEMORY_PENDING_CANDIDATE_LIMIT,
@@ -4801,6 +4810,7 @@ export class ClineProvider
 			memoryWorkspaceEnabled: stateValues.memoryWorkspaceEnabled ?? true,
 			memoryGlobalEnabled: stateValues.memoryGlobalEnabled ?? true,
 			memoryMistakeMemoryEnabled: stateValues.memoryMistakeMemoryEnabled ?? true,
+			memoryAutoApproveMistakeMemory: stateValues.memoryAutoApproveMistakeMemory ?? false,
 			memoryMaxCharacters: stateValues.memoryMaxCharacters ?? DEFAULT_MEMORY_MAX_CHARACTERS,
 			memoryMaxEntries: stateValues.memoryMaxEntries ?? DEFAULT_MEMORY_MAX_ENTRIES,
 			memoryPendingCandidateLimit:

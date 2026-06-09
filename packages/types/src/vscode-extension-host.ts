@@ -16,7 +16,7 @@ import type { OpenAiCodexRateLimitInfo } from "./providers/openai-codex-rate-lim
 import type { SkillMetadata } from "./skills.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
 import type { GeneratedImageMetadata } from "./image-generation.js"
-import type { MemorySummary } from "./memory.js"
+import type { MemoryScope, MemoryStatus, MemorySummary } from "./memory.js"
 import type {
 	LocalAiRecommendationRequest,
 	LocalAiSetupStartRequest,
@@ -386,6 +386,7 @@ export type ExtensionState = Pick<
 	| "memoryWorkspaceEnabled"
 	| "memoryGlobalEnabled"
 	| "memoryMistakeMemoryEnabled"
+	| "memoryAutoApproveMistakeMemory"
 	| "memoryMaxCharacters"
 	| "memoryMaxEntries"
 	| "memoryPendingCandidateLimit"
@@ -908,6 +909,11 @@ export interface ClineSayTool {
 	lineNumber?: number
 	startLine?: number // Starting line for read_file operations (for navigation on click)
 	query?: string
+	scope?: MemoryScope | "all"
+	status?: MemoryStatus | "all"
+	candidateId?: string
+	autoApproved?: boolean
+	reusedExisting?: boolean
 	batchFiles?: Array<{
 		path: string
 		lineSnippet: string

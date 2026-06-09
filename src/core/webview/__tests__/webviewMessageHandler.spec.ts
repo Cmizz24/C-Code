@@ -101,6 +101,8 @@ const mockClineProvider = {
 	getCurrentTask: vi.fn(),
 	getTaskWithId: vi.fn(),
 	createTask: vi.fn().mockResolvedValue({ taskId: "mock-task-id" }),
+	handleMemoryAction: vi.fn().mockResolvedValue(undefined),
+	postMemoryStateToWebview: vi.fn().mockResolvedValue(undefined),
 	upsertProviderProfile: vi.fn(),
 	createTaskWithHistoryItem: vi.fn(),
 	clearTask: vi.fn(),
@@ -1394,6 +1396,33 @@ describe("webviewMessageHandler - mcpEnabled", () => {
 
 		expect((mockClineProvider as any).getMcpHub).toHaveBeenCalledTimes(1)
 		expect(mockClineProvider.postStateToWebview).toHaveBeenCalledTimes(1)
+	})
+})
+
+describe("webviewMessageHandler - memory", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("persists the mistake-memory auto-approve setting", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "updateSettings",
+			updatedSettings: { memoryAutoApproveMistakeMemory: true },
+		})
+
+		expect(mockClineProvider.contextProxy.setValue).toHaveBeenCalledWith("memoryAutoApproveMistakeMemory", true)
+		expect(mockClineProvider.postStateToWebview).toHaveBeenCalledTimes(1)
+	})
+
+	it("refreshes WebView state after memory actions", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "memoryAction",
+			memoryAction: "approveWorkspacePending",
+		})
+
+		expect((mockClineProvider as any).handleMemoryAction).toHaveBeenCalledWith("approveWorkspacePending")
+		expect((mockClineProvider as any).postMemoryStateToWebview).toHaveBeenCalledTimes(1)
+		expect(mockClineProvider.postStateToWebview).not.toHaveBeenCalled()
 	})
 })
 

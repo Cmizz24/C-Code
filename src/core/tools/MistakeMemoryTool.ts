@@ -49,6 +49,7 @@ export class MistakeMemoryTool extends BaseTool<"mistake_memory"> {
 			}
 
 			const requestedActive = params.approve === true
+			const autoApproved = state?.memoryAutoApproveMistakeMemory === true
 			const scope = normalizeScope(params.scope)
 			if (scope === "workspace" && state?.memoryWorkspaceEnabled === false) {
 				pushToolResult("Workspace memory is disabled in settings; no memory was saved.")
@@ -59,9 +60,9 @@ export class MistakeMemoryTool extends BaseTool<"mistake_memory"> {
 				return
 			}
 
-			let approved = false
+			let approved = autoApproved
 
-			if (requestedActive) {
+			if (requestedActive && !autoApproved) {
 				approved = await askApproval(
 					"tool",
 					JSON.stringify({
@@ -99,6 +100,31 @@ export class MistakeMemoryTool extends BaseTool<"mistake_memory"> {
 				originTaskId: task.taskId,
 			})
 
+			await provider.postMemoryStateToWebview().catch(() => {})
+
+			const message =
+				result.memory.status === "active"
+					? autoApproved
+						? "Saved auto-approved active mistake memory."
+						: "Saved approved active mistake memory."
+					: "Saved pending mistake-memory candidate for user review."
+			const toolPayload = {
+				tool: "mistakeMemory",
+				content: result.memory.lesson,
+				scope: result.memory.scope,
+				status: result.memory.status,
+				candidateId: result.candidate?.id,
+				autoApproved,
+				reusedExisting: result.reusedExisting,
+				message,
+			} as const
+
+			await task
+				.say("tool", JSON.stringify(toolPayload), undefined, false, undefined, undefined, {
+					isNonInteractive: true,
+				})
+				.catch(() => {})
+
 			task.consecutiveMistakeCount = 0
 			pushToolResult(
 				JSON.stringify(
@@ -107,12 +133,10 @@ export class MistakeMemoryTool extends BaseTool<"mistake_memory"> {
 						scope: result.memory.scope,
 						status: result.memory.status,
 						kind: result.memory.kind,
+						autoApproved,
 						reusedExisting: result.reusedExisting,
 						candidateId: result.candidate?.id,
-						message:
-							result.memory.status === "active"
-								? "Saved approved active mistake memory."
-								: "Saved pending mistake-memory candidate for user review.",
+						message,
 					},
 					null,
 					2,
@@ -125,14 +149,18 @@ export class MistakeMemoryTool extends BaseTool<"mistake_memory"> {
 
 	override async handlePartial(task: Task, block: ToolUse<"mistake_memory">): Promise<void> {
 		await task
-			.ask(
+			.say(
 				"tool",
 				JSON.stringify({
 					tool: "mistakeMemory",
 					content: block.params.lesson ?? "",
 					scope: block.params.scope ?? "workspace",
 				}),
+				undefined,
 				block.partial,
+				undefined,
+				undefined,
+				{ isNonInteractive: true },
 			)
 			.catch(() => {})
 	}

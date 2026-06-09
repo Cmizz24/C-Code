@@ -471,6 +471,30 @@
 		"didSearch_other": "找到 {{count}} 个结果",
 		"resultTooltip": "相似度评分: {{score}} (点击打开文件)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "工作区",
+			"global": "全局",
+			"all": "所有记忆"
+		},
+		"statuses": {
+			"active": "活跃",
+			"pending": "待处理",
+			"stale": "过期",
+			"superseded": "已被取代",
+			"archived": "已归档",
+			"all": "所有状态"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo 想在{{scope}}记忆中搜索 <code>{{query}}</code>"
+	},
+	"mistakeMemory": {
+		"savedPending": "已保存待处理的错误记忆",
+		"savedActive": "已保存活跃的错误记忆",
+		"autoApproved": "已自动批准",
+		"reusedExisting": "已更新现有记忆"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "全部批准"

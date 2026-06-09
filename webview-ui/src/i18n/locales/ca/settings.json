@@ -775,6 +775,10 @@
 			"label": "Captura memòries d'errors",
 			"description": "Crea lliçons pendents a partir de correccions, errors de validació i errors repetits d'eines. Les lliçons pendents no s'usen permanentment fins que s'aproven."
 		},
+		"autoApproveMistakeMemory": {
+			"label": "Aprova automàticament les memòries d’errors",
+			"description": "Desa les noves lliçons de memòria d’errors com a actives immediatament després de la redacció, en lloc de crear candidates pendents. Mantén-ho desactivat tret que confiïs en l’automatització."
+		},
 		"maxCharacters": {
 			"label": "Pressupost de caràcters de memòria",
 			"description": "Nombre màxim de caràcters de context de memòria que s'injecten en una sol·licitud. Amb pressió de context, la memòria es retalla o s'omet primer."

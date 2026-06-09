@@ -935,9 +935,8 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				break
 			}
 
-			const memorySummary = await provider.handleMemoryAction(message.memoryAction)
-			await provider.postMessageToWebview({ type: "memorySummary", memorySummary })
-			await provider.postStateToWebviewWithoutClineMessages()
+			await provider.handleMemoryAction(message.memoryAction)
+			await provider.postMemoryStateToWebview()
 			break
 		}
 

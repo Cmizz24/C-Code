@@ -470,6 +470,30 @@
 		"didSearch_other": "{{count}}개의 결과를 찾았습니다",
 		"resultTooltip": "유사도 점수: {{score}} (클릭하여 파일 열기)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "작업 공간",
+			"global": "전역",
+			"all": "모든 메모리"
+		},
+		"statuses": {
+			"active": "활성",
+			"pending": "보류 중",
+			"stale": "오래됨",
+			"superseded": "대체됨",
+			"archived": "보관됨",
+			"all": "모든 상태"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo가 {{scope}} 메모리에서 <code>{{query}}</code>을(를) 검색하고 싶어합니다"
+	},
+	"mistakeMemory": {
+		"savedPending": "보류 중인 실수 메모리를 저장했습니다",
+		"savedActive": "활성 실수 메모리를 저장했습니다",
+		"autoApproved": "자동 승인됨",
+		"reusedExisting": "기존 메모리 업데이트됨"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "모두 승인"

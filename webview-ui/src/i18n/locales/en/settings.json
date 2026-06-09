@@ -837,6 +837,10 @@
 			"label": "Capture mistake memories",
 			"description": "Create pending lessons from corrections, validation failures, and repeated tool errors. Pending lessons are not used permanently until approved."
 		},
+		"autoApproveMistakeMemory": {
+			"label": "Auto-approve mistake memories",
+			"description": "Save new mistake-memory lessons as active immediately after redaction instead of creating pending candidates. Keep this off unless you trust the automation."
+		},
 		"maxCharacters": {
 			"label": "Memory character budget",
 			"description": "Maximum characters of memory context to inject into a request. Under context pressure, memory is trimmed or skipped first."

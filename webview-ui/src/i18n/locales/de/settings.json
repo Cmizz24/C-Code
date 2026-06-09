@@ -775,6 +775,10 @@
 			"label": "Fehler-Speicher erfassen",
 			"description": "Erstelle aus Korrekturen, Validierungsfehlern und wiederholten Tool-Fehlern ausstehende Lektionen. Ausstehende Lektionen werden erst dauerhaft genutzt, wenn sie genehmigt sind."
 		},
+		"autoApproveMistakeMemory": {
+			"label": "Fehler-Memories automatisch genehmigen",
+			"description": "Speichere neue Fehler-Memory-Lektionen direkt nach der Schwärzung als aktiv, statt ausstehende Kandidaten zu erstellen. Lass dies deaktiviert, es sei denn, du vertraust der Automatisierung."
+		},
 		"maxCharacters": {
 			"label": "Zeichenbudget für Speicher",
 			"description": "Maximale Anzahl von Zeichen aus dem Speicherkontext, die in eine Anfrage eingefügt werden. Bei Kontextdruck wird Speicher zuerst gekürzt oder übersprungen."

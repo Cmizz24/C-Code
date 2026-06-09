@@ -299,6 +299,30 @@
 		"didSearch_other": "Found {{count}} results",
 		"resultTooltip": "Similarity score: {{score}} (click to open file)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Workspace",
+			"global": "Global",
+			"all": "All memory"
+		},
+		"statuses": {
+			"active": "Active",
+			"pending": "Pending",
+			"stale": "Stale",
+			"superseded": "Superseded",
+			"archived": "Archived",
+			"all": "All statuses"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "C wants to search {{scope}} memory for <code>{{query}}</code>"
+	},
+	"mistakeMemory": {
+		"savedPending": "Saved a pending mistake memory",
+		"savedActive": "Saved an active mistake memory",
+		"autoApproved": "Auto-approved",
+		"reusedExisting": "Updated existing memory"
+	},
 	"commandOutput": "Command Output",
 	"commandExecution": {
 		"abort": "Abort",

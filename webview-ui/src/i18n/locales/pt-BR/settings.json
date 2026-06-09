@@ -775,6 +775,10 @@
 			"label": "Capturar memórias de erros",
 			"description": "Crie lições pendentes a partir de correções, falhas de validação e erros repetidos de ferramentas. Lições pendentes não são usadas permanentemente até serem aprovadas."
 		},
+		"autoApproveMistakeMemory": {
+			"label": "Aprovar automaticamente memórias de erro",
+			"description": "Salve novas lições de memória de erro como ativas imediatamente após a redação, em vez de criar candidatas pendentes. Mantenha isso desativado a menos que você confie na automação."
+		},
 		"maxCharacters": {
 			"label": "Orçamento de caracteres da memória",
 			"description": "Máximo de caracteres de contexto de memória a injetar em uma solicitação. Sob pressão de contexto, a memória é reduzida ou ignorada primeiro."

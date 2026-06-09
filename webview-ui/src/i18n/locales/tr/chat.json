@@ -471,6 +471,30 @@
 		"didSearch_other": "{{count}} sonuç bulundu",
 		"resultTooltip": "Benzerlik puanı: {{score}} (dosyayı açmak için tıklayın)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Çalışma alanı",
+			"global": "Global",
+			"all": "Tüm bellek"
+		},
+		"statuses": {
+			"active": "Aktif",
+			"pending": "Beklemede",
+			"stale": "Eski",
+			"superseded": "Yerine yenisi geçti",
+			"archived": "Arşivlendi",
+			"all": "Tüm durumlar"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo {{scope}} bellekte <code>{{query}}</code> aramak istiyor"
+	},
+	"mistakeMemory": {
+		"savedPending": "Bekleyen bir hata anısı kaydedildi",
+		"savedActive": "Aktif bir hata anısı kaydedildi",
+		"autoApproved": "Otomatik onaylandı",
+		"reusedExisting": "Mevcut bellek güncellendi"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "Tümünü Onayla"

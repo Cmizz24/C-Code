@@ -984,6 +984,7 @@ describe("SettingsView - Memory Settings", () => {
 			memoryWorkspaceEnabled: true,
 			memoryGlobalEnabled: false,
 			memoryMistakeMemoryEnabled: true,
+			memoryAutoApproveMistakeMemory: false,
 			memoryMaxCharacters: 3200,
 			memoryMaxEntries: 6,
 			memoryPendingCandidateLimit: 24,
@@ -999,6 +1000,7 @@ describe("SettingsView - Memory Settings", () => {
 		expect(within(content).getByTestId("memory-workspace-enabled-checkbox")).toBeChecked()
 		expect(within(content).getByTestId("memory-global-enabled-checkbox")).not.toBeChecked()
 		expect(within(content).getByTestId("memory-mistake-enabled-checkbox")).toBeChecked()
+		expect(within(content).getByTestId("memory-auto-approve-mistake-checkbox")).not.toBeChecked()
 		expect(within(content).getByTestId("memory-max-characters-input")).toHaveValue(3200)
 		expect(within(content).getByTestId("memory-max-entries-input")).toHaveValue(6)
 		expect(within(content).getByTestId("memory-pending-limit-input")).toHaveValue(24)
@@ -1013,6 +1015,7 @@ describe("SettingsView - Memory Settings", () => {
 			memoryWorkspaceEnabled: true,
 			memoryGlobalEnabled: true,
 			memoryMistakeMemoryEnabled: true,
+			memoryAutoApproveMistakeMemory: false,
 			memoryMaxCharacters: 2400,
 			memoryMaxEntries: 8,
 			memoryPendingCandidateLimit: 100,
@@ -1024,6 +1027,7 @@ describe("SettingsView - Memory Settings", () => {
 		fireEvent.click(within(content).getByTestId("memory-workspace-enabled-checkbox"))
 		fireEvent.click(within(content).getByTestId("memory-global-enabled-checkbox"))
 		fireEvent.click(within(content).getByTestId("memory-mistake-enabled-checkbox"))
+		fireEvent.click(within(content).getByTestId("memory-auto-approve-mistake-checkbox"))
 		fireEvent.change(within(content).getByTestId("memory-max-characters-input"), { target: { value: "4200" } })
 		fireEvent.change(within(content).getByTestId("memory-max-entries-input"), { target: { value: "12" } })
 		fireEvent.change(within(content).getByTestId("memory-pending-limit-input"), { target: { value: "75" } })
@@ -1038,6 +1042,7 @@ describe("SettingsView - Memory Settings", () => {
 					memoryWorkspaceEnabled: false,
 					memoryGlobalEnabled: false,
 					memoryMistakeMemoryEnabled: false,
+					memoryAutoApproveMistakeMemory: true,
 					memoryMaxCharacters: 4200,
 					memoryMaxEntries: 12,
 					memoryPendingCandidateLimit: 75,
