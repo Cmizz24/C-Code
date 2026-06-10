@@ -46,6 +46,7 @@ const modelRouterBaseModelSchema = z.object({
 	description: z.string().optional(),
 	context_length: z.number(),
 	max_completion_tokens: z.number().nullish(),
+	expiration_date: z.union([z.string(), z.number()]).nullish(),
 	pricing: openRouterPricingSchema.optional(),
 })
 
@@ -58,7 +59,7 @@ export type OpenRouterBaseModel = z.infer<typeof modelRouterBaseModelSchema>
 export const openRouterModelSchema = modelRouterBaseModelSchema.extend({
 	id: z.string(),
 	architecture: openRouterArchitectureSchema.optional(),
-	top_provider: z.object({ max_completion_tokens: z.number().nullish() }).optional(),
+	top_provider: z.object({ max_completion_tokens: z.number().nullish() }).nullish(),
 	supported_parameters: z.array(z.string()).optional(),
 })
 
@@ -136,7 +137,7 @@ export async function getOpenRouterModels(options?: OpenRouterFetchOptions): Pro
 				model,
 				inputModality: architecture?.input_modalities,
 				outputModality: architecture?.output_modalities,
-				maxTokens: top_provider?.max_completion_tokens,
+				maxTokens: top_provider?.max_completion_tokens ?? model.max_completion_tokens,
 				supportedParameters: supported_parameters,
 			})
 
@@ -230,6 +231,21 @@ function hasOpenRouterImageGenerationHint(
 	return idHint || generationHint
 }
 
+function hasExpired(expirationDate: string | number | null | undefined): boolean {
+	if (!expirationDate) {
+		return false
+	}
+
+	const timestamp =
+		typeof expirationDate === "number"
+			? expirationDate < 1_000_000_000_000
+				? expirationDate * 1000
+				: expirationDate
+			: Date.parse(expirationDate)
+
+	return Number.isFinite(timestamp) && timestamp <= Date.now()
+}
+
 /**
  * parseOpenRouterModel
  */
@@ -256,9 +272,9 @@ export const parseOpenRouterModel = ({
 	const cacheReadsPrice = model.pricing?.input_cache_read ? parseApiPrice(model.pricing?.input_cache_read) : undefined
 
 	const supportsPromptCache = typeof cacheReadsPrice !== "undefined" // some models support caching but don't charge a cacheWritesPrice, e.g. GPT-5
+	const resolvedMaxTokens = maxTokens ?? model.max_completion_tokens ?? undefined
 
 	const modelInfo: ModelInfo = {
-		maxTokens: maxTokens || Math.ceil(model.context_length * 0.2),
 		contextWindow: model.context_length,
 		supportsImages: inputModality?.includes("image") ?? false,
 		supportsImageOutput: outputModality?.includes("image") ?? false,
@@ -270,6 +286,14 @@ export const parseOpenRouterModel = ({
 		description: model.description,
 		supportsReasoningEffort: supportedParameters ? supportedParameters.includes("reasoning") : undefined,
 		supportedParameters: supportedParameters ? supportedParameters.filter(isModelParameter) : undefined,
+	}
+
+	if (typeof resolvedMaxTokens !== "undefined") {
+		modelInfo.maxTokens = resolvedMaxTokens
+	}
+
+	if (hasExpired(model.expiration_date)) {
+		modelInfo.deprecated = true
 	}
 
 	if (OPEN_ROUTER_REASONING_BUDGET_MODELS.has(id)) {

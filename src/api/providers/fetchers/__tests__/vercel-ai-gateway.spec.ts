@@ -237,6 +237,23 @@ describe("Vercel AI Gateway Fetchers", () => {
 			)
 		})
 
+		it("detects vision support from official model tags", () => {
+			const taggedVisionModel = {
+				...baseModel,
+				id: "provider/tagged-vision-model",
+				tags: ["vision", "tool-use"],
+			}
+
+			const result = parseVercelAiGatewayModel({
+				id: "provider/tagged-vision-model",
+				model: taggedVisionModel,
+			})
+
+			expect(VERCEL_AI_GATEWAY_VISION_ONLY_MODELS.has("provider/tagged-vision-model")).toBe(false)
+			expect(VERCEL_AI_GATEWAY_VISION_AND_TOOLS_MODELS.has("provider/tagged-vision-model")).toBe(false)
+			expect(result.supportsImages).toBe(true)
+		})
+
 		it("handles missing cache pricing", () => {
 			const modelNoCachePricing = {
 				...baseModel,

@@ -4,6 +4,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
 import { RequestyHandler } from "../requesty"
+import { getModels } from "../fetchers/modelCache"
 import { ApiHandlerOptions } from "../../../shared/api"
 import { Package } from "../../../shared/package"
 import { ApiHandlerCreateMessageMetadata } from "../../index"
@@ -27,7 +28,7 @@ vitest.mock("delay", () => ({ default: vitest.fn(() => Promise.resolve()) }))
 vitest.mock("../fetchers/modelCache", () => ({
 	getModels: vitest.fn().mockImplementation(() => {
 		return Promise.resolve({
-			"coding/claude-4-sonnet": {
+			"coding/claude-sonnet-4-20250514": {
 				maxTokens: 8192,
 				contextWindow: 200000,
 				supportsImages: true,
@@ -36,16 +37,19 @@ vitest.mock("../fetchers/modelCache", () => ({
 				outputPrice: 15,
 				cacheWritesPrice: 3.75,
 				cacheReadsPrice: 0.3,
-				description: "Claude 4 Sonnet",
+				description:
+					"The best coding model, optimized by Requesty, and automatically routed to the fastest provider. Claude Sonnet 4 is an advanced large language model with strong coding, reasoning, and problem-solving capabilities.",
 			},
 		})
 	}),
 }))
 
 describe("RequestyHandler", () => {
+	const mockGetModels = vitest.mocked(getModels)
+
 	const mockOptions: ApiHandlerOptions = {
 		requestyApiKey: "test-key",
-		requestyModelId: "coding/claude-4-sonnet",
+		requestyModelId: "coding/claude-sonnet-4-20250514",
 	}
 
 	beforeEach(() => vitest.clearAllMocks())
@@ -85,6 +89,12 @@ describe("RequestyHandler", () => {
 			const handler = new RequestyHandler(mockOptions)
 			const result = await handler.fetchModel()
 
+			expect(mockGetModels).toHaveBeenCalledWith({
+				provider: "requesty",
+				baseUrl: "https://router.requesty.ai/v1",
+				apiKey: "test-key",
+			})
+
 			expect(result).toMatchObject({
 				id: mockOptions.requestyModelId,
 				info: {
@@ -96,7 +106,8 @@ describe("RequestyHandler", () => {
 					outputPrice: 15,
 					cacheWritesPrice: 3.75,
 					cacheReadsPrice: 0.3,
-					description: "Claude 4 Sonnet",
+					description:
+						"The best coding model, optimized by Requesty, and automatically routed to the fastest provider. Claude Sonnet 4 is an advanced large language model with strong coding, reasoning, and problem-solving capabilities.",
 				},
 			})
 		})
@@ -105,6 +116,12 @@ describe("RequestyHandler", () => {
 			const handler = new RequestyHandler({})
 			const result = await handler.fetchModel()
 
+			expect(mockGetModels).toHaveBeenCalledWith({
+				provider: "requesty",
+				baseUrl: "https://router.requesty.ai/v1",
+				apiKey: undefined,
+			})
+
 			expect(result).toMatchObject({
 				id: mockOptions.requestyModelId,
 				info: {
@@ -116,7 +133,8 @@ describe("RequestyHandler", () => {
 					outputPrice: 15,
 					cacheWritesPrice: 3.75,
 					cacheReadsPrice: 0.3,
-					description: "Claude 4 Sonnet",
+					description:
+						"The best coding model, optimized by Requesty, and automatically routed to the fastest provider. Claude Sonnet 4 is an advanced large language model with strong coding, reasoning, and problem-solving capabilities.",
 				},
 			})
 		})
@@ -185,7 +203,7 @@ describe("RequestyHandler", () => {
 							content: "test message",
 						},
 					],
-					model: "coding/claude-4-sonnet",
+					model: "coding/claude-sonnet-4-20250514",
 					stream: true,
 					stream_options: { include_usage: true },
 					temperature: 0,

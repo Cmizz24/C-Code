@@ -32,6 +32,7 @@ vi.mock("fs", () => ({
 vi.mock("../litellm")
 vi.mock("../openrouter")
 vi.mock("../requesty")
+vi.mock("../unbound")
 vi.mock("../static-provider-models")
 
 // Mock ContextProxy with a simple static instance
@@ -53,6 +54,7 @@ import { getModels, getModelsFromCache } from "../modelCache"
 import { getLiteLLMModels } from "../litellm"
 import { getOpenRouterModels } from "../openrouter"
 import { getRequestyModels } from "../requesty"
+import { getUnboundModels } from "../unbound"
 import {
 	getAnthropicModels,
 	getBasetenModels,
@@ -71,6 +73,7 @@ import {
 const mockGetLiteLLMModels = getLiteLLMModels as Mock<typeof getLiteLLMModels>
 const mockGetOpenRouterModels = getOpenRouterModels as Mock<typeof getOpenRouterModels>
 const mockGetRequestyModels = getRequestyModels as Mock<typeof getRequestyModels>
+const mockGetUnboundModels = getUnboundModels as Mock<typeof getUnboundModels>
 const mockGetAnthropicModels = getAnthropicModels as Mock<typeof getAnthropicModels>
 const mockGetBedrockModels = getBedrockModels as Mock<typeof getBedrockModels>
 const mockGetXAIModels = getXAIModels as Mock<typeof getXAIModels>
@@ -113,6 +116,7 @@ describe("getModels with new GetModelsOptions", () => {
 	})
 
 	it("calls getOpenRouterModels for openrouter provider", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
 		const mockModels = {
 			"openrouter/model": {
 				maxTokens: 8192,
@@ -126,6 +130,48 @@ describe("getModels with new GetModelsOptions", () => {
 		const result = await getModels({ provider: "openrouter" })
 
 		expect(mockGetOpenRouterModels).toHaveBeenCalledWith({ provider: "openrouter" })
+		expect(mockCache.set).toHaveBeenCalledWith("openrouter", mockModels)
+		expect(result).toEqual(mockModels)
+	})
+
+	it("bypasses cache for credentialed OpenRouter chat model requests", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const mockModels = {
+			"openrouter/account-model": {
+				maxTokens: 8192,
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Account-specific OpenRouter chat model",
+			},
+		}
+		mockGetOpenRouterModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({ provider: "openrouter", apiKey: "openrouter-key" })
+
+		expect(mockGetOpenRouterModels).toHaveBeenCalledWith({ provider: "openrouter", apiKey: "openrouter-key" })
+		expect(mockCache.set).not.toHaveBeenCalled()
+		expect(result).toEqual(mockModels)
+	})
+
+	it("bypasses cache for custom-base OpenRouter chat model requests", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const mockModels = {
+			"custom/openrouter-model": {
+				maxTokens: 8192,
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Custom-base OpenRouter chat model",
+			},
+		}
+		mockGetOpenRouterModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({ provider: "openrouter", baseUrl: "https://openrouter.example/api/v1" })
+
+		expect(mockGetOpenRouterModels).toHaveBeenCalledWith({
+			provider: "openrouter",
+			baseUrl: "https://openrouter.example/api/v1",
+		})
+		expect(mockCache.set).not.toHaveBeenCalled()
 		expect(result).toEqual(mockModels)
 	})
 
@@ -214,7 +260,27 @@ describe("getModels with new GetModelsOptions", () => {
 		expect(result).toEqual(mockModels)
 	})
 
-	it("calls getRequestyModels with optional API key", async () => {
+	it("caches public Requesty model discovery", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const mockModels = {
+			"requesty/model": {
+				maxTokens: 4096,
+				contextWindow: 8192,
+				supportsPromptCache: false,
+				description: "Requesty model",
+			},
+		}
+		mockGetRequestyModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({ provider: "requesty" })
+
+		expect(mockGetRequestyModels).toHaveBeenCalledWith(undefined, undefined)
+		expect(mockCache.set).toHaveBeenCalledWith("requesty", mockModels)
+		expect(result).toEqual(mockModels)
+	})
+
+	it("bypasses cache for credentialed Requesty model discovery", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
 		const mockModels = {
 			"requesty/model": {
 				maxTokens: 4096,
@@ -228,6 +294,45 @@ describe("getModels with new GetModelsOptions", () => {
 		const result = await getModels({ provider: "requesty", apiKey: DUMMY_REQUESTY_KEY })
 
 		expect(mockGetRequestyModels).toHaveBeenCalledWith(undefined, DUMMY_REQUESTY_KEY)
+		expect(mockCache.set).not.toHaveBeenCalled()
+		expect(result).toEqual(mockModels)
+	})
+
+	it("bypasses cache for custom-base Requesty model discovery", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const mockModels = {
+			"requesty/custom-model": {
+				maxTokens: 4096,
+				contextWindow: 8192,
+				supportsPromptCache: false,
+				description: "Custom Requesty model",
+			},
+		}
+		mockGetRequestyModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({ provider: "requesty", baseUrl: "https://custom.requesty.ai/v1" })
+
+		expect(mockGetRequestyModels).toHaveBeenCalledWith("https://custom.requesty.ai/v1", undefined)
+		expect(mockCache.set).not.toHaveBeenCalled()
+		expect(result).toEqual(mockModels)
+	})
+
+	it("bypasses cache for credentialed Unbound model discovery", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const mockModels = {
+			"unbound/model": {
+				maxTokens: 4096,
+				contextWindow: 8192,
+				supportsPromptCache: false,
+				description: "Credentialed Unbound model",
+			},
+		}
+		mockGetUnboundModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({ provider: "unbound", apiKey: "unbound-key" })
+
+		expect(mockGetUnboundModels).toHaveBeenCalledWith("unbound-key")
+		expect(mockCache.set).not.toHaveBeenCalled()
 		expect(result).toEqual(mockModels)
 	})
 

@@ -40,6 +40,7 @@ import {
 
 const memoryCache = new NodeCache({ stdTTL: 5 * 60, checkperiod: 5 * 60 })
 const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+const DEFAULT_REQUESTY_BASE_URL = "https://router.requesty.ai/v1"
 
 type ModelCacheKey = RouterName | "openrouter_image"
 
@@ -54,7 +55,7 @@ function getModelCacheKey(options: GetModelsOptions): ModelCacheKey {
 	return options.provider === "openrouter" && options.modelType === "image" ? "openrouter_image" : options.provider
 }
 
-function normalizeOpenRouterBaseUrl(baseUrl?: string): string | undefined {
+function normalizeBaseUrl(baseUrl?: string): string | undefined {
 	const normalized = baseUrl?.trim().replace(/\/+$/, "")
 	return normalized || undefined
 }
@@ -64,15 +65,27 @@ function shouldBypassModelCache(options: GetModelsOptions): boolean {
 		return true
 	}
 
-	if (options.provider !== "openrouter" || options.modelType !== "image") {
-		return false
+	const hasApiKey = !!options.apiKey?.trim()
+
+	if (options.provider === "openrouter") {
+		const baseUrl = normalizeBaseUrl(options.baseUrl)
+		const hasCustomBaseUrl = !!baseUrl && baseUrl !== DEFAULT_OPENROUTER_BASE_URL
+
+		return hasApiKey || hasCustomBaseUrl
 	}
 
-	const hasApiKey = !!options.apiKey?.trim()
-	const baseUrl = normalizeOpenRouterBaseUrl(options.baseUrl)
-	const hasCustomBaseUrl = !!baseUrl && baseUrl !== DEFAULT_OPENROUTER_BASE_URL
+	if (options.provider === "requesty") {
+		const baseUrl = normalizeBaseUrl(options.baseUrl)
+		const hasCustomBaseUrl = !!baseUrl && baseUrl !== DEFAULT_REQUESTY_BASE_URL
 
-	return hasApiKey || hasCustomBaseUrl
+		return hasApiKey || hasCustomBaseUrl
+	}
+
+	if (options.provider === "unbound") {
+		return hasApiKey
+	}
+
+	return false
 }
 
 async function writeModels(router: ModelCacheKey, data: ModelRecord) {
@@ -106,7 +119,7 @@ async function fetchModelsFromProvider(options: GetModelsOptions): Promise<Model
 			models = await getOpenRouterModels(options)
 			break
 		case "requesty":
-			// Requesty models endpoint requires an API key for per-user custom policies.
+			// Requesty supports public model discovery and optional API keys for per-user custom policies.
 			models = await getRequestyModels(options.baseUrl, options.apiKey)
 			break
 		case "unbound":

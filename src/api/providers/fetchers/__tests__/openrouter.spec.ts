@@ -479,6 +479,56 @@ describe("OpenRouter API", () => {
 			expect(result.contextWindow).toBe(128000)
 		})
 
+		it("does not invent max tokens when OpenRouter omits completion limits", () => {
+			const mockModel = {
+				name: "No Completion Limit Model",
+				description: "Test model without max_completion_tokens",
+				context_length: 128000,
+				pricing: {
+					prompt: "0.000003",
+					completion: "0.000015",
+				},
+			}
+
+			const result = parseOpenRouterModel({
+				id: "openrouter/no-completion-limit",
+				model: mockModel,
+				inputModality: ["text"],
+				outputModality: ["text"],
+				maxTokens: undefined,
+			})
+
+			expect(result).not.toHaveProperty("maxTokens")
+			expect(result.contextWindow).toBe(128000)
+		})
+
+		it("marks expired OpenRouter models as deprecated", () => {
+			vi.spyOn(Date, "now").mockReturnValue(new Date("2026-01-01T00:00:00Z").getTime())
+			const mockModel = {
+				name: "Expired Model",
+				description: "Test expired model",
+				context_length: 128000,
+				max_completion_tokens: 8192,
+				expiration_date: "2025-01-01T00:00:00Z",
+				pricing: {
+					prompt: "0.000003",
+					completion: "0.000015",
+				},
+			}
+
+			const result = parseOpenRouterModel({
+				id: "openrouter/expired-model",
+				model: mockModel,
+				inputModality: ["text"],
+				outputModality: ["text"],
+				maxTokens: 8192,
+			})
+
+			expect(result.deprecated).toBe(true)
+
+			vi.mocked(Date.now).mockRestore()
+		})
+
 		it("marks image-output support when parsing model metadata", () => {
 			const mockImageModel = {
 				name: "Image Model",
