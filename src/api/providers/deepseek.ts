@@ -26,6 +26,10 @@ type DeepSeekChatCompletionParams = Omit<OpenAI.Chat.ChatCompletionCreateParamsS
 }
 
 const CURRENT_DEEP_SEEK_MODEL_IDS = new Set(["deepseek-v4-flash", "deepseek-v4-pro"])
+const DEFAULT_DYNAMIC_MODEL_INFO: ModelInfo = {
+	contextWindow: 128_000,
+	supportsPromptCache: false,
+}
 
 function isCurrentDeepSeekModel(modelId: string): boolean {
 	return CURRENT_DEEP_SEEK_MODEL_IDS.has(modelId)
@@ -67,7 +71,7 @@ export class DeepSeekHandler extends OpenAiHandler {
 
 	override getModel() {
 		const id = this.options.apiModelId ?? deepSeekDefaultModelId
-		const info = deepSeekModels[id as keyof typeof deepSeekModels] || deepSeekModels[deepSeekDefaultModelId]
+		const info = deepSeekModels[id as keyof typeof deepSeekModels] || DEFAULT_DYNAMIC_MODEL_INFO
 		const params = getModelParams({
 			format: "openai",
 			modelId: id,
@@ -208,7 +212,11 @@ export class DeepSeekHandler extends OpenAiHandler {
 
 	private addDeepSeekMaxTokensIfNeeded(requestOptions: DeepSeekChatCompletionParams, modelInfo: ModelInfo): void {
 		if (this.options.includeMaxTokens === true) {
-			requestOptions.max_tokens = this.options.modelMaxTokens || modelInfo.maxTokens || undefined
+			const maxTokens = this.options.modelMaxTokens || modelInfo.maxTokens
+
+			if (maxTokens) {
+				requestOptions.max_tokens = maxTokens
+			}
 		}
 	}
 

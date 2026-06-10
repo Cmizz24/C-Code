@@ -160,30 +160,35 @@ const sambaNovaModelsResponseSchema = z.object({
 	),
 })
 
+const xaiModelSchema = z
+	.object({
+		id: z.string(),
+		aliases: z.array(z.string()).optional(),
+		input_modalities: z.array(z.string()).optional(),
+		output_modalities: z.array(z.string()).optional(),
+		context_window: z.number().optional(),
+		max_prompt_text_tokens: z.number().optional(),
+		max_completion_tokens: z.number().optional(),
+		prompt_text_token_price: z.number().nullable().optional(),
+		prompt_text_token_price_long_context: z.number().nullable().optional(),
+		completion_text_token_price: z.number().nullable().optional(),
+		completion_text_token_price_long_context: z.number().nullable().optional(),
+		cached_prompt_text_token_price: z.number().nullable().optional(),
+		cached_prompt_text_token_price_long_context: z.number().nullable().optional(),
+		long_context_threshold: z.number().nullable().optional(),
+		image_price: z.number().nullable().optional(),
+	})
+	.passthrough()
+
 const xaiLanguageModelsResponseSchema = z.object({
-	models: z.array(
-		z
-			.object({
-				id: z.string(),
-				aliases: z.array(z.string()).optional(),
-				input_modalities: z.array(z.string()).optional(),
-				output_modalities: z.array(z.string()).optional(),
-				context_window: z.number().optional(),
-				max_prompt_text_tokens: z.number().optional(),
-				max_completion_tokens: z.number().optional(),
-				prompt_text_token_price: z.number().nullable().optional(),
-				prompt_text_token_price_long_context: z.number().nullable().optional(),
-				completion_text_token_price: z.number().nullable().optional(),
-				completion_text_token_price_long_context: z.number().nullable().optional(),
-				cached_prompt_text_token_price: z.number().nullable().optional(),
-				cached_prompt_text_token_price_long_context: z.number().nullable().optional(),
-				long_context_threshold: z.number().nullable().optional(),
-			})
-			.passthrough(),
-	),
+	models: z.array(xaiModelSchema),
 })
 
-type XaiLanguageModel = z.infer<typeof xaiLanguageModelsResponseSchema>["models"][number]
+const xaiModelsResponseSchema = z.object({
+	data: z.array(xaiModelSchema),
+})
+
+type XaiModel = z.infer<typeof xaiModelSchema>
 
 const basetenModelSchema = z
 	.object({
@@ -320,8 +325,8 @@ function getAnthropicThinkingCapabilities(modelId: string, thinkingSupported?: b
 	return { supportsReasoningBudget: thinkingSupported }
 }
 
-function centsPer100MillionTokensToDollarsPerMillion(price?: number | null): number | undefined {
-	return typeof price === "number" ? price / 10_000 : undefined
+function positiveCentsPer100MillionTokensToDollarsPerMillion(price?: number | null): number | undefined {
+	return typeof price === "number" && price > 0 ? price / 10_000 : undefined
 }
 
 function positiveNumber(value?: number | null): number | undefined {
@@ -413,7 +418,7 @@ function dollarsPerTokenToDollarsPerMillion(price?: string): number | undefined 
 	return Number.isFinite(parsed) && parsed >= 0 ? parsed * 1_000_000 : undefined
 }
 
-function buildXaiLongContextPricing(model: XaiLanguageModel): ModelInfo["longContextPricing"] {
+function buildXaiLongContextPricing(model: XaiModel): ModelInfo["longContextPricing"] {
 	const thresholdTokens = positiveNumber(model.long_context_threshold)
 
 	if (!thresholdTokens) {
@@ -442,6 +447,39 @@ function buildXaiLongContextPricing(model: XaiLanguageModel): ModelInfo["longCon
 		inputPriceMultiplier,
 		outputPriceMultiplier,
 		cacheReadsPriceMultiplier,
+	}
+}
+
+function shouldIncludeXaiLanguageModel(model: XaiModel): boolean {
+	if (model.output_modalities?.length && !model.output_modalities.includes("text")) {
+		return false
+	}
+
+	const hasTextTokenPricing =
+		typeof model.prompt_text_token_price === "number" || typeof model.completion_text_token_price === "number"
+
+	return !(typeof model.image_price === "number" && !hasTextTokenPricing)
+}
+
+function mergeXaiModel(model: XaiModel, models: ModelRecord): void {
+	if (!shouldIncludeXaiLanguageModel(model)) {
+		return
+	}
+
+	for (const id of [model.id, ...(model.aliases ?? [])]) {
+		models[id] = mergeModelInfo(id, xaiModels, {
+			contextWindow: positiveNumber(model.context_window ?? model.max_prompt_text_tokens),
+			maxTokens: positiveNumber(model.max_completion_tokens),
+			supportsImages: model.input_modalities?.includes("image"),
+			supportsPromptCache:
+				typeof model.cached_prompt_text_token_price === "number" && model.cached_prompt_text_token_price > 0
+					? true
+					: undefined,
+			inputPrice: positiveCentsPer100MillionTokensToDollarsPerMillion(model.prompt_text_token_price),
+			outputPrice: positiveCentsPer100MillionTokensToDollarsPerMillion(model.completion_text_token_price),
+			cacheReadsPrice: positiveCentsPer100MillionTokensToDollarsPerMillion(model.cached_prompt_text_token_price),
+			longContextPricing: buildXaiLongContextPricing(model),
+		})
 	}
 }
 
@@ -561,34 +599,38 @@ export async function getAnthropicModels(apiKey?: string, baseUrl = "https://api
 export async function getXAIModels(apiKey?: string): Promise<ModelRecord> {
 	if (!apiKey) return {}
 
-	const response = await axios.get("https://api.x.ai/v1/language-models", {
-		headers: { Authorization: `Bearer ${apiKey}` },
-	})
-	const parsed = xaiLanguageModelsResponseSchema.safeParse(response.data)
+	const headers = { Authorization: `Bearer ${apiKey}` }
+	const models: ModelRecord = {}
+
+	try {
+		const response = await axios.get("https://api.x.ai/v1/language-models", { headers })
+		const parsed = xaiLanguageModelsResponseSchema.safeParse(response.data)
+
+		if (!parsed.success) {
+			console.error("xAI language models response is invalid", parsed.error.format())
+		} else {
+			for (const model of parsed.data.models) {
+				mergeXaiModel(model, models)
+			}
+
+			if (Object.keys(models).length > 0) {
+				return models
+			}
+		}
+	} catch (error) {
+		console.error("Failed to fetch xAI language models", error)
+	}
+
+	const response = await axios.get("https://api.x.ai/v1/models", { headers })
+	const parsed = xaiModelsResponseSchema.safeParse(response.data)
 
 	if (!parsed.success) {
-		console.error("xAI language models response is invalid", parsed.error.format())
+		console.error("xAI models response is invalid", parsed.error.format())
 		return {}
 	}
 
-	const models: ModelRecord = {}
-
-	for (const model of parsed.data.models) {
-		for (const id of [model.id, ...(model.aliases ?? [])]) {
-			models[id] = mergeModelInfo(id, xaiModels, {
-				contextWindow: positiveNumber(model.context_window ?? model.max_prompt_text_tokens),
-				maxTokens: model.max_completion_tokens,
-				supportsImages: model.input_modalities?.includes("image"),
-				supportsPromptCache:
-					typeof model.cached_prompt_text_token_price === "number" && model.cached_prompt_text_token_price > 0
-						? true
-						: undefined,
-				inputPrice: centsPer100MillionTokensToDollarsPerMillion(model.prompt_text_token_price),
-				outputPrice: centsPer100MillionTokensToDollarsPerMillion(model.completion_text_token_price),
-				cacheReadsPrice: centsPer100MillionTokensToDollarsPerMillion(model.cached_prompt_text_token_price),
-				longContextPricing: buildXaiLongContextPricing(model),
-			})
-		}
+	for (const model of parsed.data.data) {
+		mergeXaiModel(model, models)
 	}
 
 	return models

@@ -290,19 +290,27 @@ describe("DeepSeekHandler", () => {
 			expect((model.info as ModelInfo).preserveReasoning).toBeUndefined()
 		})
 
-		it("should return provided model ID with default model info if model does not exist", () => {
+		it("should return provided model ID with conservative metadata if model does not exist", () => {
 			const handlerWithInvalidModel = new DeepSeekHandler({
 				...mockOptions,
 				apiModelId: "invalid-model",
 			})
 			const model = handlerWithInvalidModel.getModel()
-			expect(model.id).toBe("invalid-model") // Returns provided ID
-			expect(model.info).toBeDefined()
-			// With the current implementation, it's the same object reference when using default model info
-			expect(model.info).toBe(handler.getModel().info)
-			// Should have the same base properties
-			expect(model.info.contextWindow).toBe(handler.getModel().info.contextWindow)
-			expect(model.info.supportsPromptCache).toBe(true)
+			expect(model.id).toBe("invalid-model")
+			expect(model.info).toEqual({
+				contextWindow: 128_000,
+				supportsPromptCache: false,
+			})
+			expect(model.info).not.toBe(handler.getModel().info)
+			expect(model.info.maxTokens).toBeUndefined()
+			expect(model.info.inputPrice).toBeUndefined()
+			expect(model.info.outputPrice).toBeUndefined()
+			expect(model.info.cacheWritesPrice).toBeUndefined()
+			expect(model.info.cacheReadsPrice).toBeUndefined()
+			expect(model.info.supportsReasoningEffort).toBeUndefined()
+			expect(model.info.preserveReasoning).toBeUndefined()
+			expect(model.maxTokens).toBeUndefined()
+			expect(model.reasoningEffort).toBeUndefined()
 		})
 
 		it("should return default model if no model ID is provided", () => {
@@ -480,6 +488,47 @@ describe("DeepSeekHandler", () => {
 			const callArgs = mockCreate.mock.calls[0][0]
 			expect(callArgs.max_tokens).toBe(12_345)
 			expect(callArgs.max_completion_tokens).toBeUndefined()
+		})
+
+		it("should use conservative request parameters for unknown dynamic models", async () => {
+			const dynamicHandler = new DeepSeekHandler({
+				...mockOptions,
+				apiModelId: "deepseek-dynamic-model",
+				reasoningEffort: "high",
+			})
+
+			const stream = dynamicHandler.createMessage(systemPrompt, messages)
+			for await (const _chunk of stream) {
+				// Consume the stream
+			}
+
+			const callArgs = mockCreate.mock.calls[0][0]
+			expect(callArgs.model).toBe("deepseek-dynamic-model")
+			expect(callArgs.temperature).toBe(DEEP_SEEK_DEFAULT_TEMPERATURE)
+			expect(callArgs.thinking).toBeUndefined()
+			expect(callArgs.reasoning_effort).toBeUndefined()
+			expect(callArgs.max_tokens).toBeUndefined()
+			expect(callArgs.max_completion_tokens).toBeUndefined()
+		})
+
+		it("should respect user-provided max token override for unknown dynamic models", async () => {
+			const dynamicHandler = new DeepSeekHandler({
+				...mockOptions,
+				apiModelId: "deepseek-dynamic-model",
+				modelMaxTokens: 12_345,
+			})
+
+			const stream = dynamicHandler.createMessage(systemPrompt, messages)
+			for await (const _chunk of stream) {
+				// Consume the stream
+			}
+
+			const callArgs = mockCreate.mock.calls[0][0]
+			expect(callArgs.model).toBe("deepseek-dynamic-model")
+			expect(callArgs.max_tokens).toBe(12_345)
+			expect(callArgs.max_completion_tokens).toBeUndefined()
+			expect(callArgs.thinking).toBeUndefined()
+			expect(callArgs.reasoning_effort).toBeUndefined()
 		})
 	})
 

@@ -227,8 +227,30 @@ describe("static provider model fetchers", () => {
 				outputPrice: 2.5,
 				cacheReadsPrice: 0.2,
 			})
-			expect(models["grok-4.3-latest"]).toEqual(models.latest)
-			expect(models["grok-latest"]).toEqual(models.latest)
+			expect(models.latest.maxTokens).toBeUndefined()
+			expect(models.latest.cacheWritesPrice).toBeUndefined()
+			expect(models["grok-4.3-latest"]).toMatchObject({
+				contextWindow: 1_000_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				inputPrice: 1.25,
+				outputPrice: 2.5,
+				cacheReadsPrice: 0.2,
+				deprecated: true,
+			})
+			expect(models["grok-4.3-latest"].maxTokens).toBeUndefined()
+			expect(models["grok-4.3-latest"].cacheWritesPrice).toBeUndefined()
+			expect(models["grok-latest"]).toMatchObject({
+				contextWindow: 1_000_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				inputPrice: 1.25,
+				outputPrice: 2.5,
+				cacheReadsPrice: 0.2,
+				deprecated: true,
+			})
+			expect(models["grok-latest"].maxTokens).toBeUndefined()
+			expect(models["grok-latest"].cacheWritesPrice).toBeUndefined()
 			expect(models["grok-420-reasoning"]).toMatchObject({
 				contextWindow: 128_000,
 				supportsImages: false,
@@ -242,6 +264,123 @@ describe("static provider model fetchers", () => {
 					outputPriceMultiplier: 2,
 				},
 			})
+			expect(models["grok-420-reasoning"].cacheWritesPrice).toBeUndefined()
+		})
+
+		it("preserves curated xAI metadata when dynamic language-models data is sparse or zero-priced", async () => {
+			mockAxiosGet.mockResolvedValueOnce({
+				data: {
+					models: [
+						{
+							id: "grok-4.3",
+							aliases: ["grok-4.20-0309-reasoning"],
+							input_modalities: ["text", "image"],
+							output_modalities: ["text"],
+							prompt_text_token_price: 0,
+							cached_prompt_text_token_price: 0,
+							completion_text_token_price: 0,
+						},
+					],
+				},
+			})
+
+			const models = await getXAIModels("xai-key")
+
+			expect(mockAxiosGet).toHaveBeenCalledTimes(1)
+			expect(models["grok-4.3"]).toMatchObject({
+				contextWindow: 1_000_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				inputPrice: 1.25,
+				outputPrice: 2.5,
+				cacheReadsPrice: 0.2,
+				supportsReasoningEffort: ["none", "low", "medium", "high"],
+				reasoningEffort: "low",
+			})
+			expect(models["grok-4.3"].maxTokens).toBeUndefined()
+			expect(models["grok-4.3"].cacheWritesPrice).toBeUndefined()
+			expect(models["grok-4.20-0309-reasoning"]).toMatchObject({
+				contextWindow: 1_000_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				inputPrice: 1.25,
+				outputPrice: 2.5,
+				cacheReadsPrice: 0.2,
+			})
+			expect(models["grok-4.20-0309-reasoning"].maxTokens).toBeUndefined()
+		})
+
+		it("falls back to /v1/models when /v1/language-models has no text models and filters image-only entries", async () => {
+			mockAxiosGet
+				.mockResolvedValueOnce({
+					data: {
+						models: [
+							{
+								id: "grok-image-only",
+								output_modalities: ["image"],
+								image_price: 250_000,
+							},
+						],
+					},
+				})
+				.mockResolvedValueOnce({
+					data: {
+						data: [
+							{
+								id: "grok-build-0.1",
+								input_modalities: ["text", "image"],
+								output_modalities: ["text"],
+								context_window: 256_000,
+								prompt_text_token_price: 10_000,
+								cached_prompt_text_token_price: 2_000,
+								completion_text_token_price: 20_000,
+							},
+							{
+								id: "xai-dynamic-language-model",
+								output_modalities: ["text"],
+								context_window: 64_000,
+								max_completion_tokens: 4_096,
+							},
+							{
+								id: "xai-image-generation-model",
+								output_modalities: ["image"],
+								image_price: 250_000,
+							},
+							{
+								id: "xai-image-price-only-model",
+								image_price: 250_000,
+							},
+						],
+					},
+				})
+
+			const models = await getXAIModels("xai-key")
+
+			expect(mockAxiosGet).toHaveBeenNthCalledWith(1, "https://api.x.ai/v1/language-models", {
+				headers: { Authorization: "Bearer xai-key" },
+			})
+			expect(mockAxiosGet).toHaveBeenNthCalledWith(2, "https://api.x.ai/v1/models", {
+				headers: { Authorization: "Bearer xai-key" },
+			})
+			expect(models["grok-build-0.1"]).toMatchObject({
+				contextWindow: 256_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				inputPrice: 1,
+				outputPrice: 2,
+				cacheReadsPrice: 0.2,
+			})
+			expect(models["grok-build-0.1"].cacheWritesPrice).toBeUndefined()
+			expect(models["xai-dynamic-language-model"]).toMatchObject({
+				contextWindow: 64_000,
+				maxTokens: 4_096,
+				supportsPromptCache: false,
+			})
+			expect(models["xai-dynamic-language-model"].inputPrice).toBeUndefined()
+			expect(models["xai-dynamic-language-model"].supportsReasoningEffort).toBeUndefined()
+			expect(models["grok-image-only"]).toBeUndefined()
+			expect(models["xai-image-generation-model"]).toBeUndefined()
+			expect(models["xai-image-price-only-model"]).toBeUndefined()
 		})
 	})
 
@@ -509,6 +648,13 @@ describe("static provider model fetchers", () => {
 				contextWindow: 128_000,
 				supportsPromptCache: false,
 			})
+			expect(models["deepseek-dynamic-model"].maxTokens).toBeUndefined()
+			expect(models["deepseek-dynamic-model"].inputPrice).toBeUndefined()
+			expect(models["deepseek-dynamic-model"].outputPrice).toBeUndefined()
+			expect(models["deepseek-dynamic-model"].cacheWritesPrice).toBeUndefined()
+			expect(models["deepseek-dynamic-model"].cacheReadsPrice).toBeUndefined()
+			expect(models["deepseek-dynamic-model"].supportsReasoningEffort).toBeUndefined()
+			expect(models["deepseek-dynamic-model"].preserveReasoning).toBeUndefined()
 		})
 	})
 
