@@ -2,7 +2,7 @@
 
 import axios from "axios"
 
-import { bedrockModels, geminiModels } from "@roo-code/types"
+import { basetenModels, bedrockModels, fireworksModels, geminiModels, sambaNovaModels } from "@roo-code/types"
 
 const bedrockSdkMocks = vi.hoisted(() => {
 	const send = vi.fn()
@@ -955,44 +955,58 @@ describe("static provider model fetchers", () => {
 	})
 
 	describe("getSambaNovaModels", () => {
-		it("maps the official /v1/models response with token limits and pricing", async () => {
+		it("maps the public /v1/models response with token limits, capabilities, and pricing", async () => {
 			mockAxiosGet.mockResolvedValueOnce({
 				data: {
 					data: [
 						{
-							id: "DeepSeek-R1",
-							context_length: 32_768,
-							max_completion_tokens: 16_384,
-							pricing: { prompt: "0.00000500", completion: "0.00000700" },
+							id: "Meta-Llama-3.3-70B-Instruct",
+							description: "Sparse SambaNova fallback should not replace curated metadata",
+							pricing: { prompt: "0", completion: "0" },
 						},
 						{
 							id: "SambaNova-Dynamic-Model",
-							context_length: 64_000,
-							max_completion_tokens: 12_000,
+							description: "SambaNova Dynamic Model",
+							context_window: 64_000,
+							max_output_tokens: 12_000,
+							modalities: ["text", "image"],
 							pricing: { prompt: "0.00000050", completion: "0.00000100" },
 						},
 					],
 				},
 			})
 
-			const models = await getSambaNovaModels("sambanova-key")
+			const models = await getSambaNovaModels()
 
 			expect(mockAxiosGet).toHaveBeenCalledWith("https://api.sambanova.ai/v1/models", {
-				headers: { Authorization: "Bearer sambanova-key" },
+				headers: {},
 			})
-			expect(models["DeepSeek-R1"]).toMatchObject({
-				contextWindow: 32_768,
-				maxTokens: 16_384,
-				supportsReasoningBudget: true,
-				inputPrice: 5,
-				outputPrice: 7,
+			expect(models["Meta-Llama-3.3-70B-Instruct"]).toMatchObject({
+				contextWindow: 131_072,
+				maxTokens: 3_072,
+				supportsImages: false,
+				inputPrice: 0.6,
+				outputPrice: 1.2,
+				description: sambaNovaModels["Meta-Llama-3.3-70B-Instruct"].description,
 			})
 			expect(models["SambaNova-Dynamic-Model"]).toMatchObject({
 				contextWindow: 64_000,
 				maxTokens: 12_000,
+				description: "SambaNova Dynamic Model",
+				supportsImages: true,
 				supportsPromptCache: false,
 				inputPrice: 0.5,
 				outputPrice: 1,
+			})
+		})
+
+		it("passes the optional SambaNova API key when provided", async () => {
+			mockAxiosGet.mockResolvedValueOnce({ data: { data: [] } })
+
+			await getSambaNovaModels("sambanova-key")
+
+			expect(mockAxiosGet).toHaveBeenCalledWith("https://api.sambanova.ai/v1/models", {
+				headers: { Authorization: "Bearer sambanova-key" },
 			})
 		})
 	})
@@ -1073,15 +1087,22 @@ describe("static provider model fetchers", () => {
 	})
 
 	describe("getBasetenModels", () => {
-		it("maps the verified Model APIs /v1/models response with a models array", async () => {
+		it("maps the verified Model APIs /v1/models response while preserving curated known metadata", async () => {
 			mockAxiosGet.mockResolvedValueOnce({
 				data: {
 					models: [
+						{
+							id: "deepseek-ai/DeepSeek-V4-Pro",
+							name: "Sparse DeepSeek V4 Pro",
+						},
 						{
 							id: "baseten/dynamic-model",
 							name: "Baseten Dynamic Model",
 							context_window: 256_000,
 							max_output_tokens: 16_384,
+							supports_image_input: true,
+							supports_reasoning_effort: true,
+							pricing: { input: "0.00000125", output: "0.00000250", cache_read: "0.00000010" },
 						},
 					],
 				},
@@ -1092,12 +1113,27 @@ describe("static provider model fetchers", () => {
 			expect(mockAxiosGet).toHaveBeenCalledWith("https://inference.baseten.co/v1/models", {
 				headers: { Authorization: "Bearer baseten-key" },
 			})
+			expect(models["deepseek-ai/DeepSeek-V4-Pro"]).toMatchObject({
+				contextWindow: 131_072,
+				maxTokens: 131_072,
+				supportsPromptCache: true,
+				supportsReasoningEffort: ["disable", "low", "medium", "high"],
+				inputPrice: 1.74,
+				outputPrice: 3.48,
+				cacheReadsPrice: 0.145,
+				description: basetenModels["deepseek-ai/DeepSeek-V4-Pro"].description,
+			})
 			expect(models["baseten/dynamic-model"]).toMatchObject({
 				contextWindow: 256_000,
 				maxTokens: 16_384,
 				description: "Baseten Dynamic Model",
+				supportsImages: true,
 				supportsPromptCache: false,
+				supportsReasoningEffort: ["low", "medium", "high"],
+				inputPrice: 1.25,
+				outputPrice: 2.5,
 			})
+			expect(models["baseten/dynamic-model"].cacheReadsPrice).toBeCloseTo(0.1)
 		})
 	})
 
@@ -1108,9 +1144,14 @@ describe("static provider model fetchers", () => {
 					data: {
 						models: [
 							{
-								name: "accounts/fireworks/models/deepseek-v3",
-								displayName: "DeepSeek V3",
-								contextLength: 128_000,
+								name: "accounts/fireworks/models/kimi-k2p6",
+								displayName: "Sparse Fireworks Kimi K2.6",
+								supportsServerless: true,
+							},
+							{
+								name: "accounts/fireworks/models/non-serverless-model",
+								description: "Do not include dedicated-only models",
+								supportsServerless: false,
 							},
 						],
 						nextPageToken: "next-page",
@@ -1123,6 +1164,9 @@ describe("static provider model fetchers", () => {
 								name: "accounts/fireworks/models/fireworks-dynamic-model",
 								description: "Fireworks Dynamic Model",
 								maxContextLength: 64_000,
+								maxCompletionTokens: 8_000,
+								supportsImageInput: true,
+								state: "DECOMMISSIONED",
 							},
 						],
 					},
@@ -1132,20 +1176,27 @@ describe("static provider model fetchers", () => {
 
 			expect(mockAxiosGet).toHaveBeenNthCalledWith(1, "https://api.fireworks.ai/v1/accounts/fireworks/models", {
 				headers: { Authorization: "Bearer fireworks-key" },
-				params: { pageSize: 200 },
+				params: { pageSize: 200, filter: "supports_serverless=true" },
 			})
 			expect(mockAxiosGet).toHaveBeenNthCalledWith(2, "https://api.fireworks.ai/v1/accounts/fireworks/models", {
 				headers: { Authorization: "Bearer fireworks-key" },
-				params: { pageSize: 200, pageToken: "next-page" },
+				params: { pageSize: 200, filter: "supports_serverless=true", pageToken: "next-page" },
 			})
-			expect(models["accounts/fireworks/models/deepseek-v3"]).toMatchObject({
-				contextWindow: 128_000,
-				description: "DeepSeek V3",
+			expect(models["accounts/fireworks/models/kimi-k2p6"]).toMatchObject({
+				contextWindow: 262_144,
+				maxTokens: 32_768,
+				supportsImages: true,
+				supportsPromptCache: true,
+				description: fireworksModels["accounts/fireworks/models/kimi-k2p6"].description,
 			})
+			expect(models["accounts/fireworks/models/non-serverless-model"]).toBeUndefined()
 			expect(models["accounts/fireworks/models/fireworks-dynamic-model"]).toMatchObject({
 				contextWindow: 64_000,
+				maxTokens: 8_000,
 				description: "Fireworks Dynamic Model",
+				supportsImages: true,
 				supportsPromptCache: false,
+				deprecated: true,
 			})
 		})
 	})

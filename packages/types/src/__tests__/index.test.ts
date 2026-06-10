@@ -14,9 +14,15 @@ import {
 	providerSettingsSchemaDiscriminated,
 } from "../index.js"
 import {
+	basetenDefaultModelId,
+	basetenModels,
+	fireworksDefaultModelId,
+	fireworksModels,
 	getProviderDefaultModelId,
 	openAiCodexModels,
 	openAiNativeDefaultModelId,
+	sambaNovaDefaultModelId,
+	sambaNovaModels,
 	xiaomiMiMoDefaultModelId,
 	xiaomiMiMoModels,
 } from "../providers/index.js"
@@ -80,6 +86,20 @@ describe("getProviderDefaultModelId", () => {
 
 	it("should return the Xiaomi MiMo provider default", () => {
 		expect(getProviderDefaultModelId("xiaomi-mimo")).toBe(xiaomiMiMoDefaultModelId)
+	})
+
+	it("should return active hosted inference provider defaults", () => {
+		expect(getProviderDefaultModelId("fireworks")).toBe(fireworksDefaultModelId)
+		expect(fireworksModels[fireworksDefaultModelId]).toBeDefined()
+		expect(fireworksModels[fireworksDefaultModelId]).not.toHaveProperty("deprecated")
+
+		expect(getProviderDefaultModelId("baseten")).toBe(basetenDefaultModelId)
+		expect(basetenModels[basetenDefaultModelId]).toBeDefined()
+		expect(basetenModels[basetenDefaultModelId]).not.toHaveProperty("deprecated")
+
+		expect(getProviderDefaultModelId("sambanova")).toBe(sambaNovaDefaultModelId)
+		expect(sambaNovaModels[sambaNovaDefaultModelId]).toBeDefined()
+		expect(sambaNovaModels[sambaNovaDefaultModelId]).not.toHaveProperty("deprecated")
 	})
 })
 

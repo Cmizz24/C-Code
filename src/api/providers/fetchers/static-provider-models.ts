@@ -157,20 +157,42 @@ const moonshotModelsResponseSchema = z.object({
 	),
 })
 
+const providerPricingSchema = z
+	.object({
+		prompt: z.union([z.string(), z.number()]).nullish(),
+		completion: z.union([z.string(), z.number()]).nullish(),
+		input: z.union([z.string(), z.number()]).nullish(),
+		output: z.union([z.string(), z.number()]).nullish(),
+		cache_read: z.union([z.string(), z.number()]).nullish(),
+		input_cache_read: z.union([z.string(), z.number()]).nullish(),
+		cached_prompt: z.union([z.string(), z.number()]).nullish(),
+	})
+	.passthrough()
+
+const openAiCompatibleCapabilitySchema = z.union([z.boolean(), capabilitySupportSchema]).optional()
+
 const sambaNovaModelsResponseSchema = z.object({
 	data: z.array(
 		z
 			.object({
 				id: z.string(),
 				context_length: z.number().optional(),
+				context_window: z.number().optional(),
+				max_context_length: z.number().optional(),
 				max_completion_tokens: z.number().optional(),
-				pricing: z
+				max_output_tokens: z.number().optional(),
+				max_tokens: z.number().optional(),
+				description: z.string().optional(),
+				input_modalities: z.array(z.string()).optional(),
+				modalities: z.array(z.string()).optional(),
+				capabilities: z
 					.object({
-						prompt: z.string().optional(),
-						completion: z.string().optional(),
+						vision: z.boolean().optional(),
+						image_input: openAiCompatibleCapabilitySchema,
 					})
 					.passthrough()
 					.optional(),
+				pricing: providerPricingSchema.optional(),
 			})
 			.passthrough(),
 	),
@@ -213,9 +235,26 @@ const basetenModelSchema = z
 		context_length: z.number().optional(),
 		context_window: z.number().optional(),
 		max_context_length: z.number().optional(),
+		max_completion_tokens: z.number().optional(),
 		max_output_tokens: z.number().optional(),
 		max_tokens: z.number().optional(),
 		description: z.string().optional(),
+		supports_image_input: z.boolean().optional(),
+		supports_images: z.boolean().optional(),
+		supports_vision: z.boolean().optional(),
+		supports_reasoning_effort: z.boolean().optional(),
+		input_modalities: z.array(z.string()).optional(),
+		modalities: z.array(z.string()).optional(),
+		capabilities: z
+			.object({
+				vision: z.boolean().optional(),
+				image_input: openAiCompatibleCapabilitySchema,
+				reasoning_effort: openAiCompatibleCapabilitySchema,
+				thinking: openAiCompatibleCapabilitySchema,
+			})
+			.passthrough()
+			.optional(),
+		pricing: providerPricingSchema.optional(),
 	})
 	.passthrough()
 
@@ -240,12 +279,24 @@ const fireworksModelsResponseSchema = z.object({
 				displayName: z.string().optional(),
 				contextLength: z.number().optional(),
 				maxContextLength: z.number().optional(),
+				maxCompletionTokens: z.number().optional(),
+				maxOutputTokens: z.number().optional(),
+				maxTokens: z.number().optional(),
+				supportsImageInput: z.boolean().optional(),
+				supportsTools: z.boolean().optional(),
+				supportsServerless: z.boolean().optional(),
+				deprecationDate: z.string().nullable().optional(),
+				state: z.string().optional(),
 				description: z.string().optional(),
 			})
 			.passthrough(),
 	),
 	nextPageToken: z.string().optional(),
 })
+
+type SambaNovaModel = z.infer<typeof sambaNovaModelsResponseSchema>["data"][number]
+type BasetenModel = z.infer<typeof basetenModelSchema>
+type FireworksModel = z.infer<typeof fireworksModelsResponseSchema>["models"][number]
 
 function mergeModelInfo(modelId: string, fallbackModels: ModelRecord, dynamicInfo: Partial<ModelInfo> = {}): ModelInfo {
 	const definedDynamicInfo = Object.fromEntries(
@@ -453,13 +504,98 @@ function priceMultiplier(longContextPrice?: number | null, standardPrice?: numbe
 		: undefined
 }
 
-function dollarsPerTokenToDollarsPerMillion(price?: string): number | undefined {
-	if (!price) {
+function dollarsPerTokenToDollarsPerMillion(price?: string | number | null): number | undefined {
+	if (price === undefined || price === null || price === "") {
 		return undefined
 	}
 
-	const parsed = Number(price)
-	return Number.isFinite(parsed) && parsed >= 0 ? parsed * 1_000_000 : undefined
+	const parsed = typeof price === "number" ? price : Number(price)
+
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return undefined
+	}
+
+	return parsed < 0.1 ? parsed * 1_000_000 : parsed
+}
+
+function firstPositiveNumber(...values: Array<number | null | undefined>): number | undefined {
+	for (const value of values) {
+		const positive = positiveNumber(value)
+		if (positive !== undefined) {
+			return positive
+		}
+	}
+
+	return undefined
+}
+
+function normalizeProviderPricing(pricing?: z.infer<typeof providerPricingSchema>): Partial<ModelInfo> {
+	return {
+		inputPrice: dollarsPerTokenToDollarsPerMillion(pricing?.prompt ?? pricing?.input),
+		outputPrice: dollarsPerTokenToDollarsPerMillion(pricing?.completion ?? pricing?.output),
+		cacheReadsPrice: dollarsPerTokenToDollarsPerMillion(
+			pricing?.cache_read ?? pricing?.input_cache_read ?? pricing?.cached_prompt,
+		),
+	}
+}
+
+function hasImageInput(modalities?: string[] | null): boolean | undefined {
+	return modalities?.some((modality) => modality.toLowerCase() === "image") || undefined
+}
+
+function normalizeOpenAiCompatibleImageSupport(model: SambaNovaModel | BasetenModel): boolean | undefined {
+	const modelWithOptionalCapabilities = model as {
+		supports_image_input?: boolean
+		supports_images?: boolean
+		supports_vision?: boolean
+		capabilities?: {
+			vision?: boolean
+			image_input?: boolean | { supported?: boolean }
+		}
+		input_modalities?: string[]
+		modalities?: string[]
+	}
+
+	return (
+		modelWithOptionalCapabilities.supports_image_input ??
+		modelWithOptionalCapabilities.supports_images ??
+		modelWithOptionalCapabilities.supports_vision ??
+		modelWithOptionalCapabilities.capabilities?.vision ??
+		capabilitySupported(modelWithOptionalCapabilities.capabilities?.image_input) ??
+		hasImageInput(modelWithOptionalCapabilities.input_modalities) ??
+		hasImageInput(modelWithOptionalCapabilities.modalities)
+	)
+}
+
+function normalizeBasetenReasoningEffortSupport(model: BasetenModel): ModelInfo["supportsReasoningEffort"] | undefined {
+	const dynamicSupport =
+		model.supports_reasoning_effort ??
+		capabilitySupported(model.capabilities?.reasoning_effort) ??
+		capabilitySupported(model.capabilities?.thinking)
+
+	if (dynamicSupport === true) {
+		return ["low", "medium", "high"]
+	}
+
+	return undefined
+}
+
+function normalizeFireworksDeprecated(model: FireworksModel): boolean | undefined {
+	if (model.deprecationDate) {
+		return true
+	}
+
+	const normalizedState = model.state?.toLowerCase()
+
+	return normalizedState?.includes("deprecated") || normalizedState?.includes("decommission") || undefined
+}
+
+function getSparseSafeDescription(
+	modelId: string,
+	fallbackModels: ModelRecord,
+	description?: string,
+): string | undefined {
+	return fallbackModels[modelId]?.description ? undefined : description
 }
 
 function buildXaiLongContextPricing(model: XaiModel): ModelInfo["longContextPricing"] {
@@ -829,10 +965,8 @@ export async function getMoonshotModels(apiKey?: string, baseUrl = "https://api.
 }
 
 export async function getSambaNovaModels(apiKey?: string): Promise<ModelRecord> {
-	if (!apiKey) return {}
-
 	const response = await axios.get("https://api.sambanova.ai/v1/models", {
-		headers: { Authorization: `Bearer ${apiKey}` },
+		headers: { ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) },
 	})
 	const parsed = sambaNovaModelsResponseSchema.safeParse(response.data)
 
@@ -845,10 +979,11 @@ export async function getSambaNovaModels(apiKey?: string): Promise<ModelRecord> 
 
 	for (const model of parsed.data.data) {
 		models[model.id] = mergeModelInfo(model.id, sambaNovaModels, {
-			contextWindow: positiveNumber(model.context_length),
-			maxTokens: positiveNumber(model.max_completion_tokens),
-			inputPrice: dollarsPerTokenToDollarsPerMillion(model.pricing?.prompt),
-			outputPrice: dollarsPerTokenToDollarsPerMillion(model.pricing?.completion),
+			contextWindow: firstPositiveNumber(model.context_length, model.context_window, model.max_context_length),
+			maxTokens: firstPositiveNumber(model.max_completion_tokens, model.max_output_tokens, model.max_tokens),
+			description: getSparseSafeDescription(model.id, sambaNovaModels, model.description),
+			supportsImages: normalizeOpenAiCompatibleImageSupport(model),
+			...normalizeProviderPricing(model.pricing),
 		})
 	}
 
@@ -905,9 +1040,12 @@ export async function getBasetenModels(apiKey?: string): Promise<ModelRecord> {
 
 	for (const model of basetenModelList) {
 		models[model.id] = mergeModelInfo(model.id, basetenModels, {
-			contextWindow: model.context_length ?? model.context_window ?? model.max_context_length,
-			maxTokens: model.max_output_tokens ?? model.max_tokens,
-			description: model.description ?? model.name,
+			contextWindow: firstPositiveNumber(model.context_length, model.context_window, model.max_context_length),
+			maxTokens: firstPositiveNumber(model.max_completion_tokens, model.max_output_tokens, model.max_tokens),
+			description: getSparseSafeDescription(model.id, basetenModels, model.description ?? model.name),
+			supportsImages: normalizeOpenAiCompatibleImageSupport(model),
+			supportsReasoningEffort: normalizeBasetenReasoningEffortSupport(model),
+			...normalizeProviderPricing(model.pricing),
 		})
 	}
 
@@ -923,7 +1061,7 @@ export async function getFireworksModels(apiKey?: string): Promise<ModelRecord> 
 	do {
 		const response = await axios.get("https://api.fireworks.ai/v1/accounts/fireworks/models", {
 			headers: { Authorization: `Bearer ${apiKey}` },
-			params: { pageSize: 200, ...(pageToken ? { pageToken } : {}) },
+			params: { pageSize: 200, filter: "supports_serverless=true", ...(pageToken ? { pageToken } : {}) },
 		})
 		const parsed = fireworksModelsResponseSchema.safeParse(response.data)
 
@@ -933,10 +1071,17 @@ export async function getFireworksModels(apiKey?: string): Promise<ModelRecord> 
 		}
 
 		for (const model of parsed.data.models) {
+			if (model.supportsServerless === false) {
+				continue
+			}
+
 			const id = model.name
 			models[id] = mergeModelInfo(id, fireworksModels, {
-				contextWindow: model.contextLength ?? model.maxContextLength,
-				description: model.description ?? model.displayName,
+				contextWindow: firstPositiveNumber(model.contextLength, model.maxContextLength),
+				maxTokens: firstPositiveNumber(model.maxCompletionTokens, model.maxOutputTokens, model.maxTokens),
+				description: getSparseSafeDescription(id, fireworksModels, model.description ?? model.displayName),
+				supportsImages: model.supportsImageInput,
+				deprecated: normalizeFireworksDeprecated(model),
 			})
 		}
 

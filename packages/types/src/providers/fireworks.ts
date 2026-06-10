@@ -1,243 +1,324 @@
 import type { ModelInfo } from "../model.js"
 
-export type FireworksModelId =
-	| "accounts/fireworks/models/kimi-k2-instruct"
-	| "accounts/fireworks/models/kimi-k2-instruct-0905"
-	| "accounts/fireworks/models/kimi-k2-thinking"
-	| "accounts/fireworks/models/kimi-k2p5"
-	| "accounts/fireworks/models/minimax-m2"
-	| "accounts/fireworks/models/minimax-m2p1"
-	| "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"
-	| "accounts/fireworks/models/qwen3-coder-480b-a35b-instruct"
-	| "accounts/fireworks/models/deepseek-r1-0528"
-	| "accounts/fireworks/models/deepseek-v3"
-	| "accounts/fireworks/models/deepseek-v3p1"
-	| "accounts/fireworks/models/deepseek-v3p2"
-	| "accounts/fireworks/models/glm-4p5"
-	| "accounts/fireworks/models/glm-4p5-air"
-	| "accounts/fireworks/models/glm-4p6"
-	| "accounts/fireworks/models/glm-4p7"
-	| "accounts/fireworks/models/gpt-oss-20b"
-	| "accounts/fireworks/models/gpt-oss-120b"
-	| "accounts/fireworks/models/llama-v3p3-70b-instruct"
-	| "accounts/fireworks/models/llama4-maverick-instruct-basic"
-	| "accounts/fireworks/models/llama4-scout-instruct-basic"
-
-export const fireworksDefaultModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2-instruct-0905"
-
 export const fireworksModels = {
+	"accounts/fireworks/models/kimi-k2p6": {
+		maxTokens: 32_768,
+		contextWindow: 262_144,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoningBinary: true,
+		preserveReasoning: true,
+		inputPrice: 0.95,
+		outputPrice: 4,
+		cacheReadsPrice: 0.16,
+		description:
+			"Kimi K2.6 is Moonshot AI's current flagship agentic model on Fireworks, with 262K context, vision input, tool use, prompt caching, and controllable thinking modes.",
+	},
+	"accounts/fireworks/models/kimi-k2p5": {
+		maxTokens: 32_768,
+		contextWindow: 262_144,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoningBinary: true,
+		preserveReasoning: true,
+		inputPrice: 0.6,
+		outputPrice: 3,
+		cacheReadsPrice: 0.1,
+		description:
+			"Kimi K2.5 is Moonshot AI's flagship agentic multimodal model on Fireworks, combining vision and text with thinking and non-thinking modes for coding and agent workflows.",
+	},
+	"accounts/fireworks/models/deepseek-v4-pro": {
+		maxTokens: 384_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		preserveReasoning: true,
+		inputPrice: 1.74,
+		outputPrice: 3.48,
+		cacheReadsPrice: 0.145,
+		description:
+			"DeepSeek V4 Pro is Fireworks' flagship DeepSeek V4 model with long-context reasoning, strong coding, tool use, JSON output, and prompt caching support.",
+	},
+	"accounts/fireworks/models/deepseek-v4-flash": {
+		maxTokens: 384_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		preserveReasoning: true,
+		inputPrice: 0.14,
+		outputPrice: 0.28,
+		cacheReadsPrice: 0.028,
+		description:
+			"DeepSeek V4 Flash is a lower-cost DeepSeek V4 variant on Fireworks for fast long-context coding, reasoning, and agentic workflows.",
+	},
+	"accounts/fireworks/models/glm-5p1": {
+		maxTokens: 131_072,
+		contextWindow: 202_752,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1.4,
+		outputPrice: 4.4,
+		cacheReadsPrice: 0.26,
+		description:
+			"Z.ai GLM-5.1 on Fireworks is a frontier coding and agentic reasoning model with a 202K context window and prompt caching.",
+	},
+	"accounts/fireworks/models/qwen3p6-plus": {
+		maxTokens: 32_768,
+		contextWindow: 262_144,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.5,
+		outputPrice: 3,
+		cacheReadsPrice: 0.1,
+		description:
+			"Qwen 3.6 Plus on Fireworks is a current Qwen model for agentic reasoning and coding, with vision input and tool-use support.",
+	},
+	"accounts/fireworks/models/minimax-m2p7": {
+		maxTokens: 196_608,
+		contextWindow: 196_608,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheReadsPrice: 0.06,
+		description:
+			"MiniMax M2.7 on Fireworks is a current long-context text model optimized for agentic coding and general-purpose workflows.",
+	},
+	"accounts/fireworks/models/minimax-m2p5": {
+		maxTokens: 196_608,
+		contextWindow: 196_608,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheReadsPrice: 0.03,
+		description:
+			"MiniMax M2.5 on Fireworks is a long-context text model for coding, tool use, and agent workflows.",
+	},
+	"accounts/fireworks/models/gpt-oss-120b": {
+		maxTokens: 131_072,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		cacheReadsPrice: 0.015,
+		description:
+			"OpenAI gpt-oss-120b on Fireworks is a production-grade open-weight model with strong reasoning, function calling, tool use, and structured-output support.",
+	},
+	"accounts/fireworks/models/gpt-oss-20b": {
+		maxTokens: 131_072,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.07,
+		outputPrice: 0.3,
+		cacheReadsPrice: 0.035,
+		description:
+			"OpenAI gpt-oss-20b on Fireworks is a compact open-weight model for lower-latency, lower-cost text and reasoning workloads.",
+	},
 	"accounts/fireworks/models/kimi-k2-instruct-0905": {
-		maxTokens: 16384,
-		contextWindow: 262144,
+		maxTokens: 16_384,
+		contextWindow: 262_144,
 		supportsImages: false,
 		supportsPromptCache: true,
 		inputPrice: 0.6,
 		outputPrice: 2.5,
 		cacheReadsPrice: 0.15,
+		deprecated: true,
 		description:
-			"Kimi K2 model gets a new version update: Agentic coding: more accurate, better generalization across scaffolds. Frontend coding: improved aesthetics and functionalities on web, 3d, and other tasks. Context length: extended from 128k to 256k, providing better long-horizon support.",
+			"Deprecated Kimi K2 September 2025 checkpoint retained for existing configurations. Use accounts/fireworks/models/kimi-k2p6 for new configurations.",
 	},
 	"accounts/fireworks/models/kimi-k2-instruct": {
-		maxTokens: 16384,
-		contextWindow: 128000,
+		maxTokens: 16_384,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.6,
 		outputPrice: 2.5,
+		deprecated: true,
 		description:
-			"Kimi K2 is a state-of-the-art mixture-of-experts (MoE) language model with 32 billion activated parameters and 1 trillion total parameters. Trained with the Muon optimizer, Kimi K2 achieves exceptional performance across frontier knowledge, reasoning, and coding tasks while being meticulously optimized for agentic capabilities.",
+			"Deprecated Kimi K2 instruct checkpoint retained for existing configurations. Use accounts/fireworks/models/kimi-k2p6 for new configurations.",
 	},
 	"accounts/fireworks/models/kimi-k2-thinking": {
-		maxTokens: 16000,
-		contextWindow: 256000,
+		maxTokens: 16_000,
+		contextWindow: 256_000,
 		supportsImages: false,
 		supportsPromptCache: true,
 		supportsTemperature: true,
 		preserveReasoning: true,
-		defaultTemperature: 1.0,
+		defaultTemperature: 1,
 		inputPrice: 0.6,
 		outputPrice: 2.5,
 		cacheReadsPrice: 0.15,
+		deprecated: true,
 		description:
-			"The kimi-k2-thinking model is a general-purpose agentic reasoning model developed by Moonshot AI. Thanks to its strength in deep reasoning and multi-turn tool use, it can solve even the hardest problems.",
-	},
-	"accounts/fireworks/models/kimi-k2p5": {
-		maxTokens: 16384,
-		contextWindow: 262144,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 0.6,
-		outputPrice: 3.0,
-		cacheReadsPrice: 0.1,
-		description:
-			"Kimi K2.5 is Moonshot AI's flagship agentic model and a new SOTA open model. It unifies vision and text, thinking and non-thinking modes, and single-agent and multi-agent execution into one model. Fireworks enables users to control the reasoning behavior and inspect its reasoning history for greater transparency.",
+			"Deprecated Kimi K2 Thinking checkpoint retained for existing configurations. Use accounts/fireworks/models/kimi-k2p6 or accounts/fireworks/models/kimi-k2p5 for current Kimi thinking support.",
 	},
 	"accounts/fireworks/models/minimax-m2": {
-		maxTokens: 4096,
-		contextWindow: 204800,
+		maxTokens: 4_096,
+		contextWindow: 204_800,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.3,
 		outputPrice: 1.2,
+		deprecated: true,
 		description:
-			"MiniMax M2 is a high-performance language model with 204.8K context window, optimized for long-context understanding and generation tasks.",
+			"Deprecated MiniMax M2 checkpoint retained for existing configurations. Use accounts/fireworks/models/minimax-m2p7 for new configurations.",
+	},
+	"accounts/fireworks/models/minimax-m2p1": {
+		maxTokens: 4_096,
+		contextWindow: 204_800,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		deprecated: true,
+		description:
+			"Deprecated MiniMax M2.1 checkpoint retained for existing configurations. Use accounts/fireworks/models/minimax-m2p7 for new configurations.",
 	},
 	"accounts/fireworks/models/qwen3-235b-a22b-instruct-2507": {
-		maxTokens: 32768,
-		contextWindow: 256000,
+		maxTokens: 32_768,
+		contextWindow: 256_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.22,
 		outputPrice: 0.88,
-		description: "Latest Qwen3 thinking model, competitive against the best closed source models in Jul 2025.",
+		deprecated: true,
+		description:
+			"Deprecated Qwen3 235B July 2025 checkpoint retained for existing configurations. Use accounts/fireworks/models/qwen3p6-plus for current Qwen support.",
 	},
 	"accounts/fireworks/models/qwen3-coder-480b-a35b-instruct": {
-		maxTokens: 32768,
-		contextWindow: 256000,
+		maxTokens: 32_768,
+		contextWindow: 256_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.45,
 		outputPrice: 1.8,
-		description: "Qwen3's most agentic code model to date.",
+		deprecated: true,
+		description:
+			"Deprecated Qwen3 Coder checkpoint retained for existing configurations. Use accounts/fireworks/models/qwen3p6-plus for current Qwen support.",
 	},
 	"accounts/fireworks/models/deepseek-r1-0528": {
-		maxTokens: 20480,
-		contextWindow: 160000,
+		maxTokens: 20_480,
+		contextWindow: 160_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 3,
 		outputPrice: 8,
+		deprecated: true,
 		description:
-			"05/28 updated checkpoint of Deepseek R1. Its overall performance is now approaching that of leading models, such as O3 and Gemini 2.5 Pro. Compared to the previous version, the upgraded model shows significant improvements in handling complex reasoning tasks, and this version also offers a reduced hallucination rate, enhanced support for function calling, and better experience for vibe coding. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
+			"Deprecated DeepSeek R1 May 2025 checkpoint retained for existing configurations. Use accounts/fireworks/models/deepseek-v4-pro for current DeepSeek support.",
 	},
 	"accounts/fireworks/models/deepseek-v3": {
-		maxTokens: 16384,
-		contextWindow: 128000,
+		maxTokens: 16_384,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.9,
 		outputPrice: 0.9,
+		deprecated: true,
 		description:
-			"A strong Mixture-of-Experts (MoE) language model with 671B total parameters with 37B activated for each token from Deepseek. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
+			"Deprecated DeepSeek V3 checkpoint retained for existing configurations. Use accounts/fireworks/models/deepseek-v4-pro for current DeepSeek support.",
 	},
 	"accounts/fireworks/models/deepseek-v3p1": {
-		maxTokens: 16384,
-		contextWindow: 163840,
+		maxTokens: 16_384,
+		contextWindow: 163_840,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.56,
 		outputPrice: 1.68,
+		deprecated: true,
 		description:
-			"DeepSeek v3.1 is an improved version of the v3 model with enhanced performance, better reasoning capabilities, and improved code generation. This Mixture-of-Experts (MoE) model maintains the same 671B total parameters with 37B activated per token.",
-	},
-	"accounts/fireworks/models/glm-4p5": {
-		maxTokens: 16384,
-		contextWindow: 128000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.55,
-		outputPrice: 2.19,
-		description:
-			"Z.ai GLM-4.5 with 355B total parameters and 32B active parameters. Features unified reasoning, coding, and intelligent agent capabilities.",
-	},
-	"accounts/fireworks/models/glm-4p5-air": {
-		maxTokens: 16384,
-		contextWindow: 128000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.55,
-		outputPrice: 2.19,
-		description:
-			"Z.ai GLM-4.5-Air with 106B total parameters and 12B active parameters. Features unified reasoning, coding, and intelligent agent capabilities.",
-	},
-	"accounts/fireworks/models/glm-4p6": {
-		maxTokens: 25344,
-		contextWindow: 198000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.55,
-		outputPrice: 2.19,
-		description:
-			"Z.ai GLM-4.6 is an advanced coding model with exceptional performance on complex programming tasks. Features improved reasoning capabilities and enhanced code generation quality, making it ideal for software development workflows.",
-	},
-	"accounts/fireworks/models/gpt-oss-20b": {
-		maxTokens: 16384,
-		contextWindow: 128000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.07,
-		outputPrice: 0.3,
-		description:
-			"OpenAI gpt-oss-20b: Compact model for local/edge deployments. Optimized for low-latency and resource-constrained environments with chain-of-thought output, adjustable reasoning, and agentic workflows.",
-	},
-	"accounts/fireworks/models/gpt-oss-120b": {
-		maxTokens: 16384,
-		contextWindow: 128000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.15,
-		outputPrice: 0.6,
-		description:
-			"OpenAI gpt-oss-120b: Production-grade, general-purpose model that fits on a single H100 GPU. Features complex reasoning, configurable effort, full chain-of-thought transparency, and supports function calling, tool use, and structured outputs.",
-	},
-	"accounts/fireworks/models/minimax-m2p1": {
-		maxTokens: 4096,
-		contextWindow: 204800,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.3,
-		outputPrice: 1.2,
-		description:
-			"MiniMax M2.1 is an upgraded version of M2 with improved performance on complex reasoning, coding, and long-context understanding tasks.",
+			"Deprecated DeepSeek V3.1 checkpoint retained for existing configurations. Use accounts/fireworks/models/deepseek-v4-pro for current DeepSeek support.",
 	},
 	"accounts/fireworks/models/deepseek-v3p2": {
-		maxTokens: 16384,
-		contextWindow: 163840,
+		maxTokens: 16_384,
+		contextWindow: 163_840,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.56,
 		outputPrice: 1.68,
+		deprecated: true,
 		description:
-			"DeepSeek V3.2 is the latest iteration of the V3 model family with enhanced reasoning capabilities, improved code generation, and better instruction following.",
+			"Deprecated DeepSeek V3.2 checkpoint retained for existing configurations. Use accounts/fireworks/models/deepseek-v4-pro for current DeepSeek support.",
 	},
-	"accounts/fireworks/models/glm-4p7": {
-		maxTokens: 25344,
-		contextWindow: 198000,
+	"accounts/fireworks/models/glm-4p5": {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.55,
 		outputPrice: 2.19,
+		deprecated: true,
 		description:
-			"Z.ai GLM-4.7 is the latest coding model with exceptional performance on complex programming tasks. Features improved reasoning capabilities and enhanced code generation quality.",
+			"Deprecated Z.ai GLM-4.5 checkpoint retained for existing configurations. Use accounts/fireworks/models/glm-5p1 for current GLM support.",
+	},
+	"accounts/fireworks/models/glm-4p5-air": {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 2.19,
+		deprecated: true,
+		description:
+			"Deprecated Z.ai GLM-4.5-Air checkpoint retained for existing configurations. Use accounts/fireworks/models/glm-5p1 for current GLM support.",
+	},
+	"accounts/fireworks/models/glm-4p6": {
+		maxTokens: 25_344,
+		contextWindow: 198_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 2.19,
+		deprecated: true,
+		description:
+			"Deprecated Z.ai GLM-4.6 checkpoint retained for existing configurations. Use accounts/fireworks/models/glm-5p1 for current GLM support.",
+	},
+	"accounts/fireworks/models/glm-4p7": {
+		maxTokens: 25_344,
+		contextWindow: 198_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 2.19,
+		deprecated: true,
+		description:
+			"Deprecated Z.ai GLM-4.7 checkpoint retained for existing configurations. Use accounts/fireworks/models/glm-5p1 for current GLM support.",
 	},
 	"accounts/fireworks/models/llama-v3p3-70b-instruct": {
-		maxTokens: 16384,
-		contextWindow: 131072,
+		maxTokens: 16_384,
+		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.9,
 		outputPrice: 0.9,
-		description:
-			"Meta Llama 3.3 70B Instruct is a highly capable instruction-tuned model with strong reasoning, coding, and general task performance.",
+		deprecated: true,
+		description: "Deprecated Meta Llama 3.3 70B Instruct checkpoint retained for existing configurations.",
 	},
 	"accounts/fireworks/models/llama4-maverick-instruct-basic": {
-		maxTokens: 16384,
-		contextWindow: 131072,
+		maxTokens: 16_384,
+		contextWindow: 131_072,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0.22,
 		outputPrice: 0.88,
-		description:
-			"Llama 4 Maverick is Meta's latest multimodal model with vision capabilities, optimized for instruction following and coding tasks.",
+		deprecated: true,
+		description: "Deprecated Llama 4 Maverick checkpoint retained for existing configurations.",
 	},
 	"accounts/fireworks/models/llama4-scout-instruct-basic": {
-		maxTokens: 16384,
-		contextWindow: 131072,
+		maxTokens: 16_384,
+		contextWindow: 131_072,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0.15,
 		outputPrice: 0.6,
-		description:
-			"Llama 4 Scout is a smaller, faster variant of Llama 4 with multimodal capabilities, ideal for quick iterations and cost-effective deployments.",
+		deprecated: true,
+		description: "Deprecated Llama 4 Scout checkpoint retained for existing configurations.",
 	},
 } as const satisfies Record<string, ModelInfo>
+
+export type FireworksModelId = keyof typeof fireworksModels
+
+export const fireworksDefaultModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2p6"
