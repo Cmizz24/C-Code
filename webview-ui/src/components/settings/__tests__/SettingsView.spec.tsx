@@ -1124,10 +1124,103 @@ describe("SettingsView - Memory Settings", () => {
 		expect(within(content).getByText("src/core/tools/MistakeMemoryTool.ts")).toBeInTheDocument()
 		expect(within(content).getByText("Prefer safe JSON writes")).toBeInTheDocument()
 		expect(within(content).getByText("settings:memory.status.stale")).toBeInTheDocument()
+
+		const workspaceRecord = within(content).getByTestId("memory-record-workspace-memory-1")
+		const workspaceSummary = within(content).getByTestId("memory-record-workspace-memory-1-summary")
+		const workspaceDetails = within(content).getByTestId("memory-record-workspace-memory-1-details")
+
+		expect(workspaceRecord.tagName.toLowerCase()).toBe("details")
+		expect(workspaceRecord).not.toHaveAttribute("open")
+		expect(workspaceRecord).toHaveClass("min-w-0", "max-w-full", "overflow-hidden")
+		expect(workspaceSummary).toHaveClass("min-w-0")
+		expect(within(workspaceSummary).getByTestId("memory-record-workspace-memory-1-title")).toHaveClass("truncate")
+		expect(within(workspaceSummary).getByTestId("memory-record-workspace-memory-1-lesson-preview")).toHaveClass(
+			"truncate",
+		)
+		expect(within(workspaceSummary).queryByText("apply_patch")).not.toBeInTheDocument()
+		expect(workspaceDetails).toHaveClass("min-w-0", "max-w-full")
+
+		fireEvent.click(workspaceSummary)
+		expect(workspaceRecord).toHaveAttribute("open")
+
 		expect(within(content).queryByTestId("memory-approve-workspace-pending-button")).not.toBeInTheDocument()
 		expect(within(content).queryByTestId("memory-archive-workspace-pending-button")).not.toBeInTheDocument()
 		expect(within(content).queryByTestId("memory-approve-global-pending-button")).not.toBeInTheDocument()
 		expect(within(content).queryByTestId("memory-archive-global-pending-button")).not.toBeInTheDocument()
+	})
+
+	it("keeps long memory values in overflow-safe compact rows", () => {
+		const longTitle = `Long memory ${"title-segment-".repeat(16)}`
+		const longLesson = `Always preserve compact layout for long lessons ${"lesson-segment-".repeat(24)}`
+		const longPath = `src/${"very-long-path-segment-".repeat(16)}MemorySettings.tsx`
+		const longTag = `tag-${"very-long-tag-segment-".repeat(8)}`
+		const longToolName = `tool-${"very-long-tool-name-".repeat(8)}`
+		const longSignature = `signature-${"very-long-signature-segment-".repeat(6)}`
+
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			memoryState: {
+				summary: {
+					workspace: { active: 1, pending: 0, archived: 0, total: 1 },
+					global: { active: 0, pending: 0, archived: 0, total: 0 },
+				},
+				workspace: [
+					{
+						id: "workspace-memory-long",
+						scope: "workspace",
+						kind: "mistake",
+						status: "active",
+						source: "mistake_tool",
+						title: longTitle,
+						lesson: longLesson,
+						tags: [longTag],
+						pathTags: [longPath],
+						mode: "code",
+						toolName: longToolName,
+						mistakeSignature: longSignature,
+						confidence: 0.75,
+						reuseCount: 0,
+						successCount: 0,
+						failureCount: 0,
+						createdAt: 1_700_000_000_000,
+						updatedAt: 1_700_000_060_000,
+					},
+				],
+				global: [],
+			},
+		})
+
+		activateTab("memory")
+
+		const content = getSettingsContent()
+		const list = within(content).getByTestId("memory-record-list-workspace")
+		const record = within(content).getByTestId("memory-record-workspace-memory-long")
+		const summary = within(content).getByTestId("memory-record-workspace-memory-long-summary")
+		const title = within(summary).getByTestId("memory-record-workspace-memory-long-title")
+		const preview = within(summary).getByTestId("memory-record-workspace-memory-long-lesson-preview")
+
+		expect(list).toHaveClass("min-w-0", "max-w-full", "overflow-hidden")
+		expect(record).toHaveClass("min-w-0", "max-w-full", "overflow-hidden")
+		expect(record).not.toHaveAttribute("open")
+		expect(summary).toHaveClass("min-w-0")
+		expect(title).toHaveClass("min-w-0", "truncate")
+		expect(preview).toHaveClass("min-w-0", "truncate")
+		expect(within(summary).queryByText(longToolName)).not.toBeInTheDocument()
+		expect(within(summary).queryByText(longPath)).not.toBeInTheDocument()
+		expect(within(summary).queryByText(longTag)).not.toBeInTheDocument()
+
+		fireEvent.click(summary)
+
+		expect(record).toHaveAttribute("open")
+		expect(within(record).getByText(longPath)).toHaveClass("truncate")
+		expect(within(record).getByText(longTag)).toHaveClass("truncate")
+		expect(within(record).getByText(longToolName)).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+		expect(within(record).getByText(longSignature)).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+
+		const wrappedLesson = within(record)
+			.getAllByText(longLesson)
+			.find((element) => element.className.includes("[overflow-wrap:anywhere]"))
+		expect(wrappedLesson).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+		expect(within(content).queryByTestId("memory-auto-approve-mistake-checkbox")).not.toBeInTheDocument()
 	})
 
 	it("saves memory settings from cached state", () => {

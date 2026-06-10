@@ -86,7 +86,7 @@ const MemoryCollapsibleSection = ({
 		<Collapsible
 			open={isOpen}
 			onOpenChange={setIsOpen}
-			className="rounded-md border border-vscode-panel-border bg-vscode-editor-background"
+			className="min-w-0 max-w-full overflow-hidden rounded-md border border-vscode-panel-border bg-vscode-editor-background"
 			data-testid={`${testId}-section`}>
 			<CollapsibleTrigger
 				type="button"
@@ -96,20 +96,20 @@ const MemoryCollapsibleSection = ({
 					event.preventDefault()
 					setIsOpen((open) => !open)
 				}}
-				className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-vscode-list-hoverBackground">
+				className="flex w-full min-w-0 max-w-full items-start gap-2 px-3 py-2 text-left hover:bg-vscode-list-hoverBackground">
 				<span
 					className={cn(
-						"codicon codicon-chevron-right mt-0.5 text-vscode-descriptionForeground transition-transform",
+						"codicon codicon-chevron-right mt-0.5 shrink-0 text-vscode-descriptionForeground transition-transform",
 						isOpen && "rotate-90",
 					)}
 				/>
-				<span className="min-w-0">
-					<span className="block font-medium text-vscode-foreground">{title}</span>
-					<span className="block text-sm text-vscode-descriptionForeground">{description}</span>
+				<span className="min-w-0 max-w-full">
+					<span className="block break-words font-medium text-vscode-foreground">{title}</span>
+					<span className="block break-words text-sm text-vscode-descriptionForeground">{description}</span>
 				</span>
 			</CollapsibleTrigger>
 			<CollapsibleContent forceMount className="data-[state=closed]:hidden">
-				<div className="space-y-3 px-3 pb-3 pt-1">{children}</div>
+				<div className="min-w-0 max-w-full space-y-3 overflow-hidden px-3 pb-3 pt-1">{children}</div>
 			</CollapsibleContent>
 		</Collapsible>
 	)
@@ -134,10 +134,28 @@ const formatTimestamp = (timestamp?: number): string | undefined => {
 	}).format(new Date(timestamp))
 }
 
-const MemoryPill = ({ children, className }: { children: ReactNode; className?: string }) => (
-	<span className={cn("rounded-full border border-vscode-panel-border px-2 py-0.5 text-xs", className)}>
-		{children}
+const MemoryPill = ({ children, className, title }: { children: ReactNode; className?: string; title?: string }) => (
+	<span
+		className={cn(
+			"inline-flex min-w-0 max-w-full items-center rounded-full border border-vscode-panel-border px-2 py-0.5 text-xs",
+			className,
+		)}
+		title={title ?? (typeof children === "string" ? children : undefined)}>
+		<span className="min-w-0 max-w-full truncate">{children}</span>
 	</span>
+)
+
+const MemoryDetailValue = ({ children, className }: { children: ReactNode; className?: string }) => (
+	<div className={cn("mt-1 min-w-0 max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere]", className)}>
+		{children}
+	</div>
+)
+
+const MemoryDetailField = ({ label, children }: { label: string; children: ReactNode }) => (
+	<div className="min-w-0 max-w-full">
+		<div className="text-xs uppercase text-vscode-descriptionForeground">{label}</div>
+		<MemoryDetailValue>{children}</MemoryDetailValue>
+	</div>
 )
 
 const MemoryRecordCard = ({ memory }: { memory: MemoryEntry }) => {
@@ -148,38 +166,73 @@ const MemoryRecordCard = ({ memory }: { memory: MemoryEntry }) => {
 
 	return (
 		<details
-			className="rounded-md border border-vscode-panel-border bg-vscode-editor-background p-3 text-sm"
+			className="group min-w-0 max-w-full overflow-hidden rounded-md border border-vscode-panel-border bg-vscode-editor-background text-sm"
 			data-testid={`memory-record-${memory.id}`}>
-			<summary className="cursor-pointer list-none">
-				<div className="flex flex-col gap-2">
-					<div className="flex flex-wrap items-center gap-2">
-						<span className="font-medium text-vscode-foreground">{memory.title || memory.lesson}</span>
-						<MemoryPill className={statusTone[memory.status]}>
+			<summary
+				className="flex min-w-0 cursor-pointer list-none items-start gap-2 px-2 py-2 [&::-webkit-details-marker]:hidden"
+				data-testid={`memory-record-${memory.id}-summary`}>
+				<span className="codicon codicon-chevron-right mt-0.5 shrink-0 text-vscode-descriptionForeground transition-transform group-open:rotate-90" />
+				<div className="grid min-w-0 flex-1 gap-1">
+					<div className="flex min-w-0 flex-wrap items-center gap-1.5">
+						<span
+							className="min-w-0 flex-1 basis-32 truncate font-medium text-vscode-foreground"
+							title={memory.title || memory.lesson}
+							data-testid={`memory-record-${memory.id}-title`}>
+							{memory.title || memory.lesson}
+						</span>
+						<MemoryPill className={cn("shrink-0", statusTone[memory.status])}>
 							{t(`settings:memory.status.${memory.status}`)}
 						</MemoryPill>
-						<MemoryPill>{t(`settings:memory.scope.${memory.scope}`)}</MemoryPill>
-						<MemoryPill>{t(`settings:memory.kind.${memory.kind}`)}</MemoryPill>
-						{memory.mode && <MemoryPill>{memory.mode}</MemoryPill>}
-						{memory.toolName && <MemoryPill>{memory.toolName}</MemoryPill>}
+						<MemoryPill className="shrink-0">{t(`settings:memory.scope.${memory.scope}`)}</MemoryPill>
+						<MemoryPill className="shrink-0">{t(`settings:memory.kind.${memory.kind}`)}</MemoryPill>
 					</div>
-					<p className="line-clamp-2 text-vscode-descriptionForeground">{memory.lesson}</p>
+					<p
+						className="min-w-0 truncate text-vscode-descriptionForeground"
+						title={memory.lesson}
+						data-testid={`memory-record-${memory.id}-lesson-preview`}>
+						{memory.lesson}
+					</p>
 				</div>
 			</summary>
 
-			<div className="mt-3 space-y-3 border-t border-vscode-panel-border pt-3">
-				<div>
-					<div className="text-xs uppercase text-vscode-descriptionForeground">
-						{t("settings:memory.records.lesson")}
+			<div
+				className="min-w-0 max-w-full space-y-3 border-t border-vscode-panel-border px-2 pb-2 pt-3"
+				data-testid={`memory-record-${memory.id}-details`}>
+				<MemoryDetailField label={t("settings:memory.records.lesson")}>{memory.lesson}</MemoryDetailField>
+
+				{memory.mistakeSignature && (
+					<MemoryDetailField label={t("chat:memory.fields.signature")}>
+						{memory.mistakeSignature}
+					</MemoryDetailField>
+				)}
+
+				{(memory.mode || memory.toolName) && (
+					<div className="grid min-w-0 max-w-full gap-2 text-xs text-vscode-descriptionForeground sm:grid-cols-2">
+						{memory.mode && (
+							<div className="min-w-0 max-w-full">
+								<span className="font-medium text-vscode-foreground">
+									{t("chat:memory.fields.mode")}:{" "}
+								</span>
+								<span className="break-words [overflow-wrap:anywhere]">{memory.mode}</span>
+							</div>
+						)}
+						{memory.toolName && (
+							<div className="min-w-0 max-w-full">
+								<span className="font-medium text-vscode-foreground">
+									{t("chat:memory.fields.tool")}:{" "}
+								</span>
+								<span className="break-words [overflow-wrap:anywhere]">{memory.toolName}</span>
+							</div>
+						)}
 					</div>
-					<div className="mt-1 whitespace-pre-wrap text-vscode-foreground">{memory.lesson}</div>
-				</div>
+				)}
 
 				{memory.tags.length > 0 && (
-					<div>
+					<div className="min-w-0 max-w-full">
 						<div className="text-xs uppercase text-vscode-descriptionForeground">
 							{t("settings:memory.records.tags")}
 						</div>
-						<div className="mt-1 flex flex-wrap gap-1">
+						<div className="mt-1 flex min-w-0 max-w-full flex-wrap gap-1">
 							{memory.tags.map((tag) => (
 								<MemoryPill key={tag}>{tag}</MemoryPill>
 							))}
@@ -188,11 +241,11 @@ const MemoryRecordCard = ({ memory }: { memory: MemoryEntry }) => {
 				)}
 
 				{memory.pathTags.length > 0 && (
-					<div>
+					<div className="min-w-0 max-w-full">
 						<div className="text-xs uppercase text-vscode-descriptionForeground">
 							{t("settings:memory.records.pathHints")}
 						</div>
-						<div className="mt-1 flex flex-wrap gap-1">
+						<div className="mt-1 flex min-w-0 max-w-full flex-wrap gap-1">
 							{memory.pathTags.map((pathTag) => (
 								<MemoryPill key={pathTag}>{pathTag}</MemoryPill>
 							))}
@@ -200,9 +253,9 @@ const MemoryRecordCard = ({ memory }: { memory: MemoryEntry }) => {
 					</div>
 				)}
 
-				<div className="grid gap-2 text-xs text-vscode-descriptionForeground sm:grid-cols-3">
+				<div className="grid min-w-0 max-w-full gap-2 text-xs text-vscode-descriptionForeground sm:grid-cols-2 lg:grid-cols-3">
 					{createdAt && (
-						<div>
+						<div className="min-w-0 break-words [overflow-wrap:anywhere]">
 							<span className="font-medium text-vscode-foreground">
 								{t("settings:memory.records.created")}:{" "}
 							</span>
@@ -210,7 +263,7 @@ const MemoryRecordCard = ({ memory }: { memory: MemoryEntry }) => {
 						</div>
 					)}
 					{updatedAt && (
-						<div>
+						<div className="min-w-0 break-words [overflow-wrap:anywhere]">
 							<span className="font-medium text-vscode-foreground">
 								{t("settings:memory.records.updated")}:{" "}
 							</span>
@@ -218,7 +271,7 @@ const MemoryRecordCard = ({ memory }: { memory: MemoryEntry }) => {
 						</div>
 					)}
 					{lastUsedAt && (
-						<div>
+						<div className="min-w-0 break-words [overflow-wrap:anywhere]">
 							<span className="font-medium text-vscode-foreground">
 								{t("settings:memory.records.lastUsed")}:{" "}
 							</span>
@@ -235,22 +288,22 @@ const MemoryRecordList = ({ scope, records }: { scope: MemoryScope; records: Mem
 	const { t } = useAppTranslation()
 
 	return (
-		<div className="space-y-2" data-testid={`memory-record-list-${scope}`}>
-			<div className="flex items-center justify-between gap-2">
-				<div className="font-medium">{t(`settings:memory.scope.${scope}`)}</div>
-				<div className="text-xs text-vscode-descriptionForeground">
+		<div className="min-w-0 max-w-full space-y-2 overflow-hidden" data-testid={`memory-record-list-${scope}`}>
+			<div className="flex min-w-0 items-center justify-between gap-2">
+				<div className="min-w-0 truncate font-medium">{t(`settings:memory.scope.${scope}`)}</div>
+				<div className="shrink-0 text-xs text-vscode-descriptionForeground">
 					{t("settings:memory.records.count", { count: records.length })}
 				</div>
 			</div>
 
 			{records.length > 0 ? (
-				<div className="space-y-2">
+				<div className="min-w-0 max-w-full space-y-2">
 					{records.map((memory) => (
 						<MemoryRecordCard key={memory.id} memory={memory} />
 					))}
 				</div>
 			) : (
-				<div className="rounded-md border border-dashed border-vscode-panel-border p-3 text-sm text-vscode-descriptionForeground">
+				<div className="min-w-0 max-w-full rounded-md border border-dashed border-vscode-panel-border p-3 text-sm text-vscode-descriptionForeground">
 					{t("settings:memory.records.empty")}
 				</div>
 			)}
@@ -262,23 +315,31 @@ const SummaryCard = ({ title, summary }: { title: string; summary?: MemorySummar
 	const { t } = useAppTranslation()
 
 	return (
-		<div className="rounded-md border border-vscode-panel-border bg-vscode-editor-background p-3">
-			<div className="font-medium mb-2">{title}</div>
-			<div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-				<div>
-					<div className="text-vscode-descriptionForeground">{t("settings:memory.summary.active")}</div>
+		<div className="min-w-0 max-w-full overflow-hidden rounded-md border border-vscode-panel-border bg-vscode-editor-background p-3">
+			<div className="mb-2 min-w-0 break-words font-medium">{title}</div>
+			<div className="grid min-w-0 grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+				<div className="min-w-0">
+					<div className="truncate text-vscode-descriptionForeground">
+						{t("settings:memory.summary.active")}
+					</div>
 					<div>{summary?.active ?? 0}</div>
 				</div>
-				<div>
-					<div className="text-vscode-descriptionForeground">{t("settings:memory.summary.pending")}</div>
+				<div className="min-w-0">
+					<div className="truncate text-vscode-descriptionForeground">
+						{t("settings:memory.summary.pending")}
+					</div>
 					<div>{summary?.pending ?? 0}</div>
 				</div>
-				<div>
-					<div className="text-vscode-descriptionForeground">{t("settings:memory.summary.archived")}</div>
+				<div className="min-w-0">
+					<div className="truncate text-vscode-descriptionForeground">
+						{t("settings:memory.summary.archived")}
+					</div>
 					<div>{summary?.archived ?? 0}</div>
 				</div>
-				<div>
-					<div className="text-vscode-descriptionForeground">{t("settings:memory.summary.total")}</div>
+				<div className="min-w-0">
+					<div className="truncate text-vscode-descriptionForeground">
+						{t("settings:memory.summary.total")}
+					</div>
 					<div>{summary?.total ?? 0}</div>
 				</div>
 			</div>
@@ -324,12 +385,12 @@ export const MemorySettings = ({
 	}
 
 	return (
-		<div className={cn("flex flex-col gap-2", className)} {...props}>
+		<div className={cn("flex min-w-0 max-w-full flex-col gap-2 overflow-x-hidden", className)} {...props}>
 			<SectionHeader description={t("settings:memory.description")}>
 				{t("settings:sections.memory")}
 			</SectionHeader>
 
-			<Section className="gap-3">
+			<Section className="min-w-0 max-w-full gap-3 overflow-x-hidden">
 				<MemoryCollapsibleSection
 					testId="memory-core"
 					defaultOpen
@@ -462,10 +523,10 @@ export const MemorySettings = ({
 						settingId="memory-management"
 						section="memory"
 						label={t("settings:memory.management.title")}>
-						<div className="flex items-center justify-between gap-2 mb-3">
-							<div>
-								<div className="font-medium">{t("settings:memory.management.title")}</div>
-								<div className="text-vscode-descriptionForeground text-sm">
+						<div className="mb-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+							<div className="min-w-0 max-w-full">
+								<div className="break-words font-medium">{t("settings:memory.management.title")}</div>
+								<div className="break-words text-vscode-descriptionForeground text-sm">
 									{t("settings:memory.management.description")}
 								</div>
 							</div>
@@ -477,20 +538,20 @@ export const MemorySettings = ({
 							</Button>
 						</div>
 
-						<div className="grid gap-3 md:grid-cols-2">
+						<div className="grid min-w-0 max-w-full gap-3 sm:grid-cols-2 [&>*]:min-w-0">
 							<SummaryCard title={t("settings:memory.summary.workspace")} summary={summary?.workspace} />
 							<SummaryCard title={t("settings:memory.summary.global")} summary={summary?.global} />
 						</div>
 
-						<div className="mt-4 grid gap-4 md:grid-cols-2">
+						<div className="mt-4 grid min-w-0 max-w-full gap-3 lg:grid-cols-2 [&>*]:min-w-0">
 							<MemoryRecordList scope="workspace" records={workspaceRecords} />
 							<MemoryRecordList scope="global" records={globalRecords} />
 						</div>
 
-						<div className="grid gap-4 md:grid-cols-2 mt-4">
-							<div className="flex flex-col gap-2">
-								<div className="font-medium">{t("settings:memory.summary.workspace")}</div>
-								<div className="flex flex-wrap gap-2">
+						<div className="mt-4 grid min-w-0 max-w-full gap-4 sm:grid-cols-2 [&>*]:min-w-0">
+							<div className="flex min-w-0 flex-col gap-2">
+								<div className="break-words font-medium">{t("settings:memory.summary.workspace")}</div>
+								<div className="flex min-w-0 flex-wrap gap-2">
 									<Button
 										data-testid="memory-archive-workspace-button"
 										variant="secondary"
@@ -506,9 +567,9 @@ export const MemorySettings = ({
 								</div>
 							</div>
 
-							<div className="flex flex-col gap-2">
-								<div className="font-medium">{t("settings:memory.summary.global")}</div>
-								<div className="flex flex-wrap gap-2">
+							<div className="flex min-w-0 flex-col gap-2">
+								<div className="break-words font-medium">{t("settings:memory.summary.global")}</div>
+								<div className="flex min-w-0 flex-wrap gap-2">
 									<Button
 										data-testid="memory-archive-global-button"
 										variant="secondary"
