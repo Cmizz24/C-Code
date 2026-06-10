@@ -43,6 +43,7 @@ import { applyDiffTool as applyDiffToolClass } from "../tools/ApplyDiffTool"
 import { isValidToolName, validateToolUse } from "../tools/validateToolUse"
 import { codebaseSearchTool } from "../tools/CodebaseSearchTool"
 import { memorySearchTool } from "../tools/MemorySearchTool"
+import { memoryWipeTool } from "../tools/MemoryWipeTool"
 import { mistakeMemoryTool } from "../tools/MistakeMemoryTool"
 import { coordinateAgentsTool } from "../tools/CoordinateAgentsTool"
 import { handlePlanParallelTasks } from "../tools/planParallelTasks"
@@ -476,6 +477,8 @@ export async function presentAssistantMessage(cline: Task) {
 						return `[${block.name} for '${block.params.query}']`
 					case "mistake_memory":
 						return `[${block.name}]`
+					case "memory_wipe":
+						return `[${block.name} for '${block.params.scope ?? "workspace"}']`
 					case "read_command_output":
 						return `[${block.name} for '${block.params.artifact_id}']`
 					case "update_todo_list":
@@ -875,6 +878,13 @@ export async function presentAssistantMessage(cline: Task) {
 						pushToolResult,
 					})
 					break
+				case "memory_wipe":
+					await memoryWipeTool.handle(cline, block as ToolUse<"memory_wipe">, {
+						askApproval,
+						handleError,
+						pushToolResult,
+					})
+					break
 				case "search_files":
 					await searchFilesTool.handle(cline, block as ToolUse<"search_files">, {
 						askApproval,
@@ -1114,6 +1124,14 @@ export async function presentAssistantMessage(cline: Task) {
 			break
 		}
 	}
+
+	await cline.drainQueuedMistakeMemories().catch((error) => {
+		console.warn(
+			`[presentAssistantMessage] Failed to drain queued mistake memories: ${
+				error instanceof Error ? error.message : String(error)
+			}`,
+		)
+	})
 
 	// Seeing out of bounds is fine, it means that the next too call is being
 	// built up and ready to add to assistantMessageContent to present.

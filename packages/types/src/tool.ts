@@ -55,6 +55,7 @@ export const toolNames = [
 	"codebase_search",
 	"memory_search",
 	"mistake_memory",
+	"memory_wipe",
 	"update_todo_list",
 	"run_slash_command",
 	"skill",

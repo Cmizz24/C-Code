@@ -615,5 +615,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "Buka Pengaturan",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "Penghapusan memori menunggu persetujuan",
+			"completed": "Memori dihapus",
+			"cancelled": "Penghapusan memori dibatalkan"
+		},
+		"status": {
+			"pending": "Menunggu persetujuan",
+			"completed": "Selesai",
+			"cancelled": "Dibatalkan"
+		},
+		"fields": {
+			"scope": "Cakupan",
+			"status": "Status",
+			"deletedScopes": "Cakupan yang dihapus"
+		}
 	}
 }

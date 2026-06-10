@@ -1,7 +1,6 @@
 import type { MemoryScope, MistakeMemoryToolParams } from "@roo-code/types"
 
 import { createMistakeMemoryCandidate, MemoryStorage } from "../memory"
-import { formatResponse } from "../prompts/responses"
 import { Task } from "../task/Task"
 import type { ToolUse } from "../../shared/tools"
 
@@ -24,7 +23,7 @@ export class MistakeMemoryTool extends BaseTool<"mistake_memory"> {
 	readonly name = "mistake_memory" as const
 
 	async execute(params: MistakeMemoryToolParams, task: Task, callbacks: ToolCallbacks): Promise<void> {
-		const { askApproval, handleError, pushToolResult } = callbacks
+		const { handleError, pushToolResult } = callbacks
 		const lesson = params.lesson?.trim()
 
 		if (!lesson) {
@@ -60,27 +59,6 @@ export class MistakeMemoryTool extends BaseTool<"mistake_memory"> {
 				return
 			}
 
-			let approved = autoApproved
-
-			if (requestedActive && !autoApproved) {
-				approved = await askApproval(
-					"tool",
-					JSON.stringify({
-						tool: "mistakeMemory",
-						scope,
-						content: lesson,
-						status: "active",
-					}),
-					undefined,
-					true,
-				)
-
-				if (!approved) {
-					pushToolResult(formatResponse.toolDenied())
-					return
-				}
-			}
-
 			const storage = new MemoryStorage({ globalStoragePath, workspacePath: task.cwd })
 			const mode = await task.getTaskMode()
 			const result = await createMistakeMemoryCandidate({
@@ -93,7 +71,7 @@ export class MistakeMemoryTool extends BaseTool<"mistake_memory"> {
 				tags: params.tags,
 				scope,
 				source: "mistake_tool",
-				approved,
+				approved: autoApproved,
 				pendingCandidateLimit: state?.memoryPendingCandidateLimit,
 				workspacePath: task.cwd,
 				mode,
@@ -102,12 +80,25 @@ export class MistakeMemoryTool extends BaseTool<"mistake_memory"> {
 
 			await provider.postMemoryStateToWebview().catch(() => {})
 
-			const message =
-				result.memory.status === "active"
-					? autoApproved
-						? "Saved auto-approved active mistake memory."
-						: "Saved approved active mistake memory."
-					: "Saved pending mistake-memory candidate for user review."
+			const getMessage = (status: typeof result.memory.status, approvedByUser = false) => {
+				if (status === "active") {
+					if (autoApproved) {
+						return "Saved auto-approved active mistake memory."
+					}
+
+					return approvedByUser || requestedActive
+						? "Saved approved active mistake memory."
+						: "Reused existing active mistake memory."
+				}
+
+				if (status === "archived") {
+					return "Rejected pending mistake memory and archived it."
+				}
+
+				return "Pending mistake memory requires your approval before Roo continues."
+			}
+
+			const message = getMessage(result.memory.status)
 			const toolPayload = {
 				tool: "mistakeMemory",
 				content: result.memory.lesson,
@@ -126,24 +117,45 @@ export class MistakeMemoryTool extends BaseTool<"mistake_memory"> {
 				message,
 			} as const
 
-			await task
-				.say("tool", JSON.stringify(toolPayload), undefined, false, undefined, undefined, {
-					isNonInteractive: true,
-				})
-				.catch(() => {})
+			let finalMemory = result.memory
+			let approvedByUser = false
+
+			if (result.memory.status === "pending" && !autoApproved) {
+				const { response } = await task.ask("tool", JSON.stringify(toolPayload), false, undefined, true)
+				approvedByUser = response === "yesButtonClicked"
+				const memoryState = await provider.handleMemoryAction(
+					approvedByUser ? "approveMemory" : "archiveMemory",
+					{
+						memoryId: result.memory.id,
+						memoryScope: result.memory.scope,
+					},
+				)
+				finalMemory =
+					[...memoryState.workspace, ...memoryState.global].find(
+						(memory) => memory.id === result.memory.id,
+					) ?? result.memory
+				await provider.postMemoryStateToWebview().catch(() => {})
+			} else {
+				await task
+					.say("tool", JSON.stringify(toolPayload), undefined, false, undefined, undefined, {
+						isNonInteractive: true,
+					})
+					.catch(() => {})
+			}
 
 			task.consecutiveMistakeCount = 0
 			pushToolResult(
 				JSON.stringify(
 					{
-						id: result.memory.id,
-						scope: result.memory.scope,
-						status: result.memory.status,
-						kind: result.memory.kind,
+						id: finalMemory.id,
+						scope: finalMemory.scope,
+						status: finalMemory.status,
+						kind: finalMemory.kind,
 						autoApproved,
+						approved: approvedByUser || autoApproved,
 						reusedExisting: result.reusedExisting,
 						candidateId: result.candidate?.id,
-						message,
+						message: getMessage(finalMemory.status, approvedByUser),
 					},
 					null,
 					2,

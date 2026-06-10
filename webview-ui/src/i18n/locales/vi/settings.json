@@ -826,6 +826,31 @@
 			"archived": "Đã lưu trữ",
 			"total": "Tổng"
 		},
+		"scope": {
+			"workspace": "Workspace",
+			"global": "Toàn cục"
+		},
+		"status": {
+			"active": "Đang hoạt động",
+			"pending": "Đang chờ",
+			"stale": "Cũ",
+			"superseded": "Đã được thay thế",
+			"archived": "Đã lưu trữ"
+		},
+		"kind": {
+			"lesson": "Bài học",
+			"mistake": "Lỗi"
+		},
+		"records": {
+			"count": "{{count}} bản ghi",
+			"empty": "Không có bộ nhớ đã lưu trong phạm vi này.",
+			"lesson": "Bài học",
+			"tags": "Thẻ",
+			"pathHints": "Gợi ý đường dẫn",
+			"created": "Đã tạo",
+			"updated": "Đã cập nhật",
+			"lastUsed": "Lần dùng cuối"
+		},
 		"actions": {
 			"refresh": "Làm mới",
 			"approvePending": "Duyệt mục đang chờ",

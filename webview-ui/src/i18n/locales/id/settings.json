@@ -826,6 +826,31 @@
 			"archived": "Diarsipkan",
 			"total": "Total"
 		},
+		"scope": {
+			"workspace": "Workspace",
+			"global": "Global"
+		},
+		"status": {
+			"active": "Aktif",
+			"pending": "Menunggu",
+			"stale": "Usang",
+			"superseded": "Digantikan",
+			"archived": "Diarsipkan"
+		},
+		"kind": {
+			"lesson": "Pelajaran",
+			"mistake": "Kesalahan"
+		},
+		"records": {
+			"count": "{{count}} catatan",
+			"empty": "Tidak ada memori tersimpan dalam cakupan ini.",
+			"lesson": "Pelajaran",
+			"tags": "Tag",
+			"pathHints": "Petunjuk path",
+			"created": "Dibuat",
+			"updated": "Diperbarui",
+			"lastUsed": "Terakhir digunakan"
+		},
 		"actions": {
 			"refresh": "Segarkan",
 			"approvePending": "Setujui yang tertunda",

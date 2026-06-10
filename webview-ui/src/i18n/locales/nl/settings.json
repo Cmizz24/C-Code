@@ -826,6 +826,31 @@
 			"archived": "Gearchiveerd",
 			"total": "Totaal"
 		},
+		"scope": {
+			"workspace": "Workspace",
+			"global": "Globaal"
+		},
+		"status": {
+			"active": "Actief",
+			"pending": "In behandeling",
+			"stale": "Verouderd",
+			"superseded": "Vervangen",
+			"archived": "Gearchiveerd"
+		},
+		"kind": {
+			"lesson": "Les",
+			"mistake": "Fout"
+		},
+		"records": {
+			"count": "{{count}} records",
+			"empty": "Geen opgeslagen memories in dit bereik.",
+			"lesson": "Les",
+			"tags": "Tags",
+			"pathHints": "Pad-hints",
+			"created": "Aangemaakt",
+			"updated": "Bijgewerkt",
+			"lastUsed": "Laatst gebruikt"
+		},
 		"actions": {
 			"refresh": "Vernieuwen",
 			"approvePending": "Wachtende goedkeuren",

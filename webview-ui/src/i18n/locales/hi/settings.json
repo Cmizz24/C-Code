@@ -826,6 +826,31 @@
 			"archived": "Archived",
 			"total": "Total"
 		},
+		"scope": {
+			"workspace": "Workspace",
+			"global": "Global"
+		},
+		"status": {
+			"active": "सक्रिय",
+			"pending": "लंबित",
+			"stale": "पुराना",
+			"superseded": "प्रतिस्थापित",
+			"archived": "संग्रहीत"
+		},
+		"kind": {
+			"lesson": "पाठ",
+			"mistake": "गलती"
+		},
+		"records": {
+			"count": "{{count}} रिकॉर्ड",
+			"empty": "इस scope में कोई सहेजी गई मेमोरी नहीं है.",
+			"lesson": "पाठ",
+			"tags": "टैग",
+			"pathHints": "पाथ संकेत",
+			"created": "बनाया गया",
+			"updated": "अपडेट किया गया",
+			"lastUsed": "अंतिम उपयोग"
+		},
 		"actions": {
 			"refresh": "Refresh",
 			"approvePending": "Pending approve करो",

@@ -836,6 +836,31 @@
 			"archived": "已封存",
 			"total": "總計"
 		},
+		"scope": {
+			"workspace": "工作區",
+			"global": "全域"
+		},
+		"status": {
+			"active": "作用中",
+			"pending": "待處理",
+			"stale": "過時",
+			"superseded": "已被取代",
+			"archived": "已封存"
+		},
+		"kind": {
+			"lesson": "經驗",
+			"mistake": "錯誤"
+		},
+		"records": {
+			"count": "{{count}} 筆記錄",
+			"empty": "此範圍沒有已儲存的記憶。",
+			"lesson": "經驗",
+			"tags": "標籤",
+			"pathHints": "路徑提示",
+			"created": "建立時間",
+			"updated": "更新時間",
+			"lastUsed": "上次使用"
+		},
 		"actions": {
 			"refresh": "重新整理",
 			"approvePending": "核准待處理",

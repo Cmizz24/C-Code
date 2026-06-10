@@ -7,6 +7,7 @@ import type {
 	FileOwnership,
 	GenerateImageParams,
 	MemorySearchToolParams,
+	MemoryWipeToolParams,
 	MistakeMemoryToolParams,
 	ToolGroup,
 	ToolName,
@@ -148,6 +149,7 @@ export const toolParamNames = [
 	"file_paths",
 	"tags",
 	"approve",
+	"confirmation",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -202,6 +204,7 @@ export type NativeToolArgs = {
 	codebase_search: { query: string; path?: string }
 	memory_search: MemorySearchToolParams
 	mistake_memory: MistakeMemoryToolParams
+	memory_wipe: MemoryWipeToolParams
 	generate_image: GenerateImageParams
 	visual_browser_inspector: VisualBrowserInspectorToolParams
 	run_slash_command: { command: string; args?: string }
@@ -311,6 +314,11 @@ export interface MistakeMemoryToolUse extends ToolUse<"mistake_memory"> {
 			"lesson" | "correction" | "error" | "tool_name" | "file_paths" | "tags" | "scope" | "approve"
 		>
 	>
+}
+
+export interface MemoryWipeToolUse extends ToolUse<"memory_wipe"> {
+	name: "memory_wipe"
+	params: Partial<Pick<Record<ToolParamName, string>, "scope" | "confirmation">>
 }
 
 export interface SearchFilesToolUse extends ToolUse<"search_files"> {
@@ -425,6 +433,7 @@ export const TOOL_DISPLAY_NAMES: Record<ToolName, string> = {
 	codebase_search: "codebase search",
 	memory_search: "search memories",
 	mistake_memory: "save mistake memory",
+	memory_wipe: "wipe memory",
 	update_todo_list: "update todo list",
 	run_slash_command: "run slash command",
 	skill: "load skill",
@@ -454,7 +463,7 @@ export const TOOL_GROUPS: Record<ToolGroup, ToolGroupConfig> = {
 		tools: ["use_mcp_tool", "access_mcp_resource"],
 	},
 	memory: {
-		tools: ["memory_search", "mistake_memory"],
+		tools: ["memory_search", "mistake_memory", "memory_wipe"],
 	},
 	modes: {
 		tools: ["switch_mode", "new_task"],
@@ -474,6 +483,7 @@ export const ALWAYS_AVAILABLE_TOOLS: ToolName[] = [
 	"coordinate_agents",
 	"memory_search",
 	"mistake_memory",
+	"memory_wipe",
 	"update_todo_list",
 	"run_slash_command",
 	"skill",

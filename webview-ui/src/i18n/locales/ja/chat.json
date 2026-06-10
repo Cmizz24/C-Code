@@ -609,5 +609,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "設定を開く",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "メモリ消去は承認待ちです",
+			"completed": "メモリを消去しました",
+			"cancelled": "メモリ消去をキャンセルしました"
+		},
+		"status": {
+			"pending": "承認待ち",
+			"completed": "完了",
+			"cancelled": "キャンセル済み"
+		},
+		"fields": {
+			"scope": "スコープ",
+			"status": "ステータス",
+			"deletedScopes": "削除済みスコープ"
+		}
 	}
 }

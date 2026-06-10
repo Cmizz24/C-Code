@@ -610,5 +610,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "Mở cài đặt",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "Đang chờ phê duyệt xóa bộ nhớ",
+			"completed": "Đã xóa bộ nhớ",
+			"cancelled": "Đã hủy xóa bộ nhớ"
+		},
+		"status": {
+			"pending": "Đang chờ phê duyệt",
+			"completed": "Đã hoàn tất",
+			"cancelled": "Đã hủy"
+		},
+		"fields": {
+			"scope": "Phạm vi",
+			"status": "Trạng thái",
+			"deletedScopes": "Phạm vi đã xóa"
+		}
 	}
 }

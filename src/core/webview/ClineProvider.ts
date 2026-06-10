@@ -66,6 +66,7 @@ import {
 	type MemoryAction,
 	type MemoryEntry,
 	type MemoryScope,
+	type MemoryState,
 	type MemorySummary,
 } from "@roo-code/types"
 import {
@@ -4259,17 +4260,45 @@ export class ClineProvider
 		return this.createMemoryStorage().getSummary(this.cwd)
 	}
 
-	public async postMemoryStateToWebview(): Promise<MemorySummary> {
-		const memorySummary = await this.getMemorySummary()
-		await this.postMessageToWebview({ type: "memorySummary", memorySummary })
+	public async getMemoryState(): Promise<MemoryState> {
+		const storage = this.createMemoryStorage()
+		const [summary, workspace, global] = await Promise.all([
+			storage.getSummary(this.cwd),
+			storage.listMemories({
+				scopes: ["workspace"],
+				statuses: ["active", "pending", "stale", "superseded", "archived"],
+				workspacePath: this.cwd,
+			}),
+			storage.listMemories({
+				scopes: ["global"],
+				statuses: ["active", "pending", "stale", "superseded", "archived"],
+			}),
+		])
+
+		const sortNewestFirst = (left: MemoryEntry, right: MemoryEntry) => right.updatedAt - left.updatedAt
+
+		return {
+			summary,
+			workspace: [...workspace].sort(sortNewestFirst),
+			global: [...global].sort(sortNewestFirst),
+		}
+	}
+
+	public async postMemoryStateToWebview(): Promise<MemoryState> {
+		const memoryState = await this.getMemoryState()
+		await this.postMessageToWebview({
+			type: "memoryState",
+			memoryState,
+			memorySummary: memoryState.summary,
+		})
 		await this.postStateToWebviewWithoutClineMessages()
-		return memorySummary
+		return memoryState
 	}
 
 	public async handleMemoryAction(
 		action: MemoryAction,
 		options: { memoryId?: string; memoryScope?: MemoryScope; messageTs?: number } = {},
-	): Promise<MemorySummary> {
+	): Promise<MemoryState> {
 		const storage = this.createMemoryStorage()
 
 		switch (action) {
@@ -4313,33 +4342,11 @@ export class ClineProvider
 				}
 				break
 			}
-			case "approveWorkspacePending":
-				await storage.updatePendingMemoriesStatus("workspace", "active", {
-					workspacePath: this.cwd,
-					reason: "Approved from memory settings",
-				})
-				break
-			case "archiveWorkspacePending":
-				await storage.updatePendingMemoriesStatus("workspace", "archived", {
-					workspacePath: this.cwd,
-					reason: "Archived from memory settings",
-				})
-				break
 			case "archiveWorkspace":
 				await storage.archiveScope("workspace", this.cwd)
 				break
 			case "clearWorkspace":
 				await storage.clearWorkspaceMemory(this.cwd)
-				break
-			case "approveGlobalPending":
-				await storage.updatePendingMemoriesStatus("global", "active", {
-					reason: "Approved from memory settings",
-				})
-				break
-			case "archiveGlobalPending":
-				await storage.updatePendingMemoriesStatus("global", "archived", {
-					reason: "Archived from memory settings",
-				})
 				break
 			case "archiveGlobal":
 				await storage.archiveScope("global")
@@ -4349,7 +4356,7 @@ export class ClineProvider
 				break
 		}
 
-		return storage.getSummary(this.cwd)
+		return this.getMemoryState()
 	}
 
 	private async updateMemoryToolMessage(
@@ -4421,7 +4428,13 @@ export class ClineProvider
 	}
 
 	private isMemoryToolMessageForMemory(message: ClineMessage | undefined, memoryId: string): boolean {
-		if (!message?.text || message.type !== "say" || message.say !== "tool") {
+		if (!message?.text) {
+			return false
+		}
+
+		const isToolMessage =
+			(message.type === "say" && message.say === "tool") || (message.type === "ask" && message.ask === "tool")
+		if (!isToolMessage) {
 			return false
 		}
 
@@ -4618,6 +4631,7 @@ export class ClineProvider
 		const mergedDeniedCommands = this.mergeDeniedCommands(deniedCommands)
 		const cwd = this.cwd
 		const currentTask = this.getCurrentTask()
+		const memoryState = await this.getMemoryState()
 
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
@@ -4739,7 +4753,8 @@ export class ClineProvider
 			memoryMaxCharacters: memoryMaxCharacters ?? DEFAULT_MEMORY_MAX_CHARACTERS,
 			memoryMaxEntries: memoryMaxEntries ?? DEFAULT_MEMORY_MAX_ENTRIES,
 			memoryPendingCandidateLimit: memoryPendingCandidateLimit ?? DEFAULT_MEMORY_PENDING_CANDIDATE_LIMIT,
-			memorySummary: await this.getMemorySummary(),
+			memoryState,
+			memorySummary: memoryState.summary,
 			imageGenerationProvider,
 			openRouterImageApiKey,
 			openRouterImageBaseUrl,
@@ -4814,6 +4829,7 @@ export class ClineProvider
 		}
 
 		const organizationAllowList = ORGANIZATION_ALLOW_ALL
+		const memoryState = await this.getMemoryState()
 
 		// Return the same structure as before.
 		return {
@@ -4935,7 +4951,8 @@ export class ClineProvider
 			memoryMaxEntries: stateValues.memoryMaxEntries ?? DEFAULT_MEMORY_MAX_ENTRIES,
 			memoryPendingCandidateLimit:
 				stateValues.memoryPendingCandidateLimit ?? DEFAULT_MEMORY_PENDING_CANDIDATE_LIMIT,
-			memorySummary: await this.getMemorySummary(),
+			memoryState,
+			memorySummary: memoryState.summary,
 			imageGenerationProvider: stateValues.imageGenerationProvider,
 			openRouterImageApiKey: stateValues.openRouterImageApiKey,
 			openRouterImageBaseUrl: stateValues.openRouterImageBaseUrl,

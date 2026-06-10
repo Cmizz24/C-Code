@@ -826,6 +826,31 @@
 			"archived": "Arxivada",
 			"total": "Total"
 		},
+		"scope": {
+			"workspace": "Espai de treball",
+			"global": "Global"
+		},
+		"status": {
+			"active": "Activa",
+			"pending": "Pendent",
+			"stale": "Obsoleta",
+			"superseded": "Substituïda",
+			"archived": "Arxivada"
+		},
+		"kind": {
+			"lesson": "Lliçó",
+			"mistake": "Error"
+		},
+		"records": {
+			"count": "{{count}} registres",
+			"empty": "No hi ha memòries desades en aquest àmbit.",
+			"lesson": "Lliçó",
+			"tags": "Etiquetes",
+			"pathHints": "Pistes de camí",
+			"created": "Creat",
+			"updated": "Actualitzat",
+			"lastUsed": "Últim ús"
+		},
 		"actions": {
 			"refresh": "Actualitza",
 			"approvePending": "Aprova pendents",

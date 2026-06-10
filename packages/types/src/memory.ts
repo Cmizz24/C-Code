@@ -138,6 +138,13 @@ export const memorySummarySchema = z.object({
 })
 export type MemorySummary = z.infer<typeof memorySummarySchema>
 
+export const memoryStateSchema = z.object({
+	summary: memorySummarySchema,
+	workspace: z.array(memoryEntrySchema).default([]),
+	global: z.array(memoryEntrySchema).default([]),
+})
+export type MemoryState = z.infer<typeof memoryStateSchema>
+
 export interface MemorySearchToolParams {
 	query: string
 	scope?: MemoryScope | "all"
@@ -155,4 +162,9 @@ export interface MistakeMemoryToolParams {
 	tags?: string[]
 	scope?: MemoryScope
 	approve?: boolean
+}
+
+export interface MemoryWipeToolParams {
+	scope: MemoryScope | "all"
+	confirmation?: string
 }

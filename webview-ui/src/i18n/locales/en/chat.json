@@ -339,6 +339,23 @@
 		"autoApproved": "Auto-approved",
 		"reusedExisting": "Updated existing memory"
 	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "Memory wipe pending approval",
+			"completed": "Memory wiped",
+			"cancelled": "Memory wipe cancelled"
+		},
+		"status": {
+			"pending": "Pending approval",
+			"completed": "Completed",
+			"cancelled": "Cancelled"
+		},
+		"fields": {
+			"scope": "Scope",
+			"status": "Status",
+			"deletedScopes": "Deleted scopes"
+		}
+	},
 	"commandOutput": "Command Output",
 	"commandExecution": {
 		"abort": "Abort",

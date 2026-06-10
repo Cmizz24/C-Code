@@ -303,6 +303,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		memoryMaxCharacters: DEFAULT_MEMORY_MAX_CHARACTERS,
 		memoryMaxEntries: DEFAULT_MEMORY_MAX_ENTRIES,
 		memoryPendingCandidateLimit: DEFAULT_MEMORY_PENDING_CANDIDATE_LIMIT,
+		memoryState: undefined,
+		memorySummary: undefined,
 		lockApiConfigAcrossModes: false,
 	})
 
@@ -400,6 +402,14 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 				}
 				case "memorySummary": {
 					setState((prevState) => ({ ...prevState, memorySummary: message.memorySummary }))
+					break
+				}
+				case "memoryState": {
+					setState((prevState) => ({
+						...prevState,
+						memoryState: message.memoryState,
+						memorySummary: message.memorySummary ?? message.memoryState?.summary,
+					}))
 					break
 				}
 				case "messageUpdated": {

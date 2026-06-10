@@ -1028,6 +1028,53 @@ describe("SettingsView - Memory Settings", () => {
 				workspace: { active: 3, pending: 2, archived: 1, total: 6 },
 				global: { active: 4, pending: 1, archived: 0, total: 5 },
 			},
+			memoryState: {
+				summary: {
+					workspace: { active: 3, pending: 2, archived: 1, total: 6 },
+					global: { active: 4, pending: 1, archived: 0, total: 5 },
+				},
+				workspace: [
+					{
+						id: "workspace-memory-1",
+						scope: "workspace",
+						kind: "mistake",
+						status: "pending",
+						source: "mistake_tool",
+						title: "Mistake lesson for apply_patch",
+						lesson: "Always verify patch context before applying a diff.",
+						tags: ["mistake", "patch"],
+						pathTags: ["src/core/tools/MistakeMemoryTool.ts"],
+						mode: "code",
+						toolName: "apply_patch",
+						confidence: 0.75,
+						reuseCount: 0,
+						successCount: 0,
+						failureCount: 0,
+						createdAt: 1_700_000_000_000,
+						updatedAt: 1_700_000_060_000,
+					},
+				],
+				global: [
+					{
+						id: "global-memory-1",
+						scope: "global",
+						kind: "lesson",
+						status: "stale",
+						source: "manual",
+						title: "Prefer safe JSON writes",
+						lesson: "Use safeWriteJson for persisted JSON outside tests.",
+						tags: ["json"],
+						pathTags: [],
+						confidence: 0.9,
+						reuseCount: 2,
+						successCount: 2,
+						failureCount: 0,
+						createdAt: 1_700_000_120_000,
+						updatedAt: 1_700_000_180_000,
+						lastUsedAt: 1_700_000_240_000,
+					},
+				],
+			},
 		})
 
 		activateTab("memory")
@@ -1067,6 +1114,20 @@ describe("SettingsView - Memory Settings", () => {
 		expect(within(content).getByText("3")).toBeInTheDocument()
 		expect(within(content).getByText("6")).toBeInTheDocument()
 		expect(within(content).getByText("5")).toBeInTheDocument()
+		expect(within(content).getByText("Mistake lesson for apply_patch")).toBeInTheDocument()
+		expect(
+			within(content).getAllByText("Always verify patch context before applying a diff.").length,
+		).toBeGreaterThan(0)
+		expect(within(content).getByText("settings:memory.status.pending")).toBeInTheDocument()
+		expect(within(content).getByText("settings:memory.kind.mistake")).toBeInTheDocument()
+		expect(within(content).getByText("patch")).toBeInTheDocument()
+		expect(within(content).getByText("src/core/tools/MistakeMemoryTool.ts")).toBeInTheDocument()
+		expect(within(content).getByText("Prefer safe JSON writes")).toBeInTheDocument()
+		expect(within(content).getByText("settings:memory.status.stale")).toBeInTheDocument()
+		expect(within(content).queryByTestId("memory-approve-workspace-pending-button")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("memory-archive-workspace-pending-button")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("memory-approve-global-pending-button")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("memory-archive-global-pending-button")).not.toBeInTheDocument()
 	})
 
 	it("saves memory settings from cached state", () => {
@@ -1117,13 +1178,12 @@ describe("SettingsView - Memory Settings", () => {
 
 		const content = getSettingsContent()
 		fireEvent.click(within(content).getByTestId("memory-refresh-button"))
-		fireEvent.click(within(content).getByTestId("memory-approve-workspace-pending-button"))
 
 		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "memoryAction", memoryAction: "refresh" })
-		expect(vscode.postMessage).toHaveBeenCalledWith({
-			type: "memoryAction",
-			memoryAction: "approveWorkspacePending",
-		})
+		expect(within(content).queryByTestId("memory-approve-workspace-pending-button")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("memory-archive-workspace-pending-button")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("memory-approve-global-pending-button")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("memory-archive-global-pending-button")).not.toBeInTheDocument()
 	})
 
 	it("requires confirmation before posting destructive memory actions", () => {

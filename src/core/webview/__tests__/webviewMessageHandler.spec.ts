@@ -1417,10 +1417,10 @@ describe("webviewMessageHandler - memory", () => {
 	it("refreshes WebView state after memory actions", async () => {
 		await webviewMessageHandler(mockClineProvider, {
 			type: "memoryAction",
-			memoryAction: "approveWorkspacePending",
+			memoryAction: "refresh",
 		})
 
-		expect((mockClineProvider as any).handleMemoryAction).toHaveBeenCalledWith("approveWorkspacePending", {
+		expect((mockClineProvider as any).handleMemoryAction).toHaveBeenCalledWith("refresh", {
 			memoryId: undefined,
 			memoryScope: undefined,
 			messageTs: undefined,

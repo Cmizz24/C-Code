@@ -609,5 +609,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "Obrir configuració",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "Esborrat de memòria pendent d’aprovació",
+			"completed": "Memòria esborrada",
+			"cancelled": "Esborrat de memòria cancel·lat"
+		},
+		"status": {
+			"pending": "Pendent d’aprovació",
+			"completed": "Completat",
+			"cancelled": "Cancel·lat"
+		},
+		"fields": {
+			"scope": "Abast",
+			"status": "Estat",
+			"deletedScopes": "Abasts esborrats"
+		}
 	}
 }

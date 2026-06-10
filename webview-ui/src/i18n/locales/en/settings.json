@@ -832,7 +832,7 @@
 			},
 			"management": {
 				"title": "Memory management",
-				"description": "Review memory counts and manage pending, archived, or stored lessons."
+				"description": "Review saved memory records and manage pending, archived, or stored lessons."
 			},
 			"advanced": {
 				"title": "Advanced",
@@ -878,7 +878,7 @@
 		},
 		"management": {
 			"title": "Memory management",
-			"description": "Review counts for workspace and global memories, approve pending lessons, archive memories, or clear stored memory."
+			"description": "Review workspace and global memory records, archive pending lessons, archive memories, or clear stored memory. Pending approvals happen in chat."
 		},
 		"summary": {
 			"workspace": "Workspace memory",
@@ -890,10 +890,34 @@
 		},
 		"actions": {
 			"refresh": "Refresh",
-			"approvePending": "Approve pending",
 			"archivePending": "Archive pending",
 			"archiveAll": "Archive all",
 			"clear": "Clear"
+		},
+		"scope": {
+			"workspace": "Workspace",
+			"global": "Global"
+		},
+		"status": {
+			"active": "Active",
+			"pending": "Pending",
+			"stale": "Stale",
+			"superseded": "Superseded",
+			"archived": "Archived"
+		},
+		"kind": {
+			"lesson": "Lesson",
+			"mistake": "Mistake"
+		},
+		"records": {
+			"count": "{{count}} records",
+			"empty": "No saved memories in this scope.",
+			"lesson": "Lesson",
+			"tags": "Tags",
+			"pathHints": "Path hints",
+			"created": "Created",
+			"updated": "Updated",
+			"lastUsed": "Last used"
 		},
 		"confirm": {
 			"title": "Confirm memory action",

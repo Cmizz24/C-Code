@@ -826,6 +826,31 @@
 			"archived": "Zarchiwizowane",
 			"total": "Łącznie"
 		},
+		"scope": {
+			"workspace": "Workspace",
+			"global": "Globalna"
+		},
+		"status": {
+			"active": "Aktywna",
+			"pending": "Oczekująca",
+			"stale": "Nieaktualna",
+			"superseded": "Zastąpiona",
+			"archived": "Zarchiwizowana"
+		},
+		"kind": {
+			"lesson": "Lekcja",
+			"mistake": "Błąd"
+		},
+		"records": {
+			"count": "{{count}} rekordów",
+			"empty": "Brak zapisanych memories w tym zakresie.",
+			"lesson": "Lekcja",
+			"tags": "Tagi",
+			"pathHints": "Wskazówki ścieżek",
+			"created": "Utworzono",
+			"updated": "Zaktualizowano",
+			"lastUsed": "Ostatnio użyto"
+		},
 		"actions": {
 			"refresh": "Odśwież",
 			"approvePending": "Zatwierdź oczekujące",

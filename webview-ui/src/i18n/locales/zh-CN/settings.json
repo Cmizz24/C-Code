@@ -826,6 +826,31 @@
 			"archived": "已归档",
 			"total": "总计"
 		},
+		"scope": {
+			"workspace": "工作区",
+			"global": "全局"
+		},
+		"status": {
+			"active": "活跃",
+			"pending": "待处理",
+			"stale": "过时",
+			"superseded": "已被取代",
+			"archived": "已归档"
+		},
+		"kind": {
+			"lesson": "经验",
+			"mistake": "错误"
+		},
+		"records": {
+			"count": "{{count}} 条记录",
+			"empty": "此范围内没有保存的记忆。",
+			"lesson": "经验",
+			"tags": "标签",
+			"pathHints": "路径提示",
+			"created": "创建时间",
+			"updated": "更新时间",
+			"lastUsed": "上次使用"
+		},
 		"actions": {
 			"refresh": "刷新",
 			"approvePending": "批准待处理",

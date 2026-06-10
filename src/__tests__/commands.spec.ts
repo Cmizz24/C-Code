@@ -38,17 +38,20 @@ describe("Command Utilities", () => {
 	})
 
 	describe("getCommands", () => {
-		it("should return empty array when no command directories exist", async () => {
-			// This will fail to find directories but should return empty array gracefully
+		it("should include built-in commands when no command directories exist", async () => {
 			const commands = await getCommands(testCwd)
 			expect(Array.isArray(commands)).toBe(true)
+			expect(commands).toEqual(
+				expect.arrayContaining([expect.objectContaining({ name: "wipe", source: "built-in" })]),
+			)
 		})
 	})
 
 	describe("getCommandNames", () => {
-		it("should return empty array when no commands exist", async () => {
+		it("should include built-in command names when no command directories exist", async () => {
 			const names = await getCommandNames(testCwd)
 			expect(Array.isArray(names)).toBe(true)
+			expect(names).toContain("wipe")
 		})
 	})
 
@@ -56,6 +59,22 @@ describe("Command Utilities", () => {
 		it("should return undefined for non-existent command", async () => {
 			const result = await getCommand(testCwd, "non-existent")
 			expect(result).toBeUndefined()
+		})
+
+		it("should load the built-in safe memory wipe command", async () => {
+			const command = await getCommand(testCwd, "wipe")
+
+			expect(command).toEqual(
+				expect.objectContaining({
+					name: "wipe",
+					source: "built-in",
+					argumentHint: "workspace|global|all",
+					description: expect.stringContaining("Safely clear workspace, global, or all long-term memory"),
+					content: expect.stringContaining("Never wipe memory silently."),
+				}),
+			)
+			expect(command?.content).toContain("WIPE ALL MEMORY")
+			expect(command?.content).toContain("memory_wipe")
 		})
 	})
 

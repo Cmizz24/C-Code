@@ -380,6 +380,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	consecutiveNoToolUseCount: number = 0
 	consecutiveNoAssistantMessagesCount: number = 0
 	toolUsage: ToolUsage = {}
+	private queuedMistakeMemoryApprovals: Array<() => Promise<void>> = []
+	private drainingMistakeMemoryApprovals?: Promise<void>
 
 	// Checkpoints
 	enableCheckpoints: boolean
@@ -1662,8 +1664,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			}
 		}
 
-		// Mark the last tool-approval ask as answered when user approves (or auto-approval)
-		if (askResponse === "yesButtonClicked") {
+		// Mark the last tool-approval ask as answered when user approves or rejects.
+		if (askResponse === "yesButtonClicked" || askResponse === "noButtonClicked") {
 			const lastToolAskIndex = findLastIndex(
 				this.clineMessages,
 				(msg) => msg.type === "ask" && msg.ask === "tool" && !msg.isAnswered,
@@ -4985,17 +4987,51 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 	}
 
+	public async drainQueuedMistakeMemories(): Promise<void> {
+		if (this.drainingMistakeMemoryApprovals) {
+			await this.drainingMistakeMemoryApprovals
+			return
+		}
+
+		const drain = (async () => {
+			while (this.queuedMistakeMemoryApprovals.length > 0) {
+				const approval = this.queuedMistakeMemoryApprovals.shift()
+				if (!approval) {
+					continue
+				}
+
+				await approval().catch((candidateError) => {
+					console.warn(
+						`[Task#${this.taskId}] Failed to create mistake-memory candidate: ${
+							candidateError instanceof Error ? candidateError.message : String(candidateError)
+						}`,
+					)
+				})
+			}
+		})()
+
+		this.drainingMistakeMemoryApprovals = drain
+
+		try {
+			await drain
+		} finally {
+			if (this.drainingMistakeMemoryApprovals === drain) {
+				this.drainingMistakeMemoryApprovals = undefined
+			}
+		}
+	}
+
 	private queueMistakeMemoryFromToolError(
 		toolName: ToolName,
 		error: string,
 		source: "tool_error" | "validation_error" = "tool_error",
 	): void {
-		const provider = this.providerRef.deref()
-		if (!provider) {
-			return
-		}
+		this.queuedMistakeMemoryApprovals.push(async () => {
+			const provider = this.providerRef.deref()
+			if (!provider) {
+				return
+			}
 
-		void (async () => {
 			const state = await provider.getState()
 			if (state?.memoryMistakeMemoryEnabled === false) {
 				return
@@ -5028,41 +5064,85 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			})
 
 			await provider.postMemoryStateToWebview().catch(() => {})
+			const getMessage = (status: typeof result.memory.status, approvedByUser = false) => {
+				if (status === "active") {
+					if (autoApproved) {
+						return "Saved auto-approved active mistake memory from a tool error."
+					}
+
+					return approvedByUser
+						? "Saved approved active mistake memory from a tool error."
+						: "Reused existing active mistake memory from a tool error."
+				}
+
+				if (status === "archived") {
+					return "Rejected pending mistake memory from a tool error and archived it."
+				}
+
+				return "Pending mistake memory from a tool error requires your approval before Roo continues."
+			}
+
+			const getToolPayload = (message: string, memory = result.memory): ClineSayTool => ({
+				tool: "mistakeMemory",
+				content: memory.lesson,
+				memoryId: memory.id,
+				scope: memory.scope,
+				status: memory.status,
+				candidateId: result.candidate?.id,
+				title: memory.title,
+				tags: memory.tags,
+				pathTags: memory.pathTags,
+				mode: memory.mode,
+				toolName: memory.toolName,
+				mistakeSignature: memory.mistakeSignature,
+				autoApproved,
+				reusedExisting: result.reusedExisting,
+				message,
+			})
+
+			if (result.memory.status === "pending" && !autoApproved) {
+				const { response } = await this.ask(
+					"tool",
+					JSON.stringify(getToolPayload(getMessage(result.memory.status))),
+					false,
+					undefined,
+					true,
+				)
+				const approvedByUser = response === "yesButtonClicked"
+				const memoryState = await provider.handleMemoryAction(
+					approvedByUser ? "approveMemory" : "archiveMemory",
+					{
+						memoryId: result.memory.id,
+						memoryScope: result.memory.scope,
+					},
+				)
+				const finalMemory =
+					[...memoryState.workspace, ...memoryState.global].find(
+						(memory) => memory.id === result.memory.id,
+					) ?? result.memory
+
+				await provider.postMemoryStateToWebview().catch(() => {})
+				await this.say(
+					"tool",
+					JSON.stringify(getToolPayload(getMessage(finalMemory.status, approvedByUser), finalMemory)),
+					undefined,
+					false,
+					undefined,
+					undefined,
+					{ isNonInteractive: true },
+				).catch(() => {})
+				return
+			}
 
 			await this.say(
 				"tool",
-				JSON.stringify({
-					tool: "mistakeMemory",
-					content: result.memory.lesson,
-					memoryId: result.memory.id,
-					scope: result.memory.scope,
-					status: result.memory.status,
-					candidateId: result.candidate?.id,
-					title: result.memory.title,
-					tags: result.memory.tags,
-					pathTags: result.memory.pathTags,
-					mode: result.memory.mode,
-					toolName: result.memory.toolName,
-					mistakeSignature: result.memory.mistakeSignature,
-					autoApproved,
-					reusedExisting: result.reusedExisting,
-					message:
-						result.memory.status === "active"
-							? "Saved auto-approved active mistake memory from a tool error."
-							: "Saved pending mistake-memory candidate from a tool error for user review.",
-				}),
+				JSON.stringify(getToolPayload(getMessage(result.memory.status))),
 				undefined,
 				undefined,
 				undefined,
 				undefined,
 				{ isNonInteractive: true },
 			).catch(() => {})
-		})().catch((candidateError) => {
-			console.warn(
-				`[Task#${this.taskId}] Failed to create mistake-memory candidate: ${
-					candidateError instanceof Error ? candidateError.message : String(candidateError)
-				}`,
-			)
 		})
 	}
 

@@ -200,4 +200,73 @@ describe("ChatRow - memory tools", () => {
 			screen.getByText((_, element) => element?.textContent === "chat:memory.fields.score: 0.8754"),
 		).toBeInTheDocument()
 	})
+
+	it("renders pending memory wipe approval cards", () => {
+		const message: ClineMessage = {
+			type: "ask",
+			ask: "tool",
+			ts: 333444,
+			text: JSON.stringify({
+				tool: "memoryWipe",
+				scope: "all",
+				memoryWipeStatus: "pending",
+				message: "Roo wants to wipe workspace and global memory. This cannot be undone.",
+			} satisfies ClineSayTool),
+		}
+
+		renderChatRow(message)
+
+		expect(screen.getByText("chat:memoryWipe.statusTitle.pending")).toBeInTheDocument()
+		expect(
+			screen.getByText("Roo wants to wipe workspace and global memory. This cannot be undone."),
+		).toBeInTheDocument()
+		expect(screen.getAllByText("chat:memory.scopes.all").length).toBeGreaterThan(0)
+		expect(screen.getAllByText("chat:memoryWipe.status.pending").length).toBeGreaterThan(0)
+		expect(screen.getByText("chat:memoryWipe.fields.scope")).toBeInTheDocument()
+		expect(screen.getByText("chat:memoryWipe.fields.status")).toBeInTheDocument()
+	})
+
+	it("renders completed memory wipe cards with deleted scopes", () => {
+		const message: ClineMessage = {
+			type: "say",
+			say: "tool",
+			ts: 444555,
+			text: JSON.stringify({
+				tool: "memoryWipe",
+				scope: "all",
+				memoryWipeStatus: "completed",
+				deletedScopes: ["workspace", "global"],
+				message: "Wiped workspace and global memory.",
+			} satisfies ClineSayTool),
+		}
+
+		renderChatRow(message)
+
+		expect(screen.getByText("chat:memoryWipe.statusTitle.completed")).toBeInTheDocument()
+		expect(screen.getByText("Wiped workspace and global memory.")).toBeInTheDocument()
+		expect(screen.getAllByText("chat:memoryWipe.status.completed").length).toBeGreaterThan(0)
+		expect(screen.getByText("chat:memoryWipe.fields.deletedScopes")).toBeInTheDocument()
+		expect(screen.getByText("chat:memory.scopes.workspace, chat:memory.scopes.global")).toBeInTheDocument()
+	})
+
+	it("renders cancelled memory wipe cards", () => {
+		const message: ClineMessage = {
+			type: "say",
+			say: "tool",
+			ts: 555666,
+			text: JSON.stringify({
+				tool: "memoryWipe",
+				scope: "global",
+				memoryWipeStatus: "cancelled",
+				message: "Memory wipe cancelled. No memories were deleted.",
+			} satisfies ClineSayTool),
+		}
+
+		renderChatRow(message)
+
+		expect(screen.getByText("chat:memoryWipe.statusTitle.cancelled")).toBeInTheDocument()
+		expect(screen.getByText("Memory wipe cancelled. No memories were deleted.")).toBeInTheDocument()
+		expect(screen.getAllByText("chat:memory.scopes.global").length).toBeGreaterThan(0)
+		expect(screen.getAllByText("chat:memoryWipe.status.cancelled").length).toBeGreaterThan(0)
+	})
 })

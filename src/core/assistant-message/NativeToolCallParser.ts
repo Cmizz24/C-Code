@@ -1090,6 +1090,15 @@ export class NativeToolCallParser {
 				}
 				break
 
+			case "memory_wipe":
+				if (partialArgs.scope !== undefined) {
+					nativeArgs = {
+						scope: partialArgs.scope,
+						confirmation: partialArgs.confirmation ?? undefined,
+					}
+				}
+				break
+
 			case "generate_image":
 				if (partialArgs.prompt !== undefined || partialArgs.path !== undefined) {
 					nativeArgs = {
@@ -1469,6 +1478,15 @@ export class NativeToolCallParser {
 							tags: Array.isArray(args.tags) ? args.tags : undefined,
 							scope: args.scope ?? undefined,
 							approve: this.coerceOptionalBoolean(args.approve),
+						} as NativeArgsFor<TName>
+					}
+					break
+
+				case "memory_wipe":
+					if (args.scope !== undefined) {
+						nativeArgs = {
+							scope: args.scope,
+							confirmation: args.confirmation ?? undefined,
 						} as NativeArgsFor<TName>
 					}
 					break

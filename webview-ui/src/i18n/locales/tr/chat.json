@@ -610,5 +610,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "Ayarları aç",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "Bellek silme onay bekliyor",
+			"completed": "Bellek silindi",
+			"cancelled": "Bellek silme iptal edildi"
+		},
+		"status": {
+			"pending": "Onay bekliyor",
+			"completed": "Tamamlandı",
+			"cancelled": "İptal edildi"
+		},
+		"fields": {
+			"scope": "Kapsam",
+			"status": "Durum",
+			"deletedScopes": "Silinen kapsamlar"
+		}
 	}
 }

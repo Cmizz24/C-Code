@@ -16,7 +16,14 @@ import type { OpenAiCodexRateLimitInfo } from "./providers/openai-codex-rate-lim
 import type { SkillMetadata } from "./skills.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
 import type { GeneratedImageMetadata } from "./image-generation.js"
-import type { MemoryKind, MemoryRankBreakdown, MemoryScope, MemoryStatus, MemorySummary } from "./memory.js"
+import type {
+	MemoryKind,
+	MemoryRankBreakdown,
+	MemoryScope,
+	MemoryState,
+	MemoryStatus,
+	MemorySummary,
+} from "./memory.js"
 import type {
 	LocalAiRecommendationRequest,
 	LocalAiSetupStartRequest,
@@ -37,12 +44,8 @@ export type MemoryAction =
 	| "refresh"
 	| "approveMemory"
 	| "archiveMemory"
-	| "approveWorkspacePending"
-	| "archiveWorkspacePending"
 	| "archiveWorkspace"
 	| "clearWorkspace"
-	| "approveGlobalPending"
-	| "archiveGlobalPending"
 	| "archiveGlobal"
 	| "clearGlobal"
 
@@ -149,6 +152,7 @@ export interface ExtensionMessage {
 		| "localAiRecommendationResult"
 		| "localAiSetupProgress"
 		| "localAiSetupResult"
+		| "memoryState"
 		| "memorySummary"
 	text?: string
 	/** For fileContent: { path, content, error? } */
@@ -213,6 +217,7 @@ export interface ExtensionMessage {
 	hasCheckpoint?: boolean
 	context?: string
 	commands?: Command[]
+	memoryState?: MemoryState
 	memorySummary?: MemorySummary
 	queuedMessages?: QueuedMessage[]
 	list?: string[] // For dismissedUpsells
@@ -397,6 +402,7 @@ export type ExtensionState = Pick<
 	| "disabledTools"
 > & {
 	lockApiConfigAcrossModes?: boolean
+	memoryState?: MemoryState
 	memorySummary?: MemorySummary
 	version: string
 	clineMessages: ClineMessage[]
@@ -870,6 +876,7 @@ export interface ClineSayTool {
 		| "codebaseSearch"
 		| "memorySearch"
 		| "mistakeMemory"
+		| "memoryWipe"
 		| "readFile"
 		| "readCommandOutput"
 		| "listFilesTopLevel"
@@ -942,6 +949,8 @@ export interface ClineSayTool {
 	memoryResults?: MemorySearchChatResult[]
 	autoApproved?: boolean
 	reusedExisting?: boolean
+	memoryWipeStatus?: "pending" | "completed" | "cancelled"
+	deletedScopes?: MemoryScope[]
 	batchFiles?: Array<{
 		path: string
 		lineSnippet: string

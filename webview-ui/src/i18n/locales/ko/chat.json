@@ -609,5 +609,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "설정 열기",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "메모리 삭제 승인 대기 중",
+			"completed": "메모리 삭제됨",
+			"cancelled": "메모리 삭제 취소됨"
+		},
+		"status": {
+			"pending": "승인 대기 중",
+			"completed": "완료됨",
+			"cancelled": "취소됨"
+		},
+		"fields": {
+			"scope": "범위",
+			"status": "상태",
+			"deletedScopes": "삭제된 범위"
+		}
 	}
 }

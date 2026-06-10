@@ -282,6 +282,29 @@ Please analyze this codebase and create an AGENTS.md file containing:
 
 Remember: The goal is to create documentation that enables AI assistants to be immediately productive in this codebase, focusing on project-specific knowledge that isn't obvious from the code structure alone.`,
 	},
+	wipe: {
+		name: "wipe",
+		description: "Safely clear workspace, global, or all long-term memory after explicit confirmation",
+		argumentHint: "workspace|global|all",
+		content: `<task>
+Help the user safely clear C Code long-term memory.
+</task>
+
+<safety_rules>
+- Never wipe memory silently.
+- First determine exactly one scope: workspace/project memory, global memory, or all memory.
+- Treat "project" as workspace memory.
+- If the user did not provide a clear scope with /wipe, ask a follow-up question with these choices: workspace/project memory, global memory, or all memory.
+- Before calling memory_wipe, explain what will be deleted and wait for the required user choice/confirmation.
+- For workspace/project or global memory, call memory_wipe only after the user confirms that specific scope.
+- For all memory, require the user to explicitly type the exact phrase WIPE ALL MEMORY before calling memory_wipe with scope "all" and confirmation "WIPE ALL MEMORY".
+- If the user declines or is ambiguous, do not call memory_wipe.
+</safety_rules>
+
+<execution>
+When the required scope and confirmation are present, use the memory_wipe tool. The tool will still present a final in-chat approval before deleting anything.
+</execution>`,
+	},
 }
 
 /**

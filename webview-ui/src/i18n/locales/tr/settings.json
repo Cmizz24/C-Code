@@ -826,6 +826,31 @@
 			"archived": "Arşivlendi",
 			"total": "Toplam"
 		},
+		"scope": {
+			"workspace": "Workspace",
+			"global": "Global"
+		},
+		"status": {
+			"active": "Aktif",
+			"pending": "Beklemede",
+			"stale": "Eski",
+			"superseded": "Yerine geçti",
+			"archived": "Arşivlendi"
+		},
+		"kind": {
+			"lesson": "Ders",
+			"mistake": "Hata"
+		},
+		"records": {
+			"count": "{{count}} kayıt",
+			"empty": "Bu kapsamda kayıtlı bellek yok.",
+			"lesson": "Ders",
+			"tags": "Etiketler",
+			"pathHints": "Yol ipuçları",
+			"created": "Oluşturuldu",
+			"updated": "Güncellendi",
+			"lastUsed": "Son kullanım"
+		},
 		"actions": {
 			"refresh": "Yenile",
 			"approvePending": "Bekleyenleri onayla",

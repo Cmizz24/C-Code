@@ -451,6 +451,14 @@ export const ChatRowContent = ({
 			return
 		}
 
+		if (message.type === "ask" && message.ask === "tool") {
+			vscode.postMessage({
+				type: "askResponse",
+				askResponse: memoryAction === "approveMemory" ? "yesButtonClicked" : "noButtonClicked",
+			})
+			return
+		}
+
 		vscode.postMessage({
 			type: "memoryAction",
 			memoryAction,
@@ -618,6 +626,66 @@ export const ChatRowContent = ({
 						</ToolUseBlock>
 					</div>
 				)}
+			</>
+		)
+	}
+
+	const renderMemoryWipeTool = (memoryTool: ClineSayTool) => {
+		const status = memoryTool.memoryWipeStatus ?? (message.type === "ask" ? "pending" : "completed")
+		const scope = memoryTool.scope ?? "workspace"
+		const deletedScopes = memoryTool.deletedScopes ?? []
+		const deletedScopeLabels = deletedScopes.map((deletedScope) => t(`chat:memory.scopes.${deletedScope}`))
+
+		return (
+			<>
+				<div style={headerStyle}>
+					{status === "completed" ? (
+						<Trash2 className="w-4 shrink-0 text-vscode-errorForeground" aria-label="Memory wipe icon" />
+					) : (
+						codicon(status === "cancelled" ? "circle-slash" : "warning")
+					)}
+					<span style={{ fontWeight: "bold" }}>{t(`chat:memoryWipe.statusTitle.${status}`)}</span>
+				</div>
+				<div className="pl-6">
+					<ToolUseBlock className="cursor-default border border-vscode-panel-border">
+						<ToolUseBlockHeader className="flex flex-col items-start gap-3 px-3 py-2">
+							{memoryTool.message && (
+								<div className="text-vscode-foreground break-words">{memoryTool.message}</div>
+							)}
+							<div className="flex flex-wrap gap-1">
+								<VSCodeBadge>{t(`chat:memory.scopes.${scope}`)}</VSCodeBadge>
+								<VSCodeBadge>{t(`chat:memoryWipe.status.${status}`)}</VSCodeBadge>
+								{deletedScopes.map((deletedScope) => (
+									<VSCodeBadge key={`deleted-${deletedScope}`}>
+										{t(`chat:memory.scopes.${deletedScope}`)}
+									</VSCodeBadge>
+								))}
+							</div>
+							<dl className="grid gap-1 text-xs text-vscode-descriptionForeground sm:grid-cols-2">
+								<div className="min-w-0">
+									<dt className="font-medium text-vscode-foreground">
+										{t("chat:memoryWipe.fields.scope")}
+									</dt>
+									<dd className="break-words">{t(`chat:memory.scopes.${scope}`)}</dd>
+								</div>
+								<div className="min-w-0">
+									<dt className="font-medium text-vscode-foreground">
+										{t("chat:memoryWipe.fields.status")}
+									</dt>
+									<dd className="break-words">{t(`chat:memoryWipe.status.${status}`)}</dd>
+								</div>
+								{deletedScopeLabels.length > 0 && (
+									<div className="min-w-0 sm:col-span-2">
+										<dt className="font-medium text-vscode-foreground">
+											{t("chat:memoryWipe.fields.deletedScopes")}
+										</dt>
+										<dd className="break-words">{deletedScopeLabels.join(", ")}</dd>
+									</div>
+								)}
+							</dl>
+						</ToolUseBlockHeader>
+					</ToolUseBlock>
+				</div>
 			</>
 		)
 	}
@@ -1156,6 +1224,9 @@ export const ChatRowContent = ({
 			}
 			case "mistakeMemory": {
 				return renderMistakeMemoryTool(tool)
+			}
+			case "memoryWipe": {
+				return renderMemoryWipeTool(tool)
 			}
 			case "updateTodoList" as any: {
 				const todos = (tool as any).todos || []
@@ -2149,6 +2220,9 @@ export const ChatRowContent = ({
 						}
 						case "mistakeMemory": {
 							return renderMistakeMemoryTool(sayTool)
+						}
+						case "memoryWipe": {
+							return renderMemoryWipeTool(sayTool)
 						}
 						default:
 							return null

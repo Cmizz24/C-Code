@@ -826,6 +826,31 @@
 			"archived": "В архиве",
 			"total": "Всего"
 		},
+		"scope": {
+			"workspace": "Workspace",
+			"global": "Глобальная"
+		},
+		"status": {
+			"active": "Активна",
+			"pending": "Ожидает",
+			"stale": "Устарела",
+			"superseded": "Заменена",
+			"archived": "Архивирована"
+		},
+		"kind": {
+			"lesson": "Урок",
+			"mistake": "Ошибка"
+		},
+		"records": {
+			"count": "{{count}} записей",
+			"empty": "В этой области нет сохраненных memories.",
+			"lesson": "Урок",
+			"tags": "Теги",
+			"pathHints": "Подсказки путей",
+			"created": "Создано",
+			"updated": "Обновлено",
+			"lastUsed": "Последнее использование"
+		},
 		"actions": {
 			"refresh": "Обновить",
 			"approvePending": "Одобрить ожидающие",

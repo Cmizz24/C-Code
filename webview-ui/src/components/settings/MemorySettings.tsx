@@ -2,7 +2,7 @@ import type { HTMLAttributes, ReactNode } from "react"
 import { useState } from "react"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 
-import type { MemoryAction, MemorySummary } from "@roo-code/types"
+import type { MemoryAction, MemoryEntry, MemoryScope, MemoryState, MemorySummary } from "@roo-code/types"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { vscode } from "@src/utils/vscode"
@@ -41,6 +41,7 @@ type MemorySettingsProps = HTMLAttributes<HTMLDivElement> & {
 	memoryMaxCharacters?: number
 	memoryMaxEntries?: number
 	memoryPendingCandidateLimit?: number
+	memoryState?: MemoryState
 	memorySummary?: MemorySummary
 	setCachedStateField: SetCachedStateField<
 		| "memoryEnabled"
@@ -58,10 +59,8 @@ const postMemoryAction = (memoryAction: MemoryAction) => {
 }
 
 const destructiveMemoryActions = new Set<MemoryAction>([
-	"archiveWorkspacePending",
 	"archiveWorkspace",
 	"clearWorkspace",
-	"archiveGlobalPending",
 	"archiveGlobal",
 	"clearGlobal",
 ])
@@ -116,6 +115,149 @@ const MemoryCollapsibleSection = ({
 	)
 }
 
+const statusTone: Record<MemoryEntry["status"], string> = {
+	active: "border-vscode-charts-green text-vscode-charts-green",
+	pending: "border-vscode-charts-yellow text-vscode-charts-yellow",
+	stale: "border-vscode-descriptionForeground text-vscode-descriptionForeground",
+	superseded: "border-vscode-descriptionForeground text-vscode-descriptionForeground",
+	archived: "border-vscode-descriptionForeground text-vscode-descriptionForeground",
+}
+
+const formatTimestamp = (timestamp?: number): string | undefined => {
+	if (!timestamp) {
+		return undefined
+	}
+
+	return new Intl.DateTimeFormat(undefined, {
+		dateStyle: "medium",
+		timeStyle: "short",
+	}).format(new Date(timestamp))
+}
+
+const MemoryPill = ({ children, className }: { children: ReactNode; className?: string }) => (
+	<span className={cn("rounded-full border border-vscode-panel-border px-2 py-0.5 text-xs", className)}>
+		{children}
+	</span>
+)
+
+const MemoryRecordCard = ({ memory }: { memory: MemoryEntry }) => {
+	const { t } = useAppTranslation()
+	const createdAt = formatTimestamp(memory.createdAt)
+	const updatedAt = formatTimestamp(memory.updatedAt)
+	const lastUsedAt = formatTimestamp(memory.lastUsedAt)
+
+	return (
+		<details
+			className="rounded-md border border-vscode-panel-border bg-vscode-editor-background p-3 text-sm"
+			data-testid={`memory-record-${memory.id}`}>
+			<summary className="cursor-pointer list-none">
+				<div className="flex flex-col gap-2">
+					<div className="flex flex-wrap items-center gap-2">
+						<span className="font-medium text-vscode-foreground">{memory.title || memory.lesson}</span>
+						<MemoryPill className={statusTone[memory.status]}>
+							{t(`settings:memory.status.${memory.status}`)}
+						</MemoryPill>
+						<MemoryPill>{t(`settings:memory.scope.${memory.scope}`)}</MemoryPill>
+						<MemoryPill>{t(`settings:memory.kind.${memory.kind}`)}</MemoryPill>
+						{memory.mode && <MemoryPill>{memory.mode}</MemoryPill>}
+						{memory.toolName && <MemoryPill>{memory.toolName}</MemoryPill>}
+					</div>
+					<p className="line-clamp-2 text-vscode-descriptionForeground">{memory.lesson}</p>
+				</div>
+			</summary>
+
+			<div className="mt-3 space-y-3 border-t border-vscode-panel-border pt-3">
+				<div>
+					<div className="text-xs uppercase text-vscode-descriptionForeground">
+						{t("settings:memory.records.lesson")}
+					</div>
+					<div className="mt-1 whitespace-pre-wrap text-vscode-foreground">{memory.lesson}</div>
+				</div>
+
+				{memory.tags.length > 0 && (
+					<div>
+						<div className="text-xs uppercase text-vscode-descriptionForeground">
+							{t("settings:memory.records.tags")}
+						</div>
+						<div className="mt-1 flex flex-wrap gap-1">
+							{memory.tags.map((tag) => (
+								<MemoryPill key={tag}>{tag}</MemoryPill>
+							))}
+						</div>
+					</div>
+				)}
+
+				{memory.pathTags.length > 0 && (
+					<div>
+						<div className="text-xs uppercase text-vscode-descriptionForeground">
+							{t("settings:memory.records.pathHints")}
+						</div>
+						<div className="mt-1 flex flex-wrap gap-1">
+							{memory.pathTags.map((pathTag) => (
+								<MemoryPill key={pathTag}>{pathTag}</MemoryPill>
+							))}
+						</div>
+					</div>
+				)}
+
+				<div className="grid gap-2 text-xs text-vscode-descriptionForeground sm:grid-cols-3">
+					{createdAt && (
+						<div>
+							<span className="font-medium text-vscode-foreground">
+								{t("settings:memory.records.created")}:{" "}
+							</span>
+							{createdAt}
+						</div>
+					)}
+					{updatedAt && (
+						<div>
+							<span className="font-medium text-vscode-foreground">
+								{t("settings:memory.records.updated")}:{" "}
+							</span>
+							{updatedAt}
+						</div>
+					)}
+					{lastUsedAt && (
+						<div>
+							<span className="font-medium text-vscode-foreground">
+								{t("settings:memory.records.lastUsed")}:{" "}
+							</span>
+							{lastUsedAt}
+						</div>
+					)}
+				</div>
+			</div>
+		</details>
+	)
+}
+
+const MemoryRecordList = ({ scope, records }: { scope: MemoryScope; records: MemoryEntry[] }) => {
+	const { t } = useAppTranslation()
+
+	return (
+		<div className="space-y-2" data-testid={`memory-record-list-${scope}`}>
+			<div className="flex items-center justify-between gap-2">
+				<div className="font-medium">{t(`settings:memory.scope.${scope}`)}</div>
+				<div className="text-xs text-vscode-descriptionForeground">
+					{t("settings:memory.records.count", { count: records.length })}
+				</div>
+			</div>
+
+			{records.length > 0 ? (
+				<div className="space-y-2">
+					{records.map((memory) => (
+						<MemoryRecordCard key={memory.id} memory={memory} />
+					))}
+				</div>
+			) : (
+				<div className="rounded-md border border-dashed border-vscode-panel-border p-3 text-sm text-vscode-descriptionForeground">
+					{t("settings:memory.records.empty")}
+				</div>
+			)}
+		</div>
+	)
+}
+
 const SummaryCard = ({ title, summary }: { title: string; summary?: MemorySummary["workspace"] }) => {
 	const { t } = useAppTranslation()
 
@@ -152,6 +294,7 @@ export const MemorySettings = ({
 	memoryMaxCharacters,
 	memoryMaxEntries,
 	memoryPendingCandidateLimit,
+	memoryState,
 	memorySummary,
 	setCachedStateField,
 	className,
@@ -160,6 +303,9 @@ export const MemorySettings = ({
 	const { t } = useAppTranslation()
 	const [pendingAction, setPendingAction] = useState<MemoryAction>()
 	const modeValue = memoryEnabled === undefined ? "auto" : memoryEnabled ? "enabled" : "disabled"
+	const summary = memoryState?.summary ?? memorySummary
+	const workspaceRecords = memoryState?.workspace ?? []
+	const globalRecords = memoryState?.global ?? []
 
 	const requestMemoryAction = (memoryAction: MemoryAction) => {
 		if (destructiveMemoryActions.has(memoryAction)) {
@@ -332,29 +478,19 @@ export const MemorySettings = ({
 						</div>
 
 						<div className="grid gap-3 md:grid-cols-2">
-							<SummaryCard
-								title={t("settings:memory.summary.workspace")}
-								summary={memorySummary?.workspace}
-							/>
-							<SummaryCard title={t("settings:memory.summary.global")} summary={memorySummary?.global} />
+							<SummaryCard title={t("settings:memory.summary.workspace")} summary={summary?.workspace} />
+							<SummaryCard title={t("settings:memory.summary.global")} summary={summary?.global} />
+						</div>
+
+						<div className="mt-4 grid gap-4 md:grid-cols-2">
+							<MemoryRecordList scope="workspace" records={workspaceRecords} />
+							<MemoryRecordList scope="global" records={globalRecords} />
 						</div>
 
 						<div className="grid gap-4 md:grid-cols-2 mt-4">
 							<div className="flex flex-col gap-2">
 								<div className="font-medium">{t("settings:memory.summary.workspace")}</div>
 								<div className="flex flex-wrap gap-2">
-									<Button
-										data-testid="memory-approve-workspace-pending-button"
-										variant="secondary"
-										onClick={() => requestMemoryAction("approveWorkspacePending")}>
-										{t("settings:memory.actions.approvePending")}
-									</Button>
-									<Button
-										data-testid="memory-archive-workspace-pending-button"
-										variant="secondary"
-										onClick={() => requestMemoryAction("archiveWorkspacePending")}>
-										{t("settings:memory.actions.archivePending")}
-									</Button>
 									<Button
 										data-testid="memory-archive-workspace-button"
 										variant="secondary"
@@ -373,18 +509,6 @@ export const MemorySettings = ({
 							<div className="flex flex-col gap-2">
 								<div className="font-medium">{t("settings:memory.summary.global")}</div>
 								<div className="flex flex-wrap gap-2">
-									<Button
-										data-testid="memory-approve-global-pending-button"
-										variant="secondary"
-										onClick={() => requestMemoryAction("approveGlobalPending")}>
-										{t("settings:memory.actions.approvePending")}
-									</Button>
-									<Button
-										data-testid="memory-archive-global-pending-button"
-										variant="secondary"
-										onClick={() => requestMemoryAction("archiveGlobalPending")}>
-										{t("settings:memory.actions.archivePending")}
-									</Button>
 									<Button
 										data-testid="memory-archive-global-button"
 										variant="secondary"

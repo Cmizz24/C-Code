@@ -2,7 +2,7 @@
  * Tool parameter type definitions for native protocol
  */
 
-export type { MemorySearchToolParams, MistakeMemoryToolParams } from "./memory.js"
+export type { MemorySearchToolParams, MemoryWipeToolParams, MistakeMemoryToolParams } from "./memory.js"
 
 /**
  * Read mode for the read_file tool.

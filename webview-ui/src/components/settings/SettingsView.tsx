@@ -270,6 +270,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		memoryMaxCharacters,
 		memoryMaxEntries,
 		memoryPendingCandidateLimit,
+		memoryState,
 		memorySummary,
 	} = cachedState
 
@@ -1138,6 +1139,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								memoryMaxCharacters={memoryMaxCharacters}
 								memoryMaxEntries={memoryMaxEntries}
 								memoryPendingCandidateLimit={memoryPendingCandidateLimit}
+								memoryState={memoryState}
 								memorySummary={memorySummary}
 								setCachedStateField={setCachedStateField}
 							/>

@@ -826,6 +826,31 @@
 			"archived": "アーカイブ済み",
 			"total": "合計"
 		},
+		"scope": {
+			"workspace": "ワークスペース",
+			"global": "グローバル"
+		},
+		"status": {
+			"active": "アクティブ",
+			"pending": "保留中",
+			"stale": "古い",
+			"superseded": "置き換え済み",
+			"archived": "アーカイブ済み"
+		},
+		"kind": {
+			"lesson": "レッスン",
+			"mistake": "ミス"
+		},
+		"records": {
+			"count": "{{count}} 件の記録",
+			"empty": "このスコープに保存済みメモリはありません。",
+			"lesson": "レッスン",
+			"tags": "タグ",
+			"pathHints": "パスヒント",
+			"created": "作成日",
+			"updated": "更新日",
+			"lastUsed": "最終使用"
+		},
 		"actions": {
 			"refresh": "更新",
 			"approvePending": "保留中を承認",

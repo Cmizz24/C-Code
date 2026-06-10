@@ -826,6 +826,31 @@
 			"archived": "보관됨",
 			"total": "전체"
 		},
+		"scope": {
+			"workspace": "작업 공간",
+			"global": "전역"
+		},
+		"status": {
+			"active": "활성",
+			"pending": "보류 중",
+			"stale": "오래됨",
+			"superseded": "대체됨",
+			"archived": "보관됨"
+		},
+		"kind": {
+			"lesson": "교훈",
+			"mistake": "실수"
+		},
+		"records": {
+			"count": "{{count}}개 기록",
+			"empty": "이 범위에 저장된 메모리가 없습니다.",
+			"lesson": "교훈",
+			"tags": "태그",
+			"pathHints": "경로 힌트",
+			"created": "생성됨",
+			"updated": "업데이트됨",
+			"lastUsed": "마지막 사용"
+		},
 		"actions": {
 			"refresh": "새로 고침",
 			"approvePending": "보류 항목 승인",
