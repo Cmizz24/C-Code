@@ -193,6 +193,8 @@ function shouldRequestRouterModelsForProvider(provider: ProviderName, apiConfigu
 			return !!apiConfiguration.mistralApiKey
 		case "deepseek":
 			return !!apiConfiguration.deepSeekApiKey
+		case "xiaomi-mimo":
+			return !!apiConfiguration.xiaomiMiMoApiKey
 		case "gemini":
 			return !!apiConfiguration.geminiApiKey
 		case "moonshot":
@@ -252,6 +254,12 @@ function getRouterModelRequestValues(provider: ProviderName, apiConfiguration: P
 				...values,
 				deepSeekApiKey: apiConfiguration.deepSeekApiKey,
 				deepSeekBaseUrl: apiConfiguration.deepSeekBaseUrl,
+			}
+		case "xiaomi-mimo":
+			return {
+				...values,
+				xiaomiMiMoApiKey: apiConfiguration.xiaomiMiMoApiKey,
+				xiaomiMiMoBaseUrl: apiConfiguration.xiaomiMiMoBaseUrl,
 			}
 		case "gemini":
 			return {
@@ -465,6 +473,8 @@ const ApiOptions = ({
 			apiConfiguration?.mistralApiKey,
 			apiConfiguration?.deepSeekApiKey,
 			apiConfiguration?.deepSeekBaseUrl,
+			apiConfiguration?.xiaomiMiMoApiKey,
+			apiConfiguration?.xiaomiMiMoBaseUrl,
 			apiConfiguration?.geminiApiKey,
 			apiConfiguration?.googleGeminiBaseUrl,
 			apiConfiguration?.moonshotApiKey,

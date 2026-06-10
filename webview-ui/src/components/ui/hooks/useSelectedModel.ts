@@ -101,6 +101,20 @@ function getRouterModelRequestValues(
 	}
 
 	switch (provider) {
+		case "openrouter":
+			return {
+				openRouterApiKey: apiConfiguration.openRouterApiKey,
+				openRouterBaseUrl: apiConfiguration.openRouterBaseUrl,
+			}
+		case "requesty":
+			return {
+				requestyApiKey: apiConfiguration.requestyApiKey,
+				requestyBaseUrl: apiConfiguration.requestyBaseUrl,
+			}
+		case "unbound":
+			return {
+				unboundApiKey: apiConfiguration.unboundApiKey,
+			}
 		case "bedrock":
 			return getBedrockRouterModelRequestValues(apiConfiguration)
 		case "litellm":
@@ -112,6 +126,61 @@ function getRouterModelRequestValues(
 			return {
 				poeApiKey: apiConfiguration.poeApiKey,
 				poeBaseUrl: apiConfiguration.poeBaseUrl,
+			}
+		case "anthropic":
+			return {
+				apiKey: apiConfiguration.apiKey,
+				anthropicBaseUrl: apiConfiguration.anthropicBaseUrl,
+			}
+		case "xai":
+			return {
+				xaiApiKey: apiConfiguration.xaiApiKey,
+			}
+		case "openai-native":
+			return {
+				openAiNativeApiKey: apiConfiguration.openAiNativeApiKey,
+				openAiNativeBaseUrl: apiConfiguration.openAiNativeBaseUrl,
+			}
+		case "mistral":
+			return {
+				mistralApiKey: apiConfiguration.mistralApiKey,
+			}
+		case "deepseek":
+			return {
+				deepSeekApiKey: apiConfiguration.deepSeekApiKey,
+				deepSeekBaseUrl: apiConfiguration.deepSeekBaseUrl,
+			}
+		case "xiaomi-mimo":
+			return {
+				xiaomiMiMoApiKey: apiConfiguration.xiaomiMiMoApiKey,
+				xiaomiMiMoBaseUrl: apiConfiguration.xiaomiMiMoBaseUrl,
+			}
+		case "gemini":
+			return {
+				geminiApiKey: apiConfiguration.geminiApiKey,
+				googleGeminiBaseUrl: apiConfiguration.googleGeminiBaseUrl,
+			}
+		case "moonshot":
+			return {
+				moonshotApiKey: apiConfiguration.moonshotApiKey,
+				moonshotBaseUrl: apiConfiguration.moonshotBaseUrl,
+			}
+		case "fireworks":
+			return {
+				fireworksApiKey: apiConfiguration.fireworksApiKey,
+			}
+		case "baseten":
+			return {
+				basetenApiKey: apiConfiguration.basetenApiKey,
+			}
+		case "sambanova":
+			return {
+				sambaNovaApiKey: apiConfiguration.sambaNovaApiKey,
+			}
+		case "minimax":
+			return {
+				minimaxApiKey: apiConfiguration.minimaxApiKey,
+				minimaxBaseUrl: apiConfiguration.minimaxBaseUrl,
 			}
 		default:
 			return undefined
@@ -147,6 +216,8 @@ function canFetchProviderModels(provider: RouterName | undefined, apiConfigurati
 			return !!apiConfiguration?.mistralApiKey
 		case "deepseek":
 			return !!apiConfiguration?.deepSeekApiKey
+		case "xiaomi-mimo":
+			return !!apiConfiguration?.xiaomiMiMoApiKey
 		case "gemini":
 			return !!apiConfiguration?.geminiApiKey
 		case "moonshot":
@@ -376,7 +447,7 @@ function getSelectedModel({
 		}
 		case "xiaomi-mimo": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const info = xiaomiMiMoModels[id as keyof typeof xiaomiMiMoModels]
+			const info = mergeStaticAndRouterModelInfo("xiaomi-mimo", routerModels, id, xiaomiMiMoModels)
 			return { id, info }
 		}
 		case "zai": {

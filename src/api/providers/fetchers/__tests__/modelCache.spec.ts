@@ -224,6 +224,78 @@ describe("getModels with new GetModelsOptions", () => {
 		expect(new Set(cacheKeys).size).toBe(3)
 	})
 
+	it("scopes credentialed static-provider caches by API key and base URL", async () => {
+		const mockCache = new (vi.mocked(NodeCache))() as any
+		const scopedCache = new Map<string, unknown>()
+		const firstModels = {
+			"mimo/account-a": {
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Account A Xiaomi MiMo model",
+			},
+		}
+		const secondModels = {
+			"mimo/account-b": {
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Account B Xiaomi MiMo model",
+			},
+		}
+		const thirdModels = {
+			"mimo/ams-account-b": {
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Account B AMS Xiaomi MiMo model",
+			},
+		}
+
+		mockCache.get.mockImplementation((key: string) => scopedCache.get(key))
+		mockCache.set.mockImplementation((key: string, value: unknown) => {
+			scopedCache.set(key, value)
+			return true
+		})
+		mockGetXiaomiMiMoModels
+			.mockResolvedValueOnce(firstModels)
+			.mockResolvedValueOnce(secondModels)
+			.mockResolvedValueOnce(thirdModels)
+
+		const first = await getModels({
+			provider: "xiaomi-mimo",
+			apiKey: "key-a",
+			baseUrl: "https://api.xiaomimimo.com/v1",
+		})
+		const second = await getModels({
+			provider: "xiaomi-mimo",
+			apiKey: "key-b",
+			baseUrl: "https://api.xiaomimimo.com/v1",
+		})
+		const third = await getModels({
+			provider: "xiaomi-mimo",
+			apiKey: "key-b",
+			baseUrl: "https://token-plan-ams.xiaomimimo.com/v1",
+		})
+		const firstAgain = await getModels({
+			provider: "xiaomi-mimo",
+			apiKey: "key-a",
+			baseUrl: "https://api.xiaomimimo.com/v1/",
+		})
+
+		expect(first).toEqual(firstModels)
+		expect(second).toEqual(secondModels)
+		expect(third).toEqual(thirdModels)
+		expect(firstAgain).toEqual(firstModels)
+		expect(mockGetXiaomiMiMoModels).toHaveBeenCalledTimes(3)
+		const cacheKeys = mockCache.set.mock.calls.map((call: [string, unknown]) => call[0])
+		expect(cacheKeys).toHaveLength(3)
+		expect(new Set(cacheKeys).size).toBe(3)
+		expect(cacheKeys).toEqual(cacheKeys.map(() => expect.stringMatching(/^xiaomi-mimo_[a-f0-9]{16}$/)))
+		expect(cacheKeys).not.toContain("xiaomi-mimo")
+
+		mockCache.get.mockReset()
+		mockCache.get.mockReturnValue(undefined)
+		mockCache.set.mockReset()
+	})
+
 	it("calls getOpenRouterModels for openrouter provider", async () => {
 		const mockCache = new (vi.mocked(NodeCache))()
 		const mockModels = {

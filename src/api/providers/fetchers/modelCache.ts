@@ -46,6 +46,38 @@ const DEFAULT_REQUESTY_BASE_URL = "https://router.requesty.ai/v1"
 const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
 const DEFAULT_LMSTUDIO_BASE_URL = "http://localhost:1234"
 
+const DEFAULT_SCOPED_BASE_URLS: Partial<Record<RouterName, string>> = {
+	ollama: DEFAULT_OLLAMA_BASE_URL,
+	lmstudio: DEFAULT_LMSTUDIO_BASE_URL,
+	anthropic: "https://api.anthropic.com",
+	"openai-native": "https://api.openai.com/v1",
+	mistral: "https://api.mistral.ai/v1",
+	deepseek: "https://api.deepseek.com",
+	"xiaomi-mimo": "https://api.xiaomimimo.com/v1",
+	gemini: "https://generativelanguage.googleapis.com",
+	moonshot: "https://api.moonshot.ai/v1",
+	minimax: "https://api.minimax.io/v1",
+}
+
+const SCOPED_MODEL_CACHE_PROVIDERS = new Set<RouterName>([
+	"litellm",
+	"ollama",
+	"lmstudio",
+	"poe",
+	"anthropic",
+	"xai",
+	"openai-native",
+	"mistral",
+	"deepseek",
+	"xiaomi-mimo",
+	"gemini",
+	"moonshot",
+	"fireworks",
+	"baseten",
+	"sambanova",
+	"minimax",
+])
+
 type ModelCacheKey = string
 
 // Zod schema for validating ModelRecord structure from disk cache
@@ -60,15 +92,9 @@ function getModelCacheKey(options: GetModelsOptions): ModelCacheKey {
 		return "openrouter_image"
 	}
 
-	if (["litellm", "ollama", "lmstudio", "poe"].includes(options.provider)) {
-		const defaultBaseUrl =
-			options.provider === "ollama"
-				? DEFAULT_OLLAMA_BASE_URL
-				: options.provider === "lmstudio"
-					? DEFAULT_LMSTUDIO_BASE_URL
-					: undefined
+	if (SCOPED_MODEL_CACHE_PROVIDERS.has(options.provider)) {
 		const scope = JSON.stringify({
-			baseUrl: normalizeBaseUrl(options.baseUrl) ?? defaultBaseUrl ?? "default",
+			baseUrl: normalizeBaseUrl(options.baseUrl) ?? DEFAULT_SCOPED_BASE_URLS[options.provider] ?? "default",
 			apiKeyHash: options.apiKey?.trim() ? hashCacheScope(options.apiKey.trim()) : undefined,
 		})
 

@@ -1215,11 +1215,48 @@ describe("useSelectedModel", () => {
 			expect(result.current.id).toBe("mimo-v2-omni")
 			expect(result.current.info).toEqual(xiaomiMiMoModels["mimo-v2-omni"])
 			expect(result.current.info).toMatchObject({
-				inputPrice: 0.4,
-				outputPrice: 2,
+				inputPrice: 0.14,
+				outputPrice: 0.28,
 				cacheWritesPrice: 0,
-				cacheReadsPrice: 0.08,
+				cacheReadsPrice: 0.0028,
 				supportsPromptCache: true,
+			})
+		})
+
+		it("should merge dynamic Xiaomi MiMo router metadata with static fallback metadata", () => {
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					"xiaomi-mimo": {
+						"mimo-v2.5-pro": {
+							description: "Dynamic Xiaomi MiMo V2.5 Pro",
+							supportsPromptCache: false,
+						} as ModelInfo,
+					},
+				},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "xiaomi-mimo",
+				apiModelId: "mimo-v2.5-pro",
+				xiaomiMiMoApiKey: "test-api-key",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("xiaomi-mimo")
+			expect(result.current.id).toBe("mimo-v2.5-pro")
+			expect(result.current.info).toMatchObject({
+				contextWindow: 1_000_000,
+				maxTokens: 128_000,
+				description: "Dynamic Xiaomi MiMo V2.5 Pro",
+				supportsPromptCache: false,
+				inputPrice: 0.435,
+				outputPrice: 0.87,
+				cacheWritesPrice: 0,
+				cacheReadsPrice: 0.0036,
 			})
 		})
 
@@ -1237,7 +1274,42 @@ describe("useSelectedModel", () => {
 			expect(result.current.info).toBeUndefined()
 		})
 
-		it("should not request router models for Xiaomi MiMo", () => {
+		it("should use router metadata for unknown Xiaomi MiMo model IDs when available", () => {
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					"xiaomi-mimo": {
+						"unlisted-mimo-model": {
+							contextWindow: 256_000,
+							maxTokens: 64_000,
+							description: "Dynamic unlisted Xiaomi MiMo model",
+							supportsPromptCache: false,
+						} as ModelInfo,
+					},
+				},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "xiaomi-mimo",
+				apiModelId: "unlisted-mimo-model",
+				xiaomiMiMoApiKey: "test-api-key",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("xiaomi-mimo")
+			expect(result.current.id).toBe("unlisted-mimo-model")
+			expect(result.current.info).toMatchObject({
+				contextWindow: 256_000,
+				maxTokens: 64_000,
+				description: "Dynamic unlisted Xiaomi MiMo model",
+				supportsPromptCache: false,
+			})
+		})
+
+		it("should request router models for Xiaomi MiMo when configured", () => {
 			const apiConfiguration: ProviderSettings = {
 				apiProvider: "xiaomi-mimo",
 				xiaomiMiMoApiKey: "test-api-key",
@@ -1247,7 +1319,14 @@ describe("useSelectedModel", () => {
 			const wrapper = createWrapper()
 			renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
 
-			expect(mockUseRouterModels).toHaveBeenCalledWith({ provider: undefined, enabled: false })
+			expect(mockUseRouterModels).toHaveBeenCalledWith({
+				provider: "xiaomi-mimo",
+				values: {
+					xiaomiMiMoApiKey: "test-api-key",
+					xiaomiMiMoBaseUrl: "https://token-plan-ams.xiaomimimo.com/v1",
+				},
+				enabled: true,
+			})
 		})
 	})
 })

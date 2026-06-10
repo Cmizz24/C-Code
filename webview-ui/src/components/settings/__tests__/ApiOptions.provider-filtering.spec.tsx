@@ -1,10 +1,11 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import type { ProviderSettings, OrganizationAllowList } from "@roo-code/types"
 
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { useSelectedModel } from "@src/components/ui/hooks/useSelectedModel"
+import { vscode } from "@src/utils/vscode"
 
 import ApiOptions from "../ApiOptions"
 import { MODELS_BY_PROVIDER, PROVIDERS } from "../constants"
@@ -120,6 +121,20 @@ describe("ApiOptions Provider Filtering", () => {
 		)
 	}
 
+	beforeEach(() => {
+		vi.mocked(useExtensionState).mockReturnValue({
+			organizationAllowList: undefined,
+			cloudIsAuthenticated: false,
+		} as any)
+		vi.mocked(useSelectedModel).mockReturnValue({
+			provider: "anthropic",
+			id: "claude-3-5-sonnet-20241022",
+			info: null,
+		} as any)
+		vi.mocked(vscode.postMessage).mockClear()
+		vi.useRealTimers()
+	})
+
 	it("should show all providers when no organization allow list is provided", () => {
 		renderWithProviders()
 
@@ -168,6 +183,35 @@ describe("ApiOptions Provider Filtering", () => {
 		expect(providerValues).toContain("lmstudio")
 		expect(providerValues).toContain("litellm")
 		expect(providerValues).toContain("requesty")
+	})
+
+	it("should request Xiaomi MiMo router models with API key and base URL values", async () => {
+		vi.mocked(useSelectedModel).mockReturnValue({
+			provider: "xiaomi-mimo",
+			id: "mimo-v2.5-pro",
+			info: null,
+		} as any)
+
+		renderWithProviders({
+			...defaultProps,
+			apiConfiguration: {
+				apiProvider: "xiaomi-mimo",
+				apiModelId: "mimo-v2.5-pro",
+				xiaomiMiMoApiKey: "mimo-key",
+				xiaomiMiMoBaseUrl: "https://token-plan-ams.xiaomimimo.com/v1",
+			} as ProviderSettings,
+		})
+
+		await waitFor(() => {
+			expect(vscode.postMessage).toHaveBeenCalledWith({
+				type: "requestRouterModels",
+				values: {
+					provider: "xiaomi-mimo",
+					xiaomiMiMoApiKey: "mimo-key",
+					xiaomiMiMoBaseUrl: "https://token-plan-ams.xiaomimimo.com/v1",
+				},
+			})
+		})
 	})
 
 	it("should filter static providers based on organization allow list", () => {
