@@ -443,6 +443,7 @@ describe("useSelectedModel", () => {
 					openrouter: {},
 					requesty: {},
 					litellm: {},
+					bedrock: {},
 				},
 				isLoading: false,
 				isError: false,
@@ -495,6 +496,127 @@ describe("useSelectedModel", () => {
 
 			expect(result.current.id).toBe("anthropic.claude-3-5-sonnet-20241022-v2:0")
 			expect(result.current.info?.contextWindow).toBe(200_000)
+		})
+
+		it("should fetch Bedrock router models only when region and credentials are configured", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "bedrock",
+				apiModelId: "anthropic.claude-sonnet-4-6",
+				awsRegion: "us-east-1",
+				awsAccessKey: "test-access-key",
+				awsSecretKey: "test-secret-key",
+				awsSessionToken: "test-session-token",
+				awsBedrockEndpointEnabled: true,
+				awsBedrockEndpoint: "https://bedrock.us-east-1.amazonaws.com",
+			}
+
+			const wrapper = createWrapper()
+			renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(mockUseRouterModels).toHaveBeenCalledWith({
+				provider: "bedrock",
+				values: {
+					awsRegion: "us-east-1",
+					awsAccessKey: "test-access-key",
+					awsSecretKey: "test-secret-key",
+					awsSessionToken: "test-session-token",
+					awsUseProfile: undefined,
+					awsProfile: undefined,
+					awsUseApiKey: undefined,
+					awsApiKey: undefined,
+					awsBedrockEndpointEnabled: true,
+					awsBedrockEndpoint: "https://bedrock.us-east-1.amazonaws.com",
+				},
+				enabled: true,
+			})
+		})
+
+		it("should not fetch Bedrock router models when region is missing", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "bedrock",
+				apiModelId: "anthropic.claude-sonnet-4-6",
+				awsAccessKey: "test-access-key",
+				awsSecretKey: "test-secret-key",
+			}
+
+			const wrapper = createWrapper()
+			renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(mockUseRouterModels).toHaveBeenCalledWith({
+				provider: "bedrock",
+				values: expect.any(Object),
+				enabled: false,
+			})
+		})
+
+		it("should use dynamic Bedrock metadata for unknown discovered models", () => {
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					bedrock: {
+						"provider.dynamic-text-model": {
+							contextWindow: 128_000,
+							supportsPromptCache: false,
+							description: "Dynamic Text Model",
+						},
+					},
+				},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "bedrock",
+				apiModelId: "provider.dynamic-text-model",
+				awsRegion: "us-east-1",
+				awsAccessKey: "test-access-key",
+				awsSecretKey: "test-secret-key",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.id).toBe("provider.dynamic-text-model")
+			expect(result.current.info).toEqual({
+				contextWindow: 128_000,
+				supportsPromptCache: false,
+				description: "Dynamic Text Model",
+			})
+		})
+
+		it("should preserve curated Bedrock metadata over dynamic metadata for static model IDs", () => {
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					bedrock: {
+						"anthropic.claude-sonnet-4-6": {
+							contextWindow: 128_000,
+							supportsPromptCache: false,
+							description: "Dynamic fallback should not win",
+						},
+					},
+				},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "bedrock",
+				apiModelId: "anthropic.claude-sonnet-4-6",
+				awsRegion: "us-east-1",
+				awsAccessKey: "test-access-key",
+				awsSecretKey: "test-secret-key",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.id).toBe("anthropic.claude-sonnet-4-6")
+			expect(result.current.info).toMatchObject({
+				contextWindow: 1_000_000,
+				supportsPromptCache: true,
+				inputPrice: 3,
+				outputPrice: 15,
+			})
+			expect(result.current.info?.description).toBeUndefined()
 		})
 	})
 

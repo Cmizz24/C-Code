@@ -150,6 +150,25 @@ function mergeRouterModelSources(...sources: Array<RouterModels | undefined>): R
 	return hasModels ? merged : undefined
 }
 
+function hasBedrockModelDiscoveryConfig(apiConfiguration: ProviderSettings): boolean {
+	if (!apiConfiguration.awsRegion) {
+		return false
+	}
+
+	if (apiConfiguration.awsUseApiKey) {
+		return !!apiConfiguration.awsApiKey
+	}
+
+	if (apiConfiguration.awsUseProfile) {
+		return !!apiConfiguration.awsProfile
+	}
+
+	return (
+		(!!apiConfiguration.awsAccessKey && !!apiConfiguration.awsSecretKey) ||
+		(!apiConfiguration.awsAccessKey && !apiConfiguration.awsSecretKey)
+	)
+}
+
 function shouldRequestRouterModelsForProvider(provider: ProviderName, apiConfiguration: ProviderSettings): boolean {
 	if (!isRouterName(provider) || LOCAL_ROUTER_MODEL_PROVIDERS.has(provider)) {
 		return false
@@ -187,6 +206,8 @@ function shouldRequestRouterModelsForProvider(provider: ProviderName, apiConfigu
 			return !!apiConfiguration.sambaNovaApiKey
 		case "minimax":
 			return !!apiConfiguration.minimaxApiKey
+		case "bedrock":
+			return hasBedrockModelDiscoveryConfig(apiConfiguration)
 		case "ollama":
 		case "lmstudio":
 			return false
@@ -254,6 +275,20 @@ function getRouterModelRequestValues(provider: ProviderName, apiConfiguration: P
 				...values,
 				minimaxApiKey: apiConfiguration.minimaxApiKey,
 				minimaxBaseUrl: apiConfiguration.minimaxBaseUrl,
+			}
+		case "bedrock":
+			return {
+				...values,
+				awsRegion: apiConfiguration.awsRegion,
+				awsAccessKey: apiConfiguration.awsAccessKey,
+				awsSecretKey: apiConfiguration.awsSecretKey,
+				awsSessionToken: apiConfiguration.awsSessionToken,
+				awsUseProfile: apiConfiguration.awsUseProfile,
+				awsProfile: apiConfiguration.awsProfile,
+				awsUseApiKey: apiConfiguration.awsUseApiKey,
+				awsApiKey: apiConfiguration.awsApiKey,
+				awsBedrockEndpointEnabled: apiConfiguration.awsBedrockEndpointEnabled,
+				awsBedrockEndpoint: apiConfiguration.awsBedrockEndpoint,
 			}
 		default:
 			return values
@@ -342,10 +377,12 @@ const ApiOptions = ({
 			return {}
 		}
 
-		return {
-			...getStaticModelsForProvider(activeSelectedProvider, t("settings:labels.useCustomArn")),
-			...(availableRouterModels?.[activeSelectedProvider] ?? {}),
-		}
+		const staticModels = getStaticModelsForProvider(activeSelectedProvider, t("settings:labels.useCustomArn"))
+		const dynamicModels = availableRouterModels?.[activeSelectedProvider] ?? {}
+
+		return activeSelectedProvider === "bedrock"
+			? { ...dynamicModels, ...staticModels }
+			: { ...staticModels, ...dynamicModels }
 	}, [activeSelectedProvider, availableRouterModels, t])
 
 	const { data: openRouterModelProviders } = useOpenRouterModelProviders(
@@ -438,6 +475,16 @@ const ApiOptions = ({
 			apiConfiguration?.litellmApiKey,
 			apiConfiguration?.poeApiKey,
 			apiConfiguration?.poeBaseUrl,
+			apiConfiguration?.awsRegion,
+			apiConfiguration?.awsAccessKey,
+			apiConfiguration?.awsSecretKey,
+			apiConfiguration?.awsSessionToken,
+			apiConfiguration?.awsUseProfile,
+			apiConfiguration?.awsProfile,
+			apiConfiguration?.awsUseApiKey,
+			apiConfiguration?.awsApiKey,
+			apiConfiguration?.awsBedrockEndpointEnabled,
+			apiConfiguration?.awsBedrockEndpoint,
 			customHeaders,
 		],
 	)

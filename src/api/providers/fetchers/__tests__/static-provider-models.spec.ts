@@ -2,11 +2,57 @@
 
 import axios from "axios"
 
-import { geminiModels } from "@roo-code/types"
+import { bedrockModels, geminiModels } from "@roo-code/types"
+
+const bedrockSdkMocks = vi.hoisted(() => {
+	const send = vi.fn()
+	const clientConfigs: Record<string, any>[] = []
+
+	class MockBedrockClient {
+		public config: Record<string, any>
+		public send = send
+
+		constructor(config: Record<string, any>) {
+			this.config = config
+			clientConfigs.push(config)
+		}
+	}
+
+	class MockListFoundationModelsCommand {
+		constructor(public readonly input: Record<string, any>) {}
+	}
+
+	class MockListInferenceProfilesCommand {
+		constructor(public readonly input: Record<string, any>) {}
+	}
+
+	return {
+		send,
+		clientConfigs,
+		MockBedrockClient,
+		MockListFoundationModelsCommand,
+		MockListInferenceProfilesCommand,
+	}
+})
+
+const credentialProviderMocks = vi.hoisted(() => ({
+	fromIni: vi.fn((options: { profile: string }) => ({ source: "fromIni", profile: options.profile })),
+}))
+
+vi.mock("@aws-sdk/client-bedrock", () => ({
+	BedrockClient: bedrockSdkMocks.MockBedrockClient,
+	ListFoundationModelsCommand: bedrockSdkMocks.MockListFoundationModelsCommand,
+	ListInferenceProfilesCommand: bedrockSdkMocks.MockListInferenceProfilesCommand,
+}))
+
+vi.mock("@aws-sdk/credential-providers", () => ({
+	fromIni: credentialProviderMocks.fromIni,
+}))
 
 import {
 	getAnthropicModels,
 	getBasetenModels,
+	getBedrockModels,
 	getDeepSeekModels,
 	getFireworksModels,
 	getGeminiModels,
@@ -29,6 +75,8 @@ const mockAxiosGet = vi.mocked(axios.get)
 describe("static provider model fetchers", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+		bedrockSdkMocks.send.mockReset()
+		bedrockSdkMocks.clientConfigs.length = 0
 	})
 
 	describe("getAnthropicModels", () => {
@@ -254,6 +302,169 @@ describe("static provider model fetchers", () => {
 			expect(models["openai-dynamic-model"].supportsImages).toBeUndefined()
 			expect(models["openai-dynamic-model"].inputPrice).toBeUndefined()
 			expect(models["openai-dynamic-model"].outputPrice).toBeUndefined()
+		})
+	})
+
+	describe("getBedrockModels", () => {
+		it("returns no models without a configured region", async () => {
+			const models = await getBedrockModels({ provider: "bedrock" })
+
+			expect(models).toEqual({})
+			expect(bedrockSdkMocks.clientConfigs).toHaveLength(0)
+			expect(bedrockSdkMocks.send).not.toHaveBeenCalled()
+		})
+
+		it("discovers text foundation models and active inference profiles while preserving curated metadata", async () => {
+			bedrockSdkMocks.send
+				.mockResolvedValueOnce({
+					modelSummaries: [
+						{
+							modelId: "anthropic.claude-sonnet-4-6",
+							modelName: "Dynamic Claude Sonnet 4.6",
+							outputModalities: ["TEXT"],
+						},
+						{
+							modelId: "provider.dynamic-text-model",
+							modelName: "Dynamic Text Model",
+							outputModalities: ["TEXT"],
+						},
+						{
+							modelId: "provider.image-only-model",
+							modelName: "Image Only Model",
+							outputModalities: ["IMAGE"],
+						},
+					],
+				})
+				.mockResolvedValueOnce({
+					inferenceProfileSummaries: [
+						{
+							inferenceProfileId: "us.anthropic.claude-sonnet-4-6",
+							inferenceProfileName: "US Claude Sonnet 4.6",
+							status: "ACTIVE",
+							models: [
+								{
+									modelArn: "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-4-6",
+								},
+							],
+						},
+						{
+							inferenceProfileId: "global.vendor.unknown-profile-model",
+							inferenceProfileName: "Unknown Profile Model",
+							status: "ACTIVE",
+							models: [
+								{
+									modelArn:
+										"arn:aws:bedrock:us-east-1::foundation-model/vendor.unknown-profile-model",
+								},
+							],
+						},
+						{
+							inferenceProfileId: "inactive-profile",
+							inferenceProfileName: "Inactive Profile",
+							status: "INACTIVE",
+						},
+					],
+					nextToken: "next-page",
+				})
+				.mockResolvedValueOnce({
+					inferenceProfileSummaries: [
+						{
+							inferenceProfileArn:
+								"arn:aws:bedrock:us-east-1:123456789012:inference-profile/custom-profile",
+							inferenceProfileName: "Custom Profile",
+							status: "ACTIVE",
+							models: [
+								{
+									modelArn: "arn:aws:bedrock:us-east-1::foundation-model/provider.dynamic-text-model",
+								},
+							],
+						},
+					],
+				})
+
+			const models = await getBedrockModels({
+				provider: "bedrock",
+				awsRegion: " us-east-1 ",
+				awsAccessKey: " access-key ",
+				awsSecretKey: " secret-key ",
+				awsSessionToken: " session-token ",
+				awsBedrockEndpointEnabled: true,
+				awsBedrockEndpoint: " https://bedrock.example.com ",
+			})
+
+			expect(bedrockSdkMocks.clientConfigs[0]).toEqual({
+				region: "us-east-1",
+				endpoint: "https://bedrock.example.com",
+				credentials: {
+					accessKeyId: "access-key",
+					secretAccessKey: "secret-key",
+					sessionToken: "session-token",
+				},
+			})
+			expect(bedrockSdkMocks.send.mock.calls[0][0]).toBeInstanceOf(
+				bedrockSdkMocks.MockListFoundationModelsCommand,
+			)
+			expect(bedrockSdkMocks.send.mock.calls[0][0].input).toEqual({})
+			expect(bedrockSdkMocks.send.mock.calls[1][0]).toBeInstanceOf(
+				bedrockSdkMocks.MockListInferenceProfilesCommand,
+			)
+			expect(bedrockSdkMocks.send.mock.calls[1][0].input).toEqual({ maxResults: 100 })
+			expect(bedrockSdkMocks.send.mock.calls[2][0].input).toEqual({ maxResults: 100, nextToken: "next-page" })
+
+			expect(models["anthropic.claude-sonnet-4-6"]).toMatchObject(bedrockModels["anthropic.claude-sonnet-4-6"])
+			expect(models["anthropic.claude-sonnet-4-6"].description).toBeUndefined()
+			expect(models["us.anthropic.claude-sonnet-4-6"]).toMatchObject(bedrockModels["anthropic.claude-sonnet-4-6"])
+			expect(models["provider.dynamic-text-model"]).toEqual({
+				contextWindow: 128_000,
+				supportsPromptCache: false,
+				description: "Dynamic Text Model",
+			})
+			expect(models["global.vendor.unknown-profile-model"]).toEqual({
+				contextWindow: 128_000,
+				supportsPromptCache: false,
+				description: "Unknown Profile Model",
+			})
+			expect(models["custom-profile"]).toEqual({
+				contextWindow: 128_000,
+				supportsPromptCache: false,
+				description: "Custom Profile",
+			})
+			expect(models["provider.image-only-model"]).toBeUndefined()
+			expect(models["inactive-profile"]).toBeUndefined()
+		})
+
+		it("supports profile credentials and bearer token authentication modes", async () => {
+			bedrockSdkMocks.send.mockResolvedValue({ modelSummaries: [], inferenceProfileSummaries: [] })
+
+			await getBedrockModels({
+				provider: "bedrock",
+				awsRegion: "us-west-2",
+				awsUseProfile: true,
+				awsProfile: " dev-profile ",
+			})
+
+			expect(credentialProviderMocks.fromIni).toHaveBeenCalledWith({ profile: "dev-profile", ignoreCache: true })
+			expect(bedrockSdkMocks.clientConfigs[0]).toMatchObject({
+				region: "us-west-2",
+				credentials: { source: "fromIni", profile: "dev-profile" },
+			})
+
+			bedrockSdkMocks.clientConfigs.length = 0
+			bedrockSdkMocks.send.mockClear()
+
+			await getBedrockModels({
+				provider: "bedrock",
+				awsRegion: "us-west-2",
+				awsUseApiKey: true,
+				awsApiKey: " bearer-token ",
+			})
+
+			expect(bedrockSdkMocks.clientConfigs[0]).toMatchObject({
+				region: "us-west-2",
+				token: { token: "bearer-token" },
+				authSchemePreference: ["httpBearerAuth"],
+			})
+			expect(bedrockSdkMocks.clientConfigs[0].credentials).toBeUndefined()
 		})
 	})
 

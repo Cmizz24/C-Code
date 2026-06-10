@@ -1018,8 +1018,8 @@ describe("AwsBedrockHandler", () => {
 				expect(mockConverseStreamCommand).toHaveBeenCalled()
 				const commandArg = mockConverseStreamCommand.mock.calls[0][0] as any
 
-				// service_tier should be at the top level of the payload
-				expect(commandArg.service_tier).toBe("PRIORITY")
+				// service_tier should be at the top level of the payload using AWS request values
+				expect(commandArg.service_tier).toBe("priority")
 				// service_tier should NOT be in additionalModelRequestFields
 				if (commandArg.additionalModelRequestFields) {
 					expect(commandArg.additionalModelRequestFields.service_tier).toBeUndefined()
@@ -1048,8 +1048,8 @@ describe("AwsBedrockHandler", () => {
 				expect(mockConverseStreamCommand).toHaveBeenCalled()
 				const commandArg = mockConverseStreamCommand.mock.calls[0][0] as any
 
-				// service_tier should be at the top level of the payload
-				expect(commandArg.service_tier).toBe("FLEX")
+				// service_tier should be at the top level of the payload using AWS request values
+				expect(commandArg.service_tier).toBe("flex")
 				// service_tier should NOT be in additionalModelRequestFields
 				if (commandArg.additionalModelRequestFields) {
 					expect(commandArg.additionalModelRequestFields.service_tier).toBeUndefined()

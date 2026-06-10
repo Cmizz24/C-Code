@@ -56,6 +56,7 @@ import { getRequestyModels } from "../requesty"
 import {
 	getAnthropicModels,
 	getBasetenModels,
+	getBedrockModels,
 	getDeepSeekModels,
 	getFireworksModels,
 	getGeminiModels,
@@ -71,6 +72,7 @@ const mockGetLiteLLMModels = getLiteLLMModels as Mock<typeof getLiteLLMModels>
 const mockGetOpenRouterModels = getOpenRouterModels as Mock<typeof getOpenRouterModels>
 const mockGetRequestyModels = getRequestyModels as Mock<typeof getRequestyModels>
 const mockGetAnthropicModels = getAnthropicModels as Mock<typeof getAnthropicModels>
+const mockGetBedrockModels = getBedrockModels as Mock<typeof getBedrockModels>
 const mockGetXAIModels = getXAIModels as Mock<typeof getXAIModels>
 const mockGetOpenAiNativeModels = getOpenAiNativeModels as Mock<typeof getOpenAiNativeModels>
 const mockGetMistralModels = getMistralModels as Mock<typeof getMistralModels>
@@ -311,6 +313,34 @@ describe("getModels with new GetModelsOptions", () => {
 
 		expect(mockGetDeepSeekModels).toHaveBeenCalledTimes(1)
 		expect(mockGetDeepSeekModels).toHaveBeenCalledWith("deepseek-key", "https://api.deepseek.com")
+	})
+
+	it("routes Bedrock through dynamic discovery and bypasses the shared model cache", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const bedrockModels = {
+			"anthropic.claude-sonnet-4-6": {
+				maxTokens: 64_000,
+				contextWindow: 1_000_000,
+				supportsPromptCache: true,
+				description: "Bedrock model",
+			},
+		}
+		const options = {
+			provider: "bedrock",
+			awsRegion: "us-east-1",
+			awsAccessKey: "test-access-key",
+			awsSecretKey: "test-secret-key",
+		} as const
+
+		mockGetBedrockModels.mockResolvedValue(bedrockModels)
+
+		await expect(getModels(options)).resolves.toEqual(bedrockModels)
+		await expect(getModels(options)).resolves.toEqual(bedrockModels)
+
+		expect(mockGetBedrockModels).toHaveBeenCalledTimes(2)
+		expect(mockGetBedrockModels).toHaveBeenNthCalledWith(1, options)
+		expect(mockGetBedrockModels).toHaveBeenNthCalledWith(2, options)
+		expect(mockCache.set).not.toHaveBeenCalled()
 	})
 
 	it("handles errors and re-throws them", async () => {

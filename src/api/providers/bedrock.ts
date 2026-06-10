@@ -85,7 +85,13 @@ interface BedrockPayload {
 // AWS Bedrock service tiers (STANDARD, FLEX, PRIORITY) are specified at the top level
 // https://docs.aws.amazon.com/bedrock/latest/userguide/service-tiers-inference.html
 type BedrockPayloadWithServiceTier = BedrockPayload & {
-	service_tier?: BedrockServiceTier
+	service_tier?: "default" | "flex" | "priority"
+}
+
+const BEDROCK_SERVICE_TIER_REQUEST_VALUES: Record<BedrockServiceTier, "default" | "flex" | "priority"> = {
+	STANDARD: "default",
+	FLEX: "flex",
+	PRIORITY: "priority",
 }
 
 // Define specific types for content block events to avoid 'as any' usage
@@ -243,7 +249,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			}
 
 			this.options.apiModelId = this.arnInfo.modelId
-			if (this.arnInfo.awsUseCrossRegionInference) this.options.awsUseCrossRegionInference = true
+			if (this.arnInfo.crossRegionInference) this.options.awsUseCrossRegionInference = true
 		}
 
 		if (!this.options.modelTemperature) {
@@ -491,7 +497,10 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			...(thinkingEnabled && { anthropic_version: "bedrock-2023-05-31" }),
 			toolConfig,
 			// Add service_tier as a top-level parameter (not inside additionalModelRequestFields)
-			...(useServiceTier && { service_tier: this.options.awsBedrockServiceTier }),
+			...(useServiceTier &&
+				this.options.awsBedrockServiceTier && {
+					service_tier: BEDROCK_SERVICE_TIER_REQUEST_VALUES[this.options.awsBedrockServiceTier],
+				}),
 		}
 
 		// Create AbortController with 10 minute timeout

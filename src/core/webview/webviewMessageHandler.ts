@@ -1097,6 +1097,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 						ollama: {},
 						lmstudio: {},
 						poe: {},
+						bedrock: {},
 					}
 
 			const safeGetModels = async (options: GetModelsOptions): Promise<ModelRecord> => {
@@ -1112,16 +1113,16 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				}
 			}
 
-			const getProviderValue = (
+			const getProviderValue = <T extends string | boolean | undefined>(
 				providerName: RouterName,
-				configValue: string | undefined,
+				configValue: T,
 				messageKey: string,
-			): string | undefined => {
+			): T => {
 				if (
 					providerFilter === providerName &&
 					Object.prototype.hasOwnProperty.call(message?.values ?? {}, messageKey)
 				) {
-					return message?.values?.[messageKey]
+					return message?.values?.[messageKey] as T
 				}
 
 				return configValue
@@ -1189,6 +1190,24 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			const basetenApiKey = getProviderValue("baseten", apiConfiguration.basetenApiKey, "basetenApiKey")
 			const sambaNovaApiKey = getProviderValue("sambanova", apiConfiguration.sambaNovaApiKey, "sambaNovaApiKey")
 			const minimaxApiKey = getProviderValue("minimax", apiConfiguration.minimaxApiKey, "minimaxApiKey")
+			const bedrockRegion = getProviderValue("bedrock", apiConfiguration.awsRegion, "awsRegion")
+			const bedrockUseApiKey = getProviderValue("bedrock", apiConfiguration.awsUseApiKey, "awsUseApiKey")
+			const bedrockApiKey = getProviderValue("bedrock", apiConfiguration.awsApiKey, "awsApiKey")
+			const bedrockUseProfile = getProviderValue("bedrock", apiConfiguration.awsUseProfile, "awsUseProfile")
+			const bedrockProfile = getProviderValue("bedrock", apiConfiguration.awsProfile, "awsProfile")
+			const bedrockAccessKey = getProviderValue("bedrock", apiConfiguration.awsAccessKey, "awsAccessKey")
+			const bedrockSecretKey = getProviderValue("bedrock", apiConfiguration.awsSecretKey, "awsSecretKey")
+			const bedrockSessionToken = getProviderValue("bedrock", apiConfiguration.awsSessionToken, "awsSessionToken")
+			const bedrockEndpointEnabled = getProviderValue(
+				"bedrock",
+				apiConfiguration.awsBedrockEndpointEnabled,
+				"awsBedrockEndpointEnabled",
+			)
+			const bedrockEndpoint = getProviderValue(
+				"bedrock",
+				apiConfiguration.awsBedrockEndpoint,
+				"awsBedrockEndpoint",
+			)
 
 			addCandidateIf(anthropicApiKey, "anthropic", {
 				provider: "anthropic",
@@ -1240,6 +1259,28 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				apiKey: minimaxApiKey,
 				baseUrl: getProviderValue("minimax", apiConfiguration.minimaxBaseUrl, "minimaxBaseUrl"),
 			})
+			addCandidateIf(
+				bedrockRegion &&
+					(bedrockUseApiKey
+						? bedrockApiKey
+						: bedrockUseProfile
+							? bedrockProfile
+							: (bedrockAccessKey && bedrockSecretKey) || (!bedrockAccessKey && !bedrockSecretKey)),
+				"bedrock",
+				{
+					provider: "bedrock",
+					awsRegion: bedrockRegion,
+					awsAccessKey: bedrockAccessKey,
+					awsSecretKey: bedrockSecretKey,
+					awsSessionToken: bedrockSessionToken,
+					awsUseProfile: bedrockUseProfile,
+					awsProfile: bedrockProfile,
+					awsUseApiKey: bedrockUseApiKey,
+					awsApiKey: bedrockApiKey,
+					awsBedrockEndpointEnabled: bedrockEndpointEnabled,
+					awsBedrockEndpoint: bedrockEndpoint,
+				},
+			)
 
 			// LiteLLM is conditional on baseUrl+apiKey
 			const litellmApiKey = apiConfiguration.litellmApiKey || message?.values?.litellmApiKey

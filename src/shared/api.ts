@@ -39,6 +39,7 @@ export const dynamicModelProviders = [
 	"baseten",
 	"sambanova",
 	"minimax",
+	"bedrock",
 ] as const satisfies readonly ProviderName[]
 
 export type RouterName = (typeof dynamicModelProviders)[number]
@@ -211,6 +212,18 @@ const dynamicProviderExtras = {
 	baseten: {} as { apiKey?: string },
 	sambanova: {} as { apiKey?: string },
 	minimax: {} as { apiKey?: string; baseUrl?: string },
+	bedrock: {} as {
+		awsRegion?: string
+		awsAccessKey?: string
+		awsSecretKey?: string
+		awsSessionToken?: string
+		awsUseProfile?: boolean
+		awsProfile?: string
+		awsUseApiKey?: boolean
+		awsApiKey?: string
+		awsBedrockEndpointEnabled?: boolean
+		awsBedrockEndpoint?: string
+	},
 } as const satisfies Record<RouterName, object>
 
 // Build the dynamic options union from the map, intersected with CommonFetchParams

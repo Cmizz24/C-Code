@@ -26,6 +26,7 @@ import { getPoeModels } from "./poe"
 import {
 	getAnthropicModels,
 	getBasetenModels,
+	getBedrockModels,
 	getDeepSeekModels,
 	getFireworksModels,
 	getGeminiModels,
@@ -59,6 +60,10 @@ function normalizeOpenRouterBaseUrl(baseUrl?: string): string | undefined {
 }
 
 function shouldBypassModelCache(options: GetModelsOptions): boolean {
+	if (options.provider === "bedrock") {
+		return true
+	}
+
 	if (options.provider !== "openrouter" || options.modelType !== "image") {
 		return false
 	}
@@ -155,6 +160,9 @@ async function fetchModelsFromProvider(options: GetModelsOptions): Promise<Model
 			break
 		case "minimax":
 			models = await getMiniMaxModels(options.apiKey, options.baseUrl)
+			break
+		case "bedrock":
+			models = await getBedrockModels(options)
 			break
 		default: {
 			// Ensures router is exhaustively checked if RouterName is a strict union.

@@ -53,6 +53,44 @@ function getValidatedModelId(
 
 const localModelProviders = new Set<ProviderName>(["ollama", "lmstudio"])
 
+function hasBedrockModelDiscoveryConfig(apiConfiguration?: ProviderSettings): boolean {
+	if (!apiConfiguration?.awsRegion) {
+		return false
+	}
+
+	if (apiConfiguration.awsUseApiKey) {
+		return !!apiConfiguration.awsApiKey
+	}
+
+	if (apiConfiguration.awsUseProfile) {
+		return !!apiConfiguration.awsProfile
+	}
+
+	return (
+		(!!apiConfiguration.awsAccessKey && !!apiConfiguration.awsSecretKey) ||
+		(!apiConfiguration.awsAccessKey && !apiConfiguration.awsSecretKey)
+	)
+}
+
+function getBedrockRouterModelRequestValues(apiConfiguration?: ProviderSettings) {
+	if (!apiConfiguration) {
+		return undefined
+	}
+
+	return {
+		awsRegion: apiConfiguration.awsRegion,
+		awsAccessKey: apiConfiguration.awsAccessKey,
+		awsSecretKey: apiConfiguration.awsSecretKey,
+		awsSessionToken: apiConfiguration.awsSessionToken,
+		awsUseProfile: apiConfiguration.awsUseProfile,
+		awsProfile: apiConfiguration.awsProfile,
+		awsUseApiKey: apiConfiguration.awsUseApiKey,
+		awsApiKey: apiConfiguration.awsApiKey,
+		awsBedrockEndpointEnabled: apiConfiguration.awsBedrockEndpointEnabled,
+		awsBedrockEndpoint: apiConfiguration.awsBedrockEndpoint,
+	}
+}
+
 function getRouterFetchProvider(provider: ProviderName | undefined): RouterName | undefined {
 	return provider && isRouterName(provider) && !localModelProviders.has(provider) ? provider : undefined
 }
@@ -94,6 +132,8 @@ function canFetchProviderModels(provider: RouterName | undefined, apiConfigurati
 			return !!apiConfiguration?.sambaNovaApiKey
 		case "minimax":
 			return !!apiConfiguration?.minimaxApiKey
+		case "bedrock":
+			return hasBedrockModelDiscoveryConfig(apiConfiguration)
 		case "ollama":
 		case "lmstudio":
 			return false
@@ -131,6 +171,7 @@ export const useSelectedModel = (apiConfiguration?: ProviderSettings) => {
 	const shouldFetchRouterModels = canFetchProviderModels(routerFetchProvider, apiConfiguration)
 	const routerModels = useRouterModels({
 		provider: routerFetchProvider,
+		...(routerFetchProvider === "bedrock" ? { values: getBedrockRouterModelRequestValues(apiConfiguration) } : {}),
 		enabled: shouldFetchRouterModels,
 	})
 
@@ -250,7 +291,9 @@ function getSelectedModel({
 		}
 		case "bedrock": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const baseInfo = bedrockModels[id as keyof typeof bedrockModels]
+			const staticInfo = bedrockModels[id as keyof typeof bedrockModels]
+			const routerInfo = routerModels.bedrock?.[id]
+			const baseInfo = staticInfo ?? routerInfo
 
 			// Special case for custom ARN.
 			if (id === "custom-arn") {

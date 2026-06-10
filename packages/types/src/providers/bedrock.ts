@@ -28,7 +28,7 @@ export const bedrockModels = {
 		cachableFields: ["system", "messages", "tools"],
 	},
 	"anthropic.claude-sonnet-4-6": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -134,7 +134,7 @@ export const bedrockModels = {
 		cachableFields: ["system", "messages", "tools"],
 	},
 	"anthropic.claude-opus-4-6-v1": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -143,7 +143,7 @@ export const bedrockModels = {
 		outputPrice: 25.0, // $25 per million output tokens
 		cacheWritesPrice: 6.25, // $6.25 per million tokens
 		cacheReadsPrice: 0.5, // $0.50 per million tokens
-		minTokensPerCachePoint: 1024,
+		minTokensPerCachePoint: 4096,
 		maxCachePoints: 4,
 		cachableFields: ["system", "messages", "tools"],
 	},
@@ -156,6 +156,20 @@ export const bedrockModels = {
 		supportsReasoningEffort: ["disable", "low", "medium", "high", "xhigh", "max"],
 		adaptiveThinkingEffort: "high",
 		supportsTemperature: false,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		minTokensPerCachePoint: 4096,
+		maxCachePoints: 4,
+		cachableFields: ["system", "messages", "tools"],
+	},
+	"anthropic.claude-opus-4-8": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoningBudget: true,
 		inputPrice: 5.0,
 		outputPrice: 25.0,
 		cacheWritesPrice: 6.25,
@@ -504,9 +518,14 @@ export const BEDROCK_REGIONS = [
 	{ value: "ap-northeast-3", label: "ap-northeast-3" },
 	{ value: "ap-south-1", label: "ap-south-1" },
 	{ value: "ap-south-2", label: "ap-south-2" },
+	{ value: "ap-southeast-3", label: "ap-southeast-3" },
+	{ value: "ap-southeast-5", label: "ap-southeast-5" },
+	{ value: "ap-southeast-6", label: "ap-southeast-6" },
+	{ value: "ap-southeast-7", label: "ap-southeast-7" },
 	{ value: "ap-southeast-1", label: "ap-southeast-1" },
 	{ value: "ap-southeast-2", label: "ap-southeast-2" },
 	{ value: "ap-east-1", label: "ap-east-1" },
+	{ value: "ap-east-2", label: "ap-east-2" },
 	{ value: "eu-central-1", label: "eu-central-1" },
 	{ value: "eu-central-2", label: "eu-central-2" },
 	{ value: "eu-west-1", label: "eu-west-1" },
@@ -515,7 +534,13 @@ export const BEDROCK_REGIONS = [
 	{ value: "eu-north-1", label: "eu-north-1" },
 	{ value: "eu-south-1", label: "eu-south-1" },
 	{ value: "eu-south-2", label: "eu-south-2" },
+	{ value: "af-south-1", label: "af-south-1" },
 	{ value: "ca-central-1", label: "ca-central-1" },
+	{ value: "ca-west-1", label: "ca-west-1" },
+	{ value: "il-central-1", label: "il-central-1" },
+	{ value: "me-central-1", label: "me-central-1" },
+	{ value: "me-south-1", label: "me-south-1" },
+	{ value: "mx-central-1", label: "mx-central-1" },
 	{ value: "sa-east-1", label: "sa-east-1" },
 	{ value: "us-gov-east-1", label: "us-gov-east-1" },
 	{ value: "us-gov-west-1", label: "us-gov-west-1" },
@@ -524,6 +549,10 @@ export const BEDROCK_REGIONS = [
 export const BEDROCK_1M_CONTEXT_MODEL_IDS = [
 	"anthropic.claude-sonnet-4-20250514-v1:0",
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",
+	"anthropic.claude-sonnet-4-6",
+	"anthropic.claude-opus-4-6-v1",
+	"anthropic.claude-opus-4-7",
+	"anthropic.claude-opus-4-8",
 ] as const
 
 // Amazon Bedrock models that support Global Inference profiles
@@ -534,6 +563,8 @@ export const BEDROCK_1M_CONTEXT_MODEL_IDS = [
 // - Claude Haiku 4.5
 // - Claude Opus 4.5
 // - Claude Opus 4.6
+// - Claude Opus 4.7
+// - Claude Opus 4.8
 export const BEDROCK_GLOBAL_INFERENCE_MODEL_IDS = [
 	"anthropic.claude-sonnet-4-20250514-v1:0",
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -542,6 +573,7 @@ export const BEDROCK_GLOBAL_INFERENCE_MODEL_IDS = [
 	"anthropic.claude-opus-4-5-20251101-v1:0",
 	"anthropic.claude-opus-4-6-v1",
 	"anthropic.claude-opus-4-7",
+	"anthropic.claude-opus-4-8",
 ] as const
 
 // Amazon Bedrock Service Tier types

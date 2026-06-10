@@ -1,9 +1,17 @@
 import axios from "axios"
 import { z } from "zod"
+import {
+	BedrockClient,
+	type BedrockClientConfig,
+	ListFoundationModelsCommand,
+	ListInferenceProfilesCommand,
+} from "@aws-sdk/client-bedrock"
+import { fromIni } from "@aws-sdk/credential-providers"
 
 import {
 	type ModelInfo,
 	type ModelRecord,
+	bedrockModels,
 	anthropicModels,
 	xaiModels,
 	openAiNativeModels,
@@ -16,11 +24,21 @@ import {
 	basetenModels,
 	minimaxModels,
 } from "@roo-code/types"
+import type { GetModelsOptions } from "../../../shared/api"
 
 const DEFAULT_DYNAMIC_MODEL_INFO: ModelInfo = {
 	contextWindow: 128_000,
 	supportsPromptCache: false,
 }
+
+type BedrockModelsOptions = Extract<GetModelsOptions, { provider: "bedrock" }>
+
+type BedrockControlClientConfig = BedrockClientConfig & {
+	token?: { token: string }
+	authSchemePreference?: string[]
+}
+
+const BEDROCK_INFERENCE_PROFILE_PREFIXES = ["global.", "us.", "eu.", "apac.", "au.", "jp.", "ca.", "sa.", "ug."]
 
 const openAiCompatibleModelsResponseSchema = z.object({
 	data: z.array(z.object({ id: z.string() }).passthrough()),
@@ -226,6 +244,72 @@ function mergeModelInfo(modelId: string, fallbackModels: ModelRecord, dynamicInf
 			fallbackModels[modelId]?.supportsPromptCache ??
 			DEFAULT_DYNAMIC_MODEL_INFO.supportsPromptCache,
 	}
+}
+
+function stripBedrockInferenceProfilePrefix(modelId: string): string {
+	for (const prefix of BEDROCK_INFERENCE_PROFILE_PREFIXES) {
+		if (modelId.startsWith(prefix)) {
+			return modelId.substring(prefix.length)
+		}
+	}
+
+	return modelId
+}
+
+function getModelIdFromBedrockArn(arn?: string): string | undefined {
+	return arn?.match(/(?:foundation-model|inference-profile|application-inference-profile)\/(.+)$/)?.[1]
+}
+
+function getBedrockModelInfo(modelId: string, description?: string, metadataModelId = modelId): ModelInfo {
+	const bedrockModelRecord = bedrockModels as ModelRecord
+	const baseModelId = stripBedrockInferenceProfilePrefix(metadataModelId)
+	const staticModelInfo = bedrockModelRecord[metadataModelId] ?? bedrockModelRecord[baseModelId]
+
+	if (staticModelInfo) {
+		return { ...staticModelInfo }
+	}
+
+	return {
+		...DEFAULT_DYNAMIC_MODEL_INFO,
+		...(description ? { description } : {}),
+	}
+}
+
+function supportsBedrockTextGeneration(outputModalities?: string[]): boolean {
+	return !outputModalities?.length || outputModalities.includes("TEXT")
+}
+
+function createBedrockClient(options: BedrockModelsOptions): BedrockClient | undefined {
+	const region = options.awsRegion?.trim()
+
+	if (!region) {
+		return undefined
+	}
+
+	const clientConfig: BedrockControlClientConfig = { region }
+	const endpoint = options.awsBedrockEndpoint?.trim()
+
+	if (options.awsBedrockEndpointEnabled && endpoint) {
+		clientConfig.endpoint = endpoint
+	}
+
+	if (options.awsUseApiKey && options.awsApiKey?.trim()) {
+		clientConfig.token = { token: options.awsApiKey.trim() }
+		clientConfig.authSchemePreference = ["httpBearerAuth"]
+	} else if (options.awsUseProfile && options.awsProfile?.trim()) {
+		clientConfig.credentials = fromIni({
+			profile: options.awsProfile.trim(),
+			ignoreCache: true,
+		})
+	} else if (options.awsAccessKey?.trim() && options.awsSecretKey?.trim()) {
+		clientConfig.credentials = {
+			accessKeyId: options.awsAccessKey.trim(),
+			secretAccessKey: options.awsSecretKey.trim(),
+			...(options.awsSessionToken?.trim() ? { sessionToken: options.awsSessionToken.trim() } : {}),
+		}
+	}
+
+	return new BedrockClient(clientConfig)
 }
 
 function getAnthropicThinkingCapabilities(modelId: string, thinkingSupported?: boolean): Partial<ModelInfo> {
@@ -523,6 +607,55 @@ export async function getMistralModels(apiKey?: string, baseUrl = "https://api.m
 
 export async function getDeepSeekModels(apiKey?: string, baseUrl = "https://api.deepseek.com"): Promise<ModelRecord> {
 	return buildOpenAiCompatibleModels(await fetchOpenAiCompatibleModelIds({ baseUrl, apiKey }), deepSeekModels)
+}
+
+export async function getBedrockModels(options: BedrockModelsOptions): Promise<ModelRecord> {
+	const client = createBedrockClient(options)
+
+	if (!client) {
+		return {}
+	}
+
+	const models: ModelRecord = {}
+	const foundationModels = await client.send(new ListFoundationModelsCommand({}))
+
+	for (const model of foundationModels.modelSummaries ?? []) {
+		const modelId = model.modelId?.trim()
+
+		if (!modelId || !supportsBedrockTextGeneration(model.outputModalities)) {
+			continue
+		}
+
+		models[modelId] = getBedrockModelInfo(modelId, model.modelName)
+	}
+
+	let nextToken: string | undefined
+
+	do {
+		const inferenceProfiles = await client.send(
+			new ListInferenceProfilesCommand({ maxResults: 100, ...(nextToken ? { nextToken } : {}) }),
+		)
+
+		for (const profile of inferenceProfiles.inferenceProfileSummaries ?? []) {
+			if (profile.status && profile.status !== "ACTIVE") {
+				continue
+			}
+
+			const profileId =
+				profile.inferenceProfileId?.trim() ?? getModelIdFromBedrockArn(profile.inferenceProfileArn)
+
+			if (!profileId) {
+				continue
+			}
+
+			const baseModelId = getModelIdFromBedrockArn(profile.models?.[0]?.modelArn) ?? profileId
+			models[profileId] = getBedrockModelInfo(profileId, profile.inferenceProfileName, baseModelId)
+		}
+
+		nextToken = inferenceProfiles.nextToken
+	} while (nextToken)
+
+	return models
 }
 
 export async function getGeminiModels(
