@@ -758,6 +758,25 @@
 		}
 	},
 	"memory": {
+		"description": "Configura com C Code recupera, desa i gestiona memòries en aquest espai de treball i en el context global.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Comportament principal",
+				"description": "Tria quan s'executa la memòria i quins àmbits de memòria pot usar C."
+			},
+			"retrievalLimits": {
+				"title": "Límits de recuperació",
+				"description": "Ajusta quant context de memòria s'inclou en cada sol·licitud."
+			},
+			"management": {
+				"title": "Gestió de memòria",
+				"description": "Revisa els recomptes de memòria i gestiona lliçons pendents, arxivades o desades."
+			},
+			"advanced": {
+				"title": "Avançat",
+				"description": "Controla la retenció de candidates pendents de memòria d'errors."
+			}
+		},
 		"mode": {
 			"label": "Mode de memòria",
 			"description": "Fes servir el mode automàtic per activar la memòria en models amb menys d'1M de token de context i desactivar-la en models amb context més gran, tret que ho sobreescriguis.",

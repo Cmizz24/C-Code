@@ -758,6 +758,25 @@
 		}
 	},
 	"memory": {
+		"description": "C Code'un bu çalışma alanında ve global bağlamda belleği nasıl aldığı, kaydettiği ve yönettiğini yapılandır.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Temel davranış",
+				"description": "Belleğin ne zaman çalışacağını ve C'nin hangi bellek kapsamlarını kullanabileceğini seç."
+			},
+			"retrievalLimits": {
+				"title": "Getirme sınırları",
+				"description": "Her isteğe ne kadar bellek bağlamı ekleneceğini ayarla."
+			},
+			"management": {
+				"title": "Bellek yönetimi",
+				"description": "Bellek sayılarını gözden geçir ve bekleyen, arşivlenmiş ya da kaydedilmiş dersleri yönet."
+			},
+			"advanced": {
+				"title": "Gelişmiş",
+				"description": "Bekleyen mistake-memory adaylarının ne kadar tutulacağını kontrol et."
+			}
+		},
 		"mode": {
 			"label": "Bellek modu",
 			"description": "1M context token altındaki modellerde belleği etkinleştirmek ve daha büyük bağlamlı modellerde, sen geçersiz kılmadıkça devre dışı bırakmak için otomatik modu kullan.",

@@ -758,6 +758,25 @@
 		}
 	},
 	"memory": {
+		"description": "Configura cómo C Code recupera, guarda y gestiona recuerdos en este espacio de trabajo y en el contexto global.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Comportamiento principal",
+				"description": "Elige cuándo se ejecuta la memoria y qué ámbitos de memoria puede usar C."
+			},
+			"retrievalLimits": {
+				"title": "Límites de recuperación",
+				"description": "Ajusta cuánto contexto de memoria se incluye con cada solicitud."
+			},
+			"management": {
+				"title": "Gestión de memoria",
+				"description": "Revisa los recuentos de memoria y gestiona lecciones pendientes, archivadas o guardadas."
+			},
+			"advanced": {
+				"title": "Avanzado",
+				"description": "Controla la retención de candidatas pendientes de memoria de errores."
+			}
+		},
 		"mode": {
 			"label": "Modo de memoria",
 			"description": "Usa el modo automático para activar la memoria en modelos con menos de 1M de token de contexto y desactivarla en modelos con contexto mayor, a menos que lo sobrescribas.",

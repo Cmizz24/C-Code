@@ -758,6 +758,25 @@
 		}
 	},
 	"memory": {
+		"description": "Configure la façon dont C Code récupère, enregistre et gère les mémoires dans cet espace de travail et le contexte global.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Comportement principal",
+				"description": "Définis quand la mémoire s’exécute et quels périmètres de mémoire C peut utiliser."
+			},
+			"retrievalLimits": {
+				"title": "Limites de récupération",
+				"description": "Ajuste la quantité de contexte mémoire incluse avec chaque requête."
+			},
+			"management": {
+				"title": "Gestion de la mémoire",
+				"description": "Consulte les compteurs de mémoire et gère les leçons en attente, archivées ou enregistrées."
+			},
+			"advanced": {
+				"title": "Avancé",
+				"description": "Contrôle la conservation des candidates de mémoire d’erreur en attente."
+			}
+		},
 		"mode": {
 			"label": "Mode de mémoire",
 			"description": "Utilise le mode automatique pour activer la mémoire avec les modèles sous 1M de token de contexte et la désactiver pour les modèles à contexte plus large, sauf si tu choisis le contraire.",

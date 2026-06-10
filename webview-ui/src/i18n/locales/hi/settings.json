@@ -758,6 +758,25 @@
 		}
 	},
 	"memory": {
+		"description": "C Code इस workspace और global context में memories कैसे retrieve, save और manage करता है, इसे configure करें.",
+		"sections": {
+			"coreBehavior": {
+				"title": "मुख्य व्यवहार",
+				"description": "Memory कब चले और C कौन-से memory scopes इस्तेमाल कर सके, यह चुनें."
+			},
+			"retrievalLimits": {
+				"title": "Retrieval limits",
+				"description": "हर request में कितना memory context शामिल हो, इसे tune करें."
+			},
+			"management": {
+				"title": "Memory management",
+				"description": "Memory counts देखें और pending, archived या saved lessons manage करें."
+			},
+			"advanced": {
+				"title": "Advanced",
+				"description": "Pending mistake-memory candidates कितने समय तक रखे जाएँ, इसे control करें."
+			}
+		},
 		"mode": {
 			"label": "मेमोरी मोड",
 			"description": "1M से कम context token वाले मॉडल के लिए मेमोरी चालू करने और बड़े context मॉडल के लिए उसे बंद रखने के लिए ऑटोमैटिक मोड इस्तेमाल करो, जब तक तुम इसे ओवरराइड न करो.",

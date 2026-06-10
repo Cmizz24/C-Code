@@ -758,6 +758,25 @@
 		}
 	},
 	"memory": {
+		"description": "Skonfiguruj, jak C Code pobiera, zapisuje i zarządza pamięcią w tym obszarze roboczym oraz kontekście globalnym.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Główne zachowanie",
+				"description": "Wybierz, kiedy pamięć działa i z których zakresów pamięci C może korzystać."
+			},
+			"retrievalLimits": {
+				"title": "Limity pobierania",
+				"description": "Dostosuj, ile kontekstu pamięci jest dołączane do każdego żądania."
+			},
+			"management": {
+				"title": "Zarządzanie pamięcią",
+				"description": "Sprawdzaj liczniki pamięci i zarządzaj oczekującymi, zarchiwizowanymi lub zapisanymi lekcjami."
+			},
+			"advanced": {
+				"title": "Zaawansowane",
+				"description": "Kontroluj przechowywanie oczekujących kandydatów pamięci błędów."
+			}
+		},
 		"mode": {
 			"label": "Tryb pamięci",
 			"description": "Użyj trybu automatycznego, aby włączać pamięć dla modeli poniżej 1M context token i wyłączać ją dla modeli z większym kontekstem, chyba że ręcznie to nadpiszesz.",

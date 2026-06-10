@@ -758,6 +758,25 @@
 		}
 	},
 	"memory": {
+		"description": "C Code가 이 워크스페이스와 전역 컨텍스트에서 메모리를 검색, 저장, 관리하는 방식을 설정합니다.",
+		"sections": {
+			"coreBehavior": {
+				"title": "핵심 동작",
+				"description": "메모리를 언제 실행할지와 C가 사용할 수 있는 메모리 범위를 선택합니다."
+			},
+			"retrievalLimits": {
+				"title": "검색 제한",
+				"description": "각 요청에 포함할 메모리 컨텍스트 양을 조정합니다."
+			},
+			"management": {
+				"title": "메모리 관리",
+				"description": "메모리 개수를 확인하고 대기 중, 보관됨, 저장된 교훈을 관리합니다."
+			},
+			"advanced": {
+				"title": "고급",
+				"description": "대기 중인 mistake-memory 후보의 보존을 제어합니다."
+			}
+		},
 		"mode": {
 			"label": "메모리 모드",
 			"description": "자동 모드를 사용하면 context token 이 1M 미만인 모델에서는 메모리를 켜고, 더 큰 컨텍스트 모델에서는 직접 덮어쓰지 않는 한 꺼 둬.",

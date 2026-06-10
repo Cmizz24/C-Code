@@ -768,6 +768,25 @@
 		}
 	},
 	"memory": {
+		"description": "設定 C Code 如何在此工作區和全域脈絡中擷取、儲存和管理記憶。",
+		"sections": {
+			"coreBehavior": {
+				"title": "核心行為",
+				"description": "選擇記憶何時執行，以及 C 可以使用哪些記憶範圍。"
+			},
+			"retrievalLimits": {
+				"title": "擷取限制",
+				"description": "調整每次請求包含的記憶脈絡量。"
+			},
+			"management": {
+				"title": "記憶管理",
+				"description": "查看記憶數量，並管理待處理、已封存或已儲存的經驗。"
+			},
+			"advanced": {
+				"title": "進階",
+				"description": "控制待處理 mistake-memory 候選項的保留。"
+			}
+		},
 		"mode": {
 			"label": "記憶模式",
 			"description": "使用自動模式：對 context token 低於 1M 的模型啟用記憶；對更大脈絡模型保持停用，除非你手動覆寫。",

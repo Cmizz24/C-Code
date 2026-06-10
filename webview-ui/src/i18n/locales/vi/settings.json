@@ -758,6 +758,25 @@
 		}
 	},
 	"memory": {
+		"description": "Định cấu hình cách C Code truy xuất, lưu và quản lý bộ nhớ trong workspace này và ngữ cảnh toàn cục.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Hành vi cốt lõi",
+				"description": "Chọn thời điểm bộ nhớ chạy và phạm vi bộ nhớ mà C có thể dùng."
+			},
+			"retrievalLimits": {
+				"title": "Giới hạn truy xuất",
+				"description": "Điều chỉnh lượng ngữ cảnh bộ nhớ được đưa vào mỗi yêu cầu."
+			},
+			"management": {
+				"title": "Quản lý bộ nhớ",
+				"description": "Xem số lượng bộ nhớ và quản lý các bài học đang chờ, đã lưu trữ hoặc đã lưu."
+			},
+			"advanced": {
+				"title": "Nâng cao",
+				"description": "Kiểm soát việc giữ lại các ứng viên mistake-memory đang chờ."
+			}
+		},
 		"mode": {
 			"label": "Chế độ bộ nhớ",
 			"description": "Dùng chế độ tự động để bật bộ nhớ cho các model dưới 1M context token và tắt với model có ngữ cảnh lớn hơn, trừ khi bạn ghi đè thủ công.",

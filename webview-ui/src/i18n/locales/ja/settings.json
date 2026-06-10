@@ -758,6 +758,25 @@
 		}
 	},
 	"memory": {
+		"description": "C Code がこのワークスペースとグローバルコンテキストでメモリを取得、保存、管理する方法を設定します。",
+		"sections": {
+			"coreBehavior": {
+				"title": "基本動作",
+				"description": "メモリをいつ実行するか、C が使用できるメモリスコープを選択します。"
+			},
+			"retrievalLimits": {
+				"title": "取得制限",
+				"description": "各リクエストに含めるメモリコンテキストの量を調整します。"
+			},
+			"management": {
+				"title": "メモリ管理",
+				"description": "メモリ数を確認し、保留中、アーカイブ済み、保存済みの学習内容を管理します。"
+			},
+			"advanced": {
+				"title": "詳細",
+				"description": "保留中の mistake-memory 候補の保持を制御します。"
+			}
+		},
 		"mode": {
 			"label": "メモリモード",
 			"description": "自動モードでは、context token が 1M 未満のモデルでメモリを有効にし、それ以上の大きなコンテキストのモデルでは、手動で上書きしない限り無効にするよ。",

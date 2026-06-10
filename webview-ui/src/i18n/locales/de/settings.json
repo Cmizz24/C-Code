@@ -758,6 +758,25 @@
 		}
 	},
 	"memory": {
+		"description": "Konfiguriere, wie C Code Erinnerungen in diesem Workspace und im globalen Kontext abruft, speichert und verwaltet.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Grundverhalten",
+				"description": "Lege fest, wann Memory läuft und welche Memory-Bereiche C verwenden darf."
+			},
+			"retrievalLimits": {
+				"title": "Retrieval-Limits",
+				"description": "Passe an, wie viel Memory-Kontext jeder Anfrage beigefügt wird."
+			},
+			"management": {
+				"title": "Memory-Verwaltung",
+				"description": "Prüfe Memory-Zähler und verwalte ausstehende, archivierte oder gespeicherte Lessons."
+			},
+			"advanced": {
+				"title": "Erweitert",
+				"description": "Steuere, wie lange ausstehende Fehler-Memory-Kandidaten behalten werden."
+			}
+		},
 		"mode": {
 			"label": "Speichermodus",
 			"description": "Nutze den automatischen Modus, um Speicher für Modelle mit weniger als 1M Kontext-token zu aktivieren und ihn für Modelle mit größerem Kontext zu deaktivieren, sofern du das nicht überschreibst.",

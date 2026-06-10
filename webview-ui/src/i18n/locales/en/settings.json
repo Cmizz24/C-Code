@@ -820,6 +820,25 @@
 		}
 	},
 	"memory": {
+		"description": "Configure how C Code retrieves, stores, and manages memories across this workspace and global context.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Core behavior",
+				"description": "Choose when memory runs and which memory scopes C can use."
+			},
+			"retrievalLimits": {
+				"title": "Retrieval limits",
+				"description": "Tune how much memory context is included with each request."
+			},
+			"management": {
+				"title": "Memory management",
+				"description": "Review memory counts and manage pending, archived, or stored lessons."
+			},
+			"advanced": {
+				"title": "Advanced",
+				"description": "Control pending mistake-memory candidate retention."
+			}
+		},
 		"mode": {
 			"label": "Memory mode",
 			"description": "Use automatic mode to enable memory for models under 1M context tokens and disable it for larger-context models unless you override it.",

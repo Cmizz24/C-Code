@@ -758,6 +758,25 @@
 		}
 	},
 	"memory": {
+		"description": "Configureer hoe C Code memories ophaalt, opslaat en beheert in deze workspace en globale context.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Basisgedrag",
+				"description": "Kies wanneer memory draait en welke memory-scopes C mag gebruiken."
+			},
+			"retrievalLimits": {
+				"title": "Ophaallimieten",
+				"description": "Stem af hoeveel memory-context met elke request wordt meegestuurd."
+			},
+			"management": {
+				"title": "Memory-beheer",
+				"description": "Bekijk memory-aantallen en beheer pending, gearchiveerde of opgeslagen lessons."
+			},
+			"advanced": {
+				"title": "Geavanceerd",
+				"description": "Beheer hoe lang pending mistake-memory-kandidaten bewaard blijven."
+			}
+		},
 		"mode": {
 			"label": "Geheugenmodus",
 			"description": "Gebruik de automatische modus om geheugen in te schakelen voor modellen met minder dan 1M context-token en uit te schakelen voor modellen met grotere context, tenzij je dit overschrijft.",

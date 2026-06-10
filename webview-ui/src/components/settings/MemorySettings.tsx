@@ -1,4 +1,5 @@
-import { HTMLAttributes, useState } from "react"
+import type { HTMLAttributes, ReactNode } from "react"
+import { useState } from "react"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 
 import type { MemoryAction, MemorySummary } from "@roo-code/types"
@@ -16,6 +17,9 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 	Button,
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
 	Input,
 	Select,
 	SelectContent,
@@ -25,6 +29,7 @@ import {
 } from "@src/components/ui"
 
 import { Section } from "./Section"
+import { SectionHeader } from "./SectionHeader"
 import { SearchableSetting } from "./SearchableSetting"
 import { SetCachedStateField } from "./types"
 
@@ -33,7 +38,6 @@ type MemorySettingsProps = HTMLAttributes<HTMLDivElement> & {
 	memoryWorkspaceEnabled?: boolean
 	memoryGlobalEnabled?: boolean
 	memoryMistakeMemoryEnabled?: boolean
-	memoryAutoApproveMistakeMemory?: boolean
 	memoryMaxCharacters?: number
 	memoryMaxEntries?: number
 	memoryPendingCandidateLimit?: number
@@ -43,7 +47,6 @@ type MemorySettingsProps = HTMLAttributes<HTMLDivElement> & {
 		| "memoryWorkspaceEnabled"
 		| "memoryGlobalEnabled"
 		| "memoryMistakeMemoryEnabled"
-		| "memoryAutoApproveMistakeMemory"
 		| "memoryMaxCharacters"
 		| "memoryMaxEntries"
 		| "memoryPendingCandidateLimit"
@@ -63,13 +66,63 @@ const destructiveMemoryActions = new Set<MemoryAction>([
 	"clearGlobal",
 ])
 
+type MemoryCollapsibleSectionProps = {
+	title: string
+	description: string
+	testId: string
+	defaultOpen?: boolean
+	children: ReactNode
+}
+
+const MemoryCollapsibleSection = ({
+	title,
+	description,
+	testId,
+	defaultOpen = false,
+	children,
+}: MemoryCollapsibleSectionProps) => {
+	const [isOpen, setIsOpen] = useState(defaultOpen)
+
+	return (
+		<Collapsible
+			open={isOpen}
+			onOpenChange={setIsOpen}
+			className="rounded-md border border-vscode-panel-border bg-vscode-editor-background"
+			data-testid={`${testId}-section`}>
+			<CollapsibleTrigger
+				type="button"
+				aria-expanded={isOpen}
+				data-testid={`${testId}-trigger`}
+				onClick={(event) => {
+					event.preventDefault()
+					setIsOpen((open) => !open)
+				}}
+				className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-vscode-list-hoverBackground">
+				<span
+					className={cn(
+						"codicon codicon-chevron-right mt-0.5 text-vscode-descriptionForeground transition-transform",
+						isOpen && "rotate-90",
+					)}
+				/>
+				<span className="min-w-0">
+					<span className="block font-medium text-vscode-foreground">{title}</span>
+					<span className="block text-sm text-vscode-descriptionForeground">{description}</span>
+				</span>
+			</CollapsibleTrigger>
+			<CollapsibleContent forceMount className="data-[state=closed]:hidden">
+				<div className="space-y-3 px-3 pb-3 pt-1">{children}</div>
+			</CollapsibleContent>
+		</Collapsible>
+	)
+}
+
 const SummaryCard = ({ title, summary }: { title: string; summary?: MemorySummary["workspace"] }) => {
 	const { t } = useAppTranslation()
 
 	return (
 		<div className="rounded-md border border-vscode-panel-border bg-vscode-editor-background p-3">
 			<div className="font-medium mb-2">{title}</div>
-			<div className="grid grid-cols-4 gap-2 text-sm">
+			<div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
 				<div>
 					<div className="text-vscode-descriptionForeground">{t("settings:memory.summary.active")}</div>
 					<div>{summary?.active ?? 0}</div>
@@ -96,7 +149,6 @@ export const MemorySettings = ({
 	memoryWorkspaceEnabled,
 	memoryGlobalEnabled,
 	memoryMistakeMemoryEnabled,
-	memoryAutoApproveMistakeMemory,
 	memoryMaxCharacters,
 	memoryMaxEntries,
 	memoryPendingCandidateLimit,
@@ -127,248 +179,259 @@ export const MemorySettings = ({
 
 	return (
 		<div className={cn("flex flex-col gap-2", className)} {...props}>
-			<Section>
-				<SearchableSetting settingId="memory-mode" section="memory" label={t("settings:memory.mode.label")}>
-					<label className="block font-medium mb-1">{t("settings:memory.mode.label")}</label>
-					<Select
-						value={modeValue}
-						onValueChange={(value) => {
-							setCachedStateField("memoryEnabled", value === "auto" ? undefined : value === "enabled")
-						}}>
-						<SelectTrigger className="w-full">
-							<SelectValue placeholder={t("settings:memory.mode.label")} />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="auto">{t("settings:memory.mode.options.auto")}</SelectItem>
-							<SelectItem value="enabled">{t("settings:memory.mode.options.enabled")}</SelectItem>
-							<SelectItem value="disabled">{t("settings:memory.mode.options.disabled")}</SelectItem>
-						</SelectContent>
-					</Select>
-					<div className="text-vscode-descriptionForeground text-sm mt-1">
-						{t("settings:memory.mode.description")}
-					</div>
-				</SearchableSetting>
+			<SectionHeader description={t("settings:memory.description")}>
+				{t("settings:sections.memory")}
+			</SectionHeader>
 
-				<SearchableSetting
-					settingId="memory-workspace-enabled"
-					section="memory"
-					label={t("settings:memory.workspaceEnabled.label")}>
-					<VSCodeCheckbox
-						data-testid="memory-workspace-enabled-checkbox"
-						checked={memoryWorkspaceEnabled ?? true}
-						onChange={(e: any) => setCachedStateField("memoryWorkspaceEnabled", e.target.checked)}>
-						<span className="font-medium">{t("settings:memory.workspaceEnabled.label")}</span>
-					</VSCodeCheckbox>
-					<div className="text-vscode-descriptionForeground text-sm">
-						{t("settings:memory.workspaceEnabled.description")}
-					</div>
-				</SearchableSetting>
-
-				<SearchableSetting
-					settingId="memory-global-enabled"
-					section="memory"
-					label={t("settings:memory.globalEnabled.label")}>
-					<VSCodeCheckbox
-						data-testid="memory-global-enabled-checkbox"
-						checked={memoryGlobalEnabled ?? true}
-						onChange={(e: any) => setCachedStateField("memoryGlobalEnabled", e.target.checked)}>
-						<span className="font-medium">{t("settings:memory.globalEnabled.label")}</span>
-					</VSCodeCheckbox>
-					<div className="text-vscode-descriptionForeground text-sm">
-						{t("settings:memory.globalEnabled.description")}
-					</div>
-				</SearchableSetting>
-
-				<SearchableSetting
-					settingId="memory-mistake-enabled"
-					section="memory"
-					label={t("settings:memory.mistakeMemoryEnabled.label")}>
-					<VSCodeCheckbox
-						data-testid="memory-mistake-enabled-checkbox"
-						checked={memoryMistakeMemoryEnabled ?? true}
-						onChange={(e: any) => setCachedStateField("memoryMistakeMemoryEnabled", e.target.checked)}>
-						<span className="font-medium">{t("settings:memory.mistakeMemoryEnabled.label")}</span>
-					</VSCodeCheckbox>
-					<div className="text-vscode-descriptionForeground text-sm">
-						{t("settings:memory.mistakeMemoryEnabled.description")}
-					</div>
-				</SearchableSetting>
-
-				<SearchableSetting
-					settingId="memory-auto-approve-mistake"
-					section="memory"
-					label={t("settings:memory.autoApproveMistakeMemory.label")}>
-					<VSCodeCheckbox
-						data-testid="memory-auto-approve-mistake-checkbox"
-						checked={memoryAutoApproveMistakeMemory ?? false}
-						onChange={(e: any) => setCachedStateField("memoryAutoApproveMistakeMemory", e.target.checked)}>
-						<span className="font-medium">{t("settings:memory.autoApproveMistakeMemory.label")}</span>
-					</VSCodeCheckbox>
-					<div className="text-vscode-descriptionForeground text-sm">
-						{t("settings:memory.autoApproveMistakeMemory.description")}
-					</div>
-				</SearchableSetting>
-
-				<SearchableSetting
-					settingId="memory-max-characters"
-					section="memory"
-					label={t("settings:memory.maxCharacters.label")}>
-					<label className="block font-medium mb-1">{t("settings:memory.maxCharacters.label")}</label>
-					<Input
-						data-testid="memory-max-characters-input"
-						type="number"
-						min={0}
-						max={20_000}
-						value={memoryMaxCharacters ?? 2400}
-						onChange={(e) =>
-							setCachedStateField(
-								"memoryMaxCharacters",
-								Math.min(20_000, Math.max(0, Number(e.target.value) || 0)),
-							)
-						}
-					/>
-					<div className="text-vscode-descriptionForeground text-sm mt-1">
-						{t("settings:memory.maxCharacters.description")}
-					</div>
-				</SearchableSetting>
-
-				<SearchableSetting
-					settingId="memory-max-entries"
-					section="memory"
-					label={t("settings:memory.maxEntries.label")}>
-					<label className="block font-medium mb-1">{t("settings:memory.maxEntries.label")}</label>
-					<Input
-						data-testid="memory-max-entries-input"
-						type="number"
-						min={0}
-						max={50}
-						value={memoryMaxEntries ?? 8}
-						onChange={(e) =>
-							setCachedStateField(
-								"memoryMaxEntries",
-								Math.min(50, Math.max(0, Number(e.target.value) || 0)),
-							)
-						}
-					/>
-					<div className="text-vscode-descriptionForeground text-sm mt-1">
-						{t("settings:memory.maxEntries.description")}
-					</div>
-				</SearchableSetting>
-
-				<SearchableSetting
-					settingId="memory-pending-limit"
-					section="memory"
-					label={t("settings:memory.pendingCandidateLimit.label")}>
-					<label className="block font-medium mb-1">{t("settings:memory.pendingCandidateLimit.label")}</label>
-					<Input
-						data-testid="memory-pending-limit-input"
-						type="number"
-						min={0}
-						max={1000}
-						value={memoryPendingCandidateLimit ?? 100}
-						onChange={(e) =>
-							setCachedStateField(
-								"memoryPendingCandidateLimit",
-								Math.min(1000, Math.max(0, Number(e.target.value) || 0)),
-							)
-						}
-					/>
-					<div className="text-vscode-descriptionForeground text-sm mt-1">
-						{t("settings:memory.pendingCandidateLimit.description")}
-					</div>
-				</SearchableSetting>
-			</Section>
-
-			<Section className="pt-2">
-				<SearchableSetting
-					settingId="memory-management"
-					section="memory"
-					label={t("settings:memory.management.title")}>
-					<div className="flex items-center justify-between gap-2 mb-3">
-						<div>
-							<div className="font-medium">{t("settings:memory.management.title")}</div>
-							<div className="text-vscode-descriptionForeground text-sm">
-								{t("settings:memory.management.description")}
-							</div>
+			<Section className="gap-3">
+				<MemoryCollapsibleSection
+					testId="memory-core"
+					defaultOpen
+					title={t("settings:memory.sections.coreBehavior.title")}
+					description={t("settings:memory.sections.coreBehavior.description")}>
+					<SearchableSetting settingId="memory-mode" section="memory" label={t("settings:memory.mode.label")}>
+						<label className="block font-medium mb-1">{t("settings:memory.mode.label")}</label>
+						<Select
+							value={modeValue}
+							onValueChange={(value) => {
+								setCachedStateField("memoryEnabled", value === "auto" ? undefined : value === "enabled")
+							}}>
+							<SelectTrigger className="w-full">
+								<SelectValue placeholder={t("settings:memory.mode.label")} />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="auto">{t("settings:memory.mode.options.auto")}</SelectItem>
+								<SelectItem value="enabled">{t("settings:memory.mode.options.enabled")}</SelectItem>
+								<SelectItem value="disabled">{t("settings:memory.mode.options.disabled")}</SelectItem>
+							</SelectContent>
+						</Select>
+						<div className="text-vscode-descriptionForeground text-sm mt-1">
+							{t("settings:memory.mode.description")}
 						</div>
-						<Button
-							data-testid="memory-refresh-button"
-							variant="secondary"
-							onClick={() => requestMemoryAction("refresh")}>
-							{t("settings:memory.actions.refresh")}
-						</Button>
-					</div>
+					</SearchableSetting>
 
-					<div className="grid gap-3 md:grid-cols-2">
-						<SummaryCard
-							title={t("settings:memory.summary.workspace")}
-							summary={memorySummary?.workspace}
+					<SearchableSetting
+						settingId="memory-workspace-enabled"
+						section="memory"
+						label={t("settings:memory.workspaceEnabled.label")}>
+						<VSCodeCheckbox
+							data-testid="memory-workspace-enabled-checkbox"
+							checked={memoryWorkspaceEnabled ?? true}
+							onChange={(e: any) => setCachedStateField("memoryWorkspaceEnabled", e.target.checked)}>
+							<span className="font-medium">{t("settings:memory.workspaceEnabled.label")}</span>
+						</VSCodeCheckbox>
+						<div className="text-vscode-descriptionForeground text-sm">
+							{t("settings:memory.workspaceEnabled.description")}
+						</div>
+					</SearchableSetting>
+
+					<SearchableSetting
+						settingId="memory-global-enabled"
+						section="memory"
+						label={t("settings:memory.globalEnabled.label")}>
+						<VSCodeCheckbox
+							data-testid="memory-global-enabled-checkbox"
+							checked={memoryGlobalEnabled ?? true}
+							onChange={(e: any) => setCachedStateField("memoryGlobalEnabled", e.target.checked)}>
+							<span className="font-medium">{t("settings:memory.globalEnabled.label")}</span>
+						</VSCodeCheckbox>
+						<div className="text-vscode-descriptionForeground text-sm">
+							{t("settings:memory.globalEnabled.description")}
+						</div>
+					</SearchableSetting>
+
+					<SearchableSetting
+						settingId="memory-mistake-enabled"
+						section="memory"
+						label={t("settings:memory.mistakeMemoryEnabled.label")}>
+						<VSCodeCheckbox
+							data-testid="memory-mistake-enabled-checkbox"
+							checked={memoryMistakeMemoryEnabled ?? true}
+							onChange={(e: any) => setCachedStateField("memoryMistakeMemoryEnabled", e.target.checked)}>
+							<span className="font-medium">{t("settings:memory.mistakeMemoryEnabled.label")}</span>
+						</VSCodeCheckbox>
+						<div className="text-vscode-descriptionForeground text-sm">
+							{t("settings:memory.mistakeMemoryEnabled.description")}
+						</div>
+					</SearchableSetting>
+				</MemoryCollapsibleSection>
+
+				<MemoryCollapsibleSection
+					testId="memory-retrieval"
+					title={t("settings:memory.sections.retrievalLimits.title")}
+					description={t("settings:memory.sections.retrievalLimits.description")}>
+					<SearchableSetting
+						settingId="memory-max-characters"
+						section="memory"
+						label={t("settings:memory.maxCharacters.label")}>
+						<label className="block font-medium mb-1">{t("settings:memory.maxCharacters.label")}</label>
+						<Input
+							data-testid="memory-max-characters-input"
+							type="number"
+							min={0}
+							max={20_000}
+							value={memoryMaxCharacters ?? 2400}
+							onChange={(e) =>
+								setCachedStateField(
+									"memoryMaxCharacters",
+									Math.min(20_000, Math.max(0, Number(e.target.value) || 0)),
+								)
+							}
 						/>
-						<SummaryCard title={t("settings:memory.summary.global")} summary={memorySummary?.global} />
-					</div>
+						<div className="text-vscode-descriptionForeground text-sm mt-1">
+							{t("settings:memory.maxCharacters.description")}
+						</div>
+					</SearchableSetting>
 
-					<div className="grid gap-4 md:grid-cols-2 mt-4">
-						<div className="flex flex-col gap-2">
-							<div className="font-medium">{t("settings:memory.summary.workspace")}</div>
-							<div className="flex flex-wrap gap-2">
-								<Button
-									data-testid="memory-approve-workspace-pending-button"
-									variant="secondary"
-									onClick={() => requestMemoryAction("approveWorkspacePending")}>
-									{t("settings:memory.actions.approvePending")}
-								</Button>
-								<Button
-									data-testid="memory-archive-workspace-pending-button"
-									variant="secondary"
-									onClick={() => requestMemoryAction("archiveWorkspacePending")}>
-									{t("settings:memory.actions.archivePending")}
-								</Button>
-								<Button
-									data-testid="memory-archive-workspace-button"
-									variant="secondary"
-									onClick={() => requestMemoryAction("archiveWorkspace")}>
-									{t("settings:memory.actions.archiveAll")}
-								</Button>
-								<Button
-									data-testid="memory-clear-workspace-button"
-									variant="destructive"
-									onClick={() => requestMemoryAction("clearWorkspace")}>
-									{t("settings:memory.actions.clear")}
-								</Button>
+					<SearchableSetting
+						settingId="memory-max-entries"
+						section="memory"
+						label={t("settings:memory.maxEntries.label")}>
+						<label className="block font-medium mb-1">{t("settings:memory.maxEntries.label")}</label>
+						<Input
+							data-testid="memory-max-entries-input"
+							type="number"
+							min={0}
+							max={50}
+							value={memoryMaxEntries ?? 8}
+							onChange={(e) =>
+								setCachedStateField(
+									"memoryMaxEntries",
+									Math.min(50, Math.max(0, Number(e.target.value) || 0)),
+								)
+							}
+						/>
+						<div className="text-vscode-descriptionForeground text-sm mt-1">
+							{t("settings:memory.maxEntries.description")}
+						</div>
+					</SearchableSetting>
+				</MemoryCollapsibleSection>
+
+				<MemoryCollapsibleSection
+					testId="memory-management"
+					defaultOpen
+					title={t("settings:memory.sections.management.title")}
+					description={t("settings:memory.sections.management.description")}>
+					<SearchableSetting
+						settingId="memory-management"
+						section="memory"
+						label={t("settings:memory.management.title")}>
+						<div className="flex items-center justify-between gap-2 mb-3">
+							<div>
+								<div className="font-medium">{t("settings:memory.management.title")}</div>
+								<div className="text-vscode-descriptionForeground text-sm">
+									{t("settings:memory.management.description")}
+								</div>
 							</div>
+							<Button
+								data-testid="memory-refresh-button"
+								variant="secondary"
+								onClick={() => requestMemoryAction("refresh")}>
+								{t("settings:memory.actions.refresh")}
+							</Button>
 						</div>
 
-						<div className="flex flex-col gap-2">
-							<div className="font-medium">{t("settings:memory.summary.global")}</div>
-							<div className="flex flex-wrap gap-2">
-								<Button
-									data-testid="memory-approve-global-pending-button"
-									variant="secondary"
-									onClick={() => requestMemoryAction("approveGlobalPending")}>
-									{t("settings:memory.actions.approvePending")}
-								</Button>
-								<Button
-									data-testid="memory-archive-global-pending-button"
-									variant="secondary"
-									onClick={() => requestMemoryAction("archiveGlobalPending")}>
-									{t("settings:memory.actions.archivePending")}
-								</Button>
-								<Button
-									data-testid="memory-archive-global-button"
-									variant="secondary"
-									onClick={() => requestMemoryAction("archiveGlobal")}>
-									{t("settings:memory.actions.archiveAll")}
-								</Button>
-								<Button
-									data-testid="memory-clear-global-button"
-									variant="destructive"
-									onClick={() => requestMemoryAction("clearGlobal")}>
-									{t("settings:memory.actions.clear")}
-								</Button>
+						<div className="grid gap-3 md:grid-cols-2">
+							<SummaryCard
+								title={t("settings:memory.summary.workspace")}
+								summary={memorySummary?.workspace}
+							/>
+							<SummaryCard title={t("settings:memory.summary.global")} summary={memorySummary?.global} />
+						</div>
+
+						<div className="grid gap-4 md:grid-cols-2 mt-4">
+							<div className="flex flex-col gap-2">
+								<div className="font-medium">{t("settings:memory.summary.workspace")}</div>
+								<div className="flex flex-wrap gap-2">
+									<Button
+										data-testid="memory-approve-workspace-pending-button"
+										variant="secondary"
+										onClick={() => requestMemoryAction("approveWorkspacePending")}>
+										{t("settings:memory.actions.approvePending")}
+									</Button>
+									<Button
+										data-testid="memory-archive-workspace-pending-button"
+										variant="secondary"
+										onClick={() => requestMemoryAction("archiveWorkspacePending")}>
+										{t("settings:memory.actions.archivePending")}
+									</Button>
+									<Button
+										data-testid="memory-archive-workspace-button"
+										variant="secondary"
+										onClick={() => requestMemoryAction("archiveWorkspace")}>
+										{t("settings:memory.actions.archiveAll")}
+									</Button>
+									<Button
+										data-testid="memory-clear-workspace-button"
+										variant="destructive"
+										onClick={() => requestMemoryAction("clearWorkspace")}>
+										{t("settings:memory.actions.clear")}
+									</Button>
+								</div>
+							</div>
+
+							<div className="flex flex-col gap-2">
+								<div className="font-medium">{t("settings:memory.summary.global")}</div>
+								<div className="flex flex-wrap gap-2">
+									<Button
+										data-testid="memory-approve-global-pending-button"
+										variant="secondary"
+										onClick={() => requestMemoryAction("approveGlobalPending")}>
+										{t("settings:memory.actions.approvePending")}
+									</Button>
+									<Button
+										data-testid="memory-archive-global-pending-button"
+										variant="secondary"
+										onClick={() => requestMemoryAction("archiveGlobalPending")}>
+										{t("settings:memory.actions.archivePending")}
+									</Button>
+									<Button
+										data-testid="memory-archive-global-button"
+										variant="secondary"
+										onClick={() => requestMemoryAction("archiveGlobal")}>
+										{t("settings:memory.actions.archiveAll")}
+									</Button>
+									<Button
+										data-testid="memory-clear-global-button"
+										variant="destructive"
+										onClick={() => requestMemoryAction("clearGlobal")}>
+										{t("settings:memory.actions.clear")}
+									</Button>
+								</div>
 							</div>
 						</div>
-					</div>
-				</SearchableSetting>
+					</SearchableSetting>
+				</MemoryCollapsibleSection>
+
+				<MemoryCollapsibleSection
+					testId="memory-advanced"
+					title={t("settings:memory.sections.advanced.title")}
+					description={t("settings:memory.sections.advanced.description")}>
+					<SearchableSetting
+						settingId="memory-pending-limit"
+						section="memory"
+						label={t("settings:memory.pendingCandidateLimit.label")}>
+						<label className="block font-medium mb-1">
+							{t("settings:memory.pendingCandidateLimit.label")}
+						</label>
+						<Input
+							data-testid="memory-pending-limit-input"
+							type="number"
+							min={0}
+							max={1000}
+							value={memoryPendingCandidateLimit ?? 100}
+							onChange={(e) =>
+								setCachedStateField(
+									"memoryPendingCandidateLimit",
+									Math.min(1000, Math.max(0, Number(e.target.value) || 0)),
+								)
+							}
+						/>
+						<div className="text-vscode-descriptionForeground text-sm mt-1">
+							{t("settings:memory.pendingCandidateLimit.description")}
+						</div>
+					</SearchableSetting>
+				</MemoryCollapsibleSection>
 			</Section>
 
 			<AlertDialog open={Boolean(pendingAction)} onOpenChange={(open) => !open && setPendingAction(undefined)}>

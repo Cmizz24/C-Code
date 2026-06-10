@@ -758,6 +758,25 @@
 		}
 	},
 	"memory": {
+		"description": "配置 C Code 如何在此工作区和全局上下文中检索、保存和管理记忆。",
+		"sections": {
+			"coreBehavior": {
+				"title": "核心行为",
+				"description": "选择记忆何时运行，以及 C 可以使用哪些记忆范围。"
+			},
+			"retrievalLimits": {
+				"title": "检索限制",
+				"description": "调整每次请求包含的记忆上下文量。"
+			},
+			"management": {
+				"title": "记忆管理",
+				"description": "查看记忆数量，并管理待处理、已归档或已保存的经验。"
+			},
+			"advanced": {
+				"title": "高级",
+				"description": "控制待处理 mistake-memory 候选项的保留。"
+			}
+		},
 		"mode": {
 			"label": "记忆模式",
 			"description": "使用自动模式：对 context token 低于 1M 的模型启用记忆；对更大上下文模型保持关闭，除非你手动覆盖。",

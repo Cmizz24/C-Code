@@ -250,18 +250,20 @@ vi.mock("@/components/ui", () => ({
 		</button>
 	),
 	// Add Collapsible components
-	Collapsible: ({ children, open }: any) => (
-		<div className="collapsible-mock" data-open={open}>
+	Collapsible: ({ children, open, ...props }: any) => (
+		<div className="collapsible-mock" data-open={open} {...props}>
 			{children}
 		</div>
 	),
-	CollapsibleTrigger: ({ children, className, onClick }: any) => (
-		<div className={`collapsible-trigger-mock ${className || ""}`} onClick={onClick}>
+	CollapsibleTrigger: ({ children, className, onClick, type = "button", ...props }: any) => (
+		<button type={type} className={`collapsible-trigger-mock ${className || ""}`} onClick={onClick} {...props}>
+			{children}
+		</button>
+	),
+	CollapsibleContent: ({ children, className, forceMount: _forceMount, ...props }: any) => (
+		<div className={`collapsible-content-mock ${className || ""}`} {...props}>
 			{children}
 		</div>
-	),
-	CollapsibleContent: ({ children, className }: any) => (
-		<div className={`collapsible-content-mock ${className || ""}`}>{children}</div>
 	),
 	Dialog: ({ children, ...props }: any) => (
 		<div data-testid="dialog" {...props}>
@@ -464,6 +466,40 @@ describe("SettingsView - Localization", () => {
 		expect(visualBrowserInspectorToggle).toBeInTheDocument()
 		expect(visualBrowserInspectorToggle).toHaveTextContent("Visual Browser Inspector")
 		expect(visualBrowserInspectorToggle).toHaveAttribute("aria-label", "Visual Browser Inspector")
+	})
+
+	it("renders the Memory settings header and compact section labels through the real i18n provider", () => {
+		const { activateTab } = renderSettingsViewWithTranslations()
+
+		activateTab("memory")
+
+		const content = screen.getByTestId("settings-content")
+
+		expect(within(content).getByRole("heading", { name: "Memory" })).toBeInTheDocument()
+		expect(
+			within(content).getByText(
+				"Configure how C Code retrieves, stores, and manages memories across this workspace and global context.",
+			),
+		).toBeInTheDocument()
+		expect(within(content).getByTestId("memory-core-trigger")).toHaveTextContent("Core behavior")
+		expect(within(content).getByTestId("memory-retrieval-trigger")).toHaveTextContent("Retrieval limits")
+		expect(within(content).getByTestId("memory-management-trigger")).toHaveTextContent("Memory management")
+		expect(within(content).getByTestId("memory-advanced-trigger")).toHaveTextContent("Advanced")
+		expect(within(content).queryByText("Auto-approve mistake memories")).not.toBeInTheDocument()
+	})
+
+	it("renders the Memory auto-approve control in Auto Approve settings through the real i18n provider", () => {
+		const { activateTab } = renderSettingsViewWithTranslations({ memoryAutoApproveMistakeMemory: false })
+
+		activateTab("autoApprove")
+
+		const content = screen.getByTestId("settings-content")
+		const memoryToggle = within(content).getByTestId("memory-auto-approve-mistake-toggle")
+
+		expect(memoryToggle).toBeInTheDocument()
+		expect(memoryToggle).toHaveTextContent("Memory")
+		expect(memoryToggle).toHaveAttribute("aria-label", "Memory")
+		expect(memoryToggle).toHaveAttribute("aria-pressed", "false")
 	})
 })
 
@@ -997,10 +1033,34 @@ describe("SettingsView - Memory Settings", () => {
 		activateTab("memory")
 
 		const content = getSettingsContent()
+		expect(within(content).getByRole("heading", { name: "settings:sections.memory" })).toBeInTheDocument()
+		expect(within(content).getByTestId("memory-core-trigger")).toHaveTextContent(
+			"settings:memory.sections.coreBehavior.title",
+		)
+		expect(within(content).getByTestId("memory-core-trigger")).toHaveAttribute("aria-expanded", "true")
+		expect(within(content).getByTestId("memory-retrieval-trigger")).toHaveTextContent(
+			"settings:memory.sections.retrievalLimits.title",
+		)
+		expect(within(content).getByTestId("memory-retrieval-trigger")).toHaveAttribute("aria-expanded", "false")
+		expect(within(content).getByTestId("memory-management-trigger")).toHaveTextContent(
+			"settings:memory.sections.management.title",
+		)
+		expect(within(content).getByTestId("memory-management-trigger")).toHaveAttribute("aria-expanded", "true")
+		expect(within(content).getByTestId("memory-advanced-trigger")).toHaveTextContent(
+			"settings:memory.sections.advanced.title",
+		)
+		expect(within(content).getByTestId("memory-advanced-trigger")).toHaveAttribute("aria-expanded", "false")
+
+		fireEvent.click(within(content).getByTestId("memory-retrieval-trigger"))
+		fireEvent.click(within(content).getByTestId("memory-advanced-trigger"))
+
+		expect(within(content).getByTestId("memory-retrieval-trigger")).toHaveAttribute("aria-expanded", "true")
+		expect(within(content).getByTestId("memory-advanced-trigger")).toHaveAttribute("aria-expanded", "true")
 		expect(within(content).getByTestId("memory-workspace-enabled-checkbox")).toBeChecked()
 		expect(within(content).getByTestId("memory-global-enabled-checkbox")).not.toBeChecked()
 		expect(within(content).getByTestId("memory-mistake-enabled-checkbox")).toBeChecked()
-		expect(within(content).getByTestId("memory-auto-approve-mistake-checkbox")).not.toBeChecked()
+		expect(within(content).queryByTestId("memory-auto-approve-mistake-checkbox")).not.toBeInTheDocument()
+		expect(within(content).queryByText("settings:memory.autoApproveMistakeMemory.label")).not.toBeInTheDocument()
 		expect(within(content).getByTestId("memory-max-characters-input")).toHaveValue(3200)
 		expect(within(content).getByTestId("memory-max-entries-input")).toHaveValue(6)
 		expect(within(content).getByTestId("memory-pending-limit-input")).toHaveValue(24)
@@ -1027,7 +1087,6 @@ describe("SettingsView - Memory Settings", () => {
 		fireEvent.click(within(content).getByTestId("memory-workspace-enabled-checkbox"))
 		fireEvent.click(within(content).getByTestId("memory-global-enabled-checkbox"))
 		fireEvent.click(within(content).getByTestId("memory-mistake-enabled-checkbox"))
-		fireEvent.click(within(content).getByTestId("memory-auto-approve-mistake-checkbox"))
 		fireEvent.change(within(content).getByTestId("memory-max-characters-input"), { target: { value: "4200" } })
 		fireEvent.change(within(content).getByTestId("memory-max-entries-input"), { target: { value: "12" } })
 		fireEvent.change(within(content).getByTestId("memory-pending-limit-input"), { target: { value: "75" } })
@@ -1042,7 +1101,7 @@ describe("SettingsView - Memory Settings", () => {
 					memoryWorkspaceEnabled: false,
 					memoryGlobalEnabled: false,
 					memoryMistakeMemoryEnabled: false,
-					memoryAutoApproveMistakeMemory: true,
+					memoryAutoApproveMistakeMemory: false,
 					memoryMaxCharacters: 4200,
 					memoryMaxEntries: 12,
 					memoryPendingCandidateLimit: 75,
@@ -1208,6 +1267,8 @@ describe("SettingsView - Auto Approve Memory", () => {
 
 		const content = getSettingsContent()
 		const memoryToggle = within(content).getByTestId("memory-auto-approve-mistake-toggle")
+		expect(memoryToggle).toHaveTextContent("settings:autoApprove.memory.label")
+		expect(memoryToggle).toHaveAttribute("aria-label", "settings:autoApprove.memory.label")
 		expect(memoryToggle).toHaveAttribute("aria-pressed", "false")
 
 		fireEvent.click(memoryToggle)

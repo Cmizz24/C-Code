@@ -1135,7 +1135,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								memoryWorkspaceEnabled={memoryWorkspaceEnabled}
 								memoryGlobalEnabled={memoryGlobalEnabled}
 								memoryMistakeMemoryEnabled={memoryMistakeMemoryEnabled}
-								memoryAutoApproveMistakeMemory={memoryAutoApproveMistakeMemory}
 								memoryMaxCharacters={memoryMaxCharacters}
 								memoryMaxEntries={memoryMaxEntries}
 								memoryPendingCandidateLimit={memoryPendingCandidateLimit}

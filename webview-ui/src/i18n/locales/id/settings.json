@@ -758,6 +758,25 @@
 		}
 	},
 	"memory": {
+		"description": "Konfigurasikan cara C Code mengambil, menyimpan, dan mengelola memori di workspace ini dan konteks global.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Perilaku inti",
+				"description": "Pilih kapan memori berjalan dan cakupan memori mana yang dapat digunakan C."
+			},
+			"retrievalLimits": {
+				"title": "Batas pengambilan",
+				"description": "Atur seberapa banyak konteks memori disertakan di setiap permintaan."
+			},
+			"management": {
+				"title": "Manajemen memori",
+				"description": "Tinjau jumlah memori dan kelola pelajaran yang tertunda, diarsipkan, atau tersimpan."
+			},
+			"advanced": {
+				"title": "Lanjutan",
+				"description": "Kontrol retensi kandidat memori kesalahan yang tertunda."
+			}
+		},
 		"mode": {
 			"label": "Mode memori",
 			"description": "Gunakan mode otomatis untuk mengaktifkan memori pada model dengan context token di bawah 1M dan menonaktifkannya untuk model berkonteks lebih besar, kecuali kamu menimpanya.",

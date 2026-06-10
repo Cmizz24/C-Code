@@ -758,6 +758,25 @@
 		}
 	},
 	"memory": {
+		"description": "Configura come C Code recupera, salva e gestisce le memorie in questo workspace e nel contesto globale.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Comportamento principale",
+				"description": "Scegli quando la memoria viene eseguita e quali ambiti di memoria può usare C."
+			},
+			"retrievalLimits": {
+				"title": "Limiti di recupero",
+				"description": "Regola quanto contesto di memoria viene incluso in ogni richiesta."
+			},
+			"management": {
+				"title": "Gestione memoria",
+				"description": "Controlla i conteggi della memoria e gestisci lezioni in sospeso, archiviate o salvate."
+			},
+			"advanced": {
+				"title": "Avanzate",
+				"description": "Controlla la conservazione delle candidate in sospeso della memoria degli errori."
+			}
+		},
 		"mode": {
 			"label": "Modalità memoria",
 			"description": "Usa la modalità automatica per attivare la memoria nei modelli con meno di 1M di token di contesto e disattivarla nei modelli con contesto più ampio, a meno che tu non la sovrascriva.",
