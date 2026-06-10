@@ -14,6 +14,7 @@ type UseRouterModelsOptions = {
 const getRouterModels = async (opts: Omit<UseRouterModelsOptions, "enabled">) =>
 	new Promise<RouterModels>((resolve, reject) => {
 		const { provider, modelType, values } = opts
+		const requestId = crypto.randomUUID()
 
 		const cleanup = () => {
 			if (typeof window !== "undefined") {
@@ -30,6 +31,10 @@ const getRouterModels = async (opts: Omit<UseRouterModelsOptions, "enabled">) =>
 			const message: ExtensionMessage = event.data
 
 			if (message.type === "routerModels") {
+				if (message.requestId && message.requestId !== requestId) {
+					return
+				}
+
 				const msgProvider = message?.values?.provider as string | undefined
 				const msgModelType = message?.values?.modelType as "chat" | "image" | undefined
 
@@ -59,9 +64,9 @@ const getRouterModels = async (opts: Omit<UseRouterModelsOptions, "enabled">) =>
 		}
 
 		if (Object.keys(requestValues).length > 0) {
-			vscode.postMessage({ type: "requestRouterModels", values: requestValues })
+			vscode.postMessage({ type: "requestRouterModels", values: requestValues, requestId })
 		} else {
-			vscode.postMessage({ type: "requestRouterModels" })
+			vscode.postMessage({ type: "requestRouterModels", requestId })
 		}
 	})
 

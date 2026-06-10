@@ -6,6 +6,7 @@ import { streamText, generateText, type ToolSet } from "ai"
 import {
 	poeDefaultModelId,
 	getPoeDefaultModelInfo,
+	openAiModelInfoSaneDefaults,
 	type ModelInfo,
 	type ReasoningEffortExtended,
 } from "@roo-code/types"
@@ -36,8 +37,13 @@ export class PoeHandler extends BaseProvider implements SingleCompletionHandler 
 
 	override getModel() {
 		const id = this.options.apiModelId ?? poeDefaultModelId
-		const cached = getModelsFromCache("poe")
-		const info: ModelInfo = cached?.[id] ?? getPoeDefaultModelInfo()
+		const cached = getModelsFromCache({
+			provider: "poe",
+			apiKey: this.options.poeApiKey,
+			baseUrl: this.options.poeBaseUrl,
+		})
+		const info: ModelInfo =
+			cached?.[id] ?? (id === poeDefaultModelId ? getPoeDefaultModelInfo() : openAiModelInfoSaneDefaults)
 		return { id, info }
 	}
 

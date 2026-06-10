@@ -4,8 +4,15 @@ import { type ModelRecord, type ExtensionMessage } from "@roo-code/types"
 
 import { vscode } from "@src/utils/vscode"
 
-const getOllamaModels = async () =>
+type OllamaModelsOptions = {
+	baseUrl?: string
+	apiKey?: string
+}
+
+const getOllamaModels = async (opts: OllamaModelsOptions = {}) =>
 	new Promise<ModelRecord>((resolve, reject) => {
+		const requestId = crypto.randomUUID()
+
 		const cleanup = () => {
 			window.removeEventListener("message", handler)
 		}
@@ -19,6 +26,10 @@ const getOllamaModels = async () =>
 			const message: ExtensionMessage = event.data
 
 			if (message.type === "ollamaModels") {
+				if (message.requestId && message.requestId !== requestId) {
+					return
+				}
+
 				clearTimeout(timeout)
 				cleanup()
 
@@ -31,8 +42,18 @@ const getOllamaModels = async () =>
 		}
 
 		window.addEventListener("message", handler)
-		vscode.postMessage({ type: "requestOllamaModels" })
+		vscode.postMessage({
+			type: "requestOllamaModels",
+			requestId,
+			values: {
+				ollamaBaseUrl: opts.baseUrl,
+				ollamaApiKey: opts.apiKey,
+			},
+		})
 	})
 
-export const useOllamaModels = (modelId?: string) =>
-	useQuery({ queryKey: ["ollamaModels"], queryFn: () => (modelId ? getOllamaModels() : {}) })
+export const useOllamaModels = (modelId?: string, opts: OllamaModelsOptions = {}) =>
+	useQuery({
+		queryKey: ["ollamaModels", opts.baseUrl, opts.apiKey],
+		queryFn: () => (modelId ? getOllamaModels(opts) : {}),
+	})

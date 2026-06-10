@@ -30,7 +30,10 @@ vi.mock("fs", () => ({
 
 // Mock all the model fetchers
 vi.mock("../litellm")
+vi.mock("../lmstudio")
+vi.mock("../ollama")
 vi.mock("../openrouter")
+vi.mock("../poe")
 vi.mock("../requesty")
 vi.mock("../unbound")
 vi.mock("../static-provider-models")
@@ -52,7 +55,10 @@ import * as fsSync from "fs"
 import NodeCache from "node-cache"
 import { getModels, getModelsFromCache } from "../modelCache"
 import { getLiteLLMModels } from "../litellm"
+import { getLMStudioModels } from "../lmstudio"
+import { getOllamaModels } from "../ollama"
 import { getOpenRouterModels } from "../openrouter"
+import { getPoeModels } from "../poe"
 import { getRequestyModels } from "../requesty"
 import { getUnboundModels } from "../unbound"
 import {
@@ -72,7 +78,10 @@ import {
 } from "../static-provider-models"
 
 const mockGetLiteLLMModels = getLiteLLMModels as Mock<typeof getLiteLLMModels>
+const mockGetLMStudioModels = getLMStudioModels as Mock<typeof getLMStudioModels>
+const mockGetOllamaModels = getOllamaModels as Mock<typeof getOllamaModels>
 const mockGetOpenRouterModels = getOpenRouterModels as Mock<typeof getOpenRouterModels>
+const mockGetPoeModels = getPoeModels as Mock<typeof getPoeModels>
 const mockGetRequestyModels = getRequestyModels as Mock<typeof getRequestyModels>
 const mockGetUnboundModels = getUnboundModels as Mock<typeof getUnboundModels>
 const mockGetAnthropicModels = getAnthropicModels as Mock<typeof getAnthropicModels>
@@ -115,6 +124,104 @@ describe("getModels with new GetModelsOptions", () => {
 
 		expect(mockGetLiteLLMModels).toHaveBeenCalledWith("test-api-key", "http://localhost:4000")
 		expect(result).toEqual(mockModels)
+	})
+
+	it("uses scoped cache keys for local and proxy providers", async () => {
+		const mockCache = new (vi.mocked(NodeCache))() as any
+		const mockModels = {
+			"local/model": {
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Scoped local model",
+			},
+		}
+
+		mockGetLiteLLMModels.mockResolvedValue(mockModels)
+		mockGetOllamaModels.mockResolvedValue(mockModels)
+		mockGetLMStudioModels.mockResolvedValue(mockModels)
+		mockGetPoeModels.mockResolvedValue(mockModels)
+
+		await getModels({ provider: "litellm", apiKey: "litellm-key", baseUrl: "http://localhost:4000" })
+		await getModels({ provider: "ollama", apiKey: "ollama-key", baseUrl: "http://localhost:11434" })
+		await getModels({ provider: "lmstudio", baseUrl: "http://localhost:1234" })
+		await getModels({ provider: "poe", apiKey: "poe-key", baseUrl: "https://api.poe.com/v1" })
+
+		expect(mockCache.set).toHaveBeenCalledTimes(4)
+		expect(mockCache.set).toHaveBeenNthCalledWith(1, expect.stringMatching(/^litellm_[a-f0-9]{16}$/), mockModels)
+		expect(mockCache.set).toHaveBeenNthCalledWith(2, expect.stringMatching(/^ollama_[a-f0-9]{16}$/), mockModels)
+		expect(mockCache.set).toHaveBeenNthCalledWith(3, expect.stringMatching(/^lmstudio_[a-f0-9]{16}$/), mockModels)
+		expect(mockCache.set).toHaveBeenNthCalledWith(4, expect.stringMatching(/^poe_[a-f0-9]{16}$/), mockModels)
+		expect(mockCache.set.mock.calls.map((call: [string, unknown]) => call[0])).not.toContain("litellm")
+		expect(mockCache.set.mock.calls.map((call: [string, unknown]) => call[0])).not.toContain("ollama")
+		expect(mockCache.set.mock.calls.map((call: [string, unknown]) => call[0])).not.toContain("lmstudio")
+		expect(mockCache.set.mock.calls.map((call: [string, unknown]) => call[0])).not.toContain("poe")
+	})
+
+	it("reuses cache for equivalent normalized LiteLLM scopes", async () => {
+		const mockCache = new (vi.mocked(NodeCache))() as any
+		const scopedCache = new Map<string, unknown>()
+		const mockModels = {
+			"litellm/model": {
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "LiteLLM scoped model",
+			},
+		}
+
+		mockCache.get.mockImplementation((key: string) => scopedCache.get(key))
+		mockCache.set.mockImplementation((key: string, value: unknown) => {
+			scopedCache.set(key, value)
+			return true
+		})
+		mockGetLiteLLMModels.mockResolvedValue(mockModels)
+
+		const first = await getModels({ provider: "litellm", apiKey: "same-key", baseUrl: "http://localhost:4000/" })
+		const second = await getModels({ provider: "litellm", apiKey: "same-key", baseUrl: " http://localhost:4000 " })
+
+		expect(first).toEqual(mockModels)
+		expect(second).toEqual(mockModels)
+		expect(mockGetLiteLLMModels).toHaveBeenCalledTimes(1)
+		expect(mockCache.set).toHaveBeenCalledTimes(1)
+		expect(mockCache.get).toHaveBeenNthCalledWith(2, mockCache.set.mock.calls[0][0])
+	})
+
+	it("does not reuse stale LiteLLM cache entries across base URLs or API keys", async () => {
+		const mockCache = new (vi.mocked(NodeCache))() as any
+		const firstModels = {
+			"litellm/first": {
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "First LiteLLM scoped model",
+			},
+		}
+		const secondModels = {
+			"litellm/second": {
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Second LiteLLM scoped model",
+			},
+		}
+		const thirdModels = {
+			"litellm/third": {
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Third LiteLLM scoped model",
+			},
+		}
+
+		mockCache.get.mockReturnValue(undefined)
+		mockGetLiteLLMModels
+			.mockResolvedValueOnce(firstModels)
+			.mockResolvedValueOnce(secondModels)
+			.mockResolvedValueOnce(thirdModels)
+
+		await getModels({ provider: "litellm", apiKey: "key-a", baseUrl: "http://localhost:4000" })
+		await getModels({ provider: "litellm", apiKey: "key-b", baseUrl: "http://localhost:4000" })
+		await getModels({ provider: "litellm", apiKey: "key-b", baseUrl: "http://localhost:5000" })
+
+		expect(mockGetLiteLLMModels).toHaveBeenCalledTimes(3)
+		const cacheKeys = mockCache.set.mock.calls.map((call: [string, unknown]) => call[0])
+		expect(new Set(cacheKeys).size).toBe(3)
 	})
 
 	it("calls getOpenRouterModels for openrouter provider", async () => {

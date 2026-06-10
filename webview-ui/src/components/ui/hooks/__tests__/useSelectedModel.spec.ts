@@ -21,6 +21,8 @@ import {
 	mainlandZAiModels,
 	xiaomiMiMoDefaultModelId,
 	xiaomiMiMoModels,
+	vscodeLlmDefaultModelId,
+	vscodeLlmModels,
 } from "@roo-code/types"
 
 import { useSelectedModel } from "../useSelectedModel"
@@ -1066,6 +1068,97 @@ describe("useSelectedModel", () => {
 			renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
 
 			expect(mockUseRouterModels).toHaveBeenCalledWith({ provider: undefined, enabled: false })
+		})
+	})
+
+	describe("vscode-lm provider", () => {
+		beforeEach(() => {
+			vi.clearAllMocks()
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					openrouter: {},
+					requesty: {},
+					litellm: {},
+				},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			mockUseOpenRouterModelProviders.mockReturnValue({
+				data: {},
+				isLoading: false,
+				isError: false,
+			} as any)
+		})
+
+		it("should default to the VS Code LM default model when no selector is configured", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "vscode-lm",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("vscode-lm")
+			expect(result.current.id).toBe(vscodeLlmDefaultModelId)
+			expect(result.current.info).toMatchObject({
+				contextWindow: vscodeLlmModels[vscodeLlmDefaultModelId].contextWindow,
+				supportsImages: false,
+				supportsPromptCache: false,
+			})
+			expect(result.current.info).not.toHaveProperty("maxTokens")
+			expect(result.current.info).not.toHaveProperty("inputPrice")
+			expect(result.current.info).not.toHaveProperty("outputPrice")
+			expect(mockUseRouterModels).toHaveBeenCalledWith({ provider: undefined, enabled: false })
+		})
+
+		it("should preserve blank selector fields and URL-encode selector values", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "vscode-lm",
+				vsCodeLmModelSelector: {
+					vendor: "copilot/chat",
+					id: "model/id?",
+				},
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("vscode-lm")
+			expect(result.current.id).toBe("copilot%2Fchat///model%2Fid%3F")
+			expect(result.current.info).toMatchObject({
+				supportsImages: false,
+				supportsPromptCache: false,
+			})
+			expect(result.current.info).not.toHaveProperty("maxTokens")
+			expect(result.current.info).not.toHaveProperty("inputPrice")
+			expect(result.current.info).not.toHaveProperty("outputPrice")
+		})
+
+		it("should use known static family metadata conservatively", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "vscode-lm",
+				vsCodeLmModelSelector: {
+					vendor: "copilot",
+					family: "claude-3.5-sonnet",
+				},
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("vscode-lm")
+			expect(result.current.id).toBe("copilot/claude-3.5-sonnet")
+			expect(result.current.info).toMatchObject({
+				contextWindow: vscodeLlmModels["claude-3.5-sonnet"].contextWindow,
+				supportsImages: false,
+				supportsPromptCache: false,
+			})
+			expect(result.current.info).not.toHaveProperty("maxTokens")
+			expect(result.current.info).not.toHaveProperty("inputPrice")
+			expect(result.current.info).not.toHaveProperty("outputPrice")
+			expect(result.current.info).not.toHaveProperty("cacheWritesPrice")
+			expect(result.current.info).not.toHaveProperty("cacheReadsPrice")
 		})
 	})
 

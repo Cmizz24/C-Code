@@ -18,16 +18,16 @@ describe("Ollama Fetcher", () => {
 			const parsedModel = parseOllamaModel(modelData)
 
 			expect(parsedModel).toEqual({
-				maxTokens: 40960,
 				contextWindow: 40960,
-				supportsImages: false,
-				supportsPromptCache: true,
-				inputPrice: 0,
-				outputPrice: 0,
-				cacheWritesPrice: 0,
-				cacheReadsPrice: 0,
+				supportsPromptCache: false,
 				description: "Family: qwen3, Context: 40960, Size: 32.8B",
 			})
+			expect(parsedModel).not.toHaveProperty("maxTokens")
+			expect(parsedModel).not.toHaveProperty("supportsImages")
+			expect(parsedModel).not.toHaveProperty("inputPrice")
+			expect(parsedModel).not.toHaveProperty("outputPrice")
+			expect(parsedModel).not.toHaveProperty("cacheWritesPrice")
+			expect(parsedModel).not.toHaveProperty("cacheReadsPrice")
 		})
 
 		it("should handle models with null families field", () => {
@@ -42,16 +42,48 @@ describe("Ollama Fetcher", () => {
 			const parsedModel = parseOllamaModel(modelDataWithNullFamilies as any)
 
 			expect(parsedModel).toEqual({
-				maxTokens: 40960,
 				contextWindow: 40960,
-				supportsImages: false,
-				supportsPromptCache: true,
-				inputPrice: 0,
-				outputPrice: 0,
-				cacheWritesPrice: 0,
-				cacheReadsPrice: 0,
+				supportsPromptCache: false,
 				description: "Family: qwen3, Context: 40960, Size: 32.8B",
 			})
+			expect(parsedModel).not.toHaveProperty("maxTokens")
+			expect(parsedModel).not.toHaveProperty("supportsImages")
+			expect(parsedModel).not.toHaveProperty("inputPrice")
+			expect(parsedModel).not.toHaveProperty("outputPrice")
+			expect(parsedModel).not.toHaveProperty("cacheWritesPrice")
+			expect(parsedModel).not.toHaveProperty("cacheReadsPrice")
+		})
+
+		it("should use conservative defaults for sparse tool-capable responses", () => {
+			const parsedModel = parseOllamaModel({ capabilities: ["tools"] } as any)
+
+			expect(parsedModel).toEqual({
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Ollama model",
+			})
+			expect(parsedModel).not.toHaveProperty("maxTokens")
+			expect(parsedModel).not.toHaveProperty("supportsImages")
+			expect(parsedModel).not.toHaveProperty("inputPrice")
+			expect(parsedModel).not.toHaveProperty("outputPrice")
+		})
+
+		it("should ignore invalid context lengths instead of inventing unverified metadata", () => {
+			const parsedModel = parseOllamaModel({
+				capabilities: ["tools"],
+				model_info: {
+					"llama.context_length": 0,
+				},
+			})
+
+			expect(parsedModel).toEqual({
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Ollama model",
+			})
+			expect(parsedModel).not.toHaveProperty("maxTokens")
+			expect(parsedModel).not.toHaveProperty("inputPrice")
+			expect(parsedModel).not.toHaveProperty("outputPrice")
 		})
 
 		it("should return null when capabilities does not include 'tools'", () => {
@@ -112,6 +144,7 @@ describe("Ollama Fetcher", () => {
 
 			expect(parsedModel).not.toBeNull()
 			expect(parsedModel!.supportsImages).toBe(true)
+			expect(parsedModel!.supportsPromptCache).toBe(false)
 			expect(parsedModel!.contextWindow).toBeGreaterThan(0)
 		})
 	})
@@ -397,6 +430,39 @@ describe("Ollama Fetcher", () => {
 			expect(result).not.toBeInstanceOf(Array)
 			expect(Object.keys(result).length).toBe(1)
 			expect(result[modelName]).toBeDefined()
+		})
+
+		it("should use the model field as the cache key when the tags response omits name", async () => {
+			const baseUrl = "http://localhost:11434"
+			const modelName = "model-field-only:latest"
+
+			mockedAxios.get.mockResolvedValueOnce({
+				data: {
+					models: [
+						{
+							model: modelName,
+							modified_at: "2025-06-03T09:23:22.610222878-04:00",
+							size: 14333928010,
+							digest: "6a5f0c01d2c96c687d79e32fdd25b87087feb376bf9838f854d10be8cf3c10a5",
+						},
+					],
+				},
+			})
+			mockedAxios.post.mockResolvedValueOnce({
+				data: {
+					model_info: {},
+					capabilities: ["completion", "tools"],
+				},
+			})
+
+			const result = await getOllamaModels(baseUrl)
+
+			expect(mockedAxios.post).toHaveBeenCalledWith(`${baseUrl}/api/show`, { model: modelName }, { headers: {} })
+			expect(result[modelName]).toEqual({
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Ollama model",
+			})
 		})
 	})
 })

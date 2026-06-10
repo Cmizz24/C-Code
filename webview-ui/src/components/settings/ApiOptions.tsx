@@ -211,6 +211,8 @@ function shouldRequestRouterModelsForProvider(provider: ProviderName, apiConfigu
 		case "lmstudio":
 			return false
 	}
+
+	return false
 }
 
 function getRouterModelRequestValues(provider: ProviderName, apiConfiguration: ProviderSettings) {

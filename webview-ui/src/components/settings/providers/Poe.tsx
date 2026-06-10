@@ -43,11 +43,16 @@ export const Poe = ({
 	const [refreshStatus, setRefreshStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
 	const [refreshError, setRefreshError] = useState<string | undefined>()
 	const poeErrorJustReceived = useRef(false)
+	const refreshRequestId = useRef<string | undefined>()
 
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent<ExtensionMessage>) => {
 			const message = event.data
 			if (message.type === "singleRouterModelFetchResponse" && !message.success) {
+				if (message.requestId !== refreshRequestId.current) {
+					return
+				}
+
 				const providerName = message.values?.provider as RouterName
 				if (providerName === "poe") {
 					poeErrorJustReceived.current = true
@@ -55,6 +60,10 @@ export const Poe = ({
 					setRefreshError(message.error)
 				}
 			} else if (message.type === "routerModels") {
+				if (message.requestId !== refreshRequestId.current) {
+					return
+				}
+
 				if (refreshStatus === "loading") {
 					if (!poeErrorJustReceived.current) {
 						setRefreshStatus("success")
@@ -96,9 +105,13 @@ export const Poe = ({
 			return
 		}
 
+		const requestId = crypto.randomUUID()
+		refreshRequestId.current = requestId
+
 		vscode.postMessage({
 			type: "requestRouterModels",
-			values: { poeApiKey: key, poeBaseUrl: apiConfiguration.poeBaseUrl },
+			requestId,
+			values: { provider: "poe", refresh: true, poeApiKey: key, poeBaseUrl: apiConfiguration.poeBaseUrl },
 		})
 	}, [apiConfiguration, t])
 

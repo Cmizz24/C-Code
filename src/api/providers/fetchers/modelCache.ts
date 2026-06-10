@@ -1,11 +1,12 @@
 import * as path from "path"
 import fs from "fs/promises"
 import * as fsSync from "fs"
+import { createHash } from "crypto"
 
 import NodeCache from "node-cache"
 import { z } from "zod"
 
-import type { ProviderName, ModelRecord } from "@roo-code/types"
+import type { ModelRecord } from "@roo-code/types"
 import { modelInfoSchema } from "@roo-code/types"
 
 import { safeWriteJson } from "../../../utils/safeWriteJson"
@@ -42,8 +43,10 @@ import {
 const memoryCache = new NodeCache({ stdTTL: 5 * 60, checkperiod: 5 * 60 })
 const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 const DEFAULT_REQUESTY_BASE_URL = "https://router.requesty.ai/v1"
+const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
+const DEFAULT_LMSTUDIO_BASE_URL = "http://localhost:1234"
 
-type ModelCacheKey = RouterName | "openrouter_image"
+type ModelCacheKey = string
 
 // Zod schema for validating ModelRecord structure from disk cache
 const modelRecordSchema = z.record(z.string(), modelInfoSchema)
@@ -53,7 +56,30 @@ const modelRecordSchema = z.record(z.string(), modelInfoSchema)
 const inFlightRefresh = new Map<ModelCacheKey, Promise<ModelRecord>>()
 
 function getModelCacheKey(options: GetModelsOptions): ModelCacheKey {
-	return options.provider === "openrouter" && options.modelType === "image" ? "openrouter_image" : options.provider
+	if (options.provider === "openrouter" && options.modelType === "image") {
+		return "openrouter_image"
+	}
+
+	if (["litellm", "ollama", "lmstudio", "poe"].includes(options.provider)) {
+		const defaultBaseUrl =
+			options.provider === "ollama"
+				? DEFAULT_OLLAMA_BASE_URL
+				: options.provider === "lmstudio"
+					? DEFAULT_LMSTUDIO_BASE_URL
+					: undefined
+		const scope = JSON.stringify({
+			baseUrl: normalizeBaseUrl(options.baseUrl) ?? defaultBaseUrl ?? "default",
+			apiKeyHash: options.apiKey?.trim() ? hashCacheScope(options.apiKey.trim()) : undefined,
+		})
+
+		return `${options.provider}_${hashCacheScope(scope)}`
+	}
+
+	return options.provider
+}
+
+function hashCacheScope(value: string): string {
+	return createHash("sha256").update(value).digest("hex").slice(0, 16)
 }
 
 function normalizeBaseUrl(baseUrl?: string): string | undefined {
@@ -358,9 +384,11 @@ export const flushModels = async (options: GetModelsOptions, refresh: boolean = 
  * @param provider - The provider to get models for.
  * @returns Models from memory cache, disk cache, or undefined if not cached.
  */
-export function getModelsFromCache(provider: ProviderName | "openrouter_image"): ModelRecord | undefined {
+export function getModelsFromCache(provider: ModelCacheKey | GetModelsOptions): ModelRecord | undefined {
+	const cacheKey = typeof provider === "string" ? provider : getModelCacheKey(provider)
+
 	// Check memory cache first (fast)
-	const memoryModels = memoryCache.get<ModelRecord>(provider)
+	const memoryModels = memoryCache.get<ModelRecord>(cacheKey)
 	if (memoryModels) {
 		return memoryModels
 	}
@@ -368,7 +396,7 @@ export function getModelsFromCache(provider: ProviderName | "openrouter_image"):
 	// Memory cache miss - try to load from disk synchronously
 	// This is acceptable because it only happens on cold start or after cache expiry
 	try {
-		const filename = `${provider}_models.json`
+		const filename = `${cacheKey}_models.json`
 		const cacheDir = getCacheDirectoryPathSync()
 		if (!cacheDir) {
 			return undefined
@@ -386,19 +414,19 @@ export function getModelsFromCache(provider: ProviderName | "openrouter_image"):
 			const validation = modelRecordSchema.safeParse(models)
 			if (!validation.success) {
 				console.error(
-					`[MODEL_CACHE] Invalid disk cache data structure for ${provider}:`,
+					`[MODEL_CACHE] Invalid disk cache data structure for ${cacheKey}:`,
 					validation.error.format(),
 				)
 				return undefined
 			}
 
 			// Populate memory cache for future fast access
-			memoryCache.set(provider, validation.data)
+			memoryCache.set(cacheKey, validation.data)
 
 			return validation.data
 		}
 	} catch (error) {
-		console.error(`[MODEL_CACHE] Error loading ${provider} models from disk:`, error)
+		console.error(`[MODEL_CACHE] Error loading ${cacheKey} models from disk:`, error)
 	}
 
 	return undefined

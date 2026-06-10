@@ -27,13 +27,13 @@ import {
 	basetenModels,
 	qwenCodeModels,
 	litellmDefaultModelInfo,
-	lMStudioDefaultModelInfo,
 	BEDROCK_1M_CONTEXT_MODEL_IDS,
 	isRetiredProvider,
 	getProviderDefaultModelId,
 } from "@roo-code/types"
 
 import { isRouterName, type RouterName } from "@roo/api"
+import { stringifyVsCodeLmModelSelector } from "@roo/vsCodeSelectorUtils"
 
 import { useRouterModels } from "./useRouterModels"
 import { useOpenRouterModelProviders } from "./useOpenRouterModelProviders"
@@ -92,6 +92,32 @@ function getBedrockRouterModelRequestValues(apiConfiguration?: ProviderSettings)
 	}
 }
 
+function getRouterModelRequestValues(
+	provider: RouterName | undefined,
+	apiConfiguration?: ProviderSettings,
+): Record<string, unknown> | undefined {
+	if (!apiConfiguration) {
+		return undefined
+	}
+
+	switch (provider) {
+		case "bedrock":
+			return getBedrockRouterModelRequestValues(apiConfiguration)
+		case "litellm":
+			return {
+				litellmApiKey: apiConfiguration.litellmApiKey,
+				litellmBaseUrl: apiConfiguration.litellmBaseUrl,
+			}
+		case "poe":
+			return {
+				poeApiKey: apiConfiguration.poeApiKey,
+				poeBaseUrl: apiConfiguration.poeBaseUrl,
+			}
+		default:
+			return undefined
+	}
+}
+
 function getRouterFetchProvider(provider: ProviderName | undefined): RouterName | undefined {
 	return provider && isRouterName(provider) && !localModelProviders.has(provider) ? provider : undefined
 }
@@ -138,6 +164,8 @@ function canFetchProviderModels(provider: RouterName | undefined, apiConfigurati
 		case "ollama":
 		case "lmstudio":
 			return false
+		default:
+			return false
 	}
 }
 
@@ -170,15 +198,19 @@ export const useSelectedModel = (apiConfiguration?: ProviderSettings) => {
 	const ollamaModelId = activeProvider === "ollama" ? apiConfiguration?.ollamaModelId : undefined
 
 	const shouldFetchRouterModels = canFetchProviderModels(routerFetchProvider, apiConfiguration)
+	const routerModelRequestValues = getRouterModelRequestValues(routerFetchProvider, apiConfiguration)
 	const routerModels = useRouterModels({
 		provider: routerFetchProvider,
-		...(routerFetchProvider === "bedrock" ? { values: getBedrockRouterModelRequestValues(apiConfiguration) } : {}),
+		...(routerModelRequestValues ? { values: routerModelRequestValues } : {}),
 		enabled: shouldFetchRouterModels,
 	})
 
 	const openRouterModelProviders = useOpenRouterModelProviders(openRouterModelId)
-	const lmStudioModels = useLmStudioModels(lmStudioModelId)
-	const ollamaModels = useOllamaModels(ollamaModelId)
+	const lmStudioModels = useLmStudioModels(lmStudioModelId, { baseUrl: apiConfiguration?.lmStudioBaseUrl })
+	const ollamaModels = useOllamaModels(ollamaModelId, {
+		baseUrl: apiConfiguration?.ollamaBaseUrl,
+		apiKey: apiConfiguration?.ollamaApiKey,
+	})
 
 	// Compute readiness only for the data actually needed for the selected provider
 	const needRouterModels = shouldFetchRouterModels && needsRouterModelsForSelection(routerFetchProvider)
@@ -392,16 +424,24 @@ function getSelectedModel({
 			const modelInfo = lmStudioModels && lmStudioModels[apiConfiguration.lmStudioModelId!]
 			return {
 				id,
-				info: modelInfo ? { ...lMStudioDefaultModelInfo, ...modelInfo } : undefined,
+				info: modelInfo,
 			}
 		}
 		case "vscode-lm": {
-			const id = apiConfiguration?.vsCodeLmModelSelector
-				? `${apiConfiguration.vsCodeLmModelSelector.vendor}/${apiConfiguration.vsCodeLmModelSelector.family}`
-				: vscodeLlmDefaultModelId
+			const id =
+				stringifyVsCodeLmModelSelector(apiConfiguration?.vsCodeLmModelSelector) || vscodeLlmDefaultModelId
 			const modelFamily = apiConfiguration?.vsCodeLmModelSelector?.family ?? vscodeLlmDefaultModelId
-			const info = vscodeLlmModels[modelFamily as keyof typeof vscodeLlmModels]
-			return { id, info: { ...openAiModelInfoSaneDefaults, ...info, supportsImages: false } } // VSCode LM API currently doesn't support images.
+			const staticInfo = vscodeLlmModels[modelFamily as keyof typeof vscodeLlmModels]
+			const {
+				maxTokens: _maxTokens,
+				inputPrice: _inputPrice,
+				outputPrice: _outputPrice,
+				cacheWritesPrice: _cacheWritesPrice,
+				cacheReadsPrice: _cacheReadsPrice,
+				...info
+			} = { ...openAiModelInfoSaneDefaults, ...staticInfo }
+
+			return { id, info: { ...info, supportsImages: false, supportsPromptCache: false } } // VSCode LM API currently doesn't support images or prompt caching.
 		}
 		case "sambanova": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId

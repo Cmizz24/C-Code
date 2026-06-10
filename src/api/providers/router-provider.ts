@@ -2,7 +2,7 @@ import OpenAI from "openai"
 
 import { type ModelInfo, type ModelRecord } from "@roo-code/types"
 
-import { ApiHandlerOptions, RouterName } from "../../shared/api"
+import { ApiHandlerOptions, type GetModelsOptions, RouterName } from "../../shared/api"
 
 import { BaseProvider } from "./base-provider"
 import { getModels, getModelsFromCache } from "./fetchers/modelCache"
@@ -70,7 +70,11 @@ export abstract class RouterProvider extends BaseProvider {
 
 		// Fall back to global cache (synchronous disk/memory cache)
 		// This ensures models are available before fetchModel() is called
-		const cachedModels = getModelsFromCache(this.name)
+		const cachedModels = getModelsFromCache({
+			provider: this.name,
+			apiKey: this.client.apiKey,
+			baseUrl: this.client.baseURL,
+		} as GetModelsOptions)
 		if (cachedModels?.[id]) {
 			// Also populate instance models for future calls
 			this.models = cachedModels

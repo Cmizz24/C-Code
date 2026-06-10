@@ -201,8 +201,8 @@ const dynamicProviderExtras = {
 	litellm: {} as { apiKey: string; baseUrl: string },
 	requesty: {} as { apiKey?: string; baseUrl?: string },
 	unbound: {} as { apiKey?: string },
-	ollama: {} as {}, // eslint-disable-line @typescript-eslint/no-empty-object-type
-	lmstudio: {} as {}, // eslint-disable-line @typescript-eslint/no-empty-object-type
+	ollama: {} as { apiKey?: string; baseUrl?: string },
+	lmstudio: {} as { baseUrl?: string },
 	poe: {} as { apiKey?: string; baseUrl?: string },
 	anthropic: {} as { apiKey?: string; baseUrl?: string },
 	xai: {} as { apiKey?: string },

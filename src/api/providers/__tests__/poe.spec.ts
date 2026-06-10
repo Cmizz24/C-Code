@@ -65,7 +65,7 @@ vitest.mock("../fetchers/modelCache", () => ({
 	}),
 }))
 
-import { poeDefaultModelId } from "@roo-code/types"
+import { openAiModelInfoSaneDefaults, poeDefaultModelId } from "@roo-code/types"
 import { PoeHandler } from "../poe"
 
 describe("PoeHandler", () => {
@@ -123,13 +123,16 @@ describe("PoeHandler", () => {
 			expect(result.id).toBe(poeDefaultModelId)
 		})
 
-		it("falls back to default model info when model not in cache", () => {
+		it("falls back to conservative sane defaults when an unknown selected model is not in cache", () => {
 			const handler = new PoeHandler({ poeApiKey: "key", apiModelId: "unknown/model" })
 			const result = handler.getModel()
 
 			expect(result.id).toBe("unknown/model")
-			expect(result.info.contextWindow).toBeGreaterThan(0)
-			expect(result.info.maxTokens).toBeGreaterThan(0)
+			expect(result.info).toEqual(openAiModelInfoSaneDefaults)
+			expect(result.info).not.toHaveProperty("maxTokens")
+			expect(result.info).not.toHaveProperty("supportsImages")
+			expect(result.info).not.toHaveProperty("inputPrice")
+			expect(result.info).not.toHaveProperty("outputPrice")
 		})
 	})
 

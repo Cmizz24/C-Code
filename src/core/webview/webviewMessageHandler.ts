@@ -1077,6 +1077,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 		case "requestRouterModels":
 			const state = await provider.getState()
 			const { apiConfiguration, openRouterImageApiKey, openRouterImageBaseUrl } = state
+			const requestedRouterModelsRequestId = message.requestId
 
 			// Optional single provider filter from webview
 			const requestedProvider = message?.values?.provider
@@ -1293,8 +1294,8 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			)
 
 			// LiteLLM is conditional on baseUrl+apiKey
-			const litellmApiKey = apiConfiguration.litellmApiKey || message?.values?.litellmApiKey
-			const litellmBaseUrl = apiConfiguration.litellmBaseUrl || message?.values?.litellmBaseUrl
+			const litellmApiKey = getProviderValue("litellm", apiConfiguration.litellmApiKey, "litellmApiKey")
+			const litellmBaseUrl = getProviderValue("litellm", apiConfiguration.litellmBaseUrl, "litellmBaseUrl")
 
 			if (litellmApiKey && litellmBaseUrl) {
 				// If explicit credentials are provided in message.values (from Refresh Models button),
@@ -1310,8 +1311,8 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			}
 
 			// Poe is conditional on apiKey
-			const poeApiKey = apiConfiguration.poeApiKey || message?.values?.poeApiKey
-			const poeBaseUrl = apiConfiguration.poeBaseUrl || message?.values?.poeBaseUrl
+			const poeApiKey = getProviderValue("poe", apiConfiguration.poeApiKey, "poeApiKey")
+			const poeBaseUrl = getProviderValue("poe", apiConfiguration.poeBaseUrl, "poeBaseUrl")
 
 			if (poeApiKey) {
 				if (message?.values?.poeApiKey || message?.values?.poeBaseUrl) {
@@ -1360,6 +1361,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 						type: "singleRouterModelFetchResponse",
 						success: false,
 						error: errorMessage,
+						requestId: requestedRouterModelsRequestId,
 						values: {
 							provider: routerName,
 							...(requestedModelType ? { modelType: requestedModelType } : {}),
@@ -1371,6 +1373,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			provider.postMessageToWebview({
 				type: "routerModels",
 				routerModels,
+				requestId: requestedRouterModelsRequestId,
 				values: providerFilter
 					? { provider: requestedProvider, ...(requestedModelType ? { modelType: requestedModelType } : {}) }
 					: requestedModelType
@@ -1382,10 +1385,16 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			// Specific handler for Ollama models only.
 			const { apiConfiguration: ollamaApiConfig } = await provider.getState()
 			try {
+				const ollamaBaseUrl = Object.prototype.hasOwnProperty.call(message?.values ?? {}, "ollamaBaseUrl")
+					? (message?.values?.ollamaBaseUrl as string | undefined)
+					: ollamaApiConfig.ollamaBaseUrl
+				const ollamaApiKey = Object.prototype.hasOwnProperty.call(message?.values ?? {}, "ollamaApiKey")
+					? (message?.values?.ollamaApiKey as string | undefined)
+					: ollamaApiConfig.ollamaApiKey
 				const ollamaOptions = {
 					provider: "ollama" as const,
-					baseUrl: ollamaApiConfig.ollamaBaseUrl,
-					apiKey: ollamaApiConfig.ollamaApiKey,
+					baseUrl: ollamaBaseUrl,
+					apiKey: ollamaApiKey,
 				}
 				// Flush cache and refresh to ensure fresh models.
 				await flushModels(ollamaOptions, true)
@@ -1393,7 +1402,11 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				const ollamaModels = await getModels(ollamaOptions)
 
 				if (Object.keys(ollamaModels).length > 0) {
-					provider.postMessageToWebview({ type: "ollamaModels", ollamaModels: ollamaModels })
+					provider.postMessageToWebview({
+						type: "ollamaModels",
+						ollamaModels: ollamaModels,
+						requestId: message.requestId,
+					})
 				}
 			} catch (error) {
 				// Silently fail - user hasn't configured Ollama yet
@@ -1405,9 +1418,12 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			// Specific handler for LM Studio models only.
 			const { apiConfiguration: lmStudioApiConfig } = await provider.getState()
 			try {
+				const lmStudioBaseUrl = Object.prototype.hasOwnProperty.call(message?.values ?? {}, "lmStudioBaseUrl")
+					? (message?.values?.lmStudioBaseUrl as string | undefined)
+					: lmStudioApiConfig.lmStudioBaseUrl
 				const lmStudioOptions = {
 					provider: "lmstudio" as const,
-					baseUrl: lmStudioApiConfig.lmStudioBaseUrl,
+					baseUrl: lmStudioBaseUrl,
 				}
 				// Flush cache and refresh to ensure fresh models.
 				await flushModels(lmStudioOptions, true)
@@ -1418,6 +1434,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					provider.postMessageToWebview({
 						type: "lmStudioModels",
 						lmStudioModels: lmStudioModels,
+						requestId: message.requestId,
 					})
 				}
 			} catch (error) {

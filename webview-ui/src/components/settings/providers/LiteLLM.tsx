@@ -1,5 +1,6 @@
 import { useCallback, useState, useEffect, useRef } from "react"
 import { VSCodeTextField, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { useQueryClient } from "@tanstack/react-query"
 
 import {
 	type ProviderSettings,
@@ -34,15 +35,21 @@ export const LiteLLM = ({
 	simplifySettings,
 }: LiteLLMProps) => {
 	const { t } = useAppTranslation()
+	const queryClient = useQueryClient()
 	const { routerModels } = useExtensionState()
 	const [refreshStatus, setRefreshStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
 	const [refreshError, setRefreshError] = useState<string | undefined>()
 	const litellmErrorJustReceived = useRef(false)
+	const refreshRequestId = useRef<string | undefined>()
 
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent<ExtensionMessage>) => {
 			const message = event.data
 			if (message.type === "singleRouterModelFetchResponse" && !message.success) {
+				if (message.requestId !== refreshRequestId.current) {
+					return
+				}
+
 				const providerName = message.values?.provider as RouterName
 				if (providerName === "litellm") {
 					litellmErrorJustReceived.current = true
@@ -50,11 +57,16 @@ export const LiteLLM = ({
 					setRefreshError(message.error)
 				}
 			} else if (message.type === "routerModels") {
+				if (message.requestId !== refreshRequestId.current) {
+					return
+				}
+
 				// If we were loading and no specific error for litellm was just received, mark as success.
 				// The ModelPicker will show available models or "no models found".
 				if (refreshStatus === "loading") {
 					if (!litellmErrorJustReceived.current) {
 						setRefreshStatus("success")
+						queryClient.invalidateQueries({ queryKey: ["routerModels"] })
 					}
 					// If litellmErrorJustReceived.current is true, status is already (or will be) "error".
 				}
@@ -65,7 +77,7 @@ export const LiteLLM = ({
 		return () => {
 			window.removeEventListener("message", handleMessage)
 		}
-	}, [refreshStatus, refreshError, setRefreshStatus, setRefreshError])
+	}, [refreshStatus, queryClient])
 
 	const handleInputChange = useCallback(
 		<K extends keyof ProviderSettings, E>(
@@ -92,7 +104,14 @@ export const LiteLLM = ({
 			return
 		}
 
-		vscode.postMessage({ type: "requestRouterModels", values: { litellmApiKey: key, litellmBaseUrl: url } })
+		const requestId = crypto.randomUUID()
+		refreshRequestId.current = requestId
+
+		vscode.postMessage({
+			type: "requestRouterModels",
+			requestId,
+			values: { provider: "litellm", refresh: true, litellmApiKey: key, litellmBaseUrl: url },
+		})
 	}, [apiConfiguration, setRefreshStatus, setRefreshError, t])
 
 	return (
