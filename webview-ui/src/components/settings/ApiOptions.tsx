@@ -29,8 +29,6 @@ import {
 	bedrockDefaultModelId,
 	vertexDefaultModelId,
 	sambaNovaDefaultModelId,
-	internationalZAiDefaultModelId,
-	mainlandZAiDefaultModelId,
 	fireworksDefaultModelId,
 	vercelAiGatewayDefaultModelId,
 	minimaxDefaultModelId,
@@ -41,6 +39,7 @@ import {
 	getProviderServiceConfig,
 	getDefaultModelIdForProvider,
 	getStaticModelsForProvider,
+	isStaticModelProvider,
 	shouldUseGenericModelPicker,
 	handleModelChangeSideEffects,
 } from "./utils/providerModelConfig"
@@ -99,7 +98,7 @@ import {
 } from "./providers"
 import { isRouterName } from "@roo/api"
 
-import { MODELS_BY_PROVIDER, PROVIDERS } from "./constants"
+import { PROVIDERS } from "./constants"
 import { inputEventTransform, noTransform } from "./transforms"
 import { ModelPicker } from "./ModelPicker"
 import { ApiErrorMessage } from "./ApiErrorMessage"
@@ -377,13 +376,17 @@ const ApiOptions = ({
 			return {}
 		}
 
-		const staticModels = getStaticModelsForProvider(activeSelectedProvider, t("settings:labels.useCustomArn"))
+		const staticModels = getStaticModelsForProvider(
+			activeSelectedProvider,
+			t("settings:labels.useCustomArn"),
+			apiConfiguration,
+		)
 		const dynamicModels = availableRouterModels?.[activeSelectedProvider] ?? {}
 
 		return activeSelectedProvider === "bedrock"
 			? { ...dynamicModels, ...staticModels }
 			: { ...staticModels, ...dynamicModels }
-	}, [activeSelectedProvider, availableRouterModels, t])
+	}, [activeSelectedProvider, availableRouterModels, apiConfiguration, t])
 
 	const { data: openRouterModelProviders } = useOpenRouterModelProviders(
 		apiConfiguration?.openRouterModelId,
@@ -536,8 +539,13 @@ const ApiOptions = ({
 				// newly selected provider).
 				//
 				// Note: We only validate providers with static model lists.
-				const staticModels = MODELS_BY_PROVIDER[provider]
-				if (!staticModels) {
+				const staticModels = getStaticModelsForProvider(
+					provider,
+					t("settings:labels.useCustomArn"),
+					apiConfiguration,
+				)
+
+				if (!isStaticModelProvider(provider) || Object.keys(staticModels).length === 0) {
 					return
 				}
 
@@ -584,10 +592,7 @@ const ApiOptions = ({
 				sambanova: { field: "apiModelId", default: sambaNovaDefaultModelId },
 				zai: {
 					field: "apiModelId",
-					default:
-						apiConfiguration.zaiApiLine === "china_coding"
-							? mainlandZAiDefaultModelId
-							: internationalZAiDefaultModelId,
+					default: getDefaultModelIdForProvider("zai", apiConfiguration),
 				},
 				fireworks: { field: "apiModelId", default: fireworksDefaultModelId },
 				poe: { field: "apiModelId", default: poeDefaultModelId },
@@ -607,7 +612,7 @@ const ApiOptions = ({
 				)
 			}
 		},
-		[setApiConfigurationField, apiConfiguration, organizationAllowList],
+		[setApiConfigurationField, apiConfiguration, organizationAllowList, t],
 	)
 
 	const modelValidationError = useMemo(() => {
@@ -648,12 +653,16 @@ const ApiOptions = ({
 				return true
 			}
 
-			// Check if this is a static provider (has models in MODELS_BY_PROVIDER)
-			const staticModels = MODELS_BY_PROVIDER[value as ProviderName]
+			const provider = value as ProviderName
 
 			// If it's a static provider, check if it has any models after filtering
-			if (staticModels) {
-				const filteredModels = filterModels(staticModels, value as ProviderName, organizationAllowList)
+			if (isStaticModelProvider(provider)) {
+				const staticModels = getStaticModelsForProvider(
+					provider,
+					t("settings:labels.useCustomArn"),
+					apiConfiguration,
+				)
+				const filteredModels = filterModels(staticModels, provider, organizationAllowList)
 				// Hide the provider if it has no models after filtering
 				return filteredModels && Object.keys(filteredModels).length > 0
 			}
@@ -677,7 +686,7 @@ const ApiOptions = ({
 		}
 
 		return options
-	}, [organizationAllowList, apiConfiguration.apiProvider, fromWelcomeView])
+	}, [organizationAllowList, apiConfiguration, fromWelcomeView, t])
 
 	return (
 		<div className="flex flex-col gap-3">

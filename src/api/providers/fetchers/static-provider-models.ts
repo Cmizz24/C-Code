@@ -44,27 +44,42 @@ const openAiCompatibleModelsResponseSchema = z.object({
 	data: z.array(z.object({ id: z.string() }).passthrough()),
 })
 
-const mistralModelsResponseSchema = z.union([
-	openAiCompatibleModelsResponseSchema,
-	z.array(
-		z
+const capabilitySupportSchema = z.object({ supported: z.boolean().optional() }).passthrough()
+
+const mistralCapabilitySchema = z.union([z.boolean(), capabilitySupportSchema]).optional()
+
+const mistralModelSchema = z
+	.object({
+		id: z.string(),
+		description: z.string().nullable().optional(),
+		max_context_length: z.number().nullable().optional(),
+		context_length: z.number().nullable().optional(),
+		context_window: z.number().nullable().optional(),
+		maxContextLength: z.number().nullable().optional(),
+		max_output_tokens: z.number().nullable().optional(),
+		max_completion_tokens: z.number().nullable().optional(),
+		max_tokens: z.number().nullable().optional(),
+		input_modalities: z.array(z.string()).nullable().optional(),
+		output_modalities: z.array(z.string()).nullable().optional(),
+		modalities: z.array(z.string()).nullable().optional(),
+		capabilities: z
 			.object({
-				id: z.string(),
-				description: z.string().nullable().optional(),
-				max_context_length: z.number().optional(),
-				capabilities: z
-					.object({
-						vision: z.boolean().optional(),
-						function_calling: z.boolean().optional(),
-					})
-					.passthrough()
-					.optional(),
+				vision: z.boolean().optional(),
+				image_input: mistralCapabilitySchema,
+				image_output: mistralCapabilitySchema,
+				function_calling: z.boolean().optional(),
 			})
-			.passthrough(),
-	),
+			.passthrough()
+			.optional(),
+	})
+	.passthrough()
+
+const mistralModelsResponseSchema = z.union([
+	z.object({ data: z.array(mistralModelSchema) }).passthrough(),
+	z.array(mistralModelSchema),
 ])
 
-const capabilitySupportSchema = z.object({ supported: z.boolean().optional() }).passthrough()
+type MistralModel = z.infer<typeof mistralModelSchema>
 
 const anthropicModelsResponseSchema = z.object({
 	data: z.array(
@@ -333,6 +348,34 @@ function positiveNumber(value?: number | null): number | undefined {
 	return typeof value === "number" && value > 0 ? value : undefined
 }
 
+function capabilitySupported(value?: boolean | { supported?: boolean }): boolean | undefined {
+	return typeof value === "boolean" ? value : value?.supported
+}
+
+function hasModality(modalities: string[] | null | undefined, expected: string): boolean | undefined {
+	return modalities?.some((modality) => modality.toLowerCase() === expected) || undefined
+}
+
+function normalizeMistralModelInfo(model: MistralModel): Partial<ModelInfo> {
+	const inputSupportsImages =
+		model.capabilities?.vision ??
+		capabilitySupported(model.capabilities?.image_input) ??
+		hasModality(model.input_modalities, "image") ??
+		hasModality(model.modalities, "image")
+	const outputSupportsImages =
+		capabilitySupported(model.capabilities?.image_output) ?? hasModality(model.output_modalities, "image")
+
+	return {
+		contextWindow: positiveNumber(
+			model.max_context_length ?? model.context_length ?? model.context_window ?? model.maxContextLength,
+		),
+		maxTokens: positiveNumber(model.max_output_tokens ?? model.max_completion_tokens ?? model.max_tokens),
+		description: model.description ?? undefined,
+		supportsImages: inputSupportsImages,
+		supportsImageOutput: outputSupportsImages,
+	}
+}
+
 function getVersionedEndpoint(baseUrl: string, versionPath: string, endpointPath: string): string | undefined {
 	const normalizedBaseUrl = baseUrl.replace(/\/+$/, "")
 
@@ -537,21 +580,14 @@ async function fetchMistralModels(apiKey?: string, baseUrl = "https://api.mistra
 		return {}
 	}
 
-	if (Array.isArray(parsed.data)) {
-		const models: ModelRecord = {}
+	const models: ModelRecord = {}
+	const mistralModelsResponse = Array.isArray(parsed.data) ? parsed.data : parsed.data.data
 
-		for (const model of parsed.data) {
-			models[model.id] = mergeModelInfo(model.id, mistralModels, {
-				contextWindow: positiveNumber(model.max_context_length),
-				description: model.description ?? undefined,
-				supportsImages: model.capabilities?.vision,
-			})
-		}
-
-		return models
+	for (const model of mistralModelsResponse) {
+		models[model.id] = mergeModelInfo(model.id, mistralModels, normalizeMistralModelInfo(model))
 	}
 
-	return buildOpenAiCompatibleModels([...new Set(parsed.data.data.map((model) => model.id))], mistralModels)
+	return models
 }
 
 export async function getAnthropicModels(apiKey?: string, baseUrl = "https://api.anthropic.com"): Promise<ModelRecord> {

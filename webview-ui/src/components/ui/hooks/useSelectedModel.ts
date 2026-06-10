@@ -22,6 +22,7 @@ import {
 	sambaNovaModels,
 	internationalZAiModels,
 	mainlandZAiModels,
+	zaiApiLineConfigs,
 	fireworksModels,
 	basetenModels,
 	qwenCodeModels,
@@ -347,7 +348,7 @@ function getSelectedModel({
 			return { id, info }
 		}
 		case "zai": {
-			const isChina = apiConfiguration.zaiApiLine === "china_coding"
+			const isChina = zaiApiLineConfigs[apiConfiguration.zaiApiLine ?? "international_coding"].isChina
 			const models = isChina ? mainlandZAiModels : internationalZAiModels
 			const defaultModelId = getProviderDefaultModelId(provider, { isChina })
 			const id = apiConfiguration.apiModelId ?? defaultModelId

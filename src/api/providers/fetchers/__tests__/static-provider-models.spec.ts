@@ -392,6 +392,7 @@ describe("static provider model fetchers", () => {
 						id: "mistral-dynamic-model",
 						description: "Dynamic Mistral model",
 						max_context_length: 32_768,
+						max_output_tokens: 8_192,
 						capabilities: {
 							vision: true,
 							function_calling: true,
@@ -407,8 +408,95 @@ describe("static provider model fetchers", () => {
 			})
 			expect(models["mistral-dynamic-model"]).toMatchObject({
 				contextWindow: 32_768,
+				maxTokens: 8_192,
 				description: "Dynamic Mistral model",
 				supportsImages: true,
+				supportsPromptCache: false,
+			})
+		})
+
+		it("maps OpenAI-compatible data responses with alternate official fields", async () => {
+			mockAxiosGet.mockResolvedValueOnce({
+				data: {
+					data: [
+						{
+							id: "mistral-data-model",
+							description: "Dynamic model from data array",
+							context_length: 64_000,
+							max_completion_tokens: 4_096,
+							capabilities: {
+								image_input: { supported: true },
+								image_output: { supported: true },
+							},
+						},
+						{
+							id: "mistral-modalities-model",
+							context_window: 96_000,
+							max_tokens: 12_000,
+							input_modalities: ["text", "image"],
+							output_modalities: ["text", "image"],
+						},
+						{
+							id: "mistral-max-context-model",
+							maxContextLength: 128_000,
+							modalities: ["text", "image"],
+						},
+					],
+				},
+			})
+
+			const models = await getMistralModels("mistral-key")
+
+			expect(models["mistral-data-model"]).toMatchObject({
+				contextWindow: 64_000,
+				maxTokens: 4_096,
+				description: "Dynamic model from data array",
+				supportsImages: true,
+				supportsImageOutput: true,
+				supportsPromptCache: false,
+			})
+			expect(models["mistral-modalities-model"]).toMatchObject({
+				contextWindow: 96_000,
+				maxTokens: 12_000,
+				supportsImages: true,
+				supportsImageOutput: true,
+				supportsPromptCache: false,
+			})
+			expect(models["mistral-max-context-model"]).toMatchObject({
+				contextWindow: 128_000,
+				supportsImages: true,
+				supportsPromptCache: false,
+			})
+			expect(models["mistral-max-context-model"].maxTokens).toBeUndefined()
+		})
+
+		it("preserves curated static metadata for sparse known model ids", async () => {
+			mockAxiosGet.mockResolvedValueOnce({
+				data: [{ id: "codestral-latest" }],
+			})
+
+			const models = await getMistralModels("mistral-key")
+
+			expect(models["codestral-latest"]).toMatchObject({
+				maxTokens: 8192,
+				contextWindow: 128_000,
+				supportsImages: false,
+				supportsPromptCache: false,
+				inputPrice: 0.3,
+				outputPrice: 0.9,
+				description: "Codestral v25.08 is Mistral's code-generation model.",
+			})
+		})
+
+		it("uses conservative fallback metadata for unknown sparse dynamic model ids", async () => {
+			mockAxiosGet.mockResolvedValueOnce({
+				data: [{ id: "mistral-unknown-sparse-model" }],
+			})
+
+			const models = await getMistralModels("mistral-key")
+
+			expect(models["mistral-unknown-sparse-model"]).toEqual({
+				contextWindow: 128_000,
 				supportsPromptCache: false,
 			})
 		})

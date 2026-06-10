@@ -15,6 +15,10 @@ import {
 	minimaxDefaultModelId,
 	minimaxModels,
 	openRouterDefaultModelId,
+	internationalZAiDefaultModelId,
+	mainlandZAiDefaultModelId,
+	internationalZAiModels,
+	mainlandZAiModels,
 	xiaomiMiMoDefaultModelId,
 	xiaomiMiMoModels,
 } from "@roo-code/types"
@@ -961,6 +965,107 @@ describe("useSelectedModel", () => {
 			expect(result.current.provider).toBe("minimax")
 			expect(result.current.id).toBe("MiniMax-M2.7")
 			expect(result.current.info).toEqual(minimaxModels["MiniMax-M2.7"])
+		})
+	})
+
+	describe("zai provider", () => {
+		beforeEach(() => {
+			vi.clearAllMocks()
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					openrouter: {},
+					requesty: {},
+					litellm: {},
+				},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			mockUseOpenRouterModelProviders.mockReturnValue({
+				data: {},
+				isLoading: false,
+				isError: false,
+			} as any)
+		})
+
+		it("should default to international Z.ai models without an API line", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "zai",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("zai")
+			expect(result.current.id).toBe(internationalZAiDefaultModelId)
+			expect(result.current.info).toEqual(internationalZAiModels[internationalZAiDefaultModelId])
+		})
+
+		it("should use international Z.ai defaults for international API lines", () => {
+			const internationalApiLines: ProviderSettings["zaiApiLine"][] = [
+				"international_coding",
+				"international_api",
+			]
+
+			internationalApiLines.forEach((zaiApiLine) => {
+				const apiConfiguration: ProviderSettings = {
+					apiProvider: "zai",
+					zaiApiLine,
+				}
+
+				const wrapper = createWrapper()
+				const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+				expect(result.current.provider).toBe("zai")
+				expect(result.current.id).toBe(internationalZAiDefaultModelId)
+				expect(result.current.info).toEqual(internationalZAiModels[internationalZAiDefaultModelId])
+			})
+		})
+
+		it("should use mainland Z.ai defaults for China API lines", () => {
+			const chinaApiLines: ProviderSettings["zaiApiLine"][] = ["china_coding", "china_api"]
+
+			chinaApiLines.forEach((zaiApiLine) => {
+				const apiConfiguration: ProviderSettings = {
+					apiProvider: "zai",
+					zaiApiLine,
+				}
+
+				const wrapper = createWrapper()
+				const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+				expect(result.current.provider).toBe("zai")
+				expect(result.current.id).toBe(mainlandZAiDefaultModelId)
+				expect(result.current.info).toEqual(mainlandZAiModels[mainlandZAiDefaultModelId])
+			})
+		})
+
+		it("should use selected Z.ai model metadata from the active API-line model set", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "zai",
+				apiModelId: "glm-5.1",
+				zaiApiLine: "china_api",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("zai")
+			expect(result.current.id).toBe("glm-5.1")
+			expect(result.current.info).toEqual(mainlandZAiModels["glm-5.1"])
+		})
+
+		it("should not request router models for Z.ai", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "zai",
+				zaiApiKey: "test-api-key",
+				zaiApiLine: "international_api",
+			}
+
+			const wrapper = createWrapper()
+			renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(mockUseRouterModels).toHaveBeenCalledWith({ provider: undefined, enabled: false })
 		})
 	})
 

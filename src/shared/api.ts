@@ -123,6 +123,12 @@ export const GEMINI_25_PRO_MIN_THINKING_TOKENS = 128
 
 // Max Tokens
 
+function shouldUseConfiguredMaxOutputTokens(modelId: string): boolean {
+	const normalizedModelId = modelId.toLowerCase()
+
+	return normalizedModelId.includes("gpt-5") || /(?:^|\/)glm-(?:4(?:\.|-)|5(?:[v.]|-|$))/.test(normalizedModelId)
+}
+
 export const getModelMaxOutputTokens = ({
 	modelId,
 	model,
@@ -154,13 +160,9 @@ export const getModelMaxOutputTokens = ({
 	}
 
 	// If model has explicit maxTokens, clamp it to 20% of the context window
-	// Exception: GPT-5 models should use their exact configured max output tokens
+	// Exceptions: models with high official output limits should use their exact configured max output tokens.
 	if (model.maxTokens) {
-		// Check if this is a GPT-5 model (case-insensitive)
-		const isGpt5Model = modelId.toLowerCase().includes("gpt-5")
-
-		// GPT-5 models bypass the 20% cap and use their full configured max tokens
-		if (isGpt5Model) {
+		if (shouldUseConfiguredMaxOutputTokens(modelId)) {
 			return model.maxTokens
 		}
 

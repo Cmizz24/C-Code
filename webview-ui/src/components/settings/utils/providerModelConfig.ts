@@ -12,7 +12,10 @@ import {
 	xaiDefaultModelId,
 	sambaNovaDefaultModelId,
 	internationalZAiDefaultModelId,
+	internationalZAiModels,
 	mainlandZAiDefaultModelId,
+	mainlandZAiModels,
+	zaiApiLineConfigs,
 	fireworksDefaultModelId,
 	minimaxDefaultModelId,
 	basetenDefaultModelId,
@@ -76,8 +79,8 @@ export const getProviderServiceConfig = (provider: ProviderName): ProviderServic
 
 export const getDefaultModelIdForProvider = (provider: ProviderName, apiConfiguration?: ProviderSettings): string => {
 	// Handle Z.ai's China/International entrypoint distinction
-	if (provider === "zai" && apiConfiguration) {
-		return apiConfiguration.zaiApiLine === "china_coding"
+	if (provider === "zai") {
+		return zaiApiLineConfigs[apiConfiguration?.zaiApiLine ?? "international_coding"].isChina
 			? mainlandZAiDefaultModelId
 			: internationalZAiDefaultModelId
 	}
@@ -88,7 +91,14 @@ export const getDefaultModelIdForProvider = (provider: ProviderName, apiConfigur
 export const getStaticModelsForProvider = (
 	provider: ProviderName,
 	customArnLabel?: string,
+	apiConfiguration?: ProviderSettings,
 ): Record<string, ModelInfo> => {
+	if (provider === "zai") {
+		return zaiApiLineConfigs[apiConfiguration?.zaiApiLine ?? "international_coding"].isChina
+			? mainlandZAiModels
+			: internationalZAiModels
+	}
+
 	const models = MODELS_BY_PROVIDER[provider] ?? {}
 
 	// Add custom-arn option for Bedrock
@@ -111,6 +121,10 @@ export const getStaticModelsForProvider = (
  * Checks if a provider uses static models from MODELS_BY_PROVIDER
  */
 export const isStaticModelProvider = (provider: ProviderName): boolean => {
+	if (provider === "zai") {
+		return true
+	}
+
 	return provider in MODELS_BY_PROVIDER
 }
 
