@@ -23,6 +23,7 @@ import {
 	fireworksModels,
 	basetenModels,
 	minimaxModels,
+	xiaomiMiMoModels,
 } from "@roo-code/types"
 import type { GetModelsOptions } from "../../../shared/api"
 
@@ -687,6 +688,20 @@ export async function getDeepSeekModels(apiKey?: string, baseUrl = "https://api.
 	return buildOpenAiCompatibleModels(await fetchOpenAiCompatibleModelIds({ baseUrl, apiKey }), deepSeekModels)
 }
 
+export async function getXiaomiMiMoModels(
+	apiKey?: string,
+	baseUrl = "https://api.xiaomimimo.com/v1",
+): Promise<ModelRecord> {
+	return buildOpenAiCompatibleModels(
+		await fetchOpenAiCompatibleModelIds({
+			baseUrl,
+			apiKey,
+			openAiHeaders: apiKey ? { "api-key": apiKey } : undefined,
+		}),
+		xiaomiMiMoModels,
+	)
+}
+
 export async function getBedrockModels(options: BedrockModelsOptions): Promise<ModelRecord> {
 	const client = createBedrockClient(options)
 
@@ -805,6 +820,7 @@ export async function getMoonshotModels(apiKey?: string, baseUrl = "https://api.
 			contextWindow: positiveNumber(model.context_length),
 			maxTokens: positiveNumber(model.max_completion_tokens ?? model.max_tokens),
 			supportsImages: model.supports_image_in,
+			supportsReasoningBinary: model.supports_reasoning,
 			preserveReasoning: model.supports_reasoning,
 		})
 	}

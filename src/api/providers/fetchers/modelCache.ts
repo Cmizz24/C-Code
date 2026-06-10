@@ -36,6 +36,7 @@ import {
 	getOpenAiNativeModels,
 	getSambaNovaModels,
 	getXAIModels,
+	getXiaomiMiMoModels,
 } from "./static-provider-models"
 
 const memoryCache = new NodeCache({ stdTTL: 5 * 60, checkperiod: 5 * 60 })
@@ -155,6 +156,9 @@ async function fetchModelsFromProvider(options: GetModelsOptions): Promise<Model
 			break
 		case "deepseek":
 			models = await getDeepSeekModels(options.apiKey, options.baseUrl)
+			break
+		case "xiaomi-mimo":
+			models = await getXiaomiMiMoModels(options.apiKey, options.baseUrl)
 			break
 		case "gemini":
 			models = await getGeminiModels(options.apiKey, options.baseUrl)

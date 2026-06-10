@@ -104,7 +104,7 @@ export class MiniMaxHandler extends BaseProvider implements SingleCompletionHand
 		// Prepare request parameters
 		const requestParams: Anthropic.Messages.MessageCreateParams = {
 			model: modelId,
-			max_tokens: maxTokens ?? 16_384,
+			max_tokens: maxTokens ?? info.maxTokens ?? 16_384,
 			temperature: temperature ?? 1.0,
 			system: systemBlocks,
 			messages: supportsPromptCache ? this.addCacheControl(processedMessages, cacheControl) : processedMessages,
@@ -290,11 +290,11 @@ export class MiniMaxHandler extends BaseProvider implements SingleCompletionHand
 	}
 
 	async completePrompt(prompt: string) {
-		const { id: model, temperature } = this.getModel()
+		const { id: model, info, temperature } = this.getModel()
 
 		const message = await this.client.messages.create({
 			model,
-			max_tokens: 16_384,
+			max_tokens: info.maxTokens ?? 16_384,
 			temperature: temperature ?? 1.0,
 			messages: [{ role: "user", content: prompt }],
 			stream: false,

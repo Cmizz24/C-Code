@@ -62,6 +62,7 @@ import {
 	getOpenAiNativeModels,
 	getSambaNovaModels,
 	getXAIModels,
+	getXiaomiMiMoModels,
 } from "../static-provider-models"
 
 vi.mock("axios", () => ({
@@ -532,6 +533,44 @@ describe("static provider model fetchers", () => {
 		})
 	})
 
+	describe("getXiaomiMiMoModels", () => {
+		it("maps OpenAI-compatible /models ids with Xiaomi headers while preserving static and fallback metadata", async () => {
+			mockAxiosGet.mockResolvedValueOnce({
+				data: {
+					data: [{ id: "mimo-v2.5-pro" }, { id: "mimo-v2-pro" }, { id: "mimo-unknown-sparse" }],
+				},
+			})
+
+			const models = await getXiaomiMiMoModels("xiaomi-key", "https://api.xiaomimimo.com/v1/")
+
+			expect(mockAxiosGet).toHaveBeenCalledWith("https://api.xiaomimimo.com/v1/models", {
+				headers: { "api-key": "xiaomi-key", Authorization: "Bearer xiaomi-key" },
+			})
+			expect(models["mimo-v2.5-pro"]).toMatchObject({
+				contextWindow: 1_000_000,
+				maxTokens: 128_000,
+				supportsPromptCache: true,
+				supportsReasoningBinary: true,
+				inputPrice: 0.435,
+				outputPrice: 0.87,
+				cacheReadsPrice: 0.0036,
+			})
+			expect(models["mimo-v2-pro"]).toMatchObject({
+				deprecated: true,
+				contextWindow: 1_000_000,
+				maxTokens: 128_000,
+				supportsPromptCache: true,
+				inputPrice: 0.435,
+				outputPrice: 0.87,
+				cacheReadsPrice: 0.0036,
+			})
+			expect(models["mimo-unknown-sparse"]).toEqual({
+				contextWindow: 128_000,
+				supportsPromptCache: false,
+			})
+		})
+	})
+
 	describe("getBedrockModels", () => {
 		it("returns no models without a configured region", async () => {
 			const models = await getBedrockModels({ provider: "bedrock" })
@@ -871,9 +910,10 @@ describe("static provider model fetchers", () => {
 				data: {
 					data: [
 						{
-							id: "kimi-k2-thinking",
+							id: "kimi-k2.6",
 							context_length: 262_144,
-							supports_image_in: false,
+							max_completion_tokens: 32_768,
+							supports_image_in: true,
 							supports_reasoning: true,
 						},
 						{
@@ -892,18 +932,23 @@ describe("static provider model fetchers", () => {
 			expect(mockAxiosGet).toHaveBeenCalledWith("https://api.moonshot.cn/v1/models", {
 				headers: { Authorization: "Bearer moonshot-key" },
 			})
-			expect(models["kimi-k2-thinking"]).toMatchObject({
+			expect(models["kimi-k2.6"]).toMatchObject({
 				contextWindow: 262_144,
-				maxTokens: 16_000,
-				supportsImages: false,
+				maxTokens: 32_768,
+				supportsImages: true,
 				supportsPromptCache: true,
+				supportsReasoningBinary: true,
 				preserveReasoning: true,
+				inputPrice: 0.95,
+				outputPrice: 4,
+				cacheReadsPrice: 0.16,
 			})
 			expect(models["kimi-dynamic-vision"]).toMatchObject({
 				contextWindow: 131_072,
 				maxTokens: 8_192,
 				supportsImages: true,
 				supportsPromptCache: false,
+				supportsReasoningBinary: false,
 				preserveReasoning: false,
 			})
 		})
@@ -958,8 +1003,8 @@ describe("static provider model fetchers", () => {
 				data: {
 					data: [
 						{
-							id: "MiniMax-M2.7",
-							display_name: "MiniMax M2.7",
+							id: "MiniMax-M3",
+							display_name: "MiniMax M3",
 							created_at: "2026-03-18T02:00:00Z",
 							type: "model",
 						},
@@ -969,7 +1014,7 @@ describe("static provider model fetchers", () => {
 							type: "model",
 						},
 					],
-					first_id: "MiniMax-M2.7",
+					first_id: "MiniMax-M3",
 					has_more: false,
 					last_id: "MiniMax-Dynamic-Model",
 				},
@@ -980,10 +1025,29 @@ describe("static provider model fetchers", () => {
 			expect(mockAxiosGet).toHaveBeenCalledWith("https://api.minimax.io/anthropic/v1/models", {
 				headers: { "X-Api-Key": "minimax-key" },
 			})
-			expect(models["MiniMax-M2.7"]).toMatchObject({
-				contextWindow: 204_800,
+			expect(models["MiniMax-M3"]).toMatchObject({
+				contextWindow: 1_000_000,
 				maxTokens: 16_384,
+				supportsImages: true,
 				supportsPromptCache: true,
+				inputPrice: 0.3,
+				outputPrice: 1.2,
+				cacheReadsPrice: 0.06,
+				longContextPricing: {
+					thresholdTokens: 512_000,
+					inputPriceMultiplier: 2,
+					outputPriceMultiplier: 2,
+					cacheReadsPriceMultiplier: 2,
+				},
+				tiers: [
+					{
+						name: "priority",
+						contextWindow: 1_000_000,
+						inputPrice: 0.45,
+						outputPrice: 1.8,
+						cacheReadsPrice: 0.09,
+					},
+				],
 			})
 			expect(models["MiniMax-Dynamic-Model"]).toMatchObject({
 				contextWindow: 128_000,

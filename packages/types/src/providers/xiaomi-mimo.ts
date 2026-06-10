@@ -41,23 +41,11 @@ const xiaomiMiMoV25Pricing = {
 } as const satisfies Partial<ModelInfo>
 
 const xiaomiMiMoV2ProPricing = {
-	...xiaomiMiMoPromptCachePricing,
-	inputPrice: 1,
-	outputPrice: 3,
-	cacheReadsPrice: 0.2,
-	longContextPricing: {
-		thresholdTokens: XIAOMI_MIMO_256K_CONTEXT_WINDOW,
-		inputPriceMultiplier: 2,
-		outputPriceMultiplier: 2,
-		cacheReadsPriceMultiplier: 2,
-	},
+	...xiaomiMiMoV25ProPricing,
 } as const satisfies Partial<ModelInfo>
 
 const xiaomiMiMoV2OmniPricing = {
-	...xiaomiMiMoPromptCachePricing,
-	inputPrice: 0.4,
-	outputPrice: 2,
-	cacheReadsPrice: 0.08,
+	...xiaomiMiMoV25Pricing,
 } as const satisfies Partial<ModelInfo>
 
 const xiaomiMiMoV2FlashPricing = {
@@ -76,18 +64,24 @@ export const xiaomiMiMoModels = {
 	"mimo-v2-pro": {
 		...xiaomiMiMoTextModelInfo,
 		...xiaomiMiMoV2ProPricing,
-		description: "Xiaomi MiMo V2 Pro model with 1M context and 128K maximum output.",
+		deprecated: true,
+		description:
+			"Legacy Xiaomi MiMo V2 Pro alias with 1M context and 128K maximum output. It now routes to mimo-v2.5-pro and is scheduled for retirement.",
 	},
 	"mimo-v2.5": {
 		...xiaomiMiMoTextModelInfo,
 		...xiaomiMiMoV25Pricing,
-		description: "Xiaomi MiMo V2.5 model with 1M context and 128K maximum output.",
+		supportsImages: true,
+		description: "Xiaomi MiMo V2.5 full-modal understanding model with 1M context and 128K maximum output.",
 	},
 	"mimo-v2-omni": {
 		...xiaomiMiMoTextModelInfo,
 		...xiaomiMiMoV2OmniPricing,
 		contextWindow: XIAOMI_MIMO_256K_CONTEXT_WINDOW,
-		description: "Xiaomi MiMo V2 Omni model with 256K context and 128K maximum output.",
+		supportsImages: true,
+		deprecated: true,
+		description:
+			"Legacy Xiaomi MiMo V2 Omni alias with 256K context and 128K maximum output. It now routes to mimo-v2.5 and is scheduled for retirement.",
 	},
 	"mimo-v2-flash": {
 		...xiaomiMiMoTextModelInfo,

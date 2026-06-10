@@ -68,6 +68,7 @@ import {
 	getOpenAiNativeModels,
 	getSambaNovaModels,
 	getXAIModels,
+	getXiaomiMiMoModels,
 } from "../static-provider-models"
 
 const mockGetLiteLLMModels = getLiteLLMModels as Mock<typeof getLiteLLMModels>
@@ -86,6 +87,7 @@ const mockGetFireworksModels = getFireworksModels as Mock<typeof getFireworksMod
 const mockGetBasetenModels = getBasetenModels as Mock<typeof getBasetenModels>
 const mockGetSambaNovaModels = getSambaNovaModels as Mock<typeof getSambaNovaModels>
 const mockGetMiniMaxModels = getMiniMaxModels as Mock<typeof getMiniMaxModels>
+const mockGetXiaomiMiMoModels = getXiaomiMiMoModels as Mock<typeof getXiaomiMiMoModels>
 
 const DUMMY_REQUESTY_KEY = "requesty-key-for-testing"
 
@@ -351,6 +353,7 @@ describe("getModels with new GetModelsOptions", () => {
 		mockGetOpenAiNativeModels.mockResolvedValue(mockModels)
 		mockGetMistralModels.mockResolvedValue(mockModels)
 		mockGetDeepSeekModels.mockResolvedValue(mockModels)
+		mockGetXiaomiMiMoModels.mockResolvedValue(mockModels)
 		mockGetGeminiModels.mockResolvedValue(mockModels)
 		mockGetMoonshotModels.mockResolvedValue(mockModels)
 		mockGetFireworksModels.mockResolvedValue(mockModels)
@@ -370,6 +373,9 @@ describe("getModels with new GetModelsOptions", () => {
 		).resolves.toEqual(mockModels)
 		await expect(
 			getModels({ provider: "deepseek", apiKey: "deepseek-key", baseUrl: "https://api.deepseek.com" }),
+		).resolves.toEqual(mockModels)
+		await expect(
+			getModels({ provider: "xiaomi-mimo", apiKey: "xiaomi-key", baseUrl: "https://api.xiaomimimo.com/v1" }),
 		).resolves.toEqual(mockModels)
 		await expect(
 			getModels({
@@ -393,6 +399,7 @@ describe("getModels with new GetModelsOptions", () => {
 		expect(mockGetOpenAiNativeModels).toHaveBeenCalledWith("openai-key", "https://api.openai.com/v1")
 		expect(mockGetMistralModels).toHaveBeenCalledWith("mistral-key", "https://api.mistral.ai/v1")
 		expect(mockGetDeepSeekModels).toHaveBeenCalledWith("deepseek-key", "https://api.deepseek.com")
+		expect(mockGetXiaomiMiMoModels).toHaveBeenCalledWith("xiaomi-key", "https://api.xiaomimimo.com/v1")
 		expect(mockGetGeminiModels).toHaveBeenCalledWith("gemini-key", "https://generativelanguage.googleapis.com")
 		expect(mockGetMoonshotModels).toHaveBeenCalledWith("moonshot-key", "https://api.moonshot.ai/v1")
 		expect(mockGetFireworksModels).toHaveBeenCalledWith("fireworks-key")

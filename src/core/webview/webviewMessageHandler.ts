@@ -1184,6 +1184,11 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			)
 			const mistralApiKey = getProviderValue("mistral", apiConfiguration.mistralApiKey, "mistralApiKey")
 			const deepSeekApiKey = getProviderValue("deepseek", apiConfiguration.deepSeekApiKey, "deepSeekApiKey")
+			const xiaomiMiMoApiKey = getProviderValue(
+				"xiaomi-mimo",
+				apiConfiguration.xiaomiMiMoApiKey,
+				"xiaomiMiMoApiKey",
+			)
 			const geminiApiKey = getProviderValue("gemini", apiConfiguration.geminiApiKey, "geminiApiKey")
 			const moonshotApiKey = getProviderValue("moonshot", apiConfiguration.moonshotApiKey, "moonshotApiKey")
 			const fireworksApiKey = getProviderValue("fireworks", apiConfiguration.fireworksApiKey, "fireworksApiKey")
@@ -1231,6 +1236,11 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				provider: "deepseek",
 				apiKey: deepSeekApiKey,
 				baseUrl: getProviderValue("deepseek", apiConfiguration.deepSeekBaseUrl, "deepSeekBaseUrl"),
+			})
+			addCandidateIf(xiaomiMiMoApiKey, "xiaomi-mimo", {
+				provider: "xiaomi-mimo",
+				apiKey: xiaomiMiMoApiKey,
+				baseUrl: getProviderValue("xiaomi-mimo", apiConfiguration.xiaomiMiMoBaseUrl, "xiaomiMiMoBaseUrl"),
 			})
 			addCandidateIf(geminiApiKey, "gemini", {
 				provider: "gemini",
