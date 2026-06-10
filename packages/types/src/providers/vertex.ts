@@ -1,4 +1,5 @@
 import type { ModelInfo } from "../model.js"
+import { geminiModels } from "./gemini.js"
 
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
 export type VertexModelId = keyof typeof vertexModels
@@ -6,106 +7,12 @@ export type VertexModelId = keyof typeof vertexModels
 export const vertexDefaultModelId: VertexModelId = "claude-sonnet-4-5@20250929"
 
 export const vertexModels = {
-	"gemini-3.1-pro-preview": {
-		maxTokens: 65_536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsReasoningEffort: ["low", "medium", "high"],
-		reasoningEffort: "low",
-
-		supportsTemperature: true,
-		defaultTemperature: 1,
-		inputPrice: 4.0,
-		outputPrice: 18.0,
-		cacheReadsPrice: 0.4,
-		cacheWritesPrice: 4.5,
-		tiers: [
-			{
-				contextWindow: 200_000,
-				inputPrice: 2.0,
-				outputPrice: 12.0,
-				cacheReadsPrice: 0.2,
-			},
-			{
-				contextWindow: Infinity,
-				inputPrice: 4.0,
-				outputPrice: 18.0,
-				cacheReadsPrice: 0.4,
-			},
-		],
-	},
-	"gemini-3.1-pro-preview-customtools": {
-		maxTokens: 65_536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsReasoningEffort: ["low", "medium", "high"],
-		reasoningEffort: "low",
-
-		supportsTemperature: true,
-		defaultTemperature: 1,
-		inputPrice: 4.0,
-		outputPrice: 18.0,
-		cacheReadsPrice: 0.4,
-		cacheWritesPrice: 4.5,
-		tiers: [
-			{
-				contextWindow: 200_000,
-				inputPrice: 2.0,
-				outputPrice: 12.0,
-				cacheReadsPrice: 0.2,
-			},
-			{
-				contextWindow: Infinity,
-				inputPrice: 4.0,
-				outputPrice: 18.0,
-				cacheReadsPrice: 0.4,
-			},
-		],
-	},
-	"gemini-3-pro-preview": {
-		maxTokens: 65_536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsReasoningEffort: ["low", "high"],
-		reasoningEffort: "low",
-
-		supportsTemperature: true,
-		defaultTemperature: 1,
-		inputPrice: 4.0,
-		outputPrice: 18.0,
-		cacheReadsPrice: 0.4,
-		tiers: [
-			{
-				contextWindow: 200_000,
-				inputPrice: 2.0,
-				outputPrice: 12.0,
-				cacheReadsPrice: 0.2,
-			},
-			{
-				contextWindow: Infinity,
-				inputPrice: 4.0,
-				outputPrice: 18.0,
-				cacheReadsPrice: 0.4,
-			},
-		],
-	},
-	"gemini-3-flash-preview": {
-		maxTokens: 65_536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsReasoningEffort: ["minimal", "low", "medium", "high"],
-		reasoningEffort: "medium",
-
-		supportsTemperature: true,
-		defaultTemperature: 1,
-		inputPrice: 0.5,
-		outputPrice: 3.0,
-		cacheReadsPrice: 0.05,
-	},
+	"gemini-3.1-pro-preview": geminiModels["gemini-3.1-pro-preview"],
+	"gemini-3.1-pro-preview-customtools": geminiModels["gemini-3.1-pro-preview-customtools"],
+	"gemini-3.5-flash": geminiModels["gemini-3.5-flash"],
+	"gemini-3.1-flash-lite": geminiModels["gemini-3.1-flash-lite"],
+	"gemini-3-pro-preview": geminiModels["gemini-3-pro-preview"],
+	"gemini-3-flash-preview": geminiModels["gemini-3-flash-preview"],
 	"gemini-2.5-flash-preview-05-20:thinking": {
 		maxTokens: 65_535,
 		contextWindow: 1_048_576,
@@ -117,6 +24,7 @@ export const vertexModels = {
 		maxThinkingTokens: 24_576,
 		supportsReasoningBudget: true,
 		requiredReasoningBudget: true,
+		deprecated: true,
 	},
 	"gemini-2.5-flash-preview-05-20": {
 		maxTokens: 65_535,
@@ -126,20 +34,9 @@ export const vertexModels = {
 
 		inputPrice: 0.15,
 		outputPrice: 0.6,
+		deprecated: true,
 	},
-	"gemini-2.5-flash": {
-		maxTokens: 64_000,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-
-		inputPrice: 0.3,
-		outputPrice: 2.5,
-		cacheReadsPrice: 0.075,
-		cacheWritesPrice: 1.0,
-		maxThinkingTokens: 24_576,
-		supportsReasoningBudget: true,
-	},
+	"gemini-2.5-flash": geminiModels["gemini-2.5-flash"],
 	"gemini-2.5-flash-preview-04-17:thinking": {
 		maxTokens: 65_535,
 		contextWindow: 1_048_576,
@@ -151,6 +48,7 @@ export const vertexModels = {
 		maxThinkingTokens: 24_576,
 		supportsReasoningBudget: true,
 		requiredReasoningBudget: true,
+		deprecated: true,
 	},
 	"gemini-2.5-flash-preview-04-17": {
 		maxTokens: 65_535,
@@ -160,62 +58,12 @@ export const vertexModels = {
 
 		inputPrice: 0.15,
 		outputPrice: 0.6,
+		deprecated: true,
 	},
-	"gemini-2.5-pro-preview-03-25": {
-		maxTokens: 65_535,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-
-		inputPrice: 2.5,
-		outputPrice: 15,
-	},
-	"gemini-2.5-pro-preview-05-06": {
-		maxTokens: 65_535,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-
-		inputPrice: 2.5,
-		outputPrice: 15,
-	},
-	"gemini-2.5-pro-preview-06-05": {
-		maxTokens: 65_535,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-
-		inputPrice: 2.5,
-		outputPrice: 15,
-		maxThinkingTokens: 32_768,
-		supportsReasoningBudget: true,
-	},
-	"gemini-2.5-pro": {
-		maxTokens: 64_000,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-
-		inputPrice: 2.5,
-		outputPrice: 15,
-		maxThinkingTokens: 32_768,
-		supportsReasoningBudget: true,
-		requiredReasoningBudget: true,
-		tiers: [
-			{
-				contextWindow: 200_000,
-				inputPrice: 1.25,
-				outputPrice: 10,
-				cacheReadsPrice: 0.31,
-			},
-			{
-				contextWindow: Infinity,
-				inputPrice: 2.5,
-				outputPrice: 15,
-				cacheReadsPrice: 0.625,
-			},
-		],
-	},
+	"gemini-2.5-pro-preview-03-25": geminiModels["gemini-2.5-pro-preview-03-25"],
+	"gemini-2.5-pro-preview-05-06": geminiModels["gemini-2.5-pro-preview-05-06"],
+	"gemini-2.5-pro-preview-06-05": geminiModels["gemini-2.5-pro-preview-06-05"],
+	"gemini-2.5-pro": geminiModels["gemini-2.5-pro"],
 	"gemini-2.5-pro-exp-03-25": {
 		maxTokens: 65_535,
 		contextWindow: 1_048_576,
@@ -224,6 +72,7 @@ export const vertexModels = {
 
 		inputPrice: 0,
 		outputPrice: 0,
+		deprecated: true,
 	},
 	"gemini-2.0-pro-exp-02-05": {
 		maxTokens: 8192,
@@ -233,6 +82,7 @@ export const vertexModels = {
 
 		inputPrice: 0,
 		outputPrice: 0,
+		deprecated: true,
 	},
 	"gemini-2.0-flash-001": {
 		maxTokens: 8192,
@@ -242,6 +92,7 @@ export const vertexModels = {
 
 		inputPrice: 0.15,
 		outputPrice: 0.6,
+		deprecated: true,
 	},
 	"gemini-2.0-flash-lite-001": {
 		maxTokens: 8192,
@@ -251,6 +102,7 @@ export const vertexModels = {
 
 		inputPrice: 0.075,
 		outputPrice: 0.3,
+		deprecated: true,
 	},
 	"gemini-2.0-flash-thinking-exp-01-21": {
 		maxTokens: 8192,
@@ -260,6 +112,7 @@ export const vertexModels = {
 
 		inputPrice: 0,
 		outputPrice: 0,
+		deprecated: true,
 	},
 	"gemini-1.5-flash-002": {
 		maxTokens: 8192,
@@ -269,6 +122,7 @@ export const vertexModels = {
 
 		inputPrice: 0.075,
 		outputPrice: 0.3,
+		deprecated: true,
 	},
 	"gemini-1.5-pro-002": {
 		maxTokens: 8192,
@@ -278,6 +132,12 @@ export const vertexModels = {
 
 		inputPrice: 1.25,
 		outputPrice: 5,
+		deprecated: true,
+	},
+	"gemini-2.5-flash-lite": geminiModels["gemini-2.5-flash-lite"],
+	"gemini-2.5-flash-lite-preview-06-17": {
+		...geminiModels["gemini-2.5-flash-lite"],
+		deprecated: true,
 	},
 	"claude-fable-5": {
 		maxTokens: 128_000,
@@ -493,19 +353,6 @@ export const vertexModels = {
 		outputPrice: 1.25,
 		cacheWritesPrice: 0.3,
 		cacheReadsPrice: 0.03,
-	},
-	"gemini-2.5-flash-lite-preview-06-17": {
-		maxTokens: 64_000,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-
-		inputPrice: 0.1,
-		outputPrice: 0.4,
-		cacheReadsPrice: 0.025,
-		cacheWritesPrice: 1.0,
-		maxThinkingTokens: 24_576,
-		supportsReasoningBudget: true,
 	},
 	"llama-4-maverick-17b-128e-instruct-maas": {
 		maxTokens: 8192,

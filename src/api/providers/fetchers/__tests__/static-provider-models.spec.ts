@@ -2,6 +2,8 @@
 
 import axios from "axios"
 
+import { geminiModels } from "@roo-code/types"
+
 import {
 	getAnthropicModels,
 	getBasetenModels,
@@ -306,9 +308,9 @@ describe("static provider model fetchers", () => {
 					data: {
 						models: [
 							{
-								name: "models/gemini-3.1-pro-preview",
-								displayName: "Gemini 3.1 Pro Preview",
-								description: "Dynamic Gemini Pro description",
+								name: "models/gemini-3.5-flash",
+								displayName: "Gemini 3.5 Flash",
+								description: "Dynamic Gemini Flash description",
 								inputTokenLimit: 1_048_576,
 								outputTokenLimit: 65_536,
 								supportedGenerationMethods: ["generateContent", "countTokens"],
@@ -348,14 +350,16 @@ describe("static provider model fetchers", () => {
 			expect(mockAxiosGet).toHaveBeenNthCalledWith(2, "https://generativelanguage.googleapis.com/v1beta/models", {
 				params: { key: "gemini-key", pageSize: 1000, pageToken: "next-page" },
 			})
-			expect(models["gemini-3.1-pro-preview"]).toMatchObject({
+			expect(models["gemini-3.5-flash"]).toMatchObject({
 				contextWindow: 1_048_576,
 				maxTokens: 65_536,
-				description: "Dynamic Gemini Pro description",
+				description: "Dynamic Gemini Flash description",
 				supportsPromptCache: true,
-				supportsReasoningEffort: ["low", "medium", "high"],
-				inputPrice: 4,
-				outputPrice: 18,
+				supportsReasoningEffort: ["minimal", "low", "medium", "high"],
+				reasoningEffort: "medium",
+				inputPrice: 1.5,
+				outputPrice: 9,
+				cacheReadsPrice: 0.15,
 				supportsTemperature: true,
 				defaultTemperature: 1,
 			})
@@ -368,6 +372,51 @@ describe("static provider model fetchers", () => {
 				defaultTemperature: 0.7,
 			})
 			expect(models["text-embedding-004"]).toBeUndefined()
+		})
+
+		it("uses fallback defaults for sparse dynamic Gemini responses", async () => {
+			mockAxiosGet.mockResolvedValueOnce({
+				data: {
+					models: [
+						{
+							name: "models/gemini-sparse-dynamic",
+							supportedGenerationMethods: ["generateContent"],
+						},
+					],
+				},
+			})
+
+			const models = await getGeminiModels("gemini-key")
+
+			expect(models["gemini-sparse-dynamic"]).toEqual({
+				contextWindow: 128_000,
+				supportsPromptCache: false,
+			})
+		})
+
+		it("preserves richer curated Gemini metadata when dynamic responses omit optional capability and pricing fields", async () => {
+			mockAxiosGet.mockResolvedValueOnce({
+				data: {
+					models: [
+						{
+							name: "models/gemini-3.1-pro-preview",
+							supportedGenerationMethods: ["generateContent"],
+						},
+					],
+				},
+			})
+
+			const models = await getGeminiModels("gemini-key")
+
+			expect(models["gemini-3.1-pro-preview"]).toMatchObject({
+				...geminiModels["gemini-3.1-pro-preview"],
+				contextWindow: 1_048_576,
+				supportsPromptCache: true,
+				supportsReasoningEffort: ["low", "medium", "high"],
+				reasoningEffort: "high",
+				inputPrice: 4,
+				outputPrice: 18,
+			})
 		})
 	})
 
