@@ -15,6 +15,7 @@ import type { ApiHandlerOptions } from "../../shared/api"
 
 import { ApiStream } from "../transform/stream"
 import { getModelParams } from "../transform/model-params"
+import { getAnthropicAdaptiveThinkingEffort } from "../transform/reasoning"
 import { filterNonAnthropicBlocks } from "../transform/anthropic-filter"
 import { handleProviderError } from "./utils/error-handler"
 
@@ -58,19 +59,11 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 			maxTokens,
 			temperature,
 			reasoning: thinking,
+			reasoningEffort,
 		} = this.getModel()
 
 		// Filter out non-Anthropic blocks (reasoning, thoughtSignature, etc.) before sending to the API
 		const sanitizedMessages = filterNonAnthropicBlocks(messages)
-
-		// Add 1M context beta flag if enabled for beta-only supported models (Claude Sonnet 4/4.5).
-		// Claude Sonnet 4.6 and Opus 4.6 have generally available 1M context at standard pricing.
-		if (
-			(modelId === "claude-sonnet-4-20250514" || modelId === "claude-sonnet-4-5") &&
-			this.options.anthropicBeta1MContext
-		) {
-			betas.push("context-1m-2025-08-07")
-		}
 
 		const nativeToolParams = {
 			tools: convertOpenAIToolsToAnthropic(metadata?.tools ?? []),
@@ -78,25 +71,36 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 		}
 		const samplingParams = temperature === undefined ? {} : { temperature }
 		const thinkingParam = thinking as any
-		const adaptiveThinkingParams =
-			thinking?.type === "adaptive" && info.adaptiveThinkingEffort
-				? { output_config: { effort: info.adaptiveThinkingEffort } }
-				: {}
+		const adaptiveThinkingEffort =
+			thinking?.type === "adaptive"
+				? getAnthropicAdaptiveThinkingEffort({ model: info, reasoningEffort })
+				: undefined
+		const adaptiveThinkingParams = adaptiveThinkingEffort
+			? { output_config: { effort: adaptiveThinkingEffort } }
+			: {}
 
 		switch (modelId) {
+			case "claude-fable-5":
+			case "claude-opus-4-8":
 			case "claude-sonnet-4-6":
+			case "claude-sonnet-4-5-20250929":
 			case "claude-sonnet-4-5":
 			case "claude-sonnet-4-20250514":
+			case "claude-sonnet-4-0":
 			case "claude-opus-4-6":
 			case "claude-opus-4-7":
 			case "claude-opus-4-5-20251101":
+			case "claude-opus-4-5":
 			case "claude-opus-4-1-20250805":
+			case "claude-opus-4-1":
 			case "claude-opus-4-20250514":
+			case "claude-opus-4-0":
 			case "claude-3-7-sonnet-20250219":
 			case "claude-3-5-sonnet-20241022":
 			case "claude-3-5-haiku-20241022":
 			case "claude-3-opus-20240229":
 			case "claude-haiku-4-5-20251001":
+			case "claude-haiku-4-5":
 			case "claude-3-haiku-20240307": {
 				/**
 				 * The latest message will be the new user message, one before
@@ -151,19 +155,27 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 
 						// Then check for models that support prompt caching
 						switch (modelId) {
+							case "claude-fable-5":
+							case "claude-opus-4-8":
 							case "claude-sonnet-4-6":
+							case "claude-sonnet-4-5-20250929":
 							case "claude-sonnet-4-5":
 							case "claude-sonnet-4-20250514":
+							case "claude-sonnet-4-0":
 							case "claude-opus-4-6":
 							case "claude-opus-4-7":
 							case "claude-opus-4-5-20251101":
+							case "claude-opus-4-5":
 							case "claude-opus-4-1-20250805":
+							case "claude-opus-4-1":
 							case "claude-opus-4-20250514":
+							case "claude-opus-4-0":
 							case "claude-3-7-sonnet-20250219":
 							case "claude-3-5-sonnet-20241022":
 							case "claude-3-5-haiku-20241022":
 							case "claude-3-opus-20240229":
 							case "claude-haiku-4-5-20251001":
+							case "claude-haiku-4-5":
 							case "claude-3-haiku-20240307":
 								betas.push("prompt-caching-2024-07-31")
 								return { headers: { "anthropic-beta": betas.join(",") } }
@@ -320,23 +332,6 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 		const modelId = this.options.apiModelId
 		let id = modelId && modelId in anthropicModels ? (modelId as AnthropicModelId) : anthropicDefaultModelId
 		let info: ModelInfo = anthropicModels[id]
-
-		// If 1M context beta is enabled for beta-only supported models, update the model info.
-		// Claude Sonnet 4.6 and Opus 4.6 are GA at 1M context in their base metadata.
-		if ((id === "claude-sonnet-4-20250514" || id === "claude-sonnet-4-5") && this.options.anthropicBeta1MContext) {
-			// Use the tier pricing for 1M context
-			const tier = info.tiers?.[0]
-			if (tier) {
-				info = {
-					...info,
-					contextWindow: tier.contextWindow,
-					inputPrice: tier.inputPrice,
-					outputPrice: tier.outputPrice,
-					cacheWritesPrice: tier.cacheWritesPrice,
-					cacheReadsPrice: tier.cacheReadsPrice,
-				}
-			}
-		}
 
 		const params = getModelParams({
 			format: "anthropic",

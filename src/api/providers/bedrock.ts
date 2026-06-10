@@ -64,7 +64,7 @@ interface BedrockAdditionalModelFields {
 		budget_tokens?: number
 	}
 	output_config?: {
-		effort?: "low" | "medium" | "high" | "xhigh"
+		effort?: "low" | "medium" | "high" | "xhigh" | "max"
 	}
 	anthropic_beta?: string[]
 	[key: string]: any // Add index signature to be compatible with DocumentType
@@ -406,13 +406,14 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			})
 		} else if (modelConfig.info.supportsReasoningAdaptive && this.options.enableReasoningEffort) {
 			thinkingEnabled = true
-			const adaptiveThinkingEffort =
+			const selectedAdaptiveThinkingEffort =
 				this.options.reasoningEffort &&
 				this.options.reasoningEffort !== "disable" &&
 				this.options.reasoningEffort !== "none" &&
 				this.options.reasoningEffort !== "minimal"
 					? this.options.reasoningEffort
 					: modelConfig.info.adaptiveThinkingEffort
+			const adaptiveThinkingEffort = selectedAdaptiveThinkingEffort
 			additionalModelRequestFields = {
 				thinking: { type: "adaptive" },
 				...(adaptiveThinkingEffort && { output_config: { effort: adaptiveThinkingEffort } }),
@@ -421,7 +422,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			logger.info("Adaptive thinking enabled for Bedrock request", {
 				ctx: "bedrock",
 				modelId: modelConfig.id,
-				thinking: additionalModelRequestFields.thinking,
+				thinking: { type: "adaptive" },
 			})
 		}
 

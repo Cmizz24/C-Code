@@ -200,7 +200,7 @@ const anthropicSchema = apiModelIdProviderModelSchema.extend({
 	apiKey: z.string().optional(),
 	anthropicBaseUrl: z.string().optional(),
 	anthropicUseAuthToken: z.boolean().optional(),
-	anthropicBeta1MContext: z.boolean().optional(), // Enable 'context-1m-2025-08-07' beta for 1M context window.
+	anthropicBeta1MContext: z.boolean().optional(), // Deprecated no-op retained for backward compatibility.
 })
 
 const openRouterSchema = baseProviderSettingsSchema.extend({
@@ -235,7 +235,7 @@ const vertexSchema = apiModelIdProviderModelSchema.extend({
 	vertexJsonCredentials: z.string().optional(),
 	vertexProjectId: z.string().optional(),
 	vertexRegion: z.string().optional(),
-	vertex1MContext: z.boolean().optional(), // Enable 'context-1m-2025-08-07' beta for 1M context window.
+	vertex1MContext: z.boolean().optional(), // Deprecated no-op retained for backward compatibility.
 })
 
 const openAiSchema = baseProviderSettingsSchema.extend({

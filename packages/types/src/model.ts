@@ -23,17 +23,34 @@ export type ReasoningEffortWithMinimal = z.infer<typeof reasoningEffortWithMinim
  * Extended Reasoning Effort (includes "none" and "minimal")
  * Note: "disable" is a UI/control value, not a value sent as effort
  */
-export const reasoningEffortsExtended = ["none", "minimal", "low", "medium", "high", "xhigh"] as const
+export const reasoningEffortsExtended = ["none", "minimal", "low", "medium", "high", "xhigh", "max"] as const
 
 export const reasoningEffortExtendedSchema = z.enum(reasoningEffortsExtended)
 
 export type ReasoningEffortExtended = z.infer<typeof reasoningEffortExtendedSchema>
 
+export const adaptiveThinkingEfforts = ["low", "medium", "high", "xhigh", "max"] as const
+
+export const adaptiveThinkingEffortSchema = z.enum(adaptiveThinkingEfforts)
+
+export type AdaptiveThinkingEffort = z.infer<typeof adaptiveThinkingEffortSchema>
+
 /**
  * Reasoning Effort user setting (includes "disable")
  */
-export const reasoningEffortSettingValues = ["disable", "none", "minimal", "low", "medium", "high", "xhigh"] as const
+export const reasoningEffortSettingValues = [
+	"disable",
+	"none",
+	"minimal",
+	"low",
+	"medium",
+	"high",
+	"xhigh",
+	"max",
+] as const
 export const reasoningEffortSettingSchema = z.enum(reasoningEffortSettingValues)
+
+const reasoningEffortCapabilitySchema = z.enum(reasoningEffortSettingValues)
 
 /**
  * Verbosity
@@ -94,13 +111,9 @@ export const modelInfoSchema = z.object({
 	supportsTemperature: z.boolean().optional(),
 	defaultTemperature: z.number().optional(),
 	requiredReasoningBudget: z.boolean().optional(),
-	supportsReasoningEffort: z
-		.union([z.boolean(), z.array(z.enum(["disable", "none", "minimal", "low", "medium", "high", "xhigh"]))])
-		.optional(),
-	// Optional default effort for adaptive thinking providers. Anthropic Opus 4.7
-	// currently supports low/medium/high/xhigh; "max" is provider-native but is not
-	// exposed in the shared user setting enum yet.
-	adaptiveThinkingEffort: z.enum(["low", "medium", "high", "xhigh"]).optional(),
+	supportsReasoningEffort: z.union([z.boolean(), z.array(reasoningEffortCapabilitySchema)]).optional(),
+	// Optional default effort for adaptive thinking providers.
+	adaptiveThinkingEffort: adaptiveThinkingEffortSchema.optional(),
 	requiredReasoningEffort: z.boolean().optional(),
 	preserveReasoning: z.boolean().optional(),
 	supportedParameters: z.array(modelParametersSchema).optional(),

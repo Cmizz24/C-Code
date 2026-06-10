@@ -28,7 +28,6 @@ import {
 	litellmDefaultModelInfo,
 	lMStudioDefaultModelInfo,
 	BEDROCK_1M_CONTEXT_MODEL_IDS,
-	VERTEX_1M_CONTEXT_MODEL_IDS,
 	isRetiredProvider,
 	getProviderDefaultModelId,
 } from "@roo-code/types"
@@ -277,23 +276,6 @@ function getSelectedModel({
 			const id = apiConfiguration.apiModelId ?? defaultModelId
 			const baseInfo = vertexModels[id as keyof typeof vertexModels]
 
-			// Apply 1M context for supported Claude 4 models when enabled
-			if (VERTEX_1M_CONTEXT_MODEL_IDS.includes(id as any) && apiConfiguration.vertex1MContext && baseInfo) {
-				const modelInfo: ModelInfo = baseInfo
-				const tier = modelInfo.tiers?.[0]
-				if (tier) {
-					const info: ModelInfo = {
-						...modelInfo,
-						contextWindow: tier.contextWindow,
-						inputPrice: tier.inputPrice,
-						outputPrice: tier.outputPrice,
-						cacheWritesPrice: tier.cacheWritesPrice,
-						cacheReadsPrice: tier.cacheReadsPrice,
-					}
-					return { id, info }
-				}
-			}
-
 			return { id, info: baseInfo }
 		}
 		case "gemini": {
@@ -420,41 +402,6 @@ function getSelectedModel({
 				provider === "anthropic"
 					? mergeStaticAndRouterModelInfo("anthropic", routerModels, id, anthropicModels)
 					: anthropicModels[id as keyof typeof anthropicModels]
-
-			// Apply 1M context beta tier pricing for supported Claude 4 models
-			if (
-				provider === "anthropic" &&
-				(id === "claude-sonnet-4-20250514" ||
-					id === "claude-sonnet-4-5" ||
-					id === "claude-sonnet-4-6" ||
-					id === "claude-opus-4-6") &&
-				apiConfiguration.anthropicBeta1MContext &&
-				baseInfo
-			) {
-				// Type assertion since supported Claude 4 models include 1M context pricing tiers.
-				const modelWithTiers = baseInfo as typeof baseInfo & {
-					tiers?: Array<{
-						contextWindow: number
-						inputPrice?: number
-						outputPrice?: number
-						cacheWritesPrice?: number
-						cacheReadsPrice?: number
-					}>
-				}
-				const tier = modelWithTiers.tiers?.[0]
-				if (tier) {
-					// Create a new ModelInfo object with updated values
-					const info: ModelInfo = {
-						...baseInfo,
-						contextWindow: tier.contextWindow,
-						inputPrice: tier.inputPrice ?? baseInfo.inputPrice,
-						outputPrice: tier.outputPrice ?? baseInfo.outputPrice,
-						cacheWritesPrice: tier.cacheWritesPrice ?? baseInfo.cacheWritesPrice,
-						cacheReadsPrice: tier.cacheReadsPrice ?? baseInfo.cacheReadsPrice,
-					}
-					return { id, info }
-				}
-			}
 
 			return { id, info: baseInfo }
 		}

@@ -8,7 +8,6 @@ import {
 	vertexDefaultModelId,
 	vertexModels,
 	ANTHROPIC_DEFAULT_MAX_TOKENS,
-	VERTEX_1M_CONTEXT_MODEL_IDS,
 } from "@roo-code/types"
 import { safeJsonParse } from "@roo-code/core"
 
@@ -17,6 +16,7 @@ import { ApiHandlerOptions } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { addCacheBreakpoints } from "../transform/caching/vertex"
 import { getModelParams } from "../transform/model-params"
+import { getAnthropicAdaptiveThinkingEffort } from "../transform/reasoning"
 import { filterNonAnthropicBlocks } from "../transform/anthropic-filter"
 import {
 	convertOpenAIToolsToAnthropic,
@@ -68,7 +68,7 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 		messages: Anthropic.Messages.MessageParam[],
 		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
-		let { id, info, temperature, maxTokens, reasoning: thinking, betas } = this.getModel()
+		let { id, info, temperature, maxTokens, reasoning: thinking, reasoningEffort } = this.getModel()
 
 		const { supportsPromptCache } = info
 
@@ -81,10 +81,13 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 		}
 		const samplingParams = temperature === undefined ? {} : { temperature }
 		const thinkingParam = thinking as any
-		const adaptiveThinkingParams =
-			thinking?.type === "adaptive" && info.adaptiveThinkingEffort
-				? { output_config: { effort: info.adaptiveThinkingEffort } }
-				: {}
+		const adaptiveThinkingEffort =
+			thinking?.type === "adaptive"
+				? getAnthropicAdaptiveThinkingEffort({ model: info, reasoningEffort })
+				: undefined
+		const adaptiveThinkingParams = adaptiveThinkingEffort
+			? { output_config: { effort: adaptiveThinkingEffort } }
+			: {}
 
 		/**
 		 * Vertex API has specific limitations for prompt caching:
@@ -114,10 +117,7 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 			...nativeToolParams,
 		}
 
-		// and prompt caching
-		const requestOptions = betas?.length ? { headers: { "anthropic-beta": betas.join(",") } } : undefined
-
-		const stream = await this.client.messages.create(params, requestOptions)
+		const stream = await this.client.messages.create(params)
 
 		for await (const chunk of stream) {
 			switch (chunk.type) {
@@ -217,27 +217,6 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 		let id = modelId && modelId in vertexModels ? (modelId as VertexModelId) : vertexDefaultModelId
 		let info: ModelInfo = vertexModels[id]
 
-		// Check if 1M context beta should be enabled for supported models
-		const supports1MContext = VERTEX_1M_CONTEXT_MODEL_IDS.includes(
-			id as (typeof VERTEX_1M_CONTEXT_MODEL_IDS)[number],
-		)
-		const enable1MContext = supports1MContext && this.options.vertex1MContext
-
-		// If 1M context beta is enabled, update the model info with tier pricing
-		if (enable1MContext) {
-			const tier = info.tiers?.[0]
-			if (tier) {
-				info = {
-					...info,
-					contextWindow: tier.contextWindow,
-					inputPrice: tier.inputPrice,
-					outputPrice: tier.outputPrice,
-					cacheWritesPrice: tier.cacheWritesPrice,
-					cacheReadsPrice: tier.cacheReadsPrice,
-				}
-			}
-		}
-
 		const params = getModelParams({
 			format: "anthropic",
 			modelId: id,
@@ -246,14 +225,6 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 			defaultTemperature: 0,
 		})
 
-		// Build betas array for request headers
-		const betas: string[] = []
-
-		// Add 1M context beta flag if enabled for supported models
-		if (enable1MContext) {
-			betas.push("context-1m-2025-08-07")
-		}
-
 		// The `:thinking` suffix indicates that the model is a "Hybrid"
 		// reasoning model and that reasoning is required to be enabled.
 		// The actual model ID honored by Anthropic's API does not have this
@@ -261,7 +232,6 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 		return {
 			id: id.endsWith(":thinking") ? id.replace(":thinking", "") : id,
 			info,
-			betas: betas.length > 0 ? betas : undefined,
 			...params,
 		}
 	}
@@ -274,14 +244,18 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 				temperature,
 				maxTokens = ANTHROPIC_DEFAULT_MAX_TOKENS,
 				reasoning: thinking,
+				reasoningEffort,
 			} = this.getModel()
 			const { supportsPromptCache } = info
 			const samplingParams = temperature === undefined ? {} : { temperature }
 			const thinkingParam = thinking as any
-			const adaptiveThinkingParams =
-				thinking?.type === "adaptive" && info.adaptiveThinkingEffort
-					? { output_config: { effort: info.adaptiveThinkingEffort } }
-					: {}
+			const adaptiveThinkingEffort =
+				thinking?.type === "adaptive"
+					? getAnthropicAdaptiveThinkingEffort({ model: info, reasoningEffort })
+					: undefined
+			const adaptiveThinkingParams = adaptiveThinkingEffort
+				? { output_config: { effort: adaptiveThinkingEffort } }
+				: {}
 
 			const params: Anthropic.Messages.MessageCreateParamsNonStreaming = {
 				model: id,

@@ -279,51 +279,50 @@ export const vertexModels = {
 		inputPrice: 1.25,
 		outputPrice: 5,
 	},
-	"claude-sonnet-4@20250514": {
-		maxTokens: 8192,
-		contextWindow: 200_000, // Default 200K, extendable to 1M with beta flag 'context-1m-2025-08-07'
+	"claude-fable-5": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
-		inputPrice: 3.0, // $3 per million input tokens (≤200K context)
-		outputPrice: 15.0, // $15 per million output tokens (≤200K context)
+		inputPrice: 10.0,
+		outputPrice: 50.0,
+		cacheWritesPrice: 12.5,
+		cacheReadsPrice: 1.0,
+		supportsReasoningAdaptive: true,
+		supportsReasoningEffort: ["low", "medium", "high", "xhigh", "max"],
+		adaptiveThinkingEffort: "high",
+		requiredReasoningEffort: true,
+		supportsTemperature: false,
+	},
+	"claude-opus-4-8": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		supportsReasoningAdaptive: true,
+		supportsReasoningEffort: ["disable", "low", "medium", "high", "xhigh", "max"],
+		adaptiveThinkingEffort: "high",
+		supportsTemperature: false,
+	},
+	"claude-sonnet-4@20250514": {
+		maxTokens: 64_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0, // $3 per million input tokens
+		outputPrice: 15.0, // $15 per million output tokens
 		cacheWritesPrice: 3.75, // $3.75 per million tokens
 		cacheReadsPrice: 0.3, // $0.30 per million tokens
 		supportsReasoningBudget: true,
-		// Tiered pricing for extended context (requires beta flag 'context-1m-2025-08-07')
-		tiers: [
-			{
-				contextWindow: 1_000_000, // 1M tokens with beta flag
-				inputPrice: 6.0, // $6 per million input tokens (>200K context)
-				outputPrice: 22.5, // $22.50 per million output tokens (>200K context)
-				cacheWritesPrice: 7.5, // $7.50 per million tokens (>200K context)
-				cacheReadsPrice: 0.6, // $0.60 per million tokens (>200K context)
-			},
-		],
+		deprecated: true,
 	},
 	"claude-sonnet-4-5@20250929": {
-		maxTokens: 8192,
-		contextWindow: 200_000, // Default 200K, extendable to 1M with beta flag 'context-1m-2025-08-07'
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 3.0, // $3 per million input tokens (≤200K context)
-		outputPrice: 15.0, // $15 per million output tokens (≤200K context)
-		cacheWritesPrice: 3.75, // $3.75 per million tokens
-		cacheReadsPrice: 0.3, // $0.30 per million tokens
-		supportsReasoningBudget: true,
-		// Tiered pricing for extended context (requires beta flag 'context-1m-2025-08-07')
-		tiers: [
-			{
-				contextWindow: 1_000_000, // 1M tokens with beta flag
-				inputPrice: 6.0, // $6 per million input tokens (>200K context)
-				outputPrice: 22.5, // $22.50 per million output tokens (>200K context)
-				cacheWritesPrice: 7.5, // $7.50 per million tokens (>200K context)
-				cacheReadsPrice: 0.6, // $0.60 per million tokens (>200K context)
-			},
-		],
-	},
-	"claude-sonnet-4-6": {
-		maxTokens: 8192,
-		contextWindow: 1_000_000,
+		maxTokens: 64_000,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 3.0, // $3 per million input tokens
@@ -332,8 +331,22 @@ export const vertexModels = {
 		cacheReadsPrice: 0.3, // $0.30 per million tokens
 		supportsReasoningBudget: true,
 	},
+	"claude-sonnet-4-6": {
+		maxTokens: 64_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0, // $3 per million input tokens
+		outputPrice: 15.0, // $15 per million output tokens
+		cacheWritesPrice: 3.75, // $3.75 per million tokens
+		cacheReadsPrice: 0.3, // $0.30 per million tokens
+		supportsReasoningAdaptive: true,
+		supportsReasoningEffort: ["disable", "low", "medium", "high", "max"],
+		adaptiveThinkingEffort: "high",
+		supportsTemperature: false,
+	},
 	"claude-haiku-4-5@20251001": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -344,7 +357,7 @@ export const vertexModels = {
 		supportsReasoningBudget: true,
 	},
 	"claude-opus-4-6": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -352,7 +365,10 @@ export const vertexModels = {
 		outputPrice: 25.0, // $25 per million output tokens
 		cacheWritesPrice: 6.25, // $6.25 per million tokens
 		cacheReadsPrice: 0.5, // $0.50 per million tokens
-		supportsReasoningBudget: true,
+		supportsReasoningAdaptive: true,
+		supportsReasoningEffort: ["disable", "low", "medium", "high", "max"],
+		adaptiveThinkingEffort: "high",
+		supportsTemperature: false,
 	},
 	"claude-opus-4-7": {
 		maxTokens: 128_000,
@@ -364,12 +380,12 @@ export const vertexModels = {
 		cacheWritesPrice: 6.25, // $6.25 per million tokens
 		cacheReadsPrice: 0.5, // $0.50 per million tokens
 		supportsReasoningAdaptive: true,
-		supportsReasoningEffort: ["disable", "low", "medium", "high", "xhigh"],
-		adaptiveThinkingEffort: "medium",
+		supportsReasoningEffort: ["disable", "low", "medium", "high", "xhigh", "max"],
+		adaptiveThinkingEffort: "high",
 		supportsTemperature: false,
 	},
 	"claude-opus-4-5@20251101": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -380,7 +396,7 @@ export const vertexModels = {
 		supportsReasoningBudget: true,
 	},
 	"claude-opus-4-1@20250805": {
-		maxTokens: 8192,
+		maxTokens: 32_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -389,9 +405,10 @@ export const vertexModels = {
 		cacheWritesPrice: 18.75,
 		cacheReadsPrice: 1.5,
 		supportsReasoningBudget: true,
+		deprecated: true,
 	},
 	"claude-opus-4@20250514": {
-		maxTokens: 8192,
+		maxTokens: 32_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -399,6 +416,7 @@ export const vertexModels = {
 		outputPrice: 75.0,
 		cacheWritesPrice: 18.75,
 		cacheReadsPrice: 1.5,
+		supportsReasoningBudget: true,
 		deprecated: true,
 	},
 	"claude-3-7-sonnet@20250219:thinking": {
@@ -563,9 +581,9 @@ export const vertexModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
-// Vertex AI models that support 1M context window beta
-// Uses the same beta header 'context-1m-2025-08-07' as Anthropic and Bedrock
-export const VERTEX_1M_CONTEXT_MODEL_IDS = ["claude-sonnet-4@20250514", "claude-sonnet-4-5@20250929"] as const
+// Current Claude-on-Vertex 1M-context models expose the 1M window directly in metadata;
+// no current Vertex Claude model requires the retired 1M beta header.
+export const VERTEX_1M_CONTEXT_MODEL_IDS = [] as readonly string[]
 
 export const VERTEX_REGIONS = [
 	{ value: "global", label: "global" },

@@ -2,7 +2,7 @@ import { BetaThinkingConfigParam } from "@anthropic-ai/sdk/resources/beta"
 import OpenAI from "openai"
 import type { GenerateContentConfig } from "@google/genai"
 
-import type { ModelInfo, ProviderSettings, ReasoningEffortExtended } from "@roo-code/types"
+import type { AdaptiveThinkingEffort, ModelInfo, ProviderSettings, ReasoningEffortExtended } from "@roo-code/types"
 
 import { shouldUseReasoningBudget, shouldUseReasoningEffort } from "../../shared/api"
 
@@ -18,6 +18,31 @@ export type RooReasoningParams = {
 }
 
 export type AnthropicReasoningParams = BetaThinkingConfigParam | { type: "adaptive" }
+
+const ANTHROPIC_ADAPTIVE_THINKING_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
+
+function isAnthropicAdaptiveThinkingEffort(value: unknown): value is AdaptiveThinkingEffort {
+	return typeof value === "string" && ANTHROPIC_ADAPTIVE_THINKING_EFFORTS.includes(value as AdaptiveThinkingEffort)
+}
+
+export function getAnthropicAdaptiveThinkingEffort({
+	model,
+	reasoningEffort,
+}: {
+	model: ModelInfo
+	reasoningEffort?: ReasoningEffortExtended | "disable"
+}): AdaptiveThinkingEffort | undefined {
+	const supported = model.supportsReasoningEffort
+
+	if (
+		isAnthropicAdaptiveThinkingEffort(reasoningEffort) &&
+		(supported === true || !Array.isArray(supported) || (supported as readonly string[]).includes(reasoningEffort))
+	) {
+		return reasoningEffort
+	}
+
+	return model.adaptiveThinkingEffort
+}
 
 export type OpenAiReasoningParams = { reasoning_effort: OpenAI.Chat.ChatCompletionCreateParams["reasoning_effort"] }
 
@@ -113,8 +138,13 @@ export const getAnthropicReasoning = ({
 		return { type: "enabled", budget_tokens: reasoningBudget! }
 	}
 
-	if (model.supportsReasoningAdaptive && settings?.enableReasoningEffort) {
-		return { type: "adaptive" }
+	if (model.supportsReasoningAdaptive) {
+		const hasSelectedEffort = settings?.reasoningEffort !== undefined
+		const canUseSelectedEffort = !hasSelectedEffort || shouldUseReasoningEffort({ model, settings })
+
+		if (model.requiredReasoningEffort || (settings?.enableReasoningEffort === true && canUseSelectedEffort)) {
+			return { type: "adaptive" }
+		}
 	}
 
 	return undefined

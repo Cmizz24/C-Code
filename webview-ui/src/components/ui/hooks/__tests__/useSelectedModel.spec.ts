@@ -405,7 +405,7 @@ describe("useSelectedModel", () => {
 		})
 	})
 
-	describe("anthropic provider with 1M context", () => {
+	describe("anthropic provider GA 1M context", () => {
 		beforeEach(() => {
 			mockUseRouterModels.mockReturnValue({
 				data: undefined,
@@ -424,7 +424,6 @@ describe("useSelectedModel", () => {
 			const apiConfiguration: ProviderSettings = {
 				apiProvider: "anthropic",
 				apiModelId: "claude-sonnet-4-6",
-				anthropicBeta1MContext: false,
 			}
 
 			const wrapper = createWrapper()

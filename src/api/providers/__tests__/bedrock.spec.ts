@@ -634,6 +634,24 @@ describe("AwsBedrockHandler", () => {
 			expect(model.info.supportsPromptCache).toBe(true)
 		})
 
+		it("should expose Claude Opus 4.7 adaptive effort metadata", () => {
+			const handler = new AwsBedrockHandler({
+				apiModelId: "anthropic.claude-opus-4-7",
+				awsAccessKey: "test",
+				awsSecretKey: "test",
+				awsRegion: "us-east-1",
+			})
+
+			const model = handler.getModel()
+
+			expect(model.info.maxTokens).toBe(128_000)
+			expect(model.info.contextWindow).toBe(1_000_000)
+			expect(model.info.supportsReasoningAdaptive).toBe(true)
+			expect(model.info.supportsReasoningEffort).toEqual(["disable", "low", "medium", "high", "xhigh", "max"])
+			expect(model.info.adaptiveThinkingEffort).toBe("high")
+			expect(model.info.supportsTemperature).toBe(false)
+		})
+
 		it("should handle model configuration overrides correctly", () => {
 			const handler = new AwsBedrockHandler({
 				apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
