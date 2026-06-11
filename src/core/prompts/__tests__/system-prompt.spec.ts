@@ -572,6 +572,10 @@ describe("SYSTEM_PROMPT", () => {
 		expect(prompt).toContain("execute_command shell here-strings, heredocs, or echo chains")
 		expect(prompt).toContain("Use execute_command for running commands, tests, builds")
 		expect(prompt).toContain("instead of embedding file contents in shell here-strings")
+		expect(prompt).toContain("use generate_image directly when available")
+		expect(prompt).toContain("Do not use visual_browser_inspector")
+		expect(prompt).toContain("Playwright/browser automation")
+		expect(prompt).toContain("manual web UI workflows")
 
 		// Should NOT contain a tool catalog / XML examples
 		expect(prompt).not.toContain("# Tools")
@@ -620,6 +624,37 @@ describe("SYSTEM_PROMPT", () => {
 			expect(prompt).toContain("Do not add a separate manual 'Review and verify the result' todo")
 			expect(prompt).toContain("clean structured plan-level completion/merge/validation evidence")
 		}
+	})
+
+	it("should route simple image generation from orchestrator without browser or MCP workarounds", async () => {
+		const settings = {
+			todoListEnabled: true,
+			useAgentRules: true,
+			newTaskRequireTodos: false,
+			maxParallelAgents: 5,
+		}
+
+		const prompt = await SYSTEM_PROMPT(
+			mockContext,
+			"/test/path",
+			false,
+			undefined, // mcpHub
+			undefined, // diffStrategy
+			"orchestrator",
+			undefined, // customModePrompts
+			undefined, // customModes
+			undefined, // globalCustomInstructions
+			experiments,
+			undefined, // language
+			undefined, // rooIgnoreInstructions
+			settings, // settings
+		)
+
+		expect(prompt).toContain("explicit image generation or image editing")
+		expect(prompt).toContain("do not create a parallel plan")
+		expect(prompt).toContain("do not use browser/MCP/manual web UI workarounds")
+		expect(prompt).toContain("mode with `image_generation`")
+		expect(prompt).toContain("using `code` for standalone image-generation requests")
 	})
 
 	afterAll(() => {

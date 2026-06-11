@@ -47,14 +47,17 @@ export const forceFullModelDetailsLoad = async (baseUrl: string, modelId: string
 export const parseLMStudioModel = (rawModel: LLMInstanceInfo | LLMInfo): ModelInfo => {
 	// Handle both LLMInstanceInfo (from loaded models) and LLMInfo (from downloaded models)
 	const contextLength = "contextLength" in rawModel ? rawModel.contextLength : rawModel.maxContextLength
+	const contextWindow =
+		typeof contextLength === "number" && Number.isFinite(contextLength) && contextLength > 0
+			? contextLength
+			: lMStudioDefaultModelInfo.contextWindow
 
-	const modelInfo: ModelInfo = Object.assign({}, lMStudioDefaultModelInfo, {
+	const modelInfo: ModelInfo = {
+		...lMStudioDefaultModelInfo,
 		description: `${rawModel.displayName} - ${rawModel.path}`,
-		contextWindow: contextLength,
-		supportsPromptCache: true,
-		supportsImages: rawModel.vision,
-		maxTokens: contextLength,
-	})
+		contextWindow,
+		...(rawModel.vision ? { supportsImages: true } : {}),
+	}
 
 	return modelInfo
 }

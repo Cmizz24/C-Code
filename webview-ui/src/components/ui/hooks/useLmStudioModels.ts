@@ -4,8 +4,14 @@ import { type ModelRecord, type ExtensionMessage } from "@roo-code/types"
 
 import { vscode } from "@src/utils/vscode"
 
-const getLmStudioModels = async () =>
+type LmStudioModelsOptions = {
+	baseUrl?: string
+}
+
+const getLmStudioModels = async (opts: LmStudioModelsOptions = {}) =>
 	new Promise<ModelRecord>((resolve, reject) => {
+		const requestId = crypto.randomUUID()
+
 		const cleanup = () => {
 			window.removeEventListener("message", handler)
 		}
@@ -19,6 +25,10 @@ const getLmStudioModels = async () =>
 			const message: ExtensionMessage = event.data
 
 			if (message.type === "lmStudioModels") {
+				if (message.requestId && message.requestId !== requestId) {
+					return
+				}
+
 				clearTimeout(timeout)
 				cleanup()
 
@@ -31,8 +41,17 @@ const getLmStudioModels = async () =>
 		}
 
 		window.addEventListener("message", handler)
-		vscode.postMessage({ type: "requestLmStudioModels" })
+		vscode.postMessage({
+			type: "requestLmStudioModels",
+			requestId,
+			values: {
+				lmStudioBaseUrl: opts.baseUrl,
+			},
+		})
 	})
 
-export const useLmStudioModels = (modelId?: string) =>
-	useQuery({ queryKey: ["lmStudioModels"], queryFn: () => (modelId ? getLmStudioModels() : {}) })
+export const useLmStudioModels = (modelId?: string, opts: LmStudioModelsOptions = {}) =>
+	useQuery({
+		queryKey: ["lmStudioModels", opts.baseUrl],
+		queryFn: () => (modelId ? getLmStudioModels(opts) : {}),
+	})

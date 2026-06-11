@@ -185,6 +185,31 @@ describe("getModelMaxOutputTokens", () => {
 		})
 	})
 
+	test("should bypass 20% cap for GLM models and use exact configured max tokens", () => {
+		const model: ModelInfo = {
+			contextWindow: 200_000,
+			supportsPromptCache: true,
+			maxTokens: 131_072,
+		}
+
+		const settings: ProviderSettings = {
+			apiProvider: "zai",
+		}
+
+		const glmModelIds = ["glm-5.1", "glm-5-turbo", "glm-5v-turbo", "glm-4.6", "zai/glm-5.1", "GLM-4.6"]
+
+		glmModelIds.forEach((modelId) => {
+			const result = getModelMaxOutputTokens({
+				modelId,
+				model,
+				settings,
+				format: "openai",
+			})
+			// Should use full 131k tokens, not capped to 20% (40k)
+			expect(result).toBe(131_072)
+		})
+	})
+
 	test("should still apply 20% cap to non-GPT-5 models", () => {
 		const model: ModelInfo = {
 			contextWindow: 200_000,

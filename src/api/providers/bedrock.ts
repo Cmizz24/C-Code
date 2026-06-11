@@ -64,7 +64,7 @@ interface BedrockAdditionalModelFields {
 		budget_tokens?: number
 	}
 	output_config?: {
-		effort?: "low" | "medium" | "high" | "xhigh"
+		effort?: "low" | "medium" | "high" | "xhigh" | "max"
 	}
 	anthropic_beta?: string[]
 	[key: string]: any // Add index signature to be compatible with DocumentType
@@ -85,7 +85,13 @@ interface BedrockPayload {
 // AWS Bedrock service tiers (STANDARD, FLEX, PRIORITY) are specified at the top level
 // https://docs.aws.amazon.com/bedrock/latest/userguide/service-tiers-inference.html
 type BedrockPayloadWithServiceTier = BedrockPayload & {
-	service_tier?: BedrockServiceTier
+	service_tier?: "default" | "flex" | "priority"
+}
+
+const BEDROCK_SERVICE_TIER_REQUEST_VALUES: Record<BedrockServiceTier, "default" | "flex" | "priority"> = {
+	STANDARD: "default",
+	FLEX: "flex",
+	PRIORITY: "priority",
 }
 
 // Define specific types for content block events to avoid 'as any' usage
@@ -243,7 +249,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			}
 
 			this.options.apiModelId = this.arnInfo.modelId
-			if (this.arnInfo.awsUseCrossRegionInference) this.options.awsUseCrossRegionInference = true
+			if (this.arnInfo.crossRegionInference) this.options.awsUseCrossRegionInference = true
 		}
 
 		if (!this.options.modelTemperature) {
@@ -406,13 +412,14 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			})
 		} else if (modelConfig.info.supportsReasoningAdaptive && this.options.enableReasoningEffort) {
 			thinkingEnabled = true
-			const adaptiveThinkingEffort =
+			const selectedAdaptiveThinkingEffort =
 				this.options.reasoningEffort &&
 				this.options.reasoningEffort !== "disable" &&
 				this.options.reasoningEffort !== "none" &&
 				this.options.reasoningEffort !== "minimal"
 					? this.options.reasoningEffort
 					: modelConfig.info.adaptiveThinkingEffort
+			const adaptiveThinkingEffort = selectedAdaptiveThinkingEffort
 			additionalModelRequestFields = {
 				thinking: { type: "adaptive" },
 				...(adaptiveThinkingEffort && { output_config: { effort: adaptiveThinkingEffort } }),
@@ -421,7 +428,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			logger.info("Adaptive thinking enabled for Bedrock request", {
 				ctx: "bedrock",
 				modelId: modelConfig.id,
-				thinking: additionalModelRequestFields.thinking,
+				thinking: { type: "adaptive" },
 			})
 		}
 
@@ -490,7 +497,10 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			...(thinkingEnabled && { anthropic_version: "bedrock-2023-05-31" }),
 			toolConfig,
 			// Add service_tier as a top-level parameter (not inside additionalModelRequestFields)
-			...(useServiceTier && { service_tier: this.options.awsBedrockServiceTier }),
+			...(useServiceTier &&
+				this.options.awsBedrockServiceTier && {
+					service_tier: BEDROCK_SERVICE_TIER_REQUEST_VALUES[this.options.awsBedrockServiceTier],
+				}),
 		}
 
 		// Create AbortController with 10 minute timeout

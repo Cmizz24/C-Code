@@ -33,12 +33,14 @@ export const dynamicModelProviders = [
 	"openai-native",
 	"mistral",
 	"deepseek",
+	"xiaomi-mimo",
 	"gemini",
 	"moonshot",
 	"fireworks",
 	"baseten",
 	"sambanova",
 	"minimax",
+	"bedrock",
 ] as const satisfies readonly ProviderName[]
 
 export type RouterName = (typeof dynamicModelProviders)[number]
@@ -84,6 +86,7 @@ export const shouldUseReasoningEffort = ({
 		| "medium"
 		| "high"
 		| "xhigh"
+		| "max"
 		| undefined
 
 	// "disable" explicitly omits reasoning
@@ -110,6 +113,7 @@ export const shouldUseReasoningEffort = ({
 		| "medium"
 		| "high"
 		| "xhigh"
+		| "max"
 		| undefined
 	return !!modelDefaultEffort
 }
@@ -119,6 +123,12 @@ export const DEFAULT_HYBRID_REASONING_MODEL_THINKING_TOKENS = 8_192
 export const GEMINI_25_PRO_MIN_THINKING_TOKENS = 128
 
 // Max Tokens
+
+function shouldUseConfiguredMaxOutputTokens(modelId: string): boolean {
+	const normalizedModelId = modelId.toLowerCase()
+
+	return normalizedModelId.includes("gpt-5") || /(?:^|\/)glm-(?:4(?:\.|-)|5(?:[v.]|-|$))/.test(normalizedModelId)
+}
 
 export const getModelMaxOutputTokens = ({
 	modelId,
@@ -151,13 +161,9 @@ export const getModelMaxOutputTokens = ({
 	}
 
 	// If model has explicit maxTokens, clamp it to 20% of the context window
-	// Exception: GPT-5 models should use their exact configured max output tokens
+	// Exceptions: models with high official output limits should use their exact configured max output tokens.
 	if (model.maxTokens) {
-		// Check if this is a GPT-5 model (case-insensitive)
-		const isGpt5Model = modelId.toLowerCase().includes("gpt-5")
-
-		// GPT-5 models bypass the 20% cap and use their full configured max tokens
-		if (isGpt5Model) {
+		if (shouldUseConfiguredMaxOutputTokens(modelId)) {
 			return model.maxTokens
 		}
 
@@ -184,29 +190,44 @@ type CommonFetchParams = {
 	openAiHeaders?: Record<string, string>
 }
 
+export type RouterModelType = "chat" | "image"
+
 // Exhaustive, value-level map for all dynamic providers.
 // If a new dynamic provider is added in packages/types, this will fail to compile
 // until a corresponding entry is added here.
 const dynamicProviderExtras = {
-	openrouter: {} as {}, // eslint-disable-line @typescript-eslint/no-empty-object-type
+	openrouter: {} as { modelType?: RouterModelType },
 	"vercel-ai-gateway": {} as {}, // eslint-disable-line @typescript-eslint/no-empty-object-type
 	litellm: {} as { apiKey: string; baseUrl: string },
 	requesty: {} as { apiKey?: string; baseUrl?: string },
 	unbound: {} as { apiKey?: string },
-	ollama: {} as {}, // eslint-disable-line @typescript-eslint/no-empty-object-type
-	lmstudio: {} as {}, // eslint-disable-line @typescript-eslint/no-empty-object-type
+	ollama: {} as { apiKey?: string; baseUrl?: string },
+	lmstudio: {} as { baseUrl?: string },
 	poe: {} as { apiKey?: string; baseUrl?: string },
 	anthropic: {} as { apiKey?: string; baseUrl?: string },
 	xai: {} as { apiKey?: string },
 	"openai-native": {} as { apiKey?: string; baseUrl?: string },
 	mistral: {} as { apiKey?: string; baseUrl?: string },
 	deepseek: {} as { apiKey?: string; baseUrl?: string },
+	"xiaomi-mimo": {} as { apiKey?: string; baseUrl?: string },
 	gemini: {} as { apiKey?: string; baseUrl?: string },
 	moonshot: {} as { apiKey?: string; baseUrl?: string },
 	fireworks: {} as { apiKey?: string },
 	baseten: {} as { apiKey?: string },
 	sambanova: {} as { apiKey?: string },
 	minimax: {} as { apiKey?: string; baseUrl?: string },
+	bedrock: {} as {
+		awsRegion?: string
+		awsAccessKey?: string
+		awsSecretKey?: string
+		awsSessionToken?: string
+		awsUseProfile?: boolean
+		awsProfile?: string
+		awsUseApiKey?: boolean
+		awsApiKey?: string
+		awsBedrockEndpointEnabled?: boolean
+		awsBedrockEndpoint?: string
+	},
 } as const satisfies Record<RouterName, object>
 
 // Build the dynamic options union from the map, intersected with CommonFetchParams

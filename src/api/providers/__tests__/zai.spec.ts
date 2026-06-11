@@ -82,6 +82,48 @@ describe("ZAiHandler", () => {
 			expect(model.info.contextWindow).toBe(200_000)
 		})
 
+		it("should expose current GLM-5 international metadata", () => {
+			expect(internationalZAiModels["glm-5.1"]).toMatchObject({
+				maxTokens: 131_072,
+				contextWindow: 200_000,
+				supportsImages: false,
+				supportsPromptCache: true,
+				supportsReasoningEffort: ["disable", "medium"],
+				reasoningEffort: "medium",
+				preserveReasoning: true,
+				inputPrice: 1.4,
+				outputPrice: 4.4,
+				cacheWritesPrice: 0,
+				cacheReadsPrice: 0.26,
+			})
+			expect(internationalZAiModels["glm-5-turbo"]).toMatchObject({
+				maxTokens: 131_072,
+				contextWindow: 200_000,
+				supportsImages: false,
+				supportsPromptCache: true,
+				supportsReasoningEffort: ["disable", "medium"],
+				reasoningEffort: "medium",
+				preserveReasoning: true,
+				inputPrice: 1.2,
+				outputPrice: 4,
+				cacheWritesPrice: 0,
+				cacheReadsPrice: 0.24,
+			})
+			expect(internationalZAiModels["glm-5v-turbo"]).toMatchObject({
+				maxTokens: 131_072,
+				contextWindow: 200_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				supportsReasoningEffort: ["disable", "medium"],
+				reasoningEffort: "medium",
+				preserveReasoning: true,
+				inputPrice: 1.2,
+				outputPrice: 4,
+				cacheWritesPrice: 0,
+				cacheReadsPrice: 0.24,
+			})
+		})
+
 		it("should return GLM-4.7 international model with thinking support", () => {
 			const testModelId: InternationalZAiModelId = "glm-4.7"
 			const handlerWithModel = new ZAiHandler({
@@ -387,27 +429,24 @@ describe("ZAiHandler", () => {
 			const messageGenerator = handlerWithModel.createMessage(systemPrompt, messages)
 			await messageGenerator.next()
 
-			// Centralized 20% cap should apply to OpenAI-compatible providers like Z AI
-			const expectedMaxTokens = Math.min(modelInfo.maxTokens, Math.ceil(modelInfo.contextWindow * 0.2))
-
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					model: modelId,
-					max_tokens: expectedMaxTokens,
+					max_tokens: modelInfo.maxTokens,
 					temperature: ZAI_DEFAULT_TEMPERATURE,
 					messages: expect.arrayContaining([{ role: "system", content: systemPrompt }]),
+					thinking: { type: "enabled" },
 					stream: true,
 					stream_options: { include_usage: true },
 				}),
-				undefined,
 			)
 		})
 	})
 
-	describe("GLM-4.7 Thinking Mode", () => {
-		it("should enable thinking by default for GLM-4.7 (default reasoningEffort is medium)", async () => {
+	describe("Thinking-capable GLM models", () => {
+		it("should enable thinking by default for GLM-4.6 (default reasoningEffort is medium)", async () => {
 			const handlerWithModel = new ZAiHandler({
-				apiModelId: "glm-4.7",
+				apiModelId: "glm-4.6",
 				zaiApiKey: "test-zai-api-key",
 				zaiApiLine: "international_coding",
 				// No reasoningEffort setting - should use model default (medium)
@@ -426,10 +465,10 @@ describe("ZAiHandler", () => {
 			const messageGenerator = handlerWithModel.createMessage("system prompt", [])
 			await messageGenerator.next()
 
-			// For GLM-4.7 with default reasoning (medium), thinking should be enabled
+			// For GLM-4.6 with default reasoning (medium), thinking should be enabled
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({
-					model: "glm-4.7",
+					model: "glm-4.6",
 					thinking: { type: "enabled" },
 				}),
 			)
@@ -497,9 +536,9 @@ describe("ZAiHandler", () => {
 			)
 		})
 
-		it("should NOT add thinking parameter for non-thinking models like GLM-4.6", async () => {
+		it("should NOT add thinking parameter for non-thinking models like GLM-4-32B", async () => {
 			const handlerWithModel = new ZAiHandler({
-				apiModelId: "glm-4.6",
+				apiModelId: "glm-4-32b-0414-128k",
 				zaiApiKey: "test-zai-api-key",
 				zaiApiLine: "international_coding",
 			})
@@ -517,7 +556,7 @@ describe("ZAiHandler", () => {
 			const messageGenerator = handlerWithModel.createMessage("system prompt", [])
 			await messageGenerator.next()
 
-			// For GLM-4.6 (no thinking support), thinking parameter should not be present
+			// For GLM-4-32B (no thinking support), thinking parameter should not be present
 			const callArgs = mockCreate.mock.calls[0][0]
 			expect(callArgs.thinking).toBeUndefined()
 		})

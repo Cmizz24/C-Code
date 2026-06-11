@@ -1,18 +1,19 @@
 import * as path from "path"
 import fs from "fs/promises"
 import * as fsSync from "fs"
+import { createHash } from "crypto"
 
 import NodeCache from "node-cache"
 import { z } from "zod"
 
-import type { ProviderName, ModelRecord } from "@roo-code/types"
+import type { ModelRecord } from "@roo-code/types"
 import { modelInfoSchema } from "@roo-code/types"
 
 import { safeWriteJson } from "../../../utils/safeWriteJson"
 
 import { ContextProxy } from "../../../core/config/ContextProxy"
 import { getCacheDirectoryPath } from "../../../utils/storage"
-import type { RouterName } from "../../../shared/api"
+import type { GetModelsOptions, RouterName } from "../../../shared/api"
 import { fileExistsAtPath } from "../../../utils/fs"
 
 import { getOpenRouterModels } from "./openrouter"
@@ -20,13 +21,13 @@ import { getVercelAiGatewayModels } from "./vercel-ai-gateway"
 import { getRequestyModels } from "./requesty"
 import { getUnboundModels } from "./unbound"
 import { getLiteLLMModels } from "./litellm"
-import { GetModelsOptions } from "../../../shared/api"
 import { getOllamaModels } from "./ollama"
 import { getLMStudioModels } from "./lmstudio"
 import { getPoeModels } from "./poe"
 import {
 	getAnthropicModels,
 	getBasetenModels,
+	getBedrockModels,
 	getDeepSeekModels,
 	getFireworksModels,
 	getGeminiModels,
@@ -36,24 +37,117 @@ import {
 	getOpenAiNativeModels,
 	getSambaNovaModels,
 	getXAIModels,
+	getXiaomiMiMoModels,
 } from "./static-provider-models"
 
 const memoryCache = new NodeCache({ stdTTL: 5 * 60, checkperiod: 5 * 60 })
+const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+const DEFAULT_REQUESTY_BASE_URL = "https://router.requesty.ai/v1"
+const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
+const DEFAULT_LMSTUDIO_BASE_URL = "http://localhost:1234"
+
+const DEFAULT_SCOPED_BASE_URLS: Partial<Record<RouterName, string>> = {
+	ollama: DEFAULT_OLLAMA_BASE_URL,
+	lmstudio: DEFAULT_LMSTUDIO_BASE_URL,
+	anthropic: "https://api.anthropic.com",
+	"openai-native": "https://api.openai.com/v1",
+	mistral: "https://api.mistral.ai/v1",
+	deepseek: "https://api.deepseek.com",
+	"xiaomi-mimo": "https://api.xiaomimimo.com/v1",
+	gemini: "https://generativelanguage.googleapis.com",
+	moonshot: "https://api.moonshot.ai/v1",
+	minimax: "https://api.minimax.io/v1",
+}
+
+const SCOPED_MODEL_CACHE_PROVIDERS = new Set<RouterName>([
+	"litellm",
+	"ollama",
+	"lmstudio",
+	"poe",
+	"anthropic",
+	"xai",
+	"openai-native",
+	"mistral",
+	"deepseek",
+	"xiaomi-mimo",
+	"gemini",
+	"moonshot",
+	"fireworks",
+	"baseten",
+	"sambanova",
+	"minimax",
+])
+
+type ModelCacheKey = string
 
 // Zod schema for validating ModelRecord structure from disk cache
 const modelRecordSchema = z.record(z.string(), modelInfoSchema)
 
 // Track in-flight refresh requests to prevent concurrent API calls for the same provider
 // This prevents race conditions where multiple calls might overwrite each other's results
-const inFlightRefresh = new Map<RouterName, Promise<ModelRecord>>()
+const inFlightRefresh = new Map<ModelCacheKey, Promise<ModelRecord>>()
 
-async function writeModels(router: RouterName, data: ModelRecord) {
+function getModelCacheKey(options: GetModelsOptions): ModelCacheKey {
+	if (options.provider === "openrouter" && options.modelType === "image") {
+		return "openrouter_image"
+	}
+
+	if (SCOPED_MODEL_CACHE_PROVIDERS.has(options.provider)) {
+		const scope = JSON.stringify({
+			baseUrl: normalizeBaseUrl(options.baseUrl) ?? DEFAULT_SCOPED_BASE_URLS[options.provider] ?? "default",
+			apiKeyHash: options.apiKey?.trim() ? hashCacheScope(options.apiKey.trim()) : undefined,
+		})
+
+		return `${options.provider}_${hashCacheScope(scope)}`
+	}
+
+	return options.provider
+}
+
+function hashCacheScope(value: string): string {
+	return createHash("sha256").update(value).digest("hex").slice(0, 16)
+}
+
+function normalizeBaseUrl(baseUrl?: string): string | undefined {
+	const normalized = baseUrl?.trim().replace(/\/+$/, "")
+	return normalized || undefined
+}
+
+function shouldBypassModelCache(options: GetModelsOptions): boolean {
+	if (options.provider === "bedrock") {
+		return true
+	}
+
+	const hasApiKey = !!options.apiKey?.trim()
+
+	if (options.provider === "openrouter") {
+		const baseUrl = normalizeBaseUrl(options.baseUrl)
+		const hasCustomBaseUrl = !!baseUrl && baseUrl !== DEFAULT_OPENROUTER_BASE_URL
+
+		return hasApiKey || hasCustomBaseUrl
+	}
+
+	if (options.provider === "requesty") {
+		const baseUrl = normalizeBaseUrl(options.baseUrl)
+		const hasCustomBaseUrl = !!baseUrl && baseUrl !== DEFAULT_REQUESTY_BASE_URL
+
+		return hasApiKey || hasCustomBaseUrl
+	}
+
+	if (options.provider === "unbound") {
+		return hasApiKey
+	}
+
+	return false
+}
+
+async function writeModels(router: ModelCacheKey, data: ModelRecord) {
 	const filename = `${router}_models.json`
 	const cacheDir = await getCacheDirectoryPath(ContextProxy.instance.globalStorageUri.fsPath)
 	await safeWriteJson(path.join(cacheDir, filename), data)
 }
 
-async function readModels(router: RouterName): Promise<ModelRecord | undefined> {
+async function readModels(router: ModelCacheKey): Promise<ModelRecord | undefined> {
 	const filename = `${router}_models.json`
 	const cacheDir = await getCacheDirectoryPath(ContextProxy.instance.globalStorageUri.fsPath)
 	const filePath = path.join(cacheDir, filename)
@@ -75,10 +169,10 @@ async function fetchModelsFromProvider(options: GetModelsOptions): Promise<Model
 
 	switch (provider) {
 		case "openrouter":
-			models = await getOpenRouterModels()
+			models = await getOpenRouterModels(options)
 			break
 		case "requesty":
-			// Requesty models endpoint requires an API key for per-user custom policies.
+			// Requesty supports public model discovery and optional API keys for per-user custom policies.
 			models = await getRequestyModels(options.baseUrl, options.apiKey)
 			break
 		case "unbound":
@@ -115,6 +209,9 @@ async function fetchModelsFromProvider(options: GetModelsOptions): Promise<Model
 		case "deepseek":
 			models = await getDeepSeekModels(options.apiKey, options.baseUrl)
 			break
+		case "xiaomi-mimo":
+			models = await getXiaomiMiMoModels(options.apiKey, options.baseUrl)
+			break
 		case "gemini":
 			models = await getGeminiModels(options.apiKey, options.baseUrl)
 			break
@@ -132,6 +229,9 @@ async function fetchModelsFromProvider(options: GetModelsOptions): Promise<Model
 			break
 		case "minimax":
 			models = await getMiniMaxModels(options.apiKey, options.baseUrl)
+			break
+		case "bedrock":
+			models = await getBedrockModels(options)
 			break
 		default: {
 			// Ensures router is exhaustively checked if RouterName is a strict union.
@@ -156,8 +256,13 @@ async function fetchModelsFromProvider(options: GetModelsOptions): Promise<Model
  */
 export const getModels = async (options: GetModelsOptions): Promise<ModelRecord> => {
 	const { provider } = options
+	const cacheKey = getModelCacheKey(options)
 
-	let models = getModelsFromCache(provider)
+	if (shouldBypassModelCache(options)) {
+		return fetchModelsFromProvider(options)
+	}
+
+	let models = getModelsFromCache(cacheKey)
 
 	if (models) {
 		return models
@@ -170,10 +275,10 @@ export const getModels = async (options: GetModelsOptions): Promise<ModelRecord>
 		// Only cache non-empty results to prevent persisting failed API responses.
 		// Empty results could indicate API failure rather than "no models exist".
 		if (modelCount > 0) {
-			memoryCache.set(provider, models)
+			memoryCache.set(cacheKey, models)
 
-			await writeModels(provider, models).catch((err) =>
-				console.error(`[MODEL_CACHE] Error writing ${provider} models to file cache:`, err),
+			await writeModels(cacheKey, models).catch((err) =>
+				console.error(`[MODEL_CACHE] Error writing ${cacheKey} models to file cache:`, err),
 			)
 		}
 
@@ -197,11 +302,16 @@ export const getModels = async (options: GetModelsOptions): Promise<ModelRecord>
  */
 export const refreshModels = async (options: GetModelsOptions): Promise<ModelRecord> => {
 	const { provider } = options
+	const cacheKey = getModelCacheKey(options)
+
+	if (shouldBypassModelCache(options)) {
+		return fetchModelsFromProvider(options)
+	}
 
 	// Check if there's already an in-flight refresh for this provider
 	// This prevents race conditions where multiple concurrent refreshes might
 	// overwrite each other's results
-	const existingRequest = inFlightRefresh.get(provider)
+	const existingRequest = inFlightRefresh.get(cacheKey)
 	if (existingRequest) {
 		return existingRequest
 	}
@@ -214,7 +324,7 @@ export const refreshModels = async (options: GetModelsOptions): Promise<ModelRec
 			const modelCount = Object.keys(models).length
 
 			// Get existing cached data for comparison
-			const existingCache = getModelsFromCache(provider)
+			const existingCache = getModelsFromCache(cacheKey)
 			const existingCount = existingCache ? Object.keys(existingCache).length : 0
 
 			if (modelCount === 0) {
@@ -222,26 +332,26 @@ export const refreshModels = async (options: GetModelsOptions): Promise<ModelRec
 			}
 
 			// Update memory cache first
-			memoryCache.set(provider, models)
+			memoryCache.set(cacheKey, models)
 
 			// Atomically write to disk (safeWriteJson handles atomic writes)
-			await writeModels(provider, models).catch((err) =>
-				console.error(`[refreshModels] Error writing ${provider} models to disk:`, err),
+			await writeModels(cacheKey, models).catch((err) =>
+				console.error(`[refreshModels] Error writing ${cacheKey} models to disk:`, err),
 			)
 
 			return models
 		} catch (error) {
 			// Log the error for debugging, then return existing cache if available (graceful degradation)
 			console.error(`[refreshModels] Failed to refresh ${provider} models:`, error)
-			return getModelsFromCache(provider) || {}
+			return getModelsFromCache(cacheKey) || {}
 		} finally {
 			// Always clean up the in-flight tracking
-			inFlightRefresh.delete(provider)
+			inFlightRefresh.delete(cacheKey)
 		}
 	})()
 
 	// Track the in-flight request
-	inFlightRefresh.set(provider, refreshPromise)
+	inFlightRefresh.set(cacheKey, refreshPromise)
 
 	return refreshPromise
 }
@@ -279,7 +389,7 @@ export async function initializeModelCacheRefresh(): Promise<void> {
  * @param refresh - If true, immediately fetch fresh data from API
  */
 export const flushModels = async (options: GetModelsOptions, refresh: boolean = false): Promise<void> => {
-	const { provider } = options
+	const cacheKey = getModelCacheKey(options)
 	if (refresh) {
 		// Don't delete memory cache - let refreshModels atomically replace it
 		// This prevents a race condition where getModels() might be called
@@ -288,7 +398,7 @@ export const flushModels = async (options: GetModelsOptions, refresh: boolean = 
 		await refreshModels(options)
 	} else {
 		// Only delete memory cache when not refreshing
-		memoryCache.del(provider)
+		memoryCache.del(cacheKey)
 	}
 }
 
@@ -300,9 +410,11 @@ export const flushModels = async (options: GetModelsOptions, refresh: boolean = 
  * @param provider - The provider to get models for.
  * @returns Models from memory cache, disk cache, or undefined if not cached.
  */
-export function getModelsFromCache(provider: ProviderName): ModelRecord | undefined {
+export function getModelsFromCache(provider: ModelCacheKey | GetModelsOptions): ModelRecord | undefined {
+	const cacheKey = typeof provider === "string" ? provider : getModelCacheKey(provider)
+
 	// Check memory cache first (fast)
-	const memoryModels = memoryCache.get<ModelRecord>(provider)
+	const memoryModels = memoryCache.get<ModelRecord>(cacheKey)
 	if (memoryModels) {
 		return memoryModels
 	}
@@ -310,7 +422,7 @@ export function getModelsFromCache(provider: ProviderName): ModelRecord | undefi
 	// Memory cache miss - try to load from disk synchronously
 	// This is acceptable because it only happens on cold start or after cache expiry
 	try {
-		const filename = `${provider}_models.json`
+		const filename = `${cacheKey}_models.json`
 		const cacheDir = getCacheDirectoryPathSync()
 		if (!cacheDir) {
 			return undefined
@@ -328,19 +440,19 @@ export function getModelsFromCache(provider: ProviderName): ModelRecord | undefi
 			const validation = modelRecordSchema.safeParse(models)
 			if (!validation.success) {
 				console.error(
-					`[MODEL_CACHE] Invalid disk cache data structure for ${provider}:`,
+					`[MODEL_CACHE] Invalid disk cache data structure for ${cacheKey}:`,
 					validation.error.format(),
 				)
 				return undefined
 			}
 
 			// Populate memory cache for future fast access
-			memoryCache.set(provider, validation.data)
+			memoryCache.set(cacheKey, validation.data)
 
 			return validation.data
 		}
 	} catch (error) {
-		console.error(`[MODEL_CACHE] Error loading ${provider} models from disk:`, error)
+		console.error(`[MODEL_CACHE] Error loading ${cacheKey} models from disk:`, error)
 	}
 
 	return undefined

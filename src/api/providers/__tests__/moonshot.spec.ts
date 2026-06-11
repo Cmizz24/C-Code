@@ -38,7 +38,7 @@ describe("MoonshotHandler", () => {
 	beforeEach(() => {
 		mockOptions = {
 			moonshotApiKey: "test-api-key",
-			apiModelId: "moonshot-chat",
+			apiModelId: "kimi-k2.6",
 			moonshotBaseUrl: "https://api.moonshot.ai/v1",
 		}
 		handler = new MoonshotHandler(mockOptions)
@@ -82,10 +82,12 @@ describe("MoonshotHandler", () => {
 			const model = handler.getModel()
 			expect(model.id).toBe(mockOptions.apiModelId)
 			expect(model.info).toBeDefined()
-			expect(model.info.maxTokens).toBe(16384)
-			expect(model.info.contextWindow).toBe(262144)
-			expect(model.info.supportsImages).toBe(false)
+			expect(model.info.maxTokens).toBe(32_768)
+			expect(model.info.contextWindow).toBe(262_144)
+			expect(model.info.supportsImages).toBe(true)
 			expect(model.info.supportsPromptCache).toBe(true)
+			expect(model.info.supportsReasoningBinary).toBe(true)
+			expect(model.info.preserveReasoning).toBe(true)
 		})
 
 		it("should return provided model ID with default model info if model does not exist", () => {
@@ -162,6 +164,36 @@ describe("MoonshotHandler", () => {
 			const textChunks = chunks.filter((chunk) => chunk.type === "text")
 			expect(textChunks).toHaveLength(1)
 			expect(textChunks[0].text).toBe("Test response")
+			expect(mockStreamText).toHaveBeenCalledWith(
+				expect.objectContaining({
+					providerOptions: { moonshot: { thinking: { type: "disabled" } } },
+				}),
+			)
+		})
+
+		it("should enable Moonshot thinking when reasoning is enabled", async () => {
+			async function* mockFullStream() {
+				yield { type: "text-delta", text: "Test response" }
+			}
+
+			mockStreamText.mockReturnValue({
+				fullStream: mockFullStream(),
+				usage: Promise.resolve({ inputTokens: 10, outputTokens: 5, details: {}, raw: {} }),
+			})
+
+			const reasoningHandler = new MoonshotHandler({
+				...mockOptions,
+				enableReasoningEffort: true,
+			})
+			for await (const _chunk of reasoningHandler.createMessage(systemPrompt, messages)) {
+				// Consume stream
+			}
+
+			expect(mockStreamText).toHaveBeenCalledWith(
+				expect.objectContaining({
+					providerOptions: { moonshot: { thinking: { type: "enabled" } } },
+				}),
+			)
 		})
 
 		it("should include usage information", async () => {
@@ -306,8 +338,8 @@ describe("MoonshotHandler", () => {
 			const testHandler = new TestMoonshotHandler(mockOptions)
 			const result = testHandler.testGetMaxOutputTokens()
 
-			// Default model maxTokens is 16384
-			expect(result).toBe(16384)
+			// Default model maxTokens is 32768
+			expect(result).toBe(32_768)
 		})
 
 		it("should use modelMaxTokens when provided", () => {
@@ -337,8 +369,8 @@ describe("MoonshotHandler", () => {
 			const testHandler = new TestMoonshotHandler(mockOptions)
 			const result = testHandler.testGetMaxOutputTokens()
 
-			// moonshot-chat has maxTokens of 16384
-			expect(result).toBe(16384)
+			// kimi-k2.6 has maxTokens of 32768
+			expect(result).toBe(32_768)
 		})
 	})
 

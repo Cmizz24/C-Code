@@ -20,6 +20,7 @@ describe("OpenRouter API", () => {
 				maxTokens: 8192,
 				contextWindow: 200000,
 				supportsImages: true,
+				supportsImageOutput: false,
 				supportsPromptCache: true,
 				inputPrice: 3,
 				outputPrice: 15,
@@ -35,6 +36,7 @@ describe("OpenRouter API", () => {
 				maxTokens: 128000,
 				contextWindow: 200000,
 				supportsImages: true,
+				supportsImageOutput: false,
 				supportsPromptCache: true,
 				inputPrice: 3,
 				outputPrice: 15,
@@ -75,6 +77,102 @@ describe("OpenRouter API", () => {
 			])
 
 			nockDone()
+		})
+
+		it("separates chat and image-output OpenRouter model lists", async () => {
+			const mockModelsResponse = {
+				data: {
+					data: [
+						{
+							id: "anthropic/claude-sonnet-4",
+							name: "Claude Sonnet 4",
+							description: "Text generation model",
+							context_length: 200000,
+							architecture: {
+								input_modalities: ["text", "image"],
+								output_modalities: ["text"],
+							},
+							top_provider: { max_completion_tokens: 8192 },
+							pricing: {
+								prompt: "0.000003",
+								completion: "0.000015",
+							},
+							supported_parameters: ["max_tokens", "temperature"],
+						},
+						{
+							id: "google/gemini-2.5-flash-image-preview",
+							name: "Gemini 2.5 Flash Image Preview",
+							description: "Google Gemini image generation model",
+							context_length: 128000,
+							architecture: {
+								input_modalities: ["text", "image"],
+								output_modalities: ["image"],
+							},
+							top_provider: { max_completion_tokens: 8192 },
+							pricing: {
+								prompt: "0.000003",
+								completion: "0.000015",
+							},
+							supported_parameters: ["max_tokens", "temperature"],
+						},
+						{
+							id: "google/imagen-4",
+							name: "Imagen 4",
+							description: "Google image generation model",
+							context_length: 32000,
+							architecture: {
+								input_modalities: ["text"],
+							},
+							top_provider: { max_completion_tokens: 4096 },
+							pricing: {
+								prompt: "0.000001",
+								completion: "0.000005",
+							},
+							supported_parameters: ["max_tokens"],
+						},
+					],
+				},
+			}
+
+			const axios = await import("axios")
+			const getSpy = vi.spyOn(axios.default, "get").mockResolvedValue(mockModelsResponse)
+
+			const chatModels = await getOpenRouterModels({ baseUrl: "https://openrouter.test/api/v1" })
+			const imageModels = await getOpenRouterModels({
+				baseUrl: "https://openrouter.test/api/v1",
+				modelType: "image",
+			})
+
+			expect(chatModels["anthropic/claude-sonnet-4"]).toBeDefined()
+			expect(chatModels["google/gemini-2.5-flash-image-preview"]).toBeUndefined()
+			expect(chatModels["google/imagen-4"]).toBeUndefined()
+			expect(imageModels["anthropic/claude-sonnet-4"]).toBeUndefined()
+			expect(imageModels["google/gemini-2.5-flash-image-preview"]).toMatchObject({
+				contextWindow: 128000,
+				supportsImages: true,
+				supportsImageOutput: true,
+			})
+			expect(imageModels["google/imagen-4"]).toMatchObject({
+				contextWindow: 32000,
+				supportsImages: false,
+				supportsImageOutput: false,
+			})
+
+			expect(getSpy).toHaveBeenCalledWith("https://openrouter.test/api/v1/models")
+			expect(getSpy).toHaveBeenCalledTimes(2)
+			getSpy.mockRestore()
+		})
+
+		it("uses Authorization for OpenRouter model discovery when an API key is provided", async () => {
+			const axios = await import("axios")
+			const getSpy = vi.spyOn(axios.default, "get").mockResolvedValue({ data: { data: [] } })
+
+			await getOpenRouterModels({ baseUrl: "https://openrouter.test/api/v1", apiKey: "test-key" })
+
+			expect(getSpy).toHaveBeenCalledWith("https://openrouter.test/api/v1/models", {
+				headers: { Authorization: "Bearer test-key" },
+			})
+			getSpy.mockRestore()
 		})
 	})
 
@@ -156,6 +254,7 @@ describe("OpenRouter API", () => {
 					maxTokens: 65535,
 					contextWindow: 1048576,
 					supportsImages: true,
+					supportsImageOutput: false,
 					supportsPromptCache: true,
 					supportsReasoningBudget: true,
 					inputPrice: 1.25,
@@ -170,6 +269,7 @@ describe("OpenRouter API", () => {
 					maxTokens: 65536,
 					contextWindow: 1048576,
 					supportsImages: true,
+					supportsImageOutput: false,
 					supportsPromptCache: true,
 					supportsReasoningBudget: true,
 					inputPrice: 1.25,
@@ -250,6 +350,7 @@ describe("OpenRouter API", () => {
 				maxTokens: 8192,
 				contextWindow: 200000,
 				supportsImages: true,
+				supportsImageOutput: false,
 				supportsPromptCache: true,
 				inputPrice: 3,
 				outputPrice: 15,
@@ -261,6 +362,22 @@ describe("OpenRouter API", () => {
 				supportedParameters: ["max_tokens", "temperature", "reasoning"],
 			})
 
+			getSpy.mockRestore()
+		})
+
+		it("uses Authorization for OpenRouter endpoint discovery when an API key is provided", async () => {
+			const axios = await import("axios")
+			const getSpy = vi.spyOn(axios.default, "get").mockResolvedValue({ data: { data: { endpoints: [] } } })
+
+			await getOpenRouterModelEndpoints("google/gemini-2.5-flash-image-preview", {
+				baseUrl: "https://openrouter.test/api/v1",
+				apiKey: "test-key",
+			})
+
+			expect(getSpy).toHaveBeenCalledWith(
+				"https://openrouter.test/api/v1/models/google/gemini-2.5-flash-image-preview/endpoints",
+				{ headers: { Authorization: "Bearer test-key" } },
+			)
 			getSpy.mockRestore()
 		})
 	})
@@ -362,7 +479,57 @@ describe("OpenRouter API", () => {
 			expect(result.contextWindow).toBe(128000)
 		})
 
-		it("filters out image generation models", () => {
+		it("does not invent max tokens when OpenRouter omits completion limits", () => {
+			const mockModel = {
+				name: "No Completion Limit Model",
+				description: "Test model without max_completion_tokens",
+				context_length: 128000,
+				pricing: {
+					prompt: "0.000003",
+					completion: "0.000015",
+				},
+			}
+
+			const result = parseOpenRouterModel({
+				id: "openrouter/no-completion-limit",
+				model: mockModel,
+				inputModality: ["text"],
+				outputModality: ["text"],
+				maxTokens: undefined,
+			})
+
+			expect(result).not.toHaveProperty("maxTokens")
+			expect(result.contextWindow).toBe(128000)
+		})
+
+		it("marks expired OpenRouter models as deprecated", () => {
+			vi.spyOn(Date, "now").mockReturnValue(new Date("2026-01-01T00:00:00Z").getTime())
+			const mockModel = {
+				name: "Expired Model",
+				description: "Test expired model",
+				context_length: 128000,
+				max_completion_tokens: 8192,
+				expiration_date: "2025-01-01T00:00:00Z",
+				pricing: {
+					prompt: "0.000003",
+					completion: "0.000015",
+				},
+			}
+
+			const result = parseOpenRouterModel({
+				id: "openrouter/expired-model",
+				model: mockModel,
+				inputModality: ["text"],
+				outputModality: ["text"],
+				maxTokens: 8192,
+			})
+
+			expect(result.deprecated).toBe(true)
+
+			vi.mocked(Date.now).mockRestore()
+		})
+
+		it("marks image-output support when parsing model metadata", () => {
 			const mockImageModel = {
 				name: "Image Model",
 				description: "Test image generation model",
@@ -385,8 +552,6 @@ describe("OpenRouter API", () => {
 				},
 			}
 
-			// Model with image output should be filtered out - we only test parseOpenRouterModel
-			// since the filtering happens in getOpenRouterModels/getOpenRouterModelEndpoints
 			const textResult = parseOpenRouterModel({
 				id: "test/text-model",
 				model: mockTextModel,
@@ -403,9 +568,10 @@ describe("OpenRouter API", () => {
 				maxTokens: 64000,
 			})
 
-			// Both should parse successfully (filtering happens at a higher level)
 			expect(textResult.maxTokens).toBe(64000)
+			expect(textResult.supportsImageOutput).toBe(false)
 			expect(imageResult.maxTokens).toBe(64000)
+			expect(imageResult.supportsImageOutput).toBe(true)
 		})
 
 		it("treats supportedParameters containing tools as allowed", () => {

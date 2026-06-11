@@ -3,6 +3,7 @@ import type { RooCodeSettings } from "@roo-code/types"
 import { generateImageWithConfiguredProvider, resolveImageGenerationConfig } from "../image-generation-provider"
 import {
 	generateImageWithAutomatic1111,
+	generateImageWithCloudflareWorkersAi,
 	generateImageWithComfyUi,
 	generateImageWithImagesApi,
 	generateImageWithProvider,
@@ -23,6 +24,7 @@ vi.mock("../../../../i18n", () => ({
 
 vi.mock("../image-generation", () => ({
 	generateImageWithAutomatic1111: vi.fn(),
+	generateImageWithCloudflareWorkersAi: vi.fn(),
 	generateImageWithComfyUi: vi.fn(),
 	generateImageWithImagesApi: vi.fn(),
 	generateImageWithProvider: vi.fn(),
@@ -105,22 +107,59 @@ describe("resolveImageGenerationConfig", () => {
 		})
 	})
 
-	it("should resolve ComfyUI settings with required checkpoint and optional auth", () => {
-		const missingModelResult = resolveImageGenerationConfig(
+	it("should require Cloudflare account IDs after validating API tokens", () => {
+		const result = resolveImageGenerationConfig(
 			state({
-				imageGenerationProvider: "comfyui",
+				imageGenerationProvider: "cloudflare",
+				cloudflareImageApiKey: "cloudflare-token",
+				cloudflareImageGenerationSelectedModel: "@cf/black-forest-labs/flux-1-schnell",
 			}),
 		)
 
-		expect(missingModelResult.success).toBe(false)
-		if (missingModelResult.success) {
-			throw new Error("Expected ComfyUI resolution to fail without a checkpoint")
+		expect(result.success).toBe(false)
+		if (result.success) {
+			throw new Error("Expected Cloudflare resolution to fail without an account ID")
 		}
-		expect(missingModelResult.error).toBe("tools:generateImage.modelRequired(provider=ComfyUI)")
+		expect(result.error).toBe("tools:generateImage.accountIdRequired(provider=Cloudflare Workers AI)")
+	})
 
+	it("should resolve Cloudflare Workers AI settings with a trimmed endpoint and workers_ai method", () => {
+		const result = resolveImageGenerationConfig(
+			state({
+				imageGenerationProvider: "cloudflare",
+				cloudflareImageApiKey: "  cloudflare-token  ",
+				cloudflareImageAccountId: "  account-123  ",
+				cloudflareImageBaseUrl: " https://cloudflare.example/client/v4/// ",
+				cloudflareImageGenerationSelectedModel: "  @cf/black-forest-labs/flux-1-schnell  ",
+				cloudflareImageGenerationApiMethod: "images_api",
+			}),
+		)
+
+		expect(result.success).toBe(true)
+		if (!result.success) {
+			throw new Error(result.error)
+		}
+
+		expect(result.config).toEqual({
+			provider: "cloudflare",
+			providerLabel: "Cloudflare Workers AI",
+			baseURL: "https://cloudflare.example/client/v4",
+			isLocal: false,
+			authToken: "cloudflare-token",
+			accountId: "account-123",
+			model: "@cf/black-forest-labs/flux-1-schnell",
+			apiMethod: "workers_ai",
+			negativePrompt: undefined,
+		})
+	})
+
+	it("should fall back removed local provider settings to OpenRouter", () => {
 		const result = resolveImageGenerationConfig(
 			state({
 				imageGenerationProvider: "comfyui",
+				openRouterImageApiKey: "  openrouter-key  ",
+				openRouterImageBaseUrl: "https://openrouter.example/api/v1///",
+				openRouterImageGenerationSelectedModel: "google/gemini-2.5-flash-image",
 				comfyUiImageApiKey: "  local-proxy-token  ",
 				comfyUiImageBaseUrl: " http://127.0.0.1:8188/// ",
 				comfyUiImageGenerationSelectedModel: "  sdxl.safetensors  ",
@@ -135,41 +174,32 @@ describe("resolveImageGenerationConfig", () => {
 		}
 
 		expect(result.config).toEqual({
-			provider: "comfyui",
-			providerLabel: "ComfyUI",
-			baseURL: "http://127.0.0.1:8188",
-			isLocal: true,
-			authToken: "local-proxy-token",
-			model: "sdxl.safetensors",
-			apiMethod: "comfyui_api",
-			negativePrompt: "blurry, low quality",
+			provider: "openrouter",
+			providerLabel: "OpenRouter",
+			baseURL: "https://openrouter.example/api/v1",
+			isLocal: false,
+			authToken: "openrouter-key",
+			model: "google/gemini-2.5-flash-image",
+			apiMethod: "chat_completions",
+			negativePrompt: undefined,
 		})
 	})
 
-	it("should resolve Automatic1111 settings without requiring a checkpoint override", () => {
+	it("should require OpenRouter configuration when stale removed providers are saved", () => {
 		const result = resolveImageGenerationConfig(
 			state({
 				imageGenerationProvider: "automatic1111",
+				automatic1111ImageBaseUrl: "http://127.0.0.1:7860",
 				automatic1111ImageGenerationSelectedModel: "   ",
 				automatic1111ImageGenerationNegativePrompt: "  bad anatomy  ",
 			}),
 		)
 
-		expect(result.success).toBe(true)
-		if (!result.success) {
-			throw new Error(result.error)
+		expect(result.success).toBe(false)
+		if (result.success) {
+			throw new Error("Expected stale Automatic1111 settings to fall back to OpenRouter and require its API key")
 		}
-
-		expect(result.config).toEqual({
-			provider: "automatic1111",
-			providerLabel: "Automatic1111",
-			baseURL: "http://127.0.0.1:7860",
-			isLocal: true,
-			authToken: undefined,
-			model: "",
-			apiMethod: "automatic1111_api",
-			negativePrompt: "bad anatomy",
-		})
+		expect(result.error).toBe("tools:generateImage.apiKeyRequired(provider=OpenRouter)")
 	})
 
 	it("should reject legacy unsupported local providers", () => {
@@ -232,6 +262,11 @@ describe("generateImageWithConfiguredProvider", () => {
 			imageData: "data:image/png;base64,chatcompletions",
 			imageFormat: "png",
 		})
+		vi.mocked(generateImageWithCloudflareWorkersAi).mockResolvedValue({
+			success: true,
+			imageData: "data:image/png;base64,cloudflare",
+			imageFormat: "png",
+		})
 		vi.mocked(generateImageWithComfyUi).mockResolvedValue({
 			success: true,
 			imageData: "data:image/png;base64,comfyui",
@@ -253,6 +288,7 @@ describe("generateImageWithConfiguredProvider", () => {
 			}),
 			prompt: "Draw a cat",
 			inputImage: "data:image/png;base64,input",
+			outputFormat: "webp",
 		})
 
 		expect(result).toEqual({
@@ -274,10 +310,12 @@ describe("generateImageWithConfiguredProvider", () => {
 			model: "gpt-image-1",
 			prompt: "Draw a cat",
 			inputImage: "data:image/png;base64,input",
+			outputFormat: "webp",
 			negativePrompt: undefined,
 			provider: "openai",
 		})
 		expect(generateImageWithProvider).not.toHaveBeenCalled()
+		expect(generateImageWithCloudflareWorkersAi).not.toHaveBeenCalled()
 		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
 		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
@@ -299,85 +337,134 @@ describe("generateImageWithConfiguredProvider", () => {
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
 		expect(generateImageWithProvider).not.toHaveBeenCalled()
+		expect(generateImageWithCloudflareWorkersAi).not.toHaveBeenCalled()
 		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
 		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
 
-	it("should dispatch ComfyUI configurations to the ComfyUI helper", async () => {
+	it("should dispatch stale removed provider settings through OpenRouter fallback", async () => {
 		const result = await generateImageWithConfiguredProvider({
 			state: state({
 				imageGenerationProvider: "comfyui",
+				openRouterImageApiKey: "openrouter-key",
+				openRouterImageBaseUrl: "https://openrouter.example/api/v1/",
+				openRouterImageGenerationSelectedModel: "google/gemini-2.5-flash-image",
 				comfyUiImageApiKey: "proxy-token",
 				comfyUiImageBaseUrl: "http://localhost:8188/",
 				comfyUiImageGenerationSelectedModel: "sdxl.safetensors",
 				comfyUiImageGenerationNegativePrompt: "blurry",
 			}),
-			prompt: "Draw locally with ComfyUI",
+			prompt: "Draw through fallback",
 		})
 
 		expect(result).toEqual({
 			success: true,
-			imageData: "data:image/png;base64,comfyui",
+			imageData: "data:image/png;base64,chatcompletions",
 			imageFormat: "png",
 			metadata: {
-				provider: "comfyui",
-				providerLabel: "ComfyUI",
-				baseURL: "http://localhost:8188",
-				model: "sdxl.safetensors",
-				apiMethod: "comfyui_api",
-				isLocal: true,
+				provider: "openrouter",
+				providerLabel: "OpenRouter",
+				baseURL: "https://openrouter.example/api/v1",
+				model: "google/gemini-2.5-flash-image",
+				apiMethod: "chat_completions",
+				isLocal: false,
 			},
 		})
-		expect(generateImageWithComfyUi).toHaveBeenCalledWith({
-			baseURL: "http://localhost:8188",
-			authToken: "proxy-token",
-			model: "sdxl.safetensors",
-			prompt: "Draw locally with ComfyUI",
+		expect(generateImageWithProvider).toHaveBeenCalledWith({
+			baseURL: "https://openrouter.example/api/v1",
+			authToken: "openrouter-key",
+			model: "google/gemini-2.5-flash-image",
+			prompt: "Draw through fallback",
 			inputImage: undefined,
-			negativePrompt: "blurry",
-			provider: "comfyui",
+			negativePrompt: undefined,
+			provider: "openrouter",
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
-		expect(generateImageWithProvider).not.toHaveBeenCalled()
+		expect(generateImageWithCloudflareWorkersAi).not.toHaveBeenCalled()
+		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
 		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
 
-	it("should dispatch Automatic1111 configurations to the Automatic1111 helper", async () => {
+	it("should not dispatch stale Automatic1111 settings to local helpers", async () => {
 		const result = await generateImageWithConfiguredProvider({
 			state: state({
 				imageGenerationProvider: "automatic1111",
+				openRouterImageApiKey: "openrouter-key",
+				openRouterImageGenerationSelectedModel: "google/gemini-2.5-flash-image",
 				automatic1111ImageBaseUrl: "http://localhost:7860/",
 				automatic1111ImageGenerationSelectedModel: "   ",
 				automatic1111ImageGenerationNegativePrompt: "bad anatomy",
 			}),
-			prompt: "Draw locally with Automatic1111",
+			prompt: "Draw with stale Automatic1111",
 		})
 
 		expect(result).toEqual({
 			success: true,
-			imageData: "data:image/png;base64,automatic1111",
+			imageData: "data:image/png;base64,chatcompletions",
 			imageFormat: "png",
 			metadata: {
-				provider: "automatic1111",
-				providerLabel: "Automatic1111",
-				baseURL: "http://localhost:7860",
-				model: "",
-				apiMethod: "automatic1111_api",
-				isLocal: true,
+				provider: "openrouter",
+				providerLabel: "OpenRouter",
+				baseURL: "https://openrouter.ai/api/v1",
+				model: "google/gemini-2.5-flash-image",
+				apiMethod: "chat_completions",
+				isLocal: false,
 			},
 		})
-		expect(generateImageWithAutomatic1111).toHaveBeenCalledWith({
-			baseURL: "http://localhost:7860",
-			authToken: undefined,
-			model: "",
-			prompt: "Draw locally with Automatic1111",
+		expect(generateImageWithProvider).toHaveBeenCalledWith({
+			baseURL: "https://openrouter.ai/api/v1",
+			authToken: "openrouter-key",
+			model: "google/gemini-2.5-flash-image",
+			prompt: "Draw with stale Automatic1111",
 			inputImage: undefined,
-			negativePrompt: "bad anatomy",
-			provider: "automatic1111",
+			negativePrompt: undefined,
+			provider: "openrouter",
+		})
+		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
+		expect(generateImageWithCloudflareWorkersAi).not.toHaveBeenCalled()
+		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
+		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
+	})
+
+	it("should dispatch Cloudflare Workers AI configurations to the Workers AI helper", async () => {
+		const result = await generateImageWithConfiguredProvider({
+			state: state({
+				imageGenerationProvider: "cloudflare",
+				cloudflareImageApiKey: "cloudflare-token",
+				cloudflareImageAccountId: "account-123",
+				cloudflareImageBaseUrl: "https://cloudflare.example/client/v4/",
+				cloudflareImageGenerationSelectedModel: "@cf/black-forest-labs/flux-1-schnell",
+			}),
+			prompt: "Draw with Cloudflare",
+			inputImage: "data:image/png;base64,input",
+		})
+
+		expect(result).toEqual({
+			success: true,
+			imageData: "data:image/png;base64,cloudflare",
+			imageFormat: "png",
+			metadata: {
+				provider: "cloudflare",
+				providerLabel: "Cloudflare Workers AI",
+				baseURL: "https://cloudflare.example/client/v4",
+				model: "@cf/black-forest-labs/flux-1-schnell",
+				apiMethod: "workers_ai",
+				isLocal: false,
+			},
+		})
+		expect(generateImageWithCloudflareWorkersAi).toHaveBeenCalledWith({
+			baseURL: "https://cloudflare.example/client/v4",
+			authToken: "cloudflare-token",
+			accountId: "account-123",
+			model: "@cf/black-forest-labs/flux-1-schnell",
+			prompt: "Draw with Cloudflare",
+			inputImage: "data:image/png;base64,input",
+			provider: "cloudflare",
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
 		expect(generateImageWithProvider).not.toHaveBeenCalled()
 		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
+		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
 
 	it("should dispatch chat-completions configurations to the chat-completions helper", async () => {
@@ -414,6 +501,7 @@ describe("generateImageWithConfiguredProvider", () => {
 			provider: "openrouter",
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
+		expect(generateImageWithCloudflareWorkersAi).not.toHaveBeenCalled()
 		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
 		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
@@ -449,6 +537,7 @@ describe("generateImageWithConfiguredProvider", () => {
 			provider: "openai",
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
+		expect(generateImageWithCloudflareWorkersAi).not.toHaveBeenCalled()
 		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
 		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})
@@ -467,6 +556,7 @@ describe("generateImageWithConfiguredProvider", () => {
 		})
 		expect(generateImageWithImagesApi).not.toHaveBeenCalled()
 		expect(generateImageWithProvider).not.toHaveBeenCalled()
+		expect(generateImageWithCloudflareWorkersAi).not.toHaveBeenCalled()
 		expect(generateImageWithComfyUi).not.toHaveBeenCalled()
 		expect(generateImageWithAutomatic1111).not.toHaveBeenCalled()
 	})

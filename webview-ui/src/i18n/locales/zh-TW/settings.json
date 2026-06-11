@@ -31,6 +31,7 @@
 		"mcp": "MCP 伺服器",
 		"worktrees": "Worktree",
 		"autoApprove": "自動核准",
+		"imageGeneration": "影像生成",
 		"checkpoints": "檢查點",
 		"notifications": "通知",
 		"contextManagement": "上下文",
@@ -57,7 +58,7 @@
 		"manageSettings": "管理設定",
 		"debugMode": {
 			"label": "啟用偵錯模式",
-			"description": "啟用偵錯模式以在工作標題顯示額外按鈕，用於在暫存檔案中檢視 API 對話歷史記錄和 UI 訊息的格式化 JSON。"
+			"description": "啟用 debug 模式會在任務標頭顯示額外按鈕，用於在暫存檔中以美化後的 JSON 檢視 API 對話歷史與 UI 訊息。儲存為開啟後，也表示你同意將經過清理的遠端診斷傳送到 C-Code 的固定 endpoint 以便疑難排解。"
 		}
 	},
 	"slashCommands": {
@@ -272,6 +273,10 @@
 			"label": "記憶",
 			"description": "自動核准來自聊天和工具錯誤的錯誤記憶儲存。關閉時，仍可從聊天或記憶設定檢閱待處理記憶。"
 		},
+		"imageGeneration": {
+			"label": "影像",
+			"description": "自動核准來自聊天的影像生成與編輯動作。這可能會使用已設定的影像生成供應商建立或修改影像檔。"
+		},
 		"followupQuestions": {
 			"label": "後續提問",
 			"description": "在設定的逾時時間過後，自動選擇後續問題的第一個建議答案",
@@ -303,6 +308,71 @@
 		"toggleAriaLabel": "切換自動核准狀態",
 		"disabledAriaLabel": "自動核准已停用 - 請先選取下方選項",
 		"selectOptionsFirst": "請先選取下方至少一個選項以啟用自動核准"
+	},
+	"imageGeneration": {
+		"name": "啟用 AI 影像生成",
+		"description": "啟用後，C 可以使用單獨設定的影像生成供應商，從 prompt 生成和編輯影像。",
+		"providerLabel": "供應商",
+		"providerDescription": "選擇用於影像生成的供應商。這與你的 chat 供應商設定檔相互獨立。",
+		"localProviderNote": "Cloudflare Workers AI 可與 OpenRouter 和 OpenAI/OpenAI-compatible 供應商一起使用。Ollama、LM Studio、ComfyUI 和 Automatic1111 無法在此面板中選取。",
+		"apiKeyLabel": "{{provider}} API 金鑰",
+		"optionalApiKeyLabel": "{{provider}} API 金鑰（選填）",
+		"apiKeyPlaceholder": "輸入你的 {{provider}} API 金鑰",
+		"apiKeyRequiredDescription": "此供應商需要 API 金鑰才能生成影像。",
+		"apiKeyOptionalDescription": "選用。僅當你的 endpoint、本機執行個體或 proxy 需要 bearer-token 驗證時使用。",
+		"getApiKeyText": "從這裡取得你的 API 金鑰",
+		"baseUrlLabel": "基礎 URL",
+		"baseUrlPlaceholder": "預設：{{url}}",
+		"baseUrlDescription": "留空以使用 {{url}}。",
+		"modelSelectionLabel": "影像生成模型",
+		"modelSelectionDescription": "選擇用於影像生成的模型",
+		"modelIdLabel": "模型 ID",
+		"customModelIdPlaceholder": "輸入模型 ID",
+		"modelIdPlaceholderWithDefault": "預設：{{model}}",
+		"customModelIdDescription": "輸入你的供應商或 OpenAI 相容 endpoint 提供的確切模型 ID。",
+		"optionalModelIdDescription": "選用。留空以使用供應商目前載入的 checkpoint。",
+		"apiMethodLabel": "API 方法",
+		"apiMethodDescription": "選擇用於影像生成的 OpenAI 相容 endpoint 形式。",
+		"apiMethodLockedDescription": "所選模型使用 {{model}} 要求的 API 方法。",
+		"apiMethodLabels": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
+		},
+		"negativePromptLabel": "Negative prompt",
+		"negativePromptPlaceholder": "輸入生成影像中要避免的內容",
+		"negativePromptDescription": "選用。協助相容供應商避免不想要的主體、風格或瑕疵。",
+		"warningMissingApiKey": "⚠️ {{provider}} 需要 API 金鑰才能生成影像。請在上方設定。",
+		"warningMissingModel": "⚠️ {{provider}} 需要模型 ID 才能生成影像。請在上方設定。",
+		"successConfigured": "✓ 已為 {{provider}} 設定影像生成，可以使用",
+		"modelLabel": "影像生成模型",
+		"optionalModelDescription": "選用。留空以使用供應商目前載入的 checkpoint。",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models 是公開的，因此此清單可能包含所有支援影像輸出的模型；提供影像 API 金鑰時，如果 OpenRouter 回傳帳戶專屬結果，Roo 會使用該金鑰取得這些結果。",
+		"cloudflareAccountIdLabel": "Cloudflare 帳戶 ID",
+		"cloudflareAccountIdPlaceholder": "輸入你的 Cloudflare 帳戶 ID",
+		"cloudflareAccountIdDescription": "必填。可在 Cloudflare 儀表板的帳戶概覽中找到。",
+		"cloudflareBaseUrlDescription": "留空以使用 Cloudflare 的 API v4 endpoint：{{url}}。",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI 使用 Workers AI 帳戶執行 endpoint 進行影像生成。",
+		"warningMissingAccountId": "⚠️ {{provider}} 需要 Cloudflare 帳戶 ID 才能生成影像。請在上方設定。",
+		"cloudflarePricing": {
+			"title": "Cloudflare Workers AI 價格與免費額度",
+			"quotaDescription": "免費額度：{{freeAllocation}}。於 {{resetTime}} 重設。付費超額：{{paidOverage}}。",
+			"modelColumn": "模型",
+			"priceColumn": "價格",
+			"neuronsColumn": "Neurons"
+		},
+		"cloudflareUsage": {
+			"title": "今日 Workers AI 預估用量",
+			"remainingLabel": "預估剩餘免費 neurons",
+			"neuronsValue": "{{count}} neurons",
+			"usedLabel": "今日預估已用",
+			"usedValue": "{{used}} / {{quota}} neurons",
+			"requestsLabel": "已追蹤的圖片請求",
+			"resetLabel": "下次重設",
+			"localEstimateDescription": "這是根據從 C 執行的圖片生成所做的本機估算。Cloudflare 此處未提供用於查詢每日剩餘 quota 的已文件化 API；請在你的 Cloudflare dashboard 查看供應商確認的用量。"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} 說明文件",
@@ -401,12 +471,8 @@
 		"anthropicApiKey": "Anthropic API 金鑰",
 		"getAnthropicApiKey": "取得 Anthropic API 金鑰",
 		"anthropicUseAuthToken": "將 Anthropic API 金鑰作為 Authorization 標頭傳遞，而非使用 X-Api-Key",
-		"anthropic1MContextBetaLabel": "啟用 1M 上下文視窗 (Beta)",
-		"anthropic1MContextBetaDescription": "為 Claude Sonnet 4.x / Claude Opus 4.6 將上下文視窗擴展至 100 萬個 token",
 		"awsBedrock1MContextBetaLabel": "啟用 1M 上下文視窗 (Beta)",
 		"awsBedrock1MContextBetaDescription": "為 Claude Sonnet 4.x / Claude Opus 4.6 將上下文視窗擴展至 100 萬個 token",
-		"vertex1MContextBetaLabel": "啟用 1M 上下文視窗 (Beta)",
-		"vertex1MContextBetaDescription": "為 Claude Sonnet 4.x / Claude Opus 4.6 將上下文視窗擴展至 100 萬個 token",
 		"basetenApiKey": "Baseten API 金鑰",
 		"getBasetenApiKey": "取得 Baseten API 金鑰",
 		"poeApiKey": "Poe API 金鑰",
@@ -569,7 +635,8 @@
 			"low": "低",
 			"medium": "中",
 			"high": "高",
-			"xhigh": "超高"
+			"xhigh": "超高",
+			"max": "最大"
 		},
 		"verbosity": {
 			"label": "輸出詳細程度",
@@ -998,7 +1065,7 @@
 			"description": "啟用後，C 可以使用單獨設定的影像生成供應商，從 prompt 生成和編輯影像。",
 			"providerLabel": "供應商",
 			"providerDescription": "選擇用於影像生成的供應商。這與你的 chat 供應商設定檔相互獨立。",
-			"localProviderNote": "這裡無法選擇 Ollama 和 LM Studio，因為它們提供的是 vision/chat API，而不是影像生成 API。設定後，可透過 ComfyUI 和 Automatic1111 等真正的影像生成 API 使用本機影像生成。",
+			"localProviderNote": "Ollama、LM Studio、ComfyUI 和 Automatic1111 在這裡無法選擇，因為此面板現在專注於 OpenRouter 和 OpenAI-compatible 影像生成 API。",
 			"apiKeyLabel": "{{provider}} API 金鑰",
 			"optionalApiKeyLabel": "{{provider}} API 金鑰（選填）",
 			"apiKeyPlaceholder": "輸入你的 {{provider}} API 金鑰",
@@ -1026,7 +1093,7 @@
 			},
 			"negativePromptLabel": "Negative prompt",
 			"negativePromptPlaceholder": "輸入生成影像中要避免的內容",
-			"negativePromptDescription": "選用。協助本機供應商避免不需要的主體、風格或瑕疵。",
+			"negativePromptDescription": "選用。協助相容供應商避免不想要的主體、風格或瑕疵。",
 			"warningMissingApiKey": "⚠️ {{provider}} 需要 API 金鑰才能生成影像。請在上方設定。",
 			"warningMissingModel": "⚠️ {{provider}} 需要模型 ID 才能生成影像。請在上方設定。",
 			"successConfigured": "✓ 已為 {{provider}} 設定影像生成，可以使用"

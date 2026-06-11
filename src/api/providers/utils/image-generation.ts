@@ -1,4 +1,9 @@
-import type { GeneratedImageMetadata, ImageGenerationUsageDetails } from "@roo-code/types"
+import {
+	CLOUDFLARE_WORKERS_AI_FREE_ALLOCATION,
+	CLOUDFLARE_WORKERS_AI_IMAGE_MODEL_PRICING,
+	type GeneratedImageMetadata,
+	type ImageGenerationUsageDetails,
+} from "@roo-code/types"
 
 import { t } from "../../../i18n"
 
@@ -36,9 +41,22 @@ interface ImagesApiResponse {
 	}
 }
 
-type ImageGenerationProviderName = "openrouter" | "openai" | "comfyui" | "automatic1111"
+interface CloudflareWorkersAiResponse {
+	result?: unknown
+	image?: string
+	errors?: Array<{ message?: string }>
+	success?: boolean
+	usage?: unknown
+}
 
-type ImageGenerationApiMethodName = "chat_completions" | "images_api" | "comfyui_api" | "automatic1111_api"
+type ImageGenerationProviderName = "openrouter" | "openai" | "cloudflare" | "comfyui" | "automatic1111"
+
+type ImageGenerationApiMethodName =
+	| "chat_completions"
+	| "images_api"
+	| "workers_ai"
+	| "comfyui_api"
+	| "automatic1111_api"
 
 export interface ImageGenerationResult {
 	success: boolean
@@ -70,6 +88,16 @@ export interface ImagesApiOptions {
 	provider?: ImageGenerationProviderName
 }
 
+export interface CloudflareWorkersAiImageGenerationOptions {
+	baseURL: string
+	authToken?: string
+	accountId: string
+	model: string
+	prompt: string
+	inputImage?: string
+	provider?: Extract<ImageGenerationProviderName, "cloudflare">
+}
+
 export interface Automatic1111ImageGenerationOptions {
 	baseURL: string
 	authToken?: string
@@ -97,14 +125,20 @@ const buildImageGenerationHeaders = (authToken?: string): Record<string, string>
 	"X-Title": "C Code",
 })
 
+const buildMultipartImageGenerationHeaders = (authToken?: string): Record<string, string> => ({
+	...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+	"HTTP-Referer": "https://github.com/Cmizz24/C-Code",
+	"X-Title": "C Code",
+})
+
 const buildOptionalAuthHeaders = (authToken?: string): Record<string, string> =>
 	authToken ? { Authorization: `Bearer ${authToken}` } : {}
 
 const IMAGE_GENERATION_CONFIGURATION_GUIDANCE =
-	"Check that the configured image generation provider, base URL, API method, and model support text-to-image or image-edit generation. Local image generation requires a real image-generation API such as ComfyUI or Automatic1111. Vision/image-understanding models can analyze images, but they are not image-generation models."
+	"Check that the configured image generation provider, base URL, API method, and model support text-to-image or image-edit generation. Use OpenRouter image-output models, Cloudflare Workers AI image models, or an OpenAI/OpenAI-compatible Images API endpoint; vision/image-understanding models can analyze images, but they are not image-generation models."
 
 const IMAGE_GENERATION_RESPONSE_GUIDANCE =
-	"Expected image data in one of these response shapes: OpenAI Images API data[0].b64_json or data[0].url; OpenAI-compatible chat choices[0].message.images[].image_url.url; Automatic1111 images[] base64 output; ComfyUI history output images retrievable through /view; image, message.images, or images values containing base64 image strings; or text content containing a data:image/...;base64 URL or markdown image data URL. Use a real image-generation model through OpenRouter, OpenAI/OpenAI-compatible Images API, ComfyUI, or Automatic1111; vision/image-understanding models are not valid image-generation models."
+	"Expected image data in one of these response shapes: OpenAI Images API data[0].b64_json or data[0].url; OpenAI-compatible chat choices[0].message.images[].image_url.url; Cloudflare Workers AI result.image or image base64 values; image, message.images, or images values containing base64 image strings; binary image responses; or text content containing a data:image/...;base64 URL or markdown image data URL. Use a real image-generation model through OpenRouter, Cloudflare Workers AI, or an OpenAI/OpenAI-compatible Images API endpoint; vision/image-understanding models are not valid image-generation models."
 
 const STREAM_EVENTS_PROPERTY = "__streamEvents" as const
 
@@ -197,16 +231,46 @@ const extractImageGenerationUsageDetails = (value: unknown): ImageGenerationUsag
 		"images_count",
 		"generated_images",
 	])
-	const cost = getFirstNumberField(usageRecord, ["cost", "total_cost", "totalCost", "cost_usd"])
+	const neurons = getFirstNumberField(usageRecord, [
+		"neurons",
+		"total_neurons",
+		"totalNeurons",
+		"neuron_count",
+		"neuronCount",
+	])
+	const estimatedNeurons = getFirstNumberField(usageRecord, [
+		"estimatedNeurons",
+		"estimated_neurons",
+		"estimated_total_neurons",
+		"estimatedTotalNeurons",
+	])
+	const cost = getFirstNumberField(usageRecord, ["cost", "total_cost", "totalCost", "cost_usd", "costUsd"])
+	const estimatedCost = getFirstNumberField(usageRecord, [
+		"estimatedCost",
+		"estimated_cost",
+		"estimated_cost_usd",
+		"estimatedCostUsd",
+	])
 	const currency = getFirstStringField(usageRecord, ["currency", "cost_currency"])
+	const pricingDescription = getFirstStringField(usageRecord, [
+		"pricingDescription",
+		"pricing_description",
+		"pricing",
+	])
+	const quotaDescription = getFirstStringField(usageRecord, ["quotaDescription", "quota_description", "quota"])
 
 	const usage: ImageGenerationUsageDetails = {
 		...(tokensIn !== undefined && { tokensIn }),
 		...(tokensOut !== undefined && { tokensOut }),
 		...(totalTokens !== undefined && { totalTokens }),
 		...(imageCount !== undefined && { imageCount }),
+		...(neurons !== undefined && { neurons }),
+		...(estimatedNeurons !== undefined && { estimatedNeurons }),
 		...(cost !== undefined && { cost }),
+		...(estimatedCost !== undefined && { estimatedCost }),
 		...(currency !== undefined && { currency }),
+		...(pricingDescription !== undefined && { pricingDescription }),
+		...(quotaDescription !== undefined && { quotaDescription }),
 	}
 
 	return Object.keys(usage).length > 0 ? usage : undefined
@@ -488,6 +552,15 @@ const getErrorMessageFromErrorResponse = async (
 			return formatProviderError(errorJson.error.message)
 		}
 
+		const cloudflareErrorMessage = getCloudflareWorkersAiErrorMessage(errorJson)
+		if (cloudflareErrorMessage) {
+			return formatProviderError(cloudflareErrorMessage)
+		}
+
+		if (isRecord(errorJson) && typeof errorJson.message === "string" && errorJson.message.trim()) {
+			return formatProviderError(errorJson.message)
+		}
+
 		if (isRecord(errorJson)) {
 			return formatProviderErrorWithDiagnostics(
 				`The image generation provider returned an error response (${formatResponseStatus(response)}). ${IMAGE_GENERATION_CONFIGURATION_GUIDANCE}`,
@@ -509,6 +582,28 @@ const getErrorMessageFromErrorResponse = async (
 	return statusMessage
 }
 
+const getCloudflareWorkersAiErrorMessage = (value: unknown): string | undefined => {
+	if (!isRecord(value)) {
+		return undefined
+	}
+
+	if (Array.isArray(value.errors)) {
+		const messages = value.errors
+			.map((error) => (isRecord(error) && typeof error.message === "string" ? error.message.trim() : undefined))
+			.filter((message): message is string => Boolean(message))
+
+		if (messages.length > 0) {
+			return messages.join("; ")
+		}
+	}
+
+	if (value.success === false) {
+		return "Cloudflare Workers AI returned an unsuccessful response without an error message."
+	}
+
+	return undefined
+}
+
 const getImageFormatFromContentType = (contentType: string | null | undefined): string | undefined => {
 	const match = contentType?.match(/^image\/(png|jpeg|jpg|webp|gif)(?:;|$)/i)
 	return match?.[1]?.toLowerCase()
@@ -524,6 +619,13 @@ const getImageFormatFromUrl = (url: string): string | undefined => {
 		return match?.[1]?.toLowerCase().replace("jpg", "jpeg")
 	}
 }
+
+const isDallEImageModel = (model: string): boolean => /^dall-e-\d+/i.test(model.trim())
+
+const isProviderSpecificGenerationsEditModel = (model: string): boolean => model.trim().startsWith("bfl/")
+
+const getImagesApiResponseFallbackFormat = (model: string, outputFormat: string): string =>
+	isDallEImageModel(model) ? "png" : outputFormat
 
 const normalizeBinaryImageResponse = async (
 	response: Response,
@@ -554,6 +656,58 @@ const sanitizeBase64ImageData = (value: string): string => value.trim().replace(
 const normalizeImageFormat = (format: string | undefined, fallbackFormat = "png"): string => {
 	const normalized = (format || fallbackFormat).toLowerCase().replace("jpg", "jpeg")
 	return normalized || "png"
+}
+
+const getImageFileExtension = (format: string): string => (format === "jpeg" ? "jpg" : format)
+
+const getImageEditInputFromDataUrl = (
+	inputImage: string,
+): { data: ArrayBuffer; filename: string; mimeType: string } | undefined => {
+	const base64Match = inputImage.match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,(.+)$/i)
+	if (!base64Match) {
+		return undefined
+	}
+
+	const imageFormat = normalizeImageFormat(base64Match[1])
+	const base64Data = sanitizeBase64ImageData(base64Match[2])
+	const imageBuffer = Buffer.from(base64Data, "base64")
+	const imageData = new ArrayBuffer(imageBuffer.byteLength)
+	new Uint8Array(imageData).set(imageBuffer)
+
+	return {
+		data: imageData,
+		filename: `input.${getImageFileExtension(imageFormat)}`,
+		mimeType: `image/${imageFormat}`,
+	}
+}
+
+const appendFormDataString = (formData: FormData, name: string, value: string | number | undefined): void => {
+	if (value !== undefined && String(value).trim()) {
+		formData.append(name, String(value))
+	}
+}
+
+const appendImagesApiOutputOptions = (
+	target: Record<string, unknown> | FormData,
+	model: string,
+	outputFormat: string,
+): void => {
+	if (typeof (target as FormData).append === "function") {
+		const formData = target as FormData
+		if (isDallEImageModel(model)) {
+			appendFormDataString(formData, "response_format", "b64_json")
+		} else {
+			appendFormDataString(formData, "output_format", outputFormat)
+		}
+		return
+	}
+
+	const requestBody = target as Record<string, unknown>
+	if (isDallEImageModel(model)) {
+		requestBody.response_format = "b64_json"
+	} else {
+		requestBody.output_format = outputFormat
+	}
 }
 
 const detectImageFormatFromBase64 = (base64Data: string): string | undefined => {
@@ -781,6 +935,22 @@ const getImageCandidateFromProviderRecord = (
 		}
 	}
 
+	if (isRecord(record.result)) {
+		const resultCandidate = getImageCandidateFromProviderRecord(
+			record.result as ProviderResponseRecord,
+			fallbackFormat,
+			false,
+		)
+		if (resultCandidate) {
+			return resultCandidate
+		}
+	}
+
+	const directResultCandidate = getImageCandidateFromImageValue(record.result, fallbackFormat)
+	if (directResultCandidate) {
+		return directResultCandidate
+	}
+
 	const data = record.data
 	if (Array.isArray(data)) {
 		const dataCandidate = getImageCandidateFromImagesArray(data, fallbackFormat)
@@ -856,6 +1026,53 @@ const getNoExtractableImageError = (
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+type CloudflareWorkersAiRequestFormat = (typeof CLOUDFLARE_WORKERS_AI_IMAGE_MODEL_PRICING)[number]["requestFormat"]
+
+const getCloudflareWorkersAiModelPricing = (model: string) =>
+	CLOUDFLARE_WORKERS_AI_IMAGE_MODEL_PRICING.find((pricing) => pricing.model === model.trim())
+
+const getCloudflareWorkersAiRequestFormat = (model: string): CloudflareWorkersAiRequestFormat =>
+	getCloudflareWorkersAiModelPricing(model)?.requestFormat ?? "json"
+
+const buildCloudflareWorkersAiEndpoint = (baseURL: string, accountId: string, model: string): string => {
+	const normalizedBaseUrl = baseURL.trim().replace(/\/+$/, "")
+	const normalizedAccountId = encodeURIComponent(accountId.trim())
+	const normalizedModel = model.trim().replace(/^\/+/, "")
+	return `${normalizedBaseUrl}/accounts/${normalizedAccountId}/ai/run/${normalizedModel}`
+}
+
+const getCloudflareWorkersAiUsageDetails = (
+	model: string,
+	response?: CloudflareWorkersAiResponse,
+): ImageGenerationUsageDetails | undefined => {
+	const usageFromResponse = response
+		? extractImageGenerationUsageDetails(response) ||
+			(isRecord(response.result) ? extractImageGenerationUsageDetails(response.result) : undefined)
+		: undefined
+	const pricing = getCloudflareWorkersAiModelPricing(model)
+
+	const usage: ImageGenerationUsageDetails = {
+		...(usageFromResponse ?? {}),
+		usageSource: usageFromResponse ? "provider_response" : "unknown",
+		...(pricing && {
+			pricingDescription: `${pricing.label}: ${pricing.priceDetails.join("; ")}. Neurons: ${pricing.neuronDetails.join("; ")}`,
+		}),
+		quotaDescription: `Free allocation: ${CLOUDFLARE_WORKERS_AI_FREE_ALLOCATION.neuronsPerDay}; resets at ${CLOUDFLARE_WORKERS_AI_FREE_ALLOCATION.resetTime}; paid overage: ${CLOUDFLARE_WORKERS_AI_FREE_ALLOCATION.paidOverage}.`,
+	}
+
+	return Object.keys(usage).length > 0 ? usage : undefined
+}
+
+const appendCloudflareWorkersAiInputImage = (formData: FormData, inputImage: string): boolean => {
+	const editInput = getImageEditInputFromDataUrl(inputImage)
+	if (!editInput) {
+		return false
+	}
+
+	formData.append("image", new Blob([editInput.data], { type: editInput.mimeType }), editInput.filename)
+	return true
+}
+
 interface Automatic1111ImageGenerationResponse {
 	images?: unknown[]
 	info?: string
@@ -874,6 +1091,26 @@ interface ComfyUiImageReference {
 	filename: string
 	subfolder?: string
 	type?: string
+}
+
+const getComfyUiPromptHistory = (
+	history: ProviderResponseRecord,
+	promptId: string,
+): Record<string, unknown> | undefined =>
+	isRecord(history[promptId]) ? (history[promptId] as Record<string, unknown>) : undefined
+
+const isComfyUiPromptComplete = (promptHistory: Record<string, unknown>): boolean => {
+	const status = promptHistory.status
+	if (!isRecord(status)) {
+		return false
+	}
+
+	if (status.completed === true) {
+		return true
+	}
+
+	const statusString = getStringField(status, "status_str")?.toLowerCase()
+	return statusString === "success" || statusString === "error"
 }
 
 const getLocalProviderErrorMessage = (error: unknown): string => {
@@ -952,7 +1189,7 @@ const getComfyUiImageReference = (
 	history: ProviderResponseRecord,
 	promptId: string,
 ): ComfyUiImageReference | undefined => {
-	const promptHistory = isRecord(history[promptId]) ? (history[promptId] as Record<string, unknown>) : history
+	const promptHistory = getComfyUiPromptHistory(history, promptId) ?? history
 	const outputs = isRecord(promptHistory.outputs) ? promptHistory.outputs : undefined
 
 	if (!outputs) {
@@ -1222,7 +1459,8 @@ export async function generateImageWithComfyUi(options: ComfyUiImageGenerationOp
 				return fetchComfyUiOutputImage(baseURL, authToken, imageReference, diagnosticsContext)
 			}
 
-			if (isRecord(parsedHistoryResult.data[promptId])) {
+			const promptHistory = getComfyUiPromptHistory(parsedHistoryResult.data, promptId)
+			if (promptHistory && isComfyUiPromptComplete(promptHistory)) {
 				return {
 					success: false,
 					error: getNoExtractableImageError("comfyui_api", historyContext, parsedHistoryResult.diagnostics),
@@ -1389,55 +1627,47 @@ export async function generateImageWithProvider(options: ImageGenerationOptions)
 }
 
 /**
- * Generate an image using OpenAI's Images API (/v1/images/generations)
- * Supports BFL models (Flux) with provider-specific options for image editing
+ * Generate an image using Cloudflare Workers AI's account-scoped REST API.
  */
-export async function generateImageWithImagesApi(options: ImagesApiOptions): Promise<ImageGenerationResult> {
-	const { baseURL, authToken, model, prompt, inputImage, outputFormat = "png", provider } = options
+export async function generateImageWithCloudflareWorkersAi(
+	options: CloudflareWorkersAiImageGenerationOptions,
+): Promise<ImageGenerationResult> {
+	const { baseURL, authToken, accountId, model, prompt, inputImage, provider = "cloudflare" } = options
 
 	try {
-		const url = `${baseURL}/images/generations`
+		const url = buildCloudflareWorkersAiEndpoint(baseURL, accountId, model)
 		const diagnosticsContext: ProviderResponseDiagnosticsContext = {
 			provider,
-			apiMethod: "images_api",
+			apiMethod: "workers_ai",
 			endpoint: getEndpointPath(url),
 			model,
 		}
+		const requestFormat = getCloudflareWorkersAiRequestFormat(model)
+		let fetchOptions: RequestInit
 
-		// Build the request body
-		// For BFL models, inputImage is passed via providerOptions.blackForestLabs.inputImage
-		const requestBody: Record<string, unknown> = {
-			model,
-			prompt,
-			n: 1,
-		}
+		if (requestFormat === "multipart") {
+			const formData = new FormData()
+			appendFormDataString(formData, "prompt", prompt)
+			if (inputImage && !appendCloudflareWorkersAiInputImage(formData, inputImage)) {
+				return {
+					success: false,
+					error: formatProviderError(
+						"Cloudflare Workers AI image-to-image generation requires a data:image/...;base64 input image for multipart models.",
+					),
+				}
+			}
 
-		// Add optional parameters
-		if (options.size) {
-			requestBody.size = options.size
-		}
-		if (options.quality) {
-			requestBody.quality = options.quality
-		}
-
-		// For BFL (Black Forest Labs) models like flux-pro-1.1, use providerOptions
-		if (model.startsWith("bfl/")) {
-			requestBody.providerOptions = {
-				blackForestLabs: {
-					outputFormat: outputFormat,
-					// inputImage: Base64 encoded image or URL of image to use as reference
-					...(inputImage && { inputImage }),
-				},
+			fetchOptions = {
+				method: "POST",
+				headers: buildMultipartImageGenerationHeaders(authToken),
+				body: formData,
 			}
 		} else {
-			// For other models, use standard output_format parameter
-			requestBody.output_format = outputFormat
-		}
-
-		const fetchOptions: RequestInit = {
-			method: "POST",
-			headers: buildImageGenerationHeaders(authToken),
-			body: JSON.stringify(requestBody),
+			fetchOptions = {
+				method: "POST",
+				headers: buildImageGenerationHeaders(authToken),
+				body: JSON.stringify({ prompt }),
+			}
 		}
 
 		const response = await fetch(url, fetchOptions)
@@ -1450,7 +1680,145 @@ export async function generateImageWithImagesApi(options: ImagesApiOptions): Pro
 			}
 		}
 
-		const binaryImage = await normalizeBinaryImageResponse(response, outputFormat)
+		const binaryImage = await normalizeBinaryImageResponse(response)
+		if (binaryImage) {
+			return {
+				success: true,
+				...binaryImage,
+				usage: getCloudflareWorkersAiUsageDetails(model),
+			}
+		}
+
+		const parsedResult = await readProviderJsonResponse<CloudflareWorkersAiResponse>(
+			response,
+			"response",
+			diagnosticsContext,
+		)
+		if (!parsedResult.success) {
+			return parsedResult
+		}
+
+		const result = parsedResult.data
+		const cloudflareErrorMessage = getCloudflareWorkersAiErrorMessage(result)
+		if (cloudflareErrorMessage) {
+			return {
+				success: false,
+				error: formatProviderError(cloudflareErrorMessage),
+			}
+		}
+
+		const normalizedImage = await extractImageFromProviderResponse(result as ProviderResponseRecord)
+		if (!normalizedImage) {
+			return {
+				success: false,
+				error: getNoExtractableImageError("workers_ai", diagnosticsContext, parsedResult.diagnostics),
+			}
+		}
+
+		return {
+			success: true,
+			...normalizedImage,
+			usage: getCloudflareWorkersAiUsageDetails(model, result),
+		}
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : t("tools:generateImage.unknownError"),
+		}
+	}
+}
+
+/**
+ * Generate an image using OpenAI's Images API (/v1/images/generations)
+ * Supports BFL models (Flux) with provider-specific options for image editing
+ */
+export async function generateImageWithImagesApi(options: ImagesApiOptions): Promise<ImageGenerationResult> {
+	const { baseURL, authToken, model, prompt, inputImage, outputFormat = "png", provider } = options
+
+	try {
+		const normalizedOutputFormat = normalizeImageFormat(outputFormat)
+		const useGenerationsEndpoint = !inputImage || isProviderSpecificGenerationsEditModel(model)
+		const url = `${baseURL}/images/${useGenerationsEndpoint ? "generations" : "edits"}`
+		const diagnosticsContext: ProviderResponseDiagnosticsContext = {
+			provider,
+			apiMethod: "images_api",
+			endpoint: getEndpointPath(url),
+			model,
+		}
+
+		let fetchOptions: RequestInit
+
+		if (!useGenerationsEndpoint) {
+			const editInput = getImageEditInputFromDataUrl(inputImage)
+			if (!editInput) {
+				return {
+					success: false,
+					error: formatProviderError(
+						"OpenAI Images API image edits require a data:image/...;base64 input image. Use a supported local input image file or omit the image parameter for text-to-image generation.",
+					),
+				}
+			}
+
+			const formData = new FormData()
+			appendFormDataString(formData, "model", model)
+			appendFormDataString(formData, "prompt", prompt)
+			appendFormDataString(formData, "n", 1)
+			appendFormDataString(formData, "size", options.size)
+			appendFormDataString(formData, "quality", options.quality)
+			appendImagesApiOutputOptions(formData, model, normalizedOutputFormat)
+			formData.append("image", new Blob([editInput.data], { type: editInput.mimeType }), editInput.filename)
+
+			fetchOptions = {
+				method: "POST",
+				headers: buildMultipartImageGenerationHeaders(authToken),
+				body: formData,
+			}
+		} else {
+			// Build the request body. For BFL (Black Forest Labs) models like flux-pro-1.1,
+			// inputImage is passed via providerOptions.blackForestLabs.inputImage on /images/generations.
+			const requestBody: Record<string, unknown> = {
+				model,
+				prompt,
+				n: 1,
+			}
+
+			if (options.size) {
+				requestBody.size = options.size
+			}
+			if (options.quality) {
+				requestBody.quality = options.quality
+			}
+
+			if (isProviderSpecificGenerationsEditModel(model)) {
+				requestBody.providerOptions = {
+					blackForestLabs: {
+						outputFormat: normalizedOutputFormat,
+						...(inputImage && { inputImage }),
+					},
+				}
+			} else {
+				appendImagesApiOutputOptions(requestBody, model, normalizedOutputFormat)
+			}
+
+			fetchOptions = {
+				method: "POST",
+				headers: buildImageGenerationHeaders(authToken),
+				body: JSON.stringify(requestBody),
+			}
+		}
+
+		const response = await fetch(url, fetchOptions)
+
+		if (!response.ok) {
+			const errorMessage = await getErrorMessageFromErrorResponse(response, diagnosticsContext)
+			return {
+				success: false,
+				error: errorMessage,
+			}
+		}
+
+		const responseFallbackFormat = getImagesApiResponseFallbackFormat(model, normalizedOutputFormat)
+		const binaryImage = await normalizeBinaryImageResponse(response, responseFallbackFormat)
 		if (binaryImage) {
 			return {
 				success: true,
@@ -1474,7 +1842,10 @@ export async function generateImageWithImagesApi(options: ImagesApiOptions): Pro
 			}
 		}
 
-		const normalizedImage = await extractImageFromProviderResponse(result as ProviderResponseRecord, outputFormat)
+		const normalizedImage = await extractImageFromProviderResponse(
+			result as ProviderResponseRecord,
+			responseFallbackFormat,
+		)
 		if (!normalizedImage) {
 			return {
 				success: false,

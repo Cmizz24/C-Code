@@ -2,9 +2,57 @@
 
 import axios from "axios"
 
+import { basetenModels, bedrockModels, fireworksModels, geminiModels, sambaNovaModels } from "@roo-code/types"
+
+const bedrockSdkMocks = vi.hoisted(() => {
+	const send = vi.fn()
+	const clientConfigs: Record<string, any>[] = []
+
+	class MockBedrockClient {
+		public config: Record<string, any>
+		public send = send
+
+		constructor(config: Record<string, any>) {
+			this.config = config
+			clientConfigs.push(config)
+		}
+	}
+
+	class MockListFoundationModelsCommand {
+		constructor(public readonly input: Record<string, any>) {}
+	}
+
+	class MockListInferenceProfilesCommand {
+		constructor(public readonly input: Record<string, any>) {}
+	}
+
+	return {
+		send,
+		clientConfigs,
+		MockBedrockClient,
+		MockListFoundationModelsCommand,
+		MockListInferenceProfilesCommand,
+	}
+})
+
+const credentialProviderMocks = vi.hoisted(() => ({
+	fromIni: vi.fn((options: { profile: string }) => ({ source: "fromIni", profile: options.profile })),
+}))
+
+vi.mock("@aws-sdk/client-bedrock", () => ({
+	BedrockClient: bedrockSdkMocks.MockBedrockClient,
+	ListFoundationModelsCommand: bedrockSdkMocks.MockListFoundationModelsCommand,
+	ListInferenceProfilesCommand: bedrockSdkMocks.MockListInferenceProfilesCommand,
+}))
+
+vi.mock("@aws-sdk/credential-providers", () => ({
+	fromIni: credentialProviderMocks.fromIni,
+}))
+
 import {
 	getAnthropicModels,
 	getBasetenModels,
+	getBedrockModels,
 	getDeepSeekModels,
 	getFireworksModels,
 	getGeminiModels,
@@ -14,6 +62,7 @@ import {
 	getOpenAiNativeModels,
 	getSambaNovaModels,
 	getXAIModels,
+	getXiaomiMiMoModels,
 } from "../static-provider-models"
 
 vi.mock("axios", () => ({
@@ -27,6 +76,8 @@ const mockAxiosGet = vi.mocked(axios.get)
 describe("static provider model fetchers", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+		bedrockSdkMocks.send.mockReset()
+		bedrockSdkMocks.clientConfigs.length = 0
 	})
 
 	describe("getAnthropicModels", () => {
@@ -97,8 +148,8 @@ describe("static provider model fetchers", () => {
 				supportsImages: true,
 				supportsPromptCache: true,
 				supportsReasoningAdaptive: true,
-				supportsReasoningEffort: ["disable", "low", "medium", "high", "xhigh"],
-				adaptiveThinkingEffort: "medium",
+				supportsReasoningEffort: ["disable", "low", "medium", "high", "xhigh", "max"],
+				adaptiveThinkingEffort: "high",
 				supportsTemperature: false,
 				inputPrice: 5,
 				outputPrice: 25,
@@ -177,8 +228,30 @@ describe("static provider model fetchers", () => {
 				outputPrice: 2.5,
 				cacheReadsPrice: 0.2,
 			})
-			expect(models["grok-4.3-latest"]).toEqual(models.latest)
-			expect(models["grok-latest"]).toEqual(models.latest)
+			expect(models.latest.maxTokens).toBeUndefined()
+			expect(models.latest.cacheWritesPrice).toBeUndefined()
+			expect(models["grok-4.3-latest"]).toMatchObject({
+				contextWindow: 1_000_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				inputPrice: 1.25,
+				outputPrice: 2.5,
+				cacheReadsPrice: 0.2,
+				deprecated: true,
+			})
+			expect(models["grok-4.3-latest"].maxTokens).toBeUndefined()
+			expect(models["grok-4.3-latest"].cacheWritesPrice).toBeUndefined()
+			expect(models["grok-latest"]).toMatchObject({
+				contextWindow: 1_000_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				inputPrice: 1.25,
+				outputPrice: 2.5,
+				cacheReadsPrice: 0.2,
+				deprecated: true,
+			})
+			expect(models["grok-latest"].maxTokens).toBeUndefined()
+			expect(models["grok-latest"].cacheWritesPrice).toBeUndefined()
 			expect(models["grok-420-reasoning"]).toMatchObject({
 				contextWindow: 128_000,
 				supportsImages: false,
@@ -192,6 +265,123 @@ describe("static provider model fetchers", () => {
 					outputPriceMultiplier: 2,
 				},
 			})
+			expect(models["grok-420-reasoning"].cacheWritesPrice).toBeUndefined()
+		})
+
+		it("preserves curated xAI metadata when dynamic language-models data is sparse or zero-priced", async () => {
+			mockAxiosGet.mockResolvedValueOnce({
+				data: {
+					models: [
+						{
+							id: "grok-4.3",
+							aliases: ["grok-4.20-0309-reasoning"],
+							input_modalities: ["text", "image"],
+							output_modalities: ["text"],
+							prompt_text_token_price: 0,
+							cached_prompt_text_token_price: 0,
+							completion_text_token_price: 0,
+						},
+					],
+				},
+			})
+
+			const models = await getXAIModels("xai-key")
+
+			expect(mockAxiosGet).toHaveBeenCalledTimes(1)
+			expect(models["grok-4.3"]).toMatchObject({
+				contextWindow: 1_000_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				inputPrice: 1.25,
+				outputPrice: 2.5,
+				cacheReadsPrice: 0.2,
+				supportsReasoningEffort: ["none", "low", "medium", "high"],
+				reasoningEffort: "low",
+			})
+			expect(models["grok-4.3"].maxTokens).toBeUndefined()
+			expect(models["grok-4.3"].cacheWritesPrice).toBeUndefined()
+			expect(models["grok-4.20-0309-reasoning"]).toMatchObject({
+				contextWindow: 1_000_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				inputPrice: 1.25,
+				outputPrice: 2.5,
+				cacheReadsPrice: 0.2,
+			})
+			expect(models["grok-4.20-0309-reasoning"].maxTokens).toBeUndefined()
+		})
+
+		it("falls back to /v1/models when /v1/language-models has no text models and filters image-only entries", async () => {
+			mockAxiosGet
+				.mockResolvedValueOnce({
+					data: {
+						models: [
+							{
+								id: "grok-image-only",
+								output_modalities: ["image"],
+								image_price: 250_000,
+							},
+						],
+					},
+				})
+				.mockResolvedValueOnce({
+					data: {
+						data: [
+							{
+								id: "grok-build-0.1",
+								input_modalities: ["text", "image"],
+								output_modalities: ["text"],
+								context_window: 256_000,
+								prompt_text_token_price: 10_000,
+								cached_prompt_text_token_price: 2_000,
+								completion_text_token_price: 20_000,
+							},
+							{
+								id: "xai-dynamic-language-model",
+								output_modalities: ["text"],
+								context_window: 64_000,
+								max_completion_tokens: 4_096,
+							},
+							{
+								id: "xai-image-generation-model",
+								output_modalities: ["image"],
+								image_price: 250_000,
+							},
+							{
+								id: "xai-image-price-only-model",
+								image_price: 250_000,
+							},
+						],
+					},
+				})
+
+			const models = await getXAIModels("xai-key")
+
+			expect(mockAxiosGet).toHaveBeenNthCalledWith(1, "https://api.x.ai/v1/language-models", {
+				headers: { Authorization: "Bearer xai-key" },
+			})
+			expect(mockAxiosGet).toHaveBeenNthCalledWith(2, "https://api.x.ai/v1/models", {
+				headers: { Authorization: "Bearer xai-key" },
+			})
+			expect(models["grok-build-0.1"]).toMatchObject({
+				contextWindow: 256_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				inputPrice: 1,
+				outputPrice: 2,
+				cacheReadsPrice: 0.2,
+			})
+			expect(models["grok-build-0.1"].cacheWritesPrice).toBeUndefined()
+			expect(models["xai-dynamic-language-model"]).toMatchObject({
+				contextWindow: 64_000,
+				maxTokens: 4_096,
+				supportsPromptCache: false,
+			})
+			expect(models["xai-dynamic-language-model"].inputPrice).toBeUndefined()
+			expect(models["xai-dynamic-language-model"].supportsReasoningEffort).toBeUndefined()
+			expect(models["grok-image-only"]).toBeUndefined()
+			expect(models["xai-image-generation-model"]).toBeUndefined()
+			expect(models["xai-image-price-only-model"]).toBeUndefined()
 		})
 	})
 
@@ -203,6 +393,7 @@ describe("static provider model fetchers", () => {
 						id: "mistral-dynamic-model",
 						description: "Dynamic Mistral model",
 						max_context_length: 32_768,
+						max_output_tokens: 8_192,
 						capabilities: {
 							vision: true,
 							function_calling: true,
@@ -218,8 +409,95 @@ describe("static provider model fetchers", () => {
 			})
 			expect(models["mistral-dynamic-model"]).toMatchObject({
 				contextWindow: 32_768,
+				maxTokens: 8_192,
 				description: "Dynamic Mistral model",
 				supportsImages: true,
+				supportsPromptCache: false,
+			})
+		})
+
+		it("maps OpenAI-compatible data responses with alternate official fields", async () => {
+			mockAxiosGet.mockResolvedValueOnce({
+				data: {
+					data: [
+						{
+							id: "mistral-data-model",
+							description: "Dynamic model from data array",
+							context_length: 64_000,
+							max_completion_tokens: 4_096,
+							capabilities: {
+								image_input: { supported: true },
+								image_output: { supported: true },
+							},
+						},
+						{
+							id: "mistral-modalities-model",
+							context_window: 96_000,
+							max_tokens: 12_000,
+							input_modalities: ["text", "image"],
+							output_modalities: ["text", "image"],
+						},
+						{
+							id: "mistral-max-context-model",
+							maxContextLength: 128_000,
+							modalities: ["text", "image"],
+						},
+					],
+				},
+			})
+
+			const models = await getMistralModels("mistral-key")
+
+			expect(models["mistral-data-model"]).toMatchObject({
+				contextWindow: 64_000,
+				maxTokens: 4_096,
+				description: "Dynamic model from data array",
+				supportsImages: true,
+				supportsImageOutput: true,
+				supportsPromptCache: false,
+			})
+			expect(models["mistral-modalities-model"]).toMatchObject({
+				contextWindow: 96_000,
+				maxTokens: 12_000,
+				supportsImages: true,
+				supportsImageOutput: true,
+				supportsPromptCache: false,
+			})
+			expect(models["mistral-max-context-model"]).toMatchObject({
+				contextWindow: 128_000,
+				supportsImages: true,
+				supportsPromptCache: false,
+			})
+			expect(models["mistral-max-context-model"].maxTokens).toBeUndefined()
+		})
+
+		it("preserves curated static metadata for sparse known model ids", async () => {
+			mockAxiosGet.mockResolvedValueOnce({
+				data: [{ id: "codestral-latest" }],
+			})
+
+			const models = await getMistralModels("mistral-key")
+
+			expect(models["codestral-latest"]).toMatchObject({
+				maxTokens: 8192,
+				contextWindow: 128_000,
+				supportsImages: false,
+				supportsPromptCache: false,
+				inputPrice: 0.3,
+				outputPrice: 0.9,
+				description: "Codestral v25.08 is Mistral's code-generation model.",
+			})
+		})
+
+		it("uses conservative fallback metadata for unknown sparse dynamic model ids", async () => {
+			mockAxiosGet.mockResolvedValueOnce({
+				data: [{ id: "mistral-unknown-sparse-model" }],
+			})
+
+			const models = await getMistralModels("mistral-key")
+
+			expect(models["mistral-unknown-sparse-model"]).toEqual({
+				contextWindow: 128_000,
 				supportsPromptCache: false,
 			})
 		})
@@ -248,6 +526,211 @@ describe("static provider model fetchers", () => {
 				contextWindow: 128_000,
 				supportsPromptCache: false,
 			})
+			expect(models["openai-dynamic-model"].maxTokens).toBeUndefined()
+			expect(models["openai-dynamic-model"].supportsImages).toBeUndefined()
+			expect(models["openai-dynamic-model"].inputPrice).toBeUndefined()
+			expect(models["openai-dynamic-model"].outputPrice).toBeUndefined()
+		})
+	})
+
+	describe("getXiaomiMiMoModels", () => {
+		it("maps OpenAI-compatible /models ids with Xiaomi headers while preserving static and fallback metadata", async () => {
+			mockAxiosGet.mockResolvedValueOnce({
+				data: {
+					data: [{ id: "mimo-v2.5-pro" }, { id: "mimo-v2-pro" }, { id: "mimo-unknown-sparse" }],
+				},
+			})
+
+			const models = await getXiaomiMiMoModels("xiaomi-key", "https://api.xiaomimimo.com/v1/")
+
+			expect(mockAxiosGet).toHaveBeenCalledWith("https://api.xiaomimimo.com/v1/models", {
+				headers: { "api-key": "xiaomi-key", Authorization: "Bearer xiaomi-key" },
+			})
+			expect(models["mimo-v2.5-pro"]).toMatchObject({
+				contextWindow: 1_000_000,
+				maxTokens: 128_000,
+				supportsPromptCache: true,
+				supportsReasoningBinary: true,
+				inputPrice: 0.435,
+				outputPrice: 0.87,
+				cacheReadsPrice: 0.0036,
+			})
+			expect(models["mimo-v2-pro"]).toMatchObject({
+				deprecated: true,
+				contextWindow: 1_000_000,
+				maxTokens: 128_000,
+				supportsPromptCache: true,
+				inputPrice: 0.435,
+				outputPrice: 0.87,
+				cacheReadsPrice: 0.0036,
+			})
+			expect(models["mimo-unknown-sparse"]).toEqual({
+				contextWindow: 128_000,
+				supportsPromptCache: false,
+			})
+		})
+	})
+
+	describe("getBedrockModels", () => {
+		it("returns no models without a configured region", async () => {
+			const models = await getBedrockModels({ provider: "bedrock" })
+
+			expect(models).toEqual({})
+			expect(bedrockSdkMocks.clientConfigs).toHaveLength(0)
+			expect(bedrockSdkMocks.send).not.toHaveBeenCalled()
+		})
+
+		it("discovers text foundation models and active inference profiles while preserving curated metadata", async () => {
+			bedrockSdkMocks.send
+				.mockResolvedValueOnce({
+					modelSummaries: [
+						{
+							modelId: "anthropic.claude-sonnet-4-6",
+							modelName: "Dynamic Claude Sonnet 4.6",
+							outputModalities: ["TEXT"],
+						},
+						{
+							modelId: "provider.dynamic-text-model",
+							modelName: "Dynamic Text Model",
+							outputModalities: ["TEXT"],
+						},
+						{
+							modelId: "provider.image-only-model",
+							modelName: "Image Only Model",
+							outputModalities: ["IMAGE"],
+						},
+					],
+				})
+				.mockResolvedValueOnce({
+					inferenceProfileSummaries: [
+						{
+							inferenceProfileId: "us.anthropic.claude-sonnet-4-6",
+							inferenceProfileName: "US Claude Sonnet 4.6",
+							status: "ACTIVE",
+							models: [
+								{
+									modelArn: "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-4-6",
+								},
+							],
+						},
+						{
+							inferenceProfileId: "global.vendor.unknown-profile-model",
+							inferenceProfileName: "Unknown Profile Model",
+							status: "ACTIVE",
+							models: [
+								{
+									modelArn:
+										"arn:aws:bedrock:us-east-1::foundation-model/vendor.unknown-profile-model",
+								},
+							],
+						},
+						{
+							inferenceProfileId: "inactive-profile",
+							inferenceProfileName: "Inactive Profile",
+							status: "INACTIVE",
+						},
+					],
+					nextToken: "next-page",
+				})
+				.mockResolvedValueOnce({
+					inferenceProfileSummaries: [
+						{
+							inferenceProfileArn:
+								"arn:aws:bedrock:us-east-1:123456789012:inference-profile/custom-profile",
+							inferenceProfileName: "Custom Profile",
+							status: "ACTIVE",
+							models: [
+								{
+									modelArn: "arn:aws:bedrock:us-east-1::foundation-model/provider.dynamic-text-model",
+								},
+							],
+						},
+					],
+				})
+
+			const models = await getBedrockModels({
+				provider: "bedrock",
+				awsRegion: " us-east-1 ",
+				awsAccessKey: " access-key ",
+				awsSecretKey: " secret-key ",
+				awsSessionToken: " session-token ",
+				awsBedrockEndpointEnabled: true,
+				awsBedrockEndpoint: " https://bedrock.example.com ",
+			})
+
+			expect(bedrockSdkMocks.clientConfigs[0]).toEqual({
+				region: "us-east-1",
+				endpoint: "https://bedrock.example.com",
+				credentials: {
+					accessKeyId: "access-key",
+					secretAccessKey: "secret-key",
+					sessionToken: "session-token",
+				},
+			})
+			expect(bedrockSdkMocks.send.mock.calls[0][0]).toBeInstanceOf(
+				bedrockSdkMocks.MockListFoundationModelsCommand,
+			)
+			expect(bedrockSdkMocks.send.mock.calls[0][0].input).toEqual({})
+			expect(bedrockSdkMocks.send.mock.calls[1][0]).toBeInstanceOf(
+				bedrockSdkMocks.MockListInferenceProfilesCommand,
+			)
+			expect(bedrockSdkMocks.send.mock.calls[1][0].input).toEqual({ maxResults: 100 })
+			expect(bedrockSdkMocks.send.mock.calls[2][0].input).toEqual({ maxResults: 100, nextToken: "next-page" })
+
+			expect(models["anthropic.claude-sonnet-4-6"]).toMatchObject(bedrockModels["anthropic.claude-sonnet-4-6"])
+			expect(models["anthropic.claude-sonnet-4-6"].description).toBeUndefined()
+			expect(models["us.anthropic.claude-sonnet-4-6"]).toMatchObject(bedrockModels["anthropic.claude-sonnet-4-6"])
+			expect(models["provider.dynamic-text-model"]).toEqual({
+				contextWindow: 128_000,
+				supportsPromptCache: false,
+				description: "Dynamic Text Model",
+			})
+			expect(models["global.vendor.unknown-profile-model"]).toEqual({
+				contextWindow: 128_000,
+				supportsPromptCache: false,
+				description: "Unknown Profile Model",
+			})
+			expect(models["custom-profile"]).toEqual({
+				contextWindow: 128_000,
+				supportsPromptCache: false,
+				description: "Custom Profile",
+			})
+			expect(models["provider.image-only-model"]).toBeUndefined()
+			expect(models["inactive-profile"]).toBeUndefined()
+		})
+
+		it("supports profile credentials and bearer token authentication modes", async () => {
+			bedrockSdkMocks.send.mockResolvedValue({ modelSummaries: [], inferenceProfileSummaries: [] })
+
+			await getBedrockModels({
+				provider: "bedrock",
+				awsRegion: "us-west-2",
+				awsUseProfile: true,
+				awsProfile: " dev-profile ",
+			})
+
+			expect(credentialProviderMocks.fromIni).toHaveBeenCalledWith({ profile: "dev-profile", ignoreCache: true })
+			expect(bedrockSdkMocks.clientConfigs[0]).toMatchObject({
+				region: "us-west-2",
+				credentials: { source: "fromIni", profile: "dev-profile" },
+			})
+
+			bedrockSdkMocks.clientConfigs.length = 0
+			bedrockSdkMocks.send.mockClear()
+
+			await getBedrockModels({
+				provider: "bedrock",
+				awsRegion: "us-west-2",
+				awsUseApiKey: true,
+				awsApiKey: " bearer-token ",
+			})
+
+			expect(bedrockSdkMocks.clientConfigs[0]).toMatchObject({
+				region: "us-west-2",
+				token: { token: "bearer-token" },
+				authSchemePreference: ["httpBearerAuth"],
+			})
+			expect(bedrockSdkMocks.clientConfigs[0].credentials).toBeUndefined()
 		})
 	})
 
@@ -292,6 +775,13 @@ describe("static provider model fetchers", () => {
 				contextWindow: 128_000,
 				supportsPromptCache: false,
 			})
+			expect(models["deepseek-dynamic-model"].maxTokens).toBeUndefined()
+			expect(models["deepseek-dynamic-model"].inputPrice).toBeUndefined()
+			expect(models["deepseek-dynamic-model"].outputPrice).toBeUndefined()
+			expect(models["deepseek-dynamic-model"].cacheWritesPrice).toBeUndefined()
+			expect(models["deepseek-dynamic-model"].cacheReadsPrice).toBeUndefined()
+			expect(models["deepseek-dynamic-model"].supportsReasoningEffort).toBeUndefined()
+			expect(models["deepseek-dynamic-model"].preserveReasoning).toBeUndefined()
 		})
 	})
 
@@ -302,9 +792,9 @@ describe("static provider model fetchers", () => {
 					data: {
 						models: [
 							{
-								name: "models/gemini-3.1-pro-preview",
-								displayName: "Gemini 3.1 Pro Preview",
-								description: "Dynamic Gemini Pro description",
+								name: "models/gemini-3.5-flash",
+								displayName: "Gemini 3.5 Flash",
+								description: "Dynamic Gemini Flash description",
 								inputTokenLimit: 1_048_576,
 								outputTokenLimit: 65_536,
 								supportedGenerationMethods: ["generateContent", "countTokens"],
@@ -344,14 +834,16 @@ describe("static provider model fetchers", () => {
 			expect(mockAxiosGet).toHaveBeenNthCalledWith(2, "https://generativelanguage.googleapis.com/v1beta/models", {
 				params: { key: "gemini-key", pageSize: 1000, pageToken: "next-page" },
 			})
-			expect(models["gemini-3.1-pro-preview"]).toMatchObject({
+			expect(models["gemini-3.5-flash"]).toMatchObject({
 				contextWindow: 1_048_576,
 				maxTokens: 65_536,
-				description: "Dynamic Gemini Pro description",
+				description: "Dynamic Gemini Flash description",
 				supportsPromptCache: true,
-				supportsReasoningEffort: ["low", "medium", "high"],
-				inputPrice: 4,
-				outputPrice: 18,
+				supportsReasoningEffort: ["minimal", "low", "medium", "high"],
+				reasoningEffort: "medium",
+				inputPrice: 1.5,
+				outputPrice: 9,
+				cacheReadsPrice: 0.15,
 				supportsTemperature: true,
 				defaultTemperature: 1,
 			})
@@ -365,6 +857,51 @@ describe("static provider model fetchers", () => {
 			})
 			expect(models["text-embedding-004"]).toBeUndefined()
 		})
+
+		it("uses fallback defaults for sparse dynamic Gemini responses", async () => {
+			mockAxiosGet.mockResolvedValueOnce({
+				data: {
+					models: [
+						{
+							name: "models/gemini-sparse-dynamic",
+							supportedGenerationMethods: ["generateContent"],
+						},
+					],
+				},
+			})
+
+			const models = await getGeminiModels("gemini-key")
+
+			expect(models["gemini-sparse-dynamic"]).toEqual({
+				contextWindow: 128_000,
+				supportsPromptCache: false,
+			})
+		})
+
+		it("preserves richer curated Gemini metadata when dynamic responses omit optional capability and pricing fields", async () => {
+			mockAxiosGet.mockResolvedValueOnce({
+				data: {
+					models: [
+						{
+							name: "models/gemini-3.1-pro-preview",
+							supportedGenerationMethods: ["generateContent"],
+						},
+					],
+				},
+			})
+
+			const models = await getGeminiModels("gemini-key")
+
+			expect(models["gemini-3.1-pro-preview"]).toMatchObject({
+				...geminiModels["gemini-3.1-pro-preview"],
+				contextWindow: 1_048_576,
+				supportsPromptCache: true,
+				supportsReasoningEffort: ["low", "medium", "high"],
+				reasoningEffort: "high",
+				inputPrice: 4,
+				outputPrice: 18,
+			})
+		})
 	})
 
 	describe("getMoonshotModels", () => {
@@ -373,9 +910,10 @@ describe("static provider model fetchers", () => {
 				data: {
 					data: [
 						{
-							id: "kimi-k2-thinking",
+							id: "kimi-k2.6",
 							context_length: 262_144,
-							supports_image_in: false,
+							max_completion_tokens: 32_768,
+							supports_image_in: true,
 							supports_reasoning: true,
 						},
 						{
@@ -394,62 +932,81 @@ describe("static provider model fetchers", () => {
 			expect(mockAxiosGet).toHaveBeenCalledWith("https://api.moonshot.cn/v1/models", {
 				headers: { Authorization: "Bearer moonshot-key" },
 			})
-			expect(models["kimi-k2-thinking"]).toMatchObject({
+			expect(models["kimi-k2.6"]).toMatchObject({
 				contextWindow: 262_144,
-				maxTokens: 16_000,
-				supportsImages: false,
+				maxTokens: 32_768,
+				supportsImages: true,
 				supportsPromptCache: true,
+				supportsReasoningBinary: true,
 				preserveReasoning: true,
+				inputPrice: 0.95,
+				outputPrice: 4,
+				cacheReadsPrice: 0.16,
 			})
 			expect(models["kimi-dynamic-vision"]).toMatchObject({
 				contextWindow: 131_072,
 				maxTokens: 8_192,
 				supportsImages: true,
 				supportsPromptCache: false,
+				supportsReasoningBinary: false,
 				preserveReasoning: false,
 			})
 		})
 	})
 
 	describe("getSambaNovaModels", () => {
-		it("maps the official /v1/models response with token limits and pricing", async () => {
+		it("maps the public /v1/models response with token limits, capabilities, and pricing", async () => {
 			mockAxiosGet.mockResolvedValueOnce({
 				data: {
 					data: [
 						{
-							id: "DeepSeek-R1",
-							context_length: 32_768,
-							max_completion_tokens: 16_384,
-							pricing: { prompt: "0.00000500", completion: "0.00000700" },
+							id: "Meta-Llama-3.3-70B-Instruct",
+							description: "Sparse SambaNova fallback should not replace curated metadata",
+							pricing: { prompt: "0", completion: "0" },
 						},
 						{
 							id: "SambaNova-Dynamic-Model",
-							context_length: 64_000,
-							max_completion_tokens: 12_000,
+							description: "SambaNova Dynamic Model",
+							context_window: 64_000,
+							max_output_tokens: 12_000,
+							modalities: ["text", "image"],
 							pricing: { prompt: "0.00000050", completion: "0.00000100" },
 						},
 					],
 				},
 			})
 
-			const models = await getSambaNovaModels("sambanova-key")
+			const models = await getSambaNovaModels()
 
 			expect(mockAxiosGet).toHaveBeenCalledWith("https://api.sambanova.ai/v1/models", {
-				headers: { Authorization: "Bearer sambanova-key" },
+				headers: {},
 			})
-			expect(models["DeepSeek-R1"]).toMatchObject({
-				contextWindow: 32_768,
-				maxTokens: 16_384,
-				supportsReasoningBudget: true,
-				inputPrice: 5,
-				outputPrice: 7,
+			expect(models["Meta-Llama-3.3-70B-Instruct"]).toMatchObject({
+				contextWindow: 131_072,
+				maxTokens: 3_072,
+				supportsImages: false,
+				inputPrice: 0.6,
+				outputPrice: 1.2,
+				description: sambaNovaModels["Meta-Llama-3.3-70B-Instruct"].description,
 			})
 			expect(models["SambaNova-Dynamic-Model"]).toMatchObject({
 				contextWindow: 64_000,
 				maxTokens: 12_000,
+				description: "SambaNova Dynamic Model",
+				supportsImages: true,
 				supportsPromptCache: false,
 				inputPrice: 0.5,
 				outputPrice: 1,
+			})
+		})
+
+		it("passes the optional SambaNova API key when provided", async () => {
+			mockAxiosGet.mockResolvedValueOnce({ data: { data: [] } })
+
+			await getSambaNovaModels("sambanova-key")
+
+			expect(mockAxiosGet).toHaveBeenCalledWith("https://api.sambanova.ai/v1/models", {
+				headers: { Authorization: "Bearer sambanova-key" },
 			})
 		})
 	})
@@ -460,8 +1017,8 @@ describe("static provider model fetchers", () => {
 				data: {
 					data: [
 						{
-							id: "MiniMax-M2.7",
-							display_name: "MiniMax M2.7",
+							id: "MiniMax-M3",
+							display_name: "MiniMax M3",
 							created_at: "2026-03-18T02:00:00Z",
 							type: "model",
 						},
@@ -471,7 +1028,7 @@ describe("static provider model fetchers", () => {
 							type: "model",
 						},
 					],
-					first_id: "MiniMax-M2.7",
+					first_id: "MiniMax-M3",
 					has_more: false,
 					last_id: "MiniMax-Dynamic-Model",
 				},
@@ -482,10 +1039,29 @@ describe("static provider model fetchers", () => {
 			expect(mockAxiosGet).toHaveBeenCalledWith("https://api.minimax.io/anthropic/v1/models", {
 				headers: { "X-Api-Key": "minimax-key" },
 			})
-			expect(models["MiniMax-M2.7"]).toMatchObject({
-				contextWindow: 204_800,
+			expect(models["MiniMax-M3"]).toMatchObject({
+				contextWindow: 1_000_000,
 				maxTokens: 16_384,
+				supportsImages: true,
 				supportsPromptCache: true,
+				inputPrice: 0.3,
+				outputPrice: 1.2,
+				cacheReadsPrice: 0.06,
+				longContextPricing: {
+					thresholdTokens: 512_000,
+					inputPriceMultiplier: 2,
+					outputPriceMultiplier: 2,
+					cacheReadsPriceMultiplier: 2,
+				},
+				tiers: [
+					{
+						name: "priority",
+						contextWindow: 1_000_000,
+						inputPrice: 0.45,
+						outputPrice: 1.8,
+						cacheReadsPrice: 0.09,
+					},
+				],
 			})
 			expect(models["MiniMax-Dynamic-Model"]).toMatchObject({
 				contextWindow: 128_000,
@@ -511,15 +1087,22 @@ describe("static provider model fetchers", () => {
 	})
 
 	describe("getBasetenModels", () => {
-		it("maps the verified Model APIs /v1/models response with a models array", async () => {
+		it("maps the verified Model APIs /v1/models response while preserving curated known metadata", async () => {
 			mockAxiosGet.mockResolvedValueOnce({
 				data: {
 					models: [
+						{
+							id: "deepseek-ai/DeepSeek-V4-Pro",
+							name: "Sparse DeepSeek V4 Pro",
+						},
 						{
 							id: "baseten/dynamic-model",
 							name: "Baseten Dynamic Model",
 							context_window: 256_000,
 							max_output_tokens: 16_384,
+							supports_image_input: true,
+							supports_reasoning_effort: true,
+							pricing: { input: "0.00000125", output: "0.00000250", cache_read: "0.00000010" },
 						},
 					],
 				},
@@ -530,12 +1113,27 @@ describe("static provider model fetchers", () => {
 			expect(mockAxiosGet).toHaveBeenCalledWith("https://inference.baseten.co/v1/models", {
 				headers: { Authorization: "Bearer baseten-key" },
 			})
+			expect(models["deepseek-ai/DeepSeek-V4-Pro"]).toMatchObject({
+				contextWindow: 131_072,
+				maxTokens: 131_072,
+				supportsPromptCache: true,
+				supportsReasoningEffort: ["disable", "low", "medium", "high"],
+				inputPrice: 1.74,
+				outputPrice: 3.48,
+				cacheReadsPrice: 0.145,
+				description: basetenModels["deepseek-ai/DeepSeek-V4-Pro"].description,
+			})
 			expect(models["baseten/dynamic-model"]).toMatchObject({
 				contextWindow: 256_000,
 				maxTokens: 16_384,
 				description: "Baseten Dynamic Model",
+				supportsImages: true,
 				supportsPromptCache: false,
+				supportsReasoningEffort: ["low", "medium", "high"],
+				inputPrice: 1.25,
+				outputPrice: 2.5,
 			})
+			expect(models["baseten/dynamic-model"].cacheReadsPrice).toBeCloseTo(0.1)
 		})
 	})
 
@@ -546,9 +1144,14 @@ describe("static provider model fetchers", () => {
 					data: {
 						models: [
 							{
-								name: "accounts/fireworks/models/deepseek-v3",
-								displayName: "DeepSeek V3",
-								contextLength: 128_000,
+								name: "accounts/fireworks/models/kimi-k2p6",
+								displayName: "Sparse Fireworks Kimi K2.6",
+								supportsServerless: true,
+							},
+							{
+								name: "accounts/fireworks/models/non-serverless-model",
+								description: "Do not include dedicated-only models",
+								supportsServerless: false,
 							},
 						],
 						nextPageToken: "next-page",
@@ -561,6 +1164,9 @@ describe("static provider model fetchers", () => {
 								name: "accounts/fireworks/models/fireworks-dynamic-model",
 								description: "Fireworks Dynamic Model",
 								maxContextLength: 64_000,
+								maxCompletionTokens: 8_000,
+								supportsImageInput: true,
+								state: "DECOMMISSIONED",
 							},
 						],
 					},
@@ -570,20 +1176,27 @@ describe("static provider model fetchers", () => {
 
 			expect(mockAxiosGet).toHaveBeenNthCalledWith(1, "https://api.fireworks.ai/v1/accounts/fireworks/models", {
 				headers: { Authorization: "Bearer fireworks-key" },
-				params: { pageSize: 200 },
+				params: { pageSize: 200, filter: "supports_serverless=true" },
 			})
 			expect(mockAxiosGet).toHaveBeenNthCalledWith(2, "https://api.fireworks.ai/v1/accounts/fireworks/models", {
 				headers: { Authorization: "Bearer fireworks-key" },
-				params: { pageSize: 200, pageToken: "next-page" },
+				params: { pageSize: 200, filter: "supports_serverless=true", pageToken: "next-page" },
 			})
-			expect(models["accounts/fireworks/models/deepseek-v3"]).toMatchObject({
-				contextWindow: 128_000,
-				description: "DeepSeek V3",
+			expect(models["accounts/fireworks/models/kimi-k2p6"]).toMatchObject({
+				contextWindow: 262_144,
+				maxTokens: 32_768,
+				supportsImages: true,
+				supportsPromptCache: true,
+				description: fireworksModels["accounts/fireworks/models/kimi-k2p6"].description,
 			})
+			expect(models["accounts/fireworks/models/non-serverless-model"]).toBeUndefined()
 			expect(models["accounts/fireworks/models/fireworks-dynamic-model"]).toMatchObject({
 				contextWindow: 64_000,
+				maxTokens: 8_000,
 				description: "Fireworks Dynamic Model",
+				supportsImages: true,
 				supportsPromptCache: false,
+				deprecated: true,
 			})
 		})
 	})

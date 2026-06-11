@@ -1,8 +1,18 @@
 import { useState, useCallback, useMemo } from "react"
 import { useEvent } from "react-use"
-import { LanguageModelChatSelector } from "vscode"
 
-import type { ProviderSettings, ExtensionMessage, ModelInfo } from "@roo-code/types"
+import {
+	openAiModelInfoSaneDefaults,
+	type ProviderSettings,
+	type ExtensionMessage,
+	type ModelInfo,
+	type LanguageModelChatSelector,
+} from "@roo-code/types"
+import {
+	parseVsCodeLmModelSelector,
+	stringifyVsCodeLmModelSelector,
+	VSCODE_LM_SELECTOR_KEYS,
+} from "@roo/vsCodeSelectorUtils"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 
@@ -37,12 +47,16 @@ export const VSCodeLM = ({ apiConfiguration, setApiConfigurationField }: VSCodeL
 	const modelsRecord = useMemo((): Record<string, ModelInfo> => {
 		return vsCodeLmModels.reduce(
 			(acc, model) => {
-				const modelId = `${model.vendor}/${model.family}`
+				const modelId = stringifyVsCodeLmModelSelector(model)
+				const description = VSCODE_LM_SELECTOR_KEYS.map((key) => model[key])
+					.filter(Boolean)
+					.join(" - ")
+
 				acc[modelId] = {
-					maxTokens: 0,
-					contextWindow: 0,
+					...openAiModelInfoSaneDefaults,
+					supportsImages: false,
 					supportsPromptCache: false,
-					description: `${model.vendor} - ${model.family}`,
+					description,
 				}
 				return acc
 			},
@@ -50,17 +64,15 @@ export const VSCodeLM = ({ apiConfiguration, setApiConfigurationField }: VSCodeL
 		)
 	}, [vsCodeLmModels])
 
-	// Transform string model ID to { vendor, family } object for storage
+	// Transform string model ID to a full selector object for storage.
 	const valueTransform = useCallback((modelId: string) => {
-		const [vendor, family] = modelId.split("/")
-		return { vendor, family }
+		return parseVsCodeLmModelSelector(modelId)
 	}, [])
 
-	// Transform stored { vendor, family } object back to display string
+	// Transform stored selector object back to display string.
 	const displayTransform = useCallback((value: unknown) => {
 		if (!value) return ""
-		const selector = value as { vendor?: string; family?: string }
-		return selector.vendor && selector.family ? `${selector.vendor}/${selector.family}` : ""
+		return stringifyVsCodeLmModelSelector(value as LanguageModelChatSelector)
 	}, [])
 
 	return (

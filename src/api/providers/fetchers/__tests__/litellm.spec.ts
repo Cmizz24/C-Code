@@ -262,6 +262,71 @@ describe("getLiteLLMModels", () => {
 		})
 	})
 
+	it("normalizes sparse LiteLLM model info conservatively", async () => {
+		const mockResponse = {
+			data: {
+				data: [
+					{
+						model_name: "missing-model-info",
+					},
+					{
+						model_name: "null-model-info",
+						model_info: null,
+						litellm_params: {},
+					},
+					{
+						model_name: "missing-litellm-params-model",
+						model_info: {
+							max_input_tokens: 64000,
+							supports_vision: true,
+							supports_prompt_caching: true,
+						},
+					},
+				],
+			},
+		}
+
+		mockedAxios.get.mockResolvedValue(mockResponse)
+
+		const result = await getLiteLLMModels("test-api-key", "http://localhost:4000")
+
+		expect(result["missing-model-info"]).toEqual({
+			contextWindow: 128000,
+			supportsImages: false,
+			supportsPromptCache: false,
+			inputPrice: undefined,
+			outputPrice: undefined,
+			cacheWritesPrice: undefined,
+			cacheReadsPrice: undefined,
+			description: "missing-model-info via LiteLLM proxy",
+		})
+		expect(result["missing-model-info"]).not.toHaveProperty("maxTokens")
+
+		expect(result["null-model-info"]).toEqual({
+			contextWindow: 128000,
+			supportsImages: false,
+			supportsPromptCache: false,
+			inputPrice: undefined,
+			outputPrice: undefined,
+			cacheWritesPrice: undefined,
+			cacheReadsPrice: undefined,
+			description: "null-model-info via LiteLLM proxy",
+		})
+		expect(result["null-model-info"]).not.toHaveProperty("maxTokens")
+
+		expect(result["missing-litellm-params-model"]).toEqual({
+			contextWindow: 64000,
+			supportsImages: true,
+			supportsPromptCache: true,
+			inputPrice: undefined,
+			outputPrice: undefined,
+			cacheWritesPrice: undefined,
+			cacheReadsPrice: undefined,
+			description: "missing-litellm-params-model via LiteLLM proxy",
+		})
+		expect(result["missing-litellm-params-model"]).not.toHaveProperty("maxTokens")
+	})
+
 	it("handles computer use models correctly", async () => {
 		const mockResponse = {
 			data: {

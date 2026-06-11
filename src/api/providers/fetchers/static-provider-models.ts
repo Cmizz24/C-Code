@@ -1,9 +1,17 @@
 import axios from "axios"
 import { z } from "zod"
+import {
+	BedrockClient,
+	type BedrockClientConfig,
+	ListFoundationModelsCommand,
+	ListInferenceProfilesCommand,
+} from "@aws-sdk/client-bedrock"
+import { fromIni } from "@aws-sdk/credential-providers"
 
 import {
 	type ModelInfo,
 	type ModelRecord,
+	bedrockModels,
 	anthropicModels,
 	xaiModels,
 	openAiNativeModels,
@@ -15,38 +23,64 @@ import {
 	fireworksModels,
 	basetenModels,
 	minimaxModels,
+	xiaomiMiMoModels,
 } from "@roo-code/types"
+import type { GetModelsOptions } from "../../../shared/api"
 
 const DEFAULT_DYNAMIC_MODEL_INFO: ModelInfo = {
 	contextWindow: 128_000,
 	supportsPromptCache: false,
 }
 
+type BedrockModelsOptions = Extract<GetModelsOptions, { provider: "bedrock" }>
+
+type BedrockControlClientConfig = BedrockClientConfig & {
+	token?: { token: string }
+	authSchemePreference?: string[]
+}
+
+const BEDROCK_INFERENCE_PROFILE_PREFIXES = ["global.", "us.", "eu.", "apac.", "au.", "jp.", "ca.", "sa.", "ug."]
+
 const openAiCompatibleModelsResponseSchema = z.object({
 	data: z.array(z.object({ id: z.string() }).passthrough()),
 })
 
-const mistralModelsResponseSchema = z.union([
-	openAiCompatibleModelsResponseSchema,
-	z.array(
-		z
+const capabilitySupportSchema = z.object({ supported: z.boolean().optional() }).passthrough()
+
+const mistralCapabilitySchema = z.union([z.boolean(), capabilitySupportSchema]).optional()
+
+const mistralModelSchema = z
+	.object({
+		id: z.string(),
+		description: z.string().nullable().optional(),
+		max_context_length: z.number().nullable().optional(),
+		context_length: z.number().nullable().optional(),
+		context_window: z.number().nullable().optional(),
+		maxContextLength: z.number().nullable().optional(),
+		max_output_tokens: z.number().nullable().optional(),
+		max_completion_tokens: z.number().nullable().optional(),
+		max_tokens: z.number().nullable().optional(),
+		input_modalities: z.array(z.string()).nullable().optional(),
+		output_modalities: z.array(z.string()).nullable().optional(),
+		modalities: z.array(z.string()).nullable().optional(),
+		capabilities: z
 			.object({
-				id: z.string(),
-				description: z.string().nullable().optional(),
-				max_context_length: z.number().optional(),
-				capabilities: z
-					.object({
-						vision: z.boolean().optional(),
-						function_calling: z.boolean().optional(),
-					})
-					.passthrough()
-					.optional(),
+				vision: z.boolean().optional(),
+				image_input: mistralCapabilitySchema,
+				image_output: mistralCapabilitySchema,
+				function_calling: z.boolean().optional(),
 			})
-			.passthrough(),
-	),
+			.passthrough()
+			.optional(),
+	})
+	.passthrough()
+
+const mistralModelsResponseSchema = z.union([
+	z.object({ data: z.array(mistralModelSchema) }).passthrough(),
+	z.array(mistralModelSchema),
 ])
 
-const capabilitySupportSchema = z.object({ supported: z.boolean().optional() }).passthrough()
+type MistralModel = z.infer<typeof mistralModelSchema>
 
 const anthropicModelsResponseSchema = z.object({
 	data: z.array(
@@ -123,49 +157,76 @@ const moonshotModelsResponseSchema = z.object({
 	),
 })
 
+const providerPricingSchema = z
+	.object({
+		prompt: z.union([z.string(), z.number()]).nullish(),
+		completion: z.union([z.string(), z.number()]).nullish(),
+		input: z.union([z.string(), z.number()]).nullish(),
+		output: z.union([z.string(), z.number()]).nullish(),
+		cache_read: z.union([z.string(), z.number()]).nullish(),
+		input_cache_read: z.union([z.string(), z.number()]).nullish(),
+		cached_prompt: z.union([z.string(), z.number()]).nullish(),
+	})
+	.passthrough()
+
+const openAiCompatibleCapabilitySchema = z.union([z.boolean(), capabilitySupportSchema]).optional()
+
 const sambaNovaModelsResponseSchema = z.object({
 	data: z.array(
 		z
 			.object({
 				id: z.string(),
 				context_length: z.number().optional(),
+				context_window: z.number().optional(),
+				max_context_length: z.number().optional(),
 				max_completion_tokens: z.number().optional(),
-				pricing: z
+				max_output_tokens: z.number().optional(),
+				max_tokens: z.number().optional(),
+				description: z.string().optional(),
+				input_modalities: z.array(z.string()).optional(),
+				modalities: z.array(z.string()).optional(),
+				capabilities: z
 					.object({
-						prompt: z.string().optional(),
-						completion: z.string().optional(),
+						vision: z.boolean().optional(),
+						image_input: openAiCompatibleCapabilitySchema,
 					})
 					.passthrough()
 					.optional(),
+				pricing: providerPricingSchema.optional(),
 			})
 			.passthrough(),
 	),
 })
+
+const xaiModelSchema = z
+	.object({
+		id: z.string(),
+		aliases: z.array(z.string()).optional(),
+		input_modalities: z.array(z.string()).optional(),
+		output_modalities: z.array(z.string()).optional(),
+		context_window: z.number().optional(),
+		max_prompt_text_tokens: z.number().optional(),
+		max_completion_tokens: z.number().optional(),
+		prompt_text_token_price: z.number().nullable().optional(),
+		prompt_text_token_price_long_context: z.number().nullable().optional(),
+		completion_text_token_price: z.number().nullable().optional(),
+		completion_text_token_price_long_context: z.number().nullable().optional(),
+		cached_prompt_text_token_price: z.number().nullable().optional(),
+		cached_prompt_text_token_price_long_context: z.number().nullable().optional(),
+		long_context_threshold: z.number().nullable().optional(),
+		image_price: z.number().nullable().optional(),
+	})
+	.passthrough()
 
 const xaiLanguageModelsResponseSchema = z.object({
-	models: z.array(
-		z
-			.object({
-				id: z.string(),
-				aliases: z.array(z.string()).optional(),
-				input_modalities: z.array(z.string()).optional(),
-				output_modalities: z.array(z.string()).optional(),
-				context_window: z.number().optional(),
-				max_prompt_text_tokens: z.number().optional(),
-				max_completion_tokens: z.number().optional(),
-				prompt_text_token_price: z.number().nullable().optional(),
-				prompt_text_token_price_long_context: z.number().nullable().optional(),
-				completion_text_token_price: z.number().nullable().optional(),
-				completion_text_token_price_long_context: z.number().nullable().optional(),
-				cached_prompt_text_token_price: z.number().nullable().optional(),
-				cached_prompt_text_token_price_long_context: z.number().nullable().optional(),
-				long_context_threshold: z.number().nullable().optional(),
-			})
-			.passthrough(),
-	),
+	models: z.array(xaiModelSchema),
 })
 
-type XaiLanguageModel = z.infer<typeof xaiLanguageModelsResponseSchema>["models"][number]
+const xaiModelsResponseSchema = z.object({
+	data: z.array(xaiModelSchema),
+})
+
+type XaiModel = z.infer<typeof xaiModelSchema>
 
 const basetenModelSchema = z
 	.object({
@@ -174,9 +235,26 @@ const basetenModelSchema = z
 		context_length: z.number().optional(),
 		context_window: z.number().optional(),
 		max_context_length: z.number().optional(),
+		max_completion_tokens: z.number().optional(),
 		max_output_tokens: z.number().optional(),
 		max_tokens: z.number().optional(),
 		description: z.string().optional(),
+		supports_image_input: z.boolean().optional(),
+		supports_images: z.boolean().optional(),
+		supports_vision: z.boolean().optional(),
+		supports_reasoning_effort: z.boolean().optional(),
+		input_modalities: z.array(z.string()).optional(),
+		modalities: z.array(z.string()).optional(),
+		capabilities: z
+			.object({
+				vision: z.boolean().optional(),
+				image_input: openAiCompatibleCapabilitySchema,
+				reasoning_effort: openAiCompatibleCapabilitySchema,
+				thinking: openAiCompatibleCapabilitySchema,
+			})
+			.passthrough()
+			.optional(),
+		pricing: providerPricingSchema.optional(),
 	})
 	.passthrough()
 
@@ -201,12 +279,24 @@ const fireworksModelsResponseSchema = z.object({
 				displayName: z.string().optional(),
 				contextLength: z.number().optional(),
 				maxContextLength: z.number().optional(),
+				maxCompletionTokens: z.number().optional(),
+				maxOutputTokens: z.number().optional(),
+				maxTokens: z.number().optional(),
+				supportsImageInput: z.boolean().optional(),
+				supportsTools: z.boolean().optional(),
+				supportsServerless: z.boolean().optional(),
+				deprecationDate: z.string().nullable().optional(),
+				state: z.string().optional(),
 				description: z.string().optional(),
 			})
 			.passthrough(),
 	),
 	nextPageToken: z.string().optional(),
 })
+
+type SambaNovaModel = z.infer<typeof sambaNovaModelsResponseSchema>["data"][number]
+type BasetenModel = z.infer<typeof basetenModelSchema>
+type FireworksModel = z.infer<typeof fireworksModelsResponseSchema>["models"][number]
 
 function mergeModelInfo(modelId: string, fallbackModels: ModelRecord, dynamicInfo: Partial<ModelInfo> = {}): ModelInfo {
 	const definedDynamicInfo = Object.fromEntries(
@@ -228,6 +318,72 @@ function mergeModelInfo(modelId: string, fallbackModels: ModelRecord, dynamicInf
 	}
 }
 
+function stripBedrockInferenceProfilePrefix(modelId: string): string {
+	for (const prefix of BEDROCK_INFERENCE_PROFILE_PREFIXES) {
+		if (modelId.startsWith(prefix)) {
+			return modelId.substring(prefix.length)
+		}
+	}
+
+	return modelId
+}
+
+function getModelIdFromBedrockArn(arn?: string): string | undefined {
+	return arn?.match(/(?:foundation-model|inference-profile|application-inference-profile)\/(.+)$/)?.[1]
+}
+
+function getBedrockModelInfo(modelId: string, description?: string, metadataModelId = modelId): ModelInfo {
+	const bedrockModelRecord = bedrockModels as ModelRecord
+	const baseModelId = stripBedrockInferenceProfilePrefix(metadataModelId)
+	const staticModelInfo = bedrockModelRecord[metadataModelId] ?? bedrockModelRecord[baseModelId]
+
+	if (staticModelInfo) {
+		return { ...staticModelInfo }
+	}
+
+	return {
+		...DEFAULT_DYNAMIC_MODEL_INFO,
+		...(description ? { description } : {}),
+	}
+}
+
+function supportsBedrockTextGeneration(outputModalities?: string[]): boolean {
+	return !outputModalities?.length || outputModalities.includes("TEXT")
+}
+
+function createBedrockClient(options: BedrockModelsOptions): BedrockClient | undefined {
+	const region = options.awsRegion?.trim()
+
+	if (!region) {
+		return undefined
+	}
+
+	const clientConfig: BedrockControlClientConfig = { region }
+	const endpoint = options.awsBedrockEndpoint?.trim()
+
+	if (options.awsBedrockEndpointEnabled && endpoint) {
+		clientConfig.endpoint = endpoint
+	}
+
+	if (options.awsUseApiKey && options.awsApiKey?.trim()) {
+		clientConfig.token = { token: options.awsApiKey.trim() }
+		clientConfig.authSchemePreference = ["httpBearerAuth"]
+	} else if (options.awsUseProfile && options.awsProfile?.trim()) {
+		clientConfig.credentials = fromIni({
+			profile: options.awsProfile.trim(),
+			ignoreCache: true,
+		})
+	} else if (options.awsAccessKey?.trim() && options.awsSecretKey?.trim()) {
+		clientConfig.credentials = {
+			accessKeyId: options.awsAccessKey.trim(),
+			secretAccessKey: options.awsSecretKey.trim(),
+			...(options.awsSessionToken?.trim() ? { sessionToken: options.awsSessionToken.trim() } : {}),
+		}
+	}
+
+	return new BedrockClient(clientConfig)
+}
+
 function getAnthropicThinkingCapabilities(modelId: string, thinkingSupported?: boolean): Partial<ModelInfo> {
 	if ((anthropicModels as ModelRecord)[modelId]?.supportsReasoningAdaptive) {
 		return {}
@@ -236,12 +392,40 @@ function getAnthropicThinkingCapabilities(modelId: string, thinkingSupported?: b
 	return { supportsReasoningBudget: thinkingSupported }
 }
 
-function centsPer100MillionTokensToDollarsPerMillion(price?: number | null): number | undefined {
-	return typeof price === "number" ? price / 10_000 : undefined
+function positiveCentsPer100MillionTokensToDollarsPerMillion(price?: number | null): number | undefined {
+	return typeof price === "number" && price > 0 ? price / 10_000 : undefined
 }
 
 function positiveNumber(value?: number | null): number | undefined {
 	return typeof value === "number" && value > 0 ? value : undefined
+}
+
+function capabilitySupported(value?: boolean | { supported?: boolean }): boolean | undefined {
+	return typeof value === "boolean" ? value : value?.supported
+}
+
+function hasModality(modalities: string[] | null | undefined, expected: string): boolean | undefined {
+	return modalities?.some((modality) => modality.toLowerCase() === expected) || undefined
+}
+
+function normalizeMistralModelInfo(model: MistralModel): Partial<ModelInfo> {
+	const inputSupportsImages =
+		model.capabilities?.vision ??
+		capabilitySupported(model.capabilities?.image_input) ??
+		hasModality(model.input_modalities, "image") ??
+		hasModality(model.modalities, "image")
+	const outputSupportsImages =
+		capabilitySupported(model.capabilities?.image_output) ?? hasModality(model.output_modalities, "image")
+
+	return {
+		contextWindow: positiveNumber(
+			model.max_context_length ?? model.context_length ?? model.context_window ?? model.maxContextLength,
+		),
+		maxTokens: positiveNumber(model.max_output_tokens ?? model.max_completion_tokens ?? model.max_tokens),
+		description: model.description ?? undefined,
+		supportsImages: inputSupportsImages,
+		supportsImageOutput: outputSupportsImages,
+	}
 }
 
 function getVersionedEndpoint(baseUrl: string, versionPath: string, endpointPath: string): string | undefined {
@@ -320,16 +504,101 @@ function priceMultiplier(longContextPrice?: number | null, standardPrice?: numbe
 		: undefined
 }
 
-function dollarsPerTokenToDollarsPerMillion(price?: string): number | undefined {
-	if (!price) {
+function dollarsPerTokenToDollarsPerMillion(price?: string | number | null): number | undefined {
+	if (price === undefined || price === null || price === "") {
 		return undefined
 	}
 
-	const parsed = Number(price)
-	return Number.isFinite(parsed) && parsed >= 0 ? parsed * 1_000_000 : undefined
+	const parsed = typeof price === "number" ? price : Number(price)
+
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return undefined
+	}
+
+	return parsed < 0.1 ? parsed * 1_000_000 : parsed
 }
 
-function buildXaiLongContextPricing(model: XaiLanguageModel): ModelInfo["longContextPricing"] {
+function firstPositiveNumber(...values: Array<number | null | undefined>): number | undefined {
+	for (const value of values) {
+		const positive = positiveNumber(value)
+		if (positive !== undefined) {
+			return positive
+		}
+	}
+
+	return undefined
+}
+
+function normalizeProviderPricing(pricing?: z.infer<typeof providerPricingSchema>): Partial<ModelInfo> {
+	return {
+		inputPrice: dollarsPerTokenToDollarsPerMillion(pricing?.prompt ?? pricing?.input),
+		outputPrice: dollarsPerTokenToDollarsPerMillion(pricing?.completion ?? pricing?.output),
+		cacheReadsPrice: dollarsPerTokenToDollarsPerMillion(
+			pricing?.cache_read ?? pricing?.input_cache_read ?? pricing?.cached_prompt,
+		),
+	}
+}
+
+function hasImageInput(modalities?: string[] | null): boolean | undefined {
+	return modalities?.some((modality) => modality.toLowerCase() === "image") || undefined
+}
+
+function normalizeOpenAiCompatibleImageSupport(model: SambaNovaModel | BasetenModel): boolean | undefined {
+	const modelWithOptionalCapabilities = model as {
+		supports_image_input?: boolean
+		supports_images?: boolean
+		supports_vision?: boolean
+		capabilities?: {
+			vision?: boolean
+			image_input?: boolean | { supported?: boolean }
+		}
+		input_modalities?: string[]
+		modalities?: string[]
+	}
+
+	return (
+		modelWithOptionalCapabilities.supports_image_input ??
+		modelWithOptionalCapabilities.supports_images ??
+		modelWithOptionalCapabilities.supports_vision ??
+		modelWithOptionalCapabilities.capabilities?.vision ??
+		capabilitySupported(modelWithOptionalCapabilities.capabilities?.image_input) ??
+		hasImageInput(modelWithOptionalCapabilities.input_modalities) ??
+		hasImageInput(modelWithOptionalCapabilities.modalities)
+	)
+}
+
+function normalizeBasetenReasoningEffortSupport(model: BasetenModel): ModelInfo["supportsReasoningEffort"] | undefined {
+	const dynamicSupport =
+		model.supports_reasoning_effort ??
+		capabilitySupported(model.capabilities?.reasoning_effort) ??
+		capabilitySupported(model.capabilities?.thinking)
+
+	if (dynamicSupport === true) {
+		return ["low", "medium", "high"]
+	}
+
+	return undefined
+}
+
+function normalizeFireworksDeprecated(model: FireworksModel): boolean | undefined {
+	if (model.deprecationDate) {
+		return true
+	}
+
+	const normalizedState = model.state?.toLowerCase()
+
+	return normalizedState?.includes("deprecated") || normalizedState?.includes("decommission") || undefined
+}
+
+function getSparseSafeDescription(
+	modelId: string,
+	fallbackModels: ModelRecord,
+	description?: string,
+): string | undefined {
+	return fallbackModels[modelId]?.description ? undefined : description
+}
+
+function buildXaiLongContextPricing(model: XaiModel): ModelInfo["longContextPricing"] {
 	const thresholdTokens = positiveNumber(model.long_context_threshold)
 
 	if (!thresholdTokens) {
@@ -358,6 +627,39 @@ function buildXaiLongContextPricing(model: XaiLanguageModel): ModelInfo["longCon
 		inputPriceMultiplier,
 		outputPriceMultiplier,
 		cacheReadsPriceMultiplier,
+	}
+}
+
+function shouldIncludeXaiLanguageModel(model: XaiModel): boolean {
+	if (model.output_modalities?.length && !model.output_modalities.includes("text")) {
+		return false
+	}
+
+	const hasTextTokenPricing =
+		typeof model.prompt_text_token_price === "number" || typeof model.completion_text_token_price === "number"
+
+	return !(typeof model.image_price === "number" && !hasTextTokenPricing)
+}
+
+function mergeXaiModel(model: XaiModel, models: ModelRecord): void {
+	if (!shouldIncludeXaiLanguageModel(model)) {
+		return
+	}
+
+	for (const id of [model.id, ...(model.aliases ?? [])]) {
+		models[id] = mergeModelInfo(id, xaiModels, {
+			contextWindow: positiveNumber(model.context_window ?? model.max_prompt_text_tokens),
+			maxTokens: positiveNumber(model.max_completion_tokens),
+			supportsImages: model.input_modalities?.includes("image"),
+			supportsPromptCache:
+				typeof model.cached_prompt_text_token_price === "number" && model.cached_prompt_text_token_price > 0
+					? true
+					: undefined,
+			inputPrice: positiveCentsPer100MillionTokensToDollarsPerMillion(model.prompt_text_token_price),
+			outputPrice: positiveCentsPer100MillionTokensToDollarsPerMillion(model.completion_text_token_price),
+			cacheReadsPrice: positiveCentsPer100MillionTokensToDollarsPerMillion(model.cached_prompt_text_token_price),
+			longContextPricing: buildXaiLongContextPricing(model),
+		})
 	}
 }
 
@@ -415,21 +717,14 @@ async function fetchMistralModels(apiKey?: string, baseUrl = "https://api.mistra
 		return {}
 	}
 
-	if (Array.isArray(parsed.data)) {
-		const models: ModelRecord = {}
+	const models: ModelRecord = {}
+	const mistralModelsResponse = Array.isArray(parsed.data) ? parsed.data : parsed.data.data
 
-		for (const model of parsed.data) {
-			models[model.id] = mergeModelInfo(model.id, mistralModels, {
-				contextWindow: positiveNumber(model.max_context_length),
-				description: model.description ?? undefined,
-				supportsImages: model.capabilities?.vision,
-			})
-		}
-
-		return models
+	for (const model of mistralModelsResponse) {
+		models[model.id] = mergeModelInfo(model.id, mistralModels, normalizeMistralModelInfo(model))
 	}
 
-	return buildOpenAiCompatibleModels([...new Set(parsed.data.data.map((model) => model.id))], mistralModels)
+	return models
 }
 
 export async function getAnthropicModels(apiKey?: string, baseUrl = "https://api.anthropic.com"): Promise<ModelRecord> {
@@ -477,34 +772,38 @@ export async function getAnthropicModels(apiKey?: string, baseUrl = "https://api
 export async function getXAIModels(apiKey?: string): Promise<ModelRecord> {
 	if (!apiKey) return {}
 
-	const response = await axios.get("https://api.x.ai/v1/language-models", {
-		headers: { Authorization: `Bearer ${apiKey}` },
-	})
-	const parsed = xaiLanguageModelsResponseSchema.safeParse(response.data)
+	const headers = { Authorization: `Bearer ${apiKey}` }
+	const models: ModelRecord = {}
+
+	try {
+		const response = await axios.get("https://api.x.ai/v1/language-models", { headers })
+		const parsed = xaiLanguageModelsResponseSchema.safeParse(response.data)
+
+		if (!parsed.success) {
+			console.error("xAI language models response is invalid", parsed.error.format())
+		} else {
+			for (const model of parsed.data.models) {
+				mergeXaiModel(model, models)
+			}
+
+			if (Object.keys(models).length > 0) {
+				return models
+			}
+		}
+	} catch (error) {
+		console.error("Failed to fetch xAI language models", error)
+	}
+
+	const response = await axios.get("https://api.x.ai/v1/models", { headers })
+	const parsed = xaiModelsResponseSchema.safeParse(response.data)
 
 	if (!parsed.success) {
-		console.error("xAI language models response is invalid", parsed.error.format())
+		console.error("xAI models response is invalid", parsed.error.format())
 		return {}
 	}
 
-	const models: ModelRecord = {}
-
-	for (const model of parsed.data.models) {
-		for (const id of [model.id, ...(model.aliases ?? [])]) {
-			models[id] = mergeModelInfo(id, xaiModels, {
-				contextWindow: positiveNumber(model.context_window ?? model.max_prompt_text_tokens),
-				maxTokens: model.max_completion_tokens,
-				supportsImages: model.input_modalities?.includes("image"),
-				supportsPromptCache:
-					typeof model.cached_prompt_text_token_price === "number" && model.cached_prompt_text_token_price > 0
-						? true
-						: undefined,
-				inputPrice: centsPer100MillionTokensToDollarsPerMillion(model.prompt_text_token_price),
-				outputPrice: centsPer100MillionTokensToDollarsPerMillion(model.completion_text_token_price),
-				cacheReadsPrice: centsPer100MillionTokensToDollarsPerMillion(model.cached_prompt_text_token_price),
-				longContextPricing: buildXaiLongContextPricing(model),
-			})
-		}
+	for (const model of parsed.data.data) {
+		mergeXaiModel(model, models)
 	}
 
 	return models
@@ -523,6 +822,69 @@ export async function getMistralModels(apiKey?: string, baseUrl = "https://api.m
 
 export async function getDeepSeekModels(apiKey?: string, baseUrl = "https://api.deepseek.com"): Promise<ModelRecord> {
 	return buildOpenAiCompatibleModels(await fetchOpenAiCompatibleModelIds({ baseUrl, apiKey }), deepSeekModels)
+}
+
+export async function getXiaomiMiMoModels(
+	apiKey?: string,
+	baseUrl = "https://api.xiaomimimo.com/v1",
+): Promise<ModelRecord> {
+	return buildOpenAiCompatibleModels(
+		await fetchOpenAiCompatibleModelIds({
+			baseUrl,
+			apiKey,
+			openAiHeaders: apiKey ? { "api-key": apiKey } : undefined,
+		}),
+		xiaomiMiMoModels,
+	)
+}
+
+export async function getBedrockModels(options: BedrockModelsOptions): Promise<ModelRecord> {
+	const client = createBedrockClient(options)
+
+	if (!client) {
+		return {}
+	}
+
+	const models: ModelRecord = {}
+	const foundationModels = await client.send(new ListFoundationModelsCommand({}))
+
+	for (const model of foundationModels.modelSummaries ?? []) {
+		const modelId = model.modelId?.trim()
+
+		if (!modelId || !supportsBedrockTextGeneration(model.outputModalities)) {
+			continue
+		}
+
+		models[modelId] = getBedrockModelInfo(modelId, model.modelName)
+	}
+
+	let nextToken: string | undefined
+
+	do {
+		const inferenceProfiles = await client.send(
+			new ListInferenceProfilesCommand({ maxResults: 100, ...(nextToken ? { nextToken } : {}) }),
+		)
+
+		for (const profile of inferenceProfiles.inferenceProfileSummaries ?? []) {
+			if (profile.status && profile.status !== "ACTIVE") {
+				continue
+			}
+
+			const profileId =
+				profile.inferenceProfileId?.trim() ?? getModelIdFromBedrockArn(profile.inferenceProfileArn)
+
+			if (!profileId) {
+				continue
+			}
+
+			const baseModelId = getModelIdFromBedrockArn(profile.models?.[0]?.modelArn) ?? profileId
+			models[profileId] = getBedrockModelInfo(profileId, profile.inferenceProfileName, baseModelId)
+		}
+
+		nextToken = inferenceProfiles.nextToken
+	} while (nextToken)
+
+	return models
 }
 
 export async function getGeminiModels(
@@ -594,6 +956,7 @@ export async function getMoonshotModels(apiKey?: string, baseUrl = "https://api.
 			contextWindow: positiveNumber(model.context_length),
 			maxTokens: positiveNumber(model.max_completion_tokens ?? model.max_tokens),
 			supportsImages: model.supports_image_in,
+			supportsReasoningBinary: model.supports_reasoning,
 			preserveReasoning: model.supports_reasoning,
 		})
 	}
@@ -602,10 +965,8 @@ export async function getMoonshotModels(apiKey?: string, baseUrl = "https://api.
 }
 
 export async function getSambaNovaModels(apiKey?: string): Promise<ModelRecord> {
-	if (!apiKey) return {}
-
 	const response = await axios.get("https://api.sambanova.ai/v1/models", {
-		headers: { Authorization: `Bearer ${apiKey}` },
+		headers: { ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) },
 	})
 	const parsed = sambaNovaModelsResponseSchema.safeParse(response.data)
 
@@ -618,10 +979,11 @@ export async function getSambaNovaModels(apiKey?: string): Promise<ModelRecord> 
 
 	for (const model of parsed.data.data) {
 		models[model.id] = mergeModelInfo(model.id, sambaNovaModels, {
-			contextWindow: positiveNumber(model.context_length),
-			maxTokens: positiveNumber(model.max_completion_tokens),
-			inputPrice: dollarsPerTokenToDollarsPerMillion(model.pricing?.prompt),
-			outputPrice: dollarsPerTokenToDollarsPerMillion(model.pricing?.completion),
+			contextWindow: firstPositiveNumber(model.context_length, model.context_window, model.max_context_length),
+			maxTokens: firstPositiveNumber(model.max_completion_tokens, model.max_output_tokens, model.max_tokens),
+			description: getSparseSafeDescription(model.id, sambaNovaModels, model.description),
+			supportsImages: normalizeOpenAiCompatibleImageSupport(model),
+			...normalizeProviderPricing(model.pricing),
 		})
 	}
 
@@ -678,9 +1040,12 @@ export async function getBasetenModels(apiKey?: string): Promise<ModelRecord> {
 
 	for (const model of basetenModelList) {
 		models[model.id] = mergeModelInfo(model.id, basetenModels, {
-			contextWindow: model.context_length ?? model.context_window ?? model.max_context_length,
-			maxTokens: model.max_output_tokens ?? model.max_tokens,
-			description: model.description ?? model.name,
+			contextWindow: firstPositiveNumber(model.context_length, model.context_window, model.max_context_length),
+			maxTokens: firstPositiveNumber(model.max_completion_tokens, model.max_output_tokens, model.max_tokens),
+			description: getSparseSafeDescription(model.id, basetenModels, model.description ?? model.name),
+			supportsImages: normalizeOpenAiCompatibleImageSupport(model),
+			supportsReasoningEffort: normalizeBasetenReasoningEffortSupport(model),
+			...normalizeProviderPricing(model.pricing),
 		})
 	}
 
@@ -696,7 +1061,7 @@ export async function getFireworksModels(apiKey?: string): Promise<ModelRecord> 
 	do {
 		const response = await axios.get("https://api.fireworks.ai/v1/accounts/fireworks/models", {
 			headers: { Authorization: `Bearer ${apiKey}` },
-			params: { pageSize: 200, ...(pageToken ? { pageToken } : {}) },
+			params: { pageSize: 200, filter: "supports_serverless=true", ...(pageToken ? { pageToken } : {}) },
 		})
 		const parsed = fireworksModelsResponseSchema.safeParse(response.data)
 
@@ -706,10 +1071,17 @@ export async function getFireworksModels(apiKey?: string): Promise<ModelRecord> 
 		}
 
 		for (const model of parsed.data.models) {
+			if (model.supportsServerless === false) {
+				continue
+			}
+
 			const id = model.name
 			models[id] = mergeModelInfo(id, fireworksModels, {
-				contextWindow: model.contextLength ?? model.maxContextLength,
-				description: model.description ?? model.displayName,
+				contextWindow: firstPositiveNumber(model.contextLength, model.maxContextLength),
+				maxTokens: firstPositiveNumber(model.maxCompletionTokens, model.maxOutputTokens, model.maxTokens),
+				description: getSparseSafeDescription(id, fireworksModels, model.description ?? model.displayName),
+				supportsImages: model.supportsImageInput,
+				deprecated: normalizeFireworksDeprecated(model),
 			})
 		}
 

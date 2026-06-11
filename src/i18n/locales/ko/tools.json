@@ -22,12 +22,13 @@
 		"apiKeyRequired": "이미지 생성에는 {{provider}} API 키가 필요합니다. 이미지 생성 설정에서 구성하세요.",
 		"modelRequired": "{{provider}}은(는) 이미지 생성에 모델 ID가 필요합니다. 이미지 생성 설정에서 구성하세요.",
 		"unsupportedApiMethod": "{{provider}}은(는) {{apiMethod}} 이미지 생성 API 메서드를 지원하지 않습니다.",
-		"unsupportedProvider": "{{provider}}은(는) 이미지 생성에 지원되지 않습니다. 대신 OpenRouter, OpenAI/OpenAI-compatible, ComfyUI 또는 Automatic1111을 사용하세요.",
+		"unsupportedProvider": "{{provider}}은(는) 이미지 생성에 지원되지 않습니다. 대신 OpenRouter, OpenAI/OpenAI-compatible 또는 Cloudflare Workers AI를 사용하세요.",
 		"failedWithStatus": "이미지 생성 실패: {{status}} {{statusText}}",
 		"failedWithMessage": "이미지 생성 실패: {{message}}",
 		"noImageGenerated": "응답에서 이미지가 생성되지 않았습니다",
 		"invalidImageData": "응답에 잘못된 이미지 데이터가 있습니다",
 		"invalidImageFormat": "잘못된 이미지 형식을 받았습니다",
-		"unknownError": "알 수 없는 오류가 발생했습니다"
+		"unknownError": "알 수 없는 오류가 발생했습니다",
+		"accountIdRequired": "이미지 생성에는 {{provider}} 계정 ID가 필요합니다. 이미지 생성 설정에서 구성하세요."
 	}
 }

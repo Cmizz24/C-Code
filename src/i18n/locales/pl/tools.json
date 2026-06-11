@@ -22,12 +22,13 @@
 		"apiKeyRequired": "Klucz API {{provider}} jest wymagany do generowania obrazów. Skonfiguruj go w ustawieniach Generowania Obrazów.",
 		"modelRequired": "{{provider}} wymaga ID modelu do generowania obrazów. Skonfiguruj go w ustawieniach Generowania Obrazów.",
 		"unsupportedApiMethod": "{{provider}} nie obsługuje metody API generowania obrazów {{apiMethod}}.",
-		"unsupportedProvider": "{{provider}} nie jest obsługiwany do generowania obrazów. Użyj zamiast tego OpenRouter, OpenAI/OpenAI-compatible, ComfyUI lub Automatic1111.",
+		"unsupportedProvider": "{{provider}} nie obsługuje generowania obrazów. Użyj OpenRouter, OpenAI/OpenAI-compatible lub Cloudflare Workers AI.",
 		"failedWithStatus": "Nie udało się wygenerować obrazu: {{status}} {{statusText}}",
 		"failedWithMessage": "Nie udało się wygenerować obrazu: {{message}}",
 		"noImageGenerated": "W odpowiedzi nie wygenerowano żadnego obrazu",
 		"invalidImageData": "Nieprawidłowe dane obrazu w odpowiedzi",
 		"invalidImageFormat": "Otrzymano nieprawidłowy format obrazu",
-		"unknownError": "Wystąpił nieznany błąd"
+		"unknownError": "Wystąpił nieznany błąd",
+		"accountIdRequired": "ID konta {{provider}} jest wymagane do generowania obrazów. Skonfiguruj je w ustawieniach Generowania Obrazów."
 	}
 }

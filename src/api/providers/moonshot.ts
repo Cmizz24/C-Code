@@ -10,7 +10,7 @@ import { OpenAICompatibleHandler, OpenAICompatibleConfig } from "./openai-compat
 export class MoonshotHandler extends OpenAICompatibleHandler {
 	constructor(options: ApiHandlerOptions) {
 		const modelId = options.apiModelId ?? moonshotDefaultModelId
-		const modelInfo =
+		const modelInfo: ModelInfo =
 			moonshotModels[modelId as keyof typeof moonshotModels] || moonshotModels[moonshotDefaultModelId]
 
 		const config: OpenAICompatibleConfig = {
@@ -21,6 +21,13 @@ export class MoonshotHandler extends OpenAICompatibleHandler {
 			modelInfo,
 			modelMaxTokens: options.modelMaxTokens ?? undefined,
 			temperature: options.modelTemperature ?? undefined,
+			providerOptions: modelInfo.supportsReasoningBinary
+				? {
+						moonshot: {
+							thinking: { type: options.enableReasoningEffort ? "enabled" : "disabled" },
+						},
+					}
+				: undefined,
 		}
 
 		super(options, config)
@@ -28,7 +35,8 @@ export class MoonshotHandler extends OpenAICompatibleHandler {
 
 	override getModel() {
 		const id = this.options.apiModelId ?? moonshotDefaultModelId
-		const info = moonshotModels[id as keyof typeof moonshotModels] || moonshotModels[moonshotDefaultModelId]
+		const info: ModelInfo =
+			moonshotModels[id as keyof typeof moonshotModels] || moonshotModels[moonshotDefaultModelId]
 		const params = getModelParams({
 			format: "openai",
 			modelId: id,

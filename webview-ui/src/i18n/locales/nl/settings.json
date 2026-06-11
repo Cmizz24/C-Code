@@ -31,6 +31,7 @@
 		"mcp": "MCP-servers",
 		"worktrees": "Worktrees",
 		"autoApprove": "Auto-goedkeuren",
+		"imageGeneration": "Afbeeldingsgeneratie",
 		"checkpoints": "Checkpoints",
 		"notifications": "Meldingen",
 		"contextManagement": "Context",
@@ -57,7 +58,7 @@
 		"manageSettings": "Instellingen Beheren",
 		"debugMode": {
 			"label": "Debugmodus inschakelen",
-			"description": "Schakel de debugmodus in om extra knoppen in de taakkoptekst te tonen voor het bekijken van API-gesprekgeschiedenis en UI-berichten als opgemaakte JSON in tijdelijke bestanden."
+			"description": "Schakel debug-modus in om extra knoppen in de taakheader te tonen waarmee je API-gespreksgeschiedenis en UI-berichten als nette JSON in tijdelijke bestanden kunt bekijken. Als je dit ingeschakeld opslaat, stem je ook in met het sturen van opgeschoonde externe diagnostiek naar het vaste C-Code-endpoint voor probleemoplossing."
 		}
 	},
 	"slashCommands": {
@@ -264,6 +265,10 @@
 			"label": "Memory",
 			"description": "Keur foutmemory-opslag vanuit chat en toolfouten automatisch goed. Als dit uit staat, kun je memory in behandeling nog steeds bekijken vanuit chat of de Memory-instellingen."
 		},
+		"imageGeneration": {
+			"label": "Afbeeldingen",
+			"description": "Keur acties voor het genereren en bewerken van afbeeldingen vanuit de chat automatisch goed. Hiermee kunnen afbeeldingsbestanden worden gemaakt of gewijzigd met de geconfigureerde afbeeldingsgeneratieprovider."
+		},
 		"followupQuestions": {
 			"label": "Vraag",
 			"description": "Selecteer automatisch het eerste voorgestelde antwoord voor vervolgvragen na de geconfigureerde time-out",
@@ -292,6 +297,71 @@
 		},
 		"maxLimits": {
 			"description": "Automatisch verzoeken indienen tot aan deze limieten voordat om goedkeuring wordt gevraagd om door te gaan."
+		}
+	},
+	"imageGeneration": {
+		"name": "AI-afbeeldingsgeneratie inschakelen",
+		"description": "Als dit is ingeschakeld, kan C afbeeldingen genereren en bewerken vanuit prompts met een apart geconfigureerde afbeeldingsgeneratieprovider.",
+		"providerLabel": "Provider",
+		"providerDescription": "Selecteer de provider voor afbeeldingsgeneratie. Dit staat los van je chatproviderprofiel.",
+		"localProviderNote": "Cloudflare Workers AI is beschikbaar naast OpenRouter en OpenAI/OpenAI-compatible providers. Ollama, LM Studio, ComfyUI en Automatic1111 zijn niet selecteerbaar in dit paneel.",
+		"apiKeyLabel": "{{provider}} API-sleutel",
+		"optionalApiKeyLabel": "{{provider}} API-sleutel (optioneel)",
+		"apiKeyPlaceholder": "Voer je {{provider}} API-sleutel in",
+		"apiKeyRequiredDescription": "Deze provider vereist een API-sleutel voor afbeeldingsgeneratie.",
+		"apiKeyOptionalDescription": "Optioneel. Gebruik dit alleen als je endpoint, lokale instantie of proxy bearer-token-authenticatie vereist.",
+		"getApiKeyText": "Haal je API-sleutel op van",
+		"baseUrlLabel": "Basis-URL",
+		"baseUrlPlaceholder": "Standaard: {{url}}",
+		"baseUrlDescription": "Laat leeg om {{url}} te gebruiken.",
+		"modelSelectionLabel": "Afbeeldingsgeneratiemodel",
+		"modelSelectionDescription": "Selecteer het model dat je voor afbeeldingsgeneratie wilt gebruiken",
+		"modelIdLabel": "Model-ID",
+		"customModelIdPlaceholder": "Voer een model-ID in",
+		"modelIdPlaceholderWithDefault": "Standaard: {{model}}",
+		"customModelIdDescription": "Voer de exacte model-ID in die door je provider of OpenAI-compatibele endpoint wordt aangeboden.",
+		"optionalModelIdDescription": "Optioneel. Laat leeg om de checkpoint te gebruiken die momenteel door de provider is geladen.",
+		"apiMethodLabel": "API-methode",
+		"apiMethodDescription": "Kies de OpenAI-compatibele endpointvorm voor afbeeldingsgeneratie.",
+		"apiMethodLockedDescription": "Het geselecteerde model gebruikt de vereiste API-methode van {{model}}.",
+		"apiMethodLabels": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
+		},
+		"negativePromptLabel": "Negatieve prompt",
+		"negativePromptPlaceholder": "Voer inhoud in die je in gegenereerde afbeeldingen wilt vermijden",
+		"negativePromptDescription": "Optioneel. Helpt compatibele providers ongewenste onderwerpen, stijlen of artefacten te vermijden.",
+		"warningMissingApiKey": "⚠️ {{provider}} vereist een API-sleutel voor afbeeldingsgeneratie. Configureer deze hierboven.",
+		"warningMissingModel": "⚠️ {{provider}} vereist een model-ID voor afbeeldingsgeneratie. Configureer deze hierboven.",
+		"successConfigured": "✓ Afbeeldingsgeneratie is geconfigureerd voor {{provider}} en klaar voor gebruik",
+		"modelLabel": "Afbeeldingsgeneratiemodel",
+		"optionalModelDescription": "Optioneel. Laat leeg om de checkpoint te gebruiken die momenteel door de provider is geladen.",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models is openbaar, dus deze lijst kan alle modellen met afbeeldingsuitvoer bevatten; wanneer je een image API key opgeeft, gebruikt Roo die voor accountspecifieke resultaten wanneer OpenRouter ze terugstuurt.",
+		"cloudflareAccountIdLabel": "Cloudflare-account-ID",
+		"cloudflareAccountIdPlaceholder": "Voer je Cloudflare-account-ID in",
+		"cloudflareAccountIdDescription": "Vereist. Je vindt het in het accountoverzicht van je Cloudflare-dashboard.",
+		"cloudflareBaseUrlDescription": "Laat leeg om Cloudflares API v4-endpoint te gebruiken: {{url}}.",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI gebruikt het Workers AI-account-run-endpoint voor afbeeldingsgeneratie.",
+		"warningMissingAccountId": "⚠️ {{provider}} vereist een Cloudflare-account-ID voor afbeeldingsgeneratie. Configureer het hierboven.",
+		"cloudflarePricing": {
+			"title": "Prijzen en gratis quotum voor Cloudflare Workers AI",
+			"quotaDescription": "Gratis toewijzing: {{freeAllocation}}. Wordt gereset om {{resetTime}}. Betaalde overschrijding: {{paidOverage}}.",
+			"modelColumn": "Model",
+			"priceColumn": "Prijs",
+			"neuronsColumn": "Neurons"
+		},
+		"cloudflareUsage": {
+			"title": "Geschat Workers AI-gebruik vandaag",
+			"remainingLabel": "Geschatte resterende gratis neurons",
+			"neuronsValue": "{{count}} neurons",
+			"usedLabel": "Vandaag geschat gebruikt",
+			"usedValue": "{{used}} / {{quota}} neurons",
+			"requestsLabel": "Bijgehouden afbeeldingsverzoeken",
+			"resetLabel": "Volgende reset",
+			"localEstimateDescription": "Dit is een lokale schatting op basis van afbeeldingsgeneraties die vanuit C zijn uitgevoerd. Cloudflare biedt hier geen gedocumenteerde API voor resterende dagelijkse quota; controleer je Cloudflare-dashboard voor door de provider bevestigde gebruiksgegevens."
 		}
 	},
 	"providers": {
@@ -391,12 +461,8 @@
 		"anthropicApiKey": "Anthropic API-sleutel",
 		"getAnthropicApiKey": "Anthropic API-sleutel ophalen",
 		"anthropicUseAuthToken": "Anthropic API-sleutel als Authorization-header doorgeven in plaats van X-Api-Key",
-		"anthropic1MContextBetaLabel": "1M contextvenster inschakelen (bèta)",
-		"anthropic1MContextBetaDescription": "Breidt het contextvenster uit tot 1 miljoen tokens voor Claude Sonnet 4.x / Claude Opus 4.6",
 		"awsBedrock1MContextBetaLabel": "1M contextvenster inschakelen (bèta)",
 		"awsBedrock1MContextBetaDescription": "Breidt het contextvenster uit tot 1 miljoen tokens voor Claude Sonnet 4.x / Claude Opus 4.6",
-		"vertex1MContextBetaLabel": "1M contextvenster inschakelen (bèta)",
-		"vertex1MContextBetaDescription": "Breidt het contextvenster uit tot 1 miljoen tokens voor Claude Sonnet 4.x / Claude Opus 4.6",
 		"basetenApiKey": "Baseten API-sleutel",
 		"getBasetenApiKey": "Baseten API-sleutel verkrijgen",
 		"poeApiKey": "Poe API-sleutel",
@@ -558,6 +624,7 @@
 			"minimal": "Minimaal (Snelst)",
 			"high": "Hoog",
 			"xhigh": "Zeer hoog",
+			"max": "Maximaal",
 			"medium": "Middel",
 			"low": "Laag"
 		},
@@ -988,7 +1055,7 @@
 			"description": "Als dit is ingeschakeld, kan C afbeeldingen genereren en bewerken vanuit prompts met een apart geconfigureerde afbeeldingsgeneratieprovider.",
 			"providerLabel": "Provider",
 			"providerDescription": "Selecteer de provider voor afbeeldingsgeneratie. Dit staat los van je chatproviderprofiel.",
-			"localProviderNote": "Ollama en LM Studio zijn hier niet selecteerbaar omdat ze vision-/chat-API's beschikbaar maken, geen API's voor afbeeldingsgeneratie. Lokale afbeeldingsgeneratie is beschikbaar via echte API's voor afbeeldingsgeneratie zoals ComfyUI en Automatic1111 wanneer ze zijn geconfigureerd.",
+			"localProviderNote": "Ollama, LM Studio, ComfyUI en Automatic1111 zijn hier niet selecteerbaar omdat dit paneel nu focust op OpenRouter en OpenAI-compatible API's voor afbeeldingsgeneratie.",
 			"apiKeyLabel": "{{provider}} API-sleutel",
 			"optionalApiKeyLabel": "{{provider}} API-sleutel (optioneel)",
 			"apiKeyPlaceholder": "Voer je {{provider}} API-sleutel in",
@@ -1016,7 +1083,7 @@
 			},
 			"negativePromptLabel": "Negatieve prompt",
 			"negativePromptPlaceholder": "Voer inhoud in die je in gegenereerde afbeeldingen wilt vermijden",
-			"negativePromptDescription": "Optioneel. Helpt lokale providers ongewenste onderwerpen, stijlen of artefacten te vermijden.",
+			"negativePromptDescription": "Optioneel. Helpt compatibele providers ongewenste onderwerpen, stijlen of artefacten te vermijden.",
 			"warningMissingApiKey": "⚠️ {{provider}} vereist een API-sleutel voor afbeeldingsgeneratie. Configureer deze hierboven.",
 			"warningMissingModel": "⚠️ {{provider}} vereist een model-ID voor afbeeldingsgeneratie. Configureer deze hierboven.",
 			"successConfigured": "✓ Afbeeldingsgeneratie is geconfigureerd voor {{provider}} en klaar voor gebruik"

@@ -204,7 +204,8 @@
 	"imageGeneration": {
 		"approval": {
 			"generate": "生成",
-			"editPromptHint": "承認する前にメッセージボックスでPromptを編集するか、そのまま承認してください。"
+			"editPromptHint": "承認する前にこのカードでPromptを編集するか、そのまま承認してください。",
+			"promptLabel": "生成するPrompt"
 		},
 		"statusTitle": "画像生成: {{status}}",
 		"status": {
@@ -232,13 +233,36 @@
 			"totalTokens": "合計tokens",
 			"images": "画像",
 			"cost": "コスト",
-			"error": "エラー"
+			"error": "エラー",
+			"showDetails": "詳細を表示",
+			"hideDetails": "詳細を非表示",
+			"dimensions": "寸法",
+			"dimensionsValue": "{{width}} × {{height}} px",
+			"estimatedCost": "推定コスト",
+			"neurons": "Neurons",
+			"estimatedNeurons": "推定 neurons",
+			"estimatedRemainingNeurons": "推定残り neurons",
+			"cloudflareUsage": "推定 Cloudflare 使用量",
+			"cloudflareUsageValue": "{{used}} / {{quota}} neurons 使用済み · 残り {{remaining}}",
+			"usageSource": "使用量ソース",
+			"estimatedUsedNeuronsToday": "今日の推定使用量",
+			"dailyQuotaNeurons": "日次無料 quota",
+			"quotaResetAt": "Quota リセット",
+			"quotaDescription": "Quota メモ",
+			"pricingDescription": "料金メモ",
+			"usageSources": {
+				"provider_response": "プロバイダー応答",
+				"provider_response_with_local_quota": "プロバイダー応答 + ローカル quota 推定",
+				"local_estimate": "ローカル推定",
+				"unknown": "不明"
+			}
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		}
 	},
 	"directoryOperations": {
@@ -414,11 +438,19 @@
 		"title": "C Code {{version}} リリース",
 		"support": "<githubLink>GitHub</githubLink>でスターを付けてC Codeを応援してください。",
 		"finalRelease": {
-			"title": "C Code {{version}} アップデート",
-			"intro": "C Code は、Cmizz による Roo Code の個人 fork として継続しています。最新の fork 更新、修正、開発メモは Cmizz の repository で確認してください: <repoLink>Cmizz24/C-Code</repoLink>。",
-			"continuity": "この拡張機能は、元の Roo Code プロジェクトへの敬意ある attribution を残しながら、C Code のパーソナライズ更新を受け続けます。",
-			"alternatives": "現在の作業、bug report、新しい変更を確認するには、<repoLink>C Code GitHub repository</repoLink> を使用してください。",
-			"signoff": "Happy coding!"
+			"title": "C Code {{version}} リリース",
+			"intro": "C Code {{version}} は、Cmizz の統合 fork ベースから準備できました。リリースノート、修正、開発アップデートは fork repository をフォローしてください: <repoLink>Cmizz24/C-Code</repoLink>。",
+			"summary": "このリリースは、C Code 固有の作成ツール、プロバイダー/モデルの整理、診断、UI の polish に重点を置きつつ、元の Roo Code プロジェクトへの敬意ある attribution を維持します。",
+			"highlightsHeading": "このリリースのハイライト:",
+			"imageGeneration": "chat からのネイティブ画像生成。Image Generation 設定、prompt 承認、プレビュー、OpenRouter、OpenAI/OpenAI-compatible、Cloudflare Workers AI プロバイダーに対応します。",
+			"dynamicModels": "OpenRouter 画像モデルの動的検出に加え、プロバイダー/モデルのメタデータ更新と cache スコープの刷新。",
+			"visualInspector": "chat ワークフローと並行してブラウザー状態を検査するための Visual Browser Inspector 統合。",
+			"diagnostics": "既存の debug toggle からオプトインできるリモート診断。匿名/プライベートなイベント payload を Cmizz の diagnostics endpoint に送信します。",
+			"providerHygiene": "ChatGPT Plus/Pro Codex カタログの整理により、古い未対応モデルをフィルターし、対応済みのデフォルトへフォールバックします。",
+			"toolingPolish": "C Code の作業による Settings、i18n、Windows-safe な command ガイダンス、native tool/mode-flow の polish。",
+			"unsupportedLocal": "Ollama、LM Studio、ComfyUI、Automatic1111 などのローカル画像生成バックエンドは、このリリースでは対応画像生成プロバイダーとして公開されません。",
+			"alternatives": "issue reports、source changes、最終的な GitHub release notes については、<repoLink>C Code GitHub repository</repoLink> を使用してください。",
+			"signoff": "C Code をご利用いただきありがとうございます。"
 		},
 		"release": {
 			"heading": "新機能:",

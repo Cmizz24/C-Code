@@ -22,12 +22,13 @@
 		"apiKeyRequired": "Görüntü oluşturma için {{provider}} API anahtarı gereklidir. Lütfen Görüntü Oluşturma ayarlarında yapılandırın.",
 		"modelRequired": "{{provider}} görüntü oluşturma için model ID'si gerektirir. Lütfen Görüntü Oluşturma ayarlarında yapılandırın.",
 		"unsupportedApiMethod": "{{provider}} {{apiMethod}} görüntü oluşturma API yöntemini desteklemiyor.",
-		"unsupportedProvider": "{{provider}} görüntü oluşturma için desteklenmiyor. Bunun yerine OpenRouter, OpenAI/OpenAI-compatible, ComfyUI veya Automatic1111 kullan.",
+		"unsupportedProvider": "{{provider}} görüntü oluşturma için desteklenmiyor. Bunun yerine OpenRouter, OpenAI/OpenAI-compatible veya Cloudflare Workers AI kullan.",
 		"failedWithStatus": "Görüntü oluşturma başarısız: {{status}} {{statusText}}",
 		"failedWithMessage": "Görüntü oluşturma başarısız: {{message}}",
 		"noImageGenerated": "Yanıtta görüntü oluşturulmadı",
 		"invalidImageData": "Yanıtta geçersiz görüntü verisi",
 		"invalidImageFormat": "Geçersiz görüntü formatı alındı",
-		"unknownError": "Bilinmeyen bir hata oluştu"
+		"unknownError": "Bilinmeyen bir hata oluştu",
+		"accountIdRequired": "Görüntü oluşturma için {{provider}} hesap ID'si gereklidir. Görüntü Oluşturma ayarlarında yapılandır."
 	}
 }

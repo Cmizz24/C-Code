@@ -1300,6 +1300,60 @@ describe("ChatView - Message Queueing Tests", () => {
 	})
 })
 
+describe("ChatView - Image Generation Tests", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		vi.mocked(vscode.postMessage).mockClear()
+	})
+
+	const imageGenerationApprovalMessage = (prompt: string): ClineMessage => ({
+		type: "ask",
+		ask: "tool",
+		ts: Date.now(),
+		text: JSON.stringify({
+			tool: "generateImage",
+			content: prompt,
+			path: "images/fox.png",
+			imageGeneration: {
+				status: "pending",
+				prompt,
+				path: "images/fox.png",
+			},
+		}),
+		partial: false,
+	})
+
+	it("keeps image-generation approval prompts out of the normal chat composer", async () => {
+		const { getByTestId } = renderChatView()
+
+		mockPostMessage({
+			clineMessages: [imageGenerationApprovalMessage("Paint a red fox in watercolor")],
+		})
+
+		await waitFor(() => {
+			const input = getByTestId("chat-textarea").querySelector("input") as HTMLInputElement
+			expect(input.value).toBe("")
+		})
+	})
+
+	it("does not overwrite an existing normal chat draft when image-generation approval appears", async () => {
+		const { getByTestId } = renderChatView()
+		const input = getByTestId("chat-textarea").querySelector("input") as HTMLInputElement
+
+		await act(async () => {
+			fireEvent.change(input, { target: { value: "keep this chat draft" } })
+		})
+
+		mockPostMessage({
+			clineMessages: [imageGenerationApprovalMessage("Paint a red fox in watercolor")],
+		})
+
+		await waitFor(() => {
+			expect(input.value).toBe("keep this chat draft")
+		})
+	})
+})
+
 describe("ChatView - Context Condensing Indicator Tests", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()

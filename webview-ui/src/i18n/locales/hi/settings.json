@@ -31,6 +31,7 @@
 		"mcp": "एमसीपी सर्वर",
 		"worktrees": "Worktrees",
 		"autoApprove": "अनुमोदन",
+		"imageGeneration": "छवि निर्माण",
 		"checkpoints": "चेकपॉइंट",
 		"notifications": "सूचनाएँ",
 		"contextManagement": "संदर्भ",
@@ -57,7 +58,7 @@
 		"manageSettings": "सेटिंग्स प्रबंधित करें",
 		"debugMode": {
 			"label": "डिबग मोड सक्षम करें",
-			"description": "टास्क हेडर में अतिरिक्त बटन दिखाने के लिए डिबग मोड सक्षम करें जो API वार्तालाप इतिहास और UI संदेशों को अस्थायी फ़ाइलों में सुंदर JSON के रूप में देखने की अनुमति देते हैं।"
+			"description": "टास्क हेडर में अतिरिक्त बटन दिखाने के लिए debug मोड सक्षम करें, ताकि API बातचीत इतिहास और UI संदेशों को अस्थायी फ़ाइलों में सुंदर JSON के रूप में देखा जा सके। इसे चालू सहेजने पर, troubleshooting के लिए साफ़ किए गए remote diagnostics को C-Code के तय endpoint पर भेजने की सहमति भी दी जाती है।"
 		}
 	},
 	"slashCommands": {
@@ -264,6 +265,10 @@
 			"label": "Memory",
 			"description": "Chat और tool errors से mistake-memory saves को अपने-आप approve करें. यह off होने पर pending memory को chat या Memory settings से review किया जा सकता है."
 		},
+		"imageGeneration": {
+			"label": "छवियाँ",
+			"description": "चैट से छवि निर्माण और संपादन कार्रवाइयों को अपने आप स्वीकृत करें। इससे कॉन्फ़िगर किए गए छवि-निर्माण प्रदाता का उपयोग करके छवि फ़ाइलें बनाई या संशोधित की जा सकती हैं।"
+		},
 		"followupQuestions": {
 			"label": "प्रश्न",
 			"description": "कॉन्फ़िगर किए गए टाइमआउट के बाद अनुवर्ती प्रश्नों के लिए पहले सुझाए गए उत्तर को स्वचालित रूप से चुनें",
@@ -292,6 +297,71 @@
 		},
 		"maxLimits": {
 			"description": "स्वचालित रूप से जारी रखने के लिए अनुमोदन माँगने से पहले इन सीमाओं तक अनुरोध करें।"
+		}
+	},
+	"imageGeneration": {
+		"name": "AI छवि निर्माण सक्षम करें",
+		"description": "सक्षम होने पर, C अलग से कॉन्फ़िगर किए गए छवि निर्माण प्रदाता का उपयोग करके prompts से छवियाँ बना और संपादित कर सकता है।",
+		"providerLabel": "प्रदाता",
+		"providerDescription": "छवि निर्माण के लिए उपयोग करने वाला प्रदाता चुनें। यह आपके chat प्रदाता प्रोफ़ाइल से स्वतंत्र है।",
+		"localProviderNote": "Cloudflare Workers AI, OpenRouter और OpenAI/OpenAI-compatible providers के साथ उपलब्ध है। Ollama, LM Studio, ComfyUI और Automatic1111 इस panel में selectable नहीं हैं।",
+		"apiKeyLabel": "{{provider}} API कुंजी",
+		"optionalApiKeyLabel": "{{provider}} API कुंजी (वैकल्पिक)",
+		"apiKeyPlaceholder": "अपनी {{provider}} API कुंजी दर्ज करें",
+		"apiKeyRequiredDescription": "इस प्रदाता को छवि निर्माण के लिए API कुंजी चाहिए।",
+		"apiKeyOptionalDescription": "वैकल्पिक। इसे केवल तभी इस्तेमाल करें जब आपके endpoint, local instance या proxy को bearer-token authentication चाहिए.",
+		"getApiKeyText": "अपनी API कुंजी यहाँ से प्राप्त करें",
+		"baseUrlLabel": "Base URL",
+		"baseUrlPlaceholder": "डिफ़ॉल्ट: {{url}}",
+		"baseUrlDescription": "{{url}} उपयोग करने के लिए खाली छोड़ दें।",
+		"modelSelectionLabel": "छवि निर्माण मॉडल",
+		"modelSelectionDescription": "छवि निर्माण के लिए उपयोग करने वाला मॉडल चुनें",
+		"modelIdLabel": "मॉडल ID",
+		"customModelIdPlaceholder": "एक मॉडल ID दर्ज करें",
+		"modelIdPlaceholderWithDefault": "डिफ़ॉल्ट: {{model}}",
+		"customModelIdDescription": "अपने provider या OpenAI-compatible endpoint द्वारा exposed exact model ID दर्ज करें.",
+		"optionalModelIdDescription": "वैकल्पिक। provider द्वारा वर्तमान में loaded checkpoint इस्तेमाल करने के लिए खाली छोड़ें.",
+		"apiMethodLabel": "API विधि",
+		"apiMethodDescription": "छवि निर्माण के लिए उपयोग करने वाला OpenAI-compatible endpoint shape चुनें।",
+		"apiMethodLockedDescription": "चुना गया मॉडल {{model}} की आवश्यक API विधि का उपयोग करता है।",
+		"apiMethodLabels": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
+		},
+		"negativePromptLabel": "Negative prompt",
+		"negativePromptPlaceholder": "Generated images में बचाने वाला content दर्ज करें",
+		"negativePromptDescription": "Optional. Compatible providers को unwanted subjects, styles या artifacts से बचने में मदद करता है.",
+		"warningMissingApiKey": "⚠️ {{provider}} को छवि निर्माण के लिए API कुंजी चाहिए। इसे ऊपर कॉन्फ़िगर करें।",
+		"warningMissingModel": "⚠️ {{provider}} को छवि निर्माण के लिए मॉडल ID चाहिए। इसे ऊपर कॉन्फ़िगर करें।",
+		"successConfigured": "✓ छवि निर्माण {{provider}} के लिए कॉन्फ़िगर है और उपयोग के लिए तैयार है",
+		"modelLabel": "छवि निर्माण मॉडल",
+		"optionalModelDescription": "वैकल्पिक। provider द्वारा वर्तमान में loaded checkpoint इस्तेमाल करने के लिए खाली छोड़ें.",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models सार्वजनिक है, इसलिए इस सूची में सभी image-output मॉडल शामिल हो सकते हैं; जब आप image API key देते हैं, तो OpenRouter द्वारा लौटाए जाने पर Roo खाते-विशिष्ट परिणामों के लिए इसका उपयोग करता है.",
+		"cloudflareAccountIdLabel": "Cloudflare Account ID",
+		"cloudflareAccountIdPlaceholder": "अपना Cloudflare account ID दर्ज करें",
+		"cloudflareAccountIdDescription": "ज़रूरी। इसे अपने Cloudflare dashboard के account overview में ढूँढें।",
+		"cloudflareBaseUrlDescription": "Cloudflare का API v4 endpoint इस्तेमाल करने के लिए खाली छोड़ें: {{url}}.",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI, image generation के लिए Workers AI account run endpoint इस्तेमाल करता है।",
+		"warningMissingAccountId": "⚠️ {{provider}} को image generation के लिए Cloudflare account ID चाहिए। इसे ऊपर configure करें।",
+		"cloudflarePricing": {
+			"title": "Cloudflare Workers AI pricing और free quota",
+			"quotaDescription": "Free allocation: {{freeAllocation}}. {{resetTime}} पर reset होता है. Paid overage: {{paidOverage}}.",
+			"modelColumn": "Model",
+			"priceColumn": "Price",
+			"neuronsColumn": "Neurons"
+		},
+		"cloudflareUsage": {
+			"title": "आज का अनुमानित Workers AI उपयोग",
+			"remainingLabel": "अनुमानित बचे हुए मुफ्त neurons",
+			"neuronsValue": "{{count}} neurons",
+			"usedLabel": "आज अनुमानित उपयोग",
+			"usedValue": "{{used}} / {{quota}} neurons",
+			"requestsLabel": "ट्रैक किए गए इमेज अनुरोध",
+			"resetLabel": "अगला रीसेट",
+			"localEstimateDescription": "यह C से चलाई गई इमेज जनरेशन के आधार पर स्थानीय अनुमान है। Cloudflare यहाँ दैनिक बची हुई quota के लिए कोई दस्तावेजीकृत API नहीं देता; प्रदाता-पुष्ट उपयोग के लिए अपना Cloudflare dashboard देखो."
 		}
 	},
 	"providers": {
@@ -391,12 +461,8 @@
 		"anthropicApiKey": "Anthropic API कुंजी",
 		"getAnthropicApiKey": "Anthropic API कुंजी प्राप्त करें",
 		"anthropicUseAuthToken": "X-Api-Key के बजाय Anthropic API कुंजी को Authorization हेडर के रूप में पास करें",
-		"anthropic1MContextBetaLabel": "1M संदर्भ विंडो सक्षम करें (बीटा)",
-		"anthropic1MContextBetaDescription": "Claude Sonnet 4.x / Claude Opus 4.6 के लिए संदर्भ विंडो को 1 मिलियन टोकन तक बढ़ाता है",
 		"awsBedrock1MContextBetaLabel": "1M संदर्भ विंडो सक्षम करें (बीटा)",
 		"awsBedrock1MContextBetaDescription": "Claude Sonnet 4.x / Claude Opus 4.6 के लिए संदर्भ विंडो को 1 मिलियन टोकन तक बढ़ाता है",
-		"vertex1MContextBetaLabel": "1M संदर्भ विंडो सक्षम करें (बीटा)",
-		"vertex1MContextBetaDescription": "Claude Sonnet 4.x / Claude Opus 4.6 के लिए संदर्भ विंडो को 1 मिलियन टोकन तक बढ़ाता है",
 		"basetenApiKey": "Baseten API कुंजी",
 		"getBasetenApiKey": "Baseten API कुंजी प्राप्त करें",
 		"poeApiKey": "Poe API कुंजी",
@@ -558,6 +624,7 @@
 			"minimal": "न्यूनतम (सबसे तेज़)",
 			"high": "उच्च",
 			"xhigh": "बहुत उच्च",
+			"max": "अधिकतम",
 			"medium": "मध्यम",
 			"low": "निम्न"
 		},
@@ -988,7 +1055,7 @@
 			"description": "सक्षम होने पर, C अलग से कॉन्फ़िगर किए गए छवि निर्माण प्रदाता का उपयोग करके prompts से छवियाँ बना और संपादित कर सकता है।",
 			"providerLabel": "प्रदाता",
 			"providerDescription": "छवि निर्माण के लिए उपयोग करने वाला प्रदाता चुनें। यह आपके chat प्रदाता प्रोफ़ाइल से स्वतंत्र है।",
-			"localProviderNote": "Ollama और LM Studio यहाँ चयन योग्य नहीं हैं क्योंकि वे vision/chat APIs expose करते हैं, image-generation APIs नहीं। Configure होने पर local image generation ComfyUI और Automatic1111 जैसी वास्तविक image-generation APIs से उपलब्ध है.",
+			"localProviderNote": "Ollama, LM Studio, ComfyUI और Automatic1111 यहाँ selectable नहीं हैं क्योंकि यह panel अब OpenRouter और OpenAI-compatible image-generation APIs पर केंद्रित है.",
 			"apiKeyLabel": "{{provider}} API कुंजी",
 			"optionalApiKeyLabel": "{{provider}} API कुंजी (वैकल्पिक)",
 			"apiKeyPlaceholder": "अपनी {{provider}} API कुंजी दर्ज करें",
@@ -1016,7 +1083,7 @@
 			},
 			"negativePromptLabel": "Negative prompt",
 			"negativePromptPlaceholder": "Generated images में बचाने वाला content दर्ज करें",
-			"negativePromptDescription": "वैकल्पिक। Local providers को unwanted subjects, styles या artifacts से बचने में मदद करता है.",
+			"negativePromptDescription": "Optional. Compatible providers को unwanted subjects, styles या artifacts से बचने में मदद करता है.",
 			"warningMissingApiKey": "⚠️ {{provider}} को छवि निर्माण के लिए API कुंजी चाहिए। इसे ऊपर कॉन्फ़िगर करें।",
 			"warningMissingModel": "⚠️ {{provider}} को छवि निर्माण के लिए मॉडल ID चाहिए। इसे ऊपर कॉन्फ़िगर करें।",
 			"successConfigured": "✓ छवि निर्माण {{provider}} के लिए कॉन्फ़िगर है और उपयोग के लिए तैयार है"

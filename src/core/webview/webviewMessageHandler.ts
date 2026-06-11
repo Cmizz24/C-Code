@@ -1105,11 +1105,14 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			await flushModels({ provider: routerNameFlush } as GetModelsOptions, true)
 			break
 		case "requestRouterModels":
-			const { apiConfiguration } = await provider.getState()
+			const state = await provider.getState()
+			const { apiConfiguration, openRouterImageApiKey, openRouterImageBaseUrl } = state
+			const requestedRouterModelsRequestId = message.requestId
 
 			// Optional single provider filter from webview
 			const requestedProvider = message?.values?.provider
 			const providerFilter = requestedProvider ? toRouterName(requestedProvider) : undefined
+			const requestedModelType = message?.values?.modelType === "image" ? "image" : undefined
 
 			// Optional refresh flag to flush cache before fetching (useful for providers requiring credentials)
 			const shouldRefresh = message?.values?.refresh === true
@@ -1125,6 +1128,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 						ollama: {},
 						lmstudio: {},
 						poe: {},
+						bedrock: {},
 					}
 
 			const safeGetModels = async (options: GetModelsOptions): Promise<ModelRecord> => {
@@ -1140,24 +1144,44 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				}
 			}
 
-			const getProviderValue = (
+			const getProviderValue = <T extends string | boolean | undefined>(
 				providerName: RouterName,
-				configValue: string | undefined,
+				configValue: T,
 				messageKey: string,
-			): string | undefined => {
+			): T => {
 				if (
 					providerFilter === providerName &&
 					Object.prototype.hasOwnProperty.call(message?.values ?? {}, messageKey)
 				) {
-					return message?.values?.[messageKey]
+					return message?.values?.[messageKey] as T
 				}
 
 				return configValue
 			}
 
+			const openRouterApiKey = getProviderValue(
+				"openrouter",
+				requestedModelType === "image" ? openRouterImageApiKey : apiConfiguration.openRouterApiKey,
+				requestedModelType === "image" ? "openRouterImageApiKey" : "openRouterApiKey",
+			)
+
+			const openRouterBaseUrl = getProviderValue(
+				"openrouter",
+				requestedModelType === "image" ? openRouterImageBaseUrl : apiConfiguration.openRouterBaseUrl,
+				requestedModelType === "image" ? "openRouterImageBaseUrl" : "openRouterBaseUrl",
+			)
+
 			// Base candidates (only those handled by this aggregate fetcher)
 			const candidates: { key: RouterName; options: GetModelsOptions }[] = [
-				{ key: "openrouter", options: { provider: "openrouter" } },
+				{
+					key: "openrouter",
+					options: {
+						provider: "openrouter",
+						...(requestedModelType ? { modelType: requestedModelType } : {}),
+						...(openRouterApiKey ? { apiKey: openRouterApiKey } : {}),
+						...(openRouterBaseUrl ? { baseUrl: openRouterBaseUrl } : {}),
+					},
+				},
 				{
 					key: "requesty",
 					options: {
@@ -1191,12 +1215,35 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			)
 			const mistralApiKey = getProviderValue("mistral", apiConfiguration.mistralApiKey, "mistralApiKey")
 			const deepSeekApiKey = getProviderValue("deepseek", apiConfiguration.deepSeekApiKey, "deepSeekApiKey")
+			const xiaomiMiMoApiKey = getProviderValue(
+				"xiaomi-mimo",
+				apiConfiguration.xiaomiMiMoApiKey,
+				"xiaomiMiMoApiKey",
+			)
 			const geminiApiKey = getProviderValue("gemini", apiConfiguration.geminiApiKey, "geminiApiKey")
 			const moonshotApiKey = getProviderValue("moonshot", apiConfiguration.moonshotApiKey, "moonshotApiKey")
 			const fireworksApiKey = getProviderValue("fireworks", apiConfiguration.fireworksApiKey, "fireworksApiKey")
 			const basetenApiKey = getProviderValue("baseten", apiConfiguration.basetenApiKey, "basetenApiKey")
 			const sambaNovaApiKey = getProviderValue("sambanova", apiConfiguration.sambaNovaApiKey, "sambaNovaApiKey")
 			const minimaxApiKey = getProviderValue("minimax", apiConfiguration.minimaxApiKey, "minimaxApiKey")
+			const bedrockRegion = getProviderValue("bedrock", apiConfiguration.awsRegion, "awsRegion")
+			const bedrockUseApiKey = getProviderValue("bedrock", apiConfiguration.awsUseApiKey, "awsUseApiKey")
+			const bedrockApiKey = getProviderValue("bedrock", apiConfiguration.awsApiKey, "awsApiKey")
+			const bedrockUseProfile = getProviderValue("bedrock", apiConfiguration.awsUseProfile, "awsUseProfile")
+			const bedrockProfile = getProviderValue("bedrock", apiConfiguration.awsProfile, "awsProfile")
+			const bedrockAccessKey = getProviderValue("bedrock", apiConfiguration.awsAccessKey, "awsAccessKey")
+			const bedrockSecretKey = getProviderValue("bedrock", apiConfiguration.awsSecretKey, "awsSecretKey")
+			const bedrockSessionToken = getProviderValue("bedrock", apiConfiguration.awsSessionToken, "awsSessionToken")
+			const bedrockEndpointEnabled = getProviderValue(
+				"bedrock",
+				apiConfiguration.awsBedrockEndpointEnabled,
+				"awsBedrockEndpointEnabled",
+			)
+			const bedrockEndpoint = getProviderValue(
+				"bedrock",
+				apiConfiguration.awsBedrockEndpoint,
+				"awsBedrockEndpoint",
+			)
 
 			addCandidateIf(anthropicApiKey, "anthropic", {
 				provider: "anthropic",
@@ -1220,6 +1267,11 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				provider: "deepseek",
 				apiKey: deepSeekApiKey,
 				baseUrl: getProviderValue("deepseek", apiConfiguration.deepSeekBaseUrl, "deepSeekBaseUrl"),
+			})
+			addCandidateIf(xiaomiMiMoApiKey, "xiaomi-mimo", {
+				provider: "xiaomi-mimo",
+				apiKey: xiaomiMiMoApiKey,
+				baseUrl: getProviderValue("xiaomi-mimo", apiConfiguration.xiaomiMiMoBaseUrl, "xiaomiMiMoBaseUrl"),
 			})
 			addCandidateIf(geminiApiKey, "gemini", {
 				provider: "gemini",
@@ -1248,10 +1300,32 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				apiKey: minimaxApiKey,
 				baseUrl: getProviderValue("minimax", apiConfiguration.minimaxBaseUrl, "minimaxBaseUrl"),
 			})
+			addCandidateIf(
+				bedrockRegion &&
+					(bedrockUseApiKey
+						? bedrockApiKey
+						: bedrockUseProfile
+							? bedrockProfile
+							: (bedrockAccessKey && bedrockSecretKey) || (!bedrockAccessKey && !bedrockSecretKey)),
+				"bedrock",
+				{
+					provider: "bedrock",
+					awsRegion: bedrockRegion,
+					awsAccessKey: bedrockAccessKey,
+					awsSecretKey: bedrockSecretKey,
+					awsSessionToken: bedrockSessionToken,
+					awsUseProfile: bedrockUseProfile,
+					awsProfile: bedrockProfile,
+					awsUseApiKey: bedrockUseApiKey,
+					awsApiKey: bedrockApiKey,
+					awsBedrockEndpointEnabled: bedrockEndpointEnabled,
+					awsBedrockEndpoint: bedrockEndpoint,
+				},
+			)
 
 			// LiteLLM is conditional on baseUrl+apiKey
-			const litellmApiKey = apiConfiguration.litellmApiKey || message?.values?.litellmApiKey
-			const litellmBaseUrl = apiConfiguration.litellmBaseUrl || message?.values?.litellmBaseUrl
+			const litellmApiKey = getProviderValue("litellm", apiConfiguration.litellmApiKey, "litellmApiKey")
+			const litellmBaseUrl = getProviderValue("litellm", apiConfiguration.litellmBaseUrl, "litellmBaseUrl")
 
 			if (litellmApiKey && litellmBaseUrl) {
 				// If explicit credentials are provided in message.values (from Refresh Models button),
@@ -1267,8 +1341,8 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			}
 
 			// Poe is conditional on apiKey
-			const poeApiKey = apiConfiguration.poeApiKey || message?.values?.poeApiKey
-			const poeBaseUrl = apiConfiguration.poeBaseUrl || message?.values?.poeBaseUrl
+			const poeApiKey = getProviderValue("poe", apiConfiguration.poeApiKey, "poeApiKey")
+			const poeBaseUrl = getProviderValue("poe", apiConfiguration.poeBaseUrl, "poeBaseUrl")
 
 			if (poeApiKey) {
 				if (message?.values?.poeApiKey || message?.values?.poeBaseUrl) {
@@ -1317,7 +1391,11 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 						type: "singleRouterModelFetchResponse",
 						success: false,
 						error: errorMessage,
-						values: { provider: routerName },
+						requestId: requestedRouterModelsRequestId,
+						values: {
+							provider: routerName,
+							...(requestedModelType ? { modelType: requestedModelType } : {}),
+						},
 					})
 				}
 			})
@@ -1325,17 +1403,28 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			provider.postMessageToWebview({
 				type: "routerModels",
 				routerModels,
-				values: providerFilter ? { provider: requestedProvider } : undefined,
+				requestId: requestedRouterModelsRequestId,
+				values: providerFilter
+					? { provider: requestedProvider, ...(requestedModelType ? { modelType: requestedModelType } : {}) }
+					: requestedModelType
+						? { modelType: requestedModelType }
+						: undefined,
 			})
 			break
 		case "requestOllamaModels": {
 			// Specific handler for Ollama models only.
 			const { apiConfiguration: ollamaApiConfig } = await provider.getState()
 			try {
+				const ollamaBaseUrl = Object.prototype.hasOwnProperty.call(message?.values ?? {}, "ollamaBaseUrl")
+					? (message?.values?.ollamaBaseUrl as string | undefined)
+					: ollamaApiConfig.ollamaBaseUrl
+				const ollamaApiKey = Object.prototype.hasOwnProperty.call(message?.values ?? {}, "ollamaApiKey")
+					? (message?.values?.ollamaApiKey as string | undefined)
+					: ollamaApiConfig.ollamaApiKey
 				const ollamaOptions = {
 					provider: "ollama" as const,
-					baseUrl: ollamaApiConfig.ollamaBaseUrl,
-					apiKey: ollamaApiConfig.ollamaApiKey,
+					baseUrl: ollamaBaseUrl,
+					apiKey: ollamaApiKey,
 				}
 				// Flush cache and refresh to ensure fresh models.
 				await flushModels(ollamaOptions, true)
@@ -1343,7 +1432,11 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				const ollamaModels = await getModels(ollamaOptions)
 
 				if (Object.keys(ollamaModels).length > 0) {
-					provider.postMessageToWebview({ type: "ollamaModels", ollamaModels: ollamaModels })
+					provider.postMessageToWebview({
+						type: "ollamaModels",
+						ollamaModels: ollamaModels,
+						requestId: message.requestId,
+					})
 				}
 			} catch (error) {
 				// Silently fail - user hasn't configured Ollama yet
@@ -1355,9 +1448,12 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			// Specific handler for LM Studio models only.
 			const { apiConfiguration: lmStudioApiConfig } = await provider.getState()
 			try {
+				const lmStudioBaseUrl = Object.prototype.hasOwnProperty.call(message?.values ?? {}, "lmStudioBaseUrl")
+					? (message?.values?.lmStudioBaseUrl as string | undefined)
+					: lmStudioApiConfig.lmStudioBaseUrl
 				const lmStudioOptions = {
 					provider: "lmstudio" as const,
-					baseUrl: lmStudioApiConfig.lmStudioBaseUrl,
+					baseUrl: lmStudioBaseUrl,
 				}
 				// Flush cache and refresh to ensure fresh models.
 				await flushModels(lmStudioOptions, true)
@@ -1368,6 +1464,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					provider.postMessageToWebview({
 						type: "lmStudioModels",
 						lmStudioModels: lmStudioModels,
+						requestId: message.requestId,
 					})
 				}
 			} catch (error) {

@@ -1,6 +1,6 @@
 # C Code
 
-> Cmizz's personal Roo Code fork for VS Code: an AI dev team in your editor with parallel agents, MCP workflows, Codex fast mode, SMTP completion rollups, expanded provider support, and Windows-safe tooling.
+> Cmizz's personal Roo Code fork for VS Code: an AI dev team in your editor with native image generation, Visual Browser Inspector, parallel agents, MCP workflows, Codex fast mode, SMTP completion rollups, opt-in diagnostics, expanded provider support, and Windows-safe tooling.
 
 C Code is Cmizz's independently maintained fork of the original [Roo Code](https://github.com/RooCodeInc/Roo-Code) extension. It keeps the agentic coding workflow that made Roo Code useful while giving the project its own name, repository, release path, and fork-specific features under the C Code / Cmizz identity.
 
@@ -10,16 +10,24 @@ This fork is built for practical day-to-day development: planning, coding, debug
 
 ## Highlights in the C Code fork
 
+Compared with upstream Roo Code, C Code keeps the familiar agentic coding workflow while adding, changing, and removing behavior for Cmizz's release path and day-to-day workflow:
+
 - **Parallel agents for larger workflows** — split complex work across coordinated background agents, checkpoint before execution, review worktree output, and merge approved agent results back into the parent task.
 - **Active agent coordination** — parallel agents communicate during execution, coordinate ownership and write intent, avoid stepping on each other's files, and surface coordination/status information in the UI.
+- **Native image generation** — generate or edit images directly from chat with the `generate_image` tool, prompt approval, workspace-relative save paths, previews in chat, and dedicated Image Generation settings.
+- **Cloudflare Workers AI image generation** — use Cloudflare Workers AI as a supported image provider with account/model settings plus usage details such as provider-reported or locally estimated Neurons, cost, reset, and quota notes when available.
+- **OpenRouter dynamic image models** — discover image-capable OpenRouter models dynamically, keep provider/model caches scoped correctly, and surface refreshed provider metadata in model selection flows.
+- **Visual Browser Inspector** — inspect visual browser state for UI debugging and chat handoff workflows without replacing the dedicated image-generation path.
+- **Opt-in remote diagnostics** — when the existing debug toggle is enabled, C Code can send anonymous/private diagnostic events to `https://cmtesting.site/api/extension/debug-log` using a clean event contract that avoids transcripts, secrets, and private file contents.
 - **MCP Marketplace and setup flows** — discover MCP servers for search, code, docs, databases, files, browsers, and team workflows; launch guided MCP setup tasks; and create custom local MCP servers from natural language requirements.
 - **SMTP completion notifications** — send task outcome emails using saved SMTP settings, including final parent workflow rollups with overall task summaries, child-task context, requests, token usage, cost, and tool attempt/failure counts without exposing transcripts or secrets.
-- **OpenAI Codex / ChatGPT Plus/Pro workflow support** — use the OpenAI Codex provider with OAuth-style ChatGPT subscription access, GPT-5.x/Codex model defaults, fast-mode controls, and authentication/status reporting.
+- **OpenAI Codex / ChatGPT Plus/Pro workflow support** — use the OpenAI Codex provider with OAuth-style ChatGPT subscription access, GPT-5.x/Codex model defaults, fast-mode controls, authentication/status reporting, stale unsupported model filtering, and supported-model fallback.
 - **Expanded provider and model support** — includes Xiaomi MiMo, DeepSeek, OpenRouter, Requesty, Vercel AI Gateway, Qwen Code, LM Studio, OpenAI, Anthropic, Gemini, xAI, Bedrock, Vertex, Moonshot, MiniMax, Mistral, Fireworks, SambaNova, Poe, and other provider metadata updates from the fork.
 - **Xiaomi MiMo AMS-ready support** — adds Xiaomi MiMo chat models with a MiMo V2.5 Pro default model, long-context metadata, official pricing metadata, and both standard and token-plan AMS endpoint options.
 - **Windows-safe command behavior** — command guidance and execution handling are tuned for Windows shells while preserving normal cross-platform development workflows.
 - **Settings and i18n reliability fixes** — settings views, cached state handling, startup localization, provider composition, and translated UI paths have fork-specific fixes and tests.
 - **Organized specialist modes** — C Code keeps the core Roo workflow while adding organized specialist modes for frontend, backend, quality, planning, MCP setup, DevOps, platform work, and repository operations.
+- **Supported image providers only** — the image-generation tool flow intentionally supports OpenRouter, OpenAI/OpenAI-compatible endpoints, and Cloudflare Workers AI; local providers such as Ollama, LM Studio, ComfyUI, and Automatic1111 are not exposed as supported image-generation providers in this release.
 
 ---
 
@@ -44,10 +52,22 @@ C Code brings an AI coding assistant into VS Code that can help with:
 C Code keeps the broad provider ecosystem from Roo Code and adds fork-specific provider/model updates for subscription-backed Codex work, router-backed models, and OpenAI-compatible services:
 
 - **OpenAI Codex / ChatGPT Plus/Pro** — subscription-backed Codex provider support with GPT-5.5 as the current default, GPT-5.4, GPT-5.4 Mini, GPT-5.2, GPT-5.1, GPT-5, GPT-5 Codex, GPT-5 Codex Mini, GPT-5.1 Codex, GPT-5.1 Codex Max, GPT-5.1 Codex Mini, GPT-5.2 Codex, GPT-5.3 Codex, and GPT-5.3 Codex Spark model entries. Models that support Fast mode expose fast-mode controls and report requested/confirmed/rejected status back to the UI.
+- **Image-generation providers** — OpenRouter image-output models, OpenAI/OpenAI-compatible Images API models, and Cloudflare Workers AI image models are available through the dedicated image-generation settings and native tool flow.
 - **Xiaomi MiMo** — OpenAI-compatible Xiaomi MiMo provider support with MiMo V2.5 Pro as the default model, MiMo V2 Pro, MiMo V2.5, MiMo V2 Omni, and MiMo V2 Flash metadata, long-context limits, reasoning controls, official pricing metadata, and standard or token-plan AMS base URL choices.
 - **DeepSeek and reasoning-capable models** — DeepSeek provider/model metadata and reasoning/tool-call handling are kept current with the fork's streaming and model-parameter paths.
 - **Router and gateway providers** — OpenRouter, Requesty, Vercel AI Gateway, LiteLLM, LM Studio, Qwen Code, and other router-style providers are wired through the provider selector, default model handling, validation, and selected-model UI paths.
 - **Major model families** — Anthropic, OpenAI Native, Gemini, xAI/Grok, Bedrock, Vertex, Moonshot, MiniMax, Mistral, Fireworks, SambaNova, Poe, Ollama, and OpenAI-compatible providers continue to receive static metadata, pricing, reasoning, prompt-cache, image, and tool-use updates where supported.
+
+---
+
+## Image generation and visual inspection
+
+C Code 3.54.0 adds a clearer creation and inspection workflow:
+
+- Ask C Code to generate or edit an image from chat, approve or adjust the prompt, and save the result directly into your workspace.
+- Configure OpenRouter, OpenAI/OpenAI-compatible, or Cloudflare Workers AI image generation separately from chat provider profiles.
+- Review generated image previews and safe provider metadata in chat, including Cloudflare Workers AI usage estimates when available.
+- Use Visual Browser Inspector for UI/browser inspection workflows while keeping image generation routed through the dedicated `generate_image` tool.
 
 ---
 
@@ -77,12 +97,12 @@ C Code includes MCP workflow improvements for discovering, installing, configuri
 
 ## Stable release
 
-- **Current stable C Code version:** 3.53.0
+- **Current stable C Code version:** 3.54.0
 - **Publisher / publication identity:** Cmizz
 - **Package name:** `c-code`
-- **Stable VSIX artifact:** `bin/c-code-3.53.0.vsix`
+- **Stable VSIX artifact:** `bin/c-code-3.54.0.vsix`
 
-Version 3.53.0 is kept as the latest stable C Code release line unless a future release intentionally bumps the extension version.
+Version 3.54.0 is the prepared stable C Code release line for the next official GitHub release.
 
 ---
 
@@ -110,6 +130,16 @@ C Code can send SMTP completion notifications when configured in settings:
 - Individual tasks can report completion, failure, cancellation, token usage, cost, tool attempt counts, and final summaries.
 - Parent workflows can send final rollups after delegated or parallel child tasks finish, so long-running agent plans produce one clear overall status email.
 - Notifications avoid including full transcripts or secrets and are designed for status visibility rather than data export.
+
+---
+
+## Opt-in diagnostics
+
+C Code includes an opt-in remote diagnostics path for debugging fork-specific issues:
+
+- Diagnostics are controlled by the existing C Code debug setting and are off by default.
+- When enabled, clean structured diagnostic events can be sent to `https://cmtesting.site/api/extension/debug-log`.
+- Payloads are designed to be anonymous/private and avoid transcripts, secrets, file contents, and provider credentials.
 
 ---
 

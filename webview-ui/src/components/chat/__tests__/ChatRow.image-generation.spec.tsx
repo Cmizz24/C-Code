@@ -1,5 +1,5 @@
 import React from "react"
-import { cleanup, render, screen } from "@/utils/test-utils"
+import { cleanup, fireEvent, render, screen } from "@/utils/test-utils"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ExtensionStateContextProvider } from "@src/context/ExtensionStateContext"
 import { ChatRowContent } from "../ChatRow"
@@ -35,9 +35,17 @@ vi.mock("../../common/ImageBlock", () => ({
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
-		t: (key: string, options?: Record<string, string>) => {
+		t: (key: string, options?: Record<string, unknown>) => {
 			if (key === "chat:imageGeneration.statusTitle") {
 				return `Image Generation ${options?.status ?? ""}`.trim()
+			}
+
+			if (options) {
+				const renderedOptions = Object.entries(options)
+					.map(([optionKey, optionValue]) => `${optionKey}=${optionValue}`)
+					.join(",")
+
+				return `${key}(${renderedOptions})`
 			}
 
 			return key
@@ -48,10 +56,10 @@ vi.mock("react-i18next", () => ({
 	initReactI18next: { type: "3rdParty", init: () => {} },
 }))
 
-function renderChatRow(message: ClineMessage) {
+function renderChatRow(message: ClineMessage, onImageApprovalGenerate = vi.fn()) {
 	const queryClient = new QueryClient()
 
-	return render(
+	const renderResult = render(
 		<ExtensionStateContextProvider>
 			<QueryClientProvider client={queryClient}>
 				<ChatRowContent
@@ -60,6 +68,7 @@ function renderChatRow(message: ClineMessage) {
 					isLast={false}
 					isStreaming={false}
 					onToggleExpand={() => {}}
+					onImageApprovalGenerate={onImageApprovalGenerate}
 					onSuggestionClick={() => {}}
 					onBatchFileResponse={() => {}}
 					onFollowUpUnmount={() => {}}
@@ -68,17 +77,24 @@ function renderChatRow(message: ClineMessage) {
 			</QueryClientProvider>
 		</ExtensionStateContextProvider>,
 	)
+
+	return { ...renderResult, onImageApprovalGenerate }
 }
 
-const createImageGenerationSayMessage = (metadata: GeneratedImageMetadata): ClineMessage => ({
+const createImageGenerationSayMessage = (
+	metadata: GeneratedImageMetadata,
+	options: { imageUri?: string; imagePath?: string; tool?: "generateImage" | "imageGenerated" } = {},
+): ClineMessage => ({
 	type: "say",
 	say: "tool",
 	ts: Date.now(),
 	text: JSON.stringify({
-		tool: "imageGenerated",
+		tool: options.tool ?? "generateImage",
 		content: metadata.prompt,
 		path: metadata.outputPath ?? metadata.path,
 		imageGeneration: metadata,
+		...(options.imageUri && { imageUri: options.imageUri }),
+		...(options.imagePath && { imagePath: options.imagePath }),
 	}),
 })
 
@@ -106,15 +122,48 @@ describe("ChatRow - image generation", () => {
 			)
 
 			expect(screen.getByText(`Image Generation chat:imageGeneration.status.${status}`)).toBeInTheDocument()
-			expect(screen.getByText(`${status} prompt`)).toBeInTheDocument()
 			expect(screen.getByText(`images/${status}.png`)).toBeInTheDocument()
+			expect(screen.queryByText(`${status} prompt`)).not.toBeInTheDocument()
 			if (status === "error") {
 				expect(screen.getByText("Provider failed")).toBeInTheDocument()
 			}
 		},
 	)
 
-	it("renders proposed prompt details for image-generation approval without showing missing cost", () => {
+	it("renders the completed image preview, output path, and cost inside the unified image-generation tool row", () => {
+		renderChatRow(
+			createImageGenerationSayMessage(
+				{
+					status: "completed",
+					prompt: "Draw a corgi in space",
+					providerLabel: "OpenRouter",
+					model: "google/gemini-2.5-flash-image-preview",
+					outputPath: "images/corgi.png",
+					imageFormat: "png",
+					usage: {
+						cost: 0.0042,
+						currency: "USD",
+					},
+				},
+				{
+					imageUri: "vscode-resource://generated-corgi.png?t=123",
+					imagePath: "/workspace/images/corgi.png",
+				},
+			),
+		)
+
+		expect(screen.getByTestId("image-block")).toHaveTextContent(
+			"vscode-resource://generated-corgi.png?t=123:/workspace/images/corgi.png",
+		)
+		expect(screen.getByText("Image Generation chat:imageGeneration.status.completed")).toBeInTheDocument()
+		expect(screen.getByText("OpenRouter")).toBeInTheDocument()
+		expect(screen.getByText("google/gemini-2.5-flash-image-preview")).toBeInTheDocument()
+		expect(screen.getByText("images/corgi.png")).toBeInTheDocument()
+		expect(screen.getByText("$0.0042")).toBeInTheDocument()
+		expect(screen.queryByText("Draw a corgi in space")).not.toBeInTheDocument()
+	})
+
+	it("renders compact proposed details and an editable prompt for image-generation approval", () => {
 		const message: ClineMessage = {
 			type: "ask",
 			ask: "tool",
@@ -140,26 +189,32 @@ describe("ChatRow - image generation", () => {
 			}),
 		}
 
-		const { container } = renderChatRow(message)
+		const { container, onImageApprovalGenerate } = renderChatRow(message)
 
 		expect(screen.getByText("chat:fileOperations.wantsToGenerateImage")).toBeInTheDocument()
 		expect(screen.getByText("chat:imageGeneration.approval.editPromptHint")).toBeInTheDocument()
-		expect(screen.getByText("Paint a red fox in watercolor")).toBeInTheDocument()
+		const promptEditor = screen.getByLabelText("chat:imageGeneration.approval.promptLabel")
+		expect(promptEditor).toHaveValue("Paint a red fox in watercolor")
 		expect(screen.getByText("OpenRouter")).toBeInTheDocument()
 		expect(screen.getByText("google/gemini-2.5-flash-image-preview")).toBeInTheDocument()
-		expect(screen.getByText("https://example.com/api/v1")).toBeInTheDocument()
-		expect(screen.getByText("chat:imageGeneration.metadata.remoteEndpoint")).toBeInTheDocument()
-		expect(screen.getByText("chat:imageGeneration.apiMethods.chat_completions")).toBeInTheDocument()
 		expect(screen.getByText("images/fox.png")).toBeInTheDocument()
 		expect(screen.getByText("assets/sketch.png")).toBeInTheDocument()
 		expect(screen.getByText("12")).toBeInTheDocument()
 		expect(screen.getByText("13")).toBeInTheDocument()
 		expect(screen.queryByText("chat:imageGeneration.metadata.cost")).not.toBeInTheDocument()
+		expect(screen.queryByText("https://example.com/api/v1")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.remoteEndpoint")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.apiMethods.chat_completions")).not.toBeInTheDocument()
 		expect(container).not.toHaveTextContent("secret")
 		expect(container).not.toHaveTextContent("api_key")
+
+		fireEvent.change(promptEditor, { target: { value: "Paint a blue fox in watercolor" } })
+		fireEvent.click(screen.getByRole("button", { name: "chat:imageGeneration.approval.generate" }))
+
+		expect(onImageApprovalGenerate).toHaveBeenCalledWith("Paint a blue fox in watercolor")
 	})
 
-	it("renders completed provider metadata and only displays returned cost details", () => {
+	it("renders compact completed metadata and hides verbose prompt details until expanded", () => {
 		const { container } = renderChatRow(
 			createImageGenerationSayMessage({
 				status: "completed",
@@ -186,21 +241,101 @@ describe("ChatRow - image generation", () => {
 		)
 
 		expect(screen.getByText("Image Generation chat:imageGeneration.status.completed")).toBeInTheDocument()
-		expect(screen.getByText("Final provider prompt")).toBeInTheDocument()
-		expect(screen.getByText("Use the edited prompt")).toBeInTheDocument()
-		expect(screen.getByText("Use the original prompt")).toBeInTheDocument()
 		expect(screen.getByText("OpenAI")).toBeInTheDocument()
 		expect(screen.getByText("gpt-image-1")).toBeInTheDocument()
-		expect(screen.getByText("http://127.0.0.1:8188")).toBeInTheDocument()
-		expect(screen.getByText("chat:imageGeneration.metadata.localEndpoint")).toBeInTheDocument()
-		expect(screen.getByText("chat:imageGeneration.apiMethods.images_api")).toBeInTheDocument()
 		expect(screen.getByText("images/edited.png")).toBeInTheDocument()
 		expect(screen.getByText("webp")).toBeInTheDocument()
 		expect(screen.getByText("$0.0025")).toBeInTheDocument()
+		expect(screen.queryByText("Final provider prompt")).not.toBeInTheDocument()
+		expect(screen.queryByText("Use the edited prompt")).not.toBeInTheDocument()
+		expect(screen.queryByText("Use the original prompt")).not.toBeInTheDocument()
+		expect(screen.queryByText("http://127.0.0.1:8188")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.localEndpoint")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.apiMethods.images_api")).not.toBeInTheDocument()
 		expect(container).not.toHaveTextContent("hidden")
+
+		fireEvent.click(screen.getByRole("button", { name: "chat:imageGeneration.metadata.showDetails" }))
+
+		expect(screen.getByText("Final provider prompt")).toBeInTheDocument()
+		expect(screen.getByText("Use the edited prompt")).toBeInTheDocument()
+		expect(screen.getByText("Use the original prompt")).toBeInTheDocument()
+		expect(screen.getByText("http://127.0.0.1:8188")).toBeInTheDocument()
+		expect(screen.getByText("chat:imageGeneration.metadata.localEndpoint")).toBeInTheDocument()
+		expect(screen.getByText("chat:imageGeneration.apiMethods.images_api")).toBeInTheDocument()
 	})
 
-	it("renders generated image payload metadata with sanitized endpoint and error details", () => {
+	it("renders simplified Cloudflare dimensions, format, and usage progress without extra metadata", () => {
+		const { container } = renderChatRow(
+			createImageGenerationSayMessage({
+				status: "completed",
+				prompt: "Draw a Cloudflare-backed image",
+				provider: "cloudflare",
+				providerLabel: "Cloudflare Workers AI",
+				model: "@cf/leonardo/phoenix-1.0",
+				apiMethod: "workers_ai",
+				outputPath: "images/cloudflare.png",
+				imageFormat: "png",
+				imageWidth: 1_024,
+				imageHeight: 512,
+				usage: {
+					neurons: 250,
+					estimatedCost: 0.00275,
+					currency: "USD",
+					usageSource: "provider_response_with_local_quota",
+					dailyQuotaNeurons: 10_000,
+					estimatedUsedNeuronsToday: 1_250,
+					estimatedRemainingNeurons: 8_750,
+					quotaResetAt: "2026-06-09T00:00:00.000Z",
+					quotaDescription:
+						"Free allocation: 10,000 Neurons per day; resets at 00:00 UTC; paid overage: $0.011 / 1,000 Neurons.",
+					pricingDescription:
+						"Leonardo Phoenix 1.0: $0.005830 per 512x512 tile. Neurons: 530.00 neurons per 512x512 tile",
+				},
+			}),
+		)
+
+		expect(
+			screen.getByText("chat:imageGeneration.metadata.dimensionsValue(width=1,024,height=512)"),
+		).toBeInTheDocument()
+		expect(screen.getByText("png")).toBeInTheDocument()
+		expect(screen.getByText("chat:imageGeneration.metadata.cloudflareUsage")).toBeInTheDocument()
+		expect(
+			screen.getByText(
+				"chat:imageGeneration.metadata.cloudflareUsageValue(used=1,250,quota=10,000,remaining=8,750)",
+			),
+		).toBeInTheDocument()
+
+		const usageProgress = screen.getByRole("progressbar", {
+			name: "chat:imageGeneration.metadata.cloudflareUsage",
+		})
+		expect(usageProgress).toHaveAttribute("aria-valuenow", "13")
+		expect(usageProgress).toHaveAttribute(
+			"aria-valuetext",
+			"chat:imageGeneration.metadata.cloudflareUsageValue(used=1,250,quota=10,000,remaining=8,750)",
+		)
+
+		expect(screen.queryByText("Cloudflare Workers AI")).not.toBeInTheDocument()
+		expect(screen.queryByText("@cf/leonardo/phoenix-1.0")).not.toBeInTheDocument()
+		expect(screen.queryByText("images/cloudflare.png")).not.toBeInTheDocument()
+		expect(screen.queryByText("$0.00275")).not.toBeInTheDocument()
+		expect(screen.queryByText("250")).not.toBeInTheDocument()
+		expect(screen.queryByText("8,750")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.provider")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.model")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.outputPath")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.estimatedCost")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.neurons")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.estimatedNeurons")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.estimatedRemainingNeurons")).not.toBeInTheDocument()
+		expect(screen.queryByText("chat:imageGeneration.metadata.showDetails")).not.toBeInTheDocument()
+		expect(screen.queryByText("Draw a Cloudflare-backed image")).not.toBeInTheDocument()
+		expect(container).not.toHaveTextContent("provider_response_with_local_quota")
+		expect(container).not.toHaveTextContent("2026")
+		expect(container).not.toHaveTextContent("Free allocation")
+		expect(container).not.toHaveTextContent("Leonardo Phoenix")
+	})
+
+	it("renders generated image payload metadata compactly without duplicate verbose details", () => {
 		const message: ClineMessage = {
 			type: "say",
 			say: "image",
@@ -224,10 +359,10 @@ describe("ChatRow - image generation", () => {
 
 		expect(screen.getByTestId("image-block")).toHaveTextContent("vscode-resource://generated-image:images/dog.png")
 		expect(screen.getByText("Image Generation chat:imageGeneration.status.error")).toBeInTheDocument()
-		expect(screen.getByText("Draw a dog")).toBeInTheDocument()
 		expect(screen.getByText("Automatic1111")).toBeInTheDocument()
-		expect(screen.getByText("http://localhost:7860/sdapi/v1/txt2img")).toBeInTheDocument()
 		expect(screen.getByText("Provider returned invalid image data")).toBeInTheDocument()
+		expect(screen.queryByText("Draw a dog")).not.toBeInTheDocument()
+		expect(screen.queryByText("http://localhost:7860/sdapi/v1/txt2img")).not.toBeInTheDocument()
 		expect(container).not.toHaveTextContent("pass")
 		expect(container).not.toHaveTextContent("secret")
 	})

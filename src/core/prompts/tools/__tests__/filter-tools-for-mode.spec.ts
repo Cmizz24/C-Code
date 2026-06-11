@@ -189,4 +189,24 @@ describe("filterNativeToolsForMode - disabledTools", () => {
 		expect(resultNames).toContain("visual_browser_inspector")
 		expect(resultNames).not.toContain("generate_image")
 	})
+
+	it("exposes image generation for built-in UI/UX but routes from Orchestrator", () => {
+		const uiUxResult = filterNativeToolsForMode(nativeTools, "ui-ux", undefined, {
+			imageGeneration: true,
+		})
+		const uiUxNames = uiUxResult.map((t) => (t as any).function.name)
+
+		expect(uiUxNames).toContain("visual_browser_inspector")
+		expect(uiUxNames).toContain("generate_image")
+
+		const orchestratorResult = filterNativeToolsForMode(nativeTools, "orchestrator", undefined, {
+			imageGeneration: true,
+		})
+		const orchestratorNames = orchestratorResult.map((t) => (t as any).function.name)
+
+		expect(orchestratorNames).toContain("switch_mode")
+		expect(orchestratorNames).toContain("new_task")
+		expect(orchestratorNames).not.toContain("visual_browser_inspector")
+		expect(orchestratorNames).not.toContain("generate_image")
+	})
 })

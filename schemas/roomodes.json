@@ -44,6 +44,7 @@
 										"visual_browser_inspector",
 										"image_generation",
 										"mcp",
+										"memory",
 										"modes",
 										"orchestrator",
 										"browser"
@@ -63,6 +64,7 @@
 												"visual_browser_inspector",
 												"image_generation",
 												"mcp",
+												"memory",
 												"modes",
 												"orchestrator",
 												"browser"

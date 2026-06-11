@@ -248,7 +248,8 @@
 	"imageGeneration": {
 		"approval": {
 			"generate": "Buat",
-			"editPromptHint": "Edit Prompt di kotak pesan sebelum menyetujui, atau setujui apa adanya."
+			"editPromptHint": "Edit Prompt di kartu ini sebelum menyetujui, atau setujui apa adanya.",
+			"promptLabel": "Prompt untuk dibuat"
 		},
 		"statusTitle": "Pembuatan gambar: {{status}}",
 		"status": {
@@ -276,13 +277,36 @@
 			"totalTokens": "Total tokens",
 			"images": "Gambar",
 			"cost": "Biaya",
-			"error": "Error"
+			"error": "Error",
+			"showDetails": "Tampilkan detail",
+			"hideDetails": "Sembunyikan detail",
+			"dimensions": "Dimensi",
+			"dimensionsValue": "{{width}} × {{height}} px",
+			"estimatedCost": "Perkiraan biaya",
+			"neurons": "Neurons",
+			"estimatedNeurons": "Perkiraan neurons",
+			"estimatedRemainingNeurons": "Perkiraan neurons tersisa",
+			"cloudflareUsage": "Perkiraan penggunaan Cloudflare",
+			"cloudflareUsageValue": "{{used}} / {{quota}} neurons digunakan · {{remaining}} tersisa",
+			"usageSource": "Sumber penggunaan",
+			"estimatedUsedNeuronsToday": "Perkiraan digunakan hari ini",
+			"dailyQuotaNeurons": "Quota gratis harian",
+			"quotaResetAt": "Reset quota",
+			"quotaDescription": "Catatan quota",
+			"pricingDescription": "Catatan harga",
+			"usageSources": {
+				"provider_response": "Respons penyedia",
+				"provider_response_with_local_quota": "Respons penyedia + perkiraan quota lokal",
+				"local_estimate": "Perkiraan lokal",
+				"unknown": "Tidak diketahui"
+			}
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		}
 	},
 	"directoryOperations": {
@@ -483,11 +507,19 @@
 		"title": "C Code {{version}} Dirilis",
 		"support": "Dukung C Code dengan memberi kami bintang di <githubLink>GitHub</githubLink>.",
 		"finalRelease": {
-			"title": "Pembaruan C Code {{version}}",
-			"intro": "C Code berlanjut sebagai fork pribadi Cmizz dari Roo Code. Ikuti repository Cmizz untuk pembaruan fork terbaru, perbaikan, dan catatan pengembangan: <repoLink>Cmizz24/C-Code</repoLink>.",
-			"continuity": "Ekstensi ini akan terus menerima pembaruan personalisasi C Code sambil tetap memberi atribusi dengan hormat kepada proyek asli Roo Code.",
-			"alternatives": "Untuk mengikuti pekerjaan saat ini, melaporkan bug, dan melihat perubahan baru, gunakan <repoLink>repository GitHub C Code</repoLink>.",
-			"signoff": "Happy coding!"
+			"title": "Rilis C Code {{version}}",
+			"intro": "C Code {{version}} sudah siap dari basis fork terkonsolidasi milik Cmizz. Ikuti repository fork untuk catatan rilis, perbaikan, dan pembaruan pengembangan: <repoLink>Cmizz24/C-Code</repoLink>.",
+			"summary": "Rilis ini berfokus pada tools kreasi khusus C Code, kebersihan provider/model, diagnostik, dan polesan UI sambil tetap memberi atribusi dengan hormat kepada proyek Roo Code asli.",
+			"highlightsHeading": "Sorotan dalam rilis ini:",
+			"imageGeneration": "Image generation native dari chat, dengan pengaturan Image Generation, persetujuan prompt, preview, serta provider OpenRouter, OpenAI/OpenAI-compatible, dan Cloudflare Workers AI.",
+			"dynamicModels": "Penemuan model gambar OpenRouter dinamis plus metadata provider/model yang diperbarui dan cakupan cache yang disegarkan.",
+			"visualInspector": "Integrasi Visual Browser Inspector untuk memeriksa state browser bersama workflow chat.",
+			"diagnostics": "Diagnostik remote opt-in melalui toggle debug yang sudah ada, dikirim ke endpoint diagnostik Cmizz dengan payload event anonim/privat.",
+			"providerHygiene": "Pembersihan katalog ChatGPT Plus/Pro Codex memfilter model lama yang tidak didukung dan fallback ke default yang didukung.",
+			"toolingPolish": "Pengaturan, i18n, panduan command yang aman untuk Windows, serta polesan native tool/mode-flow dari pekerjaan C Code.",
+			"unsupportedLocal": "Backend image-generation lokal seperti Ollama, LM Studio, ComfyUI, dan Automatic1111 tidak diekspos sebagai provider image-generation yang didukung dalam rilis ini.",
+			"alternatives": "Untuk laporan issue, perubahan source, dan catatan rilis GitHub final, gunakan <repoLink>repository GitHub C Code</repoLink>.",
+			"signoff": "Terima kasih telah menggunakan C Code."
 		},
 		"release": {
 			"heading": "Yang Baru:",

@@ -17,6 +17,7 @@ import {
 	getProviderServiceConfig,
 	getDefaultModelIdForProvider,
 	getStaticModelsForProvider,
+	isStaticModelProvider,
 	shouldUseGenericModelPicker,
 	handleModelChangeSideEffects,
 } from "./utils/providerModelConfig"
@@ -75,7 +76,7 @@ import {
 } from "./providers"
 import { isRouterName } from "@roo/api"
 
-import { MODELS_BY_PROVIDER, PROVIDERS } from "./constants"
+import { PROVIDERS } from "./constants"
 import { getAvailableProviderOptions, getProviderDefaultModelConfig } from "./utils/providerOptions"
 import { inputEventTransform, noTransform } from "./transforms"
 import { ModelPicker } from "./ModelPicker"
@@ -127,6 +128,25 @@ function mergeRouterModelSources(...sources: Array<RouterModels | undefined>): R
 	return hasModels ? merged : undefined
 }
 
+function hasBedrockModelDiscoveryConfig(apiConfiguration: ProviderSettings): boolean {
+	if (!apiConfiguration.awsRegion) {
+		return false
+	}
+
+	if (apiConfiguration.awsUseApiKey) {
+		return !!apiConfiguration.awsApiKey
+	}
+
+	if (apiConfiguration.awsUseProfile) {
+		return !!apiConfiguration.awsProfile
+	}
+
+	return (
+		(!!apiConfiguration.awsAccessKey && !!apiConfiguration.awsSecretKey) ||
+		(!apiConfiguration.awsAccessKey && !apiConfiguration.awsSecretKey)
+	)
+}
+
 function shouldRequestRouterModelsForProvider(provider: ProviderName, apiConfiguration: ProviderSettings): boolean {
 	if (!isRouterName(provider) || LOCAL_ROUTER_MODEL_PROVIDERS.has(provider)) {
 		return false
@@ -152,6 +172,8 @@ function shouldRequestRouterModelsForProvider(provider: ProviderName, apiConfigu
 			return !!apiConfiguration.mistralApiKey
 		case "deepseek":
 			return !!apiConfiguration.deepSeekApiKey
+		case "xiaomi-mimo":
+			return !!apiConfiguration.xiaomiMiMoApiKey
 		case "gemini":
 			return !!apiConfiguration.geminiApiKey
 		case "moonshot":
@@ -164,10 +186,14 @@ function shouldRequestRouterModelsForProvider(provider: ProviderName, apiConfigu
 			return !!apiConfiguration.sambaNovaApiKey
 		case "minimax":
 			return !!apiConfiguration.minimaxApiKey
+		case "bedrock":
+			return hasBedrockModelDiscoveryConfig(apiConfiguration)
 		case "ollama":
 		case "lmstudio":
 			return false
 	}
+
+	return false
 }
 
 function getRouterModelRequestValues(provider: ProviderName, apiConfiguration: ProviderSettings) {
@@ -208,6 +234,12 @@ function getRouterModelRequestValues(provider: ProviderName, apiConfiguration: P
 				deepSeekApiKey: apiConfiguration.deepSeekApiKey,
 				deepSeekBaseUrl: apiConfiguration.deepSeekBaseUrl,
 			}
+		case "xiaomi-mimo":
+			return {
+				...values,
+				xiaomiMiMoApiKey: apiConfiguration.xiaomiMiMoApiKey,
+				xiaomiMiMoBaseUrl: apiConfiguration.xiaomiMiMoBaseUrl,
+			}
 		case "gemini":
 			return {
 				...values,
@@ -231,6 +263,20 @@ function getRouterModelRequestValues(provider: ProviderName, apiConfiguration: P
 				...values,
 				minimaxApiKey: apiConfiguration.minimaxApiKey,
 				minimaxBaseUrl: apiConfiguration.minimaxBaseUrl,
+			}
+		case "bedrock":
+			return {
+				...values,
+				awsRegion: apiConfiguration.awsRegion,
+				awsAccessKey: apiConfiguration.awsAccessKey,
+				awsSecretKey: apiConfiguration.awsSecretKey,
+				awsSessionToken: apiConfiguration.awsSessionToken,
+				awsUseProfile: apiConfiguration.awsUseProfile,
+				awsProfile: apiConfiguration.awsProfile,
+				awsUseApiKey: apiConfiguration.awsUseApiKey,
+				awsApiKey: apiConfiguration.awsApiKey,
+				awsBedrockEndpointEnabled: apiConfiguration.awsBedrockEndpointEnabled,
+				awsBedrockEndpoint: apiConfiguration.awsBedrockEndpoint,
 			}
 		default:
 			return values
@@ -319,11 +365,17 @@ const ApiOptions = ({
 			return {}
 		}
 
-		return {
-			...getStaticModelsForProvider(activeSelectedProvider, t("settings:labels.useCustomArn")),
-			...(availableRouterModels?.[activeSelectedProvider] ?? {}),
-		}
-	}, [activeSelectedProvider, availableRouterModels, t])
+		const staticModels = getStaticModelsForProvider(
+			activeSelectedProvider,
+			t("settings:labels.useCustomArn"),
+			apiConfiguration,
+		)
+		const dynamicModels = availableRouterModels?.[activeSelectedProvider] ?? {}
+
+		return activeSelectedProvider === "bedrock"
+			? { ...dynamicModels, ...staticModels }
+			: { ...staticModels, ...dynamicModels }
+	}, [activeSelectedProvider, availableRouterModels, apiConfiguration, t])
 
 	const { data: openRouterModelProviders } = useOpenRouterModelProviders(
 		apiConfiguration?.openRouterModelId,
@@ -400,6 +452,8 @@ const ApiOptions = ({
 			apiConfiguration?.mistralApiKey,
 			apiConfiguration?.deepSeekApiKey,
 			apiConfiguration?.deepSeekBaseUrl,
+			apiConfiguration?.xiaomiMiMoApiKey,
+			apiConfiguration?.xiaomiMiMoBaseUrl,
 			apiConfiguration?.geminiApiKey,
 			apiConfiguration?.googleGeminiBaseUrl,
 			apiConfiguration?.moonshotApiKey,
@@ -415,6 +469,16 @@ const ApiOptions = ({
 			apiConfiguration?.litellmApiKey,
 			apiConfiguration?.poeApiKey,
 			apiConfiguration?.poeBaseUrl,
+			apiConfiguration?.awsRegion,
+			apiConfiguration?.awsAccessKey,
+			apiConfiguration?.awsSecretKey,
+			apiConfiguration?.awsSessionToken,
+			apiConfiguration?.awsUseProfile,
+			apiConfiguration?.awsProfile,
+			apiConfiguration?.awsUseApiKey,
+			apiConfiguration?.awsApiKey,
+			apiConfiguration?.awsBedrockEndpointEnabled,
+			apiConfiguration?.awsBedrockEndpoint,
 			customHeaders,
 		],
 	)
@@ -466,8 +530,13 @@ const ApiOptions = ({
 				// newly selected provider).
 				//
 				// Note: We only validate providers with static model lists.
-				const staticModels = MODELS_BY_PROVIDER[provider]
-				if (!staticModels) {
+				const staticModels = getStaticModelsForProvider(
+					provider,
+					t("settings:labels.useCustomArn"),
+					apiConfiguration,
+				)
+
+				if (!isStaticModelProvider(provider) || Object.keys(staticModels).length === 0) {
 					return
 				}
 
@@ -477,7 +546,8 @@ const ApiOptions = ({
 				}
 
 				const filteredModels = filterModels(staticModels, provider, organizationAllowList)
-				const isValidModel = !!filteredModels && Object.prototype.hasOwnProperty.call(filteredModels, modelId)
+				const selectedModel = filteredModels?.[modelId]
+				const isValidModel = !!selectedModel && selectedModel.deprecated !== true
 				if (!isValidModel) {
 					setApiConfigurationField(field, defaultValue, false)
 				}
@@ -493,7 +563,7 @@ const ApiOptions = ({
 				)
 			}
 		},
-		[setApiConfigurationField, apiConfiguration, organizationAllowList],
+		[setApiConfigurationField, apiConfiguration, organizationAllowList, t],
 	)
 
 	const modelValidationError = useMemo(() => {
@@ -526,9 +596,11 @@ const ApiOptions = ({
 		return getAvailableProviderOptions({
 			organizationAllowList,
 			selectedProvider: apiConfiguration.apiProvider,
+			apiConfiguration,
 			prioritizeOpenRouter: fromWelcomeView,
+			customArnLabel: t("settings:labels.useCustomArn"),
 		})
-	}, [organizationAllowList, apiConfiguration.apiProvider, fromWelcomeView])
+	}, [organizationAllowList, apiConfiguration, fromWelcomeView, t])
 
 	return (
 		<div className="flex flex-col gap-3">

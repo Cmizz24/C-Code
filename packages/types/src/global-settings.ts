@@ -18,6 +18,15 @@ import { openAiCodexFastStatusSchema } from "./providers/openai-codex.js"
 import { IMAGE_GENERATION_API_METHODS, IMAGE_GENERATION_PROVIDER_IDS } from "./image-generation.js"
 import { memoryGlobalSettingsSchema } from "./memory.js"
 
+export const cloudflareWorkersAiImageUsageStateSchema = z.object({
+	utcDate: z.string(),
+	neuronsUsed: z.number().nonnegative(),
+	requestCount: z.number().int().nonnegative(),
+	providerReportedNeuronsUsed: z.number().nonnegative().optional(),
+	estimatedNeuronsUsed: z.number().nonnegative().optional(),
+	updatedAt: z.string(),
+})
+
 /**
  * Default delay in milliseconds after writes to allow diagnostics to detect potential problems.
  * This delay is particularly important for Go and other languages where tools like goimports
@@ -82,6 +91,12 @@ export const DEFAULT_CHECKPOINT_TIMEOUT_SECONDS = 15
 export const DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS = 3
 
 /**
+ * Fixed opt-in remote diagnostics endpoint. No requests are sent unless
+ * debug mode is explicitly enabled by the user.
+ */
+export const REMOTE_DEBUG_LOGGING_ENDPOINT = "https://cmtesting.site/api/extension/debug-log"
+
+/**
  * Allowed range for the persisted parallel-agent concurrency setting.
  */
 export const MIN_PARALLEL_TASK_CONCURRENCY = 1
@@ -122,6 +137,12 @@ export const globalSettingsSchema = z
 		openAiImageBaseUrl: z.string().optional(),
 		openAiImageGenerationSelectedModel: z.string().optional(),
 		openAiImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+		cloudflareImageApiKey: z.string().optional(),
+		cloudflareImageAccountId: z.string().optional(),
+		cloudflareImageBaseUrl: z.string().optional(),
+		cloudflareImageGenerationSelectedModel: z.string().optional(),
+		cloudflareImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+		cloudflareWorkersAiImageUsage: cloudflareWorkersAiImageUsageStateSchema.optional(),
 		comfyUiImageApiKey: z.string().optional(),
 		comfyUiImageBaseUrl: z.string().optional(),
 		comfyUiImageGenerationSelectedModel: z.string().optional(),
@@ -249,6 +270,7 @@ export const globalSettingsSchema = z
 		execaShellPath: z.string().optional(),
 
 		diagnosticsEnabled: z.boolean().optional(),
+		remoteDebugLoggingInstallId: z.string().optional(),
 
 		rateLimitSeconds: z.number().optional(),
 		experiments: experimentsSchema.optional(),
@@ -355,6 +377,7 @@ export const SECRET_STATE_KEYS = [
 export const GLOBAL_SECRET_KEYS = [
 	"openRouterImageApiKey", // For image generation
 	"openAiImageApiKey", // For image generation
+	"cloudflareImageApiKey", // For Cloudflare Workers AI image generation
 	"comfyUiImageApiKey", // For image generation with authenticated ComfyUI instances/proxies
 	"automatic1111ImageApiKey", // For image generation with authenticated Automatic1111 instances/proxies
 	"ollamaImageApiKey", // For image generation with authenticated local/cloud instances

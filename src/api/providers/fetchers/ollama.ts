@@ -1,22 +1,22 @@
 import axios from "axios"
-import { ModelInfo, ollamaDefaultModelInfo } from "@roo-code/types"
+import { type ModelInfo, ollamaDefaultModelInfo } from "@roo-code/types"
 import { z } from "zod"
 
 const OllamaModelDetailsSchema = z.object({
-	family: z.string(),
+	family: z.string().optional(),
 	families: z.array(z.string()).nullable().optional(),
 	format: z.string().optional(),
-	parameter_size: z.string(),
+	parameter_size: z.string().optional(),
 	parent_model: z.string().optional(),
 	quantization_level: z.string().optional(),
 })
 
 const OllamaModelSchema = z.object({
-	details: OllamaModelDetailsSchema,
+	details: OllamaModelDetailsSchema.optional(),
 	digest: z.string().optional(),
 	model: z.string(),
 	modified_at: z.string().optional(),
-	name: z.string(),
+	name: z.string().optional(),
 	size: z.number().optional(),
 })
 
@@ -24,8 +24,8 @@ const OllamaModelInfoResponseSchema = z.object({
 	modelfile: z.string().optional(),
 	parameters: z.string().optional(),
 	template: z.string().optional(),
-	details: OllamaModelDetailsSchema,
-	model_info: z.record(z.string(), z.any()),
+	details: OllamaModelDetailsSchema.optional(),
+	model_info: z.record(z.string(), z.any()).optional().default({}),
 	capabilities: z.array(z.string()).optional(),
 })
 
@@ -37,10 +37,13 @@ type OllamaModelsResponse = z.infer<typeof OllamaModelsResponseSchema>
 
 type OllamaModelInfoResponse = z.infer<typeof OllamaModelInfoResponseSchema>
 
+const getPositiveNumber = (value: unknown): number | undefined =>
+	typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined
+
 export const parseOllamaModel = (rawModel: OllamaModelInfoResponse): ModelInfo | null => {
-	const contextKey = Object.keys(rawModel.model_info).find((k) => k.includes("context_length"))
-	const contextWindow =
-		contextKey && typeof rawModel.model_info[contextKey] === "number" ? rawModel.model_info[contextKey] : undefined
+	const modelInfo = rawModel.model_info ?? {}
+	const contextKey = Object.keys(modelInfo).find((k) => k.includes("context_length"))
+	const contextWindow = contextKey ? getPositiveNumber(modelInfo[contextKey]) : undefined
 
 	// Filter out models that don't support tools. Models without tool capability won't work.
 	const supportsTools = rawModel.capabilities?.includes("tools") ?? false
@@ -48,15 +51,20 @@ export const parseOllamaModel = (rawModel: OllamaModelInfoResponse): ModelInfo |
 		return null
 	}
 
-	const modelInfo: ModelInfo = Object.assign({}, ollamaDefaultModelInfo, {
-		description: `Family: ${rawModel.details.family}, Context: ${contextWindow}, Size: ${rawModel.details.parameter_size}`,
-		contextWindow: contextWindow || ollamaDefaultModelInfo.contextWindow,
-		supportsPromptCache: true,
-		supportsImages: rawModel.capabilities?.includes("vision"),
-		maxTokens: contextWindow || ollamaDefaultModelInfo.contextWindow,
-	})
+	const descriptionParts = [
+		rawModel.details?.family ? `Family: ${rawModel.details.family}` : undefined,
+		contextWindow ? `Context: ${contextWindow}` : undefined,
+		rawModel.details?.parameter_size ? `Size: ${rawModel.details.parameter_size}` : undefined,
+	].filter(Boolean)
 
-	return modelInfo
+	const parsedModelInfo: ModelInfo = {
+		...ollamaDefaultModelInfo,
+		contextWindow: contextWindow ?? ollamaDefaultModelInfo.contextWindow,
+		description: descriptionParts.length > 0 ? descriptionParts.join(", ") : "Ollama model",
+		...(rawModel.capabilities?.includes("vision") ? { supportsImages: true } : {}),
+	}
+
+	return parsedModelInfo
 }
 
 export async function getOllamaModels(
@@ -85,6 +93,8 @@ export async function getOllamaModels(
 
 		if (parsedResponse.success) {
 			for (const ollamaModel of parsedResponse.data.models) {
+				const modelName = ollamaModel.name ?? ollamaModel.model
+
 				modelInfoPromises.push(
 					axios
 						.post<OllamaModelInfoResponse>(
@@ -98,7 +108,7 @@ export async function getOllamaModels(
 							const modelInfo = parseOllamaModel(ollamaModelInfo.data)
 							// Only include models that support native tools
 							if (modelInfo) {
-								models[ollamaModel.name] = modelInfo
+								models[modelName] = modelInfo
 							}
 						}),
 				)

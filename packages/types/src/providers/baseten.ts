@@ -1,9 +1,127 @@
 import type { ModelInfo } from "../model.js"
 
 // Baseten
-// https://baseten.co/products/model-apis/
+// https://docs.baseten.co/inference/model-apis/overview
 
 export const basetenModels = {
+	"deepseek-ai/DeepSeek-V4-Pro": {
+		maxTokens: 131_072,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		supportsReasoningEffort: ["disable", "low", "medium", "high"],
+		preserveReasoning: true,
+		inputPrice: 1.74,
+		outputPrice: 3.48,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.145,
+		description:
+			"DeepSeek V4 Pro on Baseten is a current flagship model for coding, reasoning, and agent workflows with OpenAI-compatible reasoning_effort support.",
+	},
+	"zai-org/GLM-4.7": {
+		maxTokens: 200_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.12,
+		description: "Z.ai GLM-4.7 on Baseten is a current coding and agentic reasoning model with 200K context.",
+	},
+	"zai-org/GLM-5": {
+		maxTokens: 202_000,
+		contextWindow: 202_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.95,
+		outputPrice: 3.15,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.2,
+		description: "Z.ai GLM-5 on Baseten is a frontier coding and agentic model with 202K context.",
+	},
+	"zai-org/GLM-5.1": {
+		maxTokens: 202_000,
+		contextWindow: 202_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1.3,
+		outputPrice: 4.3,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.26,
+		description: "Z.ai GLM-5.1 on Baseten is a current frontier coding and agentic model with 202K context.",
+	},
+	"moonshotai/Kimi-K2.6": {
+		maxTokens: 262_000,
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.95,
+		outputPrice: 4,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.16,
+		description: "Kimi K2.6 on Baseten is a current Moonshot model for agentic coding and long-context tasks.",
+	},
+	"moonshotai/Kimi-K2.5": {
+		maxTokens: 262_000,
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 3,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.12,
+		description: "Kimi K2.5 on Baseten is a current Moonshot model for agentic coding and long-context tasks.",
+	},
+	"nvidia/Nemotron-120B-A12B": {
+		maxTokens: 202_000,
+		contextWindow: 202_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 0.75,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.06,
+		description: "NVIDIA Nemotron 3 Super on Baseten is a current efficient frontier model with 202K context.",
+	},
+	"nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B": {
+		maxTokens: 202_000,
+		contextWindow: 202_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.4,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.12,
+		description:
+			"NVIDIA Nemotron 3 Ultra on Baseten is a current high-capability frontier model with 202K context.",
+	},
+	"openai/gpt-oss-120b": {
+		maxTokens: 128_000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		supportsReasoningEffort: ["disable", "low", "medium", "high"],
+		preserveReasoning: true,
+		inputPrice: 0.1,
+		outputPrice: 0.5,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description:
+			"OpenAI gpt-oss-120b on Baseten is a current open-weight model with strong controllable reasoning and OpenAI-compatible reasoning_effort support.",
+	},
+	"MiniMaxAI/MiniMax-M2.5": {
+		maxTokens: 262_000,
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.03,
+		deprecated: true,
+		description: "Deprecated MiniMax M2.5 Baseten Model API entry retained until its June 2026 retirement.",
+	},
 	"moonshotai/Kimi-K2-Thinking": {
 		maxTokens: 16_384,
 		contextWindow: 262_000,
@@ -13,7 +131,8 @@ export const basetenModels = {
 		outputPrice: 2.5,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "Kimi K2 Thinking - A model with enhanced reasoning capabilities from Kimi K2",
+		deprecated: true,
+		description: "Deprecated Kimi K2 Thinking checkpoint retained for existing Baseten configurations.",
 	},
 	"zai-org/GLM-4.6": {
 		maxTokens: 16_384,
@@ -24,7 +143,8 @@ export const basetenModels = {
 		outputPrice: 2.2,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "Frontier open model with advanced agentic, reasoning and coding capabilities",
+		deprecated: true,
+		description: "Deprecated GLM-4.6 Baseten entry retained for existing configurations. Use zai-org/GLM-5.1.",
 	},
 	"deepseek-ai/DeepSeek-R1": {
 		maxTokens: 16_384,
@@ -35,7 +155,8 @@ export const basetenModels = {
 		outputPrice: 5.95,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "DeepSeek's first-generation reasoning model",
+		deprecated: true,
+		description: "Deprecated DeepSeek R1 Baseten entry retained for existing configurations.",
 	},
 	"deepseek-ai/DeepSeek-R1-0528": {
 		maxTokens: 16_384,
@@ -46,7 +167,8 @@ export const basetenModels = {
 		outputPrice: 5.95,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "The latest revision of DeepSeek's first-generation reasoning model",
+		deprecated: true,
+		description: "Deprecated DeepSeek R1 0528 Baseten entry retained for existing configurations.",
 	},
 	"deepseek-ai/DeepSeek-V3-0324": {
 		maxTokens: 16_384,
@@ -57,7 +179,8 @@ export const basetenModels = {
 		outputPrice: 0.77,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "Fast general-purpose LLM with enhanced reasoning capabilities",
+		deprecated: true,
+		description: "Deprecated DeepSeek V3 0324 Baseten entry retained for existing configurations.",
 	},
 	"deepseek-ai/DeepSeek-V3.1": {
 		maxTokens: 16_384,
@@ -68,8 +191,8 @@ export const basetenModels = {
 		outputPrice: 1.5,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description:
-			"Extremely capable general-purpose LLM with hybrid reasoning capabilities and advanced tool calling",
+		deprecated: true,
+		description: "Deprecated DeepSeek V3.1 Baseten entry retained until its June 2026 retirement.",
 	},
 	"deepseek-ai/DeepSeek-V3.2": {
 		maxTokens: 16_384,
@@ -80,19 +203,8 @@ export const basetenModels = {
 		outputPrice: 0.45,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description:
-			"DeepSeek's hybrid reasoning model with efficient long context scaling with GPT-5 level performance",
-	},
-	"openai/gpt-oss-120b": {
-		maxTokens: 16_384,
-		contextWindow: 128_072,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.1,
-		outputPrice: 0.5,
-		cacheWritesPrice: 0,
-		cacheReadsPrice: 0,
-		description: "Extremely capable general-purpose LLM with strong, controllable reasoning capabilities",
+		deprecated: true,
+		description: "Deprecated DeepSeek V3.2 Baseten entry retained for existing configurations.",
 	},
 	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
 		maxTokens: 16_384,
@@ -103,7 +215,8 @@ export const basetenModels = {
 		outputPrice: 0.8,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "Mixture-of-experts LLM with math and reasoning capabilities",
+		deprecated: true,
+		description: "Deprecated Qwen3 235B Baseten entry retained for existing configurations.",
 	},
 	"Qwen/Qwen3-Coder-480B-A35B-Instruct": {
 		maxTokens: 16_384,
@@ -114,7 +227,8 @@ export const basetenModels = {
 		outputPrice: 1.53,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "Mixture-of-experts LLM with advanced coding and reasoning capabilities",
+		deprecated: true,
+		description: "Deprecated Qwen3 Coder Baseten entry retained for existing configurations.",
 	},
 	"moonshotai/Kimi-K2-Instruct-0905": {
 		maxTokens: 16_384,
@@ -125,10 +239,11 @@ export const basetenModels = {
 		outputPrice: 2.5,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "State of the art language model for agentic and coding tasks. September Update.",
+		deprecated: true,
+		description: "Deprecated Kimi K2 September 2025 Baseten entry retained for existing configurations.",
 	},
 } as const satisfies Record<string, ModelInfo>
 
 export type BasetenModelId = keyof typeof basetenModels
 
-export const basetenDefaultModelId = "zai-org/GLM-4.6" satisfies BasetenModelId
+export const basetenDefaultModelId = "deepseek-ai/DeepSeek-V4-Pro" satisfies BasetenModelId

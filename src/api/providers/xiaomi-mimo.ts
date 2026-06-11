@@ -36,7 +36,8 @@ export class XiaomiMiMoHandler extends OpenAiHandler {
 
 	override getModel() {
 		const id = this.options.apiModelId ?? xiaomiMiMoDefaultModelId
-		const info = xiaomiMiMoModels[id as keyof typeof xiaomiMiMoModels] ?? xiaomiMiMoModels[xiaomiMiMoDefaultModelId]
+		const info: ModelInfo =
+			xiaomiMiMoModels[id as keyof typeof xiaomiMiMoModels] ?? xiaomiMiMoModels[xiaomiMiMoDefaultModelId]
 		const params = getModelParams({
 			format: "openai",
 			modelId: id,

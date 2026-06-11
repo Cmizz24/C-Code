@@ -71,8 +71,13 @@ describe("XAIHandler", () => {
 		expect(model.id).toBe("grok-4.3")
 		expect(model.info).toEqual(xaiModels[xaiDefaultModelId])
 		expect(model.info.contextWindow).toBe(1_000_000)
+		expect(model.info.maxTokens).toBeUndefined()
+		expect(model.info.supportsImages).toBe(true)
+		expect(model.info.supportsPromptCache).toBe(true)
 		expect(model.info.inputPrice).toBe(1.25)
 		expect(model.info.outputPrice).toBe(2.5)
+		expect(model.info.cacheReadsPrice).toBe(0.2)
+		expect(model.info.cacheWritesPrice).toBeUndefined()
 		expect(model.info.supportsReasoningEffort).toEqual(["none", "low", "medium", "high"])
 		expect(model.info.reasoningEffort).toBe("low")
 		expect(model.reasoning).toEqual({ effort: "low" })
@@ -86,14 +91,90 @@ describe("XAIHandler", () => {
 		expect(model.info).toEqual(xaiModels[testModelId])
 	})
 
+	it("should expose current xAI Grok metadata without unverified max output or cache-write pricing", () => {
+		expect(xaiModels["grok-4.3"]).toMatchObject({
+			contextWindow: 1_000_000,
+			supportsImages: true,
+			supportsPromptCache: true,
+			inputPrice: 1.25,
+			outputPrice: 2.5,
+			cacheReadsPrice: 0.2,
+			supportsReasoningEffort: ["none", "low", "medium", "high"],
+		})
+		expect(xaiModels["grok-4.3"]).not.toHaveProperty("maxTokens")
+		expect(xaiModels["grok-4.3"]).not.toHaveProperty("cacheWritesPrice")
+
+		expect(xaiModels["grok-build-0.1"]).toMatchObject({
+			contextWindow: 256_000,
+			supportsImages: true,
+			supportsPromptCache: true,
+			inputPrice: 1,
+			outputPrice: 2,
+			cacheReadsPrice: 0.2,
+		})
+		expect(xaiModels["grok-build-0.1"]).not.toHaveProperty("maxTokens")
+		expect(xaiModels["grok-build-0.1"]).not.toHaveProperty("cacheWritesPrice")
+
+		for (const modelId of [
+			"grok-4.20-0309-reasoning",
+			"grok-4.20-0309-non-reasoning",
+			"grok-4.20-multi-agent-0309",
+		] as const) {
+			expect(xaiModels[modelId]).toMatchObject({
+				contextWindow: 1_000_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				inputPrice: 1.25,
+				outputPrice: 2.5,
+				cacheReadsPrice: 0.2,
+			})
+			expect(xaiModels[modelId]).not.toHaveProperty("maxTokens")
+			expect(xaiModels[modelId]).not.toHaveProperty("cacheWritesPrice")
+		}
+	})
+
+	it("should use conservative fallback metadata for unknown dynamic xAI model IDs", () => {
+		const dynamicHandler = new XAIHandler({
+			apiModelId: "grok-dynamic-model",
+			reasoningEffort: "high",
+		})
+
+		const model = dynamicHandler.getModel()
+
+		expect(model.id).toBe("grok-dynamic-model")
+		expect(model.info).toEqual({
+			contextWindow: 128_000,
+			supportsPromptCache: false,
+		})
+		expect(model.info.maxTokens).toBeUndefined()
+		expect(model.info.supportsImages).toBeUndefined()
+		expect(model.info.inputPrice).toBeUndefined()
+		expect(model.info.outputPrice).toBeUndefined()
+		expect(model.info.cacheReadsPrice).toBeUndefined()
+		expect(model.info.cacheWritesPrice).toBeUndefined()
+		expect(model.info.supportsReasoningEffort).toBeUndefined()
+		expect(model.maxTokens).toBeUndefined()
+		expect(model.reasoning).toBeUndefined()
+	})
+
 	it("should retain deprecated xAI models for existing profiles", () => {
 		expect(xaiModels["grok-code-fast-1"].deprecated).toBe(true)
+		expect(xaiModels["grok-code-fast"].deprecated).toBe(true)
+		expect(xaiModels["grok-code-fast-1-0825"].deprecated).toBe(true)
 		expect(xaiModels["grok-4-1-fast-reasoning"].deprecated).toBe(true)
+		expect(xaiModels["grok-4-1-fast"].deprecated).toBe(true)
 		expect(xaiModels["grok-4-1-fast-non-reasoning"].deprecated).toBe(true)
 		expect(xaiModels["grok-4-fast-reasoning"].deprecated).toBe(true)
+		expect(xaiModels["grok-4-fast"].deprecated).toBe(true)
 		expect(xaiModels["grok-4-fast-non-reasoning"].deprecated).toBe(true)
+		expect(xaiModels["grok-4.3-latest"].deprecated).toBe(true)
+		expect(xaiModels["grok-latest"].deprecated).toBe(true)
 		expect(xaiModels["grok-4.20"].deprecated).toBe(true)
+		expect(xaiModels["grok-4.20-reasoning"].deprecated).toBe(true)
+		expect(xaiModels["grok-4.20-0309"].deprecated).toBe(true)
 		expect(xaiModels["grok-4-0709"].deprecated).toBe(true)
+		expect(xaiModels["grok-4"].deprecated).toBe(true)
+		expect(xaiModels["grok-4-latest"].deprecated).toBe(true)
 		expect(xaiModels["grok-3"].deprecated).toBe(true)
 		expect(xaiModels["grok-3-mini"].deprecated).toBe(true)
 	})
@@ -281,7 +362,7 @@ describe("XAIHandler", () => {
 		)
 	})
 
-	it("should not include reasoning for non-mini models", async () => {
+	it("should not include reasoning for xAI models without Responses API reasoning metadata", async () => {
 		const regularHandler = new XAIHandler({
 			apiModelId: "grok-3",
 			reasoningEffort: "high",
@@ -294,6 +375,24 @@ describe("XAIHandler", () => {
 
 		const callArgs = mockResponsesCreate.mock.calls[mockResponsesCreate.mock.calls.length - 1][0]
 		expect(callArgs).not.toHaveProperty("reasoning")
+	})
+
+	it("should omit reasoning and max output for unknown dynamic xAI models", async () => {
+		const dynamicHandler = new XAIHandler({
+			apiModelId: "grok-dynamic-model",
+			reasoningEffort: "high",
+		})
+
+		mockResponsesCreate.mockResolvedValueOnce(mockStream([]))
+
+		const stream = dynamicHandler.createMessage("test prompt", [])
+		await stream.next()
+
+		const callArgs = mockResponsesCreate.mock.calls[mockResponsesCreate.mock.calls.length - 1][0]
+		expect(callArgs.model).toBe("grok-dynamic-model")
+		expect(callArgs.temperature).toBe(0)
+		expect(callArgs).not.toHaveProperty("reasoning")
+		expect(callArgs).not.toHaveProperty("max_output_tokens")
 	})
 
 	it("should handle errors in createMessage", async () => {

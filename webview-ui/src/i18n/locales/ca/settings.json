@@ -31,6 +31,7 @@
 		"mcp": "Servidors MCP",
 		"worktrees": "Worktrees",
 		"autoApprove": "Auto-aprovació",
+		"imageGeneration": "Generació d'imatges",
 		"checkpoints": "Punts de control",
 		"notifications": "Notificacions",
 		"contextManagement": "Context",
@@ -57,7 +58,7 @@
 		"manageSettings": "Gestionar Configuració",
 		"debugMode": {
 			"label": "Activa el mode de depuració",
-			"description": "Activa el mode de depuració per mostrar botons addicionals a la capçalera de la tasca que permetin veure l'historial de conversa de l'API i els missatges de la UI com a JSON formatejat en fitxers temporals."
+			"description": "Activa el mode debug per mostrar botons addicionals a la capçalera de la tasca i veure l'historial de conversa de l'API i els missatges de la interfície com a JSON formatat en fitxers temporals. Quan es desa activat, això també activa l'enviament de diagnòstics remots sanejats a l'endpoint fix de C-Code per solucionar problemes."
 		}
 	},
 	"slashCommands": {
@@ -264,6 +265,10 @@
 			"label": "Memòria",
 			"description": "Aprova automàticament els desats de memòria d’errors des del xat i els errors d’eines. Quan això està desactivat, la memòria pendent encara es pot revisar des del xat o des de la configuració de Memòria."
 		},
+		"imageGeneration": {
+			"label": "Imatges",
+			"description": "Aprova automàticament les accions de generació i edició d'imatges des del xat. Això pot crear o modificar fitxers d'imatge amb el proveïdor de generació d'imatges configurat."
+		},
 		"followupQuestions": {
 			"label": "Pregunta",
 			"description": "Seleccionar automàticament la primera resposta suggerida per a preguntes de seguiment després del temps d'espera configurat",
@@ -292,6 +297,71 @@
 		},
 		"maxLimits": {
 			"description": "Fes sol·licituds automàticament fins a aquests límits abans de demanar aprovació per continuar."
+		}
+	},
+	"imageGeneration": {
+		"name": "Habilitar la generació d'imatges amb IA",
+		"description": "Quan està activada, C pot generar i editar imatges a partir de prompts amb un proveïdor de generació d'imatges configurat per separat.",
+		"providerLabel": "Proveïdor",
+		"providerDescription": "Selecciona el proveïdor que s'utilitzarà per a la generació d'imatges. És independent del teu perfil de proveïdor de xat.",
+		"localProviderNote": "Cloudflare Workers AI està disponible juntament amb OpenRouter i proveïdors OpenAI/OpenAI-compatible. Ollama, LM Studio, ComfyUI i Automatic1111 no es poden seleccionar en aquest panell.",
+		"apiKeyLabel": "Clau API de {{provider}}",
+		"optionalApiKeyLabel": "Clau API de {{provider}} (opcional)",
+		"apiKeyPlaceholder": "Introdueix la teva clau API de {{provider}}",
+		"apiKeyRequiredDescription": "Aquest proveïdor requereix una clau API per a la generació d'imatges.",
+		"apiKeyOptionalDescription": "Opcional. Fes-ho servir només si el teu endpoint, instància local o proxy requereix autenticació amb token bearer.",
+		"getApiKeyText": "Obtén la teva clau API de",
+		"baseUrlLabel": "URL base",
+		"baseUrlPlaceholder": "Predeterminat: {{url}}",
+		"baseUrlDescription": "Deixa-ho en blanc per utilitzar {{url}}.",
+		"modelSelectionLabel": "Model de generació d'imatges",
+		"modelSelectionDescription": "Selecciona el model que s'utilitzarà per a la generació d'imatges",
+		"modelIdLabel": "ID del model",
+		"customModelIdPlaceholder": "Introdueix un ID de model",
+		"modelIdPlaceholderWithDefault": "Predeterminat: {{model}}",
+		"customModelIdDescription": "Introdueix l'ID exacte del model exposat pel teu proveïdor o endpoint compatible amb OpenAI.",
+		"optionalModelIdDescription": "Opcional. Deixa-ho en blanc per utilitzar el checkpoint carregat actualment pel proveïdor.",
+		"apiMethodLabel": "Mètode de l'API",
+		"apiMethodDescription": "Tria la forma de l'endpoint compatible amb OpenAI que s'utilitzarà per a la generació d'imatges.",
+		"apiMethodLockedDescription": "El model seleccionat utilitza el mètode d'API requerit de {{model}}.",
+		"apiMethodLabels": {
+			"chat_completions": "Complecions de xat",
+			"images_api": "API d'imatges",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
+		},
+		"negativePromptLabel": "Prompt negatiu",
+		"negativePromptPlaceholder": "Introdueix el contingut a evitar en les imatges generades",
+		"negativePromptDescription": "Opcional. Ajuda els proveïdors compatibles a evitar temes, estils o artefactes no desitjats.",
+		"warningMissingApiKey": "⚠️ {{provider}} requereix una clau API per a la generació d'imatges. Configura-la a dalt.",
+		"warningMissingModel": "⚠️ {{provider}} requereix un ID de model per a la generació d'imatges. Configura'l a dalt.",
+		"successConfigured": "✓ La generació d'imatges està configurada per a {{provider}} i llesta per utilitzar",
+		"modelLabel": "Model de generació d'imatges",
+		"optionalModelDescription": "Opcional. Deixa-ho en blanc per utilitzar el checkpoint carregat actualment pel proveïdor.",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models és públic, així que la llista pot incloure tots els models amb sortida d’imatge; si proporciones una clau API d’imatge, Roo la farà servir per a resultats específics del compte quan OpenRouter els retorni.",
+		"cloudflareAccountIdLabel": "ID del compte de Cloudflare",
+		"cloudflareAccountIdPlaceholder": "Introdueix l'ID del teu compte de Cloudflare",
+		"cloudflareAccountIdDescription": "Obligatori. El trobaràs al resum del compte del teu tauler de Cloudflare.",
+		"cloudflareBaseUrlDescription": "Deixa-ho en blanc per fer servir l'endpoint API v4 de Cloudflare: {{url}}.",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI fa servir l'endpoint d'execució del compte de Workers AI per a la generació d'imatges.",
+		"warningMissingAccountId": "⚠️ {{provider}} requereix un ID de compte de Cloudflare per a la generació d'imatges. Configura'l més amunt.",
+		"cloudflarePricing": {
+			"title": "Preus i quota gratuïta de Cloudflare Workers AI",
+			"quotaDescription": "Assignació gratuïta: {{freeAllocation}}. Es reinicia a les {{resetTime}}. Excés de pagament: {{paidOverage}}.",
+			"modelColumn": "Model",
+			"priceColumn": "Preu",
+			"neuronsColumn": "Neurons"
+		},
+		"cloudflareUsage": {
+			"title": "Ús estimat de Workers AI avui",
+			"remainingLabel": "Neurons gratuïtes restants estimades",
+			"neuronsValue": "{{count}} neurons",
+			"usedLabel": "Ús estimat avui",
+			"usedValue": "{{used}} / {{quota}} neurons",
+			"requestsLabel": "Sol·licituds d'imatge registrades",
+			"resetLabel": "Proper reinici",
+			"localEstimateDescription": "Aquesta és una estimació local basada en les generacions d'imatges executades des de C. Cloudflare no proporciona aquí cap API documentada de quota diària restant; consulta el teu tauler de Cloudflare per veure l'ús confirmat pel proveïdor."
 		}
 	},
 	"providers": {
@@ -391,12 +461,8 @@
 		"anthropicApiKey": "Clau API d'Anthropic",
 		"getAnthropicApiKey": "Obtenir clau API d'Anthropic",
 		"anthropicUseAuthToken": "Passar la clau API d'Anthropic com a capçalera d'autorització en lloc de X-Api-Key",
-		"anthropic1MContextBetaLabel": "Activa la finestra de context d'1M (Beta)",
-		"anthropic1MContextBetaDescription": "Amplia la finestra de context a 1 milió de tokens per a Claude Sonnet 4.x / Claude Opus 4.6",
 		"awsBedrock1MContextBetaLabel": "Activa la finestra de context d'1M (Beta)",
 		"awsBedrock1MContextBetaDescription": "Amplia la finestra de context a 1 milió de tokens per a Claude Sonnet 4.x / Claude Opus 4.6",
-		"vertex1MContextBetaLabel": "Activa la finestra de context d'1M (Beta)",
-		"vertex1MContextBetaDescription": "Amplia la finestra de context a 1 milió de tokens per a Claude Sonnet 4.x / Claude Opus 4.6",
 		"basetenApiKey": "Clau API de Baseten",
 		"getBasetenApiKey": "Obtenir clau API de Baseten",
 		"poeApiKey": "Clau API de Poe",
@@ -558,6 +624,7 @@
 			"minimal": "Mínim (el més ràpid)",
 			"high": "Alt",
 			"xhigh": "Molt alt",
+			"max": "Màxim",
 			"medium": "Mitjà",
 			"low": "Baix"
 		},
@@ -988,7 +1055,7 @@
 			"description": "Quan està activada, C pot generar i editar imatges a partir de prompts amb un proveïdor de generació d'imatges configurat per separat.",
 			"providerLabel": "Proveïdor",
 			"providerDescription": "Selecciona el proveïdor que s'utilitzarà per a la generació d'imatges. És independent del teu perfil de proveïdor de xat.",
-			"localProviderNote": "Ollama i LM Studio no es poden seleccionar aquí perquè exposen APIs de visió/chat, no APIs de generació d'imatges. La generació local d'imatges està disponible amb APIs reals de generació d'imatges com ComfyUI i Automatic1111 quan estan configurades.",
+			"localProviderNote": "Ollama, LM Studio, ComfyUI i Automatic1111 no es poden seleccionar aquí perquè aquest panell ara se centra en OpenRouter i APIs de generació d'imatges compatibles amb OpenAI.",
 			"apiKeyLabel": "Clau API de {{provider}}",
 			"optionalApiKeyLabel": "Clau API de {{provider}} (opcional)",
 			"apiKeyPlaceholder": "Introdueix la teva clau API de {{provider}}",
@@ -1016,7 +1083,7 @@
 			},
 			"negativePromptLabel": "Prompt negatiu",
 			"negativePromptPlaceholder": "Introdueix el contingut a evitar en les imatges generades",
-			"negativePromptDescription": "Opcional. Ajuda els proveïdors locals a evitar subjectes, estils o artefactes no desitjats.",
+			"negativePromptDescription": "Opcional. Ajuda els proveïdors compatibles a evitar temes, estils o artefactes no desitjats.",
 			"warningMissingApiKey": "⚠️ {{provider}} requereix una clau API per a la generació d'imatges. Configura-la a dalt.",
 			"warningMissingModel": "⚠️ {{provider}} requereix un ID de model per a la generació d'imatges. Configura'l a dalt.",
 			"successConfigured": "✓ La generació d'imatges està configurada per a {{provider}} i llesta per utilitzar"

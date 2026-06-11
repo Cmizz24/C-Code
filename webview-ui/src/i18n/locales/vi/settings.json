@@ -31,6 +31,7 @@
 		"mcp": "Máy chủ MCP",
 		"worktrees": "Worktrees",
 		"autoApprove": "Phê duyệt",
+		"imageGeneration": "Tạo hình ảnh",
 		"checkpoints": "Điểm kiểm tra",
 		"notifications": "Thông báo",
 		"contextManagement": "Ngữ cảnh",
@@ -57,7 +58,7 @@
 		"manageSettings": "Quản Lý Cài Đặt",
 		"debugMode": {
 			"label": "Bật chế độ debug",
-			"description": "Bật chế độ debug để hiển thị các nút bổ sung trong tiêu đề nhiệm vụ cho phép xem lịch sử hội thoại API và tin nhắn UI dưới dạng JSON được định dạng trong các tệp tạm thời."
+			"description": "Bật chế độ debug để hiển thị các nút bổ sung trong tiêu đề tác vụ nhằm xem lịch sử hội thoại API và thông báo UI dưới dạng JSON được định dạng đẹp trong các tệp tạm thời. Khi lưu ở trạng thái bật, bạn cũng đồng ý gửi chẩn đoán từ xa đã được làm sạch đến endpoint cố định của C-Code để khắc phục sự cố."
 		}
 	},
 	"slashCommands": {
@@ -264,6 +265,10 @@
 			"label": "Bộ nhớ",
 			"description": "Tự động phê duyệt việc lưu bộ nhớ lỗi từ chat và lỗi công cụ. Khi tắt, bộ nhớ đang chờ vẫn có thể được xem lại từ chat hoặc cài đặt Bộ nhớ."
 		},
+		"imageGeneration": {
+			"label": "Hình ảnh",
+			"description": "Tự động phê duyệt các hành động tạo và chỉnh sửa hình ảnh từ chat. Điều này có thể tạo hoặc sửa đổi tệp hình ảnh bằng nhà cung cấp tạo hình ảnh đã cấu hình."
+		},
 		"followupQuestions": {
 			"label": "Câu hỏi",
 			"description": "Tự động chọn câu trả lời đầu tiên được đề xuất cho các câu hỏi tiếp theo sau thời gian chờ đã cấu hình",
@@ -292,6 +297,71 @@
 		},
 		"maxLimits": {
 			"description": "Tự động thực hiện các yêu cầu lên đến các giới hạn này trước khi xin phê duyệt để tiếp tục."
+		}
+	},
+	"imageGeneration": {
+		"name": "Bật tạo hình ảnh bằng AI",
+		"description": "Khi bật, C có thể tạo và chỉnh sửa hình ảnh từ prompt bằng một nhà cung cấp tạo hình ảnh được cấu hình riêng.",
+		"providerLabel": "Nhà cung cấp",
+		"providerDescription": "Chọn nhà cung cấp dùng cho tạo hình ảnh. Cài đặt này độc lập với hồ sơ nhà cung cấp chat của bạn.",
+		"localProviderNote": "Cloudflare Workers AI có sẵn cùng OpenRouter và các nhà cung cấp OpenAI/OpenAI-compatible. Ollama, LM Studio, ComfyUI và Automatic1111 không thể chọn trong bảng này.",
+		"apiKeyLabel": "Khóa API {{provider}}",
+		"optionalApiKeyLabel": "Khóa API {{provider}} (tùy chọn)",
+		"apiKeyPlaceholder": "Nhập khóa API {{provider}} của bạn",
+		"apiKeyRequiredDescription": "Nhà cung cấp này yêu cầu khóa API để tạo hình ảnh.",
+		"apiKeyOptionalDescription": "Tùy chọn. Chỉ dùng mục này nếu endpoint, phiên bản local hoặc proxy của bạn yêu cầu xác thực bearer-token.",
+		"getApiKeyText": "Lấy khóa API của bạn từ",
+		"baseUrlLabel": "URL cơ sở",
+		"baseUrlPlaceholder": "Mặc định: {{url}}",
+		"baseUrlDescription": "Để trống để dùng {{url}}.",
+		"modelSelectionLabel": "Mô hình tạo hình ảnh",
+		"modelSelectionDescription": "Chọn mô hình dùng để tạo hình ảnh",
+		"modelIdLabel": "ID mô hình",
+		"customModelIdPlaceholder": "Nhập ID mô hình",
+		"modelIdPlaceholderWithDefault": "Mặc định: {{model}}",
+		"customModelIdDescription": "Nhập đúng ID model do nhà cung cấp hoặc endpoint tương thích OpenAI của bạn cung cấp.",
+		"optionalModelIdDescription": "Tùy chọn. Để trống để dùng checkpoint hiện đang được nhà cung cấp tải.",
+		"apiMethodLabel": "Phương thức API",
+		"apiMethodDescription": "Chọn dạng endpoint tương thích OpenAI để dùng cho tạo hình ảnh.",
+		"apiMethodLockedDescription": "Mô hình đã chọn dùng phương thức API bắt buộc của {{model}}.",
+		"apiMethodLabels": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
+		},
+		"negativePromptLabel": "Prompt phủ định",
+		"negativePromptPlaceholder": "Nhập nội dung cần tránh trong hình ảnh được tạo",
+		"negativePromptDescription": "Tùy chọn. Giúp các nhà cung cấp tương thích tránh chủ thể, phong cách hoặc artifacts không mong muốn.",
+		"warningMissingApiKey": "⚠️ {{provider}} yêu cầu khóa API để tạo hình ảnh. Hãy cấu hình ở trên.",
+		"warningMissingModel": "⚠️ {{provider}} yêu cầu ID mô hình để tạo hình ảnh. Hãy cấu hình ở trên.",
+		"successConfigured": "✓ Tạo hình ảnh đã được cấu hình cho {{provider}} và sẵn sàng sử dụng",
+		"modelLabel": "Mô hình tạo hình ảnh",
+		"optionalModelDescription": "Tùy chọn. Để trống để dùng checkpoint hiện đang được nhà cung cấp tải.",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models là công khai, nên danh sách này có thể bao gồm tất cả mô hình có đầu ra hình ảnh; khi bạn cung cấp khóa API hình ảnh, Roo dùng khóa đó cho kết quả theo tài khoản nếu OpenRouter trả về.",
+		"cloudflareAccountIdLabel": "ID tài khoản Cloudflare",
+		"cloudflareAccountIdPlaceholder": "Nhập ID tài khoản Cloudflare của bạn",
+		"cloudflareAccountIdDescription": "Bắt buộc. Tìm trong phần tổng quan tài khoản trên dashboard Cloudflare của bạn.",
+		"cloudflareBaseUrlDescription": "Để trống để dùng endpoint API v4 của Cloudflare: {{url}}.",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI dùng endpoint chạy tài khoản Workers AI để tạo hình ảnh.",
+		"warningMissingAccountId": "⚠️ {{provider}} yêu cầu ID tài khoản Cloudflare để tạo hình ảnh. Cấu hình ở trên.",
+		"cloudflarePricing": {
+			"title": "Giá và hạn mức miễn phí của Cloudflare Workers AI",
+			"quotaDescription": "Phân bổ miễn phí: {{freeAllocation}}. Đặt lại lúc {{resetTime}}. Phần vượt mức trả phí: {{paidOverage}}.",
+			"modelColumn": "Mô hình",
+			"priceColumn": "Giá",
+			"neuronsColumn": "Neurons"
+		},
+		"cloudflareUsage": {
+			"title": "Mức dùng Workers AI ước tính hôm nay",
+			"remainingLabel": "Neurons miễn phí còn lại ước tính",
+			"neuronsValue": "{{count}} neurons",
+			"usedLabel": "Ước tính đã dùng hôm nay",
+			"usedValue": "{{used}} / {{quota}} neurons",
+			"requestsLabel": "Yêu cầu ảnh đã theo dõi",
+			"resetLabel": "Lần đặt lại tiếp theo",
+			"localEstimateDescription": "Đây là ước tính cục bộ dựa trên các lần tạo ảnh chạy từ C. Cloudflare không cung cấp API được tài liệu hóa cho quota hằng ngày còn lại ở đây; hãy kiểm tra dashboard Cloudflare của bạn để xem mức dùng do nhà cung cấp xác nhận."
 		}
 	},
 	"providers": {
@@ -391,12 +461,8 @@
 		"anthropicApiKey": "Khóa API Anthropic",
 		"getAnthropicApiKey": "Lấy khóa API Anthropic",
 		"anthropicUseAuthToken": "Truyền khóa API Anthropic dưới dạng tiêu đề Authorization thay vì X-Api-Key",
-		"anthropic1MContextBetaLabel": "Bật cửa sổ ngữ cảnh 1M (Beta)",
-		"anthropic1MContextBetaDescription": "Mở rộng cửa sổ ngữ cảnh lên 1 triệu token cho Claude Sonnet 4.x / Claude Opus 4.6",
 		"awsBedrock1MContextBetaLabel": "Bật cửa sổ ngữ cảnh 1M (Beta)",
 		"awsBedrock1MContextBetaDescription": "Mở rộng cửa sổ ngữ cảnh lên 1 triệu token cho Claude Sonnet 4.x / Claude Opus 4.6",
-		"vertex1MContextBetaLabel": "Bật cửa sổ ngữ cảnh 1M (Beta)",
-		"vertex1MContextBetaDescription": "Mở rộng cửa sổ ngữ cảnh lên 1 triệu token cho Claude Sonnet 4.x / Claude Opus 4.6",
 		"basetenApiKey": "Khóa API Baseten",
 		"getBasetenApiKey": "Lấy khóa API Baseten",
 		"poeApiKey": "Khóa API Poe",
@@ -558,6 +624,7 @@
 			"minimal": "Tối thiểu (nhanh nhất)",
 			"high": "Cao",
 			"xhigh": "Rất cao",
+			"max": "Tối đa",
 			"medium": "Trung bình",
 			"low": "Thấp"
 		},
@@ -988,7 +1055,7 @@
 			"description": "Khi bật, C có thể tạo và chỉnh sửa hình ảnh từ prompt bằng một nhà cung cấp tạo hình ảnh được cấu hình riêng.",
 			"providerLabel": "Nhà cung cấp",
 			"providerDescription": "Chọn nhà cung cấp dùng cho tạo hình ảnh. Cài đặt này độc lập với hồ sơ nhà cung cấp chat của bạn.",
-			"localProviderNote": "Ollama và LM Studio không thể chọn ở đây vì chúng cung cấp API vision/chat, không phải API tạo hình ảnh. Tạo hình ảnh local có sẵn qua các API tạo hình ảnh thực sự như ComfyUI và Automatic1111 khi được cấu hình.",
+			"localProviderNote": "Ollama, LM Studio, ComfyUI và Automatic1111 không thể chọn ở đây vì bảng này hiện tập trung vào OpenRouter và các API tạo hình ảnh tương thích OpenAI.",
 			"apiKeyLabel": "Khóa API {{provider}}",
 			"optionalApiKeyLabel": "Khóa API {{provider}} (tùy chọn)",
 			"apiKeyPlaceholder": "Nhập khóa API {{provider}} của bạn",
@@ -1016,7 +1083,7 @@
 			},
 			"negativePromptLabel": "Prompt phủ định",
 			"negativePromptPlaceholder": "Nhập nội dung cần tránh trong hình ảnh được tạo",
-			"negativePromptDescription": "Tùy chọn. Giúp nhà cung cấp local tránh chủ thể, phong cách hoặc artifact không mong muốn.",
+			"negativePromptDescription": "Tùy chọn. Giúp các nhà cung cấp tương thích tránh chủ thể, phong cách hoặc artifacts không mong muốn.",
 			"warningMissingApiKey": "⚠️ {{provider}} yêu cầu khóa API để tạo hình ảnh. Hãy cấu hình ở trên.",
 			"warningMissingModel": "⚠️ {{provider}} yêu cầu ID mô hình để tạo hình ảnh. Hãy cấu hình ở trên.",
 			"successConfigured": "✓ Tạo hình ảnh đã được cấu hình cho {{provider}} và sẵn sàng sử dụng"

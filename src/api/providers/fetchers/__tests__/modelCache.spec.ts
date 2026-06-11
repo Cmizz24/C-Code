@@ -30,8 +30,12 @@ vi.mock("fs", () => ({
 
 // Mock all the model fetchers
 vi.mock("../litellm")
+vi.mock("../lmstudio")
+vi.mock("../ollama")
 vi.mock("../openrouter")
+vi.mock("../poe")
 vi.mock("../requesty")
+vi.mock("../unbound")
 vi.mock("../static-provider-models")
 
 // Mock ContextProxy with a simple static instance
@@ -51,11 +55,16 @@ import * as fsSync from "fs"
 import NodeCache from "node-cache"
 import { getModels, getModelsFromCache } from "../modelCache"
 import { getLiteLLMModels } from "../litellm"
+import { getLMStudioModels } from "../lmstudio"
+import { getOllamaModels } from "../ollama"
 import { getOpenRouterModels } from "../openrouter"
+import { getPoeModels } from "../poe"
 import { getRequestyModels } from "../requesty"
+import { getUnboundModels } from "../unbound"
 import {
 	getAnthropicModels,
 	getBasetenModels,
+	getBedrockModels,
 	getDeepSeekModels,
 	getFireworksModels,
 	getGeminiModels,
@@ -65,12 +74,18 @@ import {
 	getOpenAiNativeModels,
 	getSambaNovaModels,
 	getXAIModels,
+	getXiaomiMiMoModels,
 } from "../static-provider-models"
 
 const mockGetLiteLLMModels = getLiteLLMModels as Mock<typeof getLiteLLMModels>
+const mockGetLMStudioModels = getLMStudioModels as Mock<typeof getLMStudioModels>
+const mockGetOllamaModels = getOllamaModels as Mock<typeof getOllamaModels>
 const mockGetOpenRouterModels = getOpenRouterModels as Mock<typeof getOpenRouterModels>
+const mockGetPoeModels = getPoeModels as Mock<typeof getPoeModels>
 const mockGetRequestyModels = getRequestyModels as Mock<typeof getRequestyModels>
+const mockGetUnboundModels = getUnboundModels as Mock<typeof getUnboundModels>
 const mockGetAnthropicModels = getAnthropicModels as Mock<typeof getAnthropicModels>
+const mockGetBedrockModels = getBedrockModels as Mock<typeof getBedrockModels>
 const mockGetXAIModels = getXAIModels as Mock<typeof getXAIModels>
 const mockGetOpenAiNativeModels = getOpenAiNativeModels as Mock<typeof getOpenAiNativeModels>
 const mockGetMistralModels = getMistralModels as Mock<typeof getMistralModels>
@@ -81,6 +96,7 @@ const mockGetFireworksModels = getFireworksModels as Mock<typeof getFireworksMod
 const mockGetBasetenModels = getBasetenModels as Mock<typeof getBasetenModels>
 const mockGetSambaNovaModels = getSambaNovaModels as Mock<typeof getSambaNovaModels>
 const mockGetMiniMaxModels = getMiniMaxModels as Mock<typeof getMiniMaxModels>
+const mockGetXiaomiMiMoModels = getXiaomiMiMoModels as Mock<typeof getXiaomiMiMoModels>
 
 const DUMMY_REQUESTY_KEY = "requesty-key-for-testing"
 
@@ -110,7 +126,178 @@ describe("getModels with new GetModelsOptions", () => {
 		expect(result).toEqual(mockModels)
 	})
 
+	it("uses scoped cache keys for local and proxy providers", async () => {
+		const mockCache = new (vi.mocked(NodeCache))() as any
+		const mockModels = {
+			"local/model": {
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Scoped local model",
+			},
+		}
+
+		mockGetLiteLLMModels.mockResolvedValue(mockModels)
+		mockGetOllamaModels.mockResolvedValue(mockModels)
+		mockGetLMStudioModels.mockResolvedValue(mockModels)
+		mockGetPoeModels.mockResolvedValue(mockModels)
+
+		await getModels({ provider: "litellm", apiKey: "litellm-key", baseUrl: "http://localhost:4000" })
+		await getModels({ provider: "ollama", apiKey: "ollama-key", baseUrl: "http://localhost:11434" })
+		await getModels({ provider: "lmstudio", baseUrl: "http://localhost:1234" })
+		await getModels({ provider: "poe", apiKey: "poe-key", baseUrl: "https://api.poe.com/v1" })
+
+		expect(mockCache.set).toHaveBeenCalledTimes(4)
+		expect(mockCache.set).toHaveBeenNthCalledWith(1, expect.stringMatching(/^litellm_[a-f0-9]{16}$/), mockModels)
+		expect(mockCache.set).toHaveBeenNthCalledWith(2, expect.stringMatching(/^ollama_[a-f0-9]{16}$/), mockModels)
+		expect(mockCache.set).toHaveBeenNthCalledWith(3, expect.stringMatching(/^lmstudio_[a-f0-9]{16}$/), mockModels)
+		expect(mockCache.set).toHaveBeenNthCalledWith(4, expect.stringMatching(/^poe_[a-f0-9]{16}$/), mockModels)
+		expect(mockCache.set.mock.calls.map((call: [string, unknown]) => call[0])).not.toContain("litellm")
+		expect(mockCache.set.mock.calls.map((call: [string, unknown]) => call[0])).not.toContain("ollama")
+		expect(mockCache.set.mock.calls.map((call: [string, unknown]) => call[0])).not.toContain("lmstudio")
+		expect(mockCache.set.mock.calls.map((call: [string, unknown]) => call[0])).not.toContain("poe")
+	})
+
+	it("reuses cache for equivalent normalized LiteLLM scopes", async () => {
+		const mockCache = new (vi.mocked(NodeCache))() as any
+		const scopedCache = new Map<string, unknown>()
+		const mockModels = {
+			"litellm/model": {
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "LiteLLM scoped model",
+			},
+		}
+
+		mockCache.get.mockImplementation((key: string) => scopedCache.get(key))
+		mockCache.set.mockImplementation((key: string, value: unknown) => {
+			scopedCache.set(key, value)
+			return true
+		})
+		mockGetLiteLLMModels.mockResolvedValue(mockModels)
+
+		const first = await getModels({ provider: "litellm", apiKey: "same-key", baseUrl: "http://localhost:4000/" })
+		const second = await getModels({ provider: "litellm", apiKey: "same-key", baseUrl: " http://localhost:4000 " })
+
+		expect(first).toEqual(mockModels)
+		expect(second).toEqual(mockModels)
+		expect(mockGetLiteLLMModels).toHaveBeenCalledTimes(1)
+		expect(mockCache.set).toHaveBeenCalledTimes(1)
+		expect(mockCache.get).toHaveBeenNthCalledWith(2, mockCache.set.mock.calls[0][0])
+	})
+
+	it("does not reuse stale LiteLLM cache entries across base URLs or API keys", async () => {
+		const mockCache = new (vi.mocked(NodeCache))() as any
+		const firstModels = {
+			"litellm/first": {
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "First LiteLLM scoped model",
+			},
+		}
+		const secondModels = {
+			"litellm/second": {
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Second LiteLLM scoped model",
+			},
+		}
+		const thirdModels = {
+			"litellm/third": {
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Third LiteLLM scoped model",
+			},
+		}
+
+		mockCache.get.mockReturnValue(undefined)
+		mockGetLiteLLMModels
+			.mockResolvedValueOnce(firstModels)
+			.mockResolvedValueOnce(secondModels)
+			.mockResolvedValueOnce(thirdModels)
+
+		await getModels({ provider: "litellm", apiKey: "key-a", baseUrl: "http://localhost:4000" })
+		await getModels({ provider: "litellm", apiKey: "key-b", baseUrl: "http://localhost:4000" })
+		await getModels({ provider: "litellm", apiKey: "key-b", baseUrl: "http://localhost:5000" })
+
+		expect(mockGetLiteLLMModels).toHaveBeenCalledTimes(3)
+		const cacheKeys = mockCache.set.mock.calls.map((call: [string, unknown]) => call[0])
+		expect(new Set(cacheKeys).size).toBe(3)
+	})
+
+	it("scopes credentialed static-provider caches by API key and base URL", async () => {
+		const mockCache = new (vi.mocked(NodeCache))() as any
+		const scopedCache = new Map<string, unknown>()
+		const firstModels = {
+			"mimo/account-a": {
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Account A Xiaomi MiMo model",
+			},
+		}
+		const secondModels = {
+			"mimo/account-b": {
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Account B Xiaomi MiMo model",
+			},
+		}
+		const thirdModels = {
+			"mimo/ams-account-b": {
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Account B AMS Xiaomi MiMo model",
+			},
+		}
+
+		mockCache.get.mockImplementation((key: string) => scopedCache.get(key))
+		mockCache.set.mockImplementation((key: string, value: unknown) => {
+			scopedCache.set(key, value)
+			return true
+		})
+		mockGetXiaomiMiMoModels
+			.mockResolvedValueOnce(firstModels)
+			.mockResolvedValueOnce(secondModels)
+			.mockResolvedValueOnce(thirdModels)
+
+		const first = await getModels({
+			provider: "xiaomi-mimo",
+			apiKey: "key-a",
+			baseUrl: "https://api.xiaomimimo.com/v1",
+		})
+		const second = await getModels({
+			provider: "xiaomi-mimo",
+			apiKey: "key-b",
+			baseUrl: "https://api.xiaomimimo.com/v1",
+		})
+		const third = await getModels({
+			provider: "xiaomi-mimo",
+			apiKey: "key-b",
+			baseUrl: "https://token-plan-ams.xiaomimimo.com/v1",
+		})
+		const firstAgain = await getModels({
+			provider: "xiaomi-mimo",
+			apiKey: "key-a",
+			baseUrl: "https://api.xiaomimimo.com/v1/",
+		})
+
+		expect(first).toEqual(firstModels)
+		expect(second).toEqual(secondModels)
+		expect(third).toEqual(thirdModels)
+		expect(firstAgain).toEqual(firstModels)
+		expect(mockGetXiaomiMiMoModels).toHaveBeenCalledTimes(3)
+		const cacheKeys = mockCache.set.mock.calls.map((call: [string, unknown]) => call[0])
+		expect(cacheKeys).toHaveLength(3)
+		expect(new Set(cacheKeys).size).toBe(3)
+		expect(cacheKeys).toEqual(cacheKeys.map(() => expect.stringMatching(/^xiaomi-mimo_[a-f0-9]{16}$/)))
+		expect(cacheKeys).not.toContain("xiaomi-mimo")
+
+		mockCache.get.mockReset()
+		mockCache.get.mockReturnValue(undefined)
+		mockCache.set.mockReset()
+	})
+
 	it("calls getOpenRouterModels for openrouter provider", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
 		const mockModels = {
 			"openrouter/model": {
 				maxTokens: 8192,
@@ -123,11 +310,158 @@ describe("getModels with new GetModelsOptions", () => {
 
 		const result = await getModels({ provider: "openrouter" })
 
-		expect(mockGetOpenRouterModels).toHaveBeenCalled()
+		expect(mockGetOpenRouterModels).toHaveBeenCalledWith({ provider: "openrouter" })
+		expect(mockCache.set).toHaveBeenCalledWith("openrouter", mockModels)
 		expect(result).toEqual(mockModels)
 	})
 
-	it("calls getRequestyModels with optional API key", async () => {
+	it("bypasses cache for credentialed OpenRouter chat model requests", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const mockModels = {
+			"openrouter/account-model": {
+				maxTokens: 8192,
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Account-specific OpenRouter chat model",
+			},
+		}
+		mockGetOpenRouterModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({ provider: "openrouter", apiKey: "openrouter-key" })
+
+		expect(mockGetOpenRouterModels).toHaveBeenCalledWith({ provider: "openrouter", apiKey: "openrouter-key" })
+		expect(mockCache.set).not.toHaveBeenCalled()
+		expect(result).toEqual(mockModels)
+	})
+
+	it("bypasses cache for custom-base OpenRouter chat model requests", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const mockModels = {
+			"custom/openrouter-model": {
+				maxTokens: 8192,
+				contextWindow: 128000,
+				supportsPromptCache: false,
+				description: "Custom-base OpenRouter chat model",
+			},
+		}
+		mockGetOpenRouterModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({ provider: "openrouter", baseUrl: "https://openrouter.example/api/v1" })
+
+		expect(mockGetOpenRouterModels).toHaveBeenCalledWith({
+			provider: "openrouter",
+			baseUrl: "https://openrouter.example/api/v1",
+		})
+		expect(mockCache.set).not.toHaveBeenCalled()
+		expect(result).toEqual(mockModels)
+	})
+
+	it("passes public OpenRouter image model options through and caches them separately", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const mockModels = {
+			"google/gemini-2.5-flash-image-preview": {
+				maxTokens: 8192,
+				contextWindow: 128000,
+				supportsImages: true,
+				supportsImageOutput: true,
+				supportsPromptCache: false,
+				description: "OpenRouter image model",
+			},
+		}
+		mockGetOpenRouterModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({
+			provider: "openrouter",
+			modelType: "image",
+		})
+
+		expect(mockGetOpenRouterModels).toHaveBeenCalledWith({
+			provider: "openrouter",
+			modelType: "image",
+		})
+		expect(mockCache.set).toHaveBeenCalledWith("openrouter_image", mockModels)
+		expect(result).toEqual(mockModels)
+	})
+
+	it("bypasses cache for credentialed OpenRouter image model requests", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const mockModels = {
+			"google/gemini-2.5-flash-image-preview": {
+				maxTokens: 8192,
+				contextWindow: 128000,
+				supportsImages: true,
+				supportsImageOutput: true,
+				supportsPromptCache: false,
+				description: "Account-specific OpenRouter image model",
+			},
+		}
+		mockGetOpenRouterModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({
+			provider: "openrouter",
+			modelType: "image",
+			apiKey: "openrouter-image-key",
+		})
+
+		expect(mockGetOpenRouterModels).toHaveBeenCalledWith({
+			provider: "openrouter",
+			modelType: "image",
+			apiKey: "openrouter-image-key",
+		})
+		expect(mockCache.set).not.toHaveBeenCalled()
+		expect(result).toEqual(mockModels)
+	})
+
+	it("bypasses cache for custom-base OpenRouter image model requests", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const mockModels = {
+			"custom/image-model": {
+				maxTokens: 8192,
+				contextWindow: 128000,
+				supportsImages: true,
+				supportsImageOutput: true,
+				supportsPromptCache: false,
+				description: "Custom-base OpenRouter image model",
+			},
+		}
+		mockGetOpenRouterModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({
+			provider: "openrouter",
+			modelType: "image",
+			baseUrl: "https://openrouter.example/api/v1",
+		})
+
+		expect(mockGetOpenRouterModels).toHaveBeenCalledWith({
+			provider: "openrouter",
+			modelType: "image",
+			baseUrl: "https://openrouter.example/api/v1",
+		})
+		expect(mockCache.set).not.toHaveBeenCalled()
+		expect(result).toEqual(mockModels)
+	})
+
+	it("caches public Requesty model discovery", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const mockModels = {
+			"requesty/model": {
+				maxTokens: 4096,
+				contextWindow: 8192,
+				supportsPromptCache: false,
+				description: "Requesty model",
+			},
+		}
+		mockGetRequestyModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({ provider: "requesty" })
+
+		expect(mockGetRequestyModels).toHaveBeenCalledWith(undefined, undefined)
+		expect(mockCache.set).toHaveBeenCalledWith("requesty", mockModels)
+		expect(result).toEqual(mockModels)
+	})
+
+	it("bypasses cache for credentialed Requesty model discovery", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
 		const mockModels = {
 			"requesty/model": {
 				maxTokens: 4096,
@@ -141,6 +475,45 @@ describe("getModels with new GetModelsOptions", () => {
 		const result = await getModels({ provider: "requesty", apiKey: DUMMY_REQUESTY_KEY })
 
 		expect(mockGetRequestyModels).toHaveBeenCalledWith(undefined, DUMMY_REQUESTY_KEY)
+		expect(mockCache.set).not.toHaveBeenCalled()
+		expect(result).toEqual(mockModels)
+	})
+
+	it("bypasses cache for custom-base Requesty model discovery", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const mockModels = {
+			"requesty/custom-model": {
+				maxTokens: 4096,
+				contextWindow: 8192,
+				supportsPromptCache: false,
+				description: "Custom Requesty model",
+			},
+		}
+		mockGetRequestyModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({ provider: "requesty", baseUrl: "https://custom.requesty.ai/v1" })
+
+		expect(mockGetRequestyModels).toHaveBeenCalledWith("https://custom.requesty.ai/v1", undefined)
+		expect(mockCache.set).not.toHaveBeenCalled()
+		expect(result).toEqual(mockModels)
+	})
+
+	it("bypasses cache for credentialed Unbound model discovery", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const mockModels = {
+			"unbound/model": {
+				maxTokens: 4096,
+				contextWindow: 8192,
+				supportsPromptCache: false,
+				description: "Credentialed Unbound model",
+			},
+		}
+		mockGetUnboundModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({ provider: "unbound", apiKey: "unbound-key" })
+
+		expect(mockGetUnboundModels).toHaveBeenCalledWith("unbound-key")
+		expect(mockCache.set).not.toHaveBeenCalled()
 		expect(result).toEqual(mockModels)
 	})
 
@@ -159,6 +532,7 @@ describe("getModels with new GetModelsOptions", () => {
 		mockGetOpenAiNativeModels.mockResolvedValue(mockModels)
 		mockGetMistralModels.mockResolvedValue(mockModels)
 		mockGetDeepSeekModels.mockResolvedValue(mockModels)
+		mockGetXiaomiMiMoModels.mockResolvedValue(mockModels)
 		mockGetGeminiModels.mockResolvedValue(mockModels)
 		mockGetMoonshotModels.mockResolvedValue(mockModels)
 		mockGetFireworksModels.mockResolvedValue(mockModels)
@@ -178,6 +552,9 @@ describe("getModels with new GetModelsOptions", () => {
 		).resolves.toEqual(mockModels)
 		await expect(
 			getModels({ provider: "deepseek", apiKey: "deepseek-key", baseUrl: "https://api.deepseek.com" }),
+		).resolves.toEqual(mockModels)
+		await expect(
+			getModels({ provider: "xiaomi-mimo", apiKey: "xiaomi-key", baseUrl: "https://api.xiaomimimo.com/v1" }),
 		).resolves.toEqual(mockModels)
 		await expect(
 			getModels({
@@ -201,6 +578,7 @@ describe("getModels with new GetModelsOptions", () => {
 		expect(mockGetOpenAiNativeModels).toHaveBeenCalledWith("openai-key", "https://api.openai.com/v1")
 		expect(mockGetMistralModels).toHaveBeenCalledWith("mistral-key", "https://api.mistral.ai/v1")
 		expect(mockGetDeepSeekModels).toHaveBeenCalledWith("deepseek-key", "https://api.deepseek.com")
+		expect(mockGetXiaomiMiMoModels).toHaveBeenCalledWith("xiaomi-key", "https://api.xiaomimimo.com/v1")
 		expect(mockGetGeminiModels).toHaveBeenCalledWith("gemini-key", "https://generativelanguage.googleapis.com")
 		expect(mockGetMoonshotModels).toHaveBeenCalledWith("moonshot-key", "https://api.moonshot.ai/v1")
 		expect(mockGetFireworksModels).toHaveBeenCalledWith("fireworks-key")
@@ -226,6 +604,34 @@ describe("getModels with new GetModelsOptions", () => {
 
 		expect(mockGetDeepSeekModels).toHaveBeenCalledTimes(1)
 		expect(mockGetDeepSeekModels).toHaveBeenCalledWith("deepseek-key", "https://api.deepseek.com")
+	})
+
+	it("routes Bedrock through dynamic discovery and bypasses the shared model cache", async () => {
+		const mockCache = new (vi.mocked(NodeCache))()
+		const bedrockModels = {
+			"anthropic.claude-sonnet-4-6": {
+				maxTokens: 64_000,
+				contextWindow: 1_000_000,
+				supportsPromptCache: true,
+				description: "Bedrock model",
+			},
+		}
+		const options = {
+			provider: "bedrock",
+			awsRegion: "us-east-1",
+			awsAccessKey: "test-access-key",
+			awsSecretKey: "test-secret-key",
+		} as const
+
+		mockGetBedrockModels.mockResolvedValue(bedrockModels)
+
+		await expect(getModels(options)).resolves.toEqual(bedrockModels)
+		await expect(getModels(options)).resolves.toEqual(bedrockModels)
+
+		expect(mockGetBedrockModels).toHaveBeenCalledTimes(2)
+		expect(mockGetBedrockModels).toHaveBeenNthCalledWith(1, options)
+		expect(mockGetBedrockModels).toHaveBeenNthCalledWith(2, options)
+		expect(mockCache.set).not.toHaveBeenCalled()
 	})
 
 	it("handles errors and re-throws them", async () => {
@@ -396,6 +802,45 @@ describe("empty cache protection", () => {
 	})
 
 	describe("refreshModels", () => {
+		it("keeps chat and image OpenRouter refreshes and cache entries separate", async () => {
+			const chatModels = {
+				"anthropic/claude-sonnet-4": {
+					maxTokens: 8192,
+					contextWindow: 200000,
+					supportsPromptCache: true,
+					description: "OpenRouter chat model",
+				},
+			}
+			const imageModels = {
+				"google/gemini-2.5-flash-image-preview": {
+					maxTokens: 8192,
+					contextWindow: 128000,
+					supportsImages: true,
+					supportsImageOutput: true,
+					supportsPromptCache: false,
+					description: "OpenRouter image model",
+				},
+			}
+
+			mockGet.mockReturnValue(undefined)
+			mockGetOpenRouterModels.mockResolvedValueOnce(chatModels).mockResolvedValueOnce(imageModels)
+
+			const { refreshModels } = await import("../modelCache")
+
+			const chatPromise = refreshModels({ provider: "openrouter" })
+			const imagePromise = refreshModels({ provider: "openrouter", modelType: "image" })
+
+			const [chatResult, imageResult] = await Promise.all([chatPromise, imagePromise])
+
+			expect(mockGetOpenRouterModels).toHaveBeenCalledTimes(2)
+			expect(mockGetOpenRouterModels).toHaveBeenCalledWith({ provider: "openrouter" })
+			expect(mockGetOpenRouterModels).toHaveBeenCalledWith({ provider: "openrouter", modelType: "image" })
+			expect(mockSet).toHaveBeenCalledWith("openrouter", chatModels)
+			expect(mockSet).toHaveBeenCalledWith("openrouter_image", imageModels)
+			expect(chatResult).toEqual(chatModels)
+			expect(imageResult).toEqual(imageModels)
+		})
+
 		it("keeps existing cache when API returns empty response", async () => {
 			const existingModels = {
 				"openrouter/existing-model": {

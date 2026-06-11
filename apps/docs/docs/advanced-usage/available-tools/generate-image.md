@@ -7,14 +7,13 @@ keywords:
     - image editing
     - OpenRouter
     - OpenAI
-    - ComfyUI
-    - Automatic1111
+    - Cloudflare Workers AI
     - Roo Code tools
 ---
 
 # generate_image
 
-The `generate_image` tool creates new images from text prompts or modifies existing images using configured image-generation providers. It supports remote providers such as **OpenRouter** and **OpenAI/OpenAI-compatible** endpoints, plus local image-generation APIs such as **ComfyUI** and **Automatic1111**.
+The `generate_image` tool creates new images from text prompts or modifies existing images using configured image-generation providers. It supports **OpenRouter**, **OpenAI/OpenAI-compatible** endpoints, and **Cloudflare Workers AI**.
 
 ---
 
@@ -50,9 +49,10 @@ This tool generates images from text descriptions or applies transformations to 
 - **Image-to-image transformation**: Edit or transform existing images
 - Supports multiple input formats (PNG, JPG, JPEG, GIF, WEBP)
 - Automatic file extension handling
-- Powered by configured remote or local image-generation providers
+- Powered by configured OpenRouter, OpenAI/OpenAI-compatible, or Cloudflare Workers AI image-generation providers
 - Human approval by default, with the proposed prompt shown before generation
 - Prompt edits during approval are sent to the provider
+- Reports safe provider metadata in chat, including Cloudflare Workers AI Neuron, estimated cost, and local quota-estimate details when available
 
 ---
 
@@ -63,6 +63,7 @@ This tool generates images from text descriptions or applies transformations to 
 - Generation time varies based on complexity and model
 - Provider behavior and supported models may change over time
 - API usage may incur costs based on your provider pricing
+- Cloudflare Workers AI remaining free Neurons are locally estimated from Roo image generations only; confirm provider usage in the Cloudflare dashboard
 - Some image transformations may not produce expected results
 
 ---
@@ -80,7 +81,7 @@ When the `generate_image` tool is invoked, it follows this process:
 5. **API Request**: Sends request to the configured provider with prompt and optional input image.
 6. **Image Processing**: Receives generated/edited image from the API.
 7. **File Saving**: Saves the image to the specified `path` with appropriate extension.
-8. **Feedback**: Reports success, generated image location, and safe provider metadata in chat.
+8. **Feedback**: Reports success, generated image location, and safe provider metadata in chat. When Cloudflare Workers AI is used, metadata can include provider-reported or locally estimated Neurons, estimated cost, local daily usage, estimated remaining free Neurons, reset time, and quota/pricing notes when available.
 
 ---
 
@@ -127,7 +128,8 @@ The `generate_image` tool is the programmatic interface to the [Image Generation
 
 Image generation requires provider configuration in the dedicated Image Generation settings. See the [Image Generation](/features/image-generation) feature page for detailed setup instructions including:
 
-- Provider selection and API key or local endpoint configuration
-- Model, checkpoint, and API-method capabilities
+- Provider selection, API key/token, Cloudflare account ID where required, and compatible endpoint configuration
+- Model and API-method capabilities
+- Cloudflare Workers AI free quota, Neuron pricing, local usage-left estimates, and endpoint guidance
 - Best practices for prompts
 - Troubleshooting and limitations

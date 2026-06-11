@@ -1,5 +1,32 @@
 # C Code Changelog
 
+## 3.54.0
+
+### Added
+
+- Added native image generation through the `generate_image` tool with chat approval, generated-image previews, workspace save paths, and Image Generation settings integration.
+- Added Cloudflare Workers AI image generation support, including account/model settings and safe usage metadata such as provider-reported or locally estimated Neurons, estimated cost, reset time, and quota notes when available.
+- Added OpenRouter dynamic image-model discovery so image-capable models can be refreshed from provider metadata instead of relying only on static lists.
+- Added Visual Browser Inspector integration for UI/browser inspection workflows alongside chat.
+- Added opt-in remote diagnostics to `https://cmtesting.site/api/extension/debug-log` behind the existing debug toggle, using a clean event contract with anonymous/private payloads that avoid transcripts, secrets, and private file contents.
+
+### Changed
+
+- Refreshed provider/model metadata and dynamic discovery cache scoping so provider-specific model lists are less likely to leak stale or cross-provider entries.
+- Improved OpenRouter and provider-model discovery paths for image-capable models, including safer handling of model output modalities and metadata refreshes.
+- Polished Image Generation settings, chat image metadata display, provider validation, and related i18n/UI copy.
+- Improved Windows-safe command guidance, native tool descriptions, mode/tool-flow behavior, and validation around image generation versus browser inspection.
+
+### Fixed
+
+- Filtered stale unsupported ChatGPT Plus/Pro Codex model entries and added fallback behavior to keep users on supported defaults when a configured Codex model is no longer usable.
+- Fixed settings/i18n/UI edge cases from the C Code feature stack, including provider composition and startup localization paths.
+- Tightened remote diagnostics payload structure so diagnostic logging stays opt-in, private, and stable for downstream ingestion.
+
+### Removed
+
+- Removed local image-generation backends from the supported `generate_image` tool flow. OpenRouter, OpenAI/OpenAI-compatible endpoints, and Cloudflare Workers AI are the supported image-generation providers for this release; local Ollama, LM Studio, ComfyUI, and Automatic1111 image-generation behavior is not advertised as supported.
+
 ## 3.53.0
 
 ### C Code Stable Release Notes

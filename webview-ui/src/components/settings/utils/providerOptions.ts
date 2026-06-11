@@ -5,7 +5,8 @@ import {
 	getProviderDefaultModelId,
 } from "@roo-code/types"
 
-import { MODELS_BY_PROVIDER, PROVIDERS } from "../constants"
+import { PROVIDERS } from "../constants"
+import { getStaticModelsForProvider, isStaticModelProvider } from "./providerModelConfig"
 
 import { filterModels, filterProviders } from "./organizationFilters"
 
@@ -17,13 +18,17 @@ export type ProviderOption = {
 type ProviderOptionParams = {
 	organizationAllowList?: OrganizationAllowList
 	selectedProvider?: ProviderSettings["apiProvider"]
+	apiConfiguration?: ProviderSettings
 	prioritizeOpenRouter?: boolean
+	customArnLabel?: string
 }
 
 export const getAvailableProviderOptions = ({
 	organizationAllowList,
 	selectedProvider,
+	apiConfiguration,
 	prioritizeOpenRouter = false,
+	customArnLabel,
 }: ProviderOptionParams): ProviderOption[] => {
 	const allowedProviders = filterProviders(PROVIDERS, organizationAllowList)
 
@@ -32,10 +37,11 @@ export const getAvailableProviderOptions = ({
 			return true
 		}
 
-		const staticModels = MODELS_BY_PROVIDER[value as ProviderName]
+		const provider = value as ProviderName
 
-		if (staticModels) {
-			const filteredModels = filterModels(staticModels, value as ProviderName, organizationAllowList)
+		if (isStaticModelProvider(provider)) {
+			const staticModels = getStaticModelsForProvider(provider, customArnLabel, apiConfiguration)
+			const filteredModels = filterModels(staticModels, provider, organizationAllowList)
 			return filteredModels && Object.keys(filteredModels).length > 0
 		}
 

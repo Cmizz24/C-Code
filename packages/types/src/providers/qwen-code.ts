@@ -9,22 +9,24 @@ export const qwenCodeModels = {
 		maxTokens: 65_536,
 		contextWindow: 1_000_000,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 0,
 		outputPrice: 0,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "Qwen3 Coder Plus - High-performance coding model with 1M context window for large codebases",
+		description:
+			"Qwen3 Coder Plus - High-performance coding model with 1M context window, 65K maximum output, and context cache support for large codebases. Pricing depends on the Qwen Code access path and is not represented by simple per-token fields.",
 	},
 	"qwen3-coder-flash": {
 		maxTokens: 65_536,
 		contextWindow: 1_000_000,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 0,
 		outputPrice: 0,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "Qwen3 Coder Flash - Fast coding model with 1M context window optimized for speed",
+		description:
+			"Qwen3 Coder Flash - Fast coding model with 1M context window, 65K maximum output, and context cache support optimized for speed. Pricing depends on the Qwen Code access path and is not represented by simple per-token fields.",
 	},
 } as const satisfies Record<QwenCodeModelId, ModelInfo>

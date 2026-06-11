@@ -859,9 +859,9 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 			type: "requestRouterModels",
 		})
 
-		// Verify getModels was called for each provider
-		expect(mockGetModels).toHaveBeenCalledWith({ provider: "openrouter" })
-		expect(mockGetModels).toHaveBeenCalledWith({ provider: "requesty", apiKey: "requesty-key" })
+		// Verify getModels was called for each provider with provider-specific configuration.
+		expect(mockGetModels).toHaveBeenCalledWith({ provider: "openrouter", apiKey: "openrouter-key" })
+		expect(mockGetModels).toHaveBeenCalledWith({ provider: "requesty", apiKey: "requesty-key", baseUrl: undefined })
 		expect(mockGetModels).toHaveBeenCalledWith(
 			expect.objectContaining({
 				provider: "unbound",
@@ -875,20 +875,23 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 		})
 
 		// Verify response was sent
-		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
-			type: "routerModels",
-			routerModels: {
-				openrouter: mockModels,
-				requesty: mockModels,
-				unbound: mockModels,
-				litellm: mockModels,
-				ollama: {},
-				lmstudio: {},
-				"vercel-ai-gateway": mockModels,
-				poe: {},
-			},
-			values: undefined,
-		})
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "routerModels",
+				routerModels: expect.objectContaining({
+					openrouter: mockModels,
+					requesty: mockModels,
+					unbound: mockModels,
+					litellm: mockModels,
+					ollama: {},
+					lmstudio: {},
+					"vercel-ai-gateway": mockModels,
+					poe: {},
+					bedrock: {},
+				}),
+				values: undefined,
+			}),
+		)
 	})
 
 	it("handles LiteLLM models with values from message when config is missing", async () => {
@@ -914,6 +917,7 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 		await webviewMessageHandler(mockClineProvider, {
 			type: "requestRouterModels",
 			values: {
+				provider: "litellm",
 				litellmApiKey: "message-litellm-key",
 				litellmBaseUrl: "http://message-url:4000",
 			},
@@ -960,20 +964,23 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 		)
 
 		// Verify response includes empty object for LiteLLM
-		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
-			type: "routerModels",
-			routerModels: {
-				openrouter: mockModels,
-				requesty: mockModels,
-				unbound: mockModels,
-				litellm: {},
-				ollama: {},
-				lmstudio: {},
-				"vercel-ai-gateway": mockModels,
-				poe: {},
-			},
-			values: undefined,
-		})
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "routerModels",
+				routerModels: expect.objectContaining({
+					openrouter: mockModels,
+					requesty: mockModels,
+					unbound: mockModels,
+					litellm: {},
+					ollama: {},
+					lmstudio: {},
+					"vercel-ai-gateway": mockModels,
+					poe: {},
+					bedrock: {},
+				}),
+				values: undefined,
+			}),
+		)
 	})
 
 	it("handles individual provider failures gracefully", async () => {
@@ -1003,6 +1010,7 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 			type: "singleRouterModelFetchResponse",
 			success: false,
 			error: "Requesty API error",
+			requestId: undefined,
 			values: { provider: "requesty" },
 		})
 
@@ -1010,24 +1018,29 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 			type: "singleRouterModelFetchResponse",
 			success: false,
 			error: "LiteLLM connection failed",
+			requestId: undefined,
 			values: { provider: "litellm" },
 		})
 
 		// Verify final routerModels response includes successful providers and empty objects for failed ones
-		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
-			type: "routerModels",
-			routerModels: {
-				openrouter: mockModels,
-				requesty: {},
-				unbound: mockModels,
-				litellm: {},
-				ollama: {},
-				lmstudio: {},
-				"vercel-ai-gateway": mockModels,
-				poe: {},
-			},
-			values: undefined,
-		})
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "routerModels",
+				routerModels: expect.objectContaining({
+					openrouter: mockModels,
+					requesty: {},
+					unbound: mockModels,
+					litellm: {},
+					ollama: {},
+					lmstudio: {},
+					"vercel-ai-gateway": mockModels,
+					poe: {},
+					bedrock: {},
+				}),
+				requestId: undefined,
+				values: undefined,
+			}),
+		)
 	})
 
 	it("handles Error objects and string errors correctly", async () => {

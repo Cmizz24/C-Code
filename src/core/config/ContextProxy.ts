@@ -35,6 +35,7 @@ const globalSettingsExportSchema = globalSettingsSchema.omit({
 	taskHistory: true,
 	listApiConfigMeta: true,
 	currentApiConfigName: true,
+	remoteDebugLoggingInstallId: true,
 })
 
 export class ContextProxy {

@@ -9,8 +9,20 @@ import {
 	anthropicModels,
 } from "@roo-code/types"
 
-import type { ApiHandlerOptions } from "../../../shared/api"
+import type { ApiHandlerOptions, RouterModelType } from "../../../shared/api"
 import { parseApiPrice } from "../../../shared/cost"
+
+type OpenRouterFetchOptions = ApiHandlerOptions & { apiKey?: string; baseUrl?: string; modelType?: RouterModelType }
+
+function getOpenRouterRequestConfig(options?: OpenRouterFetchOptions) {
+	const apiKey = options?.apiKey?.trim() || options?.openRouterApiKey?.trim()
+
+	if (!apiKey) {
+		return undefined
+	}
+
+	return { headers: { Authorization: `Bearer ${apiKey}` } }
+}
 
 /**
  * OpenRouterBaseModel
@@ -34,6 +46,7 @@ const modelRouterBaseModelSchema = z.object({
 	description: z.string().optional(),
 	context_length: z.number(),
 	max_completion_tokens: z.number().nullish(),
+	expiration_date: z.union([z.string(), z.number()]).nullish(),
 	pricing: openRouterPricingSchema.optional(),
 })
 
@@ -46,7 +59,7 @@ export type OpenRouterBaseModel = z.infer<typeof modelRouterBaseModelSchema>
 export const openRouterModelSchema = modelRouterBaseModelSchema.extend({
 	id: z.string(),
 	architecture: openRouterArchitectureSchema.optional(),
-	top_provider: z.object({ max_completion_tokens: z.number().nullish() }).optional(),
+	top_provider: z.object({ max_completion_tokens: z.number().nullish() }).nullish(),
 	supported_parameters: z.array(z.string()).optional(),
 })
 
@@ -94,12 +107,16 @@ type OpenRouterModelEndpointsResponse = z.infer<typeof openRouterModelEndpointsR
  * getOpenRouterModels
  */
 
-export async function getOpenRouterModels(options?: ApiHandlerOptions): Promise<Record<string, ModelInfo>> {
+export async function getOpenRouterModels(options?: OpenRouterFetchOptions): Promise<Record<string, ModelInfo>> {
 	const models: Record<string, ModelInfo> = {}
-	const baseURL = options?.openRouterBaseUrl || "https://openrouter.ai/api/v1"
+	const baseURL = options?.openRouterBaseUrl || options?.baseUrl || "https://openrouter.ai/api/v1"
+	const modelType = options?.modelType ?? "chat"
+	const requestConfig = getOpenRouterRequestConfig(options)
 
 	try {
-		const response = await axios.get<OpenRouterModelsResponse>(`${baseURL}/models`)
+		const response = requestConfig
+			? await axios.get<OpenRouterModelsResponse>(`${baseURL}/models`, requestConfig)
+			: await axios.get<OpenRouterModelsResponse>(`${baseURL}/models`)
 		const result = openRouterModelsResponseSchema.safeParse(response.data)
 		const data = result.success ? result.data.data : response.data.data
 
@@ -109,9 +126,9 @@ export async function getOpenRouterModels(options?: ApiHandlerOptions): Promise<
 
 		for (const model of data) {
 			const { id, architecture, top_provider, supported_parameters = [] } = model
+			const imageGenerationHint = hasOpenRouterImageGenerationHint(id, model.name, model.description)
 
-			// Skip image generation models (models that output images)
-			if (architecture?.output_modalities?.includes("image")) {
+			if (!shouldIncludeOpenRouterModel(modelType, architecture?.output_modalities, imageGenerationHint)) {
 				continue
 			}
 
@@ -120,7 +137,7 @@ export async function getOpenRouterModels(options?: ApiHandlerOptions): Promise<
 				model,
 				inputModality: architecture?.input_modalities,
 				outputModality: architecture?.output_modalities,
-				maxTokens: top_provider?.max_completion_tokens,
+				maxTokens: top_provider?.max_completion_tokens ?? model.max_completion_tokens,
 				supportedParameters: supported_parameters,
 			})
 
@@ -141,13 +158,17 @@ export async function getOpenRouterModels(options?: ApiHandlerOptions): Promise<
 
 export async function getOpenRouterModelEndpoints(
 	modelId: string,
-	options?: ApiHandlerOptions,
+	options?: OpenRouterFetchOptions,
 ): Promise<Record<string, ModelInfo>> {
 	const models: Record<string, ModelInfo> = {}
-	const baseURL = options?.openRouterBaseUrl || "https://openrouter.ai/api/v1"
+	const baseURL = options?.openRouterBaseUrl || options?.baseUrl || "https://openrouter.ai/api/v1"
+	const modelType = options?.modelType ?? "chat"
+	const requestConfig = getOpenRouterRequestConfig(options)
 
 	try {
-		const response = await axios.get<OpenRouterModelEndpointsResponse>(`${baseURL}/models/${modelId}/endpoints`)
+		const response = requestConfig
+			? await axios.get<OpenRouterModelEndpointsResponse>(`${baseURL}/models/${modelId}/endpoints`, requestConfig)
+			: await axios.get<OpenRouterModelEndpointsResponse>(`${baseURL}/models/${modelId}/endpoints`)
 		const result = openRouterModelEndpointsResponseSchema.safeParse(response.data)
 		const data = result.success ? result.data.data : response.data.data
 
@@ -155,10 +176,10 @@ export async function getOpenRouterModelEndpoints(
 			console.error("OpenRouter model endpoints response is invalid", result.error.format())
 		}
 
-		const { id, architecture, endpoints } = data
+		const { id, name, description, architecture, endpoints } = data
+		const imageGenerationHint = hasOpenRouterImageGenerationHint(id, name, description)
 
-		// Skip image generation models (models that output images)
-		if (architecture?.output_modalities?.includes("image")) {
+		if (!shouldIncludeOpenRouterModel(modelType, architecture?.output_modalities, imageGenerationHint)) {
 			return models
 		}
 
@@ -178,6 +199,51 @@ export async function getOpenRouterModelEndpoints(
 	}
 
 	return models
+}
+
+function shouldIncludeOpenRouterModel(
+	modelType: RouterModelType,
+	outputModality: string[] | null | undefined,
+	imageGenerationHint: boolean,
+): boolean {
+	const hasOutputModalityMetadata = Array.isArray(outputModality) && outputModality.length > 0
+	const supportsImageOutput = outputModality?.includes("image") ?? false
+
+	if (modelType === "image") {
+		return supportsImageOutput || (!hasOutputModalityMetadata && imageGenerationHint)
+	}
+
+	return !supportsImageOutput && !(imageGenerationHint && !hasOutputModalityMetadata)
+}
+
+function hasOpenRouterImageGenerationHint(
+	id: string,
+	name: string | undefined,
+	description: string | undefined,
+): boolean {
+	const idHint = /(?:^|[/:_-])image(?:$|[/:_-])/.test(id.toLowerCase())
+	const haystack = [id, name, description].filter(Boolean).join(" ").toLowerCase()
+	const generationHint =
+		/\b(image generation|generate images?|text-to-image|image[-_ ]?output|gpt-image|imagen|dall[-_\s]?e|flux|stable diffusion|sdxl|ideogram|recraft|seedream|midjourney|sora)\b/.test(
+			haystack,
+		)
+
+	return idHint || generationHint
+}
+
+function hasExpired(expirationDate: string | number | null | undefined): boolean {
+	if (!expirationDate) {
+		return false
+	}
+
+	const timestamp =
+		typeof expirationDate === "number"
+			? expirationDate < 1_000_000_000_000
+				? expirationDate * 1000
+				: expirationDate
+			: Date.parse(expirationDate)
+
+	return Number.isFinite(timestamp) && timestamp <= Date.now()
 }
 
 /**
@@ -206,11 +272,12 @@ export const parseOpenRouterModel = ({
 	const cacheReadsPrice = model.pricing?.input_cache_read ? parseApiPrice(model.pricing?.input_cache_read) : undefined
 
 	const supportsPromptCache = typeof cacheReadsPrice !== "undefined" // some models support caching but don't charge a cacheWritesPrice, e.g. GPT-5
+	const resolvedMaxTokens = maxTokens ?? model.max_completion_tokens ?? undefined
 
 	const modelInfo: ModelInfo = {
-		maxTokens: maxTokens || Math.ceil(model.context_length * 0.2),
 		contextWindow: model.context_length,
 		supportsImages: inputModality?.includes("image") ?? false,
+		supportsImageOutput: outputModality?.includes("image") ?? false,
 		supportsPromptCache,
 		inputPrice: parseApiPrice(model.pricing?.prompt),
 		outputPrice: parseApiPrice(model.pricing?.completion),
@@ -219,6 +286,14 @@ export const parseOpenRouterModel = ({
 		description: model.description,
 		supportsReasoningEffort: supportedParameters ? supportedParameters.includes("reasoning") : undefined,
 		supportedParameters: supportedParameters ? supportedParameters.filter(isModelParameter) : undefined,
+	}
+
+	if (typeof resolvedMaxTokens !== "undefined") {
+		modelInfo.maxTokens = resolvedMaxTokens
+	}
+
+	if (hasExpired(model.expiration_date)) {
+		modelInfo.deprecated = true
 	}
 
 	if (OPEN_ROUTER_REASONING_BUDGET_MODELS.has(id)) {

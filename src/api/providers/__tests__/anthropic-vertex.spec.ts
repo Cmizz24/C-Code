@@ -3,8 +3,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 
-import { VERTEX_1M_CONTEXT_MODEL_IDS } from "@roo-code/types"
-
 import { ApiStreamChunk } from "../../transform/stream"
 
 import { AnthropicVertexHandler } from "../anthropic-vertex"
@@ -195,7 +193,6 @@ describe("VertexHandler", () => {
 					tools: expect.any(Array),
 					tool_choice: expect.any(Object),
 				}),
-				undefined,
 			)
 		})
 
@@ -410,7 +407,6 @@ describe("VertexHandler", () => {
 						}),
 					],
 				}),
-				undefined,
 			)
 		})
 
@@ -869,34 +865,36 @@ describe("VertexHandler", () => {
 			expect(result.temperature).toBe(0)
 		})
 
-		it("should enable 1M context for Claude Sonnet 4 when beta flag is set", () => {
+		it("should keep standard deprecated Claude Sonnet 4 metadata when retired beta flag is set", () => {
 			const handler = new AnthropicVertexHandler({
-				apiModelId: VERTEX_1M_CONTEXT_MODEL_IDS[0],
+				apiModelId: "claude-sonnet-4@20250514",
 				vertexProjectId: "test-project",
 				vertexRegion: "us-central1",
 				vertex1MContext: true,
 			})
 
 			const model = handler.getModel()
-			expect(model.info.contextWindow).toBe(1_000_000)
-			expect(model.info.inputPrice).toBe(6.0)
-			expect(model.info.outputPrice).toBe(22.5)
-			expect(model.betas).toContain("context-1m-2025-08-07")
+			expect(model.info.contextWindow).toBe(200_000)
+			expect(model.info.maxTokens).toBe(64_000)
+			expect(model.info.inputPrice).toBe(3.0)
+			expect(model.info.outputPrice).toBe(15.0)
+			expect(model.info.deprecated).toBe(true)
 		})
 
-		it("should enable 1M context for Claude Sonnet 4.5 when beta flag is set", () => {
+		it("should keep standard Claude Sonnet 4.5 metadata when retired beta flag is set", () => {
 			const handler = new AnthropicVertexHandler({
-				apiModelId: VERTEX_1M_CONTEXT_MODEL_IDS[1],
+				apiModelId: "claude-sonnet-4-5@20250929",
 				vertexProjectId: "test-project",
 				vertexRegion: "us-central1",
 				vertex1MContext: true,
 			})
 
 			const model = handler.getModel()
-			expect(model.info.contextWindow).toBe(1_000_000)
-			expect(model.info.inputPrice).toBe(6.0)
-			expect(model.info.outputPrice).toBe(22.5)
-			expect(model.betas).toContain("context-1m-2025-08-07")
+			expect(model.info.contextWindow).toBe(200_000)
+			expect(model.info.maxTokens).toBe(64_000)
+			expect(model.info.inputPrice).toBe(3.0)
+			expect(model.info.outputPrice).toBe(15.0)
+			expect(model.info.supportsReasoningBudget).toBe(true)
 		})
 
 		it("should use GA 1M context and standard pricing for Claude Sonnet 4.6", () => {
@@ -911,7 +909,7 @@ describe("VertexHandler", () => {
 			expect(model.info.contextWindow).toBe(1_000_000)
 			expect(model.info.inputPrice).toBe(3.0)
 			expect(model.info.outputPrice).toBe(15.0)
-			expect(model.betas).toBeUndefined()
+			expect(model.info.supportsReasoningAdaptive).toBe(true)
 		})
 
 		it("should use GA 1M context and 128K output for Claude Opus 4.7", () => {
@@ -927,22 +925,23 @@ describe("VertexHandler", () => {
 			expect(model.info.maxTokens).toBe(128_000)
 			expect(model.info.inputPrice).toBe(5.0)
 			expect(model.info.outputPrice).toBe(25.0)
-			expect(model.betas).toBeUndefined()
+			expect(model.info.supportsReasoningEffort).toEqual(["disable", "low", "medium", "high", "xhigh", "max"])
 		})
 
-		it("should not enable 1M context when flag is disabled", () => {
+		it("should use GA 1M context and 128K output for Claude Opus 4.8", () => {
 			const handler = new AnthropicVertexHandler({
-				apiModelId: VERTEX_1M_CONTEXT_MODEL_IDS[0],
+				apiModelId: "claude-opus-4-8",
 				vertexProjectId: "test-project",
 				vertexRegion: "us-central1",
 				vertex1MContext: false,
 			})
 
 			const model = handler.getModel()
-			expect(model.info.contextWindow).toBe(200_000)
-			expect(model.info.inputPrice).toBe(3.0)
-			expect(model.info.outputPrice).toBe(15.0)
-			expect(model.betas).toBeUndefined()
+			expect(model.info.contextWindow).toBe(1_000_000)
+			expect(model.info.maxTokens).toBe(128_000)
+			expect(model.info.inputPrice).toBe(5.0)
+			expect(model.info.outputPrice).toBe(25.0)
+			expect(model.info.supportsReasoningEffort).toEqual(["disable", "low", "medium", "high", "xhigh", "max"])
 		})
 
 		it("should not enable 1M context for non-supported models even with flag", () => {
@@ -955,11 +954,10 @@ describe("VertexHandler", () => {
 
 			const model = handler.getModel()
 			expect(model.info.contextWindow).toBe(200_000)
-			expect(model.betas).toBeUndefined()
 		})
 	})
 
-	describe("1M context beta header", () => {
+	describe("retired 1M context beta header", () => {
 		const mockMessages: Anthropic.Messages.MessageParam[] = [
 			{
 				role: "user",
@@ -969,9 +967,9 @@ describe("VertexHandler", () => {
 
 		const systemPrompt = "You are a helpful assistant"
 
-		it("should include anthropic-beta header when 1M context is enabled", async () => {
+		it("should not include anthropic-beta header when retired 1M context flag is enabled", async () => {
 			const handler = new AnthropicVertexHandler({
-				apiModelId: VERTEX_1M_CONTEXT_MODEL_IDS[0],
+				apiModelId: "claude-sonnet-4-5@20250929",
 				vertexProjectId: "test-project",
 				vertexRegion: "us-central1",
 				vertex1MContext: true,
@@ -1006,18 +1004,14 @@ describe("VertexHandler", () => {
 				// Just consume
 			}
 
-			// Verify the API was called with the beta header
-			expect(mockCreate).toHaveBeenCalledWith(
-				expect.anything(),
-				expect.objectContaining({
-					headers: { "anthropic-beta": "context-1m-2025-08-07" },
-				}),
-			)
+			// Verify the API was called without a beta header request options argument.
+			expect(mockCreate).toHaveBeenCalledWith(expect.anything())
+			expect(mockCreate.mock.calls[0]).toHaveLength(1)
 		})
 
 		it("should not include anthropic-beta header when 1M context is disabled", async () => {
 			const handler = new AnthropicVertexHandler({
-				apiModelId: VERTEX_1M_CONTEXT_MODEL_IDS[0],
+				apiModelId: "claude-sonnet-4-5@20250929",
 				vertexProjectId: "test-project",
 				vertexRegion: "us-central1",
 				vertex1MContext: false,
@@ -1053,7 +1047,8 @@ describe("VertexHandler", () => {
 			}
 
 			// Verify the API was called without the beta header
-			expect(mockCreate).toHaveBeenCalledWith(expect.anything(), undefined)
+			expect(mockCreate).toHaveBeenCalledWith(expect.anything())
+			expect(mockCreate.mock.calls[0]).toHaveLength(1)
 		})
 	})
 
@@ -1143,7 +1138,6 @@ describe("VertexHandler", () => {
 					thinking: { type: "enabled", budget_tokens: 4096 },
 					temperature: 1.0, // Thinking requires temperature 1.0
 				}),
-				undefined,
 			)
 		})
 	})
@@ -1230,7 +1224,6 @@ describe("VertexHandler", () => {
 					]),
 					tool_choice: { type: "auto", disable_parallel_tool_use: false },
 				}),
-				undefined,
 			)
 		})
 
@@ -1283,7 +1276,6 @@ describe("VertexHandler", () => {
 						}),
 					]),
 				}),
-				undefined,
 			)
 		})
 

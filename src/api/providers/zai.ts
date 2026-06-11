@@ -40,8 +40,8 @@ export class ZAiHandler extends BaseOpenAiCompatibleProvider<string> {
 	}
 
 	/**
-	 * Override createStream to handle GLM-4.7's thinking mode.
-	 * GLM-4.7 has thinking enabled by default in the API, so we need to
+	 * Override createStream to handle GLM thinking mode.
+	 * Thinking-capable GLM models have thinking enabled by default in the API, so we need to
 	 * explicitly send { type: "disabled" } when the user turns off reasoning.
 	 */
 	protected override createStream(
@@ -56,7 +56,7 @@ export class ZAiHandler extends BaseOpenAiCompatibleProvider<string> {
 		const isThinkingModel = Array.isArray(info.supportsReasoningEffort)
 
 		if (isThinkingModel) {
-			// For GLM-4.7, thinking is ON by default in the API.
+			// For thinking-capable GLM models, thinking is ON by default in the API.
 			// We need to explicitly disable it when reasoning is off.
 			const useReasoning = shouldUseReasoningEffort({ model: info, settings: this.options })
 
@@ -69,7 +69,7 @@ export class ZAiHandler extends BaseOpenAiCompatibleProvider<string> {
 	}
 
 	/**
-	 * Creates a stream with explicit thinking control for GLM-4.7
+	 * Creates a stream with explicit thinking control for GLM thinking models.
 	 */
 	private createStreamWithThinking(
 		systemPrompt: string,
@@ -99,7 +99,7 @@ export class ZAiHandler extends BaseOpenAiCompatibleProvider<string> {
 			messages: [{ role: "system", content: systemPrompt }, ...convertedMessages],
 			stream: true,
 			stream_options: { include_usage: true },
-			// For GLM-4.7: thinking is ON by default, so we explicitly disable when needed
+			// For thinking-capable GLM models, thinking is ON by default, so we explicitly disable when needed.
 			thinking: useReasoning ? { type: "enabled" } : { type: "disabled" },
 			tools: this.convertToolsForOpenAI(metadata?.tools),
 			tool_choice: metadata?.tool_choice,

@@ -204,7 +204,8 @@
 	"imageGeneration": {
 		"approval": {
 			"generate": "Generieren",
-			"editPromptHint": "Bearbeite den Prompt im Nachrichtenfeld vor der Genehmigung oder genehmige ihn unverändert."
+			"editPromptHint": "Bearbeite den Prompt in der Karte vor der Genehmigung oder genehmige ihn unverändert.",
+			"promptLabel": "Prompt zum Generieren"
 		},
 		"statusTitle": "Bildgenerierung: {{status}}",
 		"status": {
@@ -232,13 +233,36 @@
 			"totalTokens": "Gesamt-tokens",
 			"images": "Bilder",
 			"cost": "Kosten",
-			"error": "Fehler"
+			"error": "Fehler",
+			"showDetails": "Details anzeigen",
+			"hideDetails": "Details ausblenden",
+			"dimensions": "Abmessungen",
+			"dimensionsValue": "{{width}} × {{height}} px",
+			"estimatedCost": "Geschätzte Kosten",
+			"neurons": "Neurons",
+			"estimatedNeurons": "Geschätzte Neurons",
+			"estimatedRemainingNeurons": "Geschätzte verbleibende Neurons",
+			"cloudflareUsage": "Geschätzte Cloudflare-Nutzung",
+			"cloudflareUsageValue": "{{used}} / {{quota}} Neurons genutzt · {{remaining}} verbleibend",
+			"usageSource": "Nutzungsquelle",
+			"estimatedUsedNeuronsToday": "Heute geschätzt verwendet",
+			"dailyQuotaNeurons": "Tägliche Gratisquote",
+			"quotaResetAt": "Quota-Reset",
+			"quotaDescription": "Quota-Hinweis",
+			"pricingDescription": "Preishinweis",
+			"usageSources": {
+				"provider_response": "Provider-Antwort",
+				"provider_response_with_local_quota": "Provider-Antwort + lokale Quota-Schätzung",
+				"local_estimate": "Lokale Schätzung",
+				"unknown": "Unbekannt"
+			}
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		}
 	},
 	"directoryOperations": {
@@ -414,11 +438,19 @@
 		"title": "C Code {{version}} veröffentlicht",
 		"support": "Bitte unterstütze C Code, indem du uns auf <githubLink>GitHub</githubLink> einen Stern gibst.",
 		"finalRelease": {
-			"title": "C Code {{version}} Update",
-			"intro": "C Code wird als Cmizz' persönlicher Fork von Roo Code weitergeführt. Die neuesten Fork-Updates, Fixes und Entwicklungsnotizen findest du im Cmizz-Repository: <repoLink>Cmizz24/C-Code</repoLink>.",
-			"continuity": "Diese Erweiterung erhält weiterhin persönliche C Code-Anpassungen und bewahrt eine respektvolle Anerkennung des ursprünglichen Roo Code-Projekts.",
-			"alternatives": "Um die aktuelle Arbeit zu verfolgen, Fehler zu melden oder neue Änderungen zu sehen, nutze das <repoLink>C Code GitHub-Repository</repoLink>.",
-			"signoff": "Happy coding!"
+			"title": "C Code {{version}} Release",
+			"intro": "C Code {{version}} ist aus Cmizz' konsolidierter Fork-Basis bereit. Folge dem Fork-Repository für Release Notes, Fixes und Entwicklungsupdates: <repoLink>Cmizz24/C-Code</repoLink>.",
+			"summary": "Dieses Release konzentriert sich auf C Code-spezifische Erstellungstools, Provider-/Modell-Hygiene, Diagnosen und UI-Polish und bewahrt zugleich eine respektvolle Anerkennung des ursprünglichen Roo Code-Projekts.",
+			"highlightsHeading": "Highlights in diesem Release:",
+			"imageGeneration": "Native Bildgenerierung aus dem Chat, mit Image Generation-Einstellungen, Prompt-Freigabe, Vorschauen und OpenRouter-, OpenAI/OpenAI-kompatiblen sowie Cloudflare Workers AI-Providern.",
+			"dynamicModels": "Dynamische OpenRouter-Bildmodell-Erkennung plus aktualisierte Provider-/Modell-Metadaten und Cache-Scoping.",
+			"visualInspector": "Visual Browser Inspector-Integration zum Inspizieren des Browserzustands neben Chat-Workflows.",
+			"diagnostics": "Optionale Remote-Diagnosen über den bestehenden Debug-Schalter, gesendet an Cmizz' Diagnose-Endpoint mit anonymen/privaten Event-Payloads.",
+			"providerHygiene": "Die ChatGPT Plus/Pro Codex-Katalogbereinigung filtert veraltete, nicht unterstützte Modelle und fällt auf unterstützte Defaults zurück.",
+			"toolingPolish": "Einstellungen, i18n, Windows-sichere Command-Hinweise und Polish für native Tools/Mode-Flows aus der C Code-Arbeit.",
+			"unsupportedLocal": "Lokale Bildgenerierungs-Backends wie Ollama, LM Studio, ComfyUI und Automatic1111 werden in diesem Release nicht als unterstützte Bildgenerierungs-Provider angeboten.",
+			"alternatives": "Für Issue Reports, Quellcodeänderungen und finale GitHub Release Notes nutze das <repoLink>C Code GitHub-Repository</repoLink>.",
+			"signoff": "Danke, dass du C Code nutzt."
 		},
 		"release": {
 			"heading": "Was ist neu:",

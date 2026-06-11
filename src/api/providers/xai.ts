@@ -23,6 +23,10 @@ import { handleOpenAIError } from "./utils/openai-error-handler"
 import { isMcpTool } from "../../utils/mcp-name"
 
 const XAI_DEFAULT_TEMPERATURE = 0
+const DEFAULT_DYNAMIC_MODEL_INFO: ModelInfo = {
+	contextWindow: 128_000,
+	supportsPromptCache: false,
+}
 
 export class XAIHandler extends BaseProvider implements SingleCompletionHandler {
 	protected options: ApiHandlerOptions
@@ -55,12 +59,9 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 	}
 
 	override getModel() {
-		const id =
-			this.options.apiModelId && this.options.apiModelId in xaiModels
-				? (this.options.apiModelId as XAIModelId)
-				: xaiDefaultModelId
+		const id = this.options.apiModelId || xaiDefaultModelId
+		const info: ModelInfo = id in xaiModels ? xaiModels[id as XAIModelId] : DEFAULT_DYNAMIC_MODEL_INFO
 
-		const info: ModelInfo = xaiModels[id]
 		const params = getModelParams({
 			format: "openai",
 			modelId: id,

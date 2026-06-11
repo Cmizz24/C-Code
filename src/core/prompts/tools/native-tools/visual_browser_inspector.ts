@@ -2,7 +2,7 @@ import type OpenAI from "openai"
 
 const VISUAL_BROWSER_INSPECTOR_DESCRIPTION = `Control and inspect a Playwright Chromium browser page that Roo opens explicitly for Visual Browser Inspector work. This tool captures only the controlled browser page, never the desktop or VS Code. Screenshots, crops, metadata, inspections, and heuristic findings are stored locally under .roo/visual-browser-inspector/<session-id>/.
 
-Use this tool for visual UI inspection, local screenshots, DOM inspection, crop metadata, and local MVP visual-analysis heuristics. Non-local/private URLs are blocked unless allowExternal is true.`
+Use this tool for visual UI inspection, local screenshots, DOM inspection, crop metadata, and local MVP visual-analysis heuristics. Do not use this as a substitute for generate_image when the user asks to generate or edit an image; use image_generation routing instead unless the user explicitly asks to operate or inspect a browser/web app. Non-local/private URLs are blocked unless allowExternal is true.`
 
 export default {
 	type: "function",

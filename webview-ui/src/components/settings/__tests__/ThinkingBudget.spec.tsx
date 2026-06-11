@@ -304,5 +304,25 @@ describe("ThinkingBudget", () => {
 			expect(screen.getByTestId("select-item-medium")).toBeInTheDocument()
 			expect(screen.getByTestId("select-item-high")).toBeInTheDocument()
 		})
+
+		it("should show 'xhigh' and 'max' options when supportsReasoningEffort explicitly includes them", () => {
+			render(
+				<ThinkingBudget
+					{...defaultProps}
+					modelInfo={{
+						...reasoningEffortModelInfo,
+						supportsReasoningEffort: ["low", "medium", "high", "xhigh", "max"],
+					}}
+				/>,
+			)
+
+			expect(screen.getByTestId("reasoning-effort")).toBeInTheDocument()
+			expect(screen.queryByTestId("select-item-disable")).not.toBeInTheDocument()
+			expect(screen.getByTestId("select-item-low")).toBeInTheDocument()
+			expect(screen.getByTestId("select-item-medium")).toBeInTheDocument()
+			expect(screen.getByTestId("select-item-high")).toBeInTheDocument()
+			expect(screen.getByTestId("select-item-xhigh")).toBeInTheDocument()
+			expect(screen.getByTestId("select-item-max")).toBeInTheDocument()
+		})
 	})
 })

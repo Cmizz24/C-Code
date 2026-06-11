@@ -22,12 +22,13 @@
 		"apiKeyRequired": "Es requereix la clau API de {{provider}} per a la generació d'imatges. Configura-la a la configuració de Generació d'Imatges.",
 		"modelRequired": "{{provider}} requereix un ID de model per a la generació d'imatges. Configura'l a la configuració de Generació d'Imatges.",
 		"unsupportedApiMethod": "{{provider}} no admet el mètode d'API de generació d'imatges {{apiMethod}}.",
-		"unsupportedProvider": "{{provider}} no és compatible amb la generació d'imatges. Fes servir OpenRouter, OpenAI/OpenAI-compatible, ComfyUI o Automatic1111.",
+		"unsupportedProvider": "{{provider}} no és compatible amb la generació d'imatges. Fes servir OpenRouter, OpenAI/OpenAI-compatible o Cloudflare Workers AI.",
 		"failedWithStatus": "Error en generar imatge: {{status}} {{statusText}}",
 		"failedWithMessage": "Error en generar imatge: {{message}}",
 		"noImageGenerated": "No s'ha generat cap imatge en la resposta",
 		"invalidImageData": "Dades d'imatge no vàlides en la resposta",
 		"invalidImageFormat": "Format d'imatge no vàlid rebut",
-		"unknownError": "S'ha produït un error desconegut"
+		"unknownError": "S'ha produït un error desconegut",
+		"accountIdRequired": "Es requereix l'ID del compte de Cloudflare de {{provider}} per a la generació d'imatges. Configura'l a la configuració de Generació d'Imatges."
 	}
 }

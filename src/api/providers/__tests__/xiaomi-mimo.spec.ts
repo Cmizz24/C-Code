@@ -89,7 +89,7 @@ vi.mock("openai", () => {
 import OpenAI from "openai"
 import type { Anthropic } from "@anthropic-ai/sdk"
 
-import { xiaomiMiMoDefaultModelId, xiaomiMiMoModels } from "@roo-code/types"
+import { type ModelInfo, xiaomiMiMoDefaultModelId, xiaomiMiMoModels } from "@roo-code/types"
 
 import type { ApiHandlerOptions } from "../../../shared/api"
 
@@ -208,26 +208,27 @@ describe("XiaomiMiMoHandler", () => {
 				cacheWritesPrice: 0,
 				cacheReadsPrice: 0.0028,
 				supportsPromptCache: true,
+				supportsImages: true,
 			})
-			expect(xiaomiMiMoModels["mimo-v2-pro"]).toMatchObject({
-				inputPrice: 1,
-				outputPrice: 3,
+			const deprecatedProModel = xiaomiMiMoModels["mimo-v2-pro"] as ModelInfo
+
+			expect(deprecatedProModel).toMatchObject({
+				inputPrice: 0.435,
+				outputPrice: 0.87,
 				cacheWritesPrice: 0,
-				cacheReadsPrice: 0.2,
+				cacheReadsPrice: 0.0036,
 				supportsPromptCache: true,
-				longContextPricing: {
-					thresholdTokens: 256_000,
-					inputPriceMultiplier: 2,
-					outputPriceMultiplier: 2,
-					cacheReadsPriceMultiplier: 2,
-				},
+				deprecated: true,
 			})
+			expect(deprecatedProModel.longContextPricing).toBeUndefined()
 			expect(xiaomiMiMoModels["mimo-v2-omni"]).toMatchObject({
-				inputPrice: 0.4,
-				outputPrice: 2,
+				inputPrice: 0.14,
+				outputPrice: 0.28,
 				cacheWritesPrice: 0,
-				cacheReadsPrice: 0.08,
+				cacheReadsPrice: 0.0028,
 				supportsPromptCache: true,
+				supportsImages: true,
+				deprecated: true,
 			})
 			expect(xiaomiMiMoModels["mimo-v2-flash"]).toMatchObject({
 				inputPrice: 0.1,
@@ -249,6 +250,8 @@ describe("XiaomiMiMoHandler", () => {
 			expect(model.info).toEqual(xiaomiMiMoModels["mimo-v2-omni"])
 			expect(model.info.contextWindow).toBe(256_000)
 			expect(model.info.maxTokens).toBe(128_000)
+			expect(model.info.supportsImages).toBe(true)
+			expect(model.info.deprecated).toBe(true)
 			expect(model.info.supportsReasoningBinary).toBe(true)
 		})
 

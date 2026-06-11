@@ -240,7 +240,8 @@
 	"imageGeneration": {
 		"approval": {
 			"generate": "Generate",
-			"editPromptHint": "Edit the prompt in the message box before approving, or approve as-is."
+			"editPromptHint": "Edit the prompt in this card before approving, or approve as-is.",
+			"promptLabel": "Prompt to generate"
 		},
 		"statusTitle": "Image generation: {{status}}",
 		"status": {
@@ -268,13 +269,36 @@
 			"totalTokens": "Total tokens",
 			"images": "Images",
 			"cost": "Cost",
-			"error": "Error"
+			"error": "Error",
+			"showDetails": "Show details",
+			"hideDetails": "Hide details",
+			"dimensions": "Dimensions",
+			"dimensionsValue": "{{width}} × {{height}} px",
+			"estimatedCost": "Estimated cost",
+			"neurons": "Neurons",
+			"estimatedNeurons": "Estimated neurons",
+			"estimatedRemainingNeurons": "Estimated remaining neurons",
+			"cloudflareUsage": "Estimated Cloudflare usage",
+			"cloudflareUsageValue": "{{used}} / {{quota}} neurons used · {{remaining}} remaining",
+			"usageSource": "Usage source",
+			"estimatedUsedNeuronsToday": "Estimated used today",
+			"dailyQuotaNeurons": "Daily free quota",
+			"quotaResetAt": "Quota reset",
+			"quotaDescription": "Quota note",
+			"pricingDescription": "Pricing note",
+			"usageSources": {
+				"provider_response": "Provider response",
+				"provider_response_with_local_quota": "Provider response + local quota estimate",
+				"local_estimate": "Local estimate",
+				"unknown": "Unknown"
+			}
 		},
 		"apiMethods": {
 			"chat_completions": "Chat completions",
 			"images_api": "Images API",
 			"comfyui_api": "ComfyUI API",
-			"automatic1111_api": "Automatic1111 API"
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
 		}
 	},
 	"directoryOperations": {
@@ -490,11 +514,19 @@
 		"title": "C Code {{version}} Released",
 		"support": "Please support C Code by starring us on <githubLink>GitHub</githubLink>.",
 		"finalRelease": {
-			"title": "C Code {{version}} update",
-			"intro": "C Code is continuing as Cmizz's personal fork of Roo Code. Follow Cmizz's repository for the latest fork updates, fixes, and development notes: <repoLink>Cmizz24/C-Code</repoLink>.",
-			"continuity": "This extension will keep receiving C Code personalization updates while preserving respectful attribution to the original Roo Code project.",
-			"alternatives": "For the current work, bug reports, and new changes, use the <repoLink>C Code GitHub repository</repoLink>.",
-			"signoff": "Happy coding!"
+			"title": "C Code {{version}} release",
+			"intro": "C Code {{version}} is ready from Cmizz's consolidated fork base. Follow the fork repository for release notes, fixes, and development updates: <repoLink>Cmizz24/C-Code</repoLink>.",
+			"summary": "This release focuses on C Code-specific creation tools, provider/model hygiene, diagnostics, and UI polish while preserving respectful attribution to the original Roo Code project.",
+			"highlightsHeading": "Highlights in this release:",
+			"imageGeneration": "Native image generation from chat, with Image Generation settings, prompt approval, previews, and OpenRouter, OpenAI/OpenAI-compatible, and Cloudflare Workers AI providers.",
+			"dynamicModels": "Dynamic OpenRouter image-model discovery plus refreshed provider/model metadata and cache scoping.",
+			"visualInspector": "Visual Browser Inspector integration for inspecting browser state alongside chat workflows.",
+			"diagnostics": "Opt-in remote diagnostics through the existing debug toggle, sent to Cmizz's diagnostics endpoint with anonymous/private event payloads.",
+			"providerHygiene": "ChatGPT Plus/Pro Codex catalog cleanup filters stale unsupported models and falls back to supported defaults.",
+			"toolingPolish": "Settings, i18n, Windows-safe command guidance, and native tool/mode-flow polish from the C Code work.",
+			"unsupportedLocal": "Local image-generation backends such as Ollama, LM Studio, ComfyUI, and Automatic1111 are not exposed as supported image-generation providers in this release.",
+			"alternatives": "For issue reports, source changes, and final GitHub release notes, use the <repoLink>C Code GitHub repository</repoLink>.",
+			"signoff": "Thanks for using C Code."
 		},
 		"release": {
 			"heading": "What's New:",

@@ -369,6 +369,11 @@ export type ExtensionState = Pick<
 	| "openAiImageBaseUrl"
 	| "openAiImageGenerationSelectedModel"
 	| "openAiImageGenerationApiMethod"
+	| "cloudflareImageAccountId"
+	| "cloudflareImageBaseUrl"
+	| "cloudflareImageGenerationSelectedModel"
+	| "cloudflareImageGenerationApiMethod"
+	| "cloudflareWorkersAiImageUsage"
 	| "comfyUiImageBaseUrl"
 	| "comfyUiImageGenerationSelectedModel"
 	| "comfyUiImageGenerationApiMethod"
@@ -449,6 +454,7 @@ export type ExtensionState = Pick<
 	hasOpenedModeSelector: boolean
 	openRouterImageApiKey?: string
 	openAiImageApiKey?: string
+	cloudflareImageApiKey?: string
 	comfyUiImageApiKey?: string
 	automatic1111ImageApiKey?: string
 	ollamaImageApiKey?: string
@@ -980,6 +986,8 @@ export interface ClineSayTool {
 	question?: string
 	imageData?: string // Base64 encoded image data for generated images
 	imageGeneration?: GeneratedImageMetadata
+	imageUri?: string
+	imagePath?: string
 	// Properties for runSlashCommand tool
 	command?: string
 	args?: string

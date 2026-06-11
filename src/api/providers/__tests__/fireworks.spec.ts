@@ -3,7 +3,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
-import { type FireworksModelId, fireworksDefaultModelId, fireworksModels } from "@roo-code/types"
+import { type FireworksModelId, type ModelInfo, fireworksDefaultModelId, fireworksModels } from "@roo-code/types"
+
+import { getModelMaxOutputTokens } from "../../../shared/api"
 
 import { FireworksHandler } from "../fireworks"
 
@@ -84,7 +86,7 @@ describe("FireworksHandler", () => {
 	})
 
 	it("should return specified model when valid model is provided", () => {
-		const testModelId: FireworksModelId = "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"
+		const testModelId: FireworksModelId = "accounts/fireworks/models/qwen3p6-plus"
 		const handlerWithModel = new FireworksHandler({
 			apiModelId: testModelId,
 			fireworksApiKey: "test-fireworks-api-key",
@@ -94,260 +96,120 @@ describe("FireworksHandler", () => {
 		expect(model.info).toEqual(expect.objectContaining(fireworksModels[testModelId]))
 	})
 
-	it("should return Kimi K2 Instruct model with correct configuration", () => {
-		const testModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2-instruct"
-		const handlerWithModel = new FireworksHandler({
-			apiModelId: testModelId,
-			fireworksApiKey: "test-fireworks-api-key",
-		})
-		const model = handlerWithModel.getModel()
-		expect(model.id).toBe(testModelId)
-		expect(model.info).toEqual(
-			expect.objectContaining({
-				maxTokens: 16384,
-				contextWindow: 128000,
-				supportsImages: false,
-				supportsPromptCache: false,
-				inputPrice: 0.6,
-				outputPrice: 2.5,
-				description: expect.stringContaining("Kimi K2 is a state-of-the-art mixture-of-experts"),
-			}),
-		)
-	})
-
-	it("should return Kimi K2 Thinking model with correct configuration", () => {
-		const testModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2-thinking"
-		const handlerWithModel = new FireworksHandler({
-			apiModelId: testModelId,
-			fireworksApiKey: "test-fireworks-api-key",
-		})
-		const model = handlerWithModel.getModel()
-		expect(model.id).toBe(testModelId)
-		expect(model.info).toEqual(
-			expect.objectContaining({
-				maxTokens: 16000,
-				contextWindow: 256000,
+	const fireworksMetadataCases: Array<{
+		name: string
+		id: FireworksModelId
+		expected: Record<string, unknown>
+	}> = [
+		{
+			name: "Kimi K2.6",
+			id: "accounts/fireworks/models/kimi-k2p6",
+			expected: {
+				maxTokens: 32_768,
+				contextWindow: 262_144,
+				supportsImages: true,
+				supportsPromptCache: true,
+				supportsReasoningBinary: true,
+				preserveReasoning: true,
+				inputPrice: 0.95,
+				outputPrice: 4,
+				cacheReadsPrice: 0.16,
+				description: expect.stringContaining("current flagship agentic model"),
+			},
+		},
+		{
+			name: "DeepSeek V4 Pro",
+			id: "accounts/fireworks/models/deepseek-v4-pro",
+			expected: {
+				maxTokens: 384_000,
+				contextWindow: 1_000_000,
 				supportsImages: false,
 				supportsPromptCache: true,
-				supportsTemperature: true,
 				preserveReasoning: true,
-				defaultTemperature: 1.0,
-				inputPrice: 0.6,
-				outputPrice: 2.5,
-				cacheReadsPrice: 0.15,
-			}),
-		)
-	})
-
-	it("should return MiniMax M2 model with correct configuration", () => {
-		const testModelId: FireworksModelId = "accounts/fireworks/models/minimax-m2"
-		const handlerWithModel = new FireworksHandler({
-			apiModelId: testModelId,
-			fireworksApiKey: "test-fireworks-api-key",
-		})
-		const model = handlerWithModel.getModel()
-		expect(model.id).toBe(testModelId)
-		expect(model.info).toEqual(
-			expect.objectContaining({
-				maxTokens: 4096,
-				contextWindow: 204800,
+				inputPrice: 1.74,
+				outputPrice: 3.48,
+				cacheReadsPrice: 0.145,
+				description: expect.stringContaining("flagship DeepSeek V4"),
+			},
+		},
+		{
+			name: "GLM-5.1",
+			id: "accounts/fireworks/models/glm-5p1",
+			expected: {
+				maxTokens: 131_072,
+				contextWindow: 202_752,
 				supportsImages: false,
-				supportsPromptCache: false,
+				supportsPromptCache: true,
+				inputPrice: 1.4,
+				outputPrice: 4.4,
+				cacheReadsPrice: 0.26,
+				description: expect.stringContaining("frontier coding and agentic reasoning"),
+			},
+		},
+		{
+			name: "Qwen 3.6 Plus",
+			id: "accounts/fireworks/models/qwen3p6-plus",
+			expected: {
+				maxTokens: 32_768,
+				contextWindow: 262_144,
+				supportsImages: true,
+				supportsPromptCache: true,
+				inputPrice: 0.5,
+				outputPrice: 3,
+				cacheReadsPrice: 0.1,
+				description: expect.stringContaining("current Qwen model"),
+			},
+		},
+		{
+			name: "MiniMax M2.7",
+			id: "accounts/fireworks/models/minimax-m2p7",
+			expected: {
+				maxTokens: 196_608,
+				contextWindow: 196_608,
+				supportsImages: false,
+				supportsPromptCache: true,
 				inputPrice: 0.3,
 				outputPrice: 1.2,
-				description: expect.stringContaining("MiniMax M2 is a high-performance language model"),
-			}),
-		)
-	})
-
-	it("should return Qwen3 235B model with correct configuration", () => {
-		const testModelId: FireworksModelId = "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"
-		const handlerWithModel = new FireworksHandler({
-			apiModelId: testModelId,
-			fireworksApiKey: "test-fireworks-api-key",
-		})
-		const model = handlerWithModel.getModel()
-		expect(model.id).toBe(testModelId)
-		expect(model.info).toEqual(
-			expect.objectContaining({
-				maxTokens: 32768,
-				contextWindow: 256000,
+				cacheReadsPrice: 0.06,
+				description: expect.stringContaining("current long-context text model"),
+			},
+		},
+		{
+			name: "gpt-oss-120b",
+			id: "accounts/fireworks/models/gpt-oss-120b",
+			expected: {
+				maxTokens: 131_072,
+				contextWindow: 131_072,
 				supportsImages: false,
-				supportsPromptCache: false,
-				inputPrice: 0.22,
-				outputPrice: 0.88,
-				description:
-					"Latest Qwen3 thinking model, competitive against the best closed source models in Jul 2025.",
-			}),
-		)
-	})
-
-	it("should return DeepSeek R1 model with correct configuration", () => {
-		const testModelId: FireworksModelId = "accounts/fireworks/models/deepseek-r1-0528"
-		const handlerWithModel = new FireworksHandler({
-			apiModelId: testModelId,
-			fireworksApiKey: "test-fireworks-api-key",
-		})
-		const model = handlerWithModel.getModel()
-		expect(model.id).toBe(testModelId)
-		expect(model.info).toEqual(
-			expect.objectContaining({
-				maxTokens: 20480,
-				contextWindow: 160000,
-				supportsImages: false,
-				supportsPromptCache: false,
-				inputPrice: 3,
-				outputPrice: 8,
-				description: expect.stringContaining("05/28 updated checkpoint of Deepseek R1"),
-			}),
-		)
-	})
-
-	it("should return DeepSeek V3 model with correct configuration", () => {
-		const testModelId: FireworksModelId = "accounts/fireworks/models/deepseek-v3"
-		const handlerWithModel = new FireworksHandler({
-			apiModelId: testModelId,
-			fireworksApiKey: "test-fireworks-api-key",
-		})
-		const model = handlerWithModel.getModel()
-		expect(model.id).toBe(testModelId)
-		expect(model.info).toEqual(
-			expect.objectContaining({
-				maxTokens: 16384,
-				contextWindow: 128000,
-				supportsImages: false,
-				supportsPromptCache: false,
-				inputPrice: 0.9,
-				outputPrice: 0.9,
-				description: expect.stringContaining("strong Mixture-of-Experts (MoE) language model"),
-			}),
-		)
-	})
-
-	it("should return DeepSeek V3.1 model with correct configuration", () => {
-		const testModelId: FireworksModelId = "accounts/fireworks/models/deepseek-v3p1"
-		const handlerWithModel = new FireworksHandler({
-			apiModelId: testModelId,
-			fireworksApiKey: "test-fireworks-api-key",
-		})
-		const model = handlerWithModel.getModel()
-		expect(model.id).toBe(testModelId)
-		expect(model.info).toEqual(
-			expect.objectContaining({
-				maxTokens: 16384,
-				contextWindow: 163840,
-				supportsImages: false,
-				supportsPromptCache: false,
-				inputPrice: 0.56,
-				outputPrice: 1.68,
-				description: expect.stringContaining("DeepSeek v3.1 is an improved version"),
-			}),
-		)
-	})
-
-	it("should return GLM-4.5 model with correct configuration", () => {
-		const testModelId: FireworksModelId = "accounts/fireworks/models/glm-4p5"
-		const handlerWithModel = new FireworksHandler({
-			apiModelId: testModelId,
-			fireworksApiKey: "test-fireworks-api-key",
-		})
-		const model = handlerWithModel.getModel()
-		expect(model.id).toBe(testModelId)
-		expect(model.info).toEqual(
-			expect.objectContaining({
-				maxTokens: 16384,
-				contextWindow: 128000,
-				supportsImages: false,
-				supportsPromptCache: false,
-				inputPrice: 0.55,
-				outputPrice: 2.19,
-				description: expect.stringContaining("Z.ai GLM-4.5 with 355B total parameters"),
-			}),
-		)
-	})
-
-	it("should return GLM-4.5-Air model with correct configuration", () => {
-		const testModelId: FireworksModelId = "accounts/fireworks/models/glm-4p5-air"
-		const handlerWithModel = new FireworksHandler({
-			apiModelId: testModelId,
-			fireworksApiKey: "test-fireworks-api-key",
-		})
-		const model = handlerWithModel.getModel()
-		expect(model.id).toBe(testModelId)
-		expect(model.info).toEqual(
-			expect.objectContaining({
-				maxTokens: 16384,
-				contextWindow: 128000,
-				supportsImages: false,
-				supportsPromptCache: false,
-				inputPrice: 0.55,
-				outputPrice: 2.19,
-				description: expect.stringContaining("Z.ai GLM-4.5-Air with 106B total parameters"),
-			}),
-		)
-	})
-
-	it("should return GLM-4.6 model with correct configuration", () => {
-		const testModelId: FireworksModelId = "accounts/fireworks/models/glm-4p6"
-		const handlerWithModel = new FireworksHandler({
-			apiModelId: testModelId,
-			fireworksApiKey: "test-fireworks-api-key",
-		})
-		const model = handlerWithModel.getModel()
-		expect(model.id).toBe(testModelId)
-		expect(model.info).toEqual(
-			expect.objectContaining({
-				maxTokens: 25344,
-				contextWindow: 198000,
-				supportsImages: false,
-				supportsPromptCache: false,
-				inputPrice: 0.55,
-				outputPrice: 2.19,
-				description: expect.stringContaining("Z.ai GLM-4.6 is an advanced coding model"),
-			}),
-		)
-	})
-
-	it("should return gpt-oss-20b model with correct configuration", () => {
-		const testModelId: FireworksModelId = "accounts/fireworks/models/gpt-oss-20b"
-		const handlerWithModel = new FireworksHandler({
-			apiModelId: testModelId,
-			fireworksApiKey: "test-fireworks-api-key",
-		})
-		const model = handlerWithModel.getModel()
-		expect(model.id).toBe(testModelId)
-		expect(model.info).toEqual(
-			expect.objectContaining({
-				maxTokens: 16384,
-				contextWindow: 128000,
-				supportsImages: false,
-				supportsPromptCache: false,
-				inputPrice: 0.07,
-				outputPrice: 0.3,
-				description: expect.stringContaining("OpenAI gpt-oss-20b: Compact model for local/edge deployments"),
-			}),
-		)
-	})
-
-	it("should return gpt-oss-120b model with correct configuration", () => {
-		const testModelId: FireworksModelId = "accounts/fireworks/models/gpt-oss-120b"
-		const handlerWithModel = new FireworksHandler({
-			apiModelId: testModelId,
-			fireworksApiKey: "test-fireworks-api-key",
-		})
-		const model = handlerWithModel.getModel()
-		expect(model.id).toBe(testModelId)
-		expect(model.info).toEqual(
-			expect.objectContaining({
-				maxTokens: 16384,
-				contextWindow: 128000,
-				supportsImages: false,
-				supportsPromptCache: false,
+				supportsPromptCache: true,
 				inputPrice: 0.15,
 				outputPrice: 0.6,
-				description: expect.stringContaining("OpenAI gpt-oss-120b: Production-grade, general-purpose model"),
-			}),
-		)
+				cacheReadsPrice: 0.015,
+				description: expect.stringContaining("production-grade open-weight model"),
+			},
+		},
+		{
+			name: "deprecated Kimi K2 Instruct compatibility",
+			id: "accounts/fireworks/models/kimi-k2-instruct",
+			expected: {
+				maxTokens: 16_384,
+				contextWindow: 128_000,
+				supportsImages: false,
+				supportsPromptCache: false,
+				deprecated: true,
+				description: expect.stringContaining("Deprecated Kimi K2 instruct checkpoint"),
+			},
+		},
+	]
+
+	it.each(fireworksMetadataCases)("should return $name model with correct configuration", ({ id, expected }) => {
+		const handlerWithModel = new FireworksHandler({
+			apiModelId: id,
+			fireworksApiKey: "test-fireworks-api-key",
+		})
+		const model = handlerWithModel.getModel()
+		expect(model.id).toBe(id)
+		expect(model.info).toEqual(expect.objectContaining(expected))
 	})
 
 	it("completePrompt method should return text from Fireworks API", async () => {
@@ -412,12 +274,13 @@ describe("FireworksHandler", () => {
 	})
 
 	it("createMessage should pass correct parameters to Fireworks client", async () => {
-		const modelId: FireworksModelId = "accounts/fireworks/models/kimi-k2-instruct"
+		const modelId: FireworksModelId = "accounts/fireworks/models/kimi-k2p6"
 		const modelInfo = fireworksModels[modelId]
-		const handlerWithModel = new FireworksHandler({
+		const options = {
 			apiModelId: modelId,
 			fireworksApiKey: "test-fireworks-api-key",
-		})
+		}
+		const handlerWithModel = new FireworksHandler(options)
 
 		mockCreate.mockImplementationOnce(() => {
 			return {
@@ -438,7 +301,12 @@ describe("FireworksHandler", () => {
 		expect(mockCreate).toHaveBeenCalledWith(
 			expect.objectContaining({
 				model: modelId,
-				max_tokens: modelInfo.maxTokens,
+				max_tokens: getModelMaxOutputTokens({
+					modelId,
+					model: modelInfo as ModelInfo,
+					settings: options,
+					format: "openai",
+				}),
 				temperature: 0.5,
 				messages: expect.arrayContaining([{ role: "system", content: systemPrompt }]),
 				stream: true,
@@ -449,7 +317,7 @@ describe("FireworksHandler", () => {
 	})
 
 	it("should use provider default temperature of 0.5 for models without defaultTemperature", async () => {
-		const modelId: FireworksModelId = "accounts/fireworks/models/kimi-k2-instruct"
+		const modelId: FireworksModelId = "accounts/fireworks/models/kimi-k2p6"
 		const handlerWithModel = new FireworksHandler({
 			apiModelId: modelId,
 			fireworksApiKey: "test-fireworks-api-key",

@@ -15,8 +15,14 @@ import {
 	minimaxDefaultModelId,
 	minimaxModels,
 	openRouterDefaultModelId,
+	internationalZAiDefaultModelId,
+	mainlandZAiDefaultModelId,
+	internationalZAiModels,
+	mainlandZAiModels,
 	xiaomiMiMoDefaultModelId,
 	xiaomiMiMoModels,
+	vscodeLlmDefaultModelId,
+	vscodeLlmModels,
 } from "@roo-code/types"
 
 import { useSelectedModel } from "../useSelectedModel"
@@ -405,7 +411,7 @@ describe("useSelectedModel", () => {
 		})
 	})
 
-	describe("anthropic provider with 1M context", () => {
+	describe("anthropic provider GA 1M context", () => {
 		beforeEach(() => {
 			mockUseRouterModels.mockReturnValue({
 				data: undefined,
@@ -424,7 +430,6 @@ describe("useSelectedModel", () => {
 			const apiConfiguration: ProviderSettings = {
 				apiProvider: "anthropic",
 				apiModelId: "claude-sonnet-4-6",
-				anthropicBeta1MContext: false,
 			}
 
 			const wrapper = createWrapper()
@@ -444,6 +449,7 @@ describe("useSelectedModel", () => {
 					openrouter: {},
 					requesty: {},
 					litellm: {},
+					bedrock: {},
 				},
 				isLoading: false,
 				isError: false,
@@ -496,6 +502,127 @@ describe("useSelectedModel", () => {
 
 			expect(result.current.id).toBe("anthropic.claude-3-5-sonnet-20241022-v2:0")
 			expect(result.current.info?.contextWindow).toBe(200_000)
+		})
+
+		it("should fetch Bedrock router models only when region and credentials are configured", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "bedrock",
+				apiModelId: "anthropic.claude-sonnet-4-6",
+				awsRegion: "us-east-1",
+				awsAccessKey: "test-access-key",
+				awsSecretKey: "test-secret-key",
+				awsSessionToken: "test-session-token",
+				awsBedrockEndpointEnabled: true,
+				awsBedrockEndpoint: "https://bedrock.us-east-1.amazonaws.com",
+			}
+
+			const wrapper = createWrapper()
+			renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(mockUseRouterModels).toHaveBeenCalledWith({
+				provider: "bedrock",
+				values: {
+					awsRegion: "us-east-1",
+					awsAccessKey: "test-access-key",
+					awsSecretKey: "test-secret-key",
+					awsSessionToken: "test-session-token",
+					awsUseProfile: undefined,
+					awsProfile: undefined,
+					awsUseApiKey: undefined,
+					awsApiKey: undefined,
+					awsBedrockEndpointEnabled: true,
+					awsBedrockEndpoint: "https://bedrock.us-east-1.amazonaws.com",
+				},
+				enabled: true,
+			})
+		})
+
+		it("should not fetch Bedrock router models when region is missing", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "bedrock",
+				apiModelId: "anthropic.claude-sonnet-4-6",
+				awsAccessKey: "test-access-key",
+				awsSecretKey: "test-secret-key",
+			}
+
+			const wrapper = createWrapper()
+			renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(mockUseRouterModels).toHaveBeenCalledWith({
+				provider: "bedrock",
+				values: expect.any(Object),
+				enabled: false,
+			})
+		})
+
+		it("should use dynamic Bedrock metadata for unknown discovered models", () => {
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					bedrock: {
+						"provider.dynamic-text-model": {
+							contextWindow: 128_000,
+							supportsPromptCache: false,
+							description: "Dynamic Text Model",
+						},
+					},
+				},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "bedrock",
+				apiModelId: "provider.dynamic-text-model",
+				awsRegion: "us-east-1",
+				awsAccessKey: "test-access-key",
+				awsSecretKey: "test-secret-key",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.id).toBe("provider.dynamic-text-model")
+			expect(result.current.info).toEqual({
+				contextWindow: 128_000,
+				supportsPromptCache: false,
+				description: "Dynamic Text Model",
+			})
+		})
+
+		it("should preserve curated Bedrock metadata over dynamic metadata for static model IDs", () => {
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					bedrock: {
+						"anthropic.claude-sonnet-4-6": {
+							contextWindow: 128_000,
+							supportsPromptCache: false,
+							description: "Dynamic fallback should not win",
+						},
+					},
+				},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "bedrock",
+				apiModelId: "anthropic.claude-sonnet-4-6",
+				awsRegion: "us-east-1",
+				awsAccessKey: "test-access-key",
+				awsSecretKey: "test-secret-key",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.id).toBe("anthropic.claude-sonnet-4-6")
+			expect(result.current.info).toMatchObject({
+				contextWindow: 1_000_000,
+				supportsPromptCache: true,
+				inputPrice: 3,
+				outputPrice: 15,
+			})
+			expect(result.current.info?.description).toBeUndefined()
 		})
 	})
 
@@ -843,6 +970,198 @@ describe("useSelectedModel", () => {
 		})
 	})
 
+	describe("zai provider", () => {
+		beforeEach(() => {
+			vi.clearAllMocks()
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					openrouter: {},
+					requesty: {},
+					litellm: {},
+				},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			mockUseOpenRouterModelProviders.mockReturnValue({
+				data: {},
+				isLoading: false,
+				isError: false,
+			} as any)
+		})
+
+		it("should default to international Z.ai models without an API line", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "zai",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("zai")
+			expect(result.current.id).toBe(internationalZAiDefaultModelId)
+			expect(result.current.info).toEqual(internationalZAiModels[internationalZAiDefaultModelId])
+		})
+
+		it("should use international Z.ai defaults for international API lines", () => {
+			const internationalApiLines: ProviderSettings["zaiApiLine"][] = [
+				"international_coding",
+				"international_api",
+			]
+
+			internationalApiLines.forEach((zaiApiLine) => {
+				const apiConfiguration: ProviderSettings = {
+					apiProvider: "zai",
+					zaiApiLine,
+				}
+
+				const wrapper = createWrapper()
+				const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+				expect(result.current.provider).toBe("zai")
+				expect(result.current.id).toBe(internationalZAiDefaultModelId)
+				expect(result.current.info).toEqual(internationalZAiModels[internationalZAiDefaultModelId])
+			})
+		})
+
+		it("should use mainland Z.ai defaults for China API lines", () => {
+			const chinaApiLines: ProviderSettings["zaiApiLine"][] = ["china_coding", "china_api"]
+
+			chinaApiLines.forEach((zaiApiLine) => {
+				const apiConfiguration: ProviderSettings = {
+					apiProvider: "zai",
+					zaiApiLine,
+				}
+
+				const wrapper = createWrapper()
+				const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+				expect(result.current.provider).toBe("zai")
+				expect(result.current.id).toBe(mainlandZAiDefaultModelId)
+				expect(result.current.info).toEqual(mainlandZAiModels[mainlandZAiDefaultModelId])
+			})
+		})
+
+		it("should use selected Z.ai model metadata from the active API-line model set", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "zai",
+				apiModelId: "glm-5.1",
+				zaiApiLine: "china_api",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("zai")
+			expect(result.current.id).toBe("glm-5.1")
+			expect(result.current.info).toEqual(mainlandZAiModels["glm-5.1"])
+		})
+
+		it("should not request router models for Z.ai", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "zai",
+				zaiApiKey: "test-api-key",
+				zaiApiLine: "international_api",
+			}
+
+			const wrapper = createWrapper()
+			renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(mockUseRouterModels).toHaveBeenCalledWith({ provider: undefined, enabled: false })
+		})
+	})
+
+	describe("vscode-lm provider", () => {
+		beforeEach(() => {
+			vi.clearAllMocks()
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					openrouter: {},
+					requesty: {},
+					litellm: {},
+				},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			mockUseOpenRouterModelProviders.mockReturnValue({
+				data: {},
+				isLoading: false,
+				isError: false,
+			} as any)
+		})
+
+		it("should default to the VS Code LM default model when no selector is configured", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "vscode-lm",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("vscode-lm")
+			expect(result.current.id).toBe(vscodeLlmDefaultModelId)
+			expect(result.current.info).toMatchObject({
+				contextWindow: vscodeLlmModels[vscodeLlmDefaultModelId].contextWindow,
+				supportsImages: false,
+				supportsPromptCache: false,
+			})
+			expect(result.current.info).not.toHaveProperty("maxTokens")
+			expect(result.current.info).not.toHaveProperty("inputPrice")
+			expect(result.current.info).not.toHaveProperty("outputPrice")
+			expect(mockUseRouterModels).toHaveBeenCalledWith({ provider: undefined, enabled: false })
+		})
+
+		it("should preserve blank selector fields and URL-encode selector values", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "vscode-lm",
+				vsCodeLmModelSelector: {
+					vendor: "copilot/chat",
+					id: "model/id?",
+				},
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("vscode-lm")
+			expect(result.current.id).toBe("copilot%2Fchat///model%2Fid%3F")
+			expect(result.current.info).toMatchObject({
+				supportsImages: false,
+				supportsPromptCache: false,
+			})
+			expect(result.current.info).not.toHaveProperty("maxTokens")
+			expect(result.current.info).not.toHaveProperty("inputPrice")
+			expect(result.current.info).not.toHaveProperty("outputPrice")
+		})
+
+		it("should use known static family metadata conservatively", () => {
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "vscode-lm",
+				vsCodeLmModelSelector: {
+					vendor: "copilot",
+					family: "claude-3.5-sonnet",
+				},
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("vscode-lm")
+			expect(result.current.id).toBe("copilot/claude-3.5-sonnet")
+			expect(result.current.info).toMatchObject({
+				contextWindow: vscodeLlmModels["claude-3.5-sonnet"].contextWindow,
+				supportsImages: false,
+				supportsPromptCache: false,
+			})
+			expect(result.current.info).not.toHaveProperty("maxTokens")
+			expect(result.current.info).not.toHaveProperty("inputPrice")
+			expect(result.current.info).not.toHaveProperty("outputPrice")
+			expect(result.current.info).not.toHaveProperty("cacheWritesPrice")
+			expect(result.current.info).not.toHaveProperty("cacheReadsPrice")
+		})
+	})
+
 	describe("xiaomi-mimo provider", () => {
 		beforeEach(() => {
 			vi.clearAllMocks()
@@ -896,11 +1215,48 @@ describe("useSelectedModel", () => {
 			expect(result.current.id).toBe("mimo-v2-omni")
 			expect(result.current.info).toEqual(xiaomiMiMoModels["mimo-v2-omni"])
 			expect(result.current.info).toMatchObject({
-				inputPrice: 0.4,
-				outputPrice: 2,
+				inputPrice: 0.14,
+				outputPrice: 0.28,
 				cacheWritesPrice: 0,
-				cacheReadsPrice: 0.08,
+				cacheReadsPrice: 0.0028,
 				supportsPromptCache: true,
+			})
+		})
+
+		it("should merge dynamic Xiaomi MiMo router metadata with static fallback metadata", () => {
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					"xiaomi-mimo": {
+						"mimo-v2.5-pro": {
+							description: "Dynamic Xiaomi MiMo V2.5 Pro",
+							supportsPromptCache: false,
+						} as ModelInfo,
+					},
+				},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "xiaomi-mimo",
+				apiModelId: "mimo-v2.5-pro",
+				xiaomiMiMoApiKey: "test-api-key",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("xiaomi-mimo")
+			expect(result.current.id).toBe("mimo-v2.5-pro")
+			expect(result.current.info).toMatchObject({
+				contextWindow: 1_000_000,
+				maxTokens: 128_000,
+				description: "Dynamic Xiaomi MiMo V2.5 Pro",
+				supportsPromptCache: false,
+				inputPrice: 0.435,
+				outputPrice: 0.87,
+				cacheWritesPrice: 0,
+				cacheReadsPrice: 0.0036,
 			})
 		})
 
@@ -918,7 +1274,42 @@ describe("useSelectedModel", () => {
 			expect(result.current.info).toBeUndefined()
 		})
 
-		it("should not request router models for Xiaomi MiMo", () => {
+		it("should use router metadata for unknown Xiaomi MiMo model IDs when available", () => {
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					"xiaomi-mimo": {
+						"unlisted-mimo-model": {
+							contextWindow: 256_000,
+							maxTokens: 64_000,
+							description: "Dynamic unlisted Xiaomi MiMo model",
+							supportsPromptCache: false,
+						} as ModelInfo,
+					},
+				},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "xiaomi-mimo",
+				apiModelId: "unlisted-mimo-model",
+				xiaomiMiMoApiKey: "test-api-key",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("xiaomi-mimo")
+			expect(result.current.id).toBe("unlisted-mimo-model")
+			expect(result.current.info).toMatchObject({
+				contextWindow: 256_000,
+				maxTokens: 64_000,
+				description: "Dynamic unlisted Xiaomi MiMo model",
+				supportsPromptCache: false,
+			})
+		})
+
+		it("should request router models for Xiaomi MiMo when configured", () => {
 			const apiConfiguration: ProviderSettings = {
 				apiProvider: "xiaomi-mimo",
 				xiaomiMiMoApiKey: "test-api-key",
@@ -928,7 +1319,14 @@ describe("useSelectedModel", () => {
 			const wrapper = createWrapper()
 			renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
 
-			expect(mockUseRouterModels).toHaveBeenCalledWith({ provider: undefined, enabled: false })
+			expect(mockUseRouterModels).toHaveBeenCalledWith({
+				provider: "xiaomi-mimo",
+				values: {
+					xiaomiMiMoApiKey: "test-api-key",
+					xiaomiMiMoBaseUrl: "https://token-plan-ams.xiaomimimo.com/v1",
+				},
+				enabled: true,
+			})
 		})
 	})
 })

@@ -200,6 +200,31 @@ describe("AnthropicHandler", () => {
 			const requestOptions = mockCreate.mock.calls[mockCreate.mock.calls.length - 1]?.[1]
 			expect(requestOptions?.headers?.["anthropic-beta"]).not.toContain("context-1m-2025-08-07")
 		})
+
+		it("should pass adaptive thinking with max effort for Claude Fable 5", async () => {
+			const fableHandler = new AnthropicHandler({
+				apiKey: "test-api-key",
+				apiModelId: "claude-fable-5",
+				enableReasoningEffort: true,
+				reasoningEffort: "max",
+			})
+
+			const stream = fableHandler.createMessage(systemPrompt, [
+				{
+					role: "user",
+					content: [{ type: "text" as const, text: "Solve this" }],
+				},
+			])
+
+			for await (const _chunk of stream) {
+				// Consume stream
+			}
+
+			const request = mockCreate.mock.calls[mockCreate.mock.calls.length - 1]?.[0]
+			expect(request.thinking).toEqual({ type: "adaptive" })
+			expect(request.output_config).toEqual({ effort: "max" })
+			expect(request.temperature).toBeUndefined()
+		})
 	})
 
 	describe("completePrompt", () => {
@@ -310,19 +335,22 @@ describe("AnthropicHandler", () => {
 			expect(model.info.contextWindow).toBe(1_000_000)
 			expect(model.info.inputPrice).toBe(3.0)
 			expect(model.info.outputPrice).toBe(15.0)
-			expect(model.info.supportsReasoningBudget).toBe(true)
+			expect(model.info.supportsReasoningAdaptive).toBe(true)
+			expect(model.info.supportsReasoningEffort).toEqual(["disable", "low", "medium", "high", "max"])
+			expect(model.info.adaptiveThinkingEffort).toBe("high")
+			expect(model.info.supportsTemperature).toBe(false)
 		})
 
-		it("should enable 1M context for Claude 4.5 Sonnet when beta flag is set", () => {
+		it("should keep standard Claude 4.5 Sonnet metadata when retired beta flag is set", () => {
 			const handler = new AnthropicHandler({
 				apiKey: "test-api-key",
 				apiModelId: "claude-sonnet-4-5",
 				anthropicBeta1MContext: true,
 			})
 			const model = handler.getModel()
-			expect(model.info.contextWindow).toBe(1000000)
-			expect(model.info.inputPrice).toBe(6.0)
-			expect(model.info.outputPrice).toBe(22.5)
+			expect(model.info.contextWindow).toBe(200_000)
+			expect(model.info.inputPrice).toBe(3.0)
+			expect(model.info.outputPrice).toBe(15.0)
 		})
 
 		it("should keep standard pricing for GA Claude 4.6 Sonnet when beta flag is set", () => {
@@ -335,6 +363,39 @@ describe("AnthropicHandler", () => {
 			expect(model.info.contextWindow).toBe(1000000)
 			expect(model.info.inputPrice).toBe(3.0)
 			expect(model.info.outputPrice).toBe(15.0)
+		})
+
+		it("should handle Claude Fable 5 as required adaptive thinking with max effort", () => {
+			const handler = new AnthropicHandler({
+				apiKey: "test-api-key",
+				apiModelId: "claude-fable-5",
+			})
+			const model = handler.getModel()
+			expect(model.id).toBe("claude-fable-5")
+			expect(model.info.maxTokens).toBe(128_000)
+			expect(model.info.contextWindow).toBe(1_000_000)
+			expect(model.info.supportsReasoningAdaptive).toBe(true)
+			expect(model.info.supportsReasoningEffort).toEqual(["low", "medium", "high", "xhigh", "max"])
+			expect(model.info.adaptiveThinkingEffort).toBe("high")
+			expect(model.info.requiredReasoningEffort).toBe(true)
+			expect(model.info.supportsTemperature).toBe(false)
+		})
+
+		it("should handle Claude Opus 4.8 as GA 1M context and adaptive-only", () => {
+			const handler = new AnthropicHandler({
+				apiKey: "test-api-key",
+				apiModelId: "claude-opus-4-8",
+			})
+			const model = handler.getModel()
+			expect(model.id).toBe("claude-opus-4-8")
+			expect(model.info.maxTokens).toBe(128_000)
+			expect(model.info.contextWindow).toBe(1_000_000)
+			expect(model.info.inputPrice).toBe(5.0)
+			expect(model.info.outputPrice).toBe(25.0)
+			expect(model.info.supportsReasoningAdaptive).toBe(true)
+			expect(model.info.supportsReasoningEffort).toEqual(["disable", "low", "medium", "high", "xhigh", "max"])
+			expect(model.info.adaptiveThinkingEffort).toBe("high")
+			expect(model.info.supportsTemperature).toBe(false)
 		})
 	})
 

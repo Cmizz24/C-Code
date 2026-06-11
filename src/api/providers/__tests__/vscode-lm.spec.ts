@@ -58,6 +58,7 @@ import * as vscode from "vscode"
 import { VsCodeLmHandler } from "../vscode-lm"
 import type { ApiHandlerOptions } from "../../../shared/api"
 import type { Anthropic } from "@anthropic-ai/sdk"
+import { openAiModelInfoSaneDefaults } from "@roo-code/types"
 
 const mockLanguageModelChat = {
 	id: "test-model",
@@ -394,46 +395,77 @@ describe("VsCodeLmHandler", () => {
 	})
 
 	describe("getModel", () => {
-		it("should return model info when client exists", async () => {
+		it("should return conservative model info when client exists", async () => {
 			const mockModel = { ...mockLanguageModelChat }
 			// The handler starts async initialization in the constructor.
 			// Make the test deterministic by explicitly (re)initializing here.
-			;(vscode.lm.selectChatModels as Mock).mockResolvedValue([mockModel])
+			;(vscode.lm.selectChatModels as Mock).mockResolvedValueOnce([mockModel])
 			handler["client"] = null
 			await handler.initializeClient()
 
 			const model = handler.getModel()
 			expect(model.id).toBe("test-model")
-			expect(model.info).toBeDefined()
-			expect(model.info.contextWindow).toBe(4096)
+			expect(model.info).toEqual({
+				contextWindow: 4096,
+				supportsImages: false,
+				supportsPromptCache: false,
+				description: "VSCode Language Model: test-model",
+			})
+			expect(model.info).not.toHaveProperty("maxTokens")
+			expect(model.info).not.toHaveProperty("inputPrice")
+			expect(model.info).not.toHaveProperty("outputPrice")
 		})
 
-		it("should return fallback model info when no client exists", () => {
+		it("should fall back to sane context when client token limit is invalid", () => {
+			handler["client"] = { ...mockLanguageModelChat, id: "bad-token-model", maxInputTokens: 0 }
+
+			const model = handler.getModel()
+
+			expect(model.id).toBe("bad-token-model")
+			expect(model.info.contextWindow).toBe(openAiModelInfoSaneDefaults.contextWindow)
+			expect(model.info.supportsImages).toBe(false)
+			expect(model.info.supportsPromptCache).toBe(false)
+			expect(model.info).not.toHaveProperty("maxTokens")
+			expect(model.info).not.toHaveProperty("inputPrice")
+			expect(model.info).not.toHaveProperty("outputPrice")
+		})
+
+		it("should return conservative fallback model info when no client exists", () => {
 			// Clear the client first
 			handler["client"] = null
 			const model = handler.getModel()
 			expect(model.id).toBe("test-vendor/test-family")
-			expect(model.info).toBeDefined()
+			expect(model.info).toEqual({
+				...openAiModelInfoSaneDefaults,
+				supportsImages: false,
+				supportsPromptCache: false,
+				description: "VSCode Language Model (Fallback): test-vendor/test-family",
+			})
+			expect(model.info).not.toHaveProperty("maxTokens")
+			expect(model.info).not.toHaveProperty("inputPrice")
+			expect(model.info).not.toHaveProperty("outputPrice")
 		})
 
-		it("should return basic model info when client exists", async () => {
-			const mockModel = { ...mockLanguageModelChat }
-			// The handler starts async initialization in the constructor.
-			// Make the test deterministic by explicitly (re)initializing here.
-			;(vscode.lm.selectChatModels as Mock).mockResolvedValue([mockModel])
-			handler["client"] = null
-			await handler.initializeClient()
+		it("should preserve blank selector fields in fallback model IDs", () => {
+			const selectorHandler = new VsCodeLmHandler({
+				vsCodeLmModelSelector: {
+					vendor: "copilot",
+					id: "model/id",
+				},
+			})
+			selectorHandler["client"] = null
 
-			const model = handler.getModel()
-			expect(model.info).toBeDefined()
-			expect(model.info.contextWindow).toBe(4096)
-		})
+			const model = selectorHandler.getModel()
 
-		it("should return fallback model info when no client exists", () => {
-			// Clear the client first
-			handler["client"] = null
-			const model = handler.getModel()
-			expect(model.info).toBeDefined()
+			expect(model.id).toBe("copilot///model%2Fid")
+			expect(model.info).toEqual({
+				...openAiModelInfoSaneDefaults,
+				supportsImages: false,
+				supportsPromptCache: false,
+				description: "VSCode Language Model (Fallback): copilot///model%2Fid",
+			})
+
+			selectorHandler.dispose()
 		})
 	})
 

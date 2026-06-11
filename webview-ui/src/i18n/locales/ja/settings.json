@@ -31,6 +31,7 @@
 		"mcp": "MCPサーバー",
 		"worktrees": "Worktrees",
 		"autoApprove": "自動承認",
+		"imageGeneration": "画像生成",
 		"checkpoints": "チェックポイント",
 		"notifications": "通知",
 		"contextManagement": "コンテキスト",
@@ -57,7 +58,7 @@
 		"manageSettings": "設定を管理",
 		"debugMode": {
 			"label": "デバッグモードを有効にする",
-			"description": "デバッグモードを有効にすると、タスクヘッダーにAPI会話履歴とUIメッセージをフォーマットされたJSONとして一時ファイルで表示するための追加ボタンが表示されます。"
+			"description": "debug モードを有効にすると、タスクヘッダーに追加ボタンが表示され、API 会話履歴と UI メッセージを整形済み JSON として一時ファイルで確認できます。オンで保存すると、トラブルシューティングのためにサニタイズ済みのリモート診断を C-Code の固定 endpoint に送信することにも同意します。"
 		}
 	},
 	"slashCommands": {
@@ -264,6 +265,10 @@
 			"label": "メモリ",
 			"description": "チャットやツールエラーからのミスメモリ保存を自動承認します。オフの場合でも、保留中のメモリはチャットまたはメモリ設定から確認できます。"
 		},
+		"imageGeneration": {
+			"label": "画像",
+			"description": "チャットからの画像生成と編集アクションを自動承認します。設定済みの画像生成プロバイダーを使用して、画像ファイルを作成または変更できます。"
+		},
 		"followupQuestions": {
 			"label": "質問",
 			"description": "設定された時間が経過すると、フォローアップ質問の最初の提案回答を自動的に選択します",
@@ -292,6 +297,71 @@
 		},
 		"maxLimits": {
 			"description": "これらの上限まで自動的にリクエストを行い、その後継続の承認を求めます。"
+		}
+	},
+	"imageGeneration": {
+		"name": "AI画像生成を有効化",
+		"description": "有効にすると、C は別途設定した画像生成プロバイダーを使って、prompt から画像を生成・編集できます。",
+		"providerLabel": "プロバイダー",
+		"providerDescription": "画像生成に使用するプロバイダーを選択します。これは chat プロバイダープロファイルとは独立しています。",
+		"localProviderNote": "Cloudflare Workers AI は OpenRouter および OpenAI/OpenAI-compatible プロバイダーとあわせて利用できます。Ollama、LM Studio、ComfyUI、Automatic1111 はこのパネルでは選択できません。",
+		"apiKeyLabel": "{{provider}} APIキー",
+		"optionalApiKeyLabel": "{{provider}} APIキー（任意）",
+		"apiKeyPlaceholder": "{{provider}} APIキーを入力",
+		"apiKeyRequiredDescription": "このプロバイダーでは画像生成に API キーが必要です。",
+		"apiKeyOptionalDescription": "任意。endpoint、ローカルインスタンス、またはプロキシが bearer-token 認証を必要とする場合にのみ使用してください。",
+		"getApiKeyText": "APIキーの取得元",
+		"baseUrlLabel": "ベースURL",
+		"baseUrlPlaceholder": "デフォルト: {{url}}",
+		"baseUrlDescription": "{{url}} を使用するには空のままにしてください。",
+		"modelSelectionLabel": "画像生成モデル",
+		"modelSelectionDescription": "画像生成に使用するモデルを選択",
+		"modelIdLabel": "モデルID",
+		"customModelIdPlaceholder": "モデルIDを入力",
+		"modelIdPlaceholderWithDefault": "デフォルト: {{model}}",
+		"customModelIdDescription": "プロバイダーまたは OpenAI 互換 endpoint が公開している正確なモデル ID を入力してください。",
+		"optionalModelIdDescription": "任意。空欄にすると、プロバイダーで現在読み込まれている checkpoint を使用します。",
+		"apiMethodLabel": "APIメソッド",
+		"apiMethodDescription": "画像生成に使用する OpenAI 互換 endpoint の形式を選択してください。",
+		"apiMethodLockedDescription": "選択したモデルは {{model}} に必要な API メソッドを使用します。",
+		"apiMethodLabels": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
+		},
+		"negativePromptLabel": "Negative prompt",
+		"negativePromptPlaceholder": "生成画像で避けたい内容を入力してください",
+		"negativePromptDescription": "任意。対応プロバイダーで不要な被写体、スタイル、アーティファクトを避けるのに役立ちます。",
+		"warningMissingApiKey": "⚠️ {{provider}} で画像生成するには API キーが必要です。上で設定してください。",
+		"warningMissingModel": "⚠️ {{provider}} で画像生成するにはモデルIDが必要です。上で設定してください。",
+		"successConfigured": "✓ {{provider}} の画像生成が設定され、使用準備ができています",
+		"modelLabel": "画像生成モデル",
+		"optionalModelDescription": "任意。空欄にすると、プロバイダーで現在読み込まれている checkpoint を使用します。",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models は公開されているため、この一覧には画像出力対応モデルがすべて含まれる場合があります。画像 API キーを指定すると、OpenRouter が返す場合に Roo はアカウント固有の結果にそれを使用します。",
+		"cloudflareAccountIdLabel": "Cloudflare アカウント ID",
+		"cloudflareAccountIdPlaceholder": "Cloudflare アカウント ID を入力",
+		"cloudflareAccountIdDescription": "必須です。Cloudflare ダッシュボードのアカウント概要で確認できます。",
+		"cloudflareBaseUrlDescription": "空欄のままにすると Cloudflare の API v4 endpoint を使用します: {{url}}。",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI は、画像生成に Workers AI アカウント実行 endpoint を使用します。",
+		"warningMissingAccountId": "⚠️ {{provider}} で画像生成するには Cloudflare アカウント ID が必要です。上で設定してください。",
+		"cloudflarePricing": {
+			"title": "Cloudflare Workers AI の料金と無料枠",
+			"quotaDescription": "無料枠: {{freeAllocation}}。{{resetTime}} にリセットされます。従量課金の超過分: {{paidOverage}}。",
+			"modelColumn": "モデル",
+			"priceColumn": "料金",
+			"neuronsColumn": "Neurons"
+		},
+		"cloudflareUsage": {
+			"title": "今日の Workers AI 推定使用量",
+			"remainingLabel": "推定される無料 neurons 残量",
+			"neuronsValue": "{{count}} neurons",
+			"usedLabel": "今日の推定使用量",
+			"usedValue": "{{used}} / {{quota}} neurons",
+			"requestsLabel": "追跡した画像リクエスト",
+			"resetLabel": "次回リセット",
+			"localEstimateDescription": "これは C から実行された画像生成に基づくローカル推定です。Cloudflare はここで日次の残り quota を取得する文書化済み API を提供していません。プロバイダー確認済みの使用量は Cloudflare ダッシュボードで確認してください。"
 		}
 	},
 	"providers": {
@@ -391,12 +461,8 @@
 		"anthropicApiKey": "Anthropic APIキー",
 		"getAnthropicApiKey": "Anthropic APIキーを取得",
 		"anthropicUseAuthToken": "Anthropic APIキーをX-Api-Keyの代わりにAuthorizationヘッダーとして渡す",
-		"anthropic1MContextBetaLabel": "1Mコンテキストウィンドウを有効にする（ベータ版）",
-		"anthropic1MContextBetaDescription": "Claude Sonnet 4.x / Claude Opus 4.6のコンテキストウィンドウを100万トークンに拡張します",
 		"awsBedrock1MContextBetaLabel": "1Mコンテキストウィンドウを有効にする（ベータ版）",
 		"awsBedrock1MContextBetaDescription": "Claude Sonnet 4.x / Claude Opus 4.6のコンテキストウィンドウを100万トークンに拡張します",
-		"vertex1MContextBetaLabel": "1Mコンテキストウィンドウを有効にする（ベータ版）",
-		"vertex1MContextBetaDescription": "Claude Sonnet 4.x / Claude Opus 4.6のコンテキストウィンドウを100万トークンに拡張します",
 		"basetenApiKey": "Baseten APIキー",
 		"getBasetenApiKey": "Baseten APIキーを取得",
 		"poeApiKey": "Poe APIキー",
@@ -558,6 +624,7 @@
 			"minimal": "最小 (最速)",
 			"high": "高",
 			"xhigh": "非常に高い",
+			"max": "最大",
 			"medium": "中",
 			"low": "低"
 		},
@@ -988,7 +1055,7 @@
 			"description": "有効にすると、C は別途設定した画像生成プロバイダーを使って、prompt から画像を生成・編集できます。",
 			"providerLabel": "プロバイダー",
 			"providerDescription": "画像生成に使用するプロバイダーを選択します。これは chat プロバイダープロファイルとは独立しています。",
-			"localProviderNote": "Ollama と LM Studio は vision/chat API を公開しており、画像生成 API ではないため、ここでは選択できません。ローカル画像生成は、設定済みの ComfyUI や Automatic1111 などの実際の画像生成 API で利用できます。",
+			"localProviderNote": "Ollama、LM Studio、ComfyUI、Automatic1111 はここでは選択できません。このパネルは OpenRouter と OpenAI-compatible な画像生成 API にフォーカスしています。",
 			"apiKeyLabel": "{{provider}} APIキー",
 			"optionalApiKeyLabel": "{{provider}} APIキー（任意）",
 			"apiKeyPlaceholder": "{{provider}} APIキーを入力",
@@ -1016,7 +1083,7 @@
 			},
 			"negativePromptLabel": "Negative prompt",
 			"negativePromptPlaceholder": "生成画像で避けたい内容を入力してください",
-			"negativePromptDescription": "任意。ローカルプロバイダーが不要な被写体、スタイル、アーティファクトを避けるのに役立ちます。",
+			"negativePromptDescription": "任意。対応プロバイダーで不要な被写体、スタイル、アーティファクトを避けるのに役立ちます。",
 			"warningMissingApiKey": "⚠️ {{provider}} で画像生成するには API キーが必要です。上で設定してください。",
 			"warningMissingModel": "⚠️ {{provider}} で画像生成するにはモデルIDが必要です。上で設定してください。",
 			"successConfigured": "✓ {{provider}} の画像生成が設定され、使用準備ができています"

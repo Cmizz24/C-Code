@@ -7,6 +7,7 @@ import {
 	type ModelInfo,
 	type OpenAiCodexFastStatus,
 	openAiCodexDefaultModelId,
+	isOpenAiCodexSelectableModelId,
 	OpenAiCodexModelId,
 	openAiCodexModels,
 	type ReasoningEffort,
@@ -1245,6 +1246,9 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		const modelId = this.options.apiModelId
 
 		let id = modelId && modelId in openAiCodexModels ? (modelId as OpenAiCodexModelId) : openAiCodexDefaultModelId
+		if (!isOpenAiCodexSelectableModelId(id)) {
+			id = openAiCodexDefaultModelId
+		}
 
 		const info: ModelInfo = openAiCodexModels[id]
 

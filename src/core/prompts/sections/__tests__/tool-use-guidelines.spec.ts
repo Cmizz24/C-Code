@@ -21,6 +21,12 @@ describe("getToolUseGuidelinesSection", () => {
 		expect(guidelines).toContain("CLI Tools for pure command-line work")
 		expect(guidelines).toContain("visual_browser_inspector")
 		expect(guidelines).toContain("image_generation")
+		expect(guidelines).toContain("use generate_image directly when available")
+		expect(guidelines).toContain("Do not use visual_browser_inspector")
+		expect(guidelines).toContain("Playwright/browser automation")
+		expect(guidelines).toContain("MCP tools")
+		expect(guidelines).toContain("manual web UI workflows")
+		expect(guidelines).toContain("images/<descriptive-name>.png")
 	})
 
 	it("should include Windows-safe repository search guidance", () => {

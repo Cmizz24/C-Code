@@ -58,17 +58,74 @@ describe("LMStudio Fetcher", () => {
 				...lMStudioDefaultModelInfo,
 				description: `${rawModel.displayName} - ${rawModel.path}`,
 				contextWindow: rawModel.contextLength,
-				supportsPromptCache: true,
-				supportsImages: rawModel.vision,
-				maxTokens: rawModel.contextLength,
-				inputPrice: 0,
-				outputPrice: 0,
-				cacheWritesPrice: 0,
-				cacheReadsPrice: 0,
 			}
 
 			const result = parseLMStudioModel(rawModel)
 			expect(result).toEqual(expectedModelInfo)
+			expect(result).not.toHaveProperty("supportsImages")
+			expect(result).not.toHaveProperty("maxTokens")
+			expect(result).not.toHaveProperty("inputPrice")
+			expect(result).not.toHaveProperty("outputPrice")
+			expect(result).not.toHaveProperty("cacheWritesPrice")
+			expect(result).not.toHaveProperty("cacheReadsPrice")
+		})
+
+		it("should only mark image support when LM Studio reports vision support", () => {
+			const rawModel: LLMInstanceInfo = {
+				type: "llm",
+				modelKey: "vision-model",
+				format: "gguf",
+				displayName: "Vision Model",
+				path: "local/vision-model",
+				sizeBytes: 13277565112,
+				architecture: "llama",
+				identifier: "local/vision-model",
+				instanceReference: "vision-instance",
+				vision: true,
+				trainedForToolUse: false,
+				maxContextLength: 131072,
+				contextLength: 8192,
+			}
+
+			const result = parseLMStudioModel(rawModel)
+
+			expect(result).toEqual({
+				...lMStudioDefaultModelInfo,
+				description: `${rawModel.displayName} - ${rawModel.path}`,
+				contextWindow: rawModel.contextLength,
+				supportsImages: true,
+			})
+			expect(result).not.toHaveProperty("maxTokens")
+			expect(result).not.toHaveProperty("inputPrice")
+			expect(result).not.toHaveProperty("outputPrice")
+		})
+
+		it("should fall back to conservative context when LM Studio reports invalid context", () => {
+			const rawModel: LLMInfo = {
+				type: "llm" as const,
+				modelKey: "invalid-context-model",
+				format: "gguf",
+				displayName: "Invalid Context Model",
+				path: "local/invalid-context-model",
+				sizeBytes: 1000000000,
+				architecture: "llama",
+				vision: false,
+				trainedForToolUse: false,
+				maxContextLength: 0,
+			}
+
+			const result = parseLMStudioModel(rawModel)
+
+			expect(result).toEqual({
+				...lMStudioDefaultModelInfo,
+				description: `${rawModel.displayName} - ${rawModel.path}`,
+				contextWindow: lMStudioDefaultModelInfo.contextWindow,
+			})
+			expect(result.supportsPromptCache).toBe(false)
+			expect(result).not.toHaveProperty("supportsImages")
+			expect(result).not.toHaveProperty("maxTokens")
+			expect(result).not.toHaveProperty("inputPrice")
+			expect(result).not.toHaveProperty("outputPrice")
 		})
 	})
 

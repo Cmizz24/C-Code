@@ -41,6 +41,8 @@ export interface OpenAICompatibleConfig {
 	modelMaxTokens?: number
 	/** Temperature setting */
 	temperature?: number
+	/** Optional provider-specific AI SDK request body options */
+	providerOptions?: Parameters<typeof streamText>[0]["providerOptions"]
 }
 
 /**
@@ -174,6 +176,7 @@ export abstract class OpenAICompatibleHandler extends BaseProvider implements Si
 			maxOutputTokens: this.getMaxOutputTokens(),
 			tools: aiSdkTools,
 			toolChoice: this.mapToolChoice(metadata?.tool_choice),
+			...(this.config.providerOptions ? { providerOptions: this.config.providerOptions } : {}),
 		}
 
 		// Use streamText for streaming responses
@@ -205,6 +208,7 @@ export abstract class OpenAICompatibleHandler extends BaseProvider implements Si
 			prompt,
 			maxOutputTokens: this.getMaxOutputTokens(),
 			temperature: this.config.temperature ?? 0,
+			...(this.config.providerOptions ? { providerOptions: this.config.providerOptions } : {}),
 		})
 
 		return text

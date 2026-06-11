@@ -228,6 +228,17 @@ describe("Bedrock ARN Handling", () => {
 			expect((handler as any).client.config.region).toBe("eu-west-1")
 		})
 
+		it("should preserve cross-region inference detected from custom ARN model IDs", () => {
+			const handler = createHandler({
+				apiModelId: "custom-arn",
+				awsUseCrossRegionInference: false,
+				awsCustomArn:
+					"arn:aws:bedrock:us-east-1:123456789012:foundation-model/us.anthropic.claude-3-sonnet-20240229-v1:0",
+			})
+
+			expect((handler as any).options.awsUseCrossRegionInference).toBe(true)
+		})
+
 		it("should log region mismatch warning when ARN region differs from provided region", () => {
 			// Spy on logger.info which is called when there's a region mismatch
 			const infoSpy = vitest.spyOn(logger, "info")

@@ -22,18 +22,18 @@ import {
 	sambaNovaModels,
 	internationalZAiModels,
 	mainlandZAiModels,
+	zaiApiLineConfigs,
 	fireworksModels,
 	basetenModels,
 	qwenCodeModels,
 	litellmDefaultModelInfo,
-	lMStudioDefaultModelInfo,
 	BEDROCK_1M_CONTEXT_MODEL_IDS,
-	VERTEX_1M_CONTEXT_MODEL_IDS,
 	isRetiredProvider,
 	getProviderDefaultModelId,
 } from "@roo-code/types"
 
 import { isRouterName, type RouterName } from "@roo/api"
+import { stringifyVsCodeLmModelSelector } from "@roo/vsCodeSelectorUtils"
 
 import { useRouterModels } from "./useRouterModels"
 import { useOpenRouterModelProviders } from "./useOpenRouterModelProviders"
@@ -53,6 +53,139 @@ function getValidatedModelId(
 }
 
 const localModelProviders = new Set<ProviderName>(["ollama", "lmstudio"])
+
+function hasBedrockModelDiscoveryConfig(apiConfiguration?: ProviderSettings): boolean {
+	if (!apiConfiguration?.awsRegion) {
+		return false
+	}
+
+	if (apiConfiguration.awsUseApiKey) {
+		return !!apiConfiguration.awsApiKey
+	}
+
+	if (apiConfiguration.awsUseProfile) {
+		return !!apiConfiguration.awsProfile
+	}
+
+	return (
+		(!!apiConfiguration.awsAccessKey && !!apiConfiguration.awsSecretKey) ||
+		(!apiConfiguration.awsAccessKey && !apiConfiguration.awsSecretKey)
+	)
+}
+
+function getBedrockRouterModelRequestValues(apiConfiguration?: ProviderSettings) {
+	if (!apiConfiguration) {
+		return undefined
+	}
+
+	return {
+		awsRegion: apiConfiguration.awsRegion,
+		awsAccessKey: apiConfiguration.awsAccessKey,
+		awsSecretKey: apiConfiguration.awsSecretKey,
+		awsSessionToken: apiConfiguration.awsSessionToken,
+		awsUseProfile: apiConfiguration.awsUseProfile,
+		awsProfile: apiConfiguration.awsProfile,
+		awsUseApiKey: apiConfiguration.awsUseApiKey,
+		awsApiKey: apiConfiguration.awsApiKey,
+		awsBedrockEndpointEnabled: apiConfiguration.awsBedrockEndpointEnabled,
+		awsBedrockEndpoint: apiConfiguration.awsBedrockEndpoint,
+	}
+}
+
+function getRouterModelRequestValues(
+	provider: RouterName | undefined,
+	apiConfiguration?: ProviderSettings,
+): Record<string, unknown> | undefined {
+	if (!apiConfiguration) {
+		return undefined
+	}
+
+	switch (provider) {
+		case "openrouter":
+			return {
+				openRouterApiKey: apiConfiguration.openRouterApiKey,
+				openRouterBaseUrl: apiConfiguration.openRouterBaseUrl,
+			}
+		case "requesty":
+			return {
+				requestyApiKey: apiConfiguration.requestyApiKey,
+				requestyBaseUrl: apiConfiguration.requestyBaseUrl,
+			}
+		case "unbound":
+			return {
+				unboundApiKey: apiConfiguration.unboundApiKey,
+			}
+		case "bedrock":
+			return getBedrockRouterModelRequestValues(apiConfiguration)
+		case "litellm":
+			return {
+				litellmApiKey: apiConfiguration.litellmApiKey,
+				litellmBaseUrl: apiConfiguration.litellmBaseUrl,
+			}
+		case "poe":
+			return {
+				poeApiKey: apiConfiguration.poeApiKey,
+				poeBaseUrl: apiConfiguration.poeBaseUrl,
+			}
+		case "anthropic":
+			return {
+				apiKey: apiConfiguration.apiKey,
+				anthropicBaseUrl: apiConfiguration.anthropicBaseUrl,
+			}
+		case "xai":
+			return {
+				xaiApiKey: apiConfiguration.xaiApiKey,
+			}
+		case "openai-native":
+			return {
+				openAiNativeApiKey: apiConfiguration.openAiNativeApiKey,
+				openAiNativeBaseUrl: apiConfiguration.openAiNativeBaseUrl,
+			}
+		case "mistral":
+			return {
+				mistralApiKey: apiConfiguration.mistralApiKey,
+			}
+		case "deepseek":
+			return {
+				deepSeekApiKey: apiConfiguration.deepSeekApiKey,
+				deepSeekBaseUrl: apiConfiguration.deepSeekBaseUrl,
+			}
+		case "xiaomi-mimo":
+			return {
+				xiaomiMiMoApiKey: apiConfiguration.xiaomiMiMoApiKey,
+				xiaomiMiMoBaseUrl: apiConfiguration.xiaomiMiMoBaseUrl,
+			}
+		case "gemini":
+			return {
+				geminiApiKey: apiConfiguration.geminiApiKey,
+				googleGeminiBaseUrl: apiConfiguration.googleGeminiBaseUrl,
+			}
+		case "moonshot":
+			return {
+				moonshotApiKey: apiConfiguration.moonshotApiKey,
+				moonshotBaseUrl: apiConfiguration.moonshotBaseUrl,
+			}
+		case "fireworks":
+			return {
+				fireworksApiKey: apiConfiguration.fireworksApiKey,
+			}
+		case "baseten":
+			return {
+				basetenApiKey: apiConfiguration.basetenApiKey,
+			}
+		case "sambanova":
+			return {
+				sambaNovaApiKey: apiConfiguration.sambaNovaApiKey,
+			}
+		case "minimax":
+			return {
+				minimaxApiKey: apiConfiguration.minimaxApiKey,
+				minimaxBaseUrl: apiConfiguration.minimaxBaseUrl,
+			}
+		default:
+			return undefined
+	}
+}
 
 function getRouterFetchProvider(provider: ProviderName | undefined): RouterName | undefined {
 	return provider && isRouterName(provider) && !localModelProviders.has(provider) ? provider : undefined
@@ -83,6 +216,8 @@ function canFetchProviderModels(provider: RouterName | undefined, apiConfigurati
 			return !!apiConfiguration?.mistralApiKey
 		case "deepseek":
 			return !!apiConfiguration?.deepSeekApiKey
+		case "xiaomi-mimo":
+			return !!apiConfiguration?.xiaomiMiMoApiKey
 		case "gemini":
 			return !!apiConfiguration?.geminiApiKey
 		case "moonshot":
@@ -95,8 +230,12 @@ function canFetchProviderModels(provider: RouterName | undefined, apiConfigurati
 			return !!apiConfiguration?.sambaNovaApiKey
 		case "minimax":
 			return !!apiConfiguration?.minimaxApiKey
+		case "bedrock":
+			return hasBedrockModelDiscoveryConfig(apiConfiguration)
 		case "ollama":
 		case "lmstudio":
+			return false
+		default:
 			return false
 	}
 }
@@ -130,14 +269,19 @@ export const useSelectedModel = (apiConfiguration?: ProviderSettings) => {
 	const ollamaModelId = activeProvider === "ollama" ? apiConfiguration?.ollamaModelId : undefined
 
 	const shouldFetchRouterModels = canFetchProviderModels(routerFetchProvider, apiConfiguration)
+	const routerModelRequestValues = getRouterModelRequestValues(routerFetchProvider, apiConfiguration)
 	const routerModels = useRouterModels({
 		provider: routerFetchProvider,
+		...(routerModelRequestValues ? { values: routerModelRequestValues } : {}),
 		enabled: shouldFetchRouterModels,
 	})
 
 	const openRouterModelProviders = useOpenRouterModelProviders(openRouterModelId)
-	const lmStudioModels = useLmStudioModels(lmStudioModelId)
-	const ollamaModels = useOllamaModels(ollamaModelId)
+	const lmStudioModels = useLmStudioModels(lmStudioModelId, { baseUrl: apiConfiguration?.lmStudioBaseUrl })
+	const ollamaModels = useOllamaModels(ollamaModelId, {
+		baseUrl: apiConfiguration?.ollamaBaseUrl,
+		apiKey: apiConfiguration?.ollamaApiKey,
+	})
 
 	// Compute readiness only for the data actually needed for the selected provider
 	const needRouterModels = shouldFetchRouterModels && needsRouterModelsForSelection(routerFetchProvider)
@@ -251,7 +395,9 @@ function getSelectedModel({
 		}
 		case "bedrock": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const baseInfo = bedrockModels[id as keyof typeof bedrockModels]
+			const staticInfo = bedrockModels[id as keyof typeof bedrockModels]
+			const routerInfo = routerModels.bedrock?.[id]
+			const baseInfo = staticInfo ?? routerInfo
 
 			// Special case for custom ARN.
 			if (id === "custom-arn") {
@@ -277,23 +423,6 @@ function getSelectedModel({
 			const id = apiConfiguration.apiModelId ?? defaultModelId
 			const baseInfo = vertexModels[id as keyof typeof vertexModels]
 
-			// Apply 1M context for supported Claude 4 models when enabled
-			if (VERTEX_1M_CONTEXT_MODEL_IDS.includes(id as any) && apiConfiguration.vertex1MContext && baseInfo) {
-				const modelInfo: ModelInfo = baseInfo
-				const tier = modelInfo.tiers?.[0]
-				if (tier) {
-					const info: ModelInfo = {
-						...modelInfo,
-						contextWindow: tier.contextWindow,
-						inputPrice: tier.inputPrice,
-						outputPrice: tier.outputPrice,
-						cacheWritesPrice: tier.cacheWritesPrice,
-						cacheReadsPrice: tier.cacheReadsPrice,
-					}
-					return { id, info }
-				}
-			}
-
 			return { id, info: baseInfo }
 		}
 		case "gemini": {
@@ -318,11 +447,11 @@ function getSelectedModel({
 		}
 		case "xiaomi-mimo": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const info = xiaomiMiMoModels[id as keyof typeof xiaomiMiMoModels]
+			const info = mergeStaticAndRouterModelInfo("xiaomi-mimo", routerModels, id, xiaomiMiMoModels)
 			return { id, info }
 		}
 		case "zai": {
-			const isChina = apiConfiguration.zaiApiLine === "china_coding"
+			const isChina = zaiApiLineConfigs[apiConfiguration.zaiApiLine ?? "international_coding"].isChina
 			const models = isChina ? mainlandZAiModels : internationalZAiModels
 			const defaultModelId = getProviderDefaultModelId(provider, { isChina })
 			const id = apiConfiguration.apiModelId ?? defaultModelId
@@ -366,16 +495,24 @@ function getSelectedModel({
 			const modelInfo = lmStudioModels && lmStudioModels[apiConfiguration.lmStudioModelId!]
 			return {
 				id,
-				info: modelInfo ? { ...lMStudioDefaultModelInfo, ...modelInfo } : undefined,
+				info: modelInfo,
 			}
 		}
 		case "vscode-lm": {
-			const id = apiConfiguration?.vsCodeLmModelSelector
-				? `${apiConfiguration.vsCodeLmModelSelector.vendor}/${apiConfiguration.vsCodeLmModelSelector.family}`
-				: vscodeLlmDefaultModelId
+			const id =
+				stringifyVsCodeLmModelSelector(apiConfiguration?.vsCodeLmModelSelector) || vscodeLlmDefaultModelId
 			const modelFamily = apiConfiguration?.vsCodeLmModelSelector?.family ?? vscodeLlmDefaultModelId
-			const info = vscodeLlmModels[modelFamily as keyof typeof vscodeLlmModels]
-			return { id, info: { ...openAiModelInfoSaneDefaults, ...info, supportsImages: false } } // VSCode LM API currently doesn't support images.
+			const staticInfo = vscodeLlmModels[modelFamily as keyof typeof vscodeLlmModels]
+			const {
+				maxTokens: _maxTokens,
+				inputPrice: _inputPrice,
+				outputPrice: _outputPrice,
+				cacheWritesPrice: _cacheWritesPrice,
+				cacheReadsPrice: _cacheReadsPrice,
+				...info
+			} = { ...openAiModelInfoSaneDefaults, ...staticInfo }
+
+			return { id, info: { ...info, supportsImages: false, supportsPromptCache: false } } // VSCode LM API currently doesn't support images or prompt caching.
 		}
 		case "sambanova": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId
@@ -420,41 +557,6 @@ function getSelectedModel({
 				provider === "anthropic"
 					? mergeStaticAndRouterModelInfo("anthropic", routerModels, id, anthropicModels)
 					: anthropicModels[id as keyof typeof anthropicModels]
-
-			// Apply 1M context beta tier pricing for supported Claude 4 models
-			if (
-				provider === "anthropic" &&
-				(id === "claude-sonnet-4-20250514" ||
-					id === "claude-sonnet-4-5" ||
-					id === "claude-sonnet-4-6" ||
-					id === "claude-opus-4-6") &&
-				apiConfiguration.anthropicBeta1MContext &&
-				baseInfo
-			) {
-				// Type assertion since supported Claude 4 models include 1M context pricing tiers.
-				const modelWithTiers = baseInfo as typeof baseInfo & {
-					tiers?: Array<{
-						contextWindow: number
-						inputPrice?: number
-						outputPrice?: number
-						cacheWritesPrice?: number
-						cacheReadsPrice?: number
-					}>
-				}
-				const tier = modelWithTiers.tiers?.[0]
-				if (tier) {
-					// Create a new ModelInfo object with updated values
-					const info: ModelInfo = {
-						...baseInfo,
-						contextWindow: tier.contextWindow,
-						inputPrice: tier.inputPrice ?? baseInfo.inputPrice,
-						outputPrice: tier.outputPrice ?? baseInfo.outputPrice,
-						cacheWritesPrice: tier.cacheWritesPrice ?? baseInfo.cacheWritesPrice,
-						cacheReadsPrice: tier.cacheReadsPrice ?? baseInfo.cacheReadsPrice,
-					}
-					return { id, info }
-				}
-			}
 
 			return { id, info: baseInfo }
 		}

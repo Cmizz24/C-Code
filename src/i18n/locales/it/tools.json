@@ -22,12 +22,13 @@
 		"apiKeyRequired": "La chiave API {{provider}} è richiesta per la generazione di immagini. Configurala nelle impostazioni di Generazione Immagini.",
 		"modelRequired": "{{provider}} richiede un ID modello per la generazione di immagini. Configuralo nelle impostazioni di Generazione Immagini.",
 		"unsupportedApiMethod": "{{provider}} non supporta il metodo API di generazione immagini {{apiMethod}}.",
-		"unsupportedProvider": "{{provider}} non è supportato per la generazione di immagini. Usa invece OpenRouter, OpenAI/OpenAI-compatible, ComfyUI o Automatic1111.",
+		"unsupportedProvider": "{{provider}} non è supportato per la generazione di immagini. Usa invece OpenRouter, OpenAI/OpenAI-compatible o Cloudflare Workers AI.",
 		"failedWithStatus": "Generazione immagine fallita: {{status}} {{statusText}}",
 		"failedWithMessage": "Generazione immagine fallita: {{message}}",
 		"noImageGenerated": "Nessuna immagine è stata generata nella risposta",
 		"invalidImageData": "Dati immagine non validi nella risposta",
 		"invalidImageFormat": "Formato immagine non valido ricevuto",
-		"unknownError": "Si è verificato un errore sconosciuto"
+		"unknownError": "Si è verificato un errore sconosciuto",
+		"accountIdRequired": "L'ID account di {{provider}} è richiesto per la generazione di immagini. Configuralo nelle impostazioni di Generazione Immagini."
 	}
 }

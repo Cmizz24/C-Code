@@ -361,7 +361,7 @@ const renderSettingsView = (initialState: Record<string, any> = {}) => {
 	return { onDone, activateTab, getSettingsContent }
 }
 
-const renderSettingsViewWithTranslations = (initialState: Record<string, any> = {}) => {
+const renderSettingsViewWithTranslations = (initialState: Record<string, any> = {}, targetSection?: string) => {
 	const onDone = vi.fn()
 	const queryClient = new QueryClient()
 
@@ -369,11 +369,7 @@ const renderSettingsViewWithTranslations = (initialState: Record<string, any> = 
 		<ExtensionStateContextProvider>
 			<TranslationProvider>
 				<QueryClientProvider client={queryClient}>
-					{targetSection ? (
-						<SettingsView onDone={onDone} targetSection={targetSection} />
-					) : (
-						<SettingsView onDone={onDone} />
-					)}
+					<SettingsView onDone={onDone} targetSection={targetSection} />
 				</QueryClientProvider>
 			</TranslationProvider>
 		</ExtensionStateContextProvider>
@@ -389,7 +385,7 @@ const renderSettingsViewWithTranslations = (initialState: Record<string, any> = 
 
 	// Hydrate extension state before SettingsView initializes its local cachedState and TranslationProvider reads language.
 	mockPostMessage({ language: "en", ...initialState })
-	result.rerender(renderTree())
+	result.rerender(renderTree(targetSection))
 
 	const activateTab = (tabId: string) => {
 		result.rerender(renderTree(tabId))
@@ -418,6 +414,64 @@ describe("SettingsView - Localization", () => {
 		expect(container).not.toHaveTextContent("settings:sections.providers")
 		expect(container).not.toHaveTextContent("settings:providers.configProfile")
 		expect(container).not.toHaveTextContent("settings:providers.apiProvider")
+	})
+
+	it("renders image generation settings labels through the real i18n provider without raw settings keys", () => {
+		const { container } = renderSettingsViewWithTranslations(
+			{
+				imageGenerationProvider: "automatic1111",
+				openRouterImageApiKey: "openrouter-key",
+			},
+			"imageGeneration",
+		)
+
+		const content = within(screen.getByTestId("settings-content"))
+
+		expect(screen.getByTestId("tab-imageGeneration")).toHaveTextContent("Image Generation")
+		expect(content.getByRole("heading", { name: "Image Generation" })).toBeInTheDocument()
+		expect(
+			content.getByText(
+				"Select the provider to use for image generation. This is independent from your chat provider profile.",
+			),
+		).toBeInTheDocument()
+		expect(content.getAllByText("OpenRouter").length).toBeGreaterThan(0)
+		expect(content.getAllByText("OpenAI / OpenAI Compatible").length).toBeGreaterThan(0)
+		expect(content.getByRole("option", { name: "Cloudflare Workers AI" })).toBeInTheDocument()
+		expect(content.getByText("Provider")).toBeInTheDocument()
+		expect(content.getByText("OpenRouter API Key")).toBeInTheDocument()
+		expect(content.getByPlaceholderText("Enter your OpenRouter API key")).toBeInTheDocument()
+		expect(content.getByText("Base URL")).toBeInTheDocument()
+		expect(content.getByPlaceholderText("Default: https://openrouter.ai/api/v1")).toBeInTheDocument()
+		expect(content.getByText("Image Generation Model")).toBeInTheDocument()
+		expect(content.getByText("API method")).toBeInTheDocument()
+		expect(content.getByRole("option", { name: "Chat completions" })).toBeInTheDocument()
+		expect(content.queryByRole("option", { name: "ComfyUI" })).not.toBeInTheDocument()
+		expect(content.queryByRole("option", { name: "Automatic1111" })).not.toBeInTheDocument()
+		expect(content.queryByRole("option", { name: "Automatic1111 API" })).not.toBeInTheDocument()
+		expect(content.queryByText("Negative prompt")).not.toBeInTheDocument()
+
+		expect(container).not.toHaveTextContent("settings:sections.imageGeneration")
+		expect(container).not.toHaveTextContent("sections.imageGeneration")
+		expect(container).not.toHaveTextContent("settings:imageGeneration.providerLabel")
+		expect(container).not.toHaveTextContent("imageGeneration.providerLabel")
+		expect(container).not.toHaveTextContent("settings:imageGeneration.")
+	})
+
+	it("renders the image generation auto-approve control through the real i18n provider", () => {
+		const { container } = renderSettingsViewWithTranslations(
+			{
+				alwaysAllowImageGeneration: false,
+			},
+			"autoApprove",
+		)
+
+		const content = within(screen.getByTestId("settings-content"))
+		const imageGenerationToggle = content.getByTestId("always-allow-image-generation-toggle")
+
+		expect(imageGenerationToggle).toHaveTextContent("Images")
+		expect(imageGenerationToggle).toHaveAttribute("aria-label", "Images")
+		expect(container).not.toHaveTextContent("settings:autoApprove.imageGeneration.label")
+		expect(container).not.toHaveTextContent("autoApprove.imageGeneration.label")
 	})
 
 	it("renders OpenAI Codex Settings labels through the real i18n provider without raw settings keys", async () => {
@@ -959,6 +1013,105 @@ describe("SettingsView - Image Generation Settings", () => {
 				}),
 			}),
 		)
+	})
+
+	it("saves Cloudflare image generation settings from cached state", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			experiments: { imageGeneration: true },
+			imageGenerationProvider: "cloudflare",
+			cloudflareImageApiKey: "saved-cloudflare-token",
+			cloudflareImageAccountId: "saved-account-id",
+			cloudflareImageBaseUrl: "https://api.cloudflare.com/client/v4",
+			cloudflareImageGenerationSelectedModel: "@cf/black-forest-labs/flux-1-schnell",
+			cloudflareImageGenerationApiMethod: "workers_ai",
+		})
+
+		activateTab("imageGeneration")
+
+		const content = getSettingsContent()
+		fireEvent.change(within(content).getByPlaceholderText("settings:imageGeneration.apiKeyPlaceholder"), {
+			target: { value: "updated-cloudflare-token" },
+		})
+		fireEvent.change(
+			within(content).getByPlaceholderText("settings:imageGeneration.cloudflareAccountIdPlaceholder"),
+			{
+				target: { value: "updated-account-id" },
+			},
+		)
+		fireEvent.change(within(content).getByPlaceholderText("settings:imageGeneration.baseUrlPlaceholder"), {
+			target: { value: "https://api.cloudflare.example/client/v4" },
+		})
+
+		const saveButton = screen.getByTestId("save-button")
+		fireEvent.click(saveButton)
+
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					experiments: expect.objectContaining({ imageGeneration: true }),
+					imageGenerationProvider: "cloudflare",
+					cloudflareImageApiKey: "updated-cloudflare-token",
+					cloudflareImageAccountId: "updated-account-id",
+					cloudflareImageBaseUrl: "https://api.cloudflare.example/client/v4",
+					cloudflareImageGenerationSelectedModel: "@cf/black-forest-labs/flux-1-schnell",
+					cloudflareImageGenerationApiMethod: "workers_ai",
+				}),
+			}),
+		)
+	})
+
+	it("renders live Cloudflare usage without saving it as cached image settings", () => {
+		const utcDate = new Date().toISOString().slice(0, 10)
+
+		renderSettingsViewWithTranslations(
+			{
+				experiments: { imageGeneration: true },
+				imageGenerationProvider: "cloudflare",
+				cloudflareImageApiKey: "saved-cloudflare-token",
+				cloudflareImageAccountId: "saved-account-id",
+				cloudflareImageBaseUrl: "https://api.cloudflare.com/client/v4",
+				cloudflareImageGenerationSelectedModel: "@cf/black-forest-labs/flux-1-schnell",
+				cloudflareImageGenerationApiMethod: "workers_ai",
+				cloudflareWorkersAiImageUsage: {
+					utcDate,
+					neuronsUsed: 1_250,
+					requestCount: 3,
+					estimatedNeuronsUsed: 1_250,
+					updatedAt: `${utcDate}T08:00:00.000Z`,
+				},
+			},
+			"imageGeneration",
+		)
+
+		const content = screen.getByTestId("settings-content")
+		expect(within(content).getByText("Estimated Workers AI usage today")).toBeInTheDocument()
+		expect(within(content).getByText("Estimated remaining free neurons")).toBeInTheDocument()
+		expect(within(content).getByText("8,750 neurons")).toBeInTheDocument()
+		expect(within(content).getByText("1,250 / 10,000 neurons")).toBeInTheDocument()
+		expect(within(content).getByText("Image requests tracked")).toBeInTheDocument()
+		expect(within(content).getByText("3")).toBeInTheDocument()
+		expect(within(content).getByText(/local estimate based on image generations/i)).toBeInTheDocument()
+		fireEvent.change(within(content).getByDisplayValue("https://api.cloudflare.com/client/v4"), {
+			target: { value: "https://api.cloudflare.example/client/v4" },
+		})
+
+		vi.mocked(vscode.postMessage).mockClear()
+		fireEvent.click(screen.getByTestId("save-button"))
+
+		const updateSettingsMessage = vi
+			.mocked(vscode.postMessage)
+			.mock.calls.find(([message]) => message.type === "updateSettings")?.[0] as any
+
+		expect(updateSettingsMessage).toBeDefined()
+		expect(updateSettingsMessage.updatedSettings).toEqual(
+			expect.objectContaining({
+				imageGenerationProvider: "cloudflare",
+				cloudflareImageBaseUrl: "https://api.cloudflare.example/client/v4",
+				cloudflareImageGenerationApiMethod: "workers_ai",
+			}),
+		)
+		expect(updateSettingsMessage.updatedSettings).not.toHaveProperty("cloudflareWorkersAiImageUsage")
 	})
 
 	it("keeps image generation settings independent from the active chat provider profile", () => {
@@ -1621,6 +1774,54 @@ describe("SettingsView - Allowed Commands", () => {
 			// Check that unsaved changes dialog is shown
 			expect(screen.getByText("settings:unsavedChangesDialog.title")).toBeInTheDocument()
 		})
+	})
+})
+
+describe("SettingsView - Remote Diagnostic Logging", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("uses the cached debug toggle as the only remote diagnostics opt-in", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			debug: false,
+		})
+
+		activateTab("about")
+
+		const content = getSettingsContent()
+		const debugCheckbox = within(content).getByLabelText("settings:about.debugMode.label")
+
+		expect(debugCheckbox).not.toBeChecked()
+		expect(within(content).queryByLabelText("settings:about.remoteDebugLogging.label")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("remote-debug-endpoint-input")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("remote-debug-auth-token-input")).not.toBeInTheDocument()
+
+		fireEvent.click(debugCheckbox)
+		expect(debugCheckbox).toBeChecked()
+
+		expect(vscode.postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+			}),
+		)
+		expect(vscode.postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "debugSetting",
+			}),
+		)
+
+		fireEvent.click(screen.getByTestId("save-button"))
+
+		const updateSettingsMessage = vi
+			.mocked(vscode.postMessage)
+			.mock.calls.find(([message]) => message.type === "updateSettings")?.[0] as any
+
+		expect(updateSettingsMessage).toBeDefined()
+		expect(updateSettingsMessage.updatedSettings).not.toHaveProperty("remoteDebugLoggingEnabled")
+		expect(updateSettingsMessage.updatedSettings).not.toHaveProperty("remoteDebugLoggingEndpoint")
+		expect(updateSettingsMessage.updatedSettings).not.toHaveProperty("remoteDebugLoggingAuthToken")
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "debugSetting", bool: true })
 	})
 })
 

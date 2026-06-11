@@ -5,7 +5,6 @@ import {
 	getImageGenerationModel,
 	getImageGenerationProvider,
 	IMAGE_GENERATION_PROVIDERS,
-	isActiveImageGenerationProvider,
 	isImageGenerationApiMethod,
 	isLegacyUnsupportedImageGenerationProvider,
 	type ActiveImageGenerationProvider,
@@ -16,8 +15,7 @@ import {
 
 import { t } from "../../../i18n"
 import {
-	generateImageWithAutomatic1111,
-	generateImageWithComfyUi,
+	generateImageWithCloudflareWorkersAi,
 	generateImageWithImagesApi,
 	generateImageWithProvider,
 	type ImageGenerationResult,
@@ -29,8 +27,18 @@ export interface ResolvedImageGenerationConfig {
 	baseURL: string
 	isLocal: boolean
 	authToken?: string
+	accountId?: string
 	model: string
 	apiMethod: ImageGenerationApiMethod
+	negativePrompt?: string
+}
+
+type ProviderState = {
+	apiKey?: string
+	accountId?: string
+	baseUrl?: string
+	model?: string
+	apiMethod?: ImageGenerationApiMethod
 	negativePrompt?: string
 }
 
@@ -48,7 +56,7 @@ const normalizeConfiguredBaseUrl = (baseUrl: string | undefined, provider: Activ
 	return normalized
 }
 
-const getProviderState = (state: Partial<RooCodeSettings>, provider: ActiveImageGenerationProvider) => {
+const getProviderState = (state: Partial<RooCodeSettings>, provider: ActiveImageGenerationProvider): ProviderState => {
 	switch (provider) {
 		case "openrouter":
 			return {
@@ -64,21 +72,13 @@ const getProviderState = (state: Partial<RooCodeSettings>, provider: ActiveImage
 				model: state.openAiImageGenerationSelectedModel,
 				apiMethod: state.openAiImageGenerationApiMethod,
 			}
-		case "comfyui":
+		case "cloudflare":
 			return {
-				apiKey: state.comfyUiImageApiKey,
-				baseUrl: state.comfyUiImageBaseUrl,
-				model: state.comfyUiImageGenerationSelectedModel,
-				apiMethod: state.comfyUiImageGenerationApiMethod,
-				negativePrompt: state.comfyUiImageGenerationNegativePrompt,
-			}
-		case "automatic1111":
-			return {
-				apiKey: state.automatic1111ImageApiKey,
-				baseUrl: state.automatic1111ImageBaseUrl,
-				model: state.automatic1111ImageGenerationSelectedModel,
-				apiMethod: state.automatic1111ImageGenerationApiMethod,
-				negativePrompt: state.automatic1111ImageGenerationNegativePrompt,
+				apiKey: state.cloudflareImageApiKey,
+				accountId: state.cloudflareImageAccountId,
+				baseUrl: state.cloudflareImageBaseUrl,
+				model: state.cloudflareImageGenerationSelectedModel,
+				apiMethod: state.cloudflareImageGenerationApiMethod,
 			}
 	}
 }
@@ -106,21 +106,22 @@ export function resolveImageGenerationConfig(
 		!!state.openRouterImageGenerationSelectedModel,
 	)
 
-	if (!isActiveImageGenerationProvider(provider)) {
-		return {
-			success: false,
-			error: t("tools:generateImage.unsupportedProvider", { provider: provider ?? "unknown" }),
-		}
-	}
-
 	const definition = IMAGE_GENERATION_PROVIDERS[provider]
 	const providerState = getProviderState(state, provider)
 	const authToken = providerState.apiKey?.trim()
+	const accountId = providerState.accountId?.trim()
 
 	if (definition.requiresApiKey && !authToken) {
 		return {
 			success: false,
 			error: t("tools:generateImage.apiKeyRequired", { provider: definition.label }),
+		}
+	}
+
+	if (provider === "cloudflare" && !accountId) {
+		return {
+			success: false,
+			error: t("tools:generateImage.accountIdRequired", { provider: definition.label }),
 		}
 	}
 
@@ -156,6 +157,7 @@ export function resolveImageGenerationConfig(
 			baseURL: normalizeConfiguredBaseUrl(providerState.baseUrl, provider),
 			isLocal: definition.isLocal,
 			authToken: authToken || undefined,
+			accountId: accountId || undefined,
 			model,
 			apiMethod,
 			negativePrompt: providerState.negativePrompt?.trim() || undefined,
@@ -167,6 +169,7 @@ export async function generateImageWithConfiguredProvider(options: {
 	state: Partial<RooCodeSettings> | undefined
 	prompt: string
 	inputImage?: string
+	outputFormat?: string
 }): Promise<ImageGenerationResult> {
 	const resolved = resolveImageGenerationConfig(options.state)
 
@@ -202,18 +205,28 @@ export async function generateImageWithConfiguredProvider(options: {
 		negativePrompt: config.negativePrompt,
 	}
 
-	if (config.provider === "comfyui") {
-		return withSafeMetadata(await generateImageWithComfyUi({ ...generatorOptions, provider: "comfyui" }))
-	}
-
-	if (config.provider === "automatic1111") {
+	if (config.apiMethod === "images_api") {
 		return withSafeMetadata(
-			await generateImageWithAutomatic1111({ ...generatorOptions, provider: "automatic1111" }),
+			await generateImageWithImagesApi({
+				...generatorOptions,
+				outputFormat: options.outputFormat,
+				provider: config.provider,
+			}),
 		)
 	}
 
-	if (config.apiMethod === "images_api") {
-		return withSafeMetadata(await generateImageWithImagesApi({ ...generatorOptions, provider: config.provider }))
+	if (config.apiMethod === "workers_ai") {
+		return withSafeMetadata(
+			await generateImageWithCloudflareWorkersAi({
+				baseURL: config.baseURL,
+				authToken: config.authToken,
+				accountId: config.accountId || "",
+				model: config.model,
+				prompt: options.prompt,
+				inputImage: options.inputImage,
+				provider: "cloudflare",
+			}),
+		)
 	}
 
 	return withSafeMetadata(await generateImageWithProvider({ ...generatorOptions, provider: config.provider }))

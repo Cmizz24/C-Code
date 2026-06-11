@@ -1,8 +1,34 @@
 import axios from "axios"
 
-import type { ModelRecord } from "@roo-code/types"
+import { litellmDefaultModelInfo, type ModelInfo, type ModelRecord } from "@roo-code/types"
 
 import { DEFAULT_HEADERS } from "../constants"
+
+const MILLION_TOKENS = 1_000_000
+
+const firstPositiveNumber = (...values: unknown[]): number | undefined =>
+	values.find((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0)
+
+const pricePerMillion = (value: unknown): number | undefined =>
+	typeof value === "number" && Number.isFinite(value) ? value * MILLION_TOKENS : undefined
+
+const normalizeLiteLLMModelInfo = (modelName: string, rawModelInfo: Record<string, any> = {}): ModelInfo => {
+	const maxTokens = firstPositiveNumber(rawModelInfo.max_output_tokens, rawModelInfo.max_tokens)
+
+	return {
+		...litellmDefaultModelInfo,
+		...(maxTokens ? { maxTokens } : {}),
+		contextWindow: firstPositiveNumber(rawModelInfo.max_input_tokens) ?? litellmDefaultModelInfo.contextWindow,
+		supportsImages: rawModelInfo.supports_vision === true,
+		supportsPromptCache: rawModelInfo.supports_prompt_caching === true,
+		inputPrice: pricePerMillion(rawModelInfo.input_cost_per_token),
+		outputPrice: pricePerMillion(rawModelInfo.output_cost_per_token),
+		cacheWritesPrice: pricePerMillion(rawModelInfo.cache_creation_input_token_cost),
+		cacheReadsPrice: pricePerMillion(rawModelInfo.cache_read_input_token_cost),
+		description: `${modelName} via LiteLLM proxy`,
+	}
+}
+
 /**
  * Fetches available models from a LiteLLM server
  *
@@ -35,28 +61,10 @@ export async function getLiteLLMModels(apiKey: string, baseUrl: string): Promise
 		if (response.data && response.data.data && Array.isArray(response.data.data)) {
 			for (const model of response.data.data) {
 				const modelName = model.model_name
-				const modelInfo = model.model_info
-				const litellmModelName = model?.litellm_params?.model as string | undefined
 
-				if (!modelName || !modelInfo || !litellmModelName) continue
+				if (!modelName) continue
 
-				models[modelName] = {
-					maxTokens: modelInfo.max_output_tokens || modelInfo.max_tokens || 8192,
-					contextWindow: modelInfo.max_input_tokens || 200000,
-					supportsImages: Boolean(modelInfo.supports_vision),
-					supportsPromptCache: Boolean(modelInfo.supports_prompt_caching),
-					inputPrice: modelInfo.input_cost_per_token ? modelInfo.input_cost_per_token * 1000000 : undefined,
-					outputPrice: modelInfo.output_cost_per_token
-						? modelInfo.output_cost_per_token * 1000000
-						: undefined,
-					cacheWritesPrice: modelInfo.cache_creation_input_token_cost
-						? modelInfo.cache_creation_input_token_cost * 1000000
-						: undefined,
-					cacheReadsPrice: modelInfo.cache_read_input_token_cost
-						? modelInfo.cache_read_input_token_cost * 1000000
-						: undefined,
-					description: `${modelName} via LiteLLM proxy`,
-				}
+				models[modelName] = normalizeLiteLLMModelInfo(modelName, model.model_info ?? {})
 			}
 		} else {
 			// If response.data.data is not in the expected format, consider it an error.

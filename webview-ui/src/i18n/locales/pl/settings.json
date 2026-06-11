@@ -31,6 +31,7 @@
 		"mcp": "Serwery MCP",
 		"worktrees": "Worktrees",
 		"autoApprove": "Auto-zatwierdzanie",
+		"imageGeneration": "Generowanie obrazów",
 		"checkpoints": "Punkty kontrolne",
 		"notifications": "Powiadomienia",
 		"contextManagement": "Kontekst",
@@ -57,7 +58,7 @@
 		"manageSettings": "Zarządzaj Ustawieniami",
 		"debugMode": {
 			"label": "Włącz tryb debugowania",
-			"description": "Włącz tryb debugowania, aby wyświetlić dodatkowe przyciski w nagłówku zadania umożliwiające przeglądanie historii konwersacji API i komunikatów UI jako sformatowany JSON w plikach tymczasowych."
+			"description": "Włącz tryb debug, aby pokazać dodatkowe przyciski w nagłówku zadania do wyświetlania historii rozmów API i komunikatów interfejsu jako sformatowanego JSON w plikach tymczasowych. Po zapisaniu jako włączone zgadzasz się też na wysyłanie oczyszczonych zdalnych diagnostyk do stałego endpointu C-Code w celu rozwiązywania problemów."
 		}
 	},
 	"slashCommands": {
@@ -264,6 +265,10 @@
 			"label": "Pamięć",
 			"description": "Automatycznie zatwierdzaj zapisywanie pamięci błędów z czatu i błędów narzędzi. Gdy to jest wyłączone, oczekującą pamięć nadal możesz sprawdzić z czatu lub ustawień pamięci."
 		},
+		"imageGeneration": {
+			"label": "Obrazy",
+			"description": "Automatycznie zatwierdzaj generowanie i edycję obrazów z czatu. Może to tworzyć lub modyfikować pliki obrazów przy użyciu skonfigurowanego dostawcy generowania obrazów."
+		},
 		"followupQuestions": {
 			"label": "Pytanie",
 			"description": "Automatycznie wybierz pierwszą sugerowaną odpowiedź na pytania uzupełniające po skonfigurowanym limicie czasu",
@@ -292,6 +297,71 @@
 		},
 		"maxLimits": {
 			"description": "Automatycznie składaj zapytania do tych limitów przed poproszeniem o zgodę na kontynuowanie."
+		}
+	},
+	"imageGeneration": {
+		"name": "Włącz generowanie obrazów przez AI",
+		"description": "Po włączeniu C może generować i edytować obrazy z promptów przy użyciu osobno skonfigurowanego dostawcy generowania obrazów.",
+		"providerLabel": "Dostawca",
+		"providerDescription": "Wybierz dostawcę używanego do generowania obrazów. Jest niezależny od profilu dostawcy chatu.",
+		"localProviderNote": "Cloudflare Workers AI jest dostępne obok OpenRouter i dostawców OpenAI/OpenAI-compatible. Ollama, LM Studio, ComfyUI i Automatic1111 nie są dostępne do wyboru w tym panelu.",
+		"apiKeyLabel": "Klucz API {{provider}}",
+		"optionalApiKeyLabel": "Klucz API {{provider}} (opcjonalnie)",
+		"apiKeyPlaceholder": "Wpisz klucz API {{provider}}",
+		"apiKeyRequiredDescription": "Ten dostawca wymaga klucza API do generowania obrazów.",
+		"apiKeyOptionalDescription": "Opcjonalne. Używaj tego tylko wtedy, gdy twój endpoint, lokalna instancja lub proxy wymaga uwierzytelniania bearer-token.",
+		"getApiKeyText": "Uzyskaj swój klucz API od",
+		"baseUrlLabel": "Bazowy URL",
+		"baseUrlPlaceholder": "Domyślnie: {{url}}",
+		"baseUrlDescription": "Zostaw puste, aby użyć {{url}}.",
+		"modelSelectionLabel": "Model generowania obrazów",
+		"modelSelectionDescription": "Wybierz model używany do generowania obrazów",
+		"modelIdLabel": "ID modelu",
+		"customModelIdPlaceholder": "Wpisz ID modelu",
+		"modelIdPlaceholderWithDefault": "Domyślnie: {{model}}",
+		"customModelIdDescription": "Wpisz dokładny ID modelu udostępniany przez dostawcę lub endpoint zgodny z OpenAI.",
+		"optionalModelIdDescription": "Opcjonalne. Zostaw puste, aby użyć checkpointu aktualnie załadowanego przez dostawcę.",
+		"apiMethodLabel": "Metoda API",
+		"apiMethodDescription": "Wybierz kształt endpointu zgodnego z OpenAI używany do generowania obrazów.",
+		"apiMethodLockedDescription": "Wybrany model używa wymaganej metody API modelu {{model}}.",
+		"apiMethodLabels": {
+			"chat_completions": "Chat completions",
+			"images_api": "Images API",
+			"comfyui_api": "ComfyUI API",
+			"automatic1111_api": "Automatic1111 API",
+			"workers_ai": "Workers AI"
+		},
+		"negativePromptLabel": "Negatywny prompt",
+		"negativePromptPlaceholder": "Wpisz treści, których należy unikać w generowanych obrazach",
+		"negativePromptDescription": "Opcjonalne. Pomaga kompatybilnym dostawcom unikać niechcianych tematów, stylów lub artefaktów.",
+		"warningMissingApiKey": "⚠️ {{provider}} wymaga klucza API do generowania obrazów. Skonfiguruj go powyżej.",
+		"warningMissingModel": "⚠️ {{provider}} wymaga ID modelu do generowania obrazów. Skonfiguruj go powyżej.",
+		"successConfigured": "✓ Generowanie obrazów jest skonfigurowane dla {{provider}} i gotowe do użycia",
+		"modelLabel": "Model generowania obrazów",
+		"optionalModelDescription": "Opcjonalne. Zostaw puste, aby użyć checkpointu aktualnie załadowanego przez dostawcę.",
+		"openRouterModelDiscoveryDescription": "OpenRouter /models jest publiczne, więc lista może zawierać wszystkie modele z wyjściem obrazu; gdy podasz klucz API obrazu, Roo użyje go do wyników specyficznych dla konta, jeśli OpenRouter je zwróci.",
+		"cloudflareAccountIdLabel": "ID konta Cloudflare",
+		"cloudflareAccountIdPlaceholder": "Wpisz ID swojego konta Cloudflare",
+		"cloudflareAccountIdDescription": "Wymagane. Znajdziesz je w podglądzie konta w panelu Cloudflare.",
+		"cloudflareBaseUrlDescription": "Zostaw puste, aby użyć endpointu API v4 Cloudflare: {{url}}.",
+		"cloudflareApiMethodDescription": "Cloudflare Workers AI używa endpointu uruchamiania konta Workers AI do generowania obrazów.",
+		"warningMissingAccountId": "⚠️ {{provider}} wymaga ID konta Cloudflare do generowania obrazów. Skonfiguruj je powyżej.",
+		"cloudflarePricing": {
+			"title": "Ceny i darmowy limit Cloudflare Workers AI",
+			"quotaDescription": "Darmowy limit: {{freeAllocation}}. Resetuje się o {{resetTime}}. Płatne przekroczenie: {{paidOverage}}.",
+			"modelColumn": "Model",
+			"priceColumn": "Cena",
+			"neuronsColumn": "Neurons"
+		},
+		"cloudflareUsage": {
+			"title": "Szacowane dzisiejsze użycie Workers AI",
+			"remainingLabel": "Szacowane pozostałe darmowe neurons",
+			"neuronsValue": "{{count}} neurons",
+			"usedLabel": "Szacowane użycie dzisiaj",
+			"usedValue": "{{used}} / {{quota}} neurons",
+			"requestsLabel": "Śledzone żądania obrazów",
+			"resetLabel": "Następny reset",
+			"localEstimateDescription": "To lokalne oszacowanie na podstawie generacji obrazów uruchomionych z C. Cloudflare nie udostępnia tutaj udokumentowanego API dla pozostałego dziennego quota; sprawdź panel Cloudflare, aby zobaczyć użycie potwierdzone przez dostawcę."
 		}
 	},
 	"providers": {
@@ -391,12 +461,8 @@
 		"anthropicApiKey": "Klucz API Anthropic",
 		"getAnthropicApiKey": "Uzyskaj klucz API Anthropic",
 		"anthropicUseAuthToken": "Przekaż klucz API Anthropic jako nagłówek Authorization zamiast X-Api-Key",
-		"anthropic1MContextBetaLabel": "Włącz okno kontekstowe 1M (Beta)",
-		"anthropic1MContextBetaDescription": "Rozszerza okno kontekstowe do 1 miliona tokenów dla Claude Sonnet 4.x / Claude Opus 4.6",
 		"awsBedrock1MContextBetaLabel": "Włącz okno kontekstowe 1M (Beta)",
 		"awsBedrock1MContextBetaDescription": "Rozszerza okno kontekstowe do 1 miliona tokenów dla Claude Sonnet 4.x / Claude Opus 4.6",
-		"vertex1MContextBetaLabel": "Włącz okno kontekstowe 1M (Beta)",
-		"vertex1MContextBetaDescription": "Rozszerza okno kontekstowe do 1 miliona tokenów dla Claude Sonnet 4.x / Claude Opus 4.6",
 		"basetenApiKey": "Klucz API Baseten",
 		"getBasetenApiKey": "Uzyskaj klucz API Baseten",
 		"poeApiKey": "Klucz API Poe",
@@ -558,6 +624,7 @@
 			"minimal": "Minimalny (najszybszy)",
 			"high": "Wysoki",
 			"xhigh": "Bardzo wysoki",
+			"max": "Maksymalny",
 			"medium": "Średni",
 			"low": "Niski"
 		},
@@ -988,7 +1055,7 @@
 			"description": "Po włączeniu C może generować i edytować obrazy z promptów przy użyciu osobno skonfigurowanego dostawcy generowania obrazów.",
 			"providerLabel": "Dostawca",
 			"providerDescription": "Wybierz dostawcę używanego do generowania obrazów. Jest niezależny od profilu dostawcy chatu.",
-			"localProviderNote": "Ollama i LM Studio nie są tutaj dostępne do wyboru, ponieważ udostępniają API vision/chat, a nie API generowania obrazów. Lokalne generowanie obrazów jest dostępne przez prawdziwe API generowania obrazów, takie jak ComfyUI i Automatic1111, gdy są skonfigurowane.",
+			"localProviderNote": "Ollama, LM Studio, ComfyUI i Automatic1111 nie są tutaj dostępne do wyboru, bo ten panel skupia się teraz na OpenRouter i API generowania obrazów kompatybilnych z OpenAI.",
 			"apiKeyLabel": "Klucz API {{provider}}",
 			"optionalApiKeyLabel": "Klucz API {{provider}} (opcjonalnie)",
 			"apiKeyPlaceholder": "Wpisz klucz API {{provider}}",
@@ -1016,7 +1083,7 @@
 			},
 			"negativePromptLabel": "Negatywny prompt",
 			"negativePromptPlaceholder": "Wpisz treści, których należy unikać w generowanych obrazach",
-			"negativePromptDescription": "Opcjonalne. Pomaga lokalnym dostawcom unikać niechcianych obiektów, stylów lub artefaktów.",
+			"negativePromptDescription": "Opcjonalne. Pomaga kompatybilnym dostawcom unikać niechcianych tematów, stylów lub artefaktów.",
 			"warningMissingApiKey": "⚠️ {{provider}} wymaga klucza API do generowania obrazów. Skonfiguruj go powyżej.",
 			"warningMissingModel": "⚠️ {{provider}} wymaga ID modelu do generowania obrazów. Skonfiguruj go powyżej.",
 			"successConfigured": "✓ Generowanie obrazów jest skonfigurowane dla {{provider}} i gotowe do użycia"

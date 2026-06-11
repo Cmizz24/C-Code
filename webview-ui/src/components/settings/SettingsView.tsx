@@ -239,6 +239,11 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		openAiImageBaseUrl,
 		openAiImageGenerationSelectedModel,
 		openAiImageGenerationApiMethod,
+		cloudflareImageApiKey,
+		cloudflareImageAccountId,
+		cloudflareImageBaseUrl,
+		cloudflareImageGenerationSelectedModel,
+		cloudflareImageGenerationApiMethod,
 		comfyUiImageApiKey,
 		comfyUiImageBaseUrl,
 		comfyUiImageGenerationSelectedModel,
@@ -454,6 +459,11 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			openAiImageBaseUrl,
 			openAiImageGenerationSelectedModel,
 			openAiImageGenerationApiMethod,
+			cloudflareImageApiKey,
+			cloudflareImageAccountId,
+			cloudflareImageBaseUrl,
+			cloudflareImageGenerationSelectedModel,
+			cloudflareImageGenerationApiMethod,
 			comfyUiImageApiKey,
 			comfyUiImageBaseUrl,
 			comfyUiImageGenerationSelectedModel,
@@ -483,6 +493,11 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			openAiImageBaseUrl,
 			openAiImageGenerationSelectedModel,
 			openAiImageGenerationApiMethod,
+			cloudflareImageApiKey,
+			cloudflareImageAccountId,
+			cloudflareImageBaseUrl,
+			cloudflareImageGenerationSelectedModel,
+			cloudflareImageGenerationApiMethod,
 			comfyUiImageApiKey,
 			comfyUiImageBaseUrl,
 			comfyUiImageGenerationSelectedModel,
@@ -614,6 +629,11 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				openAiImageBaseUrl,
 				openAiImageGenerationSelectedModel,
 				openAiImageGenerationApiMethod,
+				cloudflareImageApiKey,
+				cloudflareImageAccountId,
+				cloudflareImageBaseUrl,
+				cloudflareImageGenerationSelectedModel,
+				cloudflareImageGenerationApiMethod,
 				comfyUiImageApiKey,
 				comfyUiImageBaseUrl,
 				comfyUiImageGenerationSelectedModel,
@@ -634,7 +654,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				lmStudioImageGenerationApiMethod,
 				experiments,
 				customSupportPrompts,
-			} as Partial<ExtensionStateContextType> & { smtpPassword?: string }
+			} as Partial<ExtensionStateContextType> & {
+				smtpPassword?: string
+			}
 
 			if (smtpPassword && smtpPassword.length > 0) {
 				updatedSettings.smtpPassword = smtpPassword
@@ -1056,6 +1078,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 						{renderTab === "imageGeneration" && (
 							<ImageGenerationSettings
 								imageGenerationSettings={imageGenerationSettings}
+								cloudflareWorkersAiImageUsage={extensionState.cloudflareWorkersAiImageUsage}
 								setImageGenerationSetting={setImageGenerationSetting}
 							/>
 						)}

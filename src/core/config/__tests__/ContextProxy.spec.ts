@@ -697,6 +697,18 @@ describe("ContextProxy", () => {
 		})
 	})
 
+	describe("export", () => {
+		it("should omit internal remote diagnostic install identifiers", async () => {
+			await proxy.updateGlobalState("mode", "code")
+			await proxy.updateGlobalState("remoteDebugLoggingInstallId", "internal-install-id")
+
+			const exportedSettings = await proxy.export()
+
+			expect(exportedSettings).toEqual(expect.objectContaining({ mode: "code" }))
+			expect(exportedSettings).not.toHaveProperty("remoteDebugLoggingInstallId")
+		})
+	})
+
 	describe("old default condensing prompt migration", () => {
 		// The old v1 default condensing prompt from before PR #10873
 		const OLD_V1_DEFAULT_CONDENSE_PROMPT = `Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.

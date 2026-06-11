@@ -24,6 +24,7 @@ import {
 	type TokenUsage,
 	type ToolUsage,
 	type ToolName,
+	type GeneratedImageMetadata,
 	type WritePermission,
 	type AgentCoordinationEvent,
 	type AgentActivityKind,
@@ -1299,6 +1300,58 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		return didUpdate
+	}
+
+	public async updateImageGenerationMessage(payload: {
+		metadata: GeneratedImageMetadata
+		path?: string
+		content?: string
+		imageUri?: string
+		imagePath?: string
+	}): Promise<boolean> {
+		for (let index = this.clineMessages.length - 1; index >= 0; index -= 1) {
+			const message = this.clineMessages[index]
+
+			if (
+				(message.type !== "ask" || message.ask !== "tool") &&
+				(message.type !== "say" || message.say !== "tool")
+			) {
+				continue
+			}
+
+			let tool: ClineSayTool
+			try {
+				tool = JSON.parse(message.text ?? "{}") as ClineSayTool
+			} catch {
+				continue
+			}
+
+			if (tool.tool !== "generateImage" && tool.tool !== "imageGenerated") {
+				continue
+			}
+
+			const updatedTool: ClineSayTool = {
+				...tool,
+				tool: "generateImage",
+				path: payload.path ?? payload.metadata.outputPath ?? payload.metadata.path ?? tool.path,
+				content: payload.content ?? payload.metadata.prompt ?? tool.content,
+				imageGeneration: payload.metadata,
+				...(payload.imageUri && { imageUri: payload.imageUri }),
+				...(payload.imagePath && { imagePath: payload.imagePath }),
+			}
+
+			message.type = "say"
+			message.say = "tool"
+			delete message.ask
+			message.text = JSON.stringify(updatedTool)
+			message.isAnswered = true
+
+			await this.updateClineMessage(message)
+			await this.saveClineMessages()
+			return true
+		}
+
+		return false
 	}
 
 	private async addToClineMessages(message: ClineMessage) {

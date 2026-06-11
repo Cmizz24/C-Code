@@ -531,15 +531,12 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 
 			// Build model info with conservative defaults for missing values
 			const modelInfo: ModelInfo = {
-				maxTokens: -1, // Unlimited tokens by default
 				contextWindow:
-					typeof this.client.maxInputTokens === "number"
-						? Math.max(0, this.client.maxInputTokens)
+					typeof this.client.maxInputTokens === "number" && this.client.maxInputTokens > 0
+						? this.client.maxInputTokens
 						: openAiModelInfoSaneDefaults.contextWindow,
 				supportsImages: false, // VSCode Language Model API currently doesn't support image inputs
-				supportsPromptCache: true,
-				inputPrice: 0,
-				outputPrice: 0,
+				supportsPromptCache: false,
 				description: `VSCode Language Model: ${modelId}`,
 			}
 
@@ -557,6 +554,8 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 			id: fallbackId,
 			info: {
 				...openAiModelInfoSaneDefaults,
+				supportsImages: false,
+				supportsPromptCache: false,
 				description: `VSCode Language Model (Fallback): ${fallbackId}`,
 			},
 		}

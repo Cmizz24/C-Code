@@ -2,7 +2,7 @@
 
 import { Anthropic } from "@anthropic-ai/sdk"
 
-import { type ModelInfo, geminiDefaultModelId } from "@roo-code/types"
+import { type ModelInfo, geminiDefaultModelId, geminiModels } from "@roo-code/types"
 
 import { t } from "i18next"
 import { GeminiHandler } from "../gemini"
@@ -152,6 +152,63 @@ describe("GeminiHandler", () => {
 			const modelInfo = handler.getModel()
 			expect(modelInfo.id).toBe(GEMINI_MODEL_NAME)
 			expect(modelInfo.info).toBeDefined()
+			expect(modelInfo.info.supportsReasoningEffort).toEqual(["low", "medium", "high"])
+			expect(modelInfo.info.reasoningEffort).toBe("high")
+		})
+
+		it("should expose current Gemini model metadata", () => {
+			expect(geminiModels["gemini-3.5-flash"]).toMatchObject({
+				maxTokens: 65_536,
+				contextWindow: 1_048_576,
+				supportsImages: true,
+				supportsPromptCache: true,
+				supportsReasoningEffort: ["minimal", "low", "medium", "high"],
+				reasoningEffort: "medium",
+				inputPrice: 1.5,
+				outputPrice: 9,
+				cacheReadsPrice: 0.15,
+				cacheWritesPrice: 1,
+			})
+
+			expect(geminiModels["gemini-3.1-flash-lite"]).toMatchObject({
+				maxTokens: 65_536,
+				contextWindow: 1_048_576,
+				supportsPromptCache: true,
+				supportsReasoningEffort: ["minimal", "low", "medium", "high"],
+				reasoningEffort: "minimal",
+				inputPrice: 0.25,
+				outputPrice: 1.5,
+				cacheReadsPrice: 0.025,
+			})
+
+			expect(geminiModels["gemini-2.5-pro"]).toMatchObject({
+				maxTokens: 65_536,
+				cacheReadsPrice: 0.25,
+				supportsReasoningBudget: true,
+				requiredReasoningBudget: true,
+			})
+			expect(geminiModels["gemini-2.5-pro"].tiers?.[0]).toMatchObject({ cacheReadsPrice: 0.125 })
+
+			expect(geminiModels["gemini-2.5-flash"]).toMatchObject({
+				maxTokens: 65_536,
+				cacheReadsPrice: 0.03,
+				supportsReasoningBudget: true,
+			})
+
+			expect(geminiModels["gemini-2.5-flash-lite"]).toMatchObject({
+				maxTokens: 65_536,
+				cacheReadsPrice: 0.01,
+				supportsReasoningBudget: true,
+			})
+		})
+
+		it("should mark shut-down Gemini aliases as deprecated", () => {
+			expect(geminiModels["gemini-3-pro-preview"].deprecated).toBe(true)
+			expect(geminiModels["gemini-2.5-pro-preview-06-05"].deprecated).toBe(true)
+			expect(geminiModels["gemini-2.5-pro-preview-05-06"].deprecated).toBe(true)
+			expect(geminiModels["gemini-2.5-pro-preview-03-25"].deprecated).toBe(true)
+			expect(geminiModels["gemini-2.5-flash-preview-09-2025"].deprecated).toBe(true)
+			expect(geminiModels["gemini-2.5-flash-lite-preview-09-2025"].deprecated).toBe(true)
 		})
 
 		it("should return default model if invalid model specified", () => {

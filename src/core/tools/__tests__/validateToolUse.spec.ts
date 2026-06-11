@@ -10,6 +10,7 @@ import { validateToolUse, isToolAllowedForMode } from "../validateToolUse"
 const codeMode = modes.find((m) => m.slug === "code")?.slug || "code"
 const architectMode = modes.find((m) => m.slug === "architect")?.slug || "architect"
 const explainMode = modes.find((m) => m.slug === "explain")?.slug || "explain"
+const uiUxMode = modes.find((m) => m.slug === "ui-ux")?.slug || "ui-ux"
 
 describe("mode-validator", () => {
 	describe("isToolAllowedForMode", () => {
@@ -60,6 +61,39 @@ describe("mode-validator", () => {
 				explainTools.forEach((tool) => {
 					expect(isToolAllowedForMode(tool, explainMode, [])).toBe(true)
 				})
+			})
+		})
+
+		describe("built-in image-capable frontend modes", () => {
+			it("allows UI/UX generate_image output paths in image asset locations", () => {
+				expect(
+					isToolAllowedForMode("generate_image", uiUxMode, [], undefined, {
+						path: "images/generated/mockup.png",
+					}),
+				).toBe(true)
+
+				expect(
+					isToolAllowedForMode("generate_image", uiUxMode, [], undefined, {
+						path: "images/generated/mockup",
+					}),
+				).toBe(true)
+			})
+
+			it("does not apply UI/UX image output permissions to regular edit tools", () => {
+				expect(() =>
+					isToolAllowedForMode("write_to_file", uiUxMode, [], undefined, {
+						path: "images/generated/mockup.png",
+						content: "not image data",
+					}),
+				).toThrow(FileRestrictionError)
+			})
+
+			it("rejects UI/UX generate_image output paths outside dedicated image restrictions", () => {
+				expect(() =>
+					isToolAllowedForMode("generate_image", uiUxMode, [], undefined, {
+						path: "docs/mockup.svg",
+					}),
+				).toThrow(/Image asset outputs only/)
 			})
 		})
 

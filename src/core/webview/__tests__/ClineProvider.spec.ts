@@ -548,6 +548,10 @@ describe("ClineProvider", () => {
 		AgentBus.reset()
 		;(vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: "/test/workspace" } }]
 		;(vscode.workspace as any).textDocuments = []
+		;(vscode.workspace.getConfiguration as any).mockReturnValue({
+			get: vi.fn().mockReturnValue(undefined),
+			update: vi.fn(),
+		})
 		;(vscode.workspace.getWorkspaceFolder as any).mockReturnValue({ uri: { fsPath: "/test/workspace" } })
 		;(vscode.workspace.openTextDocument as any).mockImplementation(
 			async (uriOrPath: string | { fsPath?: string; scheme?: string }) => ({
@@ -724,6 +728,15 @@ describe("ClineProvider", () => {
 		({
 			read_file: { attempts: 2, failures: 1 },
 		}) as ToolUsage
+
+	const setDebugSetting = (enabled: boolean) => {
+		const get = vi.fn((key: string, defaultValue?: unknown) => (key === "debug" ? enabled : defaultValue))
+		;(vscode.workspace.getConfiguration as any).mockReturnValue({
+			get,
+			update: vi.fn(),
+		})
+		return get
+	}
 
 	const installEmailNotificationServiceMock = (
 		sendTaskNotification = vi.fn().mockResolvedValue({ attempted: true, sent: true }),
@@ -951,6 +964,230 @@ describe("ClineProvider", () => {
 		// @ts-ignore - accessing private property for testing
 		provider.view = mockWebviewView
 		expect(ClineProvider.getVisibleInstance()).toBe(provider)
+	})
+
+	describe("remote diagnostic debug opt-in", () => {
+		test("keeps remote diagnostics disabled by default without creating an install id", () => {
+			const config = (provider as any).getRemoteDebugLoggerConfig()
+
+			expect(config.enabled).toBe(false)
+			expect(config.installId).toBeUndefined()
+			expect(mockContext.globalState.update).not.toHaveBeenCalledWith(
+				"remoteDebugLoggingInstallId",
+				expect.any(String),
+			)
+		})
+
+		test("enables remote diagnostics from the VS Code debug setting without endpoint or token config", () => {
+			setDebugSetting(true)
+
+			const config = (provider as any).getRemoteDebugLoggerConfig()
+
+			expect(config.enabled).toBe(true)
+			expect(config.installId).toEqual(expect.any(String))
+			expect(config.endpoint).toBeUndefined()
+			expect(config.authToken).toBeUndefined()
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("remoteDebugLoggingInstallId", config.installId)
+		})
+
+		test("records task diagnostics only while debug mode is enabled", async () => {
+			const recordSpy = vi.spyOn((provider as any).remoteDebugLogger, "record").mockImplementation(() => {})
+			const task = new Task({
+				...defaultTaskOptions,
+				taskId: "task-remote-debug",
+				apiConfiguration: {
+					apiProvider: "openrouter",
+					apiModelId: "openrouter/model",
+				},
+			} as any)
+
+			setDebugSetting(false)
+			;(provider as any).recordRemoteDebugTaskEvent(task, "task.started")
+			expect(recordSpy).not.toHaveBeenCalled()
+
+			setDebugSetting(true)
+			;(provider as any).recordRemoteDebugTaskEvent(task, "task.completed", {
+				properties: { outcome: "completed" },
+			})
+
+			await vi.waitFor(() => expect(recordSpy).toHaveBeenCalledTimes(1))
+			expect(recordSpy.mock.calls[0][0]).toEqual(
+				expect.objectContaining({
+					type: "task.completed",
+					taskId: "task-remote-debug",
+					provider: "openrouter",
+					modelId: "openrouter/model",
+					taskSummary: expect.objectContaining({
+						status: "completed",
+						messageCount: 0,
+						askCount: 0,
+						sayCount: 0,
+						apiRequestCount: 0,
+						apiRetryCount: 0,
+						apiFailureCount: 0,
+						toolAttemptCount: 0,
+						toolFailureCount: 0,
+					}),
+				}),
+			)
+
+			recordSpy.mockClear()
+			setDebugSetting(false)
+			;(provider as any).recordRemoteDebugTaskEvent(task, "task.completed")
+			expect(recordSpy).not.toHaveBeenCalled()
+		})
+
+		test("records privacy-safe message and API request summaries without raw message text", async () => {
+			setDebugSetting(false)
+			const recordSpy = vi.spyOn((provider as any).remoteDebugLogger, "record").mockImplementation(() => {})
+			const task = new Task({
+				...defaultTaskOptions,
+				taskId: "task-api-summary",
+				apiConfiguration: {
+					apiProvider: "anthropic",
+					apiModelId: "claude-sonnet-4",
+				},
+			} as any)
+			;(provider as any).taskCreationCallback(task)
+
+			setDebugSetting(true)
+			const apiRequestText = JSON.stringify({
+				apiProtocol: "anthropic",
+				tokensIn: 123,
+				tokensOut: 45,
+				cacheWrites: 6,
+				cacheReads: 7,
+				cost: 0.89,
+				request:
+					"POST https://example.com/private?token=secret C:\\Users\\clayton\\prompt.txt raw private prompt",
+			})
+			const message: ClineMessage = {
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({
+					apiProtocol: "anthropic",
+					request:
+						"POST https://example.com/private?token=secret C:\\Users\\clayton\\prompt.txt raw private prompt",
+				}),
+				partial: false,
+				ts: 1_700_000_010,
+			}
+
+			task.clineMessages.push(message)
+			task.emit(RooCodeEventName.Message, { action: "created", message })
+			message.text = apiRequestText
+			task.emit(RooCodeEventName.Message, { action: "updated", message })
+
+			await vi.waitFor(() => expect(recordSpy).toHaveBeenCalledTimes(2))
+			const [event, recordOptions] = recordSpy.mock.calls[1] as [any, any]
+
+			expect(recordOptions).toEqual({ flushImmediately: false })
+			expect(event).toEqual(
+				expect.objectContaining({
+					type: "api.request",
+					severity: "debug",
+					featureArea: "api",
+					taskId: "task-api-summary",
+					provider: "anthropic",
+					modelId: "claude-sonnet-4",
+					operation: {
+						stage: "request",
+						status: "finished",
+					},
+				}),
+			)
+			expect(event.apiRequest).toEqual(
+				expect.objectContaining({
+					protocol: "anthropic",
+					stage: "finished",
+					status: "finished",
+					requestIndex: 1,
+					requestCount: 1,
+					tokensIn: 123,
+					tokensOut: 45,
+					cacheWrites: 6,
+					cacheReads: 7,
+					cost: 0.89,
+				}),
+			)
+			expect(event.apiRequest.request).toBeUndefined()
+			expect(event.message).toBeUndefined()
+			expect(event.taskSummary).toBeUndefined()
+
+			const serializedEvent = JSON.stringify(event)
+			expect(serializedEvent).not.toContain("raw private prompt")
+			expect(serializedEvent).not.toContain("C:\\Users\\clayton")
+			expect(serializedEvent).not.toContain("https://example.com/private")
+			expect(serializedEvent).not.toContain("token=secret")
+		})
+
+		test("flushes tool failures immediately with sanitized tool diagnostics", async () => {
+			setDebugSetting(false)
+			const recordSpy = vi.spyOn((provider as any).remoteDebugLogger, "record").mockImplementation(() => {})
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-tool-failure" } as any)
+			;(provider as any).taskCreationCallback(task)
+
+			setDebugSetting(true)
+			const rawToolError = "raw command output token=secret-token at C:\\Users\\clayton\\project\\file.ts"
+			task.emit(RooCodeEventName.TaskToolFailed, task.taskId, "read_file", rawToolError)
+
+			await vi.waitFor(() => expect(recordSpy).toHaveBeenCalledTimes(1))
+			const [event, recordOptions] = recordSpy.mock.calls[0] as [any, any]
+
+			expect(recordOptions).toEqual({ flushImmediately: true })
+			expect(event).toEqual(
+				expect.objectContaining({
+					type: "tool.usage",
+					severity: "error",
+					featureArea: "tool",
+					operation: { stage: "tool", status: "failed" },
+				}),
+			)
+			expect(event.message).toBeUndefined()
+			expect(event.error).toBeInstanceOf(Error)
+			expect(event.error.message).toBe("Tool execution failed")
+			expect(event.properties).toEqual(
+				expect.objectContaining({
+					tool: "read_file",
+					eventTaskIdMatches: true,
+					errorLength: rawToolError.length,
+				}),
+			)
+			expect(JSON.stringify(event)).not.toContain(rawToolError)
+			expect(JSON.stringify(event)).not.toContain("secret-token")
+			expect(JSON.stringify(event)).not.toContain("C:\\Users\\clayton")
+		})
+
+		test("records runtime errors for the active debug-enabled provider with immediate flushing", async () => {
+			setDebugSetting(true)
+			const recordSpy = vi.spyOn((provider as any).remoteDebugLogger, "record").mockImplementation(() => {})
+
+			;(ClineProvider as any).recordRemoteDebugRuntimeErrorForActiveInstance(
+				new Error("Unhandled rejection token=secret-token at https://example.com/private"),
+				{
+					source: "process",
+					origin: "unhandledRejection",
+					unhandled: true,
+				},
+			)
+
+			await vi.waitFor(() => expect(recordSpy).toHaveBeenCalledTimes(1))
+			const [event, recordOptions] = recordSpy.mock.calls[0] as [any, any]
+
+			expect(recordOptions).toEqual({ flushImmediately: true })
+			expect(event).toEqual(
+				expect.objectContaining({
+					type: "runtime.error",
+					severity: "error",
+					featureArea: "runtime",
+					runtime: {
+						source: "process",
+						origin: "unhandledRejection",
+						unhandled: true,
+					},
+				}),
+			)
+		})
 	})
 
 	describe("email notification lifecycle dispatch", () => {
@@ -7930,7 +8167,7 @@ describe("ClineProvider - Router Models", () => {
 		await messageHandler({ type: "requestRouterModels" })
 
 		// Verify getModels was called for each provider with correct options
-		expect(getModels).toHaveBeenCalledWith({ provider: "openrouter" })
+		expect(getModels).toHaveBeenCalledWith({ provider: "openrouter", apiKey: "openrouter-key" })
 		expect(getModels).toHaveBeenCalledWith({ provider: "requesty", apiKey: "requesty-key" })
 		expect(getModels).toHaveBeenCalledWith({ provider: "unbound" })
 		expect(getModels).toHaveBeenCalledWith({ provider: "vercel-ai-gateway" })
