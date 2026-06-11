@@ -42,6 +42,7 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 					<p className="mt-0">
 						<Trans
 							i18nKey="chat:announcement.finalRelease.intro"
+							values={{ version: Package.version }}
 							components={{
 								repoLink: <ExternalLink href="https://github.com/Cmizz24/C-Code" />,
 							}}
@@ -59,7 +60,7 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 						<li>{t("chat:announcement.finalRelease.promptEnhancement")}</li>
 						<li>{t("chat:announcement.finalRelease.orchestration")}</li>
 						<li>{t("chat:announcement.finalRelease.providerTooling")}</li>
-						<li>{t("chat:announcement.finalRelease.supportedImageProviders")}</li>
+						<li>{t("chat:announcement.finalRelease.diagnosticsHelp")}</li>
 					</ul>
 					<p>
 						<Trans
