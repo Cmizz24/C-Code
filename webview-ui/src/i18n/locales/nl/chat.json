@@ -411,11 +411,19 @@
 		"title": "C Code {{version}} uitgebracht",
 		"support": "Steun C Code door ons een ster te geven op <githubLink>GitHub</githubLink>.",
 		"finalRelease": {
-			"title": "C Code {{version}} update",
-			"intro": "C Code gaat door als Cmizz' persoonlijke fork van Roo Code. Volg de repository van Cmizz voor de nieuwste fork-updates, fixes en ontwikkelnotities: <repoLink>Cmizz24/C-Code</repoLink>.",
-			"continuity": "Deze extensie blijft C Code-personalisatie-updates ontvangen en behoudt respectvolle attribution aan het oorspronkelijke Roo Code-project.",
-			"alternatives": "Gebruik de <repoLink>C Code GitHub-repository</repoLink> voor het huidige werk, bug reports en nieuwe wijzigingen.",
-			"signoff": "Happy coding!"
+			"title": "C Code {{version}} release",
+			"intro": "C Code {{version}} is klaar vanuit Cmizz' geconsolideerde fork-basis. Volg de fork-repository voor release notes, fixes en ontwikkelupdates: <repoLink>Cmizz24/C-Code</repoLink>.",
+			"summary": "Deze release richt zich op C Code-specifieke creatietools, provider-/modelhygiëne, diagnostiek en UI-polish, met behoud van respectvolle attribution aan het oorspronkelijke Roo Code-project.",
+			"highlightsHeading": "Highlights in deze release:",
+			"imageGeneration": "Native image generation vanuit chat, met Image Generation-instellingen, promptgoedkeuring, previews en OpenRouter-, OpenAI/OpenAI-compatible- en Cloudflare Workers AI-providers.",
+			"dynamicModels": "Dynamische OpenRouter image-model discovery plus vernieuwde provider-/modelmetadata en cache-scoping.",
+			"visualInspector": "Visual Browser Inspector-integratie voor het inspecteren van browserstatus naast chat-workflows.",
+			"diagnostics": "Opt-in remote diagnostics via de bestaande debug-toggle, verzonden naar Cmizz' diagnostics endpoint met anonieme/private event payloads.",
+			"providerHygiene": "ChatGPT Plus/Pro Codex-catalogusopschoning filtert oude unsupported models en valt terug op supported defaults.",
+			"toolingPolish": "Settings, i18n, Windows-safe command guidance en native tool/mode-flow polish uit het C Code-werk.",
+			"unsupportedLocal": "Lokale image-generation backends zoals Ollama, LM Studio, ComfyUI en Automatic1111 worden in deze release niet aangeboden als supported image-generation providers.",
+			"alternatives": "Gebruik de <repoLink>C Code GitHub-repository</repoLink> voor issue reports, source changes en definitieve GitHub release notes.",
+			"signoff": "Bedankt dat je C Code gebruikt."
 		},
 		"release": {
 			"heading": "Wat is er nieuw:",

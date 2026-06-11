@@ -47,7 +47,19 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 							}}
 						/>
 					</p>
-					<p>{t("chat:announcement.finalRelease.continuity")}</p>
+					<p>{t("chat:announcement.finalRelease.summary")}</p>
+					<p className="font-medium text-vscode-foreground">
+						{t("chat:announcement.finalRelease.highlightsHeading")}
+					</p>
+					<ul className="mb-3 list-disc space-y-1 pl-5">
+						<li>{t("chat:announcement.finalRelease.imageGeneration")}</li>
+						<li>{t("chat:announcement.finalRelease.dynamicModels")}</li>
+						<li>{t("chat:announcement.finalRelease.visualInspector")}</li>
+						<li>{t("chat:announcement.finalRelease.diagnostics")}</li>
+						<li>{t("chat:announcement.finalRelease.providerHygiene")}</li>
+						<li>{t("chat:announcement.finalRelease.toolingPolish")}</li>
+						<li>{t("chat:announcement.finalRelease.unsupportedLocal")}</li>
+					</ul>
 					<p>
 						<Trans
 							i18nKey="chat:announcement.finalRelease.alternatives"

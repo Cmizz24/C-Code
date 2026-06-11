@@ -438,11 +438,19 @@
 		"title": "Rilasciato C Code {{version}}",
 		"support": "Sostieni C Code lasciandoci una stella su <githubLink>GitHub</githubLink>.",
 		"finalRelease": {
-			"title": "Aggiornamento C Code {{version}}",
-			"intro": "C Code continua come fork personale di Roo Code di Cmizz. Segui il repository di Cmizz per gli ultimi aggiornamenti del fork, correzioni e note di sviluppo: <repoLink>Cmizz24/C-Code</repoLink>.",
-			"continuity": "Questa estensione continuerà a ricevere aggiornamenti di personalizzazione C Code mantenendo un'attribuzione rispettosa al progetto originale Roo Code.",
-			"alternatives": "Per seguire il lavoro attuale, segnalare bug e vedere nuovi cambiamenti, usa il <repoLink>repository GitHub di C Code</repoLink>.",
-			"signoff": "Happy coding!"
+			"title": "Release C Code {{version}}",
+			"intro": "C Code {{version}} è pronto dalla base fork consolidata di Cmizz. Segui il repository del fork per note di release, correzioni e aggiornamenti di sviluppo: <repoLink>Cmizz24/C-Code</repoLink>.",
+			"summary": "Questa release si concentra su strumenti di creazione specifici di C Code, igiene di provider/modelli, diagnostica e rifiniture della UI, mantenendo un'attribuzione rispettosa al progetto Roo Code originale.",
+			"highlightsHeading": "Punti salienti di questa release:",
+			"imageGeneration": "Generazione nativa di immagini dalla chat, con impostazioni Image Generation, approvazione dei prompt, anteprime e provider OpenRouter, OpenAI/OpenAI-compatible e Cloudflare Workers AI.",
+			"dynamicModels": "Scoperta dinamica dei modelli immagine OpenRouter, più metadati provider/modello aggiornati e scoping della cache rinnovato.",
+			"visualInspector": "Integrazione di Visual Browser Inspector per ispezionare lo stato del browser insieme ai workflow di chat.",
+			"diagnostics": "Diagnostica remota opt-in tramite il toggle di debug esistente, inviata all'endpoint diagnostico di Cmizz con payload di eventi anonimi/privati.",
+			"providerHygiene": "La pulizia del catalogo ChatGPT Plus/Pro Codex filtra i vecchi modelli non supportati e torna a default supportati.",
+			"toolingPolish": "Impostazioni, i18n, guida ai comandi sicura per Windows e rifiniture di tool nativi/flow di modalità dal lavoro C Code.",
+			"unsupportedLocal": "I backend locali di generazione immagini come Ollama, LM Studio, ComfyUI e Automatic1111 non sono esposti come provider di generazione immagini supportati in questa release.",
+			"alternatives": "Per segnalazioni di issue, modifiche al source e note finali di release GitHub, usa il <repoLink>repository GitHub di C Code</repoLink>.",
+			"signoff": "Grazie per usare C Code."
 		},
 		"release": {
 			"heading": "Novità:",

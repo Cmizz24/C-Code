@@ -460,11 +460,19 @@
 		"title": "C Code {{version}} 已發布",
 		"support": "請在 <githubLink>GitHub</githubLink> 上給 C Code 星星支持我們。",
 		"finalRelease": {
-			"title": "C Code {{version}} 更新",
-			"intro": "C Code 將作為 Cmizz 的 Roo Code 個人 fork 繼續發展。請追蹤 Cmizz 的 repository，以取得最新 fork 更新、修正與開發筆記：<repoLink>Cmizz24/C-Code</repoLink>。",
-			"continuity": "這個擴充功能會持續收到 C Code 個人化更新，同時保留對原始 Roo Code 專案的尊重 attribution。",
-			"alternatives": "若要追蹤目前工作、回報 bug 或查看新變更，請使用 <repoLink>C Code GitHub repository</repoLink>。",
-			"signoff": "Happy coding!"
+			"title": "C Code {{version}} 發布",
+			"intro": "C Code {{version}} 已從 Cmizz 的整合 fork 基礎準備就緒。請追蹤 fork repository，以取得 release notes、修正與開發更新：<repoLink>Cmizz24/C-Code</repoLink>。",
+			"summary": "此版本聚焦於 C Code 專屬創作 tools、provider/model hygiene、diagnostics 與 UI polish，同時保留對原始 Roo Code 專案的尊重 attribution。",
+			"highlightsHeading": "此版本亮點：",
+			"imageGeneration": "從 chat 原生生成圖片，支援 Image Generation 設定、prompt approval、previews，以及 OpenRouter、OpenAI/OpenAI-compatible 和 Cloudflare Workers AI providers。",
+			"dynamicModels": "動態 OpenRouter image-model discovery，並更新 provider/model metadata 與 cache scoping。",
+			"visualInspector": "整合 Visual Browser Inspector，可在 chat workflows 中檢查瀏覽器狀態。",
+			"diagnostics": "透過現有 debug toggle 選擇啟用 remote diagnostics，使用匿名/私密 event payloads 傳送到 Cmizz 的 diagnostics endpoint。",
+			"providerHygiene": "ChatGPT Plus/Pro Codex catalog cleanup 會篩除過時的 unsupported models，並 fallback 到 supported defaults。",
+			"toolingPolish": "來自 C Code 工作的 Settings、i18n、Windows-safe command guidance，以及 native tool/mode-flow polish。",
+			"unsupportedLocal": "Ollama、LM Studio、ComfyUI 和 Automatic1111 等 local image-generation backends 在此版本中不會作為 supported image-generation providers 公開。",
+			"alternatives": "如需 issue reports、source changes 和最終 GitHub release notes，請使用 <repoLink>C Code GitHub repository</repoLink>。",
+			"signoff": "感謝使用 C Code。"
 		},
 		"release": {
 			"heading": "新增功能：",

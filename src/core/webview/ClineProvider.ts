@@ -525,7 +525,7 @@ export class ClineProvider
 
 	public isViewLaunched = false
 	public settingsImportedAt?: number
-	public readonly latestAnnouncementId = "may-2026-c-code-fork-update" // C Code fork update announcement.
+	public readonly latestAnnouncementId = "c-code-3-54-0-release" // C Code 3.54.0 release announcement.
 	public readonly providerSettingsManager: ProviderSettingsManager
 	public readonly customModesManager: CustomModesManager
 	public get isVisualBrowserInspectorOnly(): boolean {

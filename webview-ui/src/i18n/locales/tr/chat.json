@@ -439,11 +439,19 @@
 		"title": "C Code {{version}} Yayınlandı",
 		"support": "<githubLink>GitHub</githubLink>'da yıldız vererek C Code'u destekle.",
 		"finalRelease": {
-			"title": "C Code {{version}} güncellemesi",
-			"intro": "C Code, Cmizz'in Roo Code kişisel fork'u olarak devam ediyor. En son fork güncellemeleri, düzeltmeler ve geliştirme notları için Cmizz repository'sini takip et: <repoLink>Cmizz24/C-Code</repoLink>.",
-			"continuity": "Bu eklenti, orijinal Roo Code projesine saygılı attribution korurken C Code kişiselleştirme güncellemeleri almaya devam edecek.",
-			"alternatives": "Güncel çalışmaları takip etmek, bug report göndermek ve yeni değişiklikleri görmek için <repoLink>C Code GitHub repository</repoLink> kullan.",
-			"signoff": "Happy coding!"
+			"title": "C Code {{version}} sürümü",
+			"intro": "C Code {{version}}, Cmizz'in birleştirilmiş fork tabanından hazır. Release notes, düzeltmeler ve geliştirme güncellemeleri için fork repository'sini takip et: <repoLink>Cmizz24/C-Code</repoLink>.",
+			"summary": "Bu sürüm, C Code'a özel oluşturma tools, provider/model hijyeni, tanılama ve UI polish üzerine odaklanırken orijinal Roo Code projesine saygılı attribution'ı korur.",
+			"highlightsHeading": "Bu sürümde öne çıkanlar:",
+			"imageGeneration": "chat üzerinden native image generation; Image Generation ayarları, prompt onayı, önizlemeler ve OpenRouter, OpenAI/OpenAI-compatible, Cloudflare Workers AI providers ile birlikte.",
+			"dynamicModels": "Dinamik OpenRouter image-model discovery, yenilenmiş provider/model metadata ve cache scoping ile birlikte.",
+			"visualInspector": "chat workflows yanında tarayıcı durumunu incelemek için Visual Browser Inspector entegrasyonu.",
+			"diagnostics": "Mevcut debug toggle üzerinden opt-in remote diagnostics; anonim/özel event payloads ile Cmizz'in diagnostics endpoint'ine gönderilir.",
+			"providerHygiene": "ChatGPT Plus/Pro Codex catalog cleanup, eski unsupported models'ı filtreler ve supported defaults'a fallback yapar.",
+			"toolingPolish": "C Code çalışmasından Settings, i18n, Windows-safe command guidance ve native tool/mode-flow polish.",
+			"unsupportedLocal": "Ollama, LM Studio, ComfyUI ve Automatic1111 gibi local image-generation backends bu sürümde supported image-generation providers olarak sunulmaz.",
+			"alternatives": "issue reports, source changes ve final GitHub release notes için <repoLink>C Code GitHub repository</repoLink> kullan.",
+			"signoff": "C Code'u kullandığın için teşekkürler."
 		},
 		"release": {
 			"heading": "Yenilikler:",

@@ -438,11 +438,19 @@
 		"title": "C Code {{version}} रिलीज़ हुआ",
 		"support": "कृपया <githubLink>GitHub</githubLink> पर हमें स्टार देकर C Code का समर्थन करें।",
 		"finalRelease": {
-			"title": "C Code {{version}} अपडेट",
-			"intro": "C Code, Cmizz के Roo Code के निजी fork के रूप में जारी है। नवीनतम fork अपडेट, फ़िक्स और विकास नोट्स के लिए Cmizz के repository को फ़ॉलो करें: <repoLink>Cmizz24/C-Code</repoLink>।",
-			"continuity": "यह extension मूल Roo Code प्रोजेक्ट को सम्मानजनक attribution देते हुए C Code personalization अपडेट प्राप्त करता रहेगा।",
-			"alternatives": "मौजूदा काम, bug reports और नए बदलावों के लिए <repoLink>C Code GitHub repository</repoLink> का उपयोग करें।",
-			"signoff": "Happy coding!"
+			"title": "C Code {{version}} रिलीज़",
+			"intro": "C Code {{version}}, Cmizz के consolidated fork base से तैयार है। release notes, fixes और development updates के लिए fork repository को फ़ॉलो करें: <repoLink>Cmizz24/C-Code</repoLink>।",
+			"summary": "यह release C Code-specific creation tools, provider/model hygiene, diagnostics और UI polish पर केंद्रित है, साथ ही मूल Roo Code project को सम्मानजनक attribution बनाए रखता है।",
+			"highlightsHeading": "इस release की highlights:",
+			"imageGeneration": "chat से native image generation, जिसमें Image Generation settings, prompt approval, previews, और OpenRouter, OpenAI/OpenAI-compatible तथा Cloudflare Workers AI providers शामिल हैं।",
+			"dynamicModels": "Dynamic OpenRouter image-model discovery, साथ में refreshed provider/model metadata और cache scoping।",
+			"visualInspector": "chat workflows के साथ browser state inspect करने के लिए Visual Browser Inspector integration।",
+			"diagnostics": "मौजूदा debug toggle के माध्यम से opt-in remote diagnostics, anonymous/private event payloads के साथ Cmizz के diagnostics endpoint पर भेजे जाते हैं।",
+			"providerHygiene": "ChatGPT Plus/Pro Codex catalog cleanup पुराने unsupported models को filter करता है और supported defaults पर fallback करता है।",
+			"toolingPolish": "C Code work से Settings, i18n, Windows-safe command guidance और native tool/mode-flow polish।",
+			"unsupportedLocal": "Ollama, LM Studio, ComfyUI और Automatic1111 जैसे local image-generation backends इस release में supported image-generation providers के रूप में expose नहीं किए गए हैं।",
+			"alternatives": "issue reports, source changes और final GitHub release notes के लिए <repoLink>C Code GitHub repository</repoLink> का उपयोग करें।",
+			"signoff": "C Code का उपयोग करने के लिए धन्यवाद।"
 		},
 		"release": {
 			"heading": "नया क्या है:",

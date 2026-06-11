@@ -12,7 +12,7 @@ vi.mock("@src/utils/vscode", () => ({
 
 vi.mock("@roo/package", () => ({
 	Package: {
-		version: "3.53.0",
+		version: "3.54.0",
 	},
 }))
 
@@ -29,8 +29,8 @@ vi.mock("react-i18next", () => ({
 		if (i18nKey === "chat:announcement.finalRelease.intro") {
 			return (
 				<span>
-					C Code is continuing as Cmizz{"'"}s personal fork of Roo Code. Follow Cmizz{"'"}s repository for the
-					latest fork updates, fixes, and development notes:{" "}
+					C Code 3.54.0 is ready from Cmizz{"'"}s consolidated fork base. Follow the fork repository for
+					release notes, fixes, and development updates:{" "}
 					{components?.repoLink && React.cloneElement(components.repoLink, {}, "Cmizz24/C-Code")}.
 				</span>
 			)
@@ -39,7 +39,7 @@ vi.mock("react-i18next", () => ({
 		if (i18nKey === "chat:announcement.finalRelease.alternatives") {
 			return (
 				<span>
-					For the current work, bug reports, and new changes, use the{" "}
+					For issue reports, source changes, and final GitHub release notes, use the{" "}
 					{components?.repoLink && React.cloneElement(components.repoLink, {}, "C Code GitHub repository")}.
 				</span>
 			)
@@ -53,10 +53,25 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string, options?: { version?: string }) => {
 			const translations: Record<string, string> = {
-				"chat:announcement.finalRelease.title": "C Code 3.53.0 update",
-				"chat:announcement.finalRelease.continuity":
-					"This extension will keep receiving C Code personalization updates while preserving respectful attribution to the original Roo Code project.",
-				"chat:announcement.finalRelease.signoff": "Happy coding!",
+				"chat:announcement.finalRelease.title": "C Code 3.54.0 release",
+				"chat:announcement.finalRelease.summary":
+					"This release focuses on C Code-specific creation tools, provider/model hygiene, diagnostics, and UI polish while preserving respectful attribution to the original Roo Code project.",
+				"chat:announcement.finalRelease.highlightsHeading": "Highlights in this release:",
+				"chat:announcement.finalRelease.imageGeneration":
+					"Native image generation from chat, with Image Generation settings, prompt approval, previews, and OpenRouter, OpenAI/OpenAI-compatible, and Cloudflare Workers AI providers.",
+				"chat:announcement.finalRelease.dynamicModels":
+					"Dynamic OpenRouter image-model discovery plus refreshed provider/model metadata and cache scoping.",
+				"chat:announcement.finalRelease.visualInspector":
+					"Visual Browser Inspector integration for inspecting browser state alongside chat workflows.",
+				"chat:announcement.finalRelease.diagnostics":
+					"Opt-in remote diagnostics through the existing debug toggle, sent to Cmizz's diagnostics endpoint with anonymous/private event payloads.",
+				"chat:announcement.finalRelease.providerHygiene":
+					"ChatGPT Plus/Pro Codex catalog cleanup filters stale unsupported models and falls back to supported defaults.",
+				"chat:announcement.finalRelease.toolingPolish":
+					"Settings, i18n, Windows-safe command guidance, and native tool/mode-flow polish from the C Code work.",
+				"chat:announcement.finalRelease.unsupportedLocal":
+					"Local image-generation backends such as Ollama, LM Studio, ComfyUI, and Automatic1111 are not exposed as supported image-generation providers in this release.",
+				"chat:announcement.finalRelease.signoff": "Thanks for using C Code.",
 			}
 
 			if (key === "chat:announcement.finalRelease.title") {
@@ -72,14 +87,20 @@ describe("Announcement", () => {
 	it("renders the C Code fork update announcement", () => {
 		render(<Announcement hideAnnouncement={vi.fn()} />)
 
-		expect(screen.getByText("C Code 3.53.0 update")).toBeInTheDocument()
-		expect(screen.getByText(/C Code is continuing as Cmizz's personal fork of Roo Code/)).toBeInTheDocument()
+		expect(screen.getByText("C Code 3.54.0 release")).toBeInTheDocument()
+		expect(screen.getByText(/C Code 3.54.0 is ready from Cmizz's consolidated fork base/)).toBeInTheDocument()
 		expect(
 			screen.getByText(
-				"This extension will keep receiving C Code personalization updates while preserving respectful attribution to the original Roo Code project.",
+				"This release focuses on C Code-specific creation tools, provider/model hygiene, diagnostics, and UI polish while preserving respectful attribution to the original Roo Code project.",
 			),
 		).toBeInTheDocument()
-		expect(screen.getByText("Happy coding!")).toBeInTheDocument()
+		expect(screen.getByText("Highlights in this release:")).toBeInTheDocument()
+		expect(screen.getByText(/Native image generation from chat/)).toBeInTheDocument()
+		expect(screen.getByText(/Cloudflare Workers AI providers/)).toBeInTheDocument()
+		expect(screen.getByText(/Visual Browser Inspector integration/)).toBeInTheDocument()
+		expect(screen.getByText(/Opt-in remote diagnostics/)).toBeInTheDocument()
+		expect(screen.getByText(/ChatGPT Plus\/Pro Codex catalog cleanup/)).toBeInTheDocument()
+		expect(screen.getByText("Thanks for using C Code.")).toBeInTheDocument()
 	})
 
 	it("renders the external links", () => {
@@ -95,10 +116,9 @@ describe("Announcement", () => {
 		)
 	})
 
-	it("does not render corporate handoff or alternative fork links", () => {
+	it("keeps C Code branding without corporate handoff or alternative fork links", () => {
 		render(<Announcement hideAnnouncement={vi.fn()} />)
 
-		expect(screen.queryByRole("listitem")).not.toBeInTheDocument()
 		expect(screen.queryByText("chat:announcement.handoff.description")).not.toBeInTheDocument()
 		expect(screen.queryByRole("link", { name: "X" })).not.toBeInTheDocument()
 		expect(screen.queryByRole("link", { name: "ZooCode" })).not.toBeInTheDocument()

@@ -439,11 +439,19 @@
 		"title": "C Code {{version}} Đã phát hành",
 		"support": "Hãy ủng hộ C Code bằng cách gắn sao cho chúng tôi trên <githubLink>GitHub</githubLink>.",
 		"finalRelease": {
-			"title": "Cập nhật C Code {{version}}",
-			"intro": "C Code tiếp tục là fork cá nhân của Cmizz từ Roo Code. Theo dõi repository của Cmizz để xem các cập nhật fork mới nhất, bản sửa lỗi và ghi chú phát triển: <repoLink>Cmizz24/C-Code</repoLink>.",
-			"continuity": "Tiện ích mở rộng này sẽ tiếp tục nhận các cập nhật cá nhân hóa C Code trong khi vẫn ghi nhận attribution trân trọng cho dự án Roo Code gốc.",
-			"alternatives": "Để theo dõi công việc hiện tại, báo cáo bug và xem thay đổi mới, hãy dùng <repoLink>C Code GitHub repository</repoLink>.",
-			"signoff": "Happy coding!"
+			"title": "Bản phát hành C Code {{version}}",
+			"intro": "C Code {{version}} đã sẵn sàng từ nền tảng fork hợp nhất của Cmizz. Theo dõi fork repository để xem release notes, bản sửa lỗi và cập nhật phát triển: <repoLink>Cmizz24/C-Code</repoLink>.",
+			"summary": "Bản phát hành này tập trung vào các tools sáng tạo riêng cho C Code, vệ sinh provider/model, diagnostics và tinh chỉnh UI, đồng thời vẫn ghi nhận attribution trân trọng cho dự án Roo Code gốc.",
+			"highlightsHeading": "Điểm nổi bật trong bản phát hành này:",
+			"imageGeneration": "Native image generation từ chat, với thiết lập Image Generation, phê duyệt prompt, preview, và các providers OpenRouter, OpenAI/OpenAI-compatible, Cloudflare Workers AI.",
+			"dynamicModels": "Dynamic OpenRouter image-model discovery cùng metadata provider/model được làm mới và phạm vi cache được cập nhật.",
+			"visualInspector": "Tích hợp Visual Browser Inspector để kiểm tra trạng thái trình duyệt cùng với chat workflows.",
+			"diagnostics": "Remote diagnostics opt-in qua debug toggle hiện có, gửi tới diagnostics endpoint của Cmizz với payload event ẩn danh/riêng tư.",
+			"providerHygiene": "Dọn dẹp catalog ChatGPT Plus/Pro Codex lọc các model cũ không được hỗ trợ và fallback về defaults được hỗ trợ.",
+			"toolingPolish": "Settings, i18n, Windows-safe command guidance và tinh chỉnh native tool/mode-flow từ công việc C Code.",
+			"unsupportedLocal": "Các local image-generation backends như Ollama, LM Studio, ComfyUI và Automatic1111 không được hiển thị như providers image-generation được hỗ trợ trong bản phát hành này.",
+			"alternatives": "Để gửi issue reports, xem source changes và final GitHub release notes, hãy dùng <repoLink>C Code GitHub repository</repoLink>.",
+			"signoff": "Cảm ơn bạn đã dùng C Code."
 		},
 		"release": {
 			"heading": "Tính năng mới:",
