@@ -264,6 +264,40 @@ describe("VisualBrowserInspectorService browser lifecycle", () => {
 		expect(service.getPanelState(options).session).toBeUndefined()
 	})
 
+	it("exposes lifecycle cleanup for all controlled browser sessions", async () => {
+		const service = new VisualBrowserInspectorService()
+		const options = await createOptions()
+		const firstRuntime = await (service as any).createRuntime({
+			cwd: options.cwd,
+			globalStoragePath: options.globalStoragePath,
+			url: "http://localhost:3000",
+			viewport: { name: "mobile", width: 390, height: 844 },
+			headless: false,
+			allowExternal: false,
+		})
+		const secondRuntime = await (service as any).createRuntime({
+			cwd: options.cwd,
+			globalStoragePath: options.globalStoragePath,
+			url: "http://localhost:3001",
+			viewport: { name: "mobile", width: 390, height: 844 },
+			headless: false,
+			allowExternal: false,
+		})
+		;(service as any).currentSessionId = secondRuntime.metadata.sessionId
+
+		const closedCount = await service.disposeControlledSessions({ log: options.log })
+
+		expect(closedCount).toBe(2)
+		for (const browser of playwrightMock.state.browsers) {
+			expect(browser.contexts[0].pages[0].close).toHaveBeenCalledTimes(1)
+			expect(browser.contexts[0].close).toHaveBeenCalledTimes(1)
+			expect(browser.close).toHaveBeenCalledTimes(1)
+		}
+		expect(firstRuntime.metadata.status).toBe("closed")
+		expect(secondRuntime.metadata.status).toBe("closed")
+		expect(service.getPanelState(options).session).toBeUndefined()
+	})
+
 	it("continues cleanup and logs when individual close calls throw", async () => {
 		const service = new VisualBrowserInspectorService()
 		const options = await createOptions()

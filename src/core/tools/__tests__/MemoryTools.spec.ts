@@ -728,4 +728,40 @@ describe("tool-error mistake memory queue", () => {
 			}),
 		)
 	})
+
+	it("can create pending tool-error mistake memories noninteractively without approval", async () => {
+		const task = createTaskWithRealMemoryQueue(tempDir)
+
+		task.recordToolError("apply_diff", "Patch context not found")
+		await task.drainQueuedMistakeMemories({ promptForApproval: false })
+
+		expect(task.ask).not.toHaveBeenCalled()
+		expect((task.providerRef.deref() as any).handleMemoryAction).not.toHaveBeenCalled()
+		expect((task.providerRef.deref() as any).postMemoryStateToWebview).toHaveBeenCalledTimes(1)
+
+		const store = await new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd }).readStore(
+			"workspace",
+			task.cwd,
+		)
+		expect(store.memories[0]).toEqual(
+			expect.objectContaining({
+				status: "pending",
+				source: "tool_error",
+				toolName: "apply_diff",
+				tags: ["tool-error", "mistake"],
+			}),
+		)
+		expect(store.candidates[0].status).toBe("pending")
+
+		const sayPayload = JSON.parse((task.say as any).mock.calls[0][1])
+		expect(sayPayload).toEqual(
+			expect.objectContaining({
+				tool: "mistakeMemory",
+				status: "pending",
+				autoApproved: false,
+				message: "Pending mistake memory from a tool error requires your approval before Roo continues.",
+			}),
+		)
+		expect((task.say as any).mock.calls[0][6]).toEqual({ isNonInteractive: true })
+	})
 })

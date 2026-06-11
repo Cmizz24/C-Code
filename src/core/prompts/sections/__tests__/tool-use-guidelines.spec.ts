@@ -12,6 +12,9 @@ describe("getToolUseGuidelinesSection", () => {
 	it("should route unsupported actions to capable modes instead of refusing", () => {
 		const guidelines = getToolUseGuidelinesSection()
 
+		expect(guidelines).toContain("current mode can perform")
+		expect(guidelines).toContain("do the work directly")
+		expect(guidelines).toContain("instead of reflexively routing to Code or another mode")
 		expect(guidelines).toContain("current mode cannot perform")
 		expect(guidelines).toContain("required tool or tool group is unavailable")
 		expect(guidelines).toContain("do not refuse or tell the user to do it manually")

@@ -64,9 +64,11 @@ describe("VisualBrowserInspectorTool", () => {
 		const convertToWebviewUri = vi.fn((filePath: string) => `vscode-resource://${filePath}`)
 		const postMessageToVisualBrowserInspectorPanels = vi.fn()
 		const say = vi.fn()
+		const updateVisualBrowserInspectorMessage = vi.fn().mockResolvedValue(false)
 		const task = {
 			cwd: "c:/workspace",
 			say,
+			updateVisualBrowserInspectorMessage,
 			providerRef: {
 				deref: () => ({
 					context: { globalStorageUri: { fsPath: "c:/global-storage" } },
@@ -142,6 +144,14 @@ describe("VisualBrowserInspectorTool", () => {
 				message: "Captured screenshot.",
 			}),
 		})
+		expect(updateVisualBrowserInspectorMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tool: "visualBrowserInspector",
+				action: "visual_browser_capture",
+				visualBrowserStatus: "complete",
+				toolCallId: "tool-call-1",
+			}),
+		)
 		expect(say).toHaveBeenCalledWith("tool", expect.any(String), undefined, false)
 		const chatPayload = JSON.parse(say.mock.calls[0][1])
 		expect(chatPayload).toEqual(
@@ -159,6 +169,55 @@ describe("VisualBrowserInspectorTool", () => {
 		)
 		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining("Captured screenshot"))
 		expect(callbacks.handleError).not.toHaveBeenCalled()
+	})
+
+	it("updates an existing running VBI chat row instead of adding a completed row", async () => {
+		const postMessageToVisualBrowserInspectorPanels = vi.fn()
+		const say = vi.fn()
+		const updateVisualBrowserInspectorMessage = vi.fn().mockResolvedValue(true)
+		const task = {
+			cwd: "c:/workspace",
+			say,
+			updateVisualBrowserInspectorMessage,
+			providerRef: {
+				deref: () => ({
+					context: { globalStorageUri: { fsPath: "c:/global-storage" } },
+					postMessageToVisualBrowserInspectorPanels,
+					log: vi.fn(),
+				}),
+			},
+		} as unknown as Task
+		const callbacks = {
+			askApproval: vi.fn().mockResolvedValue(true),
+			handleError: vi.fn(),
+			pushToolResult: vi.fn(),
+			toolCallId: "tool-call-1",
+		}
+		const block: ToolUse<"visual_browser_inspector"> = {
+			type: "tool_use",
+			name: "visual_browser_inspector",
+			params: {},
+			partial: false,
+			nativeArgs: {
+				action: "visual_browser_capture",
+				sessionId: "session-1",
+				fullPage: false,
+			},
+		}
+
+		await visualBrowserInspectorTool.handle(task, block, callbacks)
+
+		expect(updateVisualBrowserInspectorMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tool: "visualBrowserInspector",
+				action: "visual_browser_capture",
+				visualBrowserStatus: "complete",
+				visualBrowserResult: result,
+				toolCallId: "tool-call-1",
+			}),
+		)
+		expect(say).not.toHaveBeenCalled()
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining("Captured screenshot"))
 	})
 
 	it("does not execute when approval is denied", async () => {
@@ -194,6 +253,7 @@ describe("VisualBrowserInspectorTool", () => {
 		const convertToWebviewUri = vi.fn((filePath: string) => `vscode-resource://${filePath}`)
 		const postMessageToVisualBrowserInspectorPanels = vi.fn()
 		const say = vi.fn()
+		const updateVisualBrowserInspectorMessage = vi.fn().mockResolvedValue(false)
 		const openResult: VisualBrowserToolResult = {
 			...result,
 			action: "visual_browser_open",
@@ -213,6 +273,7 @@ describe("VisualBrowserInspectorTool", () => {
 		const task = {
 			cwd: "c:/workspace",
 			say,
+			updateVisualBrowserInspectorMessage,
 			providerRef: {
 				deref: () => ({ convertToWebviewUri, postMessageToVisualBrowserInspectorPanels }),
 			},
@@ -252,6 +313,14 @@ describe("VisualBrowserInspectorTool", () => {
 				},
 			}),
 		})
+		expect(updateVisualBrowserInspectorMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tool: "visualBrowserInspector",
+				action: "visual_browser_open",
+				visualBrowserStatus: "complete",
+				visualBrowserResult: openResult,
+			}),
+		)
 		expect(say).toHaveBeenCalledWith("tool", expect.any(String), undefined, false)
 		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining("localhost:5173"))
 	})
@@ -259,6 +328,7 @@ describe("VisualBrowserInspectorTool", () => {
 	it("syncs VBI panels for external URL results without marking them as localhost previews", async () => {
 		const postMessageToVisualBrowserInspectorPanels = vi.fn()
 		const say = vi.fn()
+		const updateVisualBrowserInspectorMessage = vi.fn().mockResolvedValue(false)
 		const externalResult: VisualBrowserToolResult = {
 			...result,
 			action: "visual_browser_open",
@@ -270,6 +340,7 @@ describe("VisualBrowserInspectorTool", () => {
 		const task = {
 			cwd: "c:/workspace",
 			say,
+			updateVisualBrowserInspectorMessage,
 			providerRef: {
 				deref: () => ({ postMessageToVisualBrowserInspectorPanels }),
 			},
@@ -309,6 +380,14 @@ describe("VisualBrowserInspectorTool", () => {
 		})
 		const payload = postMessageToVisualBrowserInspectorPanels.mock.calls[0][0].payload
 		expect(payload.localhostUrl).toBeUndefined()
+		expect(updateVisualBrowserInspectorMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tool: "visualBrowserInspector",
+				action: "visual_browser_open",
+				visualBrowserStatus: "complete",
+				visualBrowserResult: externalResult,
+			}),
+		)
 		expect(say).toHaveBeenCalledWith("tool", expect.any(String), undefined, false)
 		expect(callbacks.pushToolResult).toHaveBeenCalled()
 	})

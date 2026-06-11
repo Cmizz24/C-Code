@@ -81,6 +81,7 @@ import { getModelMaxOutputTokens } from "../../shared/api"
 import { McpHub } from "../../services/mcp/McpHub"
 import { McpServerManager } from "../../services/mcp/McpServerManager"
 import { RepoPerTaskCheckpointService } from "../../services/checkpoints"
+import { visualBrowserInspectorService } from "../../services/visual-browser-inspector/VisualBrowserInspectorService"
 
 // integrations
 import { DiffViewProvider } from "../../integrations/editor/DiffViewProvider"
@@ -178,6 +179,10 @@ export interface TaskOptions extends CreateTaskOptions {
 	systemPromptSuffix?: string
 	/** Initial status for the task's history item (e.g., "active" for child tasks) */
 	initialStatus?: "active" | "delegated" | "completed"
+}
+
+interface MistakeMemoryDrainOptions {
+	promptForApproval?: boolean
 }
 
 export class Task extends EventEmitter<TaskEvents> implements TaskLike {
@@ -381,7 +386,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	consecutiveNoToolUseCount: number = 0
 	consecutiveNoAssistantMessagesCount: number = 0
 	toolUsage: ToolUsage = {}
-	private queuedMistakeMemoryApprovals: Array<() => Promise<void>> = []
+	private queuedMistakeMemoryApprovals: Array<(options: MistakeMemoryDrainOptions) => Promise<void>> = []
 	private drainingMistakeMemoryApprovals?: Promise<void>
 
 	// Checkpoints
@@ -1338,6 +1343,58 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				imageGeneration: payload.metadata,
 				...(payload.imageUri && { imageUri: payload.imageUri }),
 				...(payload.imagePath && { imagePath: payload.imagePath }),
+			}
+
+			message.type = "say"
+			message.say = "tool"
+			delete message.ask
+			message.text = JSON.stringify(updatedTool)
+			message.isAnswered = true
+
+			await this.updateClineMessage(message)
+			await this.saveClineMessages()
+			return true
+		}
+
+		return false
+	}
+
+	public async updateVisualBrowserInspectorMessage(payload: ClineSayTool): Promise<boolean> {
+		const hasToolCallId = typeof payload.toolCallId === "string" && payload.toolCallId.length > 0
+
+		for (let index = this.clineMessages.length - 1; index >= 0; index -= 1) {
+			const message = this.clineMessages[index]
+
+			if (
+				(message.type !== "ask" || message.ask !== "tool") &&
+				(message.type !== "say" || message.say !== "tool")
+			) {
+				continue
+			}
+
+			let tool: ClineSayTool
+			try {
+				tool = JSON.parse(message.text ?? "{}") as ClineSayTool
+			} catch {
+				continue
+			}
+
+			if (tool.tool !== "visualBrowserInspector" && tool.tool !== "visual_browser_inspector") {
+				continue
+			}
+
+			if (hasToolCallId) {
+				if (tool.toolCallId !== payload.toolCallId) {
+					continue
+				}
+			} else if (tool.visualBrowserStatus !== "running") {
+				continue
+			}
+
+			const updatedTool: ClineSayTool = {
+				...tool,
+				...payload,
+				tool: "visualBrowserInspector",
 			}
 
 			message.type = "say"
@@ -2483,6 +2540,27 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 	}
 
+	public async cleanupControlledBrowserSessions(reason = "task lifecycle"): Promise<void> {
+		const provider = this.providerRef.deref()
+		const log =
+			provider && typeof provider.log === "function"
+				? (message: string) => provider.log(`[visual-browser-inspector] ${message}`)
+				: undefined
+
+		try {
+			await visualBrowserInspectorService.disposeControlledSessions({ log })
+		} catch (error) {
+			const message = `Failed to clean up controlled browser sessions during ${reason}: ${
+				error instanceof Error ? error.message : String(error)
+			}`
+			if (log) {
+				log(message)
+			} else {
+				console.warn(`[visual-browser-inspector] ${message}`)
+			}
+		}
+	}
+
 	public dispose(): void {
 		console.log(`[Task#dispose] disposing task ${this.taskId}.${this.instanceId}`)
 
@@ -2492,6 +2570,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		} catch (error) {
 			console.error("Error cancelling current request:", error)
 		}
+
+		void this.cleanupControlledBrowserSessions("task dispose").catch((error) => {
+			console.error("Error cleaning up controlled browser sessions:", error)
+		})
 
 		// Remove provider profile change listener
 		try {
@@ -2578,6 +2660,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		if (!provider) {
 			throw new Error("Provider not available")
 		}
+
+		await this.cleanupControlledBrowserSessions("delegation")
 
 		const child = await (provider as any).delegateParentAndOpenChild({
 			parentTaskId: this.taskId,
@@ -5040,12 +5124,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 	}
 
-	public async drainQueuedMistakeMemories(): Promise<void> {
+	public async drainQueuedMistakeMemories(options: MistakeMemoryDrainOptions = {}): Promise<void> {
 		if (this.drainingMistakeMemoryApprovals) {
 			await this.drainingMistakeMemoryApprovals
 			return
 		}
 
+		const drainOptions: MistakeMemoryDrainOptions = { promptForApproval: true, ...options }
 		const drain = (async () => {
 			while (this.queuedMistakeMemoryApprovals.length > 0) {
 				const approval = this.queuedMistakeMemoryApprovals.shift()
@@ -5053,7 +5138,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					continue
 				}
 
-				await approval().catch((candidateError) => {
+				await approval(drainOptions).catch((candidateError) => {
 					console.warn(
 						`[Task#${this.taskId}] Failed to create mistake-memory candidate: ${
 							candidateError instanceof Error ? candidateError.message : String(candidateError)
@@ -5079,7 +5164,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		error: string,
 		source: "tool_error" | "validation_error" = "tool_error",
 	): void {
-		this.queuedMistakeMemoryApprovals.push(async () => {
+		this.queuedMistakeMemoryApprovals.push(async (options) => {
 			const provider = this.providerRef.deref()
 			if (!provider) {
 				return
@@ -5153,7 +5238,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				message,
 			})
 
-			if (result.memory.status === "pending" && !autoApproved) {
+			const promptForApproval = options.promptForApproval !== false
+
+			if (result.memory.status === "pending" && !autoApproved && promptForApproval) {
 				const { response } = await this.ask(
 					"tool",
 					JSON.stringify(getToolPayload(getMessage(result.memory.status))),
@@ -5189,7 +5276,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			await this.say(
 				"tool",
-				JSON.stringify(getToolPayload(getMessage(result.memory.status))),
+				JSON.stringify(getToolPayload(getMessage(result.memory.status, false))),
 				undefined,
 				undefined,
 				undefined,

@@ -49,6 +49,9 @@ describe("getCapabilitiesSection", () => {
 	it("includes mode routing guidance for unavailable capabilities", () => {
 		const result = getCapabilitiesSection(cwd)
 
+		expect(result).toContain("current mode's tools can perform")
+		expect(result).toContain("do that work directly in the current mode")
+		expect(result).toContain("instead of reflexively delegating to Code or another mode")
 		expect(result).toContain("current mode's tools cannot perform")
 		expect(result).toContain("use switch_mode or new_task")
 		expect(result).toContain("route to a capable mode")

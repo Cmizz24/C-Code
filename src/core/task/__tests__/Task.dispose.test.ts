@@ -3,8 +3,17 @@ import { ProviderSettings } from "@roo-code/types"
 import { Task } from "../Task"
 import { ClineProvider } from "../../webview/ClineProvider"
 
+const { mockDisposeControlledSessions } = vi.hoisted(() => ({
+	mockDisposeControlledSessions: vi.fn().mockResolvedValue(0),
+}))
+
 // Mock dependencies
 vi.mock("../../webview/ClineProvider")
+vi.mock("../../../services/visual-browser-inspector/VisualBrowserInspectorService", () => ({
+	visualBrowserInspectorService: {
+		disposeControlledSessions: mockDisposeControlledSessions,
+	},
+}))
 vi.mock("../../../integrations/terminal/TerminalRegistry", () => ({
 	TerminalRegistry: {
 		releaseTerminalsForTask: vi.fn(),
@@ -29,6 +38,7 @@ describe("Task dispose method", () => {
 	beforeEach(() => {
 		// Reset all mocks
 		vi.clearAllMocks()
+		mockDisposeControlledSessions.mockResolvedValue(0)
 
 		// Mock provider
 		mockProvider = {
@@ -129,6 +139,34 @@ describe("Task dispose method", () => {
 
 		// Clean up
 		consoleLogSpy.mockRestore()
+	})
+
+	test("should clean up controlled VBI browser sessions when dispose is called", () => {
+		// Call dispose
+		task.dispose()
+
+		expect(mockDisposeControlledSessions).toHaveBeenCalledWith({ log: expect.any(Function) })
+		const cleanupLog = mockDisposeControlledSessions.mock.calls[0][0].log
+		cleanupLog("closed controlled browser sessions")
+		expect(mockProvider.log).toHaveBeenCalledWith(
+			"[visual-browser-inspector] closed controlled browser sessions",
+		)
+
+		task.abort = true
+	})
+
+	test("cleanupControlledBrowserSessions logs and swallows service failures", async () => {
+		mockDisposeControlledSessions.mockRejectedValueOnce(new Error("cleanup failed"))
+
+		await expect(task.cleanupControlledBrowserSessions("unit test")).resolves.toBeUndefined()
+
+		expect(mockProvider.log).toHaveBeenCalledWith(
+			expect.stringContaining(
+				"[visual-browser-inspector] Failed to clean up controlled browser sessions during unit test: cleanup failed",
+			),
+		)
+
+		task.abort = true
 	})
 
 	test("should prevent memory leaks by removing listeners before other cleanup", () => {
