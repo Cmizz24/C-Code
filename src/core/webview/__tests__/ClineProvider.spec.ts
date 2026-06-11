@@ -879,6 +879,17 @@ describe("ClineProvider", () => {
 					taskId: "task-remote-debug",
 					provider: "openrouter",
 					modelId: "openrouter/model",
+					taskSummary: expect.objectContaining({
+						status: "completed",
+						messageCount: 0,
+						askCount: 0,
+						sayCount: 0,
+						apiRequestCount: 0,
+						apiRetryCount: 0,
+						apiFailureCount: 0,
+						toolAttemptCount: 0,
+						toolFailureCount: 0,
+					}),
 				}),
 			)
 
@@ -915,36 +926,43 @@ describe("ClineProvider", () => {
 			const message: ClineMessage = {
 				type: "say",
 				say: "api_req_started",
-				text: apiRequestText,
+				text: JSON.stringify({
+					apiProtocol: "anthropic",
+					request:
+						"POST https://example.com/private?token=secret C:\\Users\\clayton\\prompt.txt raw private prompt",
+				}),
 				partial: false,
 				ts: 1_700_000_010,
 			}
 
 			task.clineMessages.push(message)
+			task.emit(RooCodeEventName.Message, { action: "created", message })
+			message.text = apiRequestText
 			task.emit(RooCodeEventName.Message, { action: "updated", message })
 
-			await vi.waitFor(() => expect(recordSpy).toHaveBeenCalledTimes(1))
-			const [event, recordOptions] = recordSpy.mock.calls[0] as [any, any]
+			await vi.waitFor(() => expect(recordSpy).toHaveBeenCalledTimes(2))
+			const [event, recordOptions] = recordSpy.mock.calls[1] as [any, any]
 
 			expect(recordOptions).toEqual({ flushImmediately: false })
 			expect(event).toEqual(
 				expect.objectContaining({
-					type: "task.api_request.completed",
+					type: "api.request",
 					severity: "debug",
-					featureArea: "task",
+					featureArea: "api",
 					taskId: "task-api-summary",
 					provider: "anthropic",
 					modelId: "claude-sonnet-4",
 					operation: {
-						stage: "api_request",
-						status: "completed",
+						stage: "request",
+						status: "finished",
 					},
 				}),
 			)
 			expect(event.apiRequest).toEqual(
 				expect.objectContaining({
 					protocol: "anthropic",
-					status: "completed",
+					stage: "finished",
+					status: "finished",
 					requestIndex: 1,
 					requestCount: 1,
 					tokensIn: 123,
@@ -955,26 +973,8 @@ describe("ClineProvider", () => {
 				}),
 			)
 			expect(event.apiRequest.request).toBeUndefined()
-			expect(event.message).toEqual(
-				expect.objectContaining({
-					action: "updated",
-					type: "say",
-					say: "api_req_started",
-					hasText: true,
-					textLength: apiRequestText.length,
-				}),
-			)
-			expect(event.message.text).toBeUndefined()
-			expect(event.taskSummary).toEqual(
-				expect.objectContaining({
-					messageCount: 1,
-					askCount: 0,
-					sayCount: 1,
-					apiRequestCount: 1,
-					apiFailureCount: 0,
-					lastMessage: event.message,
-				}),
-			)
+			expect(event.message).toBeUndefined()
+			expect(event.taskSummary).toBeUndefined()
 
 			const serializedEvent = JSON.stringify(event)
 			expect(serializedEvent).not.toContain("raw private prompt")
@@ -999,16 +999,18 @@ describe("ClineProvider", () => {
 			expect(recordOptions).toEqual({ flushImmediately: true })
 			expect(event).toEqual(
 				expect.objectContaining({
-					type: "task.tool_failed",
+					type: "tool.usage",
 					severity: "error",
+					featureArea: "tool",
 					operation: { stage: "tool", status: "failed" },
-					message: { tool: "read_file" },
 				}),
 			)
+			expect(event.message).toBeUndefined()
 			expect(event.error).toBeInstanceOf(Error)
 			expect(event.error.message).toBe("Tool execution failed")
 			expect(event.properties).toEqual(
 				expect.objectContaining({
+					tool: "read_file",
 					eventTaskIdMatches: true,
 					errorLength: rawToolError.length,
 				}),

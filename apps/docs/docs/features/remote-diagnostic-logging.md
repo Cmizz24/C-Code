@@ -27,7 +27,7 @@ Remote diagnostic logging sends sanitized C-Code extension diagnostics to the fi
 - **No Authorization header:** Diagnostic requests do not include a Bearer token or other user-provided secret.
 - **Fail closed:** Disabled debug mode, invalid internal endpoint configuration, unreachable servers, and failed sends never interrupt extension workflows.
 - **Non-blocking delivery:** Events are queued, batched, rate limited, retried with backoff, and dropped silently after retry limits.
-- **Operational metadata only:** Events include structured summaries for lifecycle, API-request, message, tool, delivery, and runtime-error diagnostics, never raw task content.
+- **Operational metadata only:** Events include structured summaries for task lifecycle, API-request, tool-usage, and runtime-error diagnostics, never raw task content.
 
 ---
 
@@ -61,12 +61,12 @@ Safe fields may include:
 - Extension version
 - Anonymous install/session identifiers
 - Platform metadata such as operating system, architecture, and VS Code version
-- Event type, timestamp, severity, and feature area
+- Event type, timestamp, severity, and feature area (`task`, `api`, `tool`, or `runtime` only)
 - Safe mode/provider/tool/model names
 - Redacted error message and stack details
 - Safe task lifecycle/status counts, such as message counts, API request counts, retry counts, and tool failure counts
 - Safe API request summaries, such as request index, status, retry delay, protocol, token counts, cache counts, cost, cancel reason, and streaming-failure flags
-- Safe message metadata, such as message type, ask/say category, partial flag, text length, image count, and tool name
+- Safe task completion `lastMessage` metadata, such as message type, ask/say category, whether text was present, and text length
 - Safe token, cost, and tool-usage summaries
 - Runtime error summaries, such as source, origin, component, operation label, and whether the error was unhandled
 - Hashed task/agent identifiers
@@ -183,18 +183,32 @@ Example body:
 
 Treat the schema as versioned by `version` and `X-C-Code-Diagnostics-Version`. Receivers should ignore unknown fields for forward compatibility.
 
-### Event coverage
+### Clean event contract
 
-When debug mode is enabled, C-Code may emit sanitized events for:
+When debug mode is enabled, C-Code emits only the clean allowlist of remote diagnostic event types:
 
-- Task creation, start, completion, abort, focus, pause, resume, idle, active, interactive, resumable, spawned, and user-message lifecycle transitions.
-- Message creation/update metadata, including API request lifecycle messages such as started, finished, retried, retry delayed, rate-limit wait, deleted, and failed.
-- Token and tool usage updates, including aggregate tool attempts and failures.
-- Tool failures surfaced by runtime events. These are recorded as error severity and request immediate flush.
-- Extension-process runtime errors, including unhandled rejections and uncaught exception monitor notifications. These are recorded as error severity and request immediate flush.
-- Delivery metadata for retries, queued events, dropped events, timeouts, and retry scheduling.
+- `task.completed`
+- `task.created`
+- `task.aborted`
+- `task.paused`
+- `task.resumed`
+- `task.spawned`
+- `task.focus`
+- `api.request`
+- `tool.usage`
+- `runtime.error`
 
-Error-severity events and explicit immediate-flush events are queued and flushed as soon as practical. The flush remains non-blocking and fail-closed; it must not slow or crash task execution.
+The extension does not generate or enqueue noisy task-status and message events for remote delivery. Prohibited event types include `message.created`, `message.updated`, `message.deleted`, `task.idle`, `task.active`, `task.interactive`, and any event type containing `.message` anywhere.
+
+Feature areas are limited to `task`, `api`, `tool`, and `runtime`. C-Code does not use `message` or `delivery` feature areas for remote diagnostics.
+
+`api.request` events use one of these stages in both `operation.status` and `apiRequest.stage`/`apiRequest.status`: `started`, `finished`, `retried`, or `failed`. Finished API request events are recorded only after the corresponding started event has been observed.
+
+`task.completed` events include `taskSummary` with completion status, message counts, ask/say counts, API request/retry/failure counts, tool attempt/failure counts, parent/root task flags, and a safe `lastMessage` summary.
+
+Every error-severity event includes either a `runtime` object, an `error` object, or both. Error-severity events and explicit immediate-flush events are queued and flushed as soon as practical. The flush remains non-blocking and fail-closed; it must not slow or crash task execution.
+
+Delivery state is reported only as the top-level batch `delivery` object. C-Code does not enqueue `diagnostics.delivery.*` events.
 
 ---
 
@@ -205,7 +219,8 @@ The fixed receiver at `https://cmtesting.site/api/extension/debug-log` should:
 - Accept only `POST` with `Content-Type: application/json`.
 - Require TLS and redirect or reject cleartext HTTP.
 - Validate `version`, `source`, `sentAt`, top-level metadata, event array size, and event field types.
-- Validate optional `delivery`, `operation`, `taskSummary`, `apiRequest`, `message`, `runtime`, `tokenUsage`, and `toolUsage` objects by allowlisted fields and type checks.
+- Validate event types against the clean allowlist and feature areas against `task`, `api`, `tool`, and `runtime`.
+- Validate optional `delivery`, `operation`, `taskSummary`, `apiRequest`, `runtime`, `tokenUsage`, and `toolUsage` objects by allowlisted fields and type checks.
 - Enforce small payload limits; C-Code sends structured metadata, not content.
 - Return any `2xx` status for successful ingestion.
 - Return `429` when intentionally rate limiting.

@@ -19,7 +19,7 @@ const createLogger = (
 		fetchImpl,
 		batchSize: options.batchSize ?? 1,
 		flushIntervalMs: options.flushIntervalMs ?? 60_000,
-		maxRetries: options.maxRetries ?? 0,
+		maxRetries: options.maxRetries ?? 3,
 		requestTimeoutMs: options.requestTimeoutMs ?? 100,
 		log,
 	})
@@ -129,7 +129,7 @@ describe("RemoteDebugLogger", () => {
 			expect.objectContaining({
 				status: "initial",
 				attempt: 1,
-				maxRetries: 0,
+				maxRetries: 3,
 				batchEventCount: 1,
 				queuedEventCount: 0,
 				requestTimeoutMs: 100,
@@ -141,10 +141,30 @@ describe("RemoteDebugLogger", () => {
 			expect.objectContaining({
 				type: "task.completed",
 				severity: "warn",
-				timestamp: "2026-06-08T23:00:00.000Z",
+				timestamp: expect.any(String),
 				featureArea: "task",
 				provider: "anthropic",
 				modelId: "claude-sonnet-4",
+			}),
+		)
+		expect(event.taskSummary).toEqual(
+			expect.objectContaining({
+				status: "completed",
+				messageCount: 0,
+				askCount: 0,
+				sayCount: 0,
+				apiRequestCount: 0,
+				apiRetryCount: 0,
+				apiFailureCount: 0,
+				toolAttemptCount: 0,
+				toolFailureCount: 0,
+				hasParentTask: false,
+				hasRootTask: false,
+				lastMessage: {
+					type: "unknown",
+					hasText: false,
+					textLength: 0,
+				},
 			}),
 		)
 		expect(event.taskId).toMatch(/^[a-f0-9]{16}$/)
@@ -298,7 +318,112 @@ describe("RemoteDebugLogger", () => {
 		expect(serializedEvent).not.toContain("C:\\Users\\clayton")
 	})
 
-	it("flushes error events immediately instead of waiting for the batch interval", async () => {
+	it("drops prohibited message, active, idle, and interactive events before sending", async () => {
+		const fetchMock = createSuccessFetchMock()
+		const logger = createLogger(
+			{
+				enabled: true,
+			},
+			fetchMock as unknown as typeof fetch,
+			undefined,
+			{ batchSize: 10 },
+		)
+
+		for (const type of [
+			"message.created",
+			"message.updated",
+			"message.deleted",
+			"task.message",
+			"anything.message.x",
+			"task.idle",
+			"task.active",
+			"task.interactive",
+		]) {
+			logger.record({ type })
+		}
+		await logger.flushNow()
+
+		expect(fetchMock).not.toHaveBeenCalled()
+	})
+
+	it("sends only clean allowed event types with contract feature areas", async () => {
+		const fetchMock = createSuccessFetchMock()
+		const logger = createLogger(
+			{
+				enabled: true,
+			},
+			fetchMock as unknown as typeof fetch,
+			undefined,
+			{ batchSize: 10 },
+		)
+
+		logger.record({ type: "task.created" })
+		logger.record({ type: "task.focused" })
+		logger.record({ type: "task.unpaused" })
+		logger.record({ type: "api.request", featureArea: "message", apiRequest: { status: "completed" } })
+		logger.record({ type: "tool.usage" })
+		await logger.flushNow()
+
+		expect(fetchMock).toHaveBeenCalledTimes(1)
+		const [, request] = fetchMock.mock.calls[0]
+		const payload = JSON.parse(request?.body as string)
+		expect(payload.events.map((event: RemoteDebugEvent) => event.type)).toEqual([
+			"task.created",
+			"task.focus",
+			"task.resumed",
+			"api.request",
+			"tool.usage",
+		])
+		expect(payload.events.map((event: RemoteDebugEvent) => event.featureArea)).toEqual([
+			"task",
+			"task",
+			"task",
+			"api",
+			"tool",
+		])
+		expect(payload.events[3].apiRequest).toEqual(expect.objectContaining({ stage: "finished", status: "finished" }))
+	})
+
+	it("adds delivery metadata to every batch with real batch and queue counts", async () => {
+		const fetchMock = createSuccessFetchMock()
+		const logger = createLogger(
+			{
+				enabled: true,
+			},
+			fetchMock as unknown as typeof fetch,
+			undefined,
+			{ batchSize: 2, maxRetries: 3, requestTimeoutMs: 5_000 },
+		)
+
+		logger.record({ type: "task.created" })
+		logger.record({ type: "tool.usage" })
+		await logger.flushNow()
+
+		logger.record({ type: "task.spawned" })
+		await logger.flushNow()
+
+		expect(fetchMock).toHaveBeenCalledTimes(2)
+		const firstPayload = JSON.parse(fetchMock.mock.calls[0][1]?.body as string)
+		const secondPayload = JSON.parse(fetchMock.mock.calls[1][1]?.body as string)
+		expect(firstPayload.delivery).toEqual({
+			status: "initial",
+			attempt: 1,
+			maxRetries: 3,
+			batchEventCount: 2,
+			queuedEventCount: 0,
+			requestTimeoutMs: 5_000,
+		})
+		expect(secondPayload.delivery).toEqual({
+			status: "initial",
+			attempt: 1,
+			maxRetries: 3,
+			batchEventCount: 1,
+			queuedEventCount: 0,
+			requestTimeoutMs: 5_000,
+		})
+	})
+
+	it("flushes error events immediately and ensures error severity events include runtime or error details", async () => {
 		vi.useFakeTimers()
 		const fetchMock = createSuccessFetchMock()
 		const logger = createLogger(
@@ -310,7 +435,7 @@ describe("RemoteDebugLogger", () => {
 			{ batchSize: 10, flushIntervalMs: 60_000 },
 		)
 
-		logger.record({ type: "task.message", severity: "info" })
+		logger.record({ type: "task.created", severity: "info" })
 		await vi.advanceTimersByTimeAsync(0)
 		expect(fetchMock).not.toHaveBeenCalled()
 
@@ -319,8 +444,83 @@ describe("RemoteDebugLogger", () => {
 
 		expect(fetchMock).toHaveBeenCalledTimes(1)
 		const [, request] = fetchMock.mock.calls[0]
-		const payload = JSON.parse(request?.body as string) as { events: Array<{ type: string }> }
-		expect(payload.events.map((event) => event.type)).toEqual(["task.message", "runtime.error"])
+		const payload = JSON.parse(request?.body as string) as { events: Array<any> }
+		expect(payload.events.map((event) => event.type)).toEqual(["task.created", "runtime.error"])
+		expect(payload.events[1].error).toEqual(
+			expect.objectContaining({ name: "Error", message: "unhandled runtime error" }),
+		)
+
+		fetchMock.mockClear()
+		logger.record({ type: "tool.usage", severity: "error" })
+		await vi.advanceTimersByTimeAsync(0)
+
+		expect(fetchMock).toHaveBeenCalledTimes(1)
+		const fallbackPayload = JSON.parse(fetchMock.mock.calls[0][1]?.body as string)
+		expect(fallbackPayload.events[0]).toEqual(
+			expect.objectContaining({
+				type: "tool.usage",
+				severity: "error",
+				featureArea: "tool",
+				runtime: {
+					source: "extension",
+					component: "tool",
+				},
+			}),
+		)
+	})
+
+	it("fills required taskSummary fields for task.completed events", async () => {
+		const fetchMock = createSuccessFetchMock()
+		const logger = createLogger(
+			{
+				enabled: true,
+			},
+			fetchMock as unknown as typeof fetch,
+		)
+
+		logger.record({
+			type: "task.completed",
+			parentTaskId: "parent-task",
+			taskSummary: {
+				messageCount: 4,
+				askCount: 1,
+				sayCount: 3,
+				apiRequestCount: 2,
+				apiRetryCount: 1,
+				apiFailureCount: 0,
+				toolAttemptCount: 5,
+				toolFailureCount: 1,
+				lastMessage: {
+					type: "say",
+					say: "completion_result",
+					hasText: true,
+					textLength: 123,
+				},
+			},
+		})
+		await logger.flushNow()
+
+		const [, request] = fetchMock.mock.calls[0]
+		const payload = JSON.parse(request?.body as string)
+		expect(payload.events[0].taskSummary).toEqual({
+			status: "completed",
+			messageCount: 4,
+			askCount: 1,
+			sayCount: 3,
+			apiRequestCount: 2,
+			apiRetryCount: 1,
+			apiFailureCount: 0,
+			toolAttemptCount: 5,
+			toolFailureCount: 1,
+			hasParentTask: true,
+			hasRootTask: false,
+			lastMessage: {
+				type: "say",
+				say: "completion_result",
+				hasText: true,
+				textLength: 123,
+			},
+		})
 	})
 
 	it("redacts secrets, raw content, paths, URLs, and environment data", () => {
@@ -375,6 +575,7 @@ describe("RemoteDebugLogger", () => {
 			},
 			fetchMock as unknown as typeof fetch,
 			log,
+			{ maxRetries: 0 },
 		)
 
 		expect(() => logger.record({ type: "task.created" })).not.toThrow()

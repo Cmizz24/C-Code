@@ -32,6 +32,7 @@ export type RemoteDebugTaskSummary = {
 }
 
 export type RemoteDebugApiRequestSummary = {
+	stage?: string
 	protocol?: string
 	status?: string
 	requestIndex?: number
@@ -49,7 +50,7 @@ export type RemoteDebugApiRequestSummary = {
 
 export type RemoteDebugMessageSummary = {
 	action?: "created" | "updated"
-	type?: "ask" | "say"
+	type?: string
 	ask?: string
 	say?: string
 	partial?: boolean
@@ -163,6 +164,55 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 5_000
 const MAX_STRING_LENGTH = 1_000
 const MAX_STACK_LENGTH = 2_000
 const MAX_OBJECT_DEPTH = 5
+const CLEAN_REMOTE_DEBUG_EVENT_TYPES = new Set([
+	"task.completed",
+	"task.created",
+	"task.aborted",
+	"task.paused",
+	"task.resumed",
+	"task.spawned",
+	"task.focus",
+	"api.request",
+	"tool.usage",
+	"runtime.error",
+])
+const SUPPRESSED_REMOTE_DEBUG_EVENT_TYPES = new Set([
+	"message.created",
+	"message.updated",
+	"message.deleted",
+	"task.idle",
+	"task.active",
+	"task.interactive",
+])
+const REMOTE_DEBUG_EVENT_TYPE_ALIASES = new Map<string, string>([
+	["task.focused", "task.focus"],
+	["task.unpaused", "task.resumed"],
+	["task.api_request.started", "api.request"],
+	["task.api_request.completed", "api.request"],
+	["task.api_request.finished", "api.request"],
+	["task.api_request.retried", "api.request"],
+	["task.api_request.failed", "api.request"],
+	["task.token_usage_updated", "tool.usage"],
+	["task.tool_failed", "tool.usage"],
+])
+const REMOTE_DEBUG_EVENT_FEATURE_AREAS: Record<string, "task" | "api" | "tool" | "runtime"> = {
+	"task.completed": "task",
+	"task.created": "task",
+	"task.aborted": "task",
+	"task.paused": "task",
+	"task.resumed": "task",
+	"task.spawned": "task",
+	"task.focus": "task",
+	"api.request": "api",
+	"tool.usage": "tool",
+	"runtime.error": "runtime",
+}
+const CLEAN_REMOTE_DEBUG_API_STAGES = new Set(["started", "finished", "retried", "failed"])
+const EMPTY_REMOTE_DEBUG_LAST_MESSAGE: RemoteDebugMessageSummary = {
+	type: "unknown",
+	hasText: false,
+	textLength: 0,
+}
 
 const SECRET_KEY_PATTERN =
 	/(api[-_]?key|apikey|authorization|auth[-_]?token|access[-_]?token|refresh[-_]?token|password|secret|credential|cookie|bearer|private[-_]?key)/i
@@ -171,6 +221,125 @@ const RAW_CONTENT_KEY_PATTERN =
 const HASHED_IDENTIFIER_KEYS = new Set(["taskId", "parentTaskId", "rootTaskId", "agentId"])
 
 const hashIdentifier = (value: string) => crypto.createHash("sha256").update(value).digest("hex").slice(0, 16)
+
+const getIsoTimestampFromDateNow = () => new Date(Date.now()).toISOString()
+
+const shouldSuppressRemoteDebugEventType = (type: string): boolean => {
+	const normalizedType = type.toLowerCase()
+	return SUPPRESSED_REMOTE_DEBUG_EVENT_TYPES.has(normalizedType) || normalizedType.includes(".message")
+}
+
+const normalizeRemoteDebugApiStage = (stage: unknown): string | undefined => {
+	if (typeof stage !== "string" || stage.length === 0) {
+		return undefined
+	}
+
+	const normalizedStage = stage.toLowerCase()
+	if (CLEAN_REMOTE_DEBUG_API_STAGES.has(normalizedStage)) {
+		return normalizedStage
+	}
+
+	switch (normalizedStage) {
+		case "completed":
+			return "finished"
+		case "retry_delayed":
+		case "retry_delay_countdown":
+		case "rate_limit_wait":
+			return "retried"
+		case "cancelled":
+		case "streaming_failed":
+			return "failed"
+		default:
+			return undefined
+	}
+}
+
+const deriveRemoteDebugApiStageFromType = (type: string): string | undefined => {
+	const normalizedType = type.toLowerCase()
+	const suffix = normalizedType.startsWith("task.api_request.")
+		? normalizedType.slice("task.api_request.".length)
+		: undefined
+
+	return normalizeRemoteDebugApiStage(suffix)
+}
+
+const completeRemoteDebugTaskSummary = (event: RemoteDebugEvent): RemoteDebugTaskSummary => ({
+	status: event.taskSummary?.status ?? "completed",
+	messageCount: event.taskSummary?.messageCount ?? 0,
+	askCount: event.taskSummary?.askCount ?? 0,
+	sayCount: event.taskSummary?.sayCount ?? 0,
+	apiRequestCount: event.taskSummary?.apiRequestCount ?? 0,
+	apiRetryCount: event.taskSummary?.apiRetryCount ?? 0,
+	apiFailureCount: event.taskSummary?.apiFailureCount ?? 0,
+	toolAttemptCount: event.taskSummary?.toolAttemptCount ?? 0,
+	toolFailureCount: event.taskSummary?.toolFailureCount ?? 0,
+	hasParentTask: event.taskSummary?.hasParentTask ?? Boolean(event.parentTaskId),
+	hasRootTask: event.taskSummary?.hasRootTask ?? Boolean(event.rootTaskId),
+	lastMessage: event.taskSummary?.lastMessage ?? EMPTY_REMOTE_DEBUG_LAST_MESSAGE,
+})
+
+const normalizeRemoteDebugEvent = (event: RemoteDebugEvent): RemoteDebugEvent | undefined => {
+	if (shouldSuppressRemoteDebugEventType(event.type)) {
+		return undefined
+	}
+
+	const lowerType = event.type.toLowerCase()
+	const type = REMOTE_DEBUG_EVENT_TYPE_ALIASES.get(lowerType) ?? lowerType
+
+	if (shouldSuppressRemoteDebugEventType(type) || !CLEAN_REMOTE_DEBUG_EVENT_TYPES.has(type)) {
+		return undefined
+	}
+
+	const featureArea = REMOTE_DEBUG_EVENT_FEATURE_AREAS[type]
+	let normalizedEvent: RemoteDebugEvent = {
+		...event,
+		type,
+		featureArea,
+	}
+
+	if (type === "api.request") {
+		const stage =
+			normalizeRemoteDebugApiStage(event.apiRequest?.stage ?? event.apiRequest?.status) ??
+			deriveRemoteDebugApiStageFromType(lowerType)
+
+		if (!stage) {
+			return undefined
+		}
+
+		normalizedEvent = {
+			...normalizedEvent,
+			operation: {
+				...event.operation,
+				stage: "request",
+				status: stage,
+			},
+			apiRequest: {
+				...event.apiRequest,
+				stage,
+				status: stage,
+			},
+		}
+	}
+
+	if (type === "task.completed") {
+		normalizedEvent = {
+			...normalizedEvent,
+			taskSummary: completeRemoteDebugTaskSummary(normalizedEvent),
+		}
+	}
+
+	if (normalizedEvent.severity === "error" && !normalizedEvent.runtime && !normalizedEvent.error) {
+		normalizedEvent = {
+			...normalizedEvent,
+			runtime: {
+				source: "extension",
+				component: featureArea,
+			},
+		}
+	}
+
+	return normalizedEvent
+}
 
 const truncate = (value: string, maxLength = MAX_STRING_LENGTH) =>
 	value.length > maxLength ? `${value.slice(0, maxLength)}…` : value
@@ -253,7 +422,7 @@ export const sanitizeRemoteDebugEvent = (event: RemoteDebugEvent): SanitizedRemo
 	return {
 		type: redactString(event.type, 120),
 		severity: event.severity ?? "info",
-		timestamp: event.timestamp ?? new Date().toISOString(),
+		timestamp: event.timestamp ?? getIsoTimestampFromDateNow(),
 		featureArea: event.featureArea ? redactString(event.featureArea, 120) : undefined,
 		taskId: event.taskId ? (sanitizeValue(event.taskId, "taskId") as string) : undefined,
 		parentTaskId: event.parentTaskId ? (sanitizeValue(event.parentTaskId, "parentTaskId") as string) : undefined,
@@ -327,12 +496,21 @@ export class RemoteDebugLogger {
 				return
 			}
 
+			const normalizedEvent = normalizeRemoteDebugEvent(event)
+			if (!normalizedEvent) {
+				return
+			}
+
 			if (!this.consumeRateLimitSlot()) {
 				this.droppedEventsSinceLastFlush++
 				return
 			}
 
-			this.queue.push({ event: sanitizeRemoteDebugEvent(event), attempts: 0 })
+			const sanitizedEvent = sanitizeRemoteDebugEvent({
+				...normalizedEvent,
+				timestamp: getIsoTimestampFromDateNow(),
+			})
+			this.queue.push({ event: sanitizedEvent, attempts: 0 })
 			if (this.queue.length > this.maxQueueSize) {
 				const droppedCount = this.queue.length - this.maxQueueSize
 				this.queue.splice(0, droppedCount)
@@ -341,7 +519,7 @@ export class RemoteDebugLogger {
 
 			if (
 				options.flushImmediately === true ||
-				event.severity === "error" ||
+				sanitizedEvent.severity === "error" ||
 				this.queue.length >= this.batchSize
 			) {
 				this.scheduleFlush(0)
@@ -452,7 +630,7 @@ export class RemoteDebugLogger {
 				body: JSON.stringify({
 					version: 1,
 					source: "c-code-vscode-extension",
-					sentAt: new Date().toISOString(),
+					sentAt: getIsoTimestampFromDateNow(),
 					installId: config.installId,
 					sessionId: config.sessionId,
 					extensionVersion: config.extensionVersion,
@@ -464,7 +642,6 @@ export class RemoteDebugLogger {
 							maxRetries: this.maxRetries,
 							batchEventCount: batch.length,
 							queuedEventCount: this.queue.length,
-							droppedEventCount: this.droppedEventsSinceLastFlush || undefined,
 							requestTimeoutMs: this.requestTimeoutMs,
 						},
 						"delivery",
@@ -498,16 +675,6 @@ export class RemoteDebugLogger {
 
 				const highestAttempt = Math.max(...retryable.map((item) => item.attempts))
 				const backoffMs = Math.min(60_000, 1_000 * 2 ** Math.max(0, highestAttempt - 1))
-				this.enqueueDeliveryStatusEvent({
-					status: "retry_scheduled",
-					attempt: highestAttempt,
-					maxRetries: this.maxRetries,
-					retryDelayMs: backoffMs,
-					batchEventCount: batch.length,
-					queuedEventCount: this.queue.length,
-					droppedEventCount: this.droppedEventsSinceLastFlush || undefined,
-					requestTimeoutMs: this.requestTimeoutMs,
-				})
 				this.backoffUntil = Date.now() + backoffMs
 				this.scheduleFlush(backoffMs)
 			}
@@ -517,24 +684,6 @@ export class RemoteDebugLogger {
 
 		if (!this.disposed && this.queue.length > 0 && Date.now() >= this.backoffUntil) {
 			this.scheduleFlush(this.flushIntervalMs)
-		}
-	}
-
-	private enqueueDeliveryStatusEvent(delivery: RemoteDebugDeliverySummary): void {
-		this.queue.push({
-			event: sanitizeRemoteDebugEvent({
-				type: `diagnostics.delivery.${delivery.status ?? "updated"}`,
-				severity: delivery.status === "retry_scheduled" ? "warn" : "debug",
-				featureArea: "diagnostics",
-				delivery,
-			}),
-			attempts: 0,
-		})
-
-		if (this.queue.length > this.maxQueueSize) {
-			const droppedCount = this.queue.length - this.maxQueueSize
-			this.queue.splice(0, droppedCount)
-			this.droppedEventsSinceLastFlush += droppedCount
 		}
 	}
 }

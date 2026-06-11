@@ -290,6 +290,17 @@ const REMOTE_DEBUG_ERROR_SAY_TYPES = new Set(["error", "diff_error", "rooignore_
 const REMOTE_DEBUG_WARNING_SAY_TYPES = new Set(["too_many_tools_warning", "shell_integration_warning"])
 const REMOTE_DEBUG_ERROR_ASK_TYPES = new Set(["api_req_failed"])
 const REMOTE_DEBUG_WARNING_ASK_TYPES = new Set(["mistake_limit_reached", "auto_approval_max_req_reached"])
+const REMOTE_DEBUG_ALLOWED_PROVIDER_EVENT_TYPES = new Set([
+	"task.completed",
+	"task.created",
+	"task.aborted",
+	"task.paused",
+	"task.resumed",
+	"task.spawned",
+	"task.focus",
+	"api.request",
+	"tool.usage",
+])
 
 export class ClineProvider
 	extends EventEmitter<TaskProviderEvents>
@@ -355,6 +366,7 @@ export class ClineProvider
 	private readonly remoteDebugLogger: RemoteDebugLogger
 	private readonly remoteDebugSessionId = randomUUID()
 	private readonly remoteDebugUsageEventTimestamps = new Map<string, number>()
+	private readonly remoteDebugApiRequestStartedKeys = new Set<string>()
 	private parallelStatusUpdateQueue: Promise<void> = Promise.resolve()
 	private parallelStatusUpdatePromise?: Promise<void>
 	private parallelStatusUpdateRequested = false
@@ -588,9 +600,6 @@ export class ClineProvider
 
 			// Create named listener functions so we can remove them later.
 			const onTaskStarted = () => {
-				this.recordRemoteDebugTaskEvent(instance, "task.started", {
-					operation: { stage: "lifecycle", status: "started" },
-				})
 				this.emit(RooCodeEventName.TaskStarted, instance.taskId)
 			}
 			const onTaskCompleted = (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) => {
@@ -680,43 +689,25 @@ export class ClineProvider
 				}
 			}
 			const onTaskFocused = () => {
-				this.recordRemoteDebugTaskEvent(instance, "task.focused", {
+				this.recordRemoteDebugTaskEvent(instance, "task.focus", {
 					severity: "debug",
-					operation: { stage: "lifecycle", status: "focused" },
+					operation: { stage: "lifecycle", status: "focus" },
 				})
 				this.emit(RooCodeEventName.TaskFocused, instance.taskId)
 			}
 			const onTaskUnfocused = () => {
-				this.recordRemoteDebugTaskEvent(instance, "task.unfocused", {
-					severity: "debug",
-					operation: { stage: "lifecycle", status: "unfocused" },
-				})
 				this.emit(RooCodeEventName.TaskUnfocused, instance.taskId)
 			}
 			const onTaskActive = (taskId: string) => {
-				this.recordRemoteDebugTaskEvent(instance, "task.active", {
-					severity: "debug",
-					operation: { stage: "status", status: "active" },
-				})
 				this.emit(RooCodeEventName.TaskActive, taskId)
 			}
 			const onTaskInteractive = (taskId: string) => {
-				this.recordRemoteDebugTaskEvent(instance, "task.interactive", {
-					operation: { stage: "status", status: "interactive" },
-				})
 				this.emit(RooCodeEventName.TaskInteractive, taskId)
 			}
 			const onTaskResumable = (taskId: string) => {
-				this.recordRemoteDebugTaskEvent(instance, "task.resumable", {
-					operation: { stage: "status", status: "resumable" },
-				})
 				this.emit(RooCodeEventName.TaskResumable, taskId)
 			}
 			const onTaskIdle = (taskId: string) => {
-				this.recordRemoteDebugTaskEvent(instance, "task.idle", {
-					severity: "debug",
-					operation: { stage: "status", status: "idle" },
-				})
 				this.emit(RooCodeEventName.TaskIdle, taskId)
 			}
 			const onTaskPaused = (taskId: string) => {
@@ -727,8 +718,8 @@ export class ClineProvider
 				this.emit(RooCodeEventName.TaskPaused, taskId)
 			}
 			const onTaskUnpaused = (taskId: string) => {
-				this.recordRemoteDebugTaskEvent(instance, "task.unpaused", {
-					operation: { stage: "lifecycle", status: "unpaused" },
+				this.recordRemoteDebugTaskEvent(instance, "task.resumed", {
+					operation: { stage: "lifecycle", status: "resumed" },
 				})
 				this.emit(RooCodeEventName.TaskUnpaused, taskId)
 			}
@@ -739,9 +730,6 @@ export class ClineProvider
 				this.emit(RooCodeEventName.TaskSpawned, taskId)
 			}
 			const onTaskUserMessage = (taskId: string) => {
-				this.recordRemoteDebugTaskEvent(instance, "task.user_message", {
-					operation: { stage: "input", status: "received" },
-				})
 				this.emit(RooCodeEventName.TaskUserMessage, taskId)
 			}
 			const onTaskMessage = ({ action, message }: { action: "created" | "updated"; message: ClineMessage }) => {
@@ -760,13 +748,14 @@ export class ClineProvider
 				this.emit(RooCodeEventName.TaskTokenUsageUpdated, taskId, tokenUsage, toolUsage)
 			}
 			const onTaskToolFailed = (taskId: string, tool: string, error: string) => {
-				this.recordRemoteDebugTaskEvent(instance, "task.tool_failed", {
+				this.recordRemoteDebugTaskEvent(instance, "tool.usage", {
 					severity: "error",
+					featureArea: "tool",
 					operation: { stage: "tool", status: "failed" },
-					message: { tool },
 					error: new Error("Tool execution failed"),
 					flushImmediately: true,
 					properties: {
+						tool,
 						eventTaskIdMatches: taskId === instance.taskId,
 						errorLength: error.length,
 					},
@@ -917,8 +906,9 @@ export class ClineProvider
 		}
 
 		this.remoteDebugUsageEventTimestamps.set(taskId, now)
-		this.recordRemoteDebugTaskEvent(task, "task.token_usage_updated", {
+		this.recordRemoteDebugTaskEvent(task, "tool.usage", {
 			severity: "debug",
+			featureArea: "tool",
 			tokenUsage,
 			toolUsage,
 			operation: { stage: "usage", status: "updated" },
@@ -930,9 +920,15 @@ export class ClineProvider
 			return
 		}
 
+		if (!REMOTE_DEBUG_ALLOWED_PROVIDER_EVENT_TYPES.has(type)) {
+			return
+		}
+
 		void this.buildRemoteDebugTaskEvent(task, type, options)
 			.then((event) =>
-				this.remoteDebugLogger.record(event, { flushImmediately: options.flushImmediately === true }),
+				this.remoteDebugLogger.record(event, {
+					flushImmediately: options.flushImmediately === true || event.severity === "error",
+				}),
 			)
 			.catch(() => undefined)
 	}
@@ -945,10 +941,25 @@ export class ClineProvider
 		const mode = await task.getTaskMode().catch(() => undefined)
 		const apiConfiguration = task.apiConfiguration ?? {}
 
+		const severity = options.severity ?? "info"
+		const featureArea = options.featureArea ?? this.getRemoteDebugFeatureAreaForEvent(type)
+		const runtime =
+			severity === "error" && !options.runtime && !options.error
+				? ({ source: "extension", component: featureArea } satisfies RemoteDebugRuntimeSummary)
+				: options.runtime
+		const taskSummary =
+			type === "task.completed"
+				? {
+						...this.buildRemoteDebugTaskSummary(task, options.message),
+						...options.taskSummary,
+						status: options.taskSummary?.status ?? "completed",
+					}
+				: options.taskSummary
+
 		return {
 			type,
-			severity: options.severity ?? "info",
-			featureArea: options.featureArea ?? "task",
+			severity,
+			featureArea,
 			taskId: task.taskId,
 			parentTaskId: task.parentTaskId,
 			rootTaskId: task.rootTaskId,
@@ -960,10 +971,10 @@ export class ClineProvider
 			tokenUsage: options.tokenUsage,
 			toolUsage: options.toolUsage,
 			operation: options.operation,
-			taskSummary: options.taskSummary ?? this.buildRemoteDebugTaskSummary(task, options.message),
+			taskSummary,
 			apiRequest: options.apiRequest,
 			message: options.message,
-			runtime: options.runtime,
+			runtime,
 			error: options.error,
 			properties: {
 				taskStatus: task.taskStatus,
@@ -974,26 +985,53 @@ export class ClineProvider
 		}
 	}
 
+	private getRemoteDebugFeatureAreaForEvent(type: string): "task" | "api" | "tool" | "runtime" {
+		if (type === "api.request") {
+			return "api"
+		}
+
+		if (type === "tool.usage") {
+			return "tool"
+		}
+
+		if (type === "runtime.error") {
+			return "runtime"
+		}
+
+		return "task"
+	}
+
 	private recordRemoteDebugTaskMessageEvent(task: Task, action: "created" | "updated", message: ClineMessage): void {
 		const messageSummary = this.buildRemoteDebugMessageSummary(message, action)
 		const apiRequest = this.buildRemoteDebugApiRequestSummary(task, message)
-		const severity = this.getRemoteDebugMessageSeverity(messageSummary, apiRequest)
-
-		if (message.partial === true && !apiRequest && severity === "debug" && action === "updated") {
+		if (!apiRequest?.stage) {
 			return
 		}
 
-		const stage = apiRequest ? "api_request" : "message"
-		const status = apiRequest?.status ?? action
-		const type = apiRequest ? `task.api_request.${status ?? "updated"}` : "task.message"
+		const severity = this.getRemoteDebugMessageSeverity(messageSummary, apiRequest)
 
-		this.recordRemoteDebugTaskEvent(task, type, {
+		if (message.partial === true && severity === "debug" && action === "updated") {
+			return
+		}
+
+		const requestKey = this.getRemoteDebugApiRequestKey(task.taskId, apiRequest.requestIndex)
+		if (apiRequest.stage === "started") {
+			this.remoteDebugApiRequestStartedKeys.add(requestKey)
+		} else if (apiRequest.stage === "finished" && !this.remoteDebugApiRequestStartedKeys.has(requestKey)) {
+			return
+		}
+
+		this.recordRemoteDebugTaskEvent(task, "api.request", {
 			severity,
-			operation: { stage, status },
-			message: messageSummary,
+			featureArea: "api",
+			operation: { stage: "request", status: apiRequest.stage },
 			apiRequest,
 			flushImmediately: severity === "error",
 		})
+	}
+
+	private getRemoteDebugApiRequestKey(taskId: string, requestIndex: number | undefined): string {
+		return `${taskId}:${requestIndex ?? "unknown"}`
 	}
 
 	private buildRemoteDebugTaskSummary(task: Task, lastMessage?: RemoteDebugMessageSummary): RemoteDebugTaskSummary {
@@ -1067,7 +1105,7 @@ export class ClineProvider
 		const protocol = apiReqInfo?.protocol ?? this.findLatestRemoteDebugApiProtocol(task.clineMessages, message)
 
 		if (message.type === "ask" && message.ask === "api_req_failed") {
-			return { protocol, status: "failed", requestIndex, requestCount }
+			return { protocol, stage: "failed", status: "failed", requestIndex, requestCount }
 		}
 
 		if (message.type !== "say") {
@@ -1075,23 +1113,33 @@ export class ClineProvider
 		}
 
 		switch (message.say) {
-			case "api_req_started":
+			case "api_req_started": {
+				const status = this.getRemoteDebugApiRequestStatus(apiReqInfo)
 				return {
 					...apiReqInfo,
 					protocol,
-					status: this.getRemoteDebugApiRequestStatus(apiReqInfo),
+					stage: status,
+					status,
 					requestIndex,
 					requestCount,
 				}
+			}
 			case "api_req_finished":
-				return { protocol, status: "finished", requestIndex, requestCount }
+				return {
+					protocol,
+					stage: "finished",
+					status: "finished",
+					requestIndex,
+					requestCount,
+				}
 			case "api_req_retried":
-				return { protocol, status: "retried", requestIndex, requestCount }
+				return { protocol, stage: "retried", status: "retried", requestIndex, requestCount }
 			case "api_req_retry_delayed": {
 				const retryDelayMs = this.extractRemoteDebugRetryDelayMs(message.text)
 				return {
 					protocol,
-					status: message.partial === true ? "retry_delay_countdown" : "retry_delayed",
+					stage: "retried",
+					status: "retried",
 					requestIndex,
 					requestCount,
 					retryDelayMs,
@@ -1100,13 +1148,14 @@ export class ClineProvider
 			case "api_req_rate_limit_wait":
 				return {
 					protocol,
-					status: "rate_limit_wait",
+					stage: "retried",
+					status: "retried",
 					requestIndex,
 					requestCount,
 					retryDelayMs: this.extractRemoteDebugRetryDelayMs(message.text),
 				}
 			case "api_req_deleted":
-				return { protocol, status: "deleted", requestIndex, requestCount }
+				return undefined
 			default:
 				return undefined
 		}
@@ -1128,12 +1177,7 @@ export class ClineProvider
 		if (
 			(message?.say && REMOTE_DEBUG_WARNING_SAY_TYPES.has(message.say)) ||
 			(message?.ask && REMOTE_DEBUG_WARNING_ASK_TYPES.has(message.ask)) ||
-			apiRequest?.status === "retried" ||
-			apiRequest?.status === "retry_delayed" ||
-			apiRequest?.status === "retry_delay_countdown" ||
-			apiRequest?.status === "rate_limit_wait" ||
-			apiRequest?.status === "cancelled" ||
-			apiRequest?.status === "deleted"
+			apiRequest?.status === "retried"
 		) {
 			return "warn"
 		}
@@ -1151,7 +1195,7 @@ export class ClineProvider
 		}
 
 		if (apiReqInfo?.cancelReason) {
-			return "cancelled"
+			return "failed"
 		}
 
 		if (
@@ -1159,7 +1203,7 @@ export class ClineProvider
 			typeof apiReqInfo?.tokensOut === "number" ||
 			typeof apiReqInfo?.cost === "number"
 		) {
-			return "completed"
+			return "finished"
 		}
 
 		return "started"
