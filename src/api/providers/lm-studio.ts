@@ -17,8 +17,18 @@ import { getModelsFromCache } from "./fetchers/modelCache"
 import { getApiRequestTimeout } from "./utils/timeout-config"
 import { handleOpenAIError } from "./utils/openai-error-handler"
 
+const trimTrailingSlashes = (value: string) => {
+	let endIndex = value.length
+
+	while (endIndex > 0 && value.charCodeAt(endIndex - 1) === 47) {
+		endIndex--
+	}
+
+	return value.slice(0, endIndex)
+}
+
 const normalizeLmStudioApiBaseUrl = (baseUrl = "http://localhost:1234") => {
-	const trimmedBaseUrl = baseUrl.trim().replace(/\/+$/, "")
+	const trimmedBaseUrl = trimTrailingSlashes(baseUrl.trim())
 	return trimmedBaseUrl.endsWith("/v1") ? trimmedBaseUrl : `${trimmedBaseUrl}/v1`
 }
 

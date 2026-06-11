@@ -59,15 +59,19 @@ vi.mock("openai", () => {
 })
 
 import type { Anthropic } from "@anthropic-ai/sdk"
+import OpenAI from "openai"
 
 import { LmStudioHandler } from "../lm-studio"
 import type { ApiHandlerOptions } from "../../../shared/api"
+
+const MockOpenAI = vi.mocked(OpenAI)
 
 describe("LmStudioHandler", () => {
 	let handler: LmStudioHandler
 	let mockOptions: ApiHandlerOptions
 
 	beforeEach(() => {
+		MockOpenAI.mockClear()
 		mockOptions = {
 			apiModelId: "local-model",
 			lmStudioModelId: "local-model",
@@ -89,6 +93,20 @@ describe("LmStudioHandler", () => {
 				lmStudioModelId: "local-model",
 			})
 			expect(handlerWithoutUrl).toBeInstanceOf(LmStudioHandler)
+		})
+
+		it("should normalize base URLs with repeated trailing slashes", () => {
+			new LmStudioHandler({
+				apiModelId: "local-model",
+				lmStudioModelId: "local-model",
+				lmStudioBaseUrl: `http://localhost:1234/v1${"/".repeat(10_000)}`,
+			})
+
+			expect(MockOpenAI).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					baseURL: "http://localhost:1234/v1",
+				}),
+			)
 		})
 	})
 
@@ -160,7 +178,7 @@ describe("LmStudioHandler", () => {
 			const modelInfo = handler.getModel()
 			expect(modelInfo.id).toBe(mockOptions.lmStudioModelId)
 			expect(modelInfo.info).toBeDefined()
-			expect(modelInfo.info.maxTokens).toBe(-1)
+			expect(modelInfo.info).not.toHaveProperty("maxTokens")
 			expect(modelInfo.info.contextWindow).toBe(128_000)
 		})
 	})

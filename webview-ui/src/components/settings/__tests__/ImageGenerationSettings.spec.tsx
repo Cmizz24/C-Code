@@ -467,8 +467,8 @@ describe("ImageGenerationSettings", () => {
 			expect(screen.getByText(/settings:imageGeneration\.cloudflareUsage\.remainingLabel/)).toBeInTheDocument()
 			expect(screen.getByText(/settings:imageGeneration\.cloudflareUsage\.resetLabel/)).toBeInTheDocument()
 			expect(screen.queryByText("settings:imageGeneration.cloudflareUsage.usedLabel")).not.toBeInTheDocument()
-			expect(screen.queryByText("settings:imageGeneration.cloudflareUsage.requestsLabel")).not.toBeInTheDocument()
-			expect(screen.queryByText("3")).not.toBeInTheDocument()
+			expect(screen.getByText("settings:imageGeneration.cloudflareUsage.requestsLabel")).toBeInTheDocument()
+			expect(screen.getByText("3")).toBeInTheDocument()
 			expect(
 				screen.getByText("settings:imageGeneration.cloudflareUsage.localEstimateDescription"),
 			).toBeInTheDocument()
