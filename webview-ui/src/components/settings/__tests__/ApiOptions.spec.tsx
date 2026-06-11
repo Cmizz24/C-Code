@@ -296,6 +296,28 @@ describe("ApiOptions", () => {
 		expect(mockSetApiConfigurationField).toHaveBeenCalledWith("apiModelId", openAiCodexDefaultModelId, false)
 	})
 
+	it("resets model to provider default when switching to openai-codex with a deprecated prior apiModelId", () => {
+		const mockSetApiConfigurationField = vi.fn()
+
+		renderApiOptions({
+			apiConfiguration: {
+				apiProvider: "anthropic",
+				// This ID is retained for compatibility but is unsupported for ChatGPT sign-in Codex requests.
+				apiModelId: "gpt-5.1-codex-mini",
+			},
+			setApiConfigurationField: mockSetApiConfigurationField,
+		})
+
+		const providerSelectContainer = screen.getByTestId("provider-select")
+		const providerSelect = providerSelectContainer.querySelector("select") as HTMLSelectElement
+		expect(providerSelect).toBeInTheDocument()
+
+		fireEvent.change(providerSelect, { target: { value: "openai-codex" } })
+
+		expect(mockSetApiConfigurationField).toHaveBeenCalledWith("apiProvider", "openai-codex")
+		expect(mockSetApiConfigurationField).toHaveBeenCalledWith("apiModelId", openAiCodexDefaultModelId, false)
+	})
+
 	it("shows temperature and rate limit controls by default", () => {
 		renderApiOptions({
 			apiConfiguration: {},

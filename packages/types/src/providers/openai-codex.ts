@@ -41,6 +41,8 @@ export type OpenAiCodexFastStatus = z.infer<typeof openAiCodexFastStatusSchema>
  * Costs are 0 as they are covered by the subscription.
  * The ChatGPT/Codex backend does not expose a stable public model-list endpoint,
  * so this provider intentionally uses curated static metadata instead of dynamic auto-update.
+ * Deprecated entries are retained only to recognize existing user configuration
+ * and must not be offered as new ChatGPT sign-in selections.
  */
 export const openAiCodexModels = {
 	"gpt-5.1-codex-max": {
@@ -56,7 +58,8 @@ export const openAiCodexModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		supportsTemperature: false,
-		description: "GPT-5.1 Codex Max: Maximum capability coding model via ChatGPT subscription",
+		deprecated: true,
+		description: "GPT-5.1 Codex Max: Deprecated legacy Codex model ID via ChatGPT subscription",
 	},
 	"gpt-5.1-codex": {
 		maxTokens: 128000,
@@ -71,7 +74,8 @@ export const openAiCodexModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		supportsTemperature: false,
-		description: "GPT-5.1 Codex: GPT-5.1 optimized for agentic coding via ChatGPT subscription",
+		deprecated: true,
+		description: "GPT-5.1 Codex: Deprecated legacy Codex model ID via ChatGPT subscription",
 	},
 	"gpt-5.3-codex": {
 		maxTokens: 128000,
@@ -100,7 +104,7 @@ export const openAiCodexModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		supportsTemperature: false,
-		description: "GPT-5.3 Codex Spark: Fast, text-only coding model via ChatGPT subscription",
+		description: "GPT-5.3 Codex Spark: Pro-only research preview, text-only coding model via ChatGPT subscription",
 	},
 	"gpt-5.2-codex": {
 		maxTokens: 128000,
@@ -114,7 +118,8 @@ export const openAiCodexModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		supportsTemperature: false,
-		description: "GPT-5.2 Codex: OpenAI's flagship coding model via ChatGPT subscription",
+		deprecated: true,
+		description: "GPT-5.2 Codex: Deprecated legacy Codex model ID via ChatGPT subscription",
 	},
 	"gpt-5.1": {
 		maxTokens: 128000,
@@ -130,7 +135,8 @@ export const openAiCodexModels = {
 		outputPrice: 0,
 		supportsVerbosity: true,
 		supportsTemperature: false,
-		description: "GPT-5.1: General GPT-5.1 model via ChatGPT subscription",
+		deprecated: true,
+		description: "GPT-5.1: Deprecated legacy GPT model ID via ChatGPT subscription",
 	},
 	"gpt-5": {
 		maxTokens: 128000,
@@ -146,7 +152,8 @@ export const openAiCodexModels = {
 		outputPrice: 0,
 		supportsVerbosity: true,
 		supportsTemperature: false,
-		description: "GPT-5: General GPT-5 model via ChatGPT subscription",
+		deprecated: true,
+		description: "GPT-5: Deprecated legacy GPT model ID via ChatGPT subscription",
 	},
 	"gpt-5-codex": {
 		maxTokens: 128000,
@@ -161,7 +168,8 @@ export const openAiCodexModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		supportsTemperature: false,
-		description: "GPT-5 Codex: GPT-5 optimized for agentic coding via ChatGPT subscription",
+		deprecated: true,
+		description: "GPT-5 Codex: Deprecated legacy Codex model ID via ChatGPT subscription",
 	},
 	"gpt-5-codex-mini": {
 		maxTokens: 128000,
@@ -176,7 +184,8 @@ export const openAiCodexModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		supportsTemperature: false,
-		description: "GPT-5 Codex Mini: Faster coding model via ChatGPT subscription",
+		deprecated: true,
+		description: "GPT-5 Codex Mini: Deprecated legacy Codex model ID via ChatGPT subscription",
 	},
 	"gpt-5.1-codex-mini": {
 		maxTokens: 128000,
@@ -190,7 +199,8 @@ export const openAiCodexModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		supportsTemperature: false,
-		description: "GPT-5.1 Codex Mini: Faster version for coding tasks via ChatGPT subscription",
+		deprecated: true,
+		description: "GPT-5.1 Codex Mini: Deprecated legacy Codex model ID via ChatGPT subscription",
 	},
 	"gpt-5.5": {
 		maxTokens: 128000,
@@ -255,3 +265,15 @@ export const openAiCodexModels = {
 		description: "GPT-5.2: Deprecated GPT model via ChatGPT subscription",
 	},
 } as const satisfies Record<string, ModelInfo>
+
+export const openAiCodexSelectableModelIds = [
+	"gpt-5.5",
+	"gpt-5.4",
+	"gpt-5.4-mini",
+	"gpt-5.3-codex-spark",
+] as const satisfies readonly OpenAiCodexModelId[]
+
+export const isOpenAiCodexSelectableModelId = (modelId: string | undefined): modelId is OpenAiCodexModelId =>
+	!!modelId &&
+	(openAiCodexSelectableModelIds as readonly string[]).includes(modelId) &&
+	(openAiCodexModels[modelId as OpenAiCodexModelId] as ModelInfo).deprecated !== true

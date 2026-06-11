@@ -1,6 +1,12 @@
 import { z } from "zod"
 
-import { modelInfoSchema, reasoningEffortSettingSchema, verbosityLevelsSchema, serviceTierSchema } from "./model.js"
+import {
+	type ModelInfo,
+	modelInfoSchema,
+	reasoningEffortSettingSchema,
+	verbosityLevelsSchema,
+	serviceTierSchema,
+} from "./model.js"
 import { codebaseIndexProviderSchema } from "./codebase-index.js"
 import {
 	anthropicModels,
@@ -11,7 +17,7 @@ import {
 	geminiModels,
 	mistralModels,
 	moonshotModels,
-	openAiCodexModels,
+	openAiCodexSelectableModelIds,
 	openAiNativeModels,
 	qwenCodeModels,
 	sambaNovaModels,
@@ -564,6 +570,11 @@ export const getApiProtocol = (provider: ProviderName | undefined, modelId?: str
  * MODELS_BY_PROVIDER
  */
 
+const selectableModelIds = (models: Record<string, ModelInfo>): string[] =>
+	Object.entries(models)
+		.filter(([, model]) => model.deprecated !== true)
+		.map(([modelId]) => modelId)
+
 export const MODELS_BY_PROVIDER: Record<
 	Exclude<ProviderName, "fake-ai" | "gemini-cli" | "openai">,
 	{ id: ProviderName; label: string; models: string[] }
@@ -571,77 +582,77 @@ export const MODELS_BY_PROVIDER: Record<
 	anthropic: {
 		id: "anthropic",
 		label: "Anthropic",
-		models: Object.keys(anthropicModels),
+		models: selectableModelIds(anthropicModels),
 	},
 	bedrock: {
 		id: "bedrock",
 		label: "Amazon Bedrock",
-		models: Object.keys(bedrockModels),
+		models: selectableModelIds(bedrockModels),
 	},
 	deepseek: {
 		id: "deepseek",
 		label: "DeepSeek",
-		models: Object.keys(deepSeekModels),
+		models: selectableModelIds(deepSeekModels),
 	},
 	fireworks: {
 		id: "fireworks",
 		label: "Fireworks",
-		models: Object.keys(fireworksModels),
+		models: selectableModelIds(fireworksModels),
 	},
 	gemini: {
 		id: "gemini",
 		label: "Google Gemini",
-		models: Object.keys(geminiModels),
+		models: selectableModelIds(geminiModels),
 	},
 	mistral: {
 		id: "mistral",
 		label: "Mistral",
-		models: Object.keys(mistralModels),
+		models: selectableModelIds(mistralModels),
 	},
 	moonshot: {
 		id: "moonshot",
 		label: "Moonshot",
-		models: Object.keys(moonshotModels),
+		models: selectableModelIds(moonshotModels),
 	},
 	minimax: {
 		id: "minimax",
 		label: "MiniMax",
-		models: Object.keys(minimaxModels),
+		models: selectableModelIds(minimaxModels),
 	},
 	"xiaomi-mimo": {
 		id: "xiaomi-mimo",
 		label: "Xiaomi MiMo",
-		models: Object.keys(xiaomiMiMoModels),
+		models: selectableModelIds(xiaomiMiMoModels),
 	},
 	"openai-codex": {
 		id: "openai-codex",
 		label: "OpenAI - ChatGPT Plus/Pro",
-		models: Object.keys(openAiCodexModels),
+		models: [...openAiCodexSelectableModelIds],
 	},
 	"openai-native": {
 		id: "openai-native",
 		label: "OpenAI",
-		models: Object.keys(openAiNativeModels),
+		models: selectableModelIds(openAiNativeModels),
 	},
-	"qwen-code": { id: "qwen-code", label: "Qwen Code", models: Object.keys(qwenCodeModels) },
+	"qwen-code": { id: "qwen-code", label: "Qwen Code", models: selectableModelIds(qwenCodeModels) },
 	sambanova: {
 		id: "sambanova",
 		label: "SambaNova",
-		models: Object.keys(sambaNovaModels),
+		models: selectableModelIds(sambaNovaModels),
 	},
 	vertex: {
 		id: "vertex",
 		label: "GCP Vertex AI",
-		models: Object.keys(vertexModels),
+		models: selectableModelIds(vertexModels),
 	},
 	"vscode-lm": {
 		id: "vscode-lm",
 		label: "VS Code LM API",
-		models: Object.keys(vscodeLlmModels),
+		models: selectableModelIds(vscodeLlmModels),
 	},
-	xai: { id: "xai", label: "xAI (Grok)", models: Object.keys(xaiModels) },
-	zai: { id: "zai", label: "Z.ai", models: Object.keys(internationalZAiModels) },
-	baseten: { id: "baseten", label: "Baseten", models: Object.keys(basetenModels) },
+	xai: { id: "xai", label: "xAI (Grok)", models: selectableModelIds(xaiModels) },
+	zai: { id: "zai", label: "Z.ai", models: selectableModelIds(internationalZAiModels) },
+	baseten: { id: "baseten", label: "Baseten", models: selectableModelIds(basetenModels) },
 
 	// Dynamic providers; models pulled from remote APIs.
 	poe: { id: "poe", label: "Poe", models: [] },

@@ -1,35 +1,60 @@
 // npx vitest run api/providers/__tests__/openai-codex.spec.ts
 
+import {
+	type ModelInfo,
+	type OpenAiCodexModelId,
+	openAiCodexDefaultModelId,
+	openAiCodexModels,
+	openAiCodexSelectableModelIds,
+} from "@roo-code/types"
+
 import { OpenAiCodexHandler } from "../openai-codex"
 import type { ApiHandlerCreateMessageMetadata } from "../../index"
 
-describe("OpenAiCodexHandler.getModel", () => {
-	it.each([
-		"gpt-5.5",
-		"gpt-5.4",
-		"gpt-5.4-mini",
-		"gpt-5.3-codex",
-		"gpt-5.1",
-		"gpt-5",
-		"gpt-5.1-codex",
-		"gpt-5-codex",
-		"gpt-5-codex-mini",
-		"gpt-5.3-codex-spark",
-	])("should return specified model when a valid model id is provided: %s", (apiModelId) => {
-		const handler = new OpenAiCodexHandler({ apiModelId })
-		const model = handler.getModel()
+const deprecatedOpenAiCodexModelIds = [
+	"gpt-5.1-codex-max",
+	"gpt-5.1-codex",
+	"gpt-5.3-codex",
+	"gpt-5.2-codex",
+	"gpt-5.1",
+	"gpt-5",
+	"gpt-5-codex",
+	"gpt-5-codex-mini",
+	"gpt-5.1-codex-mini",
+	"gpt-5.2",
+] as const satisfies readonly OpenAiCodexModelId[]
 
-		expect(model.id).toBe(apiModelId)
-		expect(model.info).toBeDefined()
-	})
+describe("OpenAiCodexHandler.getModel", () => {
+	it.each(openAiCodexSelectableModelIds)(
+		"should return specified model when a selectable model id is provided: %s",
+		(apiModelId) => {
+			const handler = new OpenAiCodexHandler({ apiModelId })
+			const model = handler.getModel()
+
+			expect(model.id).toBe(apiModelId)
+			expect(model.info).toBeDefined()
+			expect(model.info.deprecated).not.toBe(true)
+		},
+	)
 
 	it("should fall back to default model when an invalid model id is provided", () => {
 		const handler = new OpenAiCodexHandler({ apiModelId: "not-a-real-model" })
 		const model = handler.getModel()
 
-		expect(model.id).toBe("gpt-5.5")
+		expect(model.id).toBe(openAiCodexDefaultModelId)
 		expect(model.info).toBeDefined()
 	})
+
+	it.each(deprecatedOpenAiCodexModelIds)(
+		"should fall back to default model when deprecated ChatGPT subscription model %s is configured",
+		(apiModelId) => {
+			const handler = new OpenAiCodexHandler({ apiModelId })
+			const model = handler.getModel()
+
+			expect(model.id).toBe(openAiCodexDefaultModelId)
+			expect(model.info.deprecated).not.toBe(true)
+		},
+	)
 
 	it("should use Spark-specific limits and capabilities", () => {
 		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.3-codex-spark" })
@@ -69,15 +94,9 @@ describe("OpenAiCodexHandler.getModel", () => {
 		expect(model.info.reasoningEffort).toBe("medium")
 	})
 
-	it.each(["gpt-5.2", "gpt-5.3-codex"])(
-		"should mark deprecated ChatGPT/Codex subscription model %s",
-		(apiModelId) => {
-			const handler = new OpenAiCodexHandler({ apiModelId })
-			const model = handler.getModel()
-
-			expect(model.info.deprecated).toBe(true)
-		},
-	)
+	it.each(deprecatedOpenAiCodexModelIds)("should retain deprecated metadata for legacy model %s", (apiModelId) => {
+		expect((openAiCodexModels[apiModelId] as ModelInfo).deprecated).toBe(true)
+	})
 })
 
 describe("OpenAiCodexHandler Fast mode request body", () => {

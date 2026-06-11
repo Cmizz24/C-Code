@@ -567,7 +567,8 @@ const ApiOptions = ({
 				}
 
 				const filteredModels = filterModels(staticModels, provider, organizationAllowList)
-				const isValidModel = !!filteredModels && Object.prototype.hasOwnProperty.call(filteredModels, modelId)
+				const selectedModel = filteredModels?.[modelId]
+				const isValidModel = !!selectedModel && selectedModel.deprecated !== true
 				if (!isValidModel) {
 					setApiConfigurationField(field, defaultValue, false)
 				}

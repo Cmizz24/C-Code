@@ -14,15 +14,29 @@ import {
 	providerSettingsSchemaDiscriminated,
 } from "../index.js"
 import {
+	anthropicModels,
 	basetenDefaultModelId,
 	basetenModels,
+	bedrockModels,
+	deepSeekModels,
 	fireworksDefaultModelId,
 	fireworksModels,
+	geminiModels,
 	getProviderDefaultModelId,
+	internationalZAiModels,
+	minimaxModels,
+	mistralModels,
+	moonshotModels,
 	openAiCodexModels,
+	openAiCodexSelectableModelIds,
+	openAiNativeModels,
+	qwenCodeModels,
 	openAiNativeDefaultModelId,
 	sambaNovaDefaultModelId,
 	sambaNovaModels,
+	vertexModels,
+	vscodeLlmModels,
+	xaiModels,
 	xiaomiMiMoDefaultModelId,
 	xiaomiMiMoModels,
 } from "../providers/index.js"
@@ -77,9 +91,55 @@ describe("OpenAI Codex provider settings", () => {
 		expect(supportedFastModeModels).toEqual(["gpt-5.5", "gpt-5.4"])
 		expect((openAiCodexModels["gpt-5.3-codex-spark"] as ModelInfo).supportsFastMode).toBeUndefined()
 	})
+
+	it("should expose only current ChatGPT sign-in Codex models as selectable", () => {
+		expect(openAiCodexSelectableModelIds).toEqual(["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex-spark"])
+		expect(MODELS_BY_PROVIDER["openai-codex"].models).toEqual([...openAiCodexSelectableModelIds])
+
+		for (const modelId of openAiCodexSelectableModelIds) {
+			expect((openAiCodexModels[modelId] as ModelInfo).deprecated).not.toBe(true)
+		}
+	})
+
+	it.each([
+		"gpt-5.1-codex-max",
+		"gpt-5.1-codex",
+		"gpt-5.3-codex",
+		"gpt-5.2-codex",
+		"gpt-5.1",
+		"gpt-5",
+		"gpt-5-codex",
+		"gpt-5-codex-mini",
+		"gpt-5.1-codex-mini",
+		"gpt-5.2",
+	])("should mark unsupported ChatGPT sign-in Codex model %s as deprecated", (modelId) => {
+		expect((openAiCodexModels[modelId as keyof typeof openAiCodexModels] as ModelInfo).deprecated).toBe(true)
+		expect(MODELS_BY_PROVIDER["openai-codex"].models).not.toContain(modelId)
+	})
 })
 
 describe("getProviderDefaultModelId", () => {
+	const staticModelsByProvider = {
+		anthropic: anthropicModels,
+		bedrock: bedrockModels,
+		deepseek: deepSeekModels,
+		fireworks: fireworksModels,
+		gemini: geminiModels,
+		mistral: mistralModels,
+		moonshot: moonshotModels,
+		minimax: minimaxModels,
+		"xiaomi-mimo": xiaomiMiMoModels,
+		"openai-codex": openAiCodexModels,
+		"openai-native": openAiNativeModels,
+		"qwen-code": qwenCodeModels,
+		sambanova: sambaNovaModels,
+		vertex: vertexModels,
+		"vscode-lm": vscodeLlmModels,
+		xai: xaiModels,
+		zai: internationalZAiModels,
+		baseten: basetenModels,
+	} as const
+
 	it("should use the OpenAI native provider default instead of stale fallback metadata", () => {
 		expect(getProviderDefaultModelId("openai-native")).toBe(openAiNativeDefaultModelId)
 	})
@@ -100,6 +160,16 @@ describe("getProviderDefaultModelId", () => {
 		expect(getProviderDefaultModelId("sambanova")).toBe(sambaNovaDefaultModelId)
 		expect(sambaNovaModels[sambaNovaDefaultModelId]).toBeDefined()
 		expect(sambaNovaModels[sambaNovaDefaultModelId]).not.toHaveProperty("deprecated")
+	})
+
+	it("should not expose deprecated static provider models as active MODELS_BY_PROVIDER choices", () => {
+		for (const [provider, models] of Object.entries(staticModelsByProvider)) {
+			const listedModelIds = MODELS_BY_PROVIDER[provider as keyof typeof staticModelsByProvider].models
+
+			for (const modelId of listedModelIds) {
+				expect((models as Record<string, ModelInfo>)[modelId]?.deprecated).not.toBe(true)
+			}
+		}
 	})
 })
 
@@ -186,6 +256,7 @@ describe("Cloudflare Workers AI image usage helpers", () => {
 
 describe("Xiaomi MiMo provider settings", () => {
 	const xiaomiMiMoTextModelIds = ["mimo-v2.5-pro", "mimo-v2-pro", "mimo-v2.5", "mimo-v2-omni", "mimo-v2-flash"]
+	const xiaomiMiMoSelectableTextModelIds = ["mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-flash"]
 
 	it("should register Xiaomi MiMo as a provider", () => {
 		expect(providerNames).toContain("xiaomi-mimo")
@@ -215,9 +286,11 @@ describe("Xiaomi MiMo provider settings", () => {
 		).toBe(false)
 	})
 
-	it("should list only official text/chat models and exclude TTS models", () => {
-		expect(MODELS_BY_PROVIDER["xiaomi-mimo"].models).toEqual(xiaomiMiMoTextModelIds)
+	it("should list only active official text/chat models and exclude deprecated or TTS models", () => {
+		expect(MODELS_BY_PROVIDER["xiaomi-mimo"].models).toEqual(xiaomiMiMoSelectableTextModelIds)
 		expect(Object.keys(xiaomiMiMoModels)).toEqual(xiaomiMiMoTextModelIds)
+		expect(MODELS_BY_PROVIDER["xiaomi-mimo"].models).not.toContain("mimo-v2-pro")
+		expect(MODELS_BY_PROVIDER["xiaomi-mimo"].models).not.toContain("mimo-v2-omni")
 		expect(MODELS_BY_PROVIDER["xiaomi-mimo"].models).not.toContain("mimo-v2.5-tts")
 		expect(MODELS_BY_PROVIDER["xiaomi-mimo"].models).not.toContain("mimo-v2.5-tts-voiceclone")
 		expect(MODELS_BY_PROVIDER["xiaomi-mimo"].models).not.toContain("mimo-v2.5-tts-voicedesign")
