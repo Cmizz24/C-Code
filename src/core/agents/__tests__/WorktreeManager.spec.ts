@@ -1,5 +1,6 @@
 import { exec } from "child_process"
 import fs from "fs/promises"
+import path from "path"
 
 import { WorktreeManager, WorktreeManagerGitUnavailableError } from "../WorktreeManager"
 
@@ -24,6 +25,10 @@ vi.mock("fs/promises", () => ({
 
 const execMock = vi.mocked(exec)
 const fsMock = vi.mocked(fs)
+const retainedGitCommonDir = "/repo/.git"
+const mergePatchDir = "C:/tmp/roo-parallel-merge-patch-1"
+const mergePatchPath = path.join(mergePatchDir, "agent.diff")
+const quotedMergePatchPath = `"${mergePatchPath.replace(/"/g, '\\"')}"`
 
 type ExecCallback = (error: Error | null | undefined, stdout: string, stderr: string) => void
 
@@ -417,7 +422,7 @@ describe("WorktreeManager", () => {
 				return { stdout: "head123\n" }
 			}
 			if (command === "git rev-parse --git-common-dir") {
-				return { stdout: "C:/repo/.git\n" }
+				return { stdout: `${retainedGitCommonDir}\n` }
 			}
 			if (command === "git rev-parse --abbrev-ref HEAD") {
 				return { stdout: "roo/parallel/old/ui\n" }
@@ -454,7 +459,7 @@ describe("WorktreeManager", () => {
 		mockExecImplementation((command) => {
 			if (command === "git rev-parse --show-toplevel") return { stdout: "C:/repo\n" }
 			if (command === "git rev-parse --verify HEAD") return { stdout: "head123\n" }
-			if (command === "git rev-parse --git-common-dir") return { stdout: "C:/repo/.git\n" }
+			if (command === "git rev-parse --git-common-dir") return { stdout: `${retainedGitCommonDir}\n` }
 			if (command === "git rev-parse --abbrev-ref HEAD") return { stdout: "roo/parallel/old/ui\n" }
 			if (command === "git status --porcelain=v1 --untracked-files=all") return { stdout: " M src/ui.tsx\n" }
 			throw new Error(`Unexpected command: ${command}`)
@@ -489,7 +494,7 @@ describe("WorktreeManager", () => {
 		mockExecImplementation((command) => {
 			if (command === "git rev-parse --show-toplevel") return { stdout: "C:/repo\n" }
 			if (command === "git rev-parse --verify HEAD") return { stdout: "head123\n" }
-			if (command === "git rev-parse --git-common-dir") return { stdout: "C:/repo/.git\n" }
+			if (command === "git rev-parse --git-common-dir") return { stdout: `${retainedGitCommonDir}\n` }
 			if (command === "git rev-parse --abbrev-ref HEAD") return { stdout: "other-branch\n" }
 			throw new Error(`Unexpected command: ${command}`)
 		})
@@ -548,7 +553,7 @@ describe("WorktreeManager", () => {
 		mockExecImplementation((command) => {
 			if (command === "git rev-parse --show-toplevel") return { stdout: "C:/repo\n" }
 			if (command === "git rev-parse --verify HEAD") return { stdout: "head123\n" }
-			if (command === "git rev-parse --git-common-dir") return { stdout: "C:/repo/.git\n" }
+			if (command === "git rev-parse --git-common-dir") return { stdout: `${retainedGitCommonDir}\n` }
 			if (command === "git rev-parse --abbrev-ref HEAD") return { stdout: "roo/parallel/old/ui\n" }
 			if (command === "git status --porcelain=v1 --untracked-files=all") return { stdout: "" }
 			if (command === "git rev-parse HEAD") return { stdout: "head123\n" }
@@ -885,7 +890,7 @@ describe("WorktreeManager", () => {
 		})
 		fsMock.mkdtemp
 			.mockResolvedValueOnce("C:/tmp/roo-parallel-current-snapshot-1")
-			.mockResolvedValueOnce("C:/tmp/roo-parallel-merge-patch-1")
+			.mockResolvedValueOnce(mergePatchDir)
 		mockExecImplementation((command) => {
 			if (command === "git rev-parse --show-toplevel") {
 				return { stdout: "C:/repo\n" }
@@ -908,10 +913,10 @@ describe("WorktreeManager", () => {
 			if (command === 'git diff --cached --name-only -z baseline123 -- "src/index.html"') {
 				return { stdout: "" }
 			}
-			if (command === 'git apply --binary --3way --check "C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff"') {
+			if (command === `git apply --binary --3way --check ${quotedMergePatchPath}`) {
 				return { stdout: "" }
 			}
-			if (command === 'git apply --binary --3way "C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff"') {
+			if (command === `git apply --binary --3way ${quotedMergePatchPath}`) {
 				return { stdout: "" }
 			}
 
@@ -927,7 +932,7 @@ describe("WorktreeManager", () => {
 		expect(execMock.mock.calls.some(([command]) => String(command).includes("git rebase"))).toBe(false)
 		expect(execMock.mock.calls.some(([command]) => String(command).includes("git merge --no-edit"))).toBe(false)
 		expect(fsMock.writeFile).toHaveBeenCalledWith(
-			"C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff",
+			mergePatchPath,
 			"diff --git a/src/index.html b/src/index.html\n+<main />\n",
 			"utf8",
 		)
@@ -942,7 +947,7 @@ describe("WorktreeManager", () => {
 		})
 		fsMock.mkdtemp
 			.mockResolvedValueOnce("C:/tmp/roo-parallel-current-snapshot-1")
-			.mockResolvedValueOnce("C:/tmp/roo-parallel-merge-patch-1")
+			.mockResolvedValueOnce(mergePatchDir)
 		mockExecImplementation((command) => {
 			if (command === "git rev-parse --show-toplevel") {
 				return { stdout: "C:/repo\n" }
@@ -971,10 +976,10 @@ describe("WorktreeManager", () => {
 			if (command === 'git diff --cached --name-only -z baseline123 -- "index.html"') {
 				return { stdout: "" }
 			}
-			if (command === 'git apply --binary --3way --check "C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff"') {
+			if (command === `git apply --binary --3way --check ${quotedMergePatchPath}`) {
 				return { stdout: "" }
 			}
-			if (command === 'git apply --binary --3way "C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff"') {
+			if (command === `git apply --binary --3way ${quotedMergePatchPath}`) {
 				return { stdout: "" }
 			}
 
@@ -989,7 +994,7 @@ describe("WorktreeManager", () => {
 
 		expect(execMock.mock.calls.some(([command]) => command === 'git add -A -- "index.html"')).toBe(false)
 		expect(fsMock.writeFile).toHaveBeenCalledWith(
-			"C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff",
+			mergePatchPath,
 			expect.stringContaining("new file mode 100644"),
 			"utf8",
 		)
