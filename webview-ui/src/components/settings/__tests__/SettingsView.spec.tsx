@@ -1142,6 +1142,12 @@ describe("SettingsView - Memory Settings", () => {
 
 		fireEvent.click(workspaceSummary)
 		expect(workspaceRecord).toHaveAttribute("open")
+		expect(
+			within(workspaceDetails).getByTestId("memory-record-workspace-memory-1-remove-button"),
+		).toHaveTextContent("common:answers.remove")
+		expect(within(content).getByTestId("memory-record-global-memory-1-remove-button")).toHaveTextContent(
+			"common:answers.remove",
+		)
 
 		expect(within(content).queryByTestId("memory-approve-workspace-pending-button")).not.toBeInTheDocument()
 		expect(within(content).queryByTestId("memory-archive-workspace-pending-button")).not.toBeInTheDocument()
@@ -1296,6 +1302,60 @@ describe("SettingsView - Memory Settings", () => {
 		fireEvent.click(within(content).getByTestId("alert-dialog-action"))
 
 		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "memoryAction", memoryAction: "clearWorkspace" })
+		expect(dialog).toHaveAttribute("data-open", "false")
+	})
+
+	it("requires confirmation before deleting individual memory records", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			memoryState: {
+				summary: {
+					workspace: { active: 1, pending: 0, archived: 0, total: 1 },
+					global: { active: 0, pending: 0, archived: 0, total: 0 },
+				},
+				workspace: [
+					{
+						id: "workspace-memory-delete-me",
+						scope: "workspace",
+						kind: "lesson",
+						status: "active",
+						source: "manual",
+						title: "Delete this lesson",
+						lesson: "Remove a single memory record.",
+						tags: [],
+						pathTags: [],
+						confidence: 0.8,
+						reuseCount: 0,
+						successCount: 0,
+						failureCount: 0,
+						createdAt: 1_700_000_000_000,
+						updatedAt: 1_700_000_060_000,
+					},
+				],
+				global: [],
+			},
+		})
+
+		activateTab("memory")
+
+		const content = getSettingsContent()
+		const dialog = within(content).getByTestId("alert-dialog")
+		expect(dialog).toHaveAttribute("data-open", "false")
+
+		fireEvent.click(within(content).getByTestId("memory-record-workspace-memory-delete-me-remove-button"))
+
+		expect(dialog).toHaveAttribute("data-open", "true")
+		expect(vscode.postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({ type: "memoryAction", memoryAction: "deleteMemory" }),
+		)
+
+		fireEvent.click(within(content).getByTestId("alert-dialog-action"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({
+			type: "memoryAction",
+			memoryAction: "deleteMemory",
+			memoryId: "workspace-memory-delete-me",
+			memoryScope: "workspace",
+		})
 		expect(dialog).toHaveAttribute("data-open", "false")
 	})
 })

@@ -4342,6 +4342,17 @@ export class ClineProvider
 				}
 				break
 			}
+			case "deleteMemory": {
+				if (!options.memoryId) {
+					break
+				}
+
+				await storage.deleteMemory(options.memoryId, {
+					scope: options.memoryScope,
+					workspacePath: this.cwd,
+				})
+				break
+			}
 			case "archiveWorkspace":
 				await storage.archiveScope("workspace", this.cwd)
 				break

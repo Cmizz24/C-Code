@@ -54,8 +54,19 @@ type MemorySettingsProps = HTMLAttributes<HTMLDivElement> & {
 	>
 }
 
-const postMemoryAction = (memoryAction: MemoryAction) => {
-	vscode.postMessage({ type: "memoryAction", memoryAction })
+type PendingMemoryAction = {
+	memoryAction: MemoryAction
+	memoryId?: string
+	memoryScope?: MemoryScope
+}
+
+const postMemoryAction = ({ memoryAction, memoryId, memoryScope }: PendingMemoryAction) => {
+	vscode.postMessage({
+		type: "memoryAction",
+		memoryAction,
+		...(memoryId ? { memoryId } : {}),
+		...(memoryScope ? { memoryScope } : {}),
+	})
 }
 
 const destructiveMemoryActions = new Set<MemoryAction>([
@@ -63,6 +74,7 @@ const destructiveMemoryActions = new Set<MemoryAction>([
 	"clearWorkspace",
 	"archiveGlobal",
 	"clearGlobal",
+	"deleteMemory",
 ])
 
 type MemoryCollapsibleSectionProps = {
@@ -158,7 +170,7 @@ const MemoryDetailField = ({ label, children }: { label: string; children: React
 	</div>
 )
 
-const MemoryRecordCard = ({ memory }: { memory: MemoryEntry }) => {
+const MemoryRecordCard = ({ memory, onRemove }: { memory: MemoryEntry; onRemove: (memory: MemoryEntry) => void }) => {
 	const { t } = useAppTranslation()
 	const createdAt = formatTimestamp(memory.createdAt)
 	const updatedAt = formatTimestamp(memory.updatedAt)
@@ -279,12 +291,30 @@ const MemoryRecordCard = ({ memory }: { memory: MemoryEntry }) => {
 						</div>
 					)}
 				</div>
+
+				<div className="flex min-w-0 max-w-full flex-wrap justify-end gap-2 border-t border-vscode-panel-border pt-2">
+					<Button
+						type="button"
+						data-testid={`memory-record-${memory.id}-remove-button`}
+						variant="destructive"
+						onClick={() => onRemove(memory)}>
+						{t("common:answers.remove")}
+					</Button>
+				</div>
 			</div>
 		</details>
 	)
 }
 
-const MemoryRecordList = ({ scope, records }: { scope: MemoryScope; records: MemoryEntry[] }) => {
+const MemoryRecordList = ({
+	scope,
+	records,
+	onRemove,
+}: {
+	scope: MemoryScope
+	records: MemoryEntry[]
+	onRemove: (memory: MemoryEntry) => void
+}) => {
 	const { t } = useAppTranslation()
 
 	return (
@@ -299,7 +329,7 @@ const MemoryRecordList = ({ scope, records }: { scope: MemoryScope; records: Mem
 			{records.length > 0 ? (
 				<div className="min-w-0 max-w-full space-y-2">
 					{records.map((memory) => (
-						<MemoryRecordCard key={memory.id} memory={memory} />
+						<MemoryRecordCard key={memory.id} memory={memory} onRemove={onRemove} />
 					))}
 				</div>
 			) : (
@@ -362,19 +392,24 @@ export const MemorySettings = ({
 	...props
 }: MemorySettingsProps) => {
 	const { t } = useAppTranslation()
-	const [pendingAction, setPendingAction] = useState<MemoryAction>()
+	const [pendingAction, setPendingAction] = useState<PendingMemoryAction>()
 	const modeValue = memoryEnabled === undefined ? "auto" : memoryEnabled ? "enabled" : "disabled"
 	const summary = memoryState?.summary ?? memorySummary
 	const workspaceRecords = memoryState?.workspace ?? []
 	const globalRecords = memoryState?.global ?? []
 
-	const requestMemoryAction = (memoryAction: MemoryAction) => {
-		if (destructiveMemoryActions.has(memoryAction)) {
-			setPendingAction(memoryAction)
+	const requestMemoryAction = (memoryAction: MemoryAction | PendingMemoryAction) => {
+		const action = typeof memoryAction === "string" ? { memoryAction } : memoryAction
+		if (destructiveMemoryActions.has(action.memoryAction)) {
+			setPendingAction(action)
 			return
 		}
 
-		postMemoryAction(memoryAction)
+		postMemoryAction(action)
+	}
+
+	const requestRemoveMemory = (memory: MemoryEntry) => {
+		requestMemoryAction({ memoryAction: "deleteMemory", memoryId: memory.id, memoryScope: memory.scope })
 	}
 
 	const confirmPendingAction = () => {
@@ -544,8 +579,12 @@ export const MemorySettings = ({
 						</div>
 
 						<div className="mt-4 grid min-w-0 max-w-full gap-3 lg:grid-cols-2 [&>*]:min-w-0">
-							<MemoryRecordList scope="workspace" records={workspaceRecords} />
-							<MemoryRecordList scope="global" records={globalRecords} />
+							<MemoryRecordList
+								scope="workspace"
+								records={workspaceRecords}
+								onRemove={requestRemoveMemory}
+							/>
+							<MemoryRecordList scope="global" records={globalRecords} onRemove={requestRemoveMemory} />
 						</div>
 
 						<div className="mt-4 grid min-w-0 max-w-full gap-4 sm:grid-cols-2 [&>*]:min-w-0">

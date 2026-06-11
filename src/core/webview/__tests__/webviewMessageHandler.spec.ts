@@ -1446,6 +1446,23 @@ describe("webviewMessageHandler - memory", () => {
 		expect((mockClineProvider as any).postMemoryStateToWebview).toHaveBeenCalledTimes(1)
 		expect(mockClineProvider.postStateToWebview).not.toHaveBeenCalled()
 	})
+
+	it("passes individual memory delete action details to the provider", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "memoryAction",
+			memoryAction: "deleteMemory",
+			memoryId: "mem_delete_123",
+			memoryScope: "global",
+		})
+
+		expect((mockClineProvider as any).handleMemoryAction).toHaveBeenCalledWith("deleteMemory", {
+			memoryId: "mem_delete_123",
+			memoryScope: "global",
+			messageTs: undefined,
+		})
+		expect((mockClineProvider as any).postMemoryStateToWebview).toHaveBeenCalledTimes(1)
+		expect(mockClineProvider.postStateToWebview).not.toHaveBeenCalled()
+	})
 })
 
 describe("webviewMessageHandler - requestCommands", () => {

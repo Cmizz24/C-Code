@@ -333,9 +333,32 @@ export class MemoryStorage {
 			}
 
 			const store = await this.readStore(scope, options.workspacePath)
-			const nextMemories = store.memories.filter((entry) => entry.id !== id)
+			const now = Date.now()
+			let changed = false
+			const nextMemories = store.memories
+				.filter((entry) => entry.id !== id)
+				.map((entry) => {
+					if (entry.supersedes !== id && entry.supersededBy !== id) {
+						return entry
+					}
+
+					const nextEntry = { ...entry, updatedAt: now }
+					if (nextEntry.supersedes === id) {
+						delete nextEntry.supersedes
+					}
+					if (nextEntry.supersededBy === id) {
+						delete nextEntry.supersededBy
+					}
+					changed = true
+					return nextEntry
+				})
 			const nextCandidates = store.candidates.filter((entry) => entry.memoryId !== id)
-			if (nextMemories.length !== store.memories.length || nextCandidates.length !== store.candidates.length) {
+			changed =
+				changed ||
+				nextMemories.length !== store.memories.length ||
+				nextCandidates.length !== store.candidates.length
+
+			if (changed) {
 				deleted = true
 				await this.writeStore(
 					scope,

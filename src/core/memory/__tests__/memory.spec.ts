@@ -176,6 +176,79 @@ describe("memory storage", () => {
 		expect(store.memories.find((entry) => entry.id === first.memory.id)?.status).toBe("archived")
 		expect(store.memories.find((entry) => entry.id === second.memory.id)?.status).toBe("pending")
 	})
+
+	it("deletes individual memories across statuses without stale candidates or relationships", async () => {
+		const { memory: pending } = await createMistakeMemoryCandidate({
+			storage,
+			lesson: "Pending lesson to remove.",
+			error: "pending error",
+			toolName: "read_file",
+			workspacePath,
+		})
+		const active = await storage.createMemory({
+			scope: "workspace",
+			kind: "lesson",
+			status: "active",
+			source: "manual",
+			lesson: "Active lesson to remove.",
+			workspacePath,
+		})
+		const stale = await storage.createMemory({
+			scope: "workspace",
+			kind: "lesson",
+			status: "stale",
+			source: "manual",
+			lesson: "Stale lesson to remove.",
+			workspacePath,
+		})
+		const archived = await storage.createMemory({
+			scope: "workspace",
+			kind: "lesson",
+			status: "archived",
+			source: "manual",
+			lesson: "Archived lesson to remove.",
+			workspacePath,
+		})
+		const superseded = await storage.createMemory({
+			scope: "workspace",
+			kind: "lesson",
+			status: "superseded",
+			source: "manual",
+			lesson: "Superseded lesson to remove.",
+			workspacePath,
+		})
+		const replacement = await storage.createMemory({
+			scope: "workspace",
+			kind: "lesson",
+			status: "active",
+			source: "manual",
+			lesson: "Replacement lesson should stay.",
+			workspacePath,
+		})
+
+		const storeWithRelationships = await storage.readStore("workspace", workspacePath)
+		storeWithRelationships.memories = storeWithRelationships.memories.map((entry) => {
+			if (entry.id === superseded.id) {
+				return { ...entry, supersededBy: pending.id }
+			}
+			if (entry.id === replacement.id) {
+				return { ...entry, supersedes: pending.id }
+			}
+			return entry
+		})
+		await storage.writeStore("workspace", storeWithRelationships, workspacePath)
+
+		for (const entry of [pending, active, stale, archived, superseded]) {
+			expect(await storage.deleteMemory(entry.id, { scope: "workspace", workspacePath })).toBe(true)
+		}
+
+		const store = await storage.readStore("workspace", workspacePath)
+		const remainingIds = store.memories.map((entry) => entry.id)
+		expect(remainingIds).toEqual([replacement.id])
+		expect(store.candidates.find((candidate) => candidate.memoryId === pending.id)).toBeUndefined()
+		expect(store.memories[0].supersedes).toBeUndefined()
+		expect(store.memories[0].supersededBy).toBeUndefined()
+	})
 })
 
 describe("memory retrieval and ranking", () => {
@@ -274,6 +347,59 @@ describe("memory retrieval and ranking", () => {
 
 		expect(results).toHaveLength(1)
 		expect(results[0].memory.pathTags).toEqual(["webview-ui/src/components/settings/MemorySettings.tsx"])
+	})
+
+	it("excludes deleted active memories from retrieval and injection", async () => {
+		const kept = await storage.createMemory({
+			scope: "workspace",
+			kind: "lesson",
+			status: "active",
+			source: "manual",
+			lesson: "Use settings memory controls.",
+			workspacePath,
+		})
+		const deleted = await storage.createMemory({
+			scope: "workspace",
+			kind: "lesson",
+			status: "active",
+			source: "manual",
+			lesson: "Deleted settings memory should not appear.",
+			workspacePath,
+		})
+
+		expect(await storage.deleteMemory(deleted.id, { scope: "workspace", workspacePath })).toBe(true)
+
+		const results = await retrieveMemories({
+			storage,
+			query: "settings memory controls",
+			workspacePath,
+			includeWorkspace: true,
+			includeGlobal: false,
+			maxEntries: 5,
+		})
+
+		expect(results.map((result) => result.memory.id)).toContain(kept.id)
+		expect(results.map((result) => result.memory.id)).not.toContain(deleted.id)
+
+		const prompt = await buildMemoryPromptForRequest({
+			globalStoragePath: tempDir,
+			workspacePath,
+			modelInfo: modelInfo(10_000, 1_000),
+			modelId: "test-model",
+			apiConfiguration: {},
+			settings: {
+				memoryEnabled: true,
+				memoryWorkspaceEnabled: true,
+				memoryGlobalEnabled: false,
+				memoryMaxCharacters: 2_400,
+				memoryMaxEntries: 5,
+			},
+			requestMessages: [{ role: "user", content: "settings memory controls" }],
+			contextTokens: 100,
+		})
+
+		expect(prompt).toContain(kept.lesson)
+		expect(prompt).not.toContain(deleted.lesson)
 	})
 })
 

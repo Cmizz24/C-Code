@@ -44,6 +44,7 @@ export type MemoryAction =
 	| "refresh"
 	| "approveMemory"
 	| "archiveMemory"
+	| "deleteMemory"
 	| "archiveWorkspace"
 	| "clearWorkspace"
 	| "archiveGlobal"
