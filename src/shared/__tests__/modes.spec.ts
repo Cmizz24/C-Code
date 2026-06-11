@@ -20,6 +20,16 @@ import {
 import { isToolAllowedForMode } from "../../core/tools/validateToolUse"
 import { addCustomInstructions } from "../../core/prompts/sections/custom-instructions"
 
+describe("built-in modes", () => {
+	it("defines non-empty custom instructions for every built-in mode", () => {
+		const modesWithoutInstructions = modes
+			.filter((mode) => !mode.customInstructions?.trim())
+			.map((mode) => mode.slug)
+
+		expect(modesWithoutInstructions).toEqual([])
+	})
+})
+
 describe("isToolAllowedForMode", () => {
 	const customModes: ModeConfig[] = [
 		{

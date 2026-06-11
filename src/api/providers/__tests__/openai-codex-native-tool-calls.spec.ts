@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { OpenAiCodexHandler } from "../openai-codex"
 import type { ApiHandlerOptions } from "../../../shared/api"
 import { NativeToolCallParser } from "../../../core/assistant-message/NativeToolCallParser"
+import memorySearchTool from "../../../core/prompts/tools/native-tools/memory_search"
+import mistakeMemoryTool from "../../../core/prompts/tools/native-tools/mistake_memory"
 import { openAiCodexOAuthManager } from "../../../integrations/openai-codex/oauth"
 
 describe("OpenAiCodexHandler native tool calls", () => {
@@ -21,6 +23,59 @@ describe("OpenAiCodexHandler native tool calls", () => {
 			// minimal settings; OAuth is mocked below
 		}
 		handler = new OpenAiCodexHandler(mockOptions)
+	})
+
+	it("emits Codex-compatible memory tool schemas without nullable enum values", async () => {
+		vi.spyOn(openAiCodexOAuthManager, "getAccessToken").mockResolvedValue("test-token")
+		vi.spyOn(openAiCodexOAuthManager, "getAccountId").mockResolvedValue("acct_test")
+
+		const create = vi.fn().mockResolvedValue({
+			async *[Symbol.asyncIterator]() {
+				yield {
+					type: "response.completed",
+					response: {
+						id: "resp_schema_check",
+						status: "completed",
+						output: [],
+						usage: { input_tokens: 1, output_tokens: 1 },
+					},
+				}
+			},
+		})
+
+		;(handler as any).client = {
+			responses: { create },
+		}
+
+		const stream = handler.createMessage("system", [{ role: "user", content: "hello" } as any], {
+			taskId: "t",
+			tools: [memorySearchTool, mistakeMemoryTool],
+		})
+
+		for await (const _chunk of stream) {
+			// Exhaust the stream so the request is built and sent.
+		}
+
+		expect(create).toHaveBeenCalledTimes(1)
+		const [requestBody] = create.mock.calls[0]
+		const memorySearch = requestBody.tools.find((tool: any) => tool.name === "memory_search")
+		const mistakeMemory = requestBody.tools.find((tool: any) => tool.name === "mistake_memory")
+
+		expect(memorySearch.parameters.properties.scope).toMatchObject({
+			type: "string",
+			enum: ["workspace", "global", "all"],
+		})
+		expect(memorySearch.parameters.properties.scope.enum).not.toContain(null)
+		expect(memorySearch.parameters.properties.status).toMatchObject({
+			type: "string",
+			enum: ["active", "pending", "stale", "superseded", "archived", "all"],
+		})
+		expect(memorySearch.parameters.properties.status.enum).not.toContain(null)
+		expect(mistakeMemory.parameters.properties.scope).toMatchObject({
+			type: "string",
+			enum: ["workspace", "global"],
+		})
+		expect(mistakeMemory.parameters.properties.scope.enum).not.toContain(null)
 	})
 
 	it("yields tool_call_partial chunks when API returns function_call-only response", async () => {

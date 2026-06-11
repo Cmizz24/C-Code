@@ -20,7 +20,7 @@ Compared with upstream Roo Code, C Code keeps the familiar agentic coding workfl
 - **Cloudflare Workers AI image generation** — use Cloudflare Workers AI as a supported image provider with account/model settings plus usage details such as provider-reported or locally estimated Neurons, cost, reset, and quota notes when available.
 - **OpenRouter dynamic image models** — discover image-capable OpenRouter models dynamically, keep provider/model caches scoped correctly, and surface refreshed provider metadata in model selection flows.
 - **Visual Browser Inspector** — inspect visual browser state for UI debugging and chat handoff workflows with Playwright browser-management, retry/browser cleanup, lifecycle coverage, and recommended-fixes grouping improvements.
-- **Opt-in remote diagnostics** — when the existing debug toggle is enabled, C Code can send anonymous/private diagnostic events to `https://cmtesting.site/api/extension/debug-log` using a clean event contract that avoids transcripts, secrets, and private file contents.
+- **Privacy-safe diagnostics when you choose Debug mode** — if you enable Debug mode while reporting an issue, C Code can send only the diagnostic details needed to troubleshoot and improve the fork. Diagnostic payloads avoid transcripts, secrets, private file contents, and provider credentials.
 - **MCP Marketplace and setup flows** — discover MCP servers for search, code, docs, databases, files, browsers, and team workflows; launch guided MCP setup tasks; and create custom local MCP servers from natural language requirements.
 - **SMTP completion notifications** — send task outcome emails using saved SMTP settings, including final parent workflow rollups with overall task summaries, child-task context, requests, token usage, cost, and tool attempt/failure counts without exposing transcripts or secrets.
 - **OpenAI Codex / ChatGPT Plus/Pro workflow support** — use the OpenAI Codex provider with OAuth-style ChatGPT subscription access, GPT-5.x/Codex model defaults, fast-mode controls, authentication/status reporting, stale unsupported model filtering, and supported-model fallback.
@@ -31,7 +31,7 @@ Compared with upstream Roo Code, C Code keeps the familiar agentic coding workfl
 - **Windows-safe command behavior** — command guidance and execution handling are tuned for Windows shells while preserving normal cross-platform development workflows.
 - **Settings and i18n reliability fixes** — settings views, cached state handling, startup localization, provider composition, and translated UI paths have fork-specific fixes and tests.
 - **Organized specialist modes** — C Code keeps the core Roo workflow while adding organized specialist modes for frontend, backend, quality, planning, MCP setup, DevOps, platform work, and repository operations.
-- **Supported image providers only** — the image-generation tool flow intentionally supports OpenRouter, OpenAI/OpenAI-compatible endpoints, and Cloudflare Workers AI; local providers such as Ollama, LM Studio, ComfyUI, and Automatic1111 are not exposed as supported image-generation providers in this release.
+- **Image-generation provider choices** — image creation is available through OpenRouter, OpenAI/OpenAI-compatible endpoints, and Cloudflare Workers AI, configured separately from chat provider profiles.
 
 ---
 
@@ -66,19 +66,19 @@ C Code keeps the broad provider ecosystem from Roo Code and adds fork-specific p
 
 ## Long-term memory and local AI setup
 
-C Code 3.54.1 includes the missing PR #11 user-facing work for memory and local onboarding:
+C Code 3.54.1 brings user-facing memory and local onboarding improvements:
 
 - Save local conversation memories, search them from tools, surface matching memory cards in chat, and manage memory approval before entries become active.
 - Capture mistake memories, archive or reuse existing memory, wipe stored memory when needed, and delete individual memories from the UI.
 - Configure Memory settings separately from provider settings so memory behavior stays visible and controllable.
 - Start first-run local AI onboarding with hardware checks, local-provider recommendations, guided Ollama setup, guided LM Studio setup, weak-hardware warnings, and refined provider selection.
-- Use local Ollama and LM Studio for local chat/provider setup while image generation remains on the supported OpenRouter, OpenAI/OpenAI-compatible, and Cloudflare Workers AI image-provider path.
+- Use local Ollama and LM Studio for guided local chat/provider setup while image generation stays in its dedicated settings and tool flow.
 
 ---
 
 ## Image generation and visual inspection
 
-C Code 3.54.1 keeps creation and inspection workflows distinct and corrected:
+C Code 3.54.1 keeps creation and inspection workflows clear:
 
 - Ask C Code to generate or edit an image from chat, approve or adjust the prompt, and save the result directly into your workspace.
 - Configure OpenRouter, OpenAI/OpenAI-compatible, or Cloudflare Workers AI image generation separately from chat provider profiles.
@@ -118,7 +118,7 @@ C Code includes MCP workflow improvements for discovering, installing, configuri
 - **Package name:** `c-code`
 - **Stable VSIX artifact:** `bin/c-code-3.54.1.vsix`
 
-Version 3.54.1 is the corrected stable C Code patch release line for the next official GitHub release. The existing 3.54.0 tag remains untouched.
+Version 3.54.1 is the current stable C Code patch release line for the next official GitHub release.
 
 ---
 
@@ -151,11 +151,11 @@ C Code can send SMTP completion notifications when configured in settings:
 
 ## Opt-in diagnostics
 
-C Code includes an opt-in remote diagnostics path for debugging fork-specific issues:
+C Code includes an opt-in diagnostics path for debugging fork-specific issues:
 
-- Diagnostics are controlled by the existing C Code debug setting and are off by default.
-- When enabled, clean structured diagnostic events can be sent to `https://cmtesting.site/api/extension/debug-log`.
-- Payloads are designed to be anonymous/private and avoid transcripts, secrets, file contents, and provider credentials.
+- Diagnostics are controlled by Debug mode and are off by default.
+- If you report an issue, enabling Debug mode can help C Code development by sending only the diagnostics needed to troubleshoot the problem.
+- Payloads avoid transcripts, secrets, private file contents, and provider credentials.
 
 ---
 

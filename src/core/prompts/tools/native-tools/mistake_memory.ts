@@ -50,9 +50,9 @@ export default {
 					description: "Optional short tags",
 				},
 				scope: {
-					type: ["string", "null"],
-					enum: ["workspace", "global", null],
-					description: "Memory scope; defaults to workspace",
+					type: "string",
+					enum: ["workspace", "global"],
+					description: "Memory scope; use workspace unless this lesson should apply globally",
 				},
 				approve: {
 					type: ["boolean", "null"],

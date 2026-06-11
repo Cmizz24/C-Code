@@ -6,8 +6,8 @@ Use this when you need to check whether Roo has remembered prior preferences, re
 
 Parameters:
 - query: (required) Natural language search query.
-- scope: workspace, global, all, or null. Defaults to all.
-- status: active, pending, stale, superseded, archived, all, or null. Defaults to active.
+- scope: workspace, global, or all. Use all to search workspace and global memory.
+- status: active, pending, stale, superseded, archived, or all. Use active unless another status is needed.
 - limit: optional maximum number of results. Defaults to 8 and is capped by the tool.
 - includePending: optional boolean to include pending mistake-memory candidates alongside active memories.`
 
@@ -25,13 +25,13 @@ export default {
 					description: "Natural language memory search query",
 				},
 				scope: {
-					type: ["string", "null"],
-					enum: ["workspace", "global", "all", null],
-					description: "Memory scope to search; use all or null to search workspace and global memory",
+					type: "string",
+					enum: ["workspace", "global", "all"],
+					description: "Memory scope to search; use all to search workspace and global memory",
 				},
 				status: {
-					type: ["string", "null"],
-					enum: ["active", "pending", "stale", "superseded", "archived", "all", null],
+					type: "string",
+					enum: ["active", "pending", "stale", "superseded", "archived", "all"],
 					description: "Memory status to search; defaults to active",
 				},
 				limit: {
