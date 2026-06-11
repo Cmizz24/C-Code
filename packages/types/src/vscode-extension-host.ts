@@ -17,12 +17,39 @@ import type { SkillMetadata } from "./skills.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
 import type { GeneratedImageMetadata } from "./image-generation.js"
 import type {
+	MemoryKind,
+	MemoryRankBreakdown,
+	MemoryScope,
+	MemoryState,
+	MemoryStatus,
+	MemorySummary,
+} from "./memory.js"
+import type {
+	LocalAiRecommendationRequest,
+	LocalAiSetupStartRequest,
+	LocalAiSetupProgress,
+	LocalAiSetupResult,
+	LocalAiHardwareProbe,
+	LocalAiRecommendation,
+} from "./local-ai.js"
+import type {
 	VisualBrowserAction,
 	VisualBrowserToolResult,
 	VisualBrowserToolStatus,
 	VisualBrowserWebviewRequest,
 	VisualBrowserWebviewResponse,
 } from "./visual-browser-inspector.js"
+
+export type MemoryAction =
+	| "refresh"
+	| "approveMemory"
+	| "archiveMemory"
+	| "deleteMemory"
+	| "archiveWorkspace"
+	| "clearWorkspace"
+	| "archiveGlobal"
+	| "clearGlobal"
+
 import type {
 	AgentActivityEvent,
 	AgentCompletionPacket,
@@ -30,6 +57,7 @@ import type {
 	AgentStatusUpdate,
 	ExecutionPlan,
 	MergeReviewEntry,
+	ParallelPlanContinuationMetadata,
 	ParallelAgentReviewSummary,
 	ParallelPlanCompletionPacket,
 	WriteIntentConflict,
@@ -121,6 +149,12 @@ export interface ExtensionMessage {
 		| "fileContent"
 		| "smtpTestResult"
 		| "visualBrowserInspector"
+		| "localAiProbeResult"
+		| "localAiRecommendationResult"
+		| "localAiSetupProgress"
+		| "localAiSetupResult"
+		| "memoryState"
+		| "memorySummary"
 	text?: string
 	/** For fileContent: { path, content, error? } */
 	fileContent?: { path: string; content: string | null; error?: string }
@@ -184,6 +218,8 @@ export interface ExtensionMessage {
 	hasCheckpoint?: boolean
 	context?: string
 	commands?: Command[]
+	memoryState?: MemoryState
+	memorySummary?: MemorySummary
 	queuedMessages?: QueuedMessage[]
 	list?: string[] // For dismissedUpsells
 	tools?: SerializedCustomToolDefinition[] // For customToolsResult
@@ -359,11 +395,21 @@ export type ExtensionState = Pick<
 	| "includeCurrentTime"
 	| "includeCurrentCost"
 	| "maxGitStatusFiles"
+	| "memoryEnabled"
+	| "memoryWorkspaceEnabled"
+	| "memoryGlobalEnabled"
+	| "memoryMistakeMemoryEnabled"
+	| "memoryAutoApproveMistakeMemory"
+	| "memoryMaxCharacters"
+	| "memoryMaxEntries"
+	| "memoryPendingCandidateLimit"
 	| "requestDelaySeconds"
 	| "showWorktreesInHomeScreen"
 	| "disabledTools"
 > & {
 	lockApiConfigAcrossModes?: boolean
+	memoryState?: MemoryState
+	memorySummary?: MemorySummary
 	version: string
 	clineMessages: ClineMessage[]
 	currentTaskId?: string
@@ -619,6 +665,12 @@ export interface WebviewMessage {
 		| "updateSkillModes"
 		| "openSkillFile"
 		| "visualBrowserInspector"
+		| "localAiProbe"
+		| "localAiRecommend"
+		| "localAiStartSetup"
+		| "localAiOpenDownload"
+		| "localAiCancelSetup"
+		| "memoryAction"
 	text?: string
 	taskId?: string
 	editedMessageContent?: string
@@ -635,6 +687,9 @@ export interface WebviewMessage {
 	isLaunchAction?: boolean
 	forceShow?: boolean
 	commands?: string[]
+	memoryAction?: MemoryAction
+	memoryId?: string
+	memoryScope?: MemoryScope
 	audioType?: AudioType
 	serverName?: string
 	toolName?: string
@@ -773,6 +828,12 @@ export type WebViewMessagePayload =
 	| EditQueuedMessagePayload
 	| VisualBrowserWebviewRequest
 	| VisualBrowserWebviewResponse
+	| LocalAiRecommendationRequest
+	| LocalAiSetupStartRequest
+	| LocalAiSetupProgress
+	| LocalAiSetupResult
+	| LocalAiHardwareProbe
+	| LocalAiRecommendation
 
 export interface IndexingStatus {
 	systemStatus: string
@@ -790,6 +851,23 @@ export interface IndexingStatusUpdateMessage {
 	values: IndexingStatus
 }
 
+export interface MemorySearchChatResult {
+	id: string
+	scope: MemoryScope
+	kind: MemoryKind
+	status: MemoryStatus
+	title?: string
+	lesson: string
+	tags?: string[]
+	pathTags?: string[]
+	mode?: string
+	toolName?: string
+	mistakeSignature?: string
+	confidence?: number
+	score?: number
+	breakdown?: MemoryRankBreakdown
+}
+
 export interface LanguageModelChatSelector {
 	vendor?: string
 	family?: string
@@ -803,6 +881,9 @@ export interface ClineSayTool {
 		| "appliedDiff"
 		| "newFileCreated"
 		| "codebaseSearch"
+		| "memorySearch"
+		| "mistakeMemory"
+		| "memoryWipe"
 		| "readFile"
 		| "readCommandOutput"
 		| "listFilesTopLevel"
@@ -840,6 +921,7 @@ export interface ClineSayTool {
 	mergeReviewEntries?: MergeReviewEntry[]
 	agentCompletionPackets?: AgentCompletionPacket[]
 	parallelPlanCompletionPacket?: ParallelPlanCompletionPacket
+	parallelContinuation?: ParallelPlanContinuationMetadata
 	// For readCommandOutput
 	readStart?: number
 	readEnd?: number
@@ -862,6 +944,20 @@ export interface ClineSayTool {
 	lineNumber?: number
 	startLine?: number // Starting line for read_file operations (for navigation on click)
 	query?: string
+	scope?: MemoryScope | "all"
+	status?: MemoryStatus | "all"
+	memoryId?: string
+	candidateId?: string
+	title?: string
+	tags?: string[]
+	pathTags?: string[]
+	toolName?: string
+	mistakeSignature?: string
+	memoryResults?: MemorySearchChatResult[]
+	autoApproved?: boolean
+	reusedExisting?: boolean
+	memoryWipeStatus?: "pending" | "completed" | "cancelled"
+	deletedScopes?: MemoryScope[]
 	batchFiles?: Array<{
 		path: string
 		lineSnippet: string

@@ -35,6 +35,7 @@
 		"checkpoints": "Checkpoint",
 		"notifications": "Notifikasi",
 		"contextManagement": "Konteks",
+		"memory": "Memori",
 		"terminal": "Terminal",
 		"slashCommands": "Perintah Slash",
 		"prompts": "Prompt",
@@ -257,8 +258,12 @@
 			"description": "Setujui otomatis rencana tugas paralel yang valid dan mulai agents tanpa menampilkan modal pratinjau rencana"
 		},
 		"visualBrowserInspector": {
-			"label": "Browser",
+			"label": "Visual Browser Inspector",
 			"description": "Setujui otomatis tindakan Visual Browser Inspector dari chat, termasuk membuka halaman browser terkontrol, screenshot, inspeksi DOM, crop, analisis, dan interaksi halaman. Ini tidak mengizinkan pengeditan file atau perintah terminal."
+		},
+		"memory": {
+			"label": "Memori",
+			"description": "Setujui otomatis penyimpanan memori kesalahan dari chat dan error alat. Saat ini nonaktif, memori tertunda tetap bisa ditinjau dari chat atau pengaturan Memori."
 		},
 		"imageGeneration": {
 			"label": "Gambar",
@@ -817,6 +822,114 @@
 		"enableSubfolderRules": {
 			"label": "Aktifkan aturan subfolder",
 			"description": "Temukan dan muat file .roo/rules dan AGENTS.md secara rekursif dari subdirektori. Berguna untuk monorepo dengan aturan per-paket."
+		}
+	},
+	"memory": {
+		"description": "Konfigurasikan cara C Code mengambil, menyimpan, dan mengelola memori di workspace ini dan konteks global.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Perilaku inti",
+				"description": "Pilih kapan memori berjalan dan cakupan memori mana yang dapat digunakan C."
+			},
+			"retrievalLimits": {
+				"title": "Batas pengambilan",
+				"description": "Atur seberapa banyak konteks memori disertakan di setiap permintaan."
+			},
+			"management": {
+				"title": "Manajemen memori",
+				"description": "Tinjau jumlah memori dan kelola pelajaran yang tertunda, diarsipkan, atau tersimpan."
+			},
+			"advanced": {
+				"title": "Lanjutan",
+				"description": "Kontrol retensi kandidat memori kesalahan yang tertunda."
+			}
+		},
+		"mode": {
+			"label": "Mode memori",
+			"description": "Gunakan mode otomatis untuk mengaktifkan memori pada model dengan context token di bawah 1M dan menonaktifkannya untuk model berkonteks lebih besar, kecuali kamu menimpanya.",
+			"options": {
+				"auto": "Otomatis",
+				"enabled": "Selalu aktif",
+				"disabled": "Nonaktif"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Gunakan memori workspace",
+			"description": "Ambil dan simpan pelajaran yang dibatasi ke workspace ini tanpa menyimpan path absolut workspace."
+		},
+		"globalEnabled": {
+			"label": "Gunakan memori global",
+			"description": "Ambil dan simpan pelajaran yang bisa berlaku di beberapa workspace."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Tangkap memori kesalahan",
+			"description": "Buat pelajaran tertunda dari koreksi, kegagalan validasi, dan error tool yang berulang. Pelajaran tertunda tidak digunakan permanen sampai disetujui."
+		},
+		"autoApproveMistakeMemory": {
+			"label": "Setujui memori kesalahan otomatis",
+			"description": "Simpan pelajaran memori kesalahan baru sebagai aktif segera setelah redaksi, alih-alih membuat kandidat tertunda. Biarkan ini nonaktif kecuali kamu memercayai otomatisasinya."
+		},
+		"maxCharacters": {
+			"label": "Batas karakter memori",
+			"description": "Jumlah maksimum karakter konteks memori yang disisipkan ke request. Saat tekanan konteks tinggi, memori dipangkas atau dilewati terlebih dahulu."
+		},
+		"maxEntries": {
+			"label": "Entri memori maksimum",
+			"description": "Jumlah maksimum entri memori aktif yang disertakan dalam request."
+		},
+		"pendingCandidateLimit": {
+			"label": "Batas memori kesalahan tertunda",
+			"description": "Jumlah maksimum kandidat mistake-memory tertunda yang disimpan sebelum kandidat lama dipangkas."
+		},
+		"management": {
+			"title": "Manajemen memori",
+			"description": "Tinjau jumlah memori workspace dan global, setujui pelajaran tertunda, arsipkan memori, atau hapus memori tersimpan."
+		},
+		"summary": {
+			"workspace": "Memori workspace",
+			"global": "Memori global",
+			"active": "Aktif",
+			"pending": "Tertunda",
+			"archived": "Diarsipkan",
+			"total": "Total"
+		},
+		"scope": {
+			"workspace": "Workspace",
+			"global": "Global"
+		},
+		"status": {
+			"active": "Aktif",
+			"pending": "Menunggu",
+			"stale": "Usang",
+			"superseded": "Digantikan",
+			"archived": "Diarsipkan"
+		},
+		"kind": {
+			"lesson": "Pelajaran",
+			"mistake": "Kesalahan"
+		},
+		"records": {
+			"count": "{{count}} catatan",
+			"empty": "Tidak ada memori tersimpan dalam cakupan ini.",
+			"lesson": "Pelajaran",
+			"tags": "Tag",
+			"pathHints": "Petunjuk path",
+			"created": "Dibuat",
+			"updated": "Diperbarui",
+			"lastUsed": "Terakhir digunakan"
+		},
+		"actions": {
+			"refresh": "Segarkan",
+			"approvePending": "Setujui yang tertunda",
+			"archivePending": "Arsipkan yang tertunda",
+			"archiveAll": "Arsipkan semua",
+			"clear": "Hapus"
+		},
+		"confirm": {
+			"title": "Konfirmasi aksi memori",
+			"description": "Aksi memori ini mengubah atau menghapus pelajaran tersimpan. Ini tidak bisa dibatalkan untuk memori yang dihapus.",
+			"cancel": "Batal",
+			"confirm": "Lanjutkan"
 		}
 	},
 	"terminal": {

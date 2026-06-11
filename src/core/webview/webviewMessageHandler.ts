@@ -18,6 +18,8 @@ import {
 	type EditQueuedMessagePayload,
 	type TokenUsage,
 	type ToolUsage,
+	type LocalAiRecommendationRequest,
+	type LocalAiSetupStartRequest,
 	RooCodeSettings,
 	ExperimentId,
 	RooCodeEventName,
@@ -85,9 +87,16 @@ import {
 	buildVisualBrowserChangeTaskPrompt,
 	buildVisualBrowserFixTaskPrompt,
 	buildVisualBrowserLocalPreviewTaskPrompt,
+	type VisualBrowserExecuteOptions,
 	visualBrowserInspectorService,
 	visualBrowserWebviewRequestToToolParams,
 } from "../../services/visual-browser-inspector/VisualBrowserInspectorService"
+import {
+	LM_STUDIO_DOWNLOAD_URL,
+	localAiSetupManager,
+	probeLocalAi,
+	recommendLocalAiModel,
+} from "../../services/local-ai"
 
 const ALLOWED_VSCODE_SETTINGS = new Set(["terminal.integrated.inheritEnv"])
 
@@ -151,6 +160,11 @@ const VISUAL_BROWSER_INSPECTOR_ONLY_BLOCKED_MESSAGE_TYPES = new Set<WebviewMessa
 	"refreshCustomTools",
 	"switchMode",
 	"debugSetting",
+	"localAiProbe",
+	"localAiRecommend",
+	"localAiStartSetup",
+	"localAiOpenDownload",
+	"localAiCancelSetup",
 ])
 
 function isVisualBrowserInspectorOnlyBlockedMessage(message: WebviewMessage): boolean {
@@ -822,6 +836,8 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					if (key === "language") {
 						newValue = value ?? "en"
 						changeLanguage(newValue as Language)
+					} else if (key === "memoryEnabled") {
+						newValue = value === null ? undefined : value
 					} else if (key === "maxConcurrentParallelTasks") {
 						newValue = normalizeParallelTaskConcurrency(value)
 					} else if (key === "allowedCommands") {
@@ -913,6 +929,20 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			}
 
 			break
+
+		case "memoryAction": {
+			if (!message.memoryAction) {
+				break
+			}
+
+			await provider.handleMemoryAction(message.memoryAction, {
+				memoryId: message.memoryId,
+				memoryScope: message.memoryScope,
+				messageTs: message.messageTs,
+			})
+			await provider.postMemoryStateToWebview()
+			break
+		}
 
 		case "testSmtpSettings": {
 			const result = await provider.testSmtpSettings()
@@ -1441,6 +1471,90 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				// Silently fail - user hasn't configured LM Studio yet.
 				console.debug("LM Studio models fetch failed:", error)
 			}
+			break
+		}
+		case "localAiProbe": {
+			try {
+				const probe = await probeLocalAi(getCurrentCwd())
+				provider.postMessageToWebview({ type: "localAiProbeResult", payload: probe })
+			} catch (error) {
+				provider.postMessageToWebview({
+					type: "localAiProbeResult",
+					error: error instanceof Error ? error.message : String(error),
+				})
+			}
+			break
+		}
+		case "localAiRecommend": {
+			try {
+				if (!message.payload) {
+					throw new Error("Missing local AI recommendation payload")
+				}
+
+				const recommendation = recommendLocalAiModel(message.payload as LocalAiRecommendationRequest)
+				provider.postMessageToWebview({ type: "localAiRecommendationResult", payload: recommendation })
+			} catch (error) {
+				provider.postMessageToWebview({
+					type: "localAiRecommendationResult",
+					error: error instanceof Error ? error.message : String(error),
+				})
+			}
+			break
+		}
+		case "localAiStartSetup": {
+			try {
+				if (!message.payload) {
+					throw new Error("Missing local AI setup payload")
+				}
+
+				const result = await localAiSetupManager.start(
+					message.payload as LocalAiSetupStartRequest,
+					(progress) => {
+						provider.postMessageToWebview({ type: "localAiSetupProgress", payload: progress })
+					},
+				)
+
+				if (result.success && result.providerSettings && result.profileName) {
+					await provider.upsertProviderProfile(result.profileName, result.providerSettings)
+					provider.postMessageToWebview({
+						type: "localAiSetupProgress",
+						payload: {
+							stage: "success",
+							message: "Local AI setup is complete.",
+							modelTag: result.modelTag,
+						},
+					})
+				}
+
+				provider.postMessageToWebview({ type: "localAiSetupResult", payload: result, success: result.success })
+			} catch (error) {
+				provider.postMessageToWebview({
+					type: "localAiSetupResult",
+					success: false,
+					error: error instanceof Error ? error.message : String(error),
+				})
+			}
+			break
+		}
+		case "localAiOpenDownload": {
+			await vscode.env.openExternal(vscode.Uri.parse(LM_STUDIO_DOWNLOAD_URL))
+			provider.postMessageToWebview({
+				type: "localAiSetupProgress",
+				payload: {
+					stage: "runtime",
+					message:
+						"Opened the official LM Studio download page. Install LM Studio manually, then refresh the local AI check.",
+					installUrl: LM_STUDIO_DOWNLOAD_URL,
+				},
+			})
+			break
+		}
+		case "localAiCancelSetup": {
+			localAiSetupManager.cancel()
+			provider.postMessageToWebview({
+				type: "localAiSetupProgress",
+				payload: { stage: "cancelled", message: "Local AI setup cancellation requested." },
+			})
 			break
 		}
 		case "requestOpenAiModels":
@@ -2054,9 +2168,33 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 						listApiConfigMeta = [],
 						enhancementApiConfigId,
 						includeTaskHistoryInEnhance,
+						mode,
 					} = state
 
 					const currentCline = provider.getCurrentTask()
+					let currentTaskMode = mode
+					let filesReadByRoo: string[] = []
+
+					if (currentCline) {
+						try {
+							currentTaskMode = await currentCline.getTaskMode()
+						} catch (error) {
+							provider.log(
+								`Error resolving current task mode for prompt enhancement: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+							)
+						}
+
+						try {
+							const trackedFiles = await currentCline.fileContextTracker.getFilesReadByRoo()
+							filesReadByRoo = currentCline.rooIgnoreController
+								? currentCline.rooIgnoreController.filterPaths(trackedFiles)
+								: []
+						} catch (error) {
+							provider.log(
+								`Error resolving current task files for prompt enhancement: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+							)
+						}
+					}
 
 					const result = await MessageEnhancer.enhanceMessage({
 						text: message.text,
@@ -2066,6 +2204,9 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 						enhancementApiConfigId,
 						includeTaskHistoryInEnhance,
 						currentClineMessages: currentCline?.clineMessages,
+						currentTaskMode,
+						currentWorkingDirectory: getCurrentCwd(),
+						filesReadByRoo,
 						providerSettingsManager: provider.providerSettingsManager,
 					})
 
@@ -3730,9 +3871,22 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 		}
 
 		case "visualBrowserInspector": {
-			const options = {
+			const options: VisualBrowserExecuteOptions = {
 				cwd: getCurrentCwd(),
+				globalStoragePath: provider.context.globalStorageUri.fsPath,
 				toWebviewUri: provider.convertToWebviewUri.bind(provider),
+				log: provider.log.bind(provider),
+			}
+			options.onBrowserInstallStatus = async (statusMessage: string) => {
+				await provider.postMessageToWebview({
+					type: "visualBrowserInspector",
+					payload: {
+						state: visualBrowserInspectorService.getPanelState(options),
+						source: "panel",
+						status: "running",
+						message: statusMessage,
+					},
+				})
 			}
 			const payload = message.payload as Partial<VisualBrowserWebviewRequest> | undefined
 			let response: VisualBrowserWebviewResponse | undefined

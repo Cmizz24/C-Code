@@ -135,6 +135,27 @@ describe("VisualBrowserInspectorView", () => {
 		})
 	})
 
+	it("labels first-use managed Chromium setup in the VBI panel", () => {
+		render(<VisualBrowserInspectorView />)
+
+		expect(
+			screen.getByText(/automatically prepares Chromium in extension storage on first use/i),
+		).toBeInTheDocument()
+
+		dispatchVisualBrowserState({
+			screenshots: [],
+			crops: [],
+			inspections: [],
+			findings: [],
+			statusMessage:
+				"No controlled Playwright browser session is active. On first use, C Code prepares Chromium in extension storage automatically.",
+		})
+
+		expect(
+			screen.getByText(/On first use, C Code prepares Chromium in extension storage automatically/i),
+		).toBeInTheDocument()
+	})
+
 	it("focuses chat-synced screenshots and crops from VBI tool payloads", async () => {
 		render(<VisualBrowserInspectorView />)
 		postMessageMock.mockClear()
@@ -315,6 +336,162 @@ describe("VisualBrowserInspectorView", () => {
 				screenshotId: "shot-1",
 				cropId: undefined,
 				scope: "all",
+			},
+		})
+	})
+
+	it("renders grouped recommendation details and starts a recommendation-scoped fix task", async () => {
+		render(<VisualBrowserInspectorView />)
+
+		dispatchVisualBrowserState({
+			session: {
+				sessionId: "session-1",
+				status: "active",
+				url: "http://localhost:3000",
+				createdAt: "2026-01-01T00:00:00.000Z",
+				updatedAt: "2026-01-01T00:00:00.000Z",
+				viewport: { name: "mobile", width: 390, height: 844 },
+				headless: false,
+				allowExternal: false,
+				artifacts: {
+					rootDir: ".roo/visual-browser-inspector/session-1",
+					screenshotsDir: ".roo/visual-browser-inspector/session-1/screenshots",
+					cropsDir: ".roo/visual-browser-inspector/session-1/crops",
+					metadataPath: ".roo/visual-browser-inspector/session-1/metadata.json",
+					findingsPath: ".roo/visual-browser-inspector/session-1/findings.json",
+				},
+			},
+			screenshots: [
+				{
+					sessionId: "session-1",
+					screenshotId: "shot-1",
+					url: "http://localhost:3000",
+					path: "screenshots/shot-1.png",
+					webviewUri: "vscode-resource://shot-1.png",
+					createdAt: "2026-01-01T00:00:00.000Z",
+					viewport: { name: "mobile", width: 390, height: 844 },
+					pageWidth: 390,
+					pageHeight: 844,
+					fullPage: false,
+					redacted: true,
+				},
+			],
+			crops: [],
+			inspections: [],
+			findings: [
+				{
+					summary: "Local heuristic visual/UX analysis. Found 2 actionable issues.",
+					analysisMode: "local-heuristic",
+					generatedAt: "2026-01-01T00:00:03.000Z",
+					scope: "screenshot",
+					privacyNotice: "Artifacts remain local.",
+					recommendationSummary:
+						"Recommended fixes are generated from local heuristic page analysis, not placeholders.",
+					recommendationGroups: [
+						{
+							id: "vbi-rec-1-interactive-target-size",
+							title: "Increase interactive target size",
+							category: "accessibility",
+							severity: "minor",
+							fixPriority: "low",
+							confidence: 0.78,
+							affectedCount: 2,
+							issueIndexes: [0, 1],
+							summary:
+								"Generated from actual local page analysis: 2 related findings share the same likely root cause or fix strategy.",
+							rootCause:
+								"Touch target padding or explicit dimensions are too small for mobile interaction.",
+							suggestedFix:
+								"Increase padding/min-width/min-height or provide a larger clickable wrapper.",
+							recommendation:
+								"Apply this as one reusable/root-cause fix, then verify the listed examples.",
+							implementationHint: "Inspect shared button size tokens first.",
+							userImpact: "Touch users may miss these controls.",
+							filesToInspect: ["webview-ui/src/components/CheckoutButton.tsx"],
+							verificationSteps: ["Re-run the mobile viewport", "Confirm tap target size"],
+							examples: [
+								{
+									issueIndex: 0,
+									title: "Tiny tap target",
+									severity: "minor",
+									confidence: 0.78,
+									visualEvidence: "Save button is 24×24px.",
+									selectorOrElement: "button[data-testid=save]",
+									boundingBox: { x: 10, y: 20, width: 24, height: 24 },
+									screenshotId: "shot-1",
+									cropId: null,
+									filesToInspect: ["webview-ui/src/components/CheckoutButton.tsx"],
+								},
+								{
+									issueIndex: 1,
+									title: "Tiny tap target",
+									severity: "minor",
+									confidence: 0.78,
+									visualEvidence: "Delete button is 24×24px.",
+									selectorOrElement: "button[data-testid=delete]",
+									boundingBox: { x: 44, y: 20, width: 24, height: 24 },
+									screenshotId: "shot-1",
+									cropId: null,
+									filesToInspect: ["webview-ui/src/components/CheckoutButton.tsx"],
+								},
+							],
+						},
+					],
+					issues: [
+						{
+							severity: "minor",
+							confidence: 0.78,
+							title: "Tiny tap target",
+							category: "accessibility",
+							fixPriority: "low",
+							visualEvidence: "Save button is 24×24px.",
+							screenshotId: "shot-1",
+							cropId: null,
+							selectorOrElement: "button[data-testid=save]",
+							boundingBox: { x: 10, y: 20, width: 24, height: 24 },
+							likelyCause: "Touch target padding is too small.",
+							suggestedFix: "Increase target size.",
+							filesToInspect: ["webview-ui/src/components/CheckoutButton.tsx"],
+						},
+						{
+							severity: "minor",
+							confidence: 0.78,
+							title: "Tiny tap target",
+							category: "accessibility",
+							fixPriority: "low",
+							visualEvidence: "Delete button is 24×24px.",
+							screenshotId: "shot-1",
+							cropId: null,
+							selectorOrElement: "button[data-testid=delete]",
+							boundingBox: { x: 44, y: 20, width: 24, height: 24 },
+							likelyCause: "Touch target padding is too small.",
+							suggestedFix: "Increase target size.",
+							filesToInspect: ["webview-ui/src/components/CheckoutButton.tsx"],
+						},
+					],
+				},
+			],
+			statusMessage: "Ready",
+		})
+		postMessageMock.mockClear()
+
+		expect(await screen.findByText("Increase interactive target size")).toBeInTheDocument()
+		expect(screen.getByText("2 issue(s)")).toBeInTheDocument()
+		expect(screen.getAllByText("Save button is 24×24px.").length).toBeGreaterThan(0)
+		expect(screen.getAllByText("Delete button is 24×24px.").length).toBeGreaterThan(0)
+
+		fireEvent.click(screen.getByRole("button", { name: "Start Fix Task for this recommendation" }))
+
+		expect(postMessageMock).toHaveBeenCalledWith({
+			type: "visualBrowserInspector",
+			payload: {
+				action: "start_fix_task",
+				sessionId: "session-1",
+				screenshotId: "shot-1",
+				cropId: undefined,
+				scope: "recommendation",
+				findingIndex: 0,
+				recommendationIndex: 0,
 			},
 		})
 	})

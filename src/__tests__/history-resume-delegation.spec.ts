@@ -119,6 +119,154 @@ describe("History resume delegation - parent metadata transitions", () => {
 		)
 	})
 
+	it("reopenParentFromDelegation restores the user-facing mode to an Orchestrator parent", async () => {
+		const providerEmit = vi.fn()
+		let globalMode = "code"
+		let currentApiConfigName = "code-profile"
+		let apiConfiguration: Record<string, unknown> = { apiProvider: "openrouter", openRouterModelId: "code-model" }
+		const postedStates: Array<{
+			source: string
+			mode: string
+			currentApiConfigName: string
+			apiConfiguration: Record<string, unknown>
+		}> = []
+		const listApiConfigMeta = [
+			{ id: "code-profile-id", name: "code-profile" },
+			{ id: "orchestrator-profile-id", name: "orchestrator-profile" },
+		]
+		const setValue = vi.fn().mockImplementation(async (key: string, value: any) => {
+			if (key === "mode") {
+				globalMode = value
+			}
+			if (key === "currentApiConfigName") {
+				currentApiConfigName = value
+			}
+		})
+		const activateProviderProfile = vi.fn().mockImplementation(async (args: { name: string }) => {
+			currentApiConfigName = args.name
+			apiConfiguration = { apiProvider: "anthropic", apiModelId: "orchestrator-model" }
+		})
+		const postStateToWebview = vi.fn().mockImplementation(async () => {
+			postedStates.push({
+				source: "final",
+				mode: globalMode,
+				currentApiConfigName,
+				apiConfiguration,
+			})
+		})
+		const postStateToWebviewWithoutClineMessages = vi.fn().mockImplementation(async () => {
+			postedStates.push({
+				source: "withoutClineMessages",
+				mode: globalMode,
+				currentApiConfigName,
+				apiConfiguration,
+			})
+		})
+		const log = vi.fn()
+		const histories: Record<string, any> = {
+			"parent-orchestrator": {
+				id: "parent-orchestrator",
+				status: "delegated",
+				delegatedToId: "child-code",
+				awaitingChildId: "child-code",
+				childIds: ["child-code"],
+				ts: Date.now(),
+				task: "Parent orchestrator task",
+				tokensIn: 0,
+				tokensOut: 0,
+				totalCost: 0,
+				mode: "orchestrator",
+				workspace: "/tmp",
+			},
+			"child-code": {
+				id: "child-code",
+				status: "active",
+				parentTaskId: "parent-orchestrator",
+				ts: Date.now(),
+				task: "Child implementation task",
+				tokensIn: 0,
+				tokensOut: 0,
+				totalCost: 0,
+				mode: "code",
+				workspace: "/tmp",
+			},
+		}
+		const getTaskWithId = vi.fn(async (id: string) => ({ historyItem: histories[id] }))
+		const updateTaskHistory = vi.fn(async (historyItem: any) => {
+			histories[historyItem.id] = historyItem
+			return Object.values(histories)
+		})
+		const removeClineFromStack = vi.fn().mockResolvedValue(undefined)
+		const createTaskWithHistoryItem = vi.fn().mockResolvedValue({
+			taskId: "parent-orchestrator",
+			resumeAfterDelegation: vi.fn().mockResolvedValue(undefined),
+			overwriteClineMessages: vi.fn().mockResolvedValue(undefined),
+			overwriteApiConversationHistory: vi.fn().mockResolvedValue(undefined),
+		})
+
+		const provider = {
+			context: {
+				workspaceState: { get: vi.fn(() => false) },
+			},
+			contextProxy: {
+				globalStorageUri: { fsPath: "/tmp" },
+				getGlobalState: vi.fn(() => globalMode),
+				setValue,
+			},
+			providerSettingsManager: {
+				getModeConfigId: vi.fn(async (mode: string) =>
+					mode === "orchestrator" ? "orchestrator-profile-id" : undefined,
+				),
+				listConfig: vi.fn(async () => listApiConfigMeta),
+				getProfile: vi.fn(async ({ name }: { name: string }) =>
+					name === "orchestrator-profile" ? { apiProvider: "anthropic" } : {},
+				),
+			},
+			activateProviderProfile,
+			getTaskWithId,
+			emit: providerEmit,
+			getCurrentTask: vi.fn(() => ({ taskId: "child-code" })),
+			removeClineFromStack,
+			createTaskWithHistoryItem,
+			updateTaskHistory,
+			postStateToWebview,
+			postStateToWebviewWithoutClineMessages,
+			log,
+		} as unknown as ClineProvider
+
+		vi.mocked(readTaskMessages).mockResolvedValue([])
+		vi.mocked(readApiMessages).mockResolvedValue([])
+
+		await (ClineProvider.prototype as any).reopenParentFromDelegation.call(provider, {
+			parentTaskId: "parent-orchestrator",
+			childTaskId: "child-code",
+			completionResultSummary: "Child done",
+		})
+
+		expect(setValue).toHaveBeenCalledWith("mode", "orchestrator")
+		expect(activateProviderProfile).toHaveBeenCalledWith(
+			{ name: "orchestrator-profile" },
+			{ persistModeConfig: false, persistTaskHistory: false, postState: false },
+		)
+		expect(providerEmit).toHaveBeenCalledWith(RooCodeEventName.ModeChanged, "orchestrator")
+		expect(postStateToWebview).toHaveBeenCalled()
+		expect(postStateToWebviewWithoutClineMessages).not.toHaveBeenCalled()
+		expect(postedStates.at(-1)).toEqual({
+			source: "final",
+			mode: "orchestrator",
+			currentApiConfigName: "orchestrator-profile",
+			apiConfiguration: { apiProvider: "anthropic", apiModelId: "orchestrator-model" },
+		})
+		expect(createTaskWithHistoryItem).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: "parent-orchestrator",
+				mode: "orchestrator",
+				status: "active",
+			}),
+			{ startTask: false },
+		)
+	})
+
 	it("reopenParentFromDelegation injects subtask_result into both UI and API histories", async () => {
 		const provider = {
 			contextProxy: { globalStorageUri: { fsPath: "/storage" } },

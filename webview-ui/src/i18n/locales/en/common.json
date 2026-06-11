@@ -54,6 +54,29 @@
 		},
 		"noData": "No image data"
 	},
+	"visualBrowserInspector": {
+		"emptyStatus": "No controlled Playwright browser session is active. On first use, C Code prepares Chromium in extension storage automatically.",
+		"headerDescription": "Controlled Playwright browser capture only. C Code automatically prepares Chromium in extension storage on first use. Artifacts stay local under <artifactPath>.roo/visual-browser-inspector</artifactPath>.",
+		"findings": {
+			"groupedSummary": "{{recommendationCount}} grouped recommendation(s) cover {{issueCount}} page-analysis issue(s) for follow-up fix tasks.",
+			"analysisBasedNotice": "Recommendations are generated from local page analysis, not placeholders; repeated issues are grouped by likely root cause or fix strategy.",
+			"affectedIssues": "{{count}} issue(s)",
+			"startFixTaskForRecommendation": "Start Fix Task for this recommendation",
+			"userImpactLabel": "User impact:",
+			"rootCauseLabel": "Likely root cause:",
+			"suggestedFixLabel": "Suggested fix:",
+			"recommendationLabel": "Recommendation:",
+			"implementationHintLabel": "Implementation hint:",
+			"examplesLabel": "Examples preserved for inspection",
+			"issueNumber": "Issue {{number}}",
+			"boxLabel": "Box:",
+			"filesToInspectLabel": "Files to inspect:",
+			"verificationStepsLabel": "Verification steps",
+			"individualFindingsLabel": "Individual findings in this group",
+			"screenshotLabel": "Screenshot:",
+			"cropLabel": "Crop:"
+		}
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "Invalid data URI format",

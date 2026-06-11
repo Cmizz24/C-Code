@@ -1,7 +1,8 @@
 import { exec } from "child_process"
 import fs from "fs/promises"
+import path from "path"
 
-import { WorktreeManager } from "../WorktreeManager"
+import { WorktreeManager, WorktreeManagerGitUnavailableError } from "../WorktreeManager"
 
 vi.mock("child_process", () => ({
 	exec: vi.fn(),
@@ -24,6 +25,10 @@ vi.mock("fs/promises", () => ({
 
 const execMock = vi.mocked(exec)
 const fsMock = vi.mocked(fs)
+const retainedGitCommonDir = "/repo/.git"
+const mergePatchDir = "C:/tmp/roo-parallel-merge-patch-1"
+const mergePatchPath = path.join(mergePatchDir, "agent.diff")
+const quotedMergePatchPath = `"${mergePatchPath}"`
 
 type ExecCallback = (error: Error | null | undefined, stdout: string, stderr: string) => void
 
@@ -359,6 +364,221 @@ describe("WorktreeManager", () => {
 		expect(execMock.mock.calls[0][0]).toBe("git rev-parse --show-toplevel")
 	})
 
+	it("classifies missing git executable failures before repository validation fallback", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		const enoent = Object.assign(new Error("spawn C:\\Program Files\\Git\\cmd\\git.exe ENOENT"), {
+			code: "ENOENT",
+		})
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { error: enoent }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await expect(manager.validateGitRepository()).rejects.toThrow(WorktreeManagerGitUnavailableError)
+		await expect(manager.validateGitRepository()).rejects.toThrow("Git executable unavailable")
+		await expect(manager.validateGitRepository()).rejects.toThrow("Git: Path")
+		expect(execMock).toHaveBeenCalledWith(
+			"git rev-parse --show-toplevel",
+			expect.objectContaining({ cwd: "C:/repo" }),
+			expect.any(Function),
+		)
+	})
+
+	it("marks retained worktree inspection non-retryable when git executable is missing", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		const enoent = Object.assign(new Error("spawn C:\\Program Files\\Git\\cmd\\git.exe ENOENT"), {
+			code: "ENOENT",
+		})
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { error: enoent }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await expect(
+			manager.inspectReusableWorktree({ worktreePath: "C:/worktrees/ui", branch: "roo/parallel/old/ui" }),
+		).resolves.toEqual(
+			expect.objectContaining({
+				reusable: false,
+				reason: expect.stringContaining("Git executable unavailable"),
+				nonRetryable: true,
+			}),
+		)
+	})
+
+	it("inspects a clean retained worktree as reusable", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		fsMock.stat.mockResolvedValue({} as any)
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+			if (command === "git rev-parse --verify HEAD") {
+				return { stdout: "head123\n" }
+			}
+			if (command === "git rev-parse --git-common-dir") {
+				return { stdout: `${retainedGitCommonDir}\n` }
+			}
+			if (command === "git rev-parse --abbrev-ref HEAD") {
+				return { stdout: "roo/parallel/old/ui\n" }
+			}
+			if (command === "git status --porcelain=v1 --untracked-files=all") {
+				return { stdout: "" }
+			}
+			if (command === "git rev-parse HEAD") {
+				return { stdout: "head123\n" }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await expect(
+			manager.inspectReusableWorktree({
+				worktreePath: "C:/worktrees/ui",
+				branch: "roo/parallel/old/ui",
+				expectedRepositoryRoot: "C:/repo",
+			}),
+		).resolves.toEqual(
+			expect.objectContaining({
+				reusable: true,
+				worktreePath: "C:/worktrees/ui",
+				branch: "roo/parallel/old/ui",
+				resetRequired: false,
+			}),
+		)
+	})
+
+	it("rejects reusable inspection for dirty retained worktrees without throwing", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		fsMock.stat.mockResolvedValue({} as any)
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") return { stdout: "C:/repo\n" }
+			if (command === "git rev-parse --verify HEAD") return { stdout: "head123\n" }
+			if (command === "git rev-parse --git-common-dir") return { stdout: `${retainedGitCommonDir}\n` }
+			if (command === "git rev-parse --abbrev-ref HEAD") return { stdout: "roo/parallel/old/ui\n" }
+			if (command === "git status --porcelain=v1 --untracked-files=all") return { stdout: " M src/ui.tsx\n" }
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await expect(
+			manager.inspectReusableWorktree({ worktreePath: "C:/worktrees/ui", branch: "roo/parallel/old/ui" }),
+		).resolves.toEqual(
+			expect.objectContaining({
+				reusable: false,
+				reason: "retained worktree has uncommitted or untracked changes",
+			}),
+		)
+	})
+
+	it("rejects reusable inspection for missing retained worktree paths", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") return { stdout: "C:/repo\n" }
+			if (command === "git rev-parse --verify HEAD") return { stdout: "head123\n" }
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await expect(
+			manager.inspectReusableWorktree({ worktreePath: "C:/worktrees/missing", branch: "roo/parallel/old/ui" }),
+		).resolves.toEqual(expect.objectContaining({ reusable: false, reason: "retained worktree path is missing" }))
+	})
+
+	it("rejects reusable inspection when retained worktree branch differs", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		fsMock.stat.mockResolvedValue({} as any)
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") return { stdout: "C:/repo\n" }
+			if (command === "git rev-parse --verify HEAD") return { stdout: "head123\n" }
+			if (command === "git rev-parse --git-common-dir") return { stdout: `${retainedGitCommonDir}\n` }
+			if (command === "git rev-parse --abbrev-ref HEAD") return { stdout: "other-branch\n" }
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await expect(
+			manager.inspectReusableWorktree({ worktreePath: "C:/worktrees/ui", branch: "roo/parallel/old/ui" }),
+		).resolves.toEqual(
+			expect.objectContaining({
+				reusable: false,
+				reason: "retained worktree is on branch other-branch instead of roo/parallel/old/ui",
+			}),
+		)
+	})
+
+	it("falls back from reusable inspection on git failures without throwing", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		fsMock.stat.mockResolvedValue({} as any)
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") return { stdout: "C:/repo\n" }
+			if (command === "git rev-parse --verify HEAD") return { stdout: "head123\n" }
+			if (command === "git rev-parse --git-common-dir") return { error: new Error("git failed") }
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await expect(
+			manager.inspectReusableWorktree({ worktreePath: "C:/worktrees/ui", branch: "roo/parallel/old/ui" }),
+		).resolves.toEqual(expect.objectContaining({ reusable: false, reason: expect.stringContaining("git failed") }))
+	})
+
+	it("reports invalid retained worktree repositories without a retryable git-unavailable flag", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		fsMock.stat.mockResolvedValue({} as any)
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") return { stdout: "C:/repo\n" }
+			if (command === "git rev-parse --verify HEAD") return { stdout: "head123\n" }
+			if (command === "git rev-parse --git-common-dir") {
+				return { error: new Error("Repository not initialized") }
+			}
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await expect(
+			manager.inspectReusableWorktree({ worktreePath: "C:/worktrees/invalid", branch: "roo/parallel/old/ui" }),
+		).resolves.toEqual(
+			expect.objectContaining({
+				reusable: false,
+				reason: expect.stringContaining("Repository not initialized"),
+				nonRetryable: false,
+			}),
+		)
+	})
+
+	it("reuses a clean retained worktree by resetting it onto a new branch", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		fsMock.stat.mockResolvedValue({} as any)
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") return { stdout: "C:/repo\n" }
+			if (command === "git rev-parse --verify HEAD") return { stdout: "head123\n" }
+			if (command === "git rev-parse --git-common-dir") return { stdout: `${retainedGitCommonDir}\n` }
+			if (command === "git rev-parse --abbrev-ref HEAD") return { stdout: "roo/parallel/old/ui\n" }
+			if (command === "git status --porcelain=v1 --untracked-files=all") return { stdout: "" }
+			if (command === "git rev-parse HEAD") return { stdout: "head123\n" }
+			if (command === 'git checkout -B "roo/parallel/new/ui" head123') return { stdout: "" }
+			if (command === "git reset --hard head123") return { stdout: "" }
+			if (command === "git clean -fd") return { stdout: "" }
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await expect(
+			manager.reuseWorktree({
+				worktreePath: "C:/worktrees/ui",
+				sourceBranch: "roo/parallel/old/ui",
+				newBranch: "roo/parallel/new/ui",
+			}),
+		).resolves.toEqual(
+			expect.objectContaining({
+				worktreePath: "C:/worktrees/ui",
+				branch: "roo/parallel/new/ui",
+				resetToCurrentBaseline: false,
+			}),
+		)
+		expect(manager.getCreatedWorktrees()).toEqual(["C:/worktrees/ui"])
+	})
+
 	it("removes worktrees from the resolved git root instead of the workspace subfolder", async () => {
 		const manager = new WorktreeManager("C:/repo/packages/extension")
 		mockExecImplementation((command) => {
@@ -670,7 +890,7 @@ describe("WorktreeManager", () => {
 		})
 		fsMock.mkdtemp
 			.mockResolvedValueOnce("C:/tmp/roo-parallel-current-snapshot-1")
-			.mockResolvedValueOnce("C:/tmp/roo-parallel-merge-patch-1")
+			.mockResolvedValueOnce(mergePatchDir)
 		mockExecImplementation((command) => {
 			if (command === "git rev-parse --show-toplevel") {
 				return { stdout: "C:/repo\n" }
@@ -693,10 +913,10 @@ describe("WorktreeManager", () => {
 			if (command === 'git diff --cached --name-only -z baseline123 -- "src/index.html"') {
 				return { stdout: "" }
 			}
-			if (command === 'git apply --binary --3way --check "C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff"') {
+			if (command === `git apply --binary --3way --check ${quotedMergePatchPath}`) {
 				return { stdout: "" }
 			}
-			if (command === 'git apply --binary --3way "C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff"') {
+			if (command === `git apply --binary --3way ${quotedMergePatchPath}`) {
 				return { stdout: "" }
 			}
 
@@ -712,7 +932,7 @@ describe("WorktreeManager", () => {
 		expect(execMock.mock.calls.some(([command]) => String(command).includes("git rebase"))).toBe(false)
 		expect(execMock.mock.calls.some(([command]) => String(command).includes("git merge --no-edit"))).toBe(false)
 		expect(fsMock.writeFile).toHaveBeenCalledWith(
-			"C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff",
+			mergePatchPath,
 			"diff --git a/src/index.html b/src/index.html\n+<main />\n",
 			"utf8",
 		)
@@ -727,7 +947,7 @@ describe("WorktreeManager", () => {
 		})
 		fsMock.mkdtemp
 			.mockResolvedValueOnce("C:/tmp/roo-parallel-current-snapshot-1")
-			.mockResolvedValueOnce("C:/tmp/roo-parallel-merge-patch-1")
+			.mockResolvedValueOnce(mergePatchDir)
 		mockExecImplementation((command) => {
 			if (command === "git rev-parse --show-toplevel") {
 				return { stdout: "C:/repo\n" }
@@ -756,10 +976,10 @@ describe("WorktreeManager", () => {
 			if (command === 'git diff --cached --name-only -z baseline123 -- "index.html"') {
 				return { stdout: "" }
 			}
-			if (command === 'git apply --binary --3way --check "C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff"') {
+			if (command === `git apply --binary --3way --check ${quotedMergePatchPath}`) {
 				return { stdout: "" }
 			}
-			if (command === 'git apply --binary --3way "C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff"') {
+			if (command === `git apply --binary --3way ${quotedMergePatchPath}`) {
 				return { stdout: "" }
 			}
 
@@ -774,7 +994,7 @@ describe("WorktreeManager", () => {
 
 		expect(execMock.mock.calls.some(([command]) => command === 'git add -A -- "index.html"')).toBe(false)
 		expect(fsMock.writeFile).toHaveBeenCalledWith(
-			"C:\\tmp\\roo-parallel-merge-patch-1\\agent.diff",
+			mergePatchPath,
 			expect.stringContaining("new file mode 100644"),
 			"utf8",
 		)

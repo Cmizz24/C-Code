@@ -6,6 +6,9 @@ import type {
 	ClineAsk,
 	FileOwnership,
 	GenerateImageParams,
+	MemorySearchToolParams,
+	MemoryWipeToolParams,
+	MistakeMemoryToolParams,
 	ToolGroup,
 	ToolName,
 	ToolProgressStatus,
@@ -136,6 +139,17 @@ export const toolParamNames = [
 	// read_file legacy format parameter (backward compatibility)
 	"files",
 	"line_ranges",
+	// memory tool parameters
+	"scope",
+	"status",
+	"includePending",
+	"lesson",
+	"correction",
+	"error",
+	"file_paths",
+	"tags",
+	"approve",
+	"confirmation",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -188,6 +202,9 @@ export type NativeToolArgs = {
 		follow_up: Array<{ text: string; mode?: string }>
 	}
 	codebase_search: { query: string; path?: string }
+	memory_search: MemorySearchToolParams
+	mistake_memory: MistakeMemoryToolParams
+	memory_wipe: MemoryWipeToolParams
 	generate_image: GenerateImageParams
 	visual_browser_inspector: VisualBrowserInspectorToolParams
 	run_slash_command: { command: string; args?: string }
@@ -282,6 +299,26 @@ export interface WriteToFileToolUse extends ToolUse<"write_to_file"> {
 export interface CodebaseSearchToolUse extends ToolUse<"codebase_search"> {
 	name: "codebase_search"
 	params: Partial<Pick<Record<ToolParamName, string>, "query" | "path">>
+}
+
+export interface MemorySearchToolUse extends ToolUse<"memory_search"> {
+	name: "memory_search"
+	params: Partial<Pick<Record<ToolParamName, string>, "query" | "scope" | "status" | "limit" | "includePending">>
+}
+
+export interface MistakeMemoryToolUse extends ToolUse<"mistake_memory"> {
+	name: "mistake_memory"
+	params: Partial<
+		Pick<
+			Record<ToolParamName, string>,
+			"lesson" | "correction" | "error" | "tool_name" | "file_paths" | "tags" | "scope" | "approve"
+		>
+	>
+}
+
+export interface MemoryWipeToolUse extends ToolUse<"memory_wipe"> {
+	name: "memory_wipe"
+	params: Partial<Pick<Record<ToolParamName, string>, "scope" | "confirmation">>
 }
 
 export interface SearchFilesToolUse extends ToolUse<"search_files"> {
@@ -394,6 +431,9 @@ export const TOOL_DISPLAY_NAMES: Record<ToolName, string> = {
 	plan_parallel_tasks: "plan parallel tasks",
 	coordinate_agents: "coordinate with parallel agents",
 	codebase_search: "codebase search",
+	memory_search: "search memories",
+	mistake_memory: "save mistake memory",
+	memory_wipe: "wipe memory",
 	update_todo_list: "update todo list",
 	run_slash_command: "run slash command",
 	skill: "load skill",
@@ -422,6 +462,9 @@ export const TOOL_GROUPS: Record<ToolGroup, ToolGroupConfig> = {
 	mcp: {
 		tools: ["use_mcp_tool", "access_mcp_resource"],
 	},
+	memory: {
+		tools: ["memory_search", "mistake_memory", "memory_wipe"],
+	},
 	modes: {
 		tools: ["switch_mode", "new_task"],
 		alwaysAvailable: true,
@@ -438,6 +481,9 @@ export const ALWAYS_AVAILABLE_TOOLS: ToolName[] = [
 	"switch_mode",
 	"new_task",
 	"coordinate_agents",
+	"memory_search",
+	"mistake_memory",
+	"memory_wipe",
 	"update_todo_list",
 	"run_slash_command",
 	"skill",

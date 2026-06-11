@@ -326,6 +326,46 @@
 		"didSearch_other": "找到 {{count}} 個結果",
 		"resultTooltip": "相似度評分：{{score}}（點選以開啟檔案）"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "工作區",
+			"global": "全域",
+			"all": "所有記憶"
+		},
+		"statuses": {
+			"active": "啟用中",
+			"pending": "待處理",
+			"stale": "過期",
+			"superseded": "已取代",
+			"archived": "已封存",
+			"all": "所有狀態"
+		},
+		"fields": {
+			"title": "標題",
+			"signature": "簽名",
+			"tool": "工具",
+			"mode": "模式",
+			"tags": "標籤",
+			"paths": "路徑",
+			"score": "分數"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo 想在{{scope}}記憶中搜尋 <code>{{query}}</code>",
+		"resultsFound_one": "找到 1 筆相符記憶",
+		"resultsFound_other": "找到 {{count}} 筆相符記憶",
+		"noResults": "找不到相符記憶",
+		"untitledResult": "記憶結果"
+	},
+	"mistakeMemory": {
+		"savedPending": "已儲存待處理的錯誤記憶",
+		"savedActive": "已儲存啟用中的錯誤記憶",
+		"savedArchived": "已封存錯誤記憶",
+		"approveAction": "核准記憶",
+		"archiveAction": "封存記憶",
+		"autoApproved": "已自動核准",
+		"reusedExisting": "已更新現有記憶"
+	},
 	"commandOutput": "命令輸出",
 	"commandExecution": {
 		"abort": "中止",
@@ -597,5 +637,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "開啟設定",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "記憶清除等待核准",
+			"completed": "記憶已清除",
+			"cancelled": "記憶清除已取消"
+		},
+		"status": {
+			"pending": "等待核准",
+			"completed": "已完成",
+			"cancelled": "已取消"
+		},
+		"fields": {
+			"scope": "範圍",
+			"status": "狀態",
+			"deletedScopes": "已刪除範圍"
+		}
 	}
 }

@@ -11,7 +11,139 @@
 	"landing": {
 		"greeting": "Welcome to C Code!",
 		"introduction": "With a range of built-in and extensible Modes, C Code lets you plan, architect, code, debug and boost your productivity like never before.",
-		"getStarted": "Get Started"
+		"getStarted": "Get Started",
+		"setupLocalAi": "Set up local AI",
+		"localAi": {
+			"title": "Set up local AI",
+			"description": "Detect your hardware, choose Ollama or LM Studio, and set up a local model."
+		},
+		"provider": {
+			"title": "Use an API provider",
+			"description": "Choose OpenRouter or bring another provider key."
+		}
+	},
+	"localSetup": {
+		"heading": "Set up local AI",
+		"subtitle": "Answer a few questions and C Code will help set up Ollama or use an existing LM Studio server.",
+		"hardware": {
+			"heading": "Hardware and runtime check",
+			"detecting": "Detecting your computer and local AI runtimes…",
+			"system": "{{os}} {{arch}}, {{cores}} CPU cores, {{ram}} RAM",
+			"disk": "Free disk: {{free}}",
+			"gpuDetected": "GPU detected: {{gpu}}",
+			"gpuUnknown": "GPU status unknown. We'll stay conservative rather than assuming you have no GPU.",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "Refresh check"
+		},
+		"runtimeStatus": {
+			"running": "running",
+			"installed-not-running": "installed, not running",
+			"missing": "missing",
+			"detection-failed": "detection failed",
+			"unknown": "unknown"
+		},
+		"form": {
+			"usage": {
+				"label": "How will you use local AI?",
+				"light": "Light code help",
+				"daily": "Daily coding",
+				"agentic": "Large refactors and agentic tasks"
+			},
+			"preference": {
+				"label": "What should the recommendation optimize for?",
+				"speed": "Speed",
+				"balanced": "Balanced",
+				"quality": "Quality"
+			},
+			"privacy": {
+				"label": "Privacy preference",
+				"localOnly": "Local only",
+				"localPreferred": "Prefer local, okay to configure later"
+			},
+			"diskBudget": "Model disk budget (GB)",
+			"runtime": {
+				"label": "Runtime choice",
+				"existing": "Use an existing local runtime",
+				"ollama": "Set up Ollama",
+				"lmStudio": "Use LM Studio",
+				"manual": "Manual setup"
+			},
+			"provider": {
+				"label": "Local provider",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "Most automated path: C Code can pull the recommended Ollama model with progress.",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "Use LM Studio if you prefer its app-based model manager and local server.",
+				"lmStudioReadyDescription": "LM Studio is running with {{models}} available model(s).",
+				"readyBadge": "Ready"
+			},
+			"providerPreference": {
+				"label": "Detected local runtime preference"
+			}
+		},
+		"lmStudio": {
+			"statusHeading": "LM Studio status: {{status}}",
+			"ready": "Choose one of the models reported by LM Studio, then use it to create a local provider profile.",
+			"noModels": "LM Studio is reachable, but it reported no usable models. Download or load a chat model in LM Studio, then refresh the check.",
+			"serverStopped": "LM Studio appears to be installed, but the local server is not running. Start the local server in LM Studio, then refresh the check.",
+			"detectionFailed": "LM Studio detection failed: {{error}}",
+			"missing": "LM Studio is not installed or not reachable. Open the official download page, install LM Studio, download a model, start the local server, then refresh the check.",
+			"unknownError": "unknown error",
+			"modelLabel": "LM Studio model"
+		},
+		"actions": {
+			"manual": "Manual setup",
+			"recommend": "Recommend a model",
+			"recommending": "Building recommendation…",
+			"adjust": "Adjust answers",
+			"installHelp": "Ollama install help",
+			"confirmDownload": "Confirm and download",
+			"useLmStudio": "Use LM Studio model",
+			"cancel": "Cancel setup",
+			"retry": "Retry download",
+			"openOllamaDownload": "Open Ollama download",
+			"openLmStudioDownload": "Open LM Studio download",
+			"openLmStudioServerDocs": "Open LM Studio server guide",
+			"useApiProvider": "Use an API provider"
+		},
+		"recommendation": {
+			"heading": "Recommended local model",
+			"apiHeading": "API provider recommended",
+			"apiDescription": "This computer may run local coding models slowly or with limited quality. An API provider is the recommended path for a better first-run experience.",
+			"manualStillAvailable": "You can still choose manual local setup if you want to experiment with Ollama.",
+			"size": "Approximate download: {{size}}",
+			"disk": "Detected free disk: {{free}}",
+			"runtime": "Runtime/provider: {{runtime}} from its official local API",
+			"confidence": "Recommendation confidence: {{confidence}}",
+			"privacyHeading": "Privacy note",
+			"warnings": "Before downloading",
+			"weakHardwareWarning": "Local AI models may be slow or may not work as intended on this hardware."
+		},
+		"confidence": {
+			"low": "low",
+			"medium": "medium",
+			"high": "high"
+		},
+		"progress": {
+			"heading": "Setting up local AI",
+			"starting": "Starting local AI setup…",
+			"model": "Model: {{model}}",
+			"percent": "{{percent}}% complete",
+			"waiting": "Waiting for local runtime progress…"
+		},
+		"manual": {
+			"heading": "Manual local AI setup",
+			"description": "C Code will not run installers silently. Install Ollama or LM Studio yourself, start the local server, then come back and refresh the check.",
+			"stepInstall": "Download Ollama or LM Studio from the official site.",
+			"stepStart": "Start Ollama or the LM Studio local server and make sure it is reachable on its default local URL.",
+			"stepRetry": "Return here, refresh the runtime check, and run the recommendation again."
+		},
+		"success": {
+			"heading": "Local AI is ready",
+			"description": "{{model}} is ready for local inference.",
+			"profile": "C Code saved and activated a Local AI (Ollama) provider profile.",
+			"lmStudioProfile": "C Code saved and activated a Local AI (LM Studio) provider profile."
+		}
 	},
 	"providerSignup": {
 		"heading": "Choose your provider",

@@ -8,6 +8,7 @@ import type {
 import type { Task } from "../task/Task"
 import { formatResponse } from "../prompts/responses"
 import {
+	type VisualBrowserExecuteOptions,
 	isVisualBrowserLocalUrl,
 	visualBrowserInspectorService,
 } from "../../services/visual-browser-inspector/VisualBrowserInspectorService"
@@ -86,10 +87,35 @@ export class VisualBrowserInspectorTool extends BaseTool<"visual_browser_inspect
 
 		try {
 			const toWebviewUri = provider?.convertToWebviewUri?.bind(provider)
-			const options = {
+			const options: VisualBrowserExecuteOptions = {
 				cwd: task.cwd,
 				toWebviewUri,
 			}
+
+			if (provider?.context?.globalStorageUri?.fsPath) {
+				options.globalStoragePath = provider.context.globalStorageUri.fsPath
+			}
+
+			if (provider?.log) {
+				options.log = provider.log.bind(provider)
+			}
+
+			if (provider?.postMessageToVisualBrowserInspectorPanels) {
+				options.onBrowserInstallStatus = async (message: string) => {
+					await provider.postMessageToVisualBrowserInspectorPanels({
+						type: "visualBrowserInspector",
+						payload: {
+							state: visualBrowserInspectorService.getPanelState(options),
+							source: "chat_tool",
+							status: "running",
+							toolCallId,
+							focus: visualBrowserFocusFromParams(params),
+							message,
+						},
+					})
+				}
+			}
+
 			const result = await visualBrowserInspectorService.execute(params, options)
 			const focus = visualBrowserFocusFromResult(result)
 			const openedLocalPreview =

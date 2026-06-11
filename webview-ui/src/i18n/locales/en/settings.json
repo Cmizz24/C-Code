@@ -36,6 +36,7 @@
 		"checkpoints": "Checkpoints",
 		"notifications": "Notifications",
 		"contextManagement": "Context",
+		"memory": "Memory",
 		"terminal": "Terminal",
 		"slashCommands": "Slash Commands",
 		"prompts": "Prompts",
@@ -317,8 +318,12 @@
 			"description": "Automatically approve valid parallel task plans and start agents without showing the plan preview modal"
 		},
 		"visualBrowserInspector": {
-			"label": "Browser",
+			"label": "Visual Browser Inspector",
 			"description": "Automatically approve Visual Browser Inspector actions from chat, including opening controlled browser pages, screenshots, DOM inspection, crops, analysis, and page interactions. This does not allow file edits or terminal commands."
+		},
+		"memory": {
+			"label": "Memory",
+			"description": "Automatically approve mistake-memory saves from chat and tool errors. Pending memory can still be reviewed from chat or Memory settings when this is off."
 		},
 		"imageGeneration": {
 			"label": "Images",
@@ -879,6 +884,113 @@
 		"enableSubfolderRules": {
 			"label": "Enable subfolder rules",
 			"description": "Recursively discover and load .roo/rules and AGENTS.md files from subdirectories. Useful for monorepos with per-package rules."
+		}
+	},
+	"memory": {
+		"description": "Configure how C Code retrieves, stores, and manages memories across this workspace and global context.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Core behavior",
+				"description": "Choose when memory runs and which memory scopes C can use."
+			},
+			"retrievalLimits": {
+				"title": "Retrieval limits",
+				"description": "Tune how much memory context is included with each request."
+			},
+			"management": {
+				"title": "Memory management",
+				"description": "Review saved memory records and manage pending, archived, or stored lessons."
+			},
+			"advanced": {
+				"title": "Advanced",
+				"description": "Control pending mistake-memory candidate retention."
+			}
+		},
+		"mode": {
+			"label": "Memory mode",
+			"description": "Use automatic mode to enable memory for models under 1M context tokens and disable it for larger-context models unless you override it.",
+			"options": {
+				"auto": "Automatic",
+				"enabled": "Always enabled",
+				"disabled": "Disabled"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Use workspace memory",
+			"description": "Retrieve and save lessons scoped to this workspace without storing absolute workspace paths."
+		},
+		"globalEnabled": {
+			"label": "Use global memory",
+			"description": "Retrieve and save lessons that can apply across workspaces."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Capture mistake memories",
+			"description": "Create pending lessons from corrections, validation failures, and repeated tool errors. Pending lessons are not used permanently until approved."
+		},
+		"autoApproveMistakeMemory": {
+			"label": "Auto-approve mistake memories",
+			"description": "Save new mistake-memory lessons as active immediately after redaction instead of creating pending candidates. Keep this off unless you trust the automation."
+		},
+		"maxCharacters": {
+			"label": "Memory character budget",
+			"description": "Maximum characters of memory context to inject into a request. Under context pressure, memory is trimmed or skipped first."
+		},
+		"maxEntries": {
+			"label": "Maximum memory entries",
+			"description": "Maximum number of active memory entries to include in a request."
+		},
+		"pendingCandidateLimit": {
+			"label": "Pending mistake memory limit",
+			"description": "Maximum number of pending mistake-memory candidates to keep before older candidates are pruned."
+		},
+		"management": {
+			"title": "Memory management",
+			"description": "Review workspace and global memory records, archive pending lessons, archive memories, or clear stored memory. Pending approvals happen in chat."
+		},
+		"summary": {
+			"workspace": "Workspace memory",
+			"global": "Global memory",
+			"active": "Active",
+			"pending": "Pending",
+			"archived": "Archived",
+			"total": "Total"
+		},
+		"actions": {
+			"refresh": "Refresh",
+			"archivePending": "Archive pending",
+			"archiveAll": "Archive all",
+			"clear": "Clear"
+		},
+		"scope": {
+			"workspace": "Workspace",
+			"global": "Global"
+		},
+		"status": {
+			"active": "Active",
+			"pending": "Pending",
+			"stale": "Stale",
+			"superseded": "Superseded",
+			"archived": "Archived"
+		},
+		"kind": {
+			"lesson": "Lesson",
+			"mistake": "Mistake"
+		},
+		"records": {
+			"count": "{{count}} records",
+			"empty": "No saved memories in this scope.",
+			"lesson": "Lesson",
+			"tags": "Tags",
+			"pathHints": "Path hints",
+			"created": "Created",
+			"updated": "Updated",
+			"lastUsed": "Last used"
+		},
+		"confirm": {
+			"title": "Confirm memory action",
+			"description": "This memory action changes or removes stored lessons. This cannot be undone for cleared memory.",
+			"cancel": "Cancel",
+			"confirm": "Continue"
 		}
 	},
 	"terminal": {

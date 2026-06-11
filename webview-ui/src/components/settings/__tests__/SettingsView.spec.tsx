@@ -250,18 +250,20 @@ vi.mock("@/components/ui", () => ({
 		</button>
 	),
 	// Add Collapsible components
-	Collapsible: ({ children, open }: any) => (
-		<div className="collapsible-mock" data-open={open}>
+	Collapsible: ({ children, open, ...props }: any) => (
+		<div className="collapsible-mock" data-open={open} {...props}>
 			{children}
 		</div>
 	),
-	CollapsibleTrigger: ({ children, className, onClick }: any) => (
-		<div className={`collapsible-trigger-mock ${className || ""}`} onClick={onClick}>
+	CollapsibleTrigger: ({ children, className, onClick, type = "button", ...props }: any) => (
+		<button type={type} className={`collapsible-trigger-mock ${className || ""}`} onClick={onClick} {...props}>
+			{children}
+		</button>
+	),
+	CollapsibleContent: ({ children, className, forceMount: _forceMount, ...props }: any) => (
+		<div className={`collapsible-content-mock ${className || ""}`} {...props}>
 			{children}
 		</div>
-	),
-	CollapsibleContent: ({ children, className }: any) => (
-		<div className={`collapsible-content-mock ${className || ""}`}>{children}</div>
 	),
 	Dialog: ({ children, ...props }: any) => (
 		<div data-testid="dialog" {...props}>
@@ -363,7 +365,7 @@ const renderSettingsViewWithTranslations = (initialState: Record<string, any> = 
 	const onDone = vi.fn()
 	const queryClient = new QueryClient()
 
-	const renderTree = (
+	const renderTree = (targetSection?: string) => (
 		<ExtensionStateContextProvider>
 			<TranslationProvider>
 				<QueryClientProvider client={queryClient}>
@@ -383,9 +385,13 @@ const renderSettingsViewWithTranslations = (initialState: Record<string, any> = 
 
 	// Hydrate extension state before SettingsView initializes its local cachedState and TranslationProvider reads language.
 	mockPostMessage({ language: "en", ...initialState })
-	result.rerender(renderTree)
+	result.rerender(renderTree(targetSection))
 
-	return { ...result, onDone }
+	const activateTab = (tabId: string) => {
+		result.rerender(renderTree(tabId))
+	}
+
+	return { ...result, onDone, activateTab }
 }
 
 describe("SettingsView - Localization", () => {
@@ -501,6 +507,53 @@ describe("SettingsView - Localization", () => {
 
 		expect(container).not.toHaveTextContent("settings:providers.openAiCodexFastMode.label")
 		expect(container).not.toHaveTextContent("settings:providers.openAiCodexRateLimits.title")
+	})
+
+	it("renders the Visual Browser Inspector auto-approve option with an explicit label", () => {
+		const { activateTab } = renderSettingsViewWithTranslations()
+
+		activateTab("autoApprove")
+
+		const content = screen.getByTestId("settings-content")
+		const visualBrowserInspectorToggle = within(content).getByTestId("always-allow-visual-browser-inspector-toggle")
+
+		expect(visualBrowserInspectorToggle).toBeInTheDocument()
+		expect(visualBrowserInspectorToggle).toHaveTextContent("Visual Browser Inspector")
+		expect(visualBrowserInspectorToggle).toHaveAttribute("aria-label", "Visual Browser Inspector")
+	})
+
+	it("renders the Memory settings header and compact section labels through the real i18n provider", () => {
+		const { activateTab } = renderSettingsViewWithTranslations()
+
+		activateTab("memory")
+
+		const content = screen.getByTestId("settings-content")
+
+		expect(within(content).getByRole("heading", { name: "Memory" })).toBeInTheDocument()
+		expect(
+			within(content).getByText(
+				"Configure how C Code retrieves, stores, and manages memories across this workspace and global context.",
+			),
+		).toBeInTheDocument()
+		expect(within(content).getByTestId("memory-core-trigger")).toHaveTextContent("Core behavior")
+		expect(within(content).getByTestId("memory-retrieval-trigger")).toHaveTextContent("Retrieval limits")
+		expect(within(content).getByTestId("memory-management-trigger")).toHaveTextContent("Memory management")
+		expect(within(content).getByTestId("memory-advanced-trigger")).toHaveTextContent("Advanced")
+		expect(within(content).queryByText("Auto-approve mistake memories")).not.toBeInTheDocument()
+	})
+
+	it("renders the Memory auto-approve control in Auto Approve settings through the real i18n provider", () => {
+		const { activateTab } = renderSettingsViewWithTranslations({ memoryAutoApproveMistakeMemory: false })
+
+		activateTab("autoApprove")
+
+		const content = screen.getByTestId("settings-content")
+		const memoryToggle = within(content).getByTestId("memory-auto-approve-mistake-toggle")
+
+		expect(memoryToggle).toBeInTheDocument()
+		expect(memoryToggle).toHaveTextContent("Memory")
+		expect(memoryToggle).toHaveAttribute("aria-label", "Memory")
+		expect(memoryToggle).toHaveAttribute("aria-pressed", "false")
 	})
 })
 
@@ -1109,6 +1162,357 @@ describe("SettingsView - Image Generation Settings", () => {
 	})
 })
 
+describe("SettingsView - Memory Settings", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("renders memory settings and summary values", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			memoryEnabled: undefined,
+			memoryWorkspaceEnabled: true,
+			memoryGlobalEnabled: false,
+			memoryMistakeMemoryEnabled: true,
+			memoryAutoApproveMistakeMemory: false,
+			memoryMaxCharacters: 3200,
+			memoryMaxEntries: 6,
+			memoryPendingCandidateLimit: 24,
+			memorySummary: {
+				workspace: { active: 3, pending: 2, archived: 1, total: 6 },
+				global: { active: 4, pending: 1, archived: 0, total: 5 },
+			},
+			memoryState: {
+				summary: {
+					workspace: { active: 3, pending: 2, archived: 1, total: 6 },
+					global: { active: 4, pending: 1, archived: 0, total: 5 },
+				},
+				workspace: [
+					{
+						id: "workspace-memory-1",
+						scope: "workspace",
+						kind: "mistake",
+						status: "pending",
+						source: "mistake_tool",
+						title: "Mistake lesson for apply_patch",
+						lesson: "Always verify patch context before applying a diff.",
+						tags: ["mistake", "patch"],
+						pathTags: ["src/core/tools/MistakeMemoryTool.ts"],
+						mode: "code",
+						toolName: "apply_patch",
+						confidence: 0.75,
+						reuseCount: 0,
+						successCount: 0,
+						failureCount: 0,
+						createdAt: 1_700_000_000_000,
+						updatedAt: 1_700_000_060_000,
+					},
+				],
+				global: [
+					{
+						id: "global-memory-1",
+						scope: "global",
+						kind: "lesson",
+						status: "stale",
+						source: "manual",
+						title: "Prefer safe JSON writes",
+						lesson: "Use safeWriteJson for persisted JSON outside tests.",
+						tags: ["json"],
+						pathTags: [],
+						confidence: 0.9,
+						reuseCount: 2,
+						successCount: 2,
+						failureCount: 0,
+						createdAt: 1_700_000_120_000,
+						updatedAt: 1_700_000_180_000,
+						lastUsedAt: 1_700_000_240_000,
+					},
+				],
+			},
+		})
+
+		activateTab("memory")
+
+		const content = getSettingsContent()
+		expect(within(content).getByRole("heading", { name: "settings:sections.memory" })).toBeInTheDocument()
+		expect(within(content).getByTestId("memory-core-trigger")).toHaveTextContent(
+			"settings:memory.sections.coreBehavior.title",
+		)
+		expect(within(content).getByTestId("memory-core-trigger")).toHaveAttribute("aria-expanded", "true")
+		expect(within(content).getByTestId("memory-retrieval-trigger")).toHaveTextContent(
+			"settings:memory.sections.retrievalLimits.title",
+		)
+		expect(within(content).getByTestId("memory-retrieval-trigger")).toHaveAttribute("aria-expanded", "false")
+		expect(within(content).getByTestId("memory-management-trigger")).toHaveTextContent(
+			"settings:memory.sections.management.title",
+		)
+		expect(within(content).getByTestId("memory-management-trigger")).toHaveAttribute("aria-expanded", "true")
+		expect(within(content).getByTestId("memory-advanced-trigger")).toHaveTextContent(
+			"settings:memory.sections.advanced.title",
+		)
+		expect(within(content).getByTestId("memory-advanced-trigger")).toHaveAttribute("aria-expanded", "false")
+
+		fireEvent.click(within(content).getByTestId("memory-retrieval-trigger"))
+		fireEvent.click(within(content).getByTestId("memory-advanced-trigger"))
+
+		expect(within(content).getByTestId("memory-retrieval-trigger")).toHaveAttribute("aria-expanded", "true")
+		expect(within(content).getByTestId("memory-advanced-trigger")).toHaveAttribute("aria-expanded", "true")
+		expect(within(content).getByTestId("memory-workspace-enabled-checkbox")).toBeChecked()
+		expect(within(content).getByTestId("memory-global-enabled-checkbox")).not.toBeChecked()
+		expect(within(content).getByTestId("memory-mistake-enabled-checkbox")).toBeChecked()
+		expect(within(content).queryByTestId("memory-auto-approve-mistake-checkbox")).not.toBeInTheDocument()
+		expect(within(content).queryByText("settings:memory.autoApproveMistakeMemory.label")).not.toBeInTheDocument()
+		expect(within(content).getByTestId("memory-max-characters-input")).toHaveValue(3200)
+		expect(within(content).getByTestId("memory-max-entries-input")).toHaveValue(6)
+		expect(within(content).getByTestId("memory-pending-limit-input")).toHaveValue(24)
+		expect(within(content).getByText("3")).toBeInTheDocument()
+		expect(within(content).getByText("6")).toBeInTheDocument()
+		expect(within(content).getByText("5")).toBeInTheDocument()
+		expect(within(content).getByText("Mistake lesson for apply_patch")).toBeInTheDocument()
+		expect(
+			within(content).getAllByText("Always verify patch context before applying a diff.").length,
+		).toBeGreaterThan(0)
+		expect(within(content).getByText("settings:memory.status.pending")).toBeInTheDocument()
+		expect(within(content).getByText("settings:memory.kind.mistake")).toBeInTheDocument()
+		expect(within(content).getByText("patch")).toBeInTheDocument()
+		expect(within(content).getByText("src/core/tools/MistakeMemoryTool.ts")).toBeInTheDocument()
+		expect(within(content).getByText("Prefer safe JSON writes")).toBeInTheDocument()
+		expect(within(content).getByText("settings:memory.status.stale")).toBeInTheDocument()
+
+		const workspaceRecord = within(content).getByTestId("memory-record-workspace-memory-1")
+		const workspaceSummary = within(content).getByTestId("memory-record-workspace-memory-1-summary")
+		const workspaceDetails = within(content).getByTestId("memory-record-workspace-memory-1-details")
+
+		expect(workspaceRecord.tagName.toLowerCase()).toBe("details")
+		expect(workspaceRecord).not.toHaveAttribute("open")
+		expect(workspaceRecord).toHaveClass("min-w-0", "max-w-full", "overflow-hidden")
+		expect(workspaceSummary).toHaveClass("min-w-0")
+		expect(within(workspaceSummary).getByTestId("memory-record-workspace-memory-1-title")).toHaveClass("truncate")
+		expect(within(workspaceSummary).getByTestId("memory-record-workspace-memory-1-lesson-preview")).toHaveClass(
+			"truncate",
+		)
+		expect(within(workspaceSummary).queryByText("apply_patch")).not.toBeInTheDocument()
+		expect(workspaceDetails).toHaveClass("min-w-0", "max-w-full")
+
+		fireEvent.click(workspaceSummary)
+		expect(workspaceRecord).toHaveAttribute("open")
+		expect(
+			within(workspaceDetails).getByTestId("memory-record-workspace-memory-1-remove-button"),
+		).toHaveTextContent("common:answers.remove")
+		expect(within(content).getByTestId("memory-record-global-memory-1-remove-button")).toHaveTextContent(
+			"common:answers.remove",
+		)
+
+		expect(within(content).queryByTestId("memory-approve-workspace-pending-button")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("memory-archive-workspace-pending-button")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("memory-approve-global-pending-button")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("memory-archive-global-pending-button")).not.toBeInTheDocument()
+	})
+
+	it("keeps long memory values in overflow-safe compact rows", () => {
+		const longTitle = `Long memory ${"title-segment-".repeat(16)}`
+		const longLesson = `Always preserve compact layout for long lessons ${"lesson-segment-".repeat(24)}`
+		const longPath = `src/${"very-long-path-segment-".repeat(16)}MemorySettings.tsx`
+		const longTag = `tag-${"very-long-tag-segment-".repeat(8)}`
+		const longToolName = `tool-${"very-long-tool-name-".repeat(8)}`
+		const longSignature = `signature-${"very-long-signature-segment-".repeat(6)}`
+
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			memoryState: {
+				summary: {
+					workspace: { active: 1, pending: 0, archived: 0, total: 1 },
+					global: { active: 0, pending: 0, archived: 0, total: 0 },
+				},
+				workspace: [
+					{
+						id: "workspace-memory-long",
+						scope: "workspace",
+						kind: "mistake",
+						status: "active",
+						source: "mistake_tool",
+						title: longTitle,
+						lesson: longLesson,
+						tags: [longTag],
+						pathTags: [longPath],
+						mode: "code",
+						toolName: longToolName,
+						mistakeSignature: longSignature,
+						confidence: 0.75,
+						reuseCount: 0,
+						successCount: 0,
+						failureCount: 0,
+						createdAt: 1_700_000_000_000,
+						updatedAt: 1_700_000_060_000,
+					},
+				],
+				global: [],
+			},
+		})
+
+		activateTab("memory")
+
+		const content = getSettingsContent()
+		const list = within(content).getByTestId("memory-record-list-workspace")
+		const record = within(content).getByTestId("memory-record-workspace-memory-long")
+		const summary = within(content).getByTestId("memory-record-workspace-memory-long-summary")
+		const title = within(summary).getByTestId("memory-record-workspace-memory-long-title")
+		const preview = within(summary).getByTestId("memory-record-workspace-memory-long-lesson-preview")
+
+		expect(list).toHaveClass("min-w-0", "max-w-full", "overflow-hidden")
+		expect(record).toHaveClass("min-w-0", "max-w-full", "overflow-hidden")
+		expect(record).not.toHaveAttribute("open")
+		expect(summary).toHaveClass("min-w-0")
+		expect(title).toHaveClass("min-w-0", "truncate")
+		expect(preview).toHaveClass("min-w-0", "truncate")
+		expect(within(summary).queryByText(longToolName)).not.toBeInTheDocument()
+		expect(within(summary).queryByText(longPath)).not.toBeInTheDocument()
+		expect(within(summary).queryByText(longTag)).not.toBeInTheDocument()
+
+		fireEvent.click(summary)
+
+		expect(record).toHaveAttribute("open")
+		expect(within(record).getByText(longPath)).toHaveClass("truncate")
+		expect(within(record).getByText(longTag)).toHaveClass("truncate")
+		expect(within(record).getByText(longToolName)).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+		expect(within(record).getByText(longSignature)).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+
+		const wrappedLesson = within(record)
+			.getAllByText(longLesson)
+			.find((element) => element.className.includes("[overflow-wrap:anywhere]"))
+		expect(wrappedLesson).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+		expect(within(content).queryByTestId("memory-auto-approve-mistake-checkbox")).not.toBeInTheDocument()
+	})
+
+	it("saves memory settings from cached state", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			memoryEnabled: true,
+			memoryWorkspaceEnabled: true,
+			memoryGlobalEnabled: true,
+			memoryMistakeMemoryEnabled: true,
+			memoryAutoApproveMistakeMemory: false,
+			memoryMaxCharacters: 2400,
+			memoryMaxEntries: 8,
+			memoryPendingCandidateLimit: 100,
+		})
+
+		activateTab("memory")
+
+		const content = getSettingsContent()
+		fireEvent.click(within(content).getByTestId("memory-workspace-enabled-checkbox"))
+		fireEvent.click(within(content).getByTestId("memory-global-enabled-checkbox"))
+		fireEvent.click(within(content).getByTestId("memory-mistake-enabled-checkbox"))
+		fireEvent.change(within(content).getByTestId("memory-max-characters-input"), { target: { value: "4200" } })
+		fireEvent.change(within(content).getByTestId("memory-max-entries-input"), { target: { value: "12" } })
+		fireEvent.change(within(content).getByTestId("memory-pending-limit-input"), { target: { value: "75" } })
+
+		fireEvent.click(screen.getByTestId("save-button"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					memoryEnabled: true,
+					memoryWorkspaceEnabled: false,
+					memoryGlobalEnabled: false,
+					memoryMistakeMemoryEnabled: false,
+					memoryAutoApproveMistakeMemory: false,
+					memoryMaxCharacters: 4200,
+					memoryMaxEntries: 12,
+					memoryPendingCandidateLimit: 75,
+				}),
+			}),
+		)
+	})
+
+	it("posts non-destructive memory management actions immediately", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView()
+
+		activateTab("memory")
+
+		const content = getSettingsContent()
+		fireEvent.click(within(content).getByTestId("memory-refresh-button"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "memoryAction", memoryAction: "refresh" })
+		expect(within(content).queryByTestId("memory-approve-workspace-pending-button")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("memory-archive-workspace-pending-button")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("memory-approve-global-pending-button")).not.toBeInTheDocument()
+		expect(within(content).queryByTestId("memory-archive-global-pending-button")).not.toBeInTheDocument()
+	})
+
+	it("requires confirmation before posting destructive memory actions", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView()
+
+		activateTab("memory")
+
+		const content = getSettingsContent()
+		const dialog = within(content).getByTestId("alert-dialog")
+		expect(dialog).toHaveAttribute("data-open", "false")
+
+		fireEvent.click(within(content).getByTestId("memory-clear-workspace-button"))
+
+		expect(dialog).toHaveAttribute("data-open", "true")
+		expect(vscode.postMessage).not.toHaveBeenCalledWith({ type: "memoryAction", memoryAction: "clearWorkspace" })
+
+		fireEvent.click(within(content).getByTestId("alert-dialog-action"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "memoryAction", memoryAction: "clearWorkspace" })
+		expect(dialog).toHaveAttribute("data-open", "false")
+	})
+
+	it("requires confirmation before deleting individual memory records", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			memoryState: {
+				summary: {
+					workspace: { active: 1, pending: 0, archived: 0, total: 1 },
+					global: { active: 0, pending: 0, archived: 0, total: 0 },
+				},
+				workspace: [
+					{
+						id: "workspace-memory-delete-me",
+						scope: "workspace",
+						kind: "lesson",
+						status: "active",
+						source: "manual",
+						title: "Delete this lesson",
+						lesson: "Remove a single memory record.",
+						tags: [],
+						pathTags: [],
+						confidence: 0.8,
+						reuseCount: 0,
+						successCount: 0,
+						failureCount: 0,
+						createdAt: 1_700_000_000_000,
+						updatedAt: 1_700_000_060_000,
+					},
+				],
+				global: [],
+			},
+		})
+
+		activateTab("memory")
+
+		const content = getSettingsContent()
+		const dialog = within(content).getByTestId("alert-dialog")
+		expect(dialog).toHaveAttribute("data-open", "false")
+
+		fireEvent.click(within(content).getByTestId("memory-record-workspace-memory-delete-me-remove-button"))
+
+		expect(dialog).toHaveAttribute("data-open", "true")
+		expect(vscode.postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({ type: "memoryAction", memoryAction: "deleteMemory" }),
+		)
+
+		fireEvent.click(within(content).getByTestId("alert-dialog-action"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({
+			type: "memoryAction",
+			memoryAction: "deleteMemory",
+			memoryId: "workspace-memory-delete-me",
+			memoryScope: "workspace",
+		})
+		expect(dialog).toHaveAttribute("data-open", "false")
+	})
+})
+
 describe("SettingsView - Auto Approve Parallel Tasks", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -1211,6 +1615,38 @@ describe("SettingsView - Auto Approve Visual Browser Inspector", () => {
 				type: "updateSettings",
 				updatedSettings: expect.objectContaining({
 					alwaysAllowVisualBrowserInspector: true,
+				}),
+			}),
+		)
+	})
+})
+
+describe("SettingsView - Auto Approve Memory", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("saves the mistake memory auto-approval toggle from cached state", () => {
+		const { activateTab, getSettingsContent } = renderSettingsView({ memoryAutoApproveMistakeMemory: false })
+
+		activateTab("autoApprove")
+
+		const content = getSettingsContent()
+		const memoryToggle = within(content).getByTestId("memory-auto-approve-mistake-toggle")
+		expect(memoryToggle).toHaveTextContent("settings:autoApprove.memory.label")
+		expect(memoryToggle).toHaveAttribute("aria-label", "settings:autoApprove.memory.label")
+		expect(memoryToggle).toHaveAttribute("aria-pressed", "false")
+
+		fireEvent.click(memoryToggle)
+
+		const saveButton = screen.getByTestId("save-button")
+		fireEvent.click(saveButton)
+
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					memoryAutoApproveMistakeMemory: true,
 				}),
 			}),
 		)

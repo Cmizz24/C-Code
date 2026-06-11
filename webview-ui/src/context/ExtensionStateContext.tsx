@@ -17,6 +17,9 @@ import {
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 	DEFAULT_MAX_CONCURRENT_PARALLEL_TASKS,
+	DEFAULT_MEMORY_MAX_CHARACTERS,
+	DEFAULT_MEMORY_MAX_ENTRIES,
+	DEFAULT_MEMORY_PENDING_CANDIDATE_LIMIT,
 } from "@roo-code/types"
 
 import { findLastIndex } from "@roo/array"
@@ -62,6 +65,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setAlwaysAllowParallelTasks: (value: boolean) => void
 	setAlwaysAllowVisualBrowserInspector: (value: boolean) => void
 	setAlwaysAllowImageGeneration: (value: boolean) => void
+	setMemoryAutoApproveMistakeMemory: (value: boolean) => void
 	setMaxConcurrentParallelTasks: (value: number) => void
 	setShowRooIgnoredFiles: (value: boolean) => void
 	setEnableSubfolderRules: (value: boolean) => void
@@ -297,6 +301,16 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		lmStudioImageGenerationApiMethod: "images_api",
 		includeCurrentTime: true,
 		includeCurrentCost: true,
+		memoryEnabled: undefined,
+		memoryWorkspaceEnabled: true,
+		memoryGlobalEnabled: true,
+		memoryMistakeMemoryEnabled: true,
+		memoryAutoApproveMistakeMemory: false,
+		memoryMaxCharacters: DEFAULT_MEMORY_MAX_CHARACTERS,
+		memoryMaxEntries: DEFAULT_MEMORY_MAX_ENTRIES,
+		memoryPendingCandidateLimit: DEFAULT_MEMORY_PENDING_CANDIDATE_LIMIT,
+		memoryState: undefined,
+		memorySummary: undefined,
 		lockApiConfigAcrossModes: false,
 	})
 
@@ -390,6 +404,18 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 				}
 				case "commands": {
 					setCommands(message.commands ?? [])
+					break
+				}
+				case "memorySummary": {
+					setState((prevState) => ({ ...prevState, memorySummary: message.memorySummary }))
+					break
+				}
+				case "memoryState": {
+					setState((prevState) => ({
+						...prevState,
+						memoryState: message.memoryState,
+						memorySummary: message.memorySummary ?? message.memoryState?.summary,
+					}))
 					break
 				}
 				case "messageUpdated": {
@@ -528,6 +554,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 			setState((prevState) => ({ ...prevState, alwaysAllowVisualBrowserInspector: value })),
 		setAlwaysAllowImageGeneration: (value) =>
 			setState((prevState) => ({ ...prevState, alwaysAllowImageGeneration: value })),
+		setMemoryAutoApproveMistakeMemory: (value) =>
+			setState((prevState) => ({ ...prevState, memoryAutoApproveMistakeMemory: value })),
 		setMaxConcurrentParallelTasks: (value) =>
 			setState((prevState) => ({ ...prevState, maxConcurrentParallelTasks: value })),
 		setAlwaysAllowFollowupQuestions,

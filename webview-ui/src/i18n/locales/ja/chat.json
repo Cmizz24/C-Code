@@ -502,6 +502,46 @@
 		"didSearch_other": "{{count}}件の結果が見つかりました",
 		"resultTooltip": "類似度スコア: {{score}} (クリックしてファイルを開く)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "ワークスペース",
+			"global": "グローバル",
+			"all": "すべてのメモリ"
+		},
+		"statuses": {
+			"active": "アクティブ",
+			"pending": "保留中",
+			"stale": "古い",
+			"superseded": "置き換え済み",
+			"archived": "アーカイブ済み",
+			"all": "すべての状態"
+		},
+		"fields": {
+			"title": "タイトル",
+			"signature": "シグネチャ",
+			"tool": "ツール",
+			"mode": "モード",
+			"tags": "タグ",
+			"paths": "パス",
+			"score": "スコア"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Rooは{{scope}}メモリで <code>{{query}}</code> を検索したい",
+		"resultsFound_one": "一致するメモリが1件見つかりました",
+		"resultsFound_other": "一致するメモリが{{count}}件見つかりました",
+		"noResults": "一致するメモリは見つかりませんでした",
+		"untitledResult": "メモリ結果"
+	},
+	"mistakeMemory": {
+		"savedPending": "保留中のミスメモリを保存しました",
+		"savedActive": "アクティブなミスメモリを保存しました",
+		"savedArchived": "ミスメモリをアーカイブしました",
+		"approveAction": "メモリを承認",
+		"archiveAction": "メモリをアーカイブ",
+		"autoApproved": "自動承認済み",
+		"reusedExisting": "既存のメモリを更新しました"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "すべて承認"
@@ -601,5 +641,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "設定を開く",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "メモリ消去は承認待ちです",
+			"completed": "メモリを消去しました",
+			"cancelled": "メモリ消去をキャンセルしました"
+		},
+		"status": {
+			"pending": "承認待ち",
+			"completed": "完了",
+			"cancelled": "キャンセル済み"
+		},
+		"fields": {
+			"scope": "スコープ",
+			"status": "ステータス",
+			"deletedScopes": "削除済みスコープ"
+		}
 	}
 }

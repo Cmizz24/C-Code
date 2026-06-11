@@ -54,6 +54,29 @@
 		},
 		"noData": "Không có dữ liệu hình ảnh"
 	},
+	"visualBrowserInspector": {
+		"emptyStatus": "Không có phiên trình duyệt Playwright được kiểm soát nào đang hoạt động. Trong lần dùng đầu tiên, C Code tự động chuẩn bị Chromium trong bộ nhớ của tiện ích mở rộng.",
+		"headerDescription": "Chỉ chụp trình duyệt Playwright được kiểm soát. Trong lần dùng đầu tiên, C Code tự động chuẩn bị Chromium trong bộ nhớ của tiện ích mở rộng. Các artifact vẫn ở cục bộ trong <artifactPath>.roo/visual-browser-inspector</artifactPath>.",
+		"findings": {
+			"groupedSummary": "{{recommendationCount}} đề xuất được nhóm bao phủ {{issueCount}} vấn đề phân tích trang cho các tác vụ sửa lỗi tiếp theo.",
+			"analysisBasedNotice": "Các đề xuất được tạo từ phân tích trang cục bộ, không phải placeholder; các vấn đề lặp lại được nhóm theo nguyên nhân gốc có khả năng hoặc chiến lược sửa lỗi.",
+			"affectedIssues": "{{count}} vấn đề",
+			"startFixTaskForRecommendation": "Bắt đầu tác vụ sửa lỗi cho đề xuất này",
+			"userImpactLabel": "Tác động tới người dùng:",
+			"rootCauseLabel": "Nguyên nhân gốc có khả năng:",
+			"suggestedFixLabel": "Cách sửa được đề xuất:",
+			"recommendationLabel": "Đề xuất:",
+			"implementationHintLabel": "Gợi ý triển khai:",
+			"examplesLabel": "Ví dụ được giữ lại để kiểm tra",
+			"issueNumber": "Vấn đề {{number}}",
+			"boxLabel": "Box:",
+			"filesToInspectLabel": "Tệp cần kiểm tra:",
+			"verificationStepsLabel": "Các bước xác minh",
+			"individualFindingsLabel": "Các finding riêng lẻ trong nhóm này",
+			"screenshotLabel": "Screenshot:",
+			"cropLabel": "Crop:"
+		}
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "Định dạng URI dữ liệu không hợp lệ",

@@ -54,6 +54,29 @@
 		},
 		"noData": "無圖片資料"
 	},
+	"visualBrowserInspector": {
+		"emptyStatus": "目前沒有活動中的受控 Playwright 瀏覽器工作階段。首次使用時，C Code 會自動在擴充功能儲存空間中準備 Chromium。",
+		"headerDescription": "僅擷取受控的 Playwright 瀏覽器。首次使用時，C Code 會自動在擴充功能儲存空間中準備 Chromium。成品會本機保存在 <artifactPath>.roo/visual-browser-inspector</artifactPath> 下。",
+		"findings": {
+			"groupedSummary": "{{recommendationCount}} 個分組建議涵蓋 {{issueCount}} 個頁面分析問題，可用於後續修復任務。",
+			"analysisBasedNotice": "建議由本機頁面分析產生，並非預留位置；重複問題會依可能的根因或修復策略分組。",
+			"affectedIssues": "{{count}} 個問題",
+			"startFixTaskForRecommendation": "為此建議啟動修復任務",
+			"userImpactLabel": "使用者影響：",
+			"rootCauseLabel": "可能根因：",
+			"suggestedFixLabel": "建議修復：",
+			"recommendationLabel": "建議：",
+			"implementationHintLabel": "實作提示：",
+			"examplesLabel": "保留供檢查的範例",
+			"issueNumber": "問題 {{number}}",
+			"boxLabel": "邊界框：",
+			"filesToInspectLabel": "要檢查的檔案：",
+			"verificationStepsLabel": "驗證步驟",
+			"individualFindingsLabel": "此分組中的個別 findings",
+			"screenshotLabel": "截圖：",
+			"cropLabel": "裁剪："
+		}
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "無效的資料 URI 格式",

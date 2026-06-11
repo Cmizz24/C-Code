@@ -1,13 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Trans, useTranslation } from "react-i18next"
 import { useEvent } from "react-use"
+
+import "@src/i18n/setup"
 
 import {
 	type ExtensionMessage,
 	type VisualBrowserBoundingBox,
 	type VisualBrowserCropMetadata,
 	type VisualBrowserElementMetadata,
+	type VisualBrowserIssue,
 	type VisualBrowserPanelState,
 	type VisualBrowserPoint,
+	type VisualBrowserRecommendationGroup,
 	type VisualBrowserScreenshotMetadata,
 	type VisualBrowserViewportPresetName,
 	type VisualBrowserWebviewRequest,
@@ -17,12 +22,11 @@ import {
 
 import { vscode } from "@src/utils/vscode"
 
-const emptyPanelState: VisualBrowserPanelState = {
+const emptyPanelState: Omit<VisualBrowserPanelState, "statusMessage"> = {
 	screenshots: [],
 	crops: [],
 	inspections: [],
 	findings: [],
-	statusMessage: "No controlled Playwright browser session is active.",
 }
 
 const buttonBaseClass =
@@ -32,6 +36,7 @@ const secondaryButtonClass = `${buttonBaseClass} bg-vscode-button-secondaryBackg
 const dangerButtonClass = `${buttonBaseClass} bg-vscode-errorForeground text-vscode-editor-background hover:opacity-90`
 const inputClass =
 	"rounded border border-vscode-input-border bg-vscode-input-background px-2 py-1.5 text-sm text-vscode-input-foreground outline-none focus:border-vscode-focusBorder"
+const MAX_GROUPED_EXAMPLES = 4
 
 function normalizeUrlForCheck(input: string): string {
 	const trimmed = input.trim()
@@ -79,6 +84,41 @@ function severityClassName(severity: string): string {
 	}
 }
 
+function buildFallbackRecommendationGroups(issues: VisualBrowserIssue[]): VisualBrowserRecommendationGroup[] {
+	return issues.map((issue, issueIndex) => ({
+		id: `legacy-issue-${issueIndex}`,
+		title: issue.title,
+		category: issue.category,
+		severity: issue.severity,
+		fixPriority: issue.fixPriority,
+		confidence: issue.confidence,
+		affectedCount: 1,
+		issueIndexes: [issueIndex],
+		summary: "Generated from actual local page analysis for this finding.",
+		rootCause: issue.likelyCause,
+		suggestedFix: issue.suggestedFix,
+		recommendation: issue.recommendation ?? issue.suggestedFix,
+		implementationHint: issue.implementationHint,
+		userImpact: issue.userImpact,
+		filesToInspect: issue.filesToInspect,
+		verificationSteps: issue.verificationSteps,
+		examples: [
+			{
+				issueIndex,
+				title: issue.title,
+				severity: issue.severity,
+				confidence: issue.confidence,
+				visualEvidence: issue.visualEvidence,
+				selectorOrElement: issue.selectorOrElement,
+				boundingBox: issue.boundingBox,
+				screenshotId: issue.screenshotId,
+				cropId: issue.cropId,
+				filesToInspect: issue.filesToInspect,
+			},
+		],
+	}))
+}
+
 function elementLabel(element: VisualBrowserElementMetadata): string {
 	const label = element.ariaLabel || element.role || element.text || element.selector
 	return `${element.tagName.toLowerCase()} · ${label}`
@@ -89,7 +129,11 @@ function latestByCreatedAt<T extends { createdAt: string }>(items: T[]): T | und
 }
 
 export default function VisualBrowserInspectorView() {
-	const [panelState, setPanelState] = useState<VisualBrowserPanelState>(emptyPanelState)
+	const { t } = useTranslation("common")
+	const [panelState, setPanelState] = useState<VisualBrowserPanelState>(() => ({
+		...emptyPanelState,
+		statusMessage: t("visualBrowserInspector.emptyStatus"),
+	}))
 	const [url, setUrl] = useState("http://localhost:3000")
 	const [viewport, setViewport] = useState<VisualBrowserViewportPresetName>("mobile")
 	const [allowExternal, setAllowExternal] = useState(false)
@@ -133,6 +177,16 @@ export default function VisualBrowserInspectorView() {
 	const changeInstructionReady = changeInstruction.trim().length > 0
 	const findingsIssueCount = useMemo(
 		() => panelState.findings.reduce((count, finding) => count + finding.issues.length, 0),
+		[panelState.findings],
+	)
+	const findingsRecommendationCount = useMemo(
+		() =>
+			panelState.findings.reduce(
+				(count, finding) =>
+					count +
+					(finding.recommendationGroups?.length ?? buildFallbackRecommendationGroups(finding.issues).length),
+				0,
+			),
 		[panelState.findings],
 	)
 	const changeContextSummary = useMemo(() => {
@@ -484,7 +538,7 @@ export default function VisualBrowserInspectorView() {
 	}, [analysisPrompt, cropSelection, currentCrop, currentScreenshot, currentSessionId, selection, sendRequest])
 
 	const startFixTask = useCallback(
-		(findingIndex?: number, issueIndex?: number) => {
+		(findingIndex?: number, issueIndex?: number, recommendationIndex?: number) => {
 			const baseRequest = {
 				action: "start_fix_task" as const,
 				sessionId: currentSessionId,
@@ -494,6 +548,11 @@ export default function VisualBrowserInspectorView() {
 
 			if (typeof findingIndex === "number" && typeof issueIndex === "number") {
 				sendRequest({ ...baseRequest, scope: "issue", findingIndex, issueIndex })
+				return
+			}
+
+			if (typeof findingIndex === "number" && typeof recommendationIndex === "number") {
+				sendRequest({ ...baseRequest, scope: "recommendation", findingIndex, recommendationIndex })
 				return
 			}
 
@@ -570,11 +629,14 @@ export default function VisualBrowserInspectorView() {
 					<div>
 						<h2 className="m-0 text-lg font-semibold">Visual Browser Inspector</h2>
 						<p className="m-0 text-sm text-vscode-descriptionForeground">
-							Controlled Playwright browser capture only. Artifacts stay local under
-							<code className="ml-1 rounded bg-vscode-textCodeBlock-background px-1">
-								.roo/visual-browser-inspector
-							</code>
-							.
+							<Trans
+								i18nKey="common:visualBrowserInspector.headerDescription"
+								components={{
+									artifactPath: (
+										<code className="ml-1 rounded bg-vscode-textCodeBlock-background px-1" />
+									),
+								}}
+							/>
 						</p>
 					</div>
 					<span className="rounded border border-vscode-panel-border px-2 py-1 text-xs text-vscode-descriptionForeground">
@@ -937,8 +999,13 @@ export default function VisualBrowserInspectorView() {
 					<div>
 						<h3 className="m-0 text-base font-semibold">Findings</h3>
 						<p className="m-0 text-xs text-vscode-descriptionForeground">
-							{findingsIssueCount} actionable issue{findingsIssueCount === 1 ? "" : "s"} available for a
-							follow-up fix task.
+							{t("visualBrowserInspector.findings.groupedSummary", {
+								recommendationCount: findingsRecommendationCount,
+								issueCount: findingsIssueCount,
+							})}
+						</p>
+						<p className="m-0 text-xs text-vscode-descriptionForeground">
+							{t("visualBrowserInspector.findings.analysisBasedNotice")}
 						</p>
 					</div>
 					<button
@@ -953,149 +1020,230 @@ export default function VisualBrowserInspectorView() {
 					<p className="m-0 text-sm text-vscode-descriptionForeground">No analysis findings yet.</p>
 				) : (
 					<div className="grid gap-3">
-						{panelState.findings.map((finding, findingIndex) => (
-							<article
-								key={`${finding.summary}-${findingIndex}`}
-								className="rounded border border-vscode-panel-border p-3">
-								<div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-									<div className="grid gap-1">
-										<p className="m-0 text-sm">{finding.summary}</p>
-										{finding.recommendationSummary && (
-											<p className="m-0 text-xs text-vscode-descriptionForeground">
-												{finding.recommendationSummary}
-											</p>
-										)}
-										<div className="flex flex-wrap gap-1 text-xs text-vscode-descriptionForeground">
-											{finding.analysisMode && (
-												<span className="rounded border border-vscode-panel-border px-1.5 py-0.5">
-													{finding.analysisMode}
-												</span>
-											)}
-											{finding.scope && (
-												<span className="rounded border border-vscode-panel-border px-1.5 py-0.5">
-													{finding.scope}
-												</span>
-											)}
-											{finding.generatedAt && (
-												<span className="rounded border border-vscode-panel-border px-1.5 py-0.5">
-													{new Date(finding.generatedAt).toLocaleString()}
-												</span>
-											)}
-										</div>
-									</div>
-									<button
-										className={secondaryButtonClass}
-										type="button"
-										onClick={() => startFixTask(findingIndex)}
-										disabled={finding.issues.length === 0 || isLoading}>
-										Start Fix Task for this finding
-									</button>
-								</div>
-								{finding.privacyNotice && (
-									<p className="rounded border border-vscode-panel-border bg-vscode-editor-background px-2 py-1 text-xs text-vscode-descriptionForeground">
-										{finding.privacyNotice}
-									</p>
-								)}
-								<div className="grid gap-2">
-									{finding.issues.map((issue, issueIndex) => (
-										<div
-											key={`${issue.title}-${issueIndex}`}
-											className={`grid gap-2 rounded border p-2 text-sm ${severityClassName(issue.severity)}`}>
-											<div className="flex flex-wrap items-start justify-between gap-2">
-												<div className="flex flex-wrap items-center gap-2">
-													<strong>{issue.title}</strong>
-													<span className="rounded border border-current px-1.5 py-0.5 text-xs uppercase">
-														{issue.severity}
-													</span>
-													{issue.category && (
-														<span className="rounded border border-current px-1.5 py-0.5 text-xs">
-															{issue.category}
-														</span>
-													)}
-													{issue.fixPriority && (
-														<span className="rounded border border-current px-1.5 py-0.5 text-xs">
-															{issue.fixPriority} priority
-														</span>
-													)}
-													<span className="text-xs">
-														confidence {Math.round(issue.confidence * 100)}%
-													</span>
-												</div>
-												<button
-													className={secondaryButtonClass}
-													type="button"
-													onClick={() => startFixTask(findingIndex, issueIndex)}
-													disabled={isLoading}>
-													Start Fix Task
-												</button>
-											</div>
-											<p>{issue.visualEvidence}</p>
-											{issue.userImpact && (
-												<p className="text-vscode-descriptionForeground">
-													User impact: {issue.userImpact}
-												</p>
-											)}
-											<p className="text-vscode-descriptionForeground">
-												Likely cause: {issue.likelyCause}
-											</p>
-											<p className="text-vscode-descriptionForeground">
-												Suggested fix: {issue.suggestedFix}
-											</p>
-											{issue.recommendation && (
-												<p className="text-vscode-descriptionForeground">
-													Recommendation: {issue.recommendation}
-												</p>
-											)}
-											{issue.implementationHint && (
-												<p className="text-vscode-descriptionForeground">
-													Implementation hint: {issue.implementationHint}
-												</p>
-											)}
-											<div className="grid gap-1 text-xs text-vscode-descriptionForeground">
-												<code className="break-all rounded bg-vscode-textCodeBlock-background px-1 py-0.5">
-													{issue.selectorOrElement}
-												</code>
-												<span>Box: {formatBox(issue.boundingBox)} px</span>
-												<span>Screenshot: {issue.screenshotId || "n/a"}</span>
-												<span>Crop: {issue.cropId || "n/a"}</span>
-											</div>
-											{issue.filesToInspect.length > 0 && (
+						{panelState.findings.map((finding, findingIndex) => {
+							const recommendationGroups = finding.recommendationGroups?.length
+								? finding.recommendationGroups
+								: buildFallbackRecommendationGroups(finding.issues)
+
+							return (
+								<article
+									key={`${finding.summary}-${findingIndex}`}
+									className="rounded border border-vscode-panel-border p-3">
+									<div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+										<div className="grid gap-1">
+											<p className="m-0 text-sm">{finding.summary}</p>
+											{finding.recommendationSummary && (
 												<p className="m-0 text-xs text-vscode-descriptionForeground">
-													Files to inspect: {issue.filesToInspect.join(", ")}
+													{finding.recommendationSummary}
 												</p>
 											)}
-											{issue.verificationSteps && issue.verificationSteps.length > 0 && (
+											<div className="flex flex-wrap gap-1 text-xs text-vscode-descriptionForeground">
+												{finding.analysisMode && (
+													<span className="rounded border border-vscode-panel-border px-1.5 py-0.5">
+														{finding.analysisMode}
+													</span>
+												)}
+												{finding.scope && (
+													<span className="rounded border border-vscode-panel-border px-1.5 py-0.5">
+														{finding.scope}
+													</span>
+												)}
+												{finding.generatedAt && (
+													<span className="rounded border border-vscode-panel-border px-1.5 py-0.5">
+														{new Date(finding.generatedAt).toLocaleString()}
+													</span>
+												)}
+											</div>
+										</div>
+										<button
+											className={secondaryButtonClass}
+											type="button"
+											onClick={() => startFixTask(findingIndex)}
+											disabled={finding.issues.length === 0 || isLoading}>
+											Start Fix Task for this finding
+										</button>
+									</div>
+									{finding.privacyNotice && (
+										<p className="rounded border border-vscode-panel-border bg-vscode-editor-background px-2 py-1 text-xs text-vscode-descriptionForeground">
+											{finding.privacyNotice}
+										</p>
+									)}
+									<div className="grid gap-2">
+										{recommendationGroups.map((group, recommendationIndex) => (
+											<div
+												key={`${group.id}-${recommendationIndex}`}
+												className={`grid gap-2 rounded border p-2 text-sm ${severityClassName(group.severity)}`}>
+												<div className="flex flex-wrap items-start justify-between gap-2">
+													<div className="flex flex-wrap items-center gap-2">
+														<strong>{group.title}</strong>
+														<span className="rounded border border-current px-1.5 py-0.5 text-xs uppercase">
+															{group.severity}
+														</span>
+														{group.category && (
+															<span className="rounded border border-current px-1.5 py-0.5 text-xs">
+																{group.category}
+															</span>
+														)}
+														{group.fixPriority && (
+															<span className="rounded border border-current px-1.5 py-0.5 text-xs">
+																{group.fixPriority} priority
+															</span>
+														)}
+														<span className="text-xs">
+															confidence {Math.round(group.confidence * 100)}%
+														</span>
+														<span className="rounded border border-current px-1.5 py-0.5 text-xs">
+															{t("visualBrowserInspector.findings.affectedIssues", {
+																count: group.affectedCount,
+															})}
+														</span>
+													</div>
+													<button
+														className={secondaryButtonClass}
+														type="button"
+														onClick={() =>
+															startFixTask(findingIndex, undefined, recommendationIndex)
+														}
+														disabled={group.affectedCount === 0 || isLoading}>
+														{t(
+															"visualBrowserInspector.findings.startFixTaskForRecommendation",
+														)}
+													</button>
+												</div>
+												<p>{group.summary}</p>
+												{group.userImpact && (
+													<p className="text-vscode-descriptionForeground">
+														{t("visualBrowserInspector.findings.userImpactLabel")}{" "}
+														{group.userImpact}
+													</p>
+												)}
+												<p className="text-vscode-descriptionForeground">
+													{t("visualBrowserInspector.findings.rootCauseLabel")}{" "}
+													{group.rootCause}
+												</p>
+												<p className="text-vscode-descriptionForeground">
+													{t("visualBrowserInspector.findings.suggestedFixLabel")}{" "}
+													{group.suggestedFix}
+												</p>
+												<p className="text-vscode-descriptionForeground">
+													{t("visualBrowserInspector.findings.recommendationLabel")}{" "}
+													{group.recommendation}
+												</p>
+												{group.implementationHint && (
+													<p className="text-vscode-descriptionForeground">
+														{t("visualBrowserInspector.findings.implementationHintLabel")}{" "}
+														{group.implementationHint}
+													</p>
+												)}
 												<div className="grid gap-1 text-xs text-vscode-descriptionForeground">
 													<span className="font-medium text-vscode-foreground">
-														Verification steps
+														{t("visualBrowserInspector.findings.examplesLabel")}
 													</span>
 													<ul className="m-0 grid gap-1 pl-4">
-														{issue.verificationSteps.map((step, stepIndex) => (
-															<li key={`${step}-${stepIndex}`}>{step}</li>
-														))}
+														{group.examples
+															.slice(0, MAX_GROUPED_EXAMPLES)
+															.map((example) => (
+																<li key={`${group.id}-${example.issueIndex}`}>
+																	<span className="font-medium text-vscode-foreground">
+																		{t(
+																			"visualBrowserInspector.findings.issueNumber",
+																			{
+																				number: example.issueIndex + 1,
+																			},
+																		)}
+																		:
+																	</span>{" "}
+																	{example.visualEvidence}
+																	<div className="grid gap-0.5">
+																		<code className="break-all rounded bg-vscode-textCodeBlock-background px-1 py-0.5">
+																			{example.selectorOrElement}
+																		</code>
+																		<span>
+																			{t(
+																				"visualBrowserInspector.findings.boxLabel",
+																			)}{" "}
+																			{formatBox(example.boundingBox)} px
+																		</span>
+																	</div>
+																</li>
+															))}
 													</ul>
 												</div>
-											)}
-											{issue.relatedArtifacts && issue.relatedArtifacts.length > 0 && (
-												<div className="flex flex-wrap gap-1 text-xs text-vscode-descriptionForeground">
-													{issue.relatedArtifacts.map((artifact, artifactIndex) => (
-														<span
-															key={`${artifact.type}-${artifact.id}-${artifactIndex}`}
-															className="rounded border border-vscode-panel-border px-1.5 py-0.5">
-															{artifact.type}: {artifact.id}
-															{artifact.path ? ` · ${artifact.path}` : ""}
-															{artifact.region
-																? ` · ${formatBox(artifact.region)} px`
-																: ""}
+												{group.filesToInspect.length > 0 && (
+													<p className="m-0 text-xs text-vscode-descriptionForeground">
+														{t("visualBrowserInspector.findings.filesToInspectLabel")}{" "}
+														{group.filesToInspect.join(", ")}
+													</p>
+												)}
+												{group.verificationSteps && group.verificationSteps.length > 0 && (
+													<div className="grid gap-1 text-xs text-vscode-descriptionForeground">
+														<span className="font-medium text-vscode-foreground">
+															{t(
+																"visualBrowserInspector.findings.verificationStepsLabel",
+															)}
 														</span>
-													))}
-												</div>
-											)}
-										</div>
-									))}
-								</div>
-							</article>
-						))}
+														<ul className="m-0 grid gap-1 pl-4">
+															{group.verificationSteps.map((step, stepIndex) => (
+																<li key={`${step}-${stepIndex}`}>{step}</li>
+															))}
+														</ul>
+													</div>
+												)}
+												<details className="text-xs text-vscode-descriptionForeground">
+													<summary className="cursor-pointer text-vscode-foreground">
+														{t("visualBrowserInspector.findings.individualFindingsLabel")}
+													</summary>
+													<div className="mt-2 grid gap-2">
+														{group.issueIndexes.map((issueIndex) => {
+															const issue = finding.issues[issueIndex]
+
+															return issue ? (
+																<div
+																	key={`${issue.title}-${issueIndex}`}
+																	className="grid gap-1 rounded border border-vscode-panel-border p-2">
+																	<div className="flex flex-wrap items-start justify-between gap-2">
+																		<strong className="text-vscode-foreground">
+																			{issue.title}
+																		</strong>
+																		<button
+																			className={secondaryButtonClass}
+																			type="button"
+																			onClick={() =>
+																				startFixTask(findingIndex, issueIndex)
+																			}
+																			disabled={isLoading}>
+																			Start Fix Task
+																		</button>
+																	</div>
+																	<p className="m-0">{issue.visualEvidence}</p>
+																	<code className="break-all rounded bg-vscode-textCodeBlock-background px-1 py-0.5">
+																		{issue.selectorOrElement}
+																	</code>
+																	<span>
+																		{t("visualBrowserInspector.findings.boxLabel")}{" "}
+																		{formatBox(issue.boundingBox)} px
+																	</span>
+																	<span>
+																		{t(
+																			"visualBrowserInspector.findings.screenshotLabel",
+																		)}{" "}
+																		{issue.screenshotId || "n/a"}
+																	</span>
+																	<span>
+																		{t("visualBrowserInspector.findings.cropLabel")}{" "}
+																		{issue.cropId || "n/a"}
+																	</span>
+																</div>
+															) : null
+														})}
+													</div>
+												</details>
+											</div>
+										))}
+									</div>
+								</article>
+							)
+						})}
 					</div>
 				)}
 			</section>

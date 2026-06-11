@@ -503,6 +503,46 @@
 		"didSearch_other": "{{count}} sonuç bulundu",
 		"resultTooltip": "Benzerlik puanı: {{score}} (dosyayı açmak için tıklayın)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Çalışma alanı",
+			"global": "Global",
+			"all": "Tüm bellek"
+		},
+		"statuses": {
+			"active": "Aktif",
+			"pending": "Beklemede",
+			"stale": "Eski",
+			"superseded": "Yerine yenisi geçti",
+			"archived": "Arşivlendi",
+			"all": "Tüm durumlar"
+		},
+		"fields": {
+			"title": "Başlık",
+			"signature": "İmza",
+			"tool": "Araç",
+			"mode": "Mod",
+			"tags": "Etiketler",
+			"paths": "Yollar",
+			"score": "Puan"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo {{scope}} bellekte <code>{{query}}</code> aramak istiyor",
+		"resultsFound_one": "Eşleşen 1 bellek bulundu",
+		"resultsFound_other": "Eşleşen {{count}} bellek bulundu",
+		"noResults": "Eşleşen bellek bulunamadı",
+		"untitledResult": "Bellek sonucu"
+	},
+	"mistakeMemory": {
+		"savedPending": "Bekleyen bir hata anısı kaydedildi",
+		"savedActive": "Aktif bir hata anısı kaydedildi",
+		"savedArchived": "Hata anısı arşivlendi",
+		"approveAction": "Belleği onayla",
+		"archiveAction": "Belleği arşivle",
+		"autoApproved": "Otomatik onaylandı",
+		"reusedExisting": "Mevcut bellek güncellendi"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "Tümünü Onayla"
@@ -602,5 +642,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "Ayarları aç",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "Bellek silme onay bekliyor",
+			"completed": "Bellek silindi",
+			"cancelled": "Bellek silme iptal edildi"
+		},
+		"status": {
+			"pending": "Onay bekliyor",
+			"completed": "Tamamlandı",
+			"cancelled": "İptal edildi"
+		},
+		"fields": {
+			"scope": "Kapsam",
+			"status": "Durum",
+			"deletedScopes": "Silinen kapsamlar"
+		}
 	}
 }

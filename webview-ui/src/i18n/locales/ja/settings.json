@@ -35,6 +35,7 @@
 		"checkpoints": "チェックポイント",
 		"notifications": "通知",
 		"contextManagement": "コンテキスト",
+		"memory": "メモリ",
 		"terminal": "ターミナル",
 		"slashCommands": "スラッシュコマンド",
 		"prompts": "プロンプト",
@@ -257,8 +258,12 @@
 			"description": "有効な並列タスク計画を自動承認し、計画プレビューのモーダルを表示せずにエージェントを開始します"
 		},
 		"visualBrowserInspector": {
-			"label": "ブラウザー",
+			"label": "Visual Browser Inspector",
 			"description": "チャットからの Visual Browser Inspector アクションを自動承認します。制御されたブラウザーページのオープン、スクリーンショット、DOM インスペクション、切り抜き、分析、ページ操作が含まれます。これによりファイル編集やターミナルコマンドは許可されません。"
+		},
+		"memory": {
+			"label": "メモリ",
+			"description": "チャットやツールエラーからのミスメモリ保存を自動承認します。オフの場合でも、保留中のメモリはチャットまたはメモリ設定から確認できます。"
 		},
 		"imageGeneration": {
 			"label": "画像",
@@ -817,6 +822,114 @@
 		"enableSubfolderRules": {
 			"label": "サブフォルダルールを有効化",
 			"description": "サブディレクトリから.roo/rulesとAGENTS.mdファイルを再帰的に検出してロードします。パッケージごとのルールを持つモノレポに便利です。"
+		}
+	},
+	"memory": {
+		"description": "C Code がこのワークスペースとグローバルコンテキストでメモリを取得、保存、管理する方法を設定します。",
+		"sections": {
+			"coreBehavior": {
+				"title": "基本動作",
+				"description": "メモリをいつ実行するか、C が使用できるメモリスコープを選択します。"
+			},
+			"retrievalLimits": {
+				"title": "取得制限",
+				"description": "各リクエストに含めるメモリコンテキストの量を調整します。"
+			},
+			"management": {
+				"title": "メモリ管理",
+				"description": "メモリ数を確認し、保留中、アーカイブ済み、保存済みの学習内容を管理します。"
+			},
+			"advanced": {
+				"title": "詳細",
+				"description": "保留中の mistake-memory 候補の保持を制御します。"
+			}
+		},
+		"mode": {
+			"label": "メモリモード",
+			"description": "自動モードでは、context token が 1M 未満のモデルでメモリを有効にし、それ以上の大きなコンテキストのモデルでは、手動で上書きしない限り無効にするよ。",
+			"options": {
+				"auto": "自動",
+				"enabled": "常に有効",
+				"disabled": "無効"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "ワークスペースメモリを使う",
+			"description": "絶対ワークスペースパスを保存せずに、このワークスペースに限定した教訓を取得して保存するよ。"
+		},
+		"globalEnabled": {
+			"label": "グローバルメモリを使う",
+			"description": "複数のワークスペースに適用できる教訓を取得して保存するよ。"
+		},
+		"mistakeMemoryEnabled": {
+			"label": "ミスのメモリを記録する",
+			"description": "修正、検証失敗、繰り返し発生する tool エラーから保留中の教訓を作成するよ。保留中の教訓は承認されるまで永続的には使われないよ。"
+		},
+		"autoApproveMistakeMemory": {
+			"label": "ミスのメモリを自動承認",
+			"description": "新しいミスのメモリレッスンを、編集後すぐにアクティブとして保存し、保留中の候補を作成しません。自動化を信頼できる場合以外はオフのままにしてください。"
+		},
+		"maxCharacters": {
+			"label": "メモリ文字数予算",
+			"description": "リクエストに注入するメモリコンテキストの最大文字数。コンテキストに余裕がない場合、メモリが最初に短縮またはスキップされるよ。"
+		},
+		"maxEntries": {
+			"label": "最大メモリエントリ数",
+			"description": "リクエストに含めるアクティブなメモリエントリの最大数。"
+		},
+		"pendingCandidateLimit": {
+			"label": "保留中のミスメモリ制限",
+			"description": "古い候補が削除される前に保持する、保留中の mistake-memory 候補の最大数。"
+		},
+		"management": {
+			"title": "メモリ管理",
+			"description": "ワークスペースとグローバルメモリの件数を確認し、保留中の教訓を承認し、メモリをアーカイブするか、保存済みメモリをクリアするよ。"
+		},
+		"summary": {
+			"workspace": "ワークスペースメモリ",
+			"global": "グローバルメモリ",
+			"active": "アクティブ",
+			"pending": "保留中",
+			"archived": "アーカイブ済み",
+			"total": "合計"
+		},
+		"scope": {
+			"workspace": "ワークスペース",
+			"global": "グローバル"
+		},
+		"status": {
+			"active": "アクティブ",
+			"pending": "保留中",
+			"stale": "古い",
+			"superseded": "置き換え済み",
+			"archived": "アーカイブ済み"
+		},
+		"kind": {
+			"lesson": "レッスン",
+			"mistake": "ミス"
+		},
+		"records": {
+			"count": "{{count}} 件の記録",
+			"empty": "このスコープに保存済みメモリはありません。",
+			"lesson": "レッスン",
+			"tags": "タグ",
+			"pathHints": "パスヒント",
+			"created": "作成日",
+			"updated": "更新日",
+			"lastUsed": "最終使用"
+		},
+		"actions": {
+			"refresh": "更新",
+			"approvePending": "保留中を承認",
+			"archivePending": "保留中をアーカイブ",
+			"archiveAll": "すべてアーカイブ",
+			"clear": "クリア"
+		},
+		"confirm": {
+			"title": "メモリアクションを確認",
+			"description": "このメモリアクションは保存済みの教訓を変更または削除するよ。クリアしたメモリは元に戻せないよ。",
+			"cancel": "キャンセル",
+			"confirm": "続行"
 		}
 	},
 	"terminal": {

@@ -502,6 +502,46 @@
 		"didSearch_other": "Encontrados {{count}} resultados",
 		"resultTooltip": "Pontuação de similaridade: {{score}} (clique para abrir o arquivo)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Workspace",
+			"global": "Global",
+			"all": "Toda a memória"
+		},
+		"statuses": {
+			"active": "Ativa",
+			"pending": "Pendente",
+			"stale": "Desatualizada",
+			"superseded": "Substituída",
+			"archived": "Arquivada",
+			"all": "Todos os status"
+		},
+		"fields": {
+			"title": "Título",
+			"signature": "Assinatura",
+			"tool": "Ferramenta",
+			"mode": "Modo",
+			"tags": "Tags",
+			"paths": "Caminhos",
+			"score": "Pontuação"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo quer pesquisar na memória {{scope}} por <code>{{query}}</code>",
+		"resultsFound_one": "1 memória correspondente encontrada",
+		"resultsFound_other": "{{count}} memórias correspondentes encontradas",
+		"noResults": "Nenhuma memória correspondente encontrada",
+		"untitledResult": "Resultado de memória"
+	},
+	"mistakeMemory": {
+		"savedPending": "Memória de erro pendente salva",
+		"savedActive": "Memória de erro ativa salva",
+		"savedArchived": "Memória de erro arquivada",
+		"approveAction": "Aprovar memória",
+		"archiveAction": "Arquivar memória",
+		"autoApproved": "Aprovada automaticamente",
+		"reusedExisting": "Memória existente atualizada"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "Aprovar tudo"
@@ -601,5 +641,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "Abrir configurações",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "Limpeza de memória aguardando aprovação",
+			"completed": "Memória apagada",
+			"cancelled": "Limpeza de memória cancelada"
+		},
+		"status": {
+			"pending": "Aguardando aprovação",
+			"completed": "Concluída",
+			"cancelled": "Cancelada"
+		},
+		"fields": {
+			"scope": "Escopo",
+			"status": "Status",
+			"deletedScopes": "Escopos apagados"
+		}
 	}
 }

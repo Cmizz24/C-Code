@@ -11,7 +11,139 @@
 	"landing": {
 		"greeting": "Добро пожаловать в C Code!",
 		"introduction": "С набором встроенных и расширяемых Режимов, C Code позволяет вам планировать, проектировать, писать код, отлаживать и повышать продуктивность как никогда раньше.",
-		"getStarted": "Get Started"
+		"getStarted": "Get Started",
+		"setupLocalAi": "Настроить локальный AI",
+		"localAi": {
+			"title": "Настроить локальный AI",
+			"description": "Определи своё оборудование, выбери Ollama или LM Studio и настрой локальную модель."
+		},
+		"provider": {
+			"title": "Использовать API-провайдера",
+			"description": "Выбери OpenRouter или используй ключ другого провайдера."
+		}
+	},
+	"localSetup": {
+		"heading": "Настроить локальный AI",
+		"subtitle": "Ответь на несколько вопросов, и C Code поможет настроить Ollama или использовать существующий сервер LM Studio.",
+		"hardware": {
+			"heading": "Проверка оборудования и runtime",
+			"detecting": "Определяем компьютер и локальные AI runtimes…",
+			"system": "{{os}} {{arch}}, ядер CPU: {{cores}}, RAM: {{ram}}",
+			"disk": "Свободный диск: {{free}}",
+			"gpuDetected": "GPU обнаружен: {{gpu}}",
+			"gpuUnknown": "Статус GPU неизвестен. Мы будем консервативны и не будем считать, что GPU точно нет.",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "Обновить проверку"
+		},
+		"runtimeStatus": {
+			"running": "запущен",
+			"installed-not-running": "установлен, не запущен",
+			"missing": "отсутствует",
+			"unknown": "неизвестно",
+			"detection-failed": "сбой обнаружения"
+		},
+		"form": {
+			"usage": {
+				"label": "Как ты будешь использовать локальный AI?",
+				"light": "Лёгкая помощь с кодом",
+				"daily": "Ежедневное кодирование",
+				"agentic": "Большие рефакторинги и agentic-задачи"
+			},
+			"preference": {
+				"label": "Что должна оптимизировать рекомендация?",
+				"speed": "Скорость",
+				"balanced": "Баланс",
+				"quality": "Качество"
+			},
+			"privacy": {
+				"label": "Предпочтение приватности",
+				"localOnly": "Только локально",
+				"localPreferred": "Предпочитаю локально, можно настроить позже"
+			},
+			"diskBudget": "Бюджет диска для модели (GB)",
+			"runtime": {
+				"label": "Выбор runtime",
+				"existing": "Использовать существующий локальный runtime",
+				"ollama": "Настроить Ollama",
+				"manual": "Ручная настройка",
+				"lmStudio": "Использовать LM Studio"
+			},
+			"providerPreference": {
+				"label": "Предпочтение обнаруженного локального runtime"
+			},
+			"provider": {
+				"label": "Локальный провайдер",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "Самый автоматизированный путь: C Code может скачать рекомендованную модель Ollama с отображением прогресса.",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "Используй LM Studio, если предпочитаешь его менеджер моделей в приложении и локальный сервер.",
+				"lmStudioReadyDescription": "LM Studio запущен, доступно моделей: {{models}}.",
+				"readyBadge": "Готово"
+			}
+		},
+		"actions": {
+			"manual": "Ручная настройка",
+			"recommend": "Порекомендовать модель",
+			"recommending": "Создаём рекомендацию…",
+			"adjust": "Изменить ответы",
+			"installHelp": "Помощь по установке Ollama",
+			"confirmDownload": "Подтвердить и скачать",
+			"cancel": "Отменить настройку",
+			"retry": "Повторить скачивание",
+			"openOllamaDownload": "Открыть скачивание Ollama",
+			"useApiProvider": "Использовать API-провайдера",
+			"useLmStudio": "Использовать модель LM Studio",
+			"openLmStudioDownload": "Открыть загрузку LM Studio",
+			"openLmStudioServerDocs": "Открыть руководство по серверу LM Studio"
+		},
+		"recommendation": {
+			"heading": "Рекомендованная локальная модель",
+			"apiHeading": "Рекомендуется API-провайдер",
+			"apiDescription": "Этот компьютер может запускать локальные модели для coding медленно или с ограниченным качеством. API-провайдер — рекомендуемый путь для лучшего первого запуска.",
+			"manualStillAvailable": "Ты всё ещё можешь выбрать ручную локальную настройку, если хочешь поэкспериментировать с Ollama.",
+			"size": "Примерный размер скачивания: {{size}}",
+			"disk": "Обнаружено свободного диска: {{free}}",
+			"runtime": "Runtime/провайдер: {{runtime}} через официальный локальный API",
+			"confidence": "Уверенность рекомендации: {{confidence}}",
+			"privacyHeading": "Примечание о приватности",
+			"warnings": "Перед скачиванием",
+			"weakHardwareWarning": "Локальные AI-модели могут работать медленно или не так, как ожидается, на этом оборудовании."
+		},
+		"confidence": {
+			"low": "низкая",
+			"medium": "средняя",
+			"high": "высокая"
+		},
+		"progress": {
+			"heading": "Настройка локального AI",
+			"starting": "Запускаем настройку локального AI…",
+			"model": "Модель: {{model}}",
+			"percent": "Готово {{percent}}%",
+			"waiting": "Ожидание прогресса локального runtime…"
+		},
+		"manual": {
+			"heading": "Ручная настройка локального AI",
+			"description": "C Code не будет запускать установщики скрытно. Установи Ollama или LM Studio самостоятельно, запусти локальный сервер, затем вернись и обнови проверку.",
+			"stepInstall": "Скачай Ollama или LM Studio с официального сайта.",
+			"stepStart": "Запусти Ollama или локальный сервер LM Studio и убедись, что он доступен по локальному URL по умолчанию.",
+			"stepRetry": "Вернись сюда, обнови проверку runtime и снова запусти рекомендацию."
+		},
+		"success": {
+			"heading": "Локальный AI готов",
+			"description": "{{model}} готова к локальному инференсу.",
+			"profile": "C Code сохранил и активировал профиль провайдера Local AI (Ollama).",
+			"lmStudioProfile": "C Code сохранил и активировал профиль провайдера Local AI (LM Studio)."
+		},
+		"lmStudio": {
+			"statusHeading": "Статус LM Studio: {{status}}",
+			"ready": "Выбери одну из моделей, о которых сообщил LM Studio, затем используй её для создания локального профиля провайдера.",
+			"noModels": "LM Studio доступен, но не сообщил о пригодных моделях. Скачай или загрузи чат-модель в LM Studio, затем обнови проверку.",
+			"serverStopped": "Похоже, LM Studio установлен, но локальный сервер не запущен. Запусти локальный сервер в LM Studio, затем обнови проверку.",
+			"detectionFailed": "Обнаружение LM Studio не удалось: {{error}}",
+			"missing": "LM Studio не установлен или недоступен. Открой официальную страницу загрузки, установи LM Studio, скачай модель, запусти локальный сервер и обнови проверку.",
+			"unknownError": "неизвестная ошибка",
+			"modelLabel": "Модель LM Studio"
+		}
 	},
 	"providerSignup": {
 		"heading": "Выберите поставщика услуг",

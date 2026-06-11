@@ -10,6 +10,7 @@ interface AutoApprovalToggles {
 	alwaysAllowParallelTasks?: boolean
 	alwaysAllowVisualBrowserInspector?: boolean
 	alwaysAllowImageGeneration?: boolean
+	memoryAutoApproveMistakeMemory?: boolean
 	alwaysAllowFollowupQuestions?: boolean
 }
 

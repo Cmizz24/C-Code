@@ -9,7 +9,14 @@ vi.mock("../../core/prompts/sections/custom-instructions", () => ({
 	addCustomInstructions: vi.fn().mockResolvedValue("Combined instructions"),
 }))
 
-import { FileRestrictionError, getFullModeDetails, modes, getModeSelection } from "../modes"
+import {
+	FileRestrictionError,
+	defaultModeSlug,
+	getFullModeDetails,
+	getModeSelection,
+	modes,
+	normalizeModeSlug,
+} from "../modes"
 import { isToolAllowedForMode } from "../../core/tools/validateToolUse"
 import { addCustomInstructions } from "../../core/prompts/sections/custom-instructions"
 
@@ -601,7 +608,7 @@ describe("FileRestrictionError", () => {
 			const result = await getFullModeDetails("non-existent")
 			expect(result).toMatchObject({
 				...modes[0],
-				// The first mode (architect) has its own customInstructions
+				// The first mode has its own customInstructions
 			})
 		})
 	})
@@ -674,6 +681,21 @@ describe("getModeSelection", () => {
 		const selection = getModeSelection("ask")
 		expect(selection.roleDefinition).toBe(builtInExplainMode.roleDefinition)
 		expect(selection.baseInstructions).toBe(builtInExplainMode.customInstructions || "")
+	})
+
+	test("orcestrator typo falls back to orchestrator mode", () => {
+		const orchestratorMode = modes.find((m) => m.slug === "orchestrator")!
+		const selection = getModeSelection("orcestrator")
+		expect(normalizeModeSlug("orcestrator")).toBe("orchestrator")
+		expect(selection.roleDefinition).toBe(orchestratorMode.roleDefinition)
+		expect(selection.baseInstructions).toBe(orchestratorMode.customInstructions || "")
+	})
+
+	test("orchestrator is the default primary mode", () => {
+		expect(defaultModeSlug).toBe("orchestrator")
+		expect(modes[0].slug).toBe("orchestrator")
+		expect(modes[0].roleDefinition).toContain("primary workflow orchestrator")
+		expect(modes[0].customInstructions).toContain("main control plane")
 	})
 
 	test("should prioritize customMode over built-in mode", () => {

@@ -502,6 +502,46 @@
 		"didSearch_other": "Znaleziono {{count}} wyników",
 		"resultTooltip": "Wynik podobieństwa: {{score}} (kliknij, aby otworzyć plik)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Workspace",
+			"global": "Globalna",
+			"all": "Cała pamięć"
+		},
+		"statuses": {
+			"active": "Aktywna",
+			"pending": "Oczekująca",
+			"stale": "Nieaktualna",
+			"superseded": "Zastąpiona",
+			"archived": "Zarchiwizowana",
+			"all": "Wszystkie stany"
+		},
+		"fields": {
+			"title": "Tytuł",
+			"signature": "Podpis",
+			"tool": "Narzędzie",
+			"mode": "Tryb",
+			"tags": "Tagi",
+			"paths": "Ścieżki",
+			"score": "Wynik"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo chce przeszukać pamięć {{scope}} pod kątem <code>{{query}}</code>",
+		"resultsFound_one": "Znaleziono 1 pasującą pamięć",
+		"resultsFound_other": "Znaleziono {{count}} pasujących pamięci",
+		"noResults": "Nie znaleziono pasujących pamięci",
+		"untitledResult": "Wynik pamięci"
+	},
+	"mistakeMemory": {
+		"savedPending": "Zapisano oczekującą pamięć błędu",
+		"savedActive": "Zapisano aktywną pamięć błędu",
+		"savedArchived": "Zarchiwizowano pamięć błędu",
+		"approveAction": "Zatwierdź pamięć",
+		"archiveAction": "Archiwizuj pamięć",
+		"autoApproved": "Zatwierdzono automatycznie",
+		"reusedExisting": "Zaktualizowano istniejącą pamięć"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "Zatwierdź wszystko"
@@ -601,5 +641,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "Otwórz ustawienia",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "Czyszczenie pamięci czeka na zatwierdzenie",
+			"completed": "Pamięć wyczyszczona",
+			"cancelled": "Czyszczenie pamięci anulowane"
+		},
+		"status": {
+			"pending": "Oczekuje na zatwierdzenie",
+			"completed": "Ukończono",
+			"cancelled": "Anulowano"
+		},
+		"fields": {
+			"scope": "Zakres",
+			"status": "Status",
+			"deletedScopes": "Usunięte zakresy"
+		}
 	}
 }

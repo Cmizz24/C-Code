@@ -42,6 +42,7 @@ describe("presentAssistantMessage - Unknown Tool Handling", () => {
 			},
 			recordToolUsage: vi.fn(),
 			recordToolError: vi.fn(),
+			drainQueuedMistakeMemories: vi.fn().mockResolvedValue(undefined),
 			toolRepetitionDetector: {
 				check: vi.fn().mockReturnValue({ allowExecution: true }),
 			},

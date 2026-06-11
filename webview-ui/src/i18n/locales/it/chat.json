@@ -502,6 +502,46 @@
 		"didSearch_other": "Trovati {{count}} risultati",
 		"resultTooltip": "Punteggio di somiglianza: {{score}} (clicca per aprire il file)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Workspace",
+			"global": "Globale",
+			"all": "Tutta la memoria"
+		},
+		"statuses": {
+			"active": "Attiva",
+			"pending": "In sospeso",
+			"stale": "Obsoleta",
+			"superseded": "Sostituita",
+			"archived": "Archiviata",
+			"all": "Tutti gli stati"
+		},
+		"fields": {
+			"title": "Titolo",
+			"signature": "Firma",
+			"tool": "Strumento",
+			"mode": "Modalità",
+			"tags": "Tag",
+			"paths": "Percorsi",
+			"score": "Punteggio"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo vuole cercare nella memoria {{scope}} <code>{{query}}</code>",
+		"resultsFound_one": "Trovata 1 memoria corrispondente",
+		"resultsFound_other": "Trovate {{count}} memorie corrispondenti",
+		"noResults": "Nessuna memoria corrispondente trovata",
+		"untitledResult": "Risultato memoria"
+	},
+	"mistakeMemory": {
+		"savedPending": "Memoria di errore in sospeso salvata",
+		"savedActive": "Memoria di errore attiva salvata",
+		"savedArchived": "Memoria di errore archiviata",
+		"approveAction": "Approva memoria",
+		"archiveAction": "Archivia memoria",
+		"autoApproved": "Approvata automaticamente",
+		"reusedExisting": "Memoria esistente aggiornata"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "Approva tutto"
@@ -601,5 +641,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "Apri impostazioni",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "Cancellazione della memoria in attesa di approvazione",
+			"completed": "Memoria cancellata",
+			"cancelled": "Cancellazione della memoria annullata"
+		},
+		"status": {
+			"pending": "In attesa di approvazione",
+			"completed": "Completata",
+			"cancelled": "Annullata"
+		},
+		"fields": {
+			"scope": "Ambito",
+			"status": "Stato",
+			"deletedScopes": "Ambiti eliminati"
+		}
 	}
 }

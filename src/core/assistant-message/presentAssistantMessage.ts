@@ -42,6 +42,9 @@ import { visualBrowserInspectorTool } from "../tools/VisualBrowserInspectorTool"
 import { applyDiffTool as applyDiffToolClass } from "../tools/ApplyDiffTool"
 import { isValidToolName, validateToolUse } from "../tools/validateToolUse"
 import { codebaseSearchTool } from "../tools/CodebaseSearchTool"
+import { memorySearchTool } from "../tools/MemorySearchTool"
+import { memoryWipeTool } from "../tools/MemoryWipeTool"
+import { mistakeMemoryTool } from "../tools/MistakeMemoryTool"
 import { coordinateAgentsTool } from "../tools/CoordinateAgentsTool"
 import { handlePlanParallelTasks } from "../tools/planParallelTasks"
 
@@ -470,6 +473,12 @@ export async function presentAssistantMessage(cline: Task) {
 						return `[${block.name} to '${block.params.mode_slug}'${block.params.reason ? ` because: ${block.params.reason}` : ""}]`
 					case "codebase_search":
 						return `[${block.name} for '${block.params.query}']`
+					case "memory_search":
+						return `[${block.name} for '${block.params.query}']`
+					case "mistake_memory":
+						return `[${block.name}]`
+					case "memory_wipe":
+						return `[${block.name} for '${block.params.scope ?? "workspace"}']`
 					case "read_command_output":
 						return `[${block.name} for '${block.params.artifact_id}']`
 					case "update_todo_list":
@@ -709,6 +718,15 @@ export async function presentAssistantMessage(cline: Task) {
 					)
 				} catch (error) {
 					cline.consecutiveMistakeCount++
+					try {
+						cline.recordToolError(
+							block.name as ToolName,
+							error instanceof Error ? error.message : String(error),
+							"validation_error",
+						)
+					} catch {
+						// Best-effort only
+					}
 					// For validation errors (unknown tool, tool not allowed for mode), we need to:
 					// 1. Send a tool_result with the error (required for native tool calling)
 					// 2. NOT set didAlreadyUseTool = true (the tool was never executed, just failed validation)
@@ -735,6 +753,12 @@ export async function presentAssistantMessage(cline: Task) {
 
 				// If execution is not allowed, notify user and break.
 				if (!repetitionCheck.allowExecution && repetitionCheck.askUser) {
+					const repetitionError = `Tool call repetition limit reached for ${block.name}. Please try a different approach.`
+					try {
+						cline.recordToolError(block.name as ToolName, repetitionError)
+					} catch {
+						// Best-effort only
+					}
 					// Handle repetition similar to mistake_limit_reached pattern.
 					const { response, text, images } = await cline.ask(
 						repetitionCheck.askUser.messageKey as ClineAsk,
@@ -756,11 +780,7 @@ export async function presentAssistantMessage(cline: Task) {
 					}
 
 					// Return tool result message about the repetition
-					pushToolResult(
-						formatResponse.toolError(
-							`Tool call repetition limit reached for ${block.name}. Please try a different approach.`,
-						),
-					)
+					pushToolResult(formatResponse.toolError(repetitionError))
 					break
 				}
 			}
@@ -839,6 +859,27 @@ export async function presentAssistantMessage(cline: Task) {
 					break
 				case "codebase_search":
 					await codebaseSearchTool.handle(cline, block as ToolUse<"codebase_search">, {
+						askApproval,
+						handleError,
+						pushToolResult,
+					})
+					break
+				case "memory_search":
+					await memorySearchTool.handle(cline, block as ToolUse<"memory_search">, {
+						askApproval,
+						handleError,
+						pushToolResult,
+					})
+					break
+				case "mistake_memory":
+					await mistakeMemoryTool.handle(cline, block as ToolUse<"mistake_memory">, {
+						askApproval,
+						handleError,
+						pushToolResult,
+					})
+					break
+				case "memory_wipe":
+					await memoryWipeTool.handle(cline, block as ToolUse<"memory_wipe">, {
 						askApproval,
 						handleError,
 						pushToolResult,
@@ -1083,6 +1124,14 @@ export async function presentAssistantMessage(cline: Task) {
 			break
 		}
 	}
+
+	await cline.drainQueuedMistakeMemories().catch((error) => {
+		console.warn(
+			`[presentAssistantMessage] Failed to drain queued mistake memories: ${
+				error instanceof Error ? error.message : String(error)
+			}`,
+		)
+	})
 
 	// Seeing out of bounds is fine, it means that the next too call is being
 	// built up and ready to add to assistantMessageContent to present.

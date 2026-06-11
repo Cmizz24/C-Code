@@ -71,6 +71,7 @@ function createBackgroundAgentTask(
 		currentStreamingDidCheckpoint: false,
 		recordToolUsage: vi.fn(),
 		recordToolError: vi.fn(),
+		drainQueuedMistakeMemories: vi.fn().mockResolvedValue(undefined),
 		markAgentTerminal: vi.fn(),
 		cancelCurrentRequest: vi.fn(),
 		emitFinalTokenUsageUpdate: vi.fn(),

@@ -1,6 +1,31 @@
 import type { ProviderSettings } from "@roo-code/types"
 
-import { buildApiHandler, SingleCompletionHandler } from "../api"
+import { buildApiHandler } from "../api"
+import type { SingleCompletionHandler } from "../api"
+import { SINGLE_COMPLETION_SYSTEM_PROMPT } from "../shared/single-completion"
+
+type BuiltApiHandler = ReturnType<typeof buildApiHandler>
+
+function hasCompletePrompt(handler: BuiltApiHandler): handler is BuiltApiHandler & SingleCompletionHandler {
+	const candidate = handler as Partial<SingleCompletionHandler>
+	return typeof candidate.completePrompt === "function"
+}
+
+async function completePromptViaCreateMessage(handler: BuiltApiHandler, promptText: string): Promise<string> {
+	let completion = ""
+
+	for await (const chunk of handler.createMessage(SINGLE_COMPLETION_SYSTEM_PROMPT, [
+		{ role: "user" as const, content: promptText },
+	])) {
+		if (chunk.type === "text") {
+			completion += chunk.text
+		} else if (chunk.type === "error") {
+			throw new Error(chunk.message || chunk.error || "Prompt enhancement failed")
+		}
+	}
+
+	return completion
+}
 
 /**
  * Enhances a prompt using the configured API without creating a full Cline instance or task history.
@@ -16,10 +41,9 @@ export async function singleCompletionHandler(apiConfiguration: ProviderSettings
 
 	const handler = buildApiHandler(apiConfiguration)
 
-	// Check if handler supports single completions
-	if (!("completePrompt" in handler)) {
-		throw new Error("The selected API provider does not support prompt enhancement")
+	if (hasCompletePrompt(handler)) {
+		return handler.completePrompt(promptText)
 	}
 
-	return (handler as SingleCompletionHandler).completePrompt(promptText)
+	return completePromptViaCreateMessage(handler, promptText)
 }

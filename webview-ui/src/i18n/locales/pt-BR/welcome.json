@@ -11,7 +11,139 @@
 	"landing": {
 		"greeting": "Bem-vindo ao C Code!",
 		"introduction": "Com uma variedade de Modos integrados e extensíveis, o C Code permite que você planeje, arquitete, codifique, depure e aumente sua produtividade como nunca antes.",
-		"getStarted": "Get Started"
+		"getStarted": "Get Started",
+		"setupLocalAi": "Configurar AI local",
+		"localAi": {
+			"title": "Configurar AI local",
+			"description": "Detecte seu hardware, escolha Ollama ou LM Studio e configure um modelo local."
+		},
+		"provider": {
+			"title": "Usar um provedor de API",
+			"description": "Escolha OpenRouter ou use uma chave de outro provedor."
+		}
+	},
+	"localSetup": {
+		"heading": "Configurar AI local",
+		"subtitle": "Responda algumas perguntas e o C Code ajudará você a configurar o Ollama ou usar um servidor LM Studio existente.",
+		"hardware": {
+			"heading": "Verificação de hardware e runtime",
+			"detecting": "Detectando seu computador e runtimes de AI locais…",
+			"system": "{{os}} {{arch}}, {{cores}} núcleos de CPU, {{ram}} de RAM",
+			"disk": "Disco livre: {{free}}",
+			"gpuDetected": "GPU detectada: {{gpu}}",
+			"gpuUnknown": "Status da GPU desconhecido. Vamos ser conservadores em vez de presumir que você não tem GPU.",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "Atualizar verificação"
+		},
+		"runtimeStatus": {
+			"running": "em execução",
+			"installed-not-running": "instalado, não em execução",
+			"missing": "ausente",
+			"unknown": "desconhecido",
+			"detection-failed": "detecção falhou"
+		},
+		"form": {
+			"usage": {
+				"label": "Como você vai usar a AI local?",
+				"light": "Ajuda leve com código",
+				"daily": "Programação diária",
+				"agentic": "Grandes refactors e tarefas agentic"
+			},
+			"preference": {
+				"label": "Para que a recomendação deve otimizar?",
+				"speed": "Velocidade",
+				"balanced": "Equilíbrio",
+				"quality": "Qualidade"
+			},
+			"privacy": {
+				"label": "Preferência de privacidade",
+				"localOnly": "Somente local",
+				"localPreferred": "Prefiro local, posso configurar depois"
+			},
+			"diskBudget": "Orçamento de disco do modelo (GB)",
+			"runtime": {
+				"label": "Escolha de runtime",
+				"existing": "Usar um runtime local existente",
+				"ollama": "Configurar Ollama",
+				"manual": "Configuração manual",
+				"lmStudio": "Usar LM Studio"
+			},
+			"providerPreference": {
+				"label": "Preferência de runtime local detectado"
+			},
+			"provider": {
+				"label": "Provedor local",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "Caminho mais automatizado: o C Code pode baixar o modelo Ollama recomendado com progresso.",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "Use LM Studio se você prefere o gerenciador de modelos baseado em app e o servidor local dele.",
+				"lmStudioReadyDescription": "LM Studio está em execução com {{models}} modelo(s) disponível(is).",
+				"readyBadge": "Pronto"
+			}
+		},
+		"actions": {
+			"manual": "Configuração manual",
+			"recommend": "Recomendar um modelo",
+			"recommending": "Criando recomendação…",
+			"adjust": "Ajustar respostas",
+			"installHelp": "Ajuda de instalação do Ollama",
+			"confirmDownload": "Confirmar e baixar",
+			"cancel": "Cancelar configuração",
+			"retry": "Tentar baixar novamente",
+			"openOllamaDownload": "Abrir download do Ollama",
+			"useApiProvider": "Usar um provedor de API",
+			"useLmStudio": "Usar modelo do LM Studio",
+			"openLmStudioDownload": "Abrir download do LM Studio",
+			"openLmStudioServerDocs": "Abrir guia do servidor LM Studio"
+		},
+		"recommendation": {
+			"heading": "Modelo local recomendado",
+			"apiHeading": "Provedor de API recomendado",
+			"apiDescription": "Este computador pode executar modelos de codificação locais lentamente ou com qualidade limitada. Um provedor de API é o caminho recomendado para uma melhor primeira experiência.",
+			"manualStillAvailable": "Você ainda pode escolher a configuração local manual se quiser experimentar com o Ollama.",
+			"size": "Download aproximado: {{size}}",
+			"disk": "Disco livre detectado: {{free}}",
+			"runtime": "Runtime/provedor: {{runtime}} pela API local oficial",
+			"confidence": "Confiança da recomendação: {{confidence}}",
+			"privacyHeading": "Nota de privacidade",
+			"warnings": "Antes de baixar",
+			"weakHardwareWarning": "Modelos de AI locais podem ficar lentos ou não funcionar como esperado neste hardware."
+		},
+		"confidence": {
+			"low": "baixa",
+			"medium": "média",
+			"high": "alta"
+		},
+		"progress": {
+			"heading": "Configurando AI local",
+			"starting": "Iniciando configuração de AI local…",
+			"model": "Modelo: {{model}}",
+			"percent": "{{percent}}% concluído",
+			"waiting": "Aguardando progresso do runtime local…"
+		},
+		"manual": {
+			"heading": "Configuração manual de AI local",
+			"description": "O C Code não executará instaladores silenciosamente. Instale Ollama ou LM Studio por conta própria, inicie o servidor local e volte para atualizar a verificação.",
+			"stepInstall": "Baixe Ollama ou LM Studio no site oficial.",
+			"stepStart": "Inicie o Ollama ou o servidor local do LM Studio e confirme que ele está acessível na URL local padrão.",
+			"stepRetry": "Volte aqui, atualize a verificação do runtime e execute a recomendação novamente."
+		},
+		"success": {
+			"heading": "A AI local está pronta",
+			"description": "{{model}} está pronto para inferência local.",
+			"profile": "O C Code salvou e ativou um perfil de provedor Local AI (Ollama).",
+			"lmStudioProfile": "O C Code salvou e ativou um perfil de provedor Local AI (LM Studio)."
+		},
+		"lmStudio": {
+			"statusHeading": "Status do LM Studio: {{status}}",
+			"ready": "Escolha um dos modelos informados pelo LM Studio e use-o para criar um perfil de provedor local.",
+			"noModels": "O LM Studio está acessível, mas não informou modelos utilizáveis. Baixe ou carregue um modelo de chat no LM Studio e atualize a verificação.",
+			"serverStopped": "O LM Studio parece estar instalado, mas o servidor local não está em execução. Inicie o servidor local no LM Studio e atualize a verificação.",
+			"detectionFailed": "A detecção do LM Studio falhou: {{error}}",
+			"missing": "O LM Studio não está instalado ou não está acessível. Abra a página oficial de download, instale o LM Studio, baixe um modelo, inicie o servidor local e atualize a verificação.",
+			"unknownError": "erro desconhecido",
+			"modelLabel": "Modelo do LM Studio"
+		}
 	},
 	"providerSignup": {
 		"heading": "Escolha seu provedor",

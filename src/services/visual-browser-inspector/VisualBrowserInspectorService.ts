@@ -26,6 +26,7 @@ import type {
 	VisualBrowserNavigationParams,
 	VisualBrowserOpenParams,
 	VisualBrowserPanelState,
+	VisualBrowserRecommendationGroup,
 	VisualBrowserScreenshotMetadata,
 	VisualBrowserScrollParams,
 	VisualBrowserSessionMetadata,
@@ -41,6 +42,7 @@ import type {
 import { visualBrowserViewportPresets } from "@roo-code/types"
 
 import { safeWriteJson } from "../../utils/safeWriteJson"
+import { ensureVisualBrowserPlaywright } from "./PlaywrightBrowserManager"
 
 const VISUAL_BROWSER_ARTIFACT_ROOT = ".roo/visual-browser-inspector"
 const DEFAULT_NAVIGATION_TIMEOUT_MS = 30_000
@@ -48,35 +50,21 @@ const DEFAULT_ACTION_TIMEOUT_MS = 10_000
 const MAX_REGION_ELEMENTS = 50
 const MAX_FIX_TASK_ISSUES = 20
 const MAX_CHANGE_TASK_CONTEXT_ISSUES = 10
-
-type PlaywrightRuntime = Pick<typeof import("playwright"), "chromium">
+const MAX_RECOMMENDATION_EXAMPLES = 4
 
 type VisualBrowserIssueDetails = Omit<
 	VisualBrowserIssue,
 	"screenshotId" | "cropId" | "selectorOrElement" | "boundingBox" | "filesToInspect" | "relatedArtifacts"
 >
 
-let playwrightRuntimePromise: Promise<PlaywrightRuntime> | undefined
-
-async function loadPlaywrightRuntime(): Promise<PlaywrightRuntime> {
-	playwrightRuntimePromise ??= import("playwright")
-		.then((playwright) => ({ chromium: playwright.chromium }))
-		.catch((error) => {
-			playwrightRuntimePromise = undefined
-
-			throw new Error(
-				`Visual Browser Inspector could not load Playwright at runtime: ${error instanceof Error ? error.message : String(error)}`,
-			)
-		})
-
-	return playwrightRuntimePromise
-}
-
 export type ToWebviewUri = (filePath: string) => string
 
 export interface VisualBrowserExecuteOptions {
 	cwd: string
+	globalStoragePath?: string
 	toWebviewUri?: ToWebviewUri
+	log?: (message: string) => void
+	onBrowserInstallStatus?: (message: string) => void | Promise<void>
 }
 
 export interface CropResult {
@@ -106,6 +94,10 @@ interface SerializedVisualBrowserSession {
 
 function nowIso(): string {
 	return new Date().toISOString()
+}
+
+function messageFromError(error: unknown): string {
+	return error instanceof Error ? error.message : String(error)
 }
 
 function clampInteger(value: number, min: number, max: number): number {
@@ -342,7 +334,248 @@ function uniqueStrings(values: Array<string | undefined | null>): string[] {
 	return Array.from(new Set(values.filter((value): value is string => Boolean(value?.trim()))))
 }
 
-function summarizeVisualBrowserIssues(issues: VisualBrowserIssue[]): string {
+const severityRank: Record<VisualBrowserIssue["severity"], number> = {
+	critical: 3,
+	major: 2,
+	minor: 1,
+}
+
+const fixPriorityRank: Record<VisualBrowserFixPriority, number> = {
+	high: 3,
+	medium: 2,
+	low: 1,
+}
+
+function highestSeverity(issues: VisualBrowserIssue[]): VisualBrowserIssue["severity"] {
+	return issues.reduce<VisualBrowserIssue["severity"]>(
+		(highest, issue) => (severityRank[issue.severity] > severityRank[highest] ? issue.severity : highest),
+		"minor",
+	)
+}
+
+function highestFixPriority(issues: VisualBrowserIssue[]): VisualBrowserFixPriority | undefined {
+	return issues.reduce<VisualBrowserFixPriority | undefined>((highest, issue) => {
+		if (!issue.fixPriority) {
+			return highest
+		}
+
+		return !highest || fixPriorityRank[issue.fixPriority] > fixPriorityRank[highest] ? issue.fixPriority : highest
+	}, undefined)
+}
+
+function normalizeRecommendationKey(value: string | undefined | null): string {
+	return (value ?? "")
+		.toLowerCase()
+		.replace(/\d+(?:\.\d+)?/g, "#")
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.slice(0, 80)
+}
+
+function looksLikeSourceFile(value: string): boolean {
+	return /[\\/]|\.[cm]?[jt]sx?$|\.css$|\.scss$|\.vue$|\.svelte$/i.test(value)
+}
+
+function uniqueLimitedStrings(values: string[], limit = 8): string[] {
+	return uniqueStrings(values).slice(0, limit)
+}
+
+function recommendationStrategy(issue: VisualBrowserIssue): { key: string; title: string } {
+	const title = issue.title.toLowerCase()
+	const category = issue.category ?? "unknown"
+
+	if (
+		category === "responsive" &&
+		/(horizontal overflow|outside the viewport|overflow|viewport)/i.test(issue.title)
+	) {
+		return { key: "responsive-overflow", title: "Fix responsive overflow at this viewport" }
+	}
+
+	if (/tiny tap target/i.test(issue.title)) {
+		return { key: "interactive-target-size", title: "Increase interactive target size" }
+	}
+
+	if (/low text contrast/i.test(issue.title)) {
+		return { key: "text-contrast", title: "Improve text contrast" }
+	}
+
+	if (/small text/i.test(issue.title)) {
+		return { key: "typography-scale", title: "Adjust small typography" }
+	}
+
+	if (/clipped content/i.test(issue.title)) {
+		return { key: "clipped-content", title: "Review clipped content and overflow" }
+	}
+
+	if (/sticky|fixed/i.test(title)) {
+		return { key: "sticky-fixed-coverage", title: "Reduce or offset oversized sticky/fixed UI" }
+	}
+
+	if (/overlap/i.test(issue.title)) {
+		return { key: "interactive-overlap", title: "Separate overlapping interactive controls" }
+	}
+
+	if (/broken image/i.test(issue.title)) {
+		return { key: "broken-images", title: "Repair broken image sources or fallbacks" }
+	}
+
+	return {
+		key: `${category}-${normalizeRecommendationKey(issue.title)}-${normalizeRecommendationKey(issue.suggestedFix)}`,
+		title: issue.title,
+	}
+}
+
+function recommendationGroupKey(issue: VisualBrowserIssue): string {
+	const strategy = recommendationStrategy(issue)
+	const sourceFiles = issue.filesToInspect.filter(looksLikeSourceFile).sort()
+
+	if (issue.severity === "critical") {
+		return [
+			"critical",
+			strategy.key,
+			normalizeRecommendationKey(issue.title),
+			sourceFiles[0] ?? "unknown-source",
+			normalizeRecommendationKey(issue.selectorOrElement),
+		].join(":")
+	}
+
+	return [issue.category ?? "unknown", strategy.key, sourceFiles[0] ?? "shared-fix"].join(":")
+}
+
+function compactRecommendationValues(values: string[], fallback: string): string {
+	const uniqueValues = uniqueStrings(values)
+
+	if (uniqueValues.length === 0) {
+		return fallback
+	}
+
+	if (uniqueValues.length === 1) {
+		return uniqueValues[0]
+	}
+
+	return `Multiple related observations point to the same fix strategy. Examples: ${uniqueValues.slice(0, 2).join("; ")}.`
+}
+
+function recommendationGroupId(key: string, index: number): string {
+	return `vbi-rec-${index + 1}-${normalizeRecommendationKey(key) || "group"}`
+}
+
+export function groupVisualBrowserIssues(issues: VisualBrowserIssue[]): VisualBrowserRecommendationGroup[] {
+	const grouped = new Map<string, Array<{ issue: VisualBrowserIssue; issueIndex: number }>>()
+
+	issues.forEach((issue, issueIndex) => {
+		const key = recommendationGroupKey(issue)
+		grouped.set(key, [...(grouped.get(key) ?? []), { issue, issueIndex }])
+	})
+
+	const unsortedGroups = [...grouped.entries()].map(([key, entries]) => {
+		const groupedIssues = entries.map((entry) => entry.issue)
+		const primary = [...entries].sort((left, right) => {
+			const severityDelta = severityRank[right.issue.severity] - severityRank[left.issue.severity]
+
+			if (severityDelta !== 0) {
+				return severityDelta
+			}
+
+			return right.issue.confidence - left.issue.confidence
+		})[0].issue
+		const strategy = recommendationStrategy(primary)
+		const severity = highestSeverity(groupedIssues)
+		const fixPriority = highestFixPriority(groupedIssues)
+		const confidence = groupedIssues.reduce((sum, issue) => sum + issue.confidence, 0) / groupedIssues.length
+		const filesToInspect = uniqueLimitedStrings(
+			groupedIssues.flatMap((issue) => issue.filesToInspect).filter(looksLikeSourceFile),
+		)
+		const affectedCount = groupedIssues.length
+		const title = affectedCount > 1 ? strategy.title : primary.title
+		const examples = entries.slice(0, MAX_RECOMMENDATION_EXAMPLES).map(({ issue, issueIndex }) => ({
+			issueIndex,
+			title: issue.title,
+			severity: issue.severity,
+			confidence: issue.confidence,
+			visualEvidence: issue.visualEvidence,
+			selectorOrElement: issue.selectorOrElement,
+			boundingBox: issue.boundingBox,
+			screenshotId: issue.screenshotId,
+			cropId: issue.cropId,
+			filesToInspect: issue.filesToInspect,
+		}))
+
+		return {
+			key,
+			group: {
+				id: key,
+				title,
+				category: primary.category,
+				severity,
+				fixPriority,
+				confidence,
+				affectedCount,
+				issueIndexes: entries.map((entry) => entry.issueIndex),
+				summary:
+					affectedCount > 1
+						? `Generated from actual local page analysis: ${affectedCount} related findings share the same likely root cause or fix strategy.`
+						: `Generated from actual local page analysis for this finding.`,
+				rootCause: compactRecommendationValues(
+					groupedIssues.map((issue) => issue.likelyCause),
+					primary.likelyCause,
+				),
+				suggestedFix: compactRecommendationValues(
+					groupedIssues.map((issue) => issue.suggestedFix),
+					primary.suggestedFix,
+				),
+				recommendation:
+					affectedCount > 1
+						? `${primary.recommendation ?? primary.suggestedFix} Apply this as one reusable/root-cause fix, then verify the listed examples instead of treating each finding as separate work.`
+						: (primary.recommendation ?? primary.suggestedFix),
+				implementationHint:
+					filesToInspect.length > 0
+						? `Inspect shared source hints first: ${filesToInspect.join(", ")}. ${primary.implementationHint ?? ""}`.trim()
+						: primary.implementationHint,
+				userImpact: compactRecommendationValues(
+					groupedIssues.map((issue) => issue.userImpact ?? ""),
+					primary.userImpact ?? "",
+				),
+				filesToInspect,
+				verificationSteps: uniqueLimitedStrings(
+					groupedIssues.flatMap((issue) => issue.verificationSteps ?? []),
+					5,
+				),
+				examples,
+			},
+		}
+	})
+
+	return unsortedGroups
+		.sort((left, right) => {
+			const severityDelta = severityRank[right.group.severity] - severityRank[left.group.severity]
+
+			if (severityDelta !== 0) {
+				return severityDelta
+			}
+
+			const priorityDelta =
+				fixPriorityRank[right.group.fixPriority ?? "low"] - fixPriorityRank[left.group.fixPriority ?? "low"]
+
+			if (priorityDelta !== 0) {
+				return priorityDelta
+			}
+
+			const countDelta = right.group.affectedCount - left.group.affectedCount
+
+			if (countDelta !== 0) {
+				return countDelta
+			}
+
+			return right.group.confidence - left.group.confidence
+		})
+		.map(({ key, group }, index) => ({ ...group, id: recommendationGroupId(key, index) }))
+}
+
+function summarizeVisualBrowserIssues(
+	issues: VisualBrowserIssue[],
+	recommendationGroups = groupVisualBrowserIssues(issues),
+): string {
 	if (issues.length === 0) {
 		return "No local heuristic visual/UX issues were detected. Manually review the screenshot for product-specific design expectations."
 	}
@@ -363,12 +596,16 @@ function summarizeVisualBrowserIssues(issues: VisualBrowserIssue[]): string {
 		.map(([category, count]) => `${count} ${category}`)
 		.join(", ")
 
-	return `Prioritize the most severe and high-confidence findings first. Severity mix: ${severitySummary}. Categories: ${categorySummary}.`
+	const groupedSummary = `${recommendationGroups.length} grouped recommendation${recommendationGroups.length === 1 ? "" : "s"} covering ${issues.length} page-analysis issue${issues.length === 1 ? "" : "s"}`
+
+	return `Recommended fixes are generated from local heuristic page analysis, not placeholders. ${groupedSummary}. Prioritize the most severe and high-confidence groups first. Severity mix: ${severitySummary}. Categories: ${categorySummary}.`
 }
 
 type SelectedFixIssue = {
 	findingIndex: number
 	issueIndex: number
+	recommendationIndex?: number
+	recommendationTitle?: string
 	findingSummary: string
 	issue: VisualBrowserIssue
 }
@@ -399,6 +636,32 @@ function selectFixTaskIssues(
 					findingSummary: finding.summary,
 					issue,
 				}))
+			: []
+	}
+
+	if (scope === "recommendation") {
+		const findingIndex = request.findingIndex ?? 0
+		const recommendationIndex = request.recommendationIndex ?? 0
+		const finding = state.findings[findingIndex]
+		const recommendation = finding?.recommendationGroups?.[recommendationIndex]
+
+		return finding && recommendation
+			? recommendation.issueIndexes.flatMap((issueIndex) => {
+					const issue = finding.issues[issueIndex]
+
+					return issue
+						? [
+								{
+									findingIndex,
+									issueIndex,
+									recommendationIndex,
+									recommendationTitle: recommendation.title,
+									findingSummary: finding.summary,
+									issue,
+								},
+							]
+						: []
+				})
 			: []
 	}
 
@@ -503,28 +766,31 @@ export function buildVisualBrowserFixTaskPrompt(
 		"Findings to address:",
 	]
 
-	selectedForPrompt.forEach(({ findingIndex, issueIndex, findingSummary, issue }, index) => {
-		const issueScreenshot = state.screenshots.find((item) => item.screenshotId === issue.screenshotId)
-		const issueCrop = issue.cropId ? state.crops.find((item) => item.cropId === issue.cropId) : undefined
-		lines.push(
-			` ${index + 1}. [finding ${findingIndex + 1}, issue ${issueIndex + 1}] ${safeTaskText(issue.title)}`,
-			`    - Severity/confidence/category/priority: ${issue.severity}, ${Math.round(issue.confidence * 100)}%, ${issue.category ?? "unknown"}, ${issue.fixPriority ?? "medium"}`,
-			`    - Evidence: ${safeTaskText(issue.visualEvidence)}`,
-			`    - Selector/element: ${safeTaskText(issue.selectorOrElement)}`,
-			`    - Bounding box: ${formatBoundingBox(issue.boundingBox)}`,
-			`    - User impact: ${safeTaskText(issue.userImpact)}`,
-			`    - Likely cause: ${safeTaskText(issue.likelyCause)}`,
-			`    - Suggested fix: ${safeTaskText(issue.suggestedFix)}`,
-			`    - Recommendation: ${safeTaskText(issue.recommendation)}`,
-			`    - Implementation hint: ${safeTaskText(issue.implementationHint)}`,
-			`    - Files to inspect: ${issue.filesToInspect.length > 0 ? issue.filesToInspect.join(", ") : "Use codebase search to locate the owning component/styles."}`,
-			`    - Artifact refs: screenshot=${issue.screenshotId || issueScreenshot?.screenshotId || "unknown"}${issueScreenshot ? ` (${issueScreenshot.path})` : ""}${issue.cropId ? `; crop=${issue.cropId}${issueCrop ? ` (${issueCrop.path})` : ""}` : ""}`,
-			...(issue.verificationSteps?.length
-				? [`    - Verification: ${issue.verificationSteps.map((step) => safeTaskText(step)).join("; ")}`]
-				: []),
-			`    - Finding summary: ${safeTaskText(findingSummary)}`,
-		)
-	})
+	selectedForPrompt.forEach(
+		({ findingIndex, issueIndex, recommendationIndex, recommendationTitle, findingSummary, issue }, index) => {
+			const issueScreenshot = state.screenshots.find((item) => item.screenshotId === issue.screenshotId)
+			const issueCrop = issue.cropId ? state.crops.find((item) => item.cropId === issue.cropId) : undefined
+			lines.push(
+				` ${index + 1}. [finding ${findingIndex + 1}${typeof recommendationIndex === "number" ? `, recommendation ${recommendationIndex + 1}` : ""}, issue ${issueIndex + 1}] ${safeTaskText(issue.title)}`,
+				`    - Severity/confidence/category/priority: ${issue.severity}, ${Math.round(issue.confidence * 100)}%, ${issue.category ?? "unknown"}, ${issue.fixPriority ?? "medium"}`,
+				...(recommendationTitle ? [`    - Grouped recommendation: ${safeTaskText(recommendationTitle)}`] : []),
+				`    - Evidence: ${safeTaskText(issue.visualEvidence)}`,
+				`    - Selector/element: ${safeTaskText(issue.selectorOrElement)}`,
+				`    - Bounding box: ${formatBoundingBox(issue.boundingBox)}`,
+				`    - User impact: ${safeTaskText(issue.userImpact)}`,
+				`    - Likely cause: ${safeTaskText(issue.likelyCause)}`,
+				`    - Suggested fix: ${safeTaskText(issue.suggestedFix)}`,
+				`    - Recommendation: ${safeTaskText(issue.recommendation)}`,
+				`    - Implementation hint: ${safeTaskText(issue.implementationHint)}`,
+				`    - Files to inspect: ${issue.filesToInspect.length > 0 ? issue.filesToInspect.join(", ") : "Use codebase search to locate the owning component/styles."}`,
+				`    - Artifact refs: screenshot=${issue.screenshotId || issueScreenshot?.screenshotId || "unknown"}${issueScreenshot ? ` (${issueScreenshot.path})` : ""}${issue.cropId ? `; crop=${issue.cropId}${issueCrop ? ` (${issueCrop.path})` : ""}` : ""}`,
+				...(issue.verificationSteps?.length
+					? [`    - Verification: ${issue.verificationSteps.map((step) => safeTaskText(step)).join("; ")}`]
+					: []),
+				`    - Finding summary: ${safeTaskText(findingSummary)}`,
+			)
+		},
+	)
 
 	if (omittedCount > 0) {
 		lines.push(
@@ -535,6 +801,8 @@ export function buildVisualBrowserFixTaskPrompt(
 	lines.push(
 		"",
 		"Instructions:",
+		"- VBI recommendations are generated from local heuristic analysis of the captured page DOM/layout/screenshot metadata, not placeholder text.",
+		"- If multiple selected issues share a grouped recommendation, look for one root-cause component/style fix before making repeated one-off edits.",
 		"- Do not blindly apply these recommendations. Inspect the relevant source files, components, layout/CSS, and design tokens before changing code.",
 		"- Preserve the existing behavior unless a finding clearly identifies a visual, UX, responsive, or accessibility problem.",
 		"- Prefer targeted fixes with responsive layout constraints, accessible sizing/contrast, and existing project styling conventions.",
@@ -836,7 +1104,8 @@ export class VisualBrowserInspectorService {
 				crops: [],
 				inspections: [],
 				findings: [],
-				statusMessage: "No controlled Playwright browser session is active.",
+				statusMessage:
+					"No controlled Playwright browser session is active. On first use, C Code prepares Chromium in extension storage automatically.",
 			}
 		}
 
@@ -856,35 +1125,63 @@ export class VisualBrowserInspectorService {
 		}
 
 		const viewport = viewportFromInput(params.viewport)
-		let runtime = params.sessionId ? this.sessions.get(params.sessionId) : undefined
+		const headless = params.headless ?? false
+		let runtime = params.sessionId
+			? this.sessions.get(params.sessionId)
+			: this.currentSessionId
+				? this.sessions.get(this.currentSessionId)
+				: undefined
+		let createdRuntime = false
 
-		if (!runtime || runtime.metadata.status === "closed") {
+		if (!runtime || runtime.metadata.status === "closed" || runtime.metadata.headless !== headless) {
+			await this.closeControlledRuntimes({ log: options.log })
 			runtime = await this.createRuntime({
 				cwd: options.cwd,
+				globalStoragePath: options.globalStoragePath,
+				log: options.log,
+				onBrowserInstallStatus: options.onBrowserInstallStatus,
 				url: normalizedUrl,
 				viewport,
-				headless: params.headless ?? false,
+				headless,
 				allowExternal: params.allowExternal ?? false,
 			})
+			createdRuntime = true
 		} else {
-			await runtime.page.setViewportSize({ width: viewport.width, height: viewport.height })
-			runtime.metadata.viewport = viewport
-			runtime.metadata.headless = params.headless ?? runtime.metadata.headless
-			runtime.metadata.allowExternal = params.allowExternal ?? runtime.metadata.allowExternal
-			runtime.metadata.status = "opening"
+			await this.closeControlledRuntimes({ exceptSessionId: runtime.metadata.sessionId, log: options.log })
 		}
 
-		this.currentSessionId = runtime.metadata.sessionId
-		runtime.page.setDefaultTimeout(DEFAULT_ACTION_TIMEOUT_MS)
-		await runtime.page.goto(normalizedUrl, {
-			waitUntil: "domcontentloaded",
-			timeout: DEFAULT_NAVIGATION_TIMEOUT_MS,
-		})
-		await runtime.page
-			.waitForLoadState("networkidle", { timeout: DEFAULT_ACTION_TIMEOUT_MS })
-			.catch(() => undefined)
-		this.touchSession(runtime, { status: "active", url: runtime.page.url() })
-		await this.persist(runtime)
+		try {
+			this.currentSessionId = runtime.metadata.sessionId
+			await runtime.page.setViewportSize({ width: viewport.width, height: viewport.height })
+			runtime.metadata.viewport = viewport
+			runtime.metadata.headless = headless
+			runtime.metadata.allowExternal = params.allowExternal ?? runtime.metadata.allowExternal
+			runtime.metadata.status = "opening"
+			runtime.metadata.error = undefined
+			runtime.page.setDefaultTimeout(DEFAULT_ACTION_TIMEOUT_MS)
+			await runtime.page.goto(normalizedUrl, {
+				waitUntil: "domcontentloaded",
+				timeout: DEFAULT_NAVIGATION_TIMEOUT_MS,
+			})
+			await runtime.page
+				.waitForLoadState("networkidle", { timeout: DEFAULT_ACTION_TIMEOUT_MS })
+				.catch(() => undefined)
+			this.touchSession(runtime, { status: "active", url: this.getRuntimePageUrl(runtime, normalizedUrl) })
+			await this.persist(runtime)
+		} catch (error) {
+			this.touchSession(runtime, {
+				status: "error",
+				url: this.getRuntimePageUrl(runtime, normalizedUrl),
+				error: messageFromError(error),
+			})
+			await this.persistRuntimeSafely(runtime, options.log)
+
+			if (createdRuntime) {
+				await this.closeControlledRuntimes({ onlySessionId: runtime.metadata.sessionId, log: options.log })
+			}
+
+			throw error
+		}
 
 		return this.decorateResult(
 			{
@@ -1398,6 +1695,7 @@ export class VisualBrowserInspectorService {
 			undefined,
 			screenshot.fullPage,
 		)
+		const recommendationGroups = groupVisualBrowserIssues(issues)
 		const analysis: VisualBrowserAnalysisResult = {
 			summary: `Local heuristic visual/UX analysis${params.prompt ? ` for prompt: ${redactVisualBrowserText(params.prompt)}` : ""}. Found ${issues.length} actionable issue(s) with evidence, likely causes, suggested fixes, and verification guidance. No screenshot was sent to a remote model.`,
 			analysisMode: "local-heuristic",
@@ -1405,7 +1703,8 @@ export class VisualBrowserInspectorService {
 			scope: "screenshot",
 			privacyNotice:
 				"Screenshots, crops, DOM metadata, and findings remain local. Text summaries are redacted and bounded before being returned.",
-			recommendationSummary: summarizeVisualBrowserIssues(issues),
+			recommendationSummary: summarizeVisualBrowserIssues(issues, recommendationGroups),
+			recommendationGroups,
 			issues,
 		}
 
@@ -1439,6 +1738,7 @@ export class VisualBrowserInspectorService {
 			crop.region,
 			screenshot.fullPage,
 		)
+		const recommendationGroups = groupVisualBrowserIssues(issues)
 		const analysis: VisualBrowserAnalysisResult = {
 			summary: `Local heuristic crop analysis${params.prompt ? ` for prompt: ${redactVisualBrowserText(params.prompt)}` : ""}. Found ${issues.length} actionable issue(s) in the selected region with evidence, likely causes, suggested fixes, and verification guidance. No crop was sent to a remote model.`,
 			analysisMode: "local-heuristic",
@@ -1446,7 +1746,8 @@ export class VisualBrowserInspectorService {
 			scope: "crop",
 			privacyNotice:
 				"Screenshots, crops, DOM metadata, and findings remain local. Text summaries are redacted and bounded before being returned.",
-			recommendationSummary: summarizeVisualBrowserIssues(issues),
+			recommendationSummary: summarizeVisualBrowserIssues(issues, recommendationGroups),
+			recommendationGroups,
 			issues,
 		}
 
@@ -1471,12 +1772,7 @@ export class VisualBrowserInspectorService {
 		options: VisualBrowserExecuteOptions,
 	): Promise<VisualBrowserToolResult> {
 		const runtime = this.resolveRuntime(params.sessionId)
-		await this.closeRuntime(runtime)
-		this.sessions.delete(runtime.metadata.sessionId)
-		if (this.currentSessionId === runtime.metadata.sessionId) {
-			this.currentSessionId = undefined
-		}
-		await this.persist(runtime)
+		await this.closeControlledRuntimes({ log: options.log })
 
 		return this.decorateResult(
 			{
@@ -1493,11 +1789,7 @@ export class VisualBrowserInspectorService {
 		options: VisualBrowserExecuteOptions,
 	): Promise<VisualBrowserToolResult> {
 		const runtime = this.resolveRuntime(params.sessionId)
-		await this.closeRuntime(runtime)
-		this.sessions.delete(runtime.metadata.sessionId)
-		if (this.currentSessionId === runtime.metadata.sessionId) {
-			this.currentSessionId = undefined
-		}
+		await this.closeControlledRuntimes({ log: options.log })
 
 		const session = { ...runtime.metadata }
 		await fs.rm(runtime.metadata.artifacts.rootDir, { recursive: true, force: true })
@@ -1514,6 +1806,9 @@ export class VisualBrowserInspectorService {
 
 	private async createRuntime(options: {
 		cwd: string
+		globalStoragePath?: string
+		log?: (message: string) => void
+		onBrowserInstallStatus?: (message: string) => void | Promise<void>
 		url: string
 		viewport: VisualBrowserViewport
 		headless: boolean
@@ -1522,16 +1817,30 @@ export class VisualBrowserInspectorService {
 		const sessionId = createSessionId()
 		const artifacts = createArtifactPaths(options.cwd, sessionId)
 		const createdAt = nowIso()
-		const { chromium } = await loadPlaywrightRuntime()
-		const browser = await chromium.launch({ headless: options.headless })
-		const context = await browser.newContext({
-			viewport: { width: options.viewport.width, height: options.viewport.height },
-			deviceScaleFactor: options.viewport.deviceScaleFactor ?? 1,
-			isMobile: options.viewport.isMobile ?? false,
-			hasTouch: options.viewport.hasTouch ?? false,
+		const { chromium, executablePath } = await ensureVisualBrowserPlaywright({
+			cwd: options.cwd,
+			globalStoragePath: options.globalStoragePath,
+			log: options.log,
+			onProgress: options.onBrowserInstallStatus,
 		})
-		const page = await context.newPage()
-		page.setDefaultTimeout(DEFAULT_ACTION_TIMEOUT_MS)
+		let browser: Browser | undefined
+		let context: BrowserContext | undefined
+		let page: Page | undefined
+
+		try {
+			browser = await chromium.launch({ headless: options.headless, executablePath })
+			context = await browser.newContext({
+				viewport: { width: options.viewport.width, height: options.viewport.height },
+				deviceScaleFactor: options.viewport.deviceScaleFactor ?? 1,
+				isMobile: options.viewport.isMobile ?? false,
+				hasTouch: options.viewport.hasTouch ?? false,
+			})
+			page = await context.newPage()
+			page.setDefaultTimeout(DEFAULT_ACTION_TIMEOUT_MS)
+		} catch (error) {
+			await this.closePartialRuntime({ page, context, browser }, options.log)
+			throw error
+		}
 
 		const runtime: VisualBrowserSessionRuntime = {
 			browser,
@@ -1607,13 +1916,90 @@ export class VisualBrowserInspectorService {
 		}
 	}
 
-	private async closeRuntime(runtime: VisualBrowserSessionRuntime): Promise<void> {
+	private getRuntimePageUrl(runtime: VisualBrowserSessionRuntime, fallbackUrl: string): string {
 		try {
-			await runtime.context.close().catch(() => undefined)
-			await runtime.browser.close().catch(() => undefined)
-		} finally {
-			this.touchSession(runtime, { status: "closed", url: runtime.metadata.url })
-			runtime.metadata.closedAt = nowIso()
+			return runtime.page.url() || fallbackUrl
+		} catch {
+			return fallbackUrl
+		}
+	}
+
+	private async closeControlledRuntimes(options: {
+		exceptSessionId?: string
+		onlySessionId?: string
+		log?: (message: string) => void
+	}): Promise<VisualBrowserSessionRuntime[]> {
+		const closedRuntimes: VisualBrowserSessionRuntime[] = []
+
+		for (const runtime of Array.from(this.sessions.values())) {
+			if (options.exceptSessionId && runtime.metadata.sessionId === options.exceptSessionId) {
+				continue
+			}
+
+			if (options.onlySessionId && runtime.metadata.sessionId !== options.onlySessionId) {
+				continue
+			}
+
+			await this.closeRuntime(runtime, options.log)
+			this.sessions.delete(runtime.metadata.sessionId)
+			closedRuntimes.push(runtime)
+			await this.persistRuntimeSafely(runtime, options.log)
+		}
+
+		if (options.exceptSessionId && this.sessions.has(options.exceptSessionId)) {
+			this.currentSessionId = options.exceptSessionId
+		} else if (!this.currentSessionId || !this.sessions.has(this.currentSessionId)) {
+			this.currentSessionId = undefined
+		}
+
+		return closedRuntimes
+	}
+
+	private async closeRuntime(runtime: VisualBrowserSessionRuntime, log?: (message: string) => void): Promise<void> {
+		await this.closeControlledResource("page", () => runtime.page.close(), log)
+		await this.closeControlledResource("context", () => runtime.context.close(), log)
+		await this.closeControlledResource("browser", () => runtime.browser.close(), log)
+		this.touchSession(runtime, { status: "closed", url: runtime.metadata.url })
+		runtime.metadata.closedAt = nowIso()
+	}
+
+	private async closePartialRuntime(
+		resources: { page?: Page; context?: BrowserContext; browser?: Browser },
+		log?: (message: string) => void,
+	): Promise<void> {
+		if (resources.page) {
+			await this.closeControlledResource("page", () => resources.page!.close(), log)
+		}
+
+		if (resources.context) {
+			await this.closeControlledResource("context", () => resources.context!.close(), log)
+		}
+
+		if (resources.browser) {
+			await this.closeControlledResource("browser", () => resources.browser!.close(), log)
+		}
+	}
+
+	private async closeControlledResource(
+		resourceName: string,
+		close: () => Promise<unknown>,
+		log?: (message: string) => void,
+	): Promise<void> {
+		try {
+			await close()
+		} catch (error) {
+			log?.(`Visual Browser Inspector ignored ${resourceName} cleanup error: ${messageFromError(error)}`)
+		}
+	}
+
+	private async persistRuntimeSafely(
+		runtime: VisualBrowserSessionRuntime,
+		log?: (message: string) => void,
+	): Promise<void> {
+		try {
+			await this.persist(runtime)
+		} catch (error) {
+			log?.(`Visual Browser Inspector could not persist cleanup metadata: ${messageFromError(error)}`)
 		}
 	}
 

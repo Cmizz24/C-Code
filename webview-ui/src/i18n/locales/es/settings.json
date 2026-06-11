@@ -35,6 +35,7 @@
 		"checkpoints": "Puntos de control",
 		"notifications": "Notificaciones",
 		"contextManagement": "Contexto",
+		"memory": "Memoria",
 		"terminal": "Terminal",
 		"slashCommands": "Comandos de Barra",
 		"prompts": "Indicaciones",
@@ -257,8 +258,12 @@
 			"description": "Aprobar automáticamente los planes de tareas paralelas válidos e iniciar agentes sin mostrar el modal de vista previa del plan"
 		},
 		"visualBrowserInspector": {
-			"label": "Navegador",
+			"label": "Visual Browser Inspector",
 			"description": "Aprobar automáticamente acciones del Visual Browser Inspector desde el chat, incluyendo abrir páginas de navegador controladas, capturas de pantalla, inspección del DOM, recortes, análisis e interacciones con la página. Esto no permite editar archivos ni ejecutar comandos de terminal."
+		},
+		"memory": {
+			"label": "Memoria",
+			"description": "Aprueba automáticamente guardados de memorias de errores desde el chat y errores de herramientas. Cuando está desactivado, la memoria pendiente aún se puede revisar desde el chat o los ajustes de Memoria."
 		},
 		"imageGeneration": {
 			"label": "Imágenes",
@@ -817,6 +822,114 @@
 		"enableSubfolderRules": {
 			"label": "Activar reglas de subcarpetas",
 			"description": "Descubrir y cargar recursivamente archivos .roo/rules y AGENTS.md desde subdirectorios. Útil para monorepos con reglas por paquete."
+		}
+	},
+	"memory": {
+		"description": "Configura cómo C Code recupera, guarda y gestiona recuerdos en este espacio de trabajo y en el contexto global.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Comportamiento principal",
+				"description": "Elige cuándo se ejecuta la memoria y qué ámbitos de memoria puede usar C."
+			},
+			"retrievalLimits": {
+				"title": "Límites de recuperación",
+				"description": "Ajusta cuánto contexto de memoria se incluye con cada solicitud."
+			},
+			"management": {
+				"title": "Gestión de memoria",
+				"description": "Revisa los recuentos de memoria y gestiona lecciones pendientes, archivadas o guardadas."
+			},
+			"advanced": {
+				"title": "Avanzado",
+				"description": "Controla la retención de candidatas pendientes de memoria de errores."
+			}
+		},
+		"mode": {
+			"label": "Modo de memoria",
+			"description": "Usa el modo automático para activar la memoria en modelos con menos de 1M de token de contexto y desactivarla en modelos con contexto mayor, a menos que lo sobrescribas.",
+			"options": {
+				"auto": "Automático",
+				"enabled": "Siempre activada",
+				"disabled": "Desactivada"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Usar memoria del espacio de trabajo",
+			"description": "Recupera y guarda lecciones limitadas a este espacio de trabajo sin almacenar rutas absolutas del espacio de trabajo."
+		},
+		"globalEnabled": {
+			"label": "Usar memoria global",
+			"description": "Recupera y guarda lecciones que pueden aplicarse en distintos espacios de trabajo."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Capturar memorias de errores",
+			"description": "Crea lecciones pendientes a partir de correcciones, errores de validación y errores repetidos de herramientas. Las lecciones pendientes no se usan de forma permanente hasta que se aprueban."
+		},
+		"autoApproveMistakeMemory": {
+			"label": "Aprobar automáticamente recuerdos de errores",
+			"description": "Guarda las nuevas lecciones de recuerdos de errores como activas inmediatamente después de la redacción, en lugar de crear candidatas pendientes. Mantén esto desactivado a menos que confíes en la automatización."
+		},
+		"maxCharacters": {
+			"label": "Presupuesto de caracteres de memoria",
+			"description": "Número máximo de caracteres de contexto de memoria que se inyectan en una solicitud. Cuando hay presión de contexto, la memoria se recorta u omite primero."
+		},
+		"maxEntries": {
+			"label": "Entradas máximas de memoria",
+			"description": "Número máximo de entradas de memoria activas que se incluyen en una solicitud."
+		},
+		"pendingCandidateLimit": {
+			"label": "Límite de memorias de errores pendientes",
+			"description": "Número máximo de candidatos de memoria de errores pendientes que se conservan antes de podar los candidatos más antiguos."
+		},
+		"management": {
+			"title": "Gestión de memoria",
+			"description": "Revisa los recuentos de memorias del espacio de trabajo y globales, aprueba lecciones pendientes, archiva memorias o borra la memoria almacenada."
+		},
+		"summary": {
+			"workspace": "Memoria del espacio de trabajo",
+			"global": "Memoria global",
+			"active": "Activa",
+			"pending": "Pendiente",
+			"archived": "Archivada",
+			"total": "Total"
+		},
+		"scope": {
+			"workspace": "Espacio de trabajo",
+			"global": "Global"
+		},
+		"status": {
+			"active": "Activo",
+			"pending": "Pendiente",
+			"stale": "Obsoleto",
+			"superseded": "Sustituido",
+			"archived": "Archivado"
+		},
+		"kind": {
+			"lesson": "Lección",
+			"mistake": "Error"
+		},
+		"records": {
+			"count": "{{count}} registros",
+			"empty": "No hay memorias guardadas en este ámbito.",
+			"lesson": "Lección",
+			"tags": "Etiquetas",
+			"pathHints": "Pistas de ruta",
+			"created": "Creado",
+			"updated": "Actualizado",
+			"lastUsed": "Último uso"
+		},
+		"actions": {
+			"refresh": "Actualizar",
+			"approvePending": "Aprobar pendientes",
+			"archivePending": "Archivar pendientes",
+			"archiveAll": "Archivar todo",
+			"clear": "Borrar"
+		},
+		"confirm": {
+			"title": "Confirmar acción de memoria",
+			"description": "Esta acción de memoria cambia o elimina lecciones guardadas. Esto no se puede deshacer si se borra la memoria.",
+			"cancel": "Cancelar",
+			"confirm": "Continuar"
 		}
 	},
 	"terminal": {

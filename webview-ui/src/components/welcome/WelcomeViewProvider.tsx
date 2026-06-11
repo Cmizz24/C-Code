@@ -1,24 +1,28 @@
-import { useCallback, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { Trans } from "react-i18next"
 import { ArrowLeft, Brain } from "lucide-react"
 
-import { openRouterDefaultModelId, type ProviderSettings } from "@roo-code/types"
+import { openRouterDefaultModelId, type ProviderName, type ProviderSettings } from "@roo-code/types"
 
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { validateApiConfiguration } from "@src/utils/validate"
 import { vscode } from "@src/utils/vscode"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
-import { Button } from "@src/components/ui"
+import { Button, SearchableSelect } from "@src/components/ui"
 
 import ApiOptions from "../settings/ApiOptions"
+import { getAvailableProviderOptions, getProviderDefaultModelConfig } from "../settings/utils/providerOptions"
 import { Tab, TabContent } from "../common/Tab"
 
+import LocalAiSetupView from "./LocalAiSetupView"
 import RooHero from "./RooHero"
 
 const DEFAULT_WELCOME_API_CONFIGURATION: ProviderSettings = {
 	apiProvider: "openrouter",
 	openRouterModelId: openRouterDefaultModelId,
 }
+
+const WELCOME_CONTENT_CLASS = "flex flex-col gap-4 px-6 pb-6 pt-8"
 
 const getWelcomeApiConfiguration = (apiConfiguration?: ProviderSettings): ProviderSettings => {
 	if (!apiConfiguration?.apiProvider) {
@@ -32,13 +36,44 @@ const getWelcomeApiConfiguration = (apiConfiguration?: ProviderSettings): Provid
 	return apiConfiguration
 }
 
+const getWelcomeApiConfigurationForProvider = (
+	provider: ProviderName,
+	apiConfiguration?: ProviderSettings,
+): ProviderSettings => {
+	const nextConfiguration: ProviderSettings = {
+		...getWelcomeApiConfiguration(apiConfiguration),
+		apiProvider: provider,
+	}
+	const defaultModelConfig = getProviderDefaultModelConfig(provider, nextConfiguration)
+	const isExistingProvider = apiConfiguration?.apiProvider === provider
+
+	if (defaultModelConfig?.default && (!nextConfiguration[defaultModelConfig.field] || !isExistingProvider)) {
+		return {
+			...nextConfiguration,
+			[defaultModelConfig.field]: defaultModelConfig.default,
+		}
+	}
+
+	return nextConfiguration
+}
+
 const WelcomeViewProvider = () => {
-	const { apiConfiguration, currentApiConfigName, setApiConfiguration, uriScheme } = useExtensionState()
+	const { apiConfiguration, currentApiConfigName, organizationAllowList, setApiConfiguration, uriScheme } =
+		useExtensionState()
 	const { t } = useAppTranslation()
 	const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
-	const [showProviderSetup, setShowProviderSetup] = useState(false)
+	const [welcomeStep, setWelcomeStep] = useState<"landing" | "provider" | "local">("landing")
 	const [welcomeApiConfiguration, setWelcomeApiConfiguration] = useState<ProviderSettings>()
 	const effectiveApiConfiguration = welcomeApiConfiguration ?? getWelcomeApiConfiguration(apiConfiguration)
+	const providerOptions = useMemo(
+		() =>
+			getAvailableProviderOptions({
+				organizationAllowList,
+				selectedProvider: effectiveApiConfiguration.apiProvider,
+				prioritizeOpenRouter: true,
+			}),
+		[organizationAllowList, effectiveApiConfiguration.apiProvider],
+	)
 
 	const setApiConfigurationFieldForApiOptions = useCallback(
 		<K extends keyof ProviderSettings>(field: K, value: ProviderSettings[K]) => {
@@ -51,14 +86,22 @@ const WelcomeViewProvider = () => {
 		[effectiveApiConfiguration, setApiConfiguration],
 	)
 
-	const handleGetStarted = useCallback(() => {
-		if (!showProviderSetup) {
-			const initialApiConfiguration = getWelcomeApiConfiguration(apiConfiguration)
+	const enterProviderSetup = useCallback(
+		(provider?: ProviderName) => {
+			const initialApiConfiguration = provider
+				? getWelcomeApiConfigurationForProvider(provider, apiConfiguration)
+				: getWelcomeApiConfiguration(apiConfiguration)
+
 			setWelcomeApiConfiguration(initialApiConfiguration)
-
 			setApiConfiguration(initialApiConfiguration)
+			setWelcomeStep("provider")
+		},
+		[apiConfiguration, setApiConfiguration],
+	)
 
-			setShowProviderSetup(true)
+	const handleGetStarted = useCallback(() => {
+		if (welcomeStep !== "provider") {
+			enterProviderSetup()
 			return
 		}
 
@@ -75,12 +118,12 @@ const WelcomeViewProvider = () => {
 			text: currentApiConfigName,
 			apiConfiguration: effectiveApiConfiguration,
 		})
-	}, [showProviderSetup, apiConfiguration, setApiConfiguration, effectiveApiConfiguration, currentApiConfigName])
+	}, [welcomeStep, enterProviderSetup, effectiveApiConfiguration, currentApiConfigName])
 
-	if (!showProviderSetup) {
+	if (welcomeStep === "landing") {
 		return (
 			<Tab>
-				<TabContent className="relative flex flex-col gap-4 p-6 justify-center">
+				<TabContent data-testid="welcome-startup-content" className={WELCOME_CONTENT_CLASS}>
 					<RooHero />
 					<h2 className="mt-0 mb-0 text-xl">{t("welcome:landing.greeting")}</h2>
 
@@ -90,13 +133,34 @@ const WelcomeViewProvider = () => {
 						</p>
 					</div>
 
-					<div className="mt-2 flex gap-2 items-center">
-						<Button onClick={handleGetStarted} variant="primary">
-							{t("welcome:landing.getStarted")}
-						</Button>
+					<div className="mt-2 grid gap-3 md:grid-cols-2">
+						<button
+							data-testid="local-ai-option-card"
+							onClick={() => setWelcomeStep("local")}
+							className="cursor-pointer rounded-md border border-vscode-foreground/20 bg-transparent p-4 text-left text-vscode-foreground hover:bg-vscode-foreground/5">
+							<div className="font-medium">{t("welcome:landing.localAi.title")}</div>
+							<div className="mt-1 text-sm">{t("welcome:landing.localAi.description")}</div>
+						</button>
+						<div
+							data-testid="api-provider-option-card"
+							className="rounded-md border border-vscode-foreground/20 bg-transparent p-4 text-left text-vscode-foreground">
+							<div className="font-medium">{t("welcome:landing.provider.title")}</div>
+							<div className="mt-1 text-sm">{t("welcome:landing.provider.description")}</div>
+							<div className="mt-3">
+								<SearchableSelect
+									onValueChange={(value) => enterProviderSetup(value as ProviderName)}
+									options={providerOptions}
+									placeholder={t("settings:common.select")}
+									searchPlaceholder={t("settings:providers.searchProviderPlaceholder")}
+									emptyMessage={t("settings:providers.noProviderMatchFound")}
+									className="w-full"
+									data-testid="welcome-provider-select"
+								/>
+							</div>
+						</div>
 					</div>
 
-					<div className="absolute bottom-6 left-6">
+					<div className="mt-auto pt-4">
 						<button
 							onClick={() => vscode.postMessage({ type: "importSettings" })}
 							className="cursor-pointer bg-transparent border-none p-0 text-vscode-foreground hover:underline">
@@ -108,9 +172,22 @@ const WelcomeViewProvider = () => {
 		)
 	}
 
+	if (welcomeStep === "local") {
+		return (
+			<Tab>
+				<TabContent data-testid="welcome-startup-content" className={WELCOME_CONTENT_CLASS}>
+					<LocalAiSetupView
+						onBack={() => setWelcomeStep("landing")}
+						onApiProviderSetup={enterProviderSetup}
+					/>
+				</TabContent>
+			</Tab>
+		)
+	}
+
 	return (
 		<Tab>
-			<TabContent className="flex flex-col gap-4 p-6 justify-center">
+			<TabContent data-testid="welcome-startup-content" className={WELCOME_CONTENT_CLASS}>
 				<Brain className="size-8" strokeWidth={1.5} />
 				<h2 className="mt-0 mb-0 text-xl">{t("welcome:providerSignup.heading")}</h2>
 
@@ -130,7 +207,7 @@ const WelcomeViewProvider = () => {
 				</div>
 
 				<div className="-mt-4 flex gap-2">
-					<Button onClick={() => setShowProviderSetup(false)} variant="secondary">
+					<Button onClick={() => setWelcomeStep("landing")} variant="secondary">
 						<ArrowLeft className="size-4" />
 						{t("welcome:providerSignup.goBack")}
 					</Button>

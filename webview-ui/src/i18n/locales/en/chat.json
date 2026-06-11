@@ -323,6 +323,63 @@
 		"didSearch_other": "Found {{count}} results",
 		"resultTooltip": "Similarity score: {{score}} (click to open file)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Workspace",
+			"global": "Global",
+			"all": "All memory"
+		},
+		"statuses": {
+			"active": "Active",
+			"pending": "Pending",
+			"stale": "Stale",
+			"superseded": "Superseded",
+			"archived": "Archived",
+			"all": "All statuses"
+		},
+		"fields": {
+			"title": "Title",
+			"signature": "Signature",
+			"tool": "Tool",
+			"mode": "Mode",
+			"tags": "Tags",
+			"paths": "Paths",
+			"score": "Score"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "C wants to search {{scope}} memory for <code>{{query}}</code>",
+		"resultsFound_one": "Found 1 matching memory",
+		"resultsFound_other": "Found {{count}} matching memories",
+		"noResults": "No matching memories found",
+		"untitledResult": "Memory result"
+	},
+	"mistakeMemory": {
+		"savedPending": "Saved a pending mistake memory",
+		"savedActive": "Saved an active mistake memory",
+		"savedArchived": "Archived a mistake memory",
+		"approveAction": "Approve memory",
+		"archiveAction": "Archive memory",
+		"autoApproved": "Auto-approved",
+		"reusedExisting": "Updated existing memory"
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "Memory wipe pending approval",
+			"completed": "Memory wiped",
+			"cancelled": "Memory wipe cancelled"
+		},
+		"status": {
+			"pending": "Pending approval",
+			"completed": "Completed",
+			"cancelled": "Cancelled"
+		},
+		"fields": {
+			"scope": "Scope",
+			"status": "Status",
+			"deletedScopes": "Deleted scopes"
+		}
+	},
 	"commandOutput": "Command Output",
 	"commandExecution": {
 		"abort": "Abort",

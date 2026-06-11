@@ -10,6 +10,8 @@ import {
 
 import { OpenAiCodexHandler } from "../openai-codex"
 import type { ApiHandlerCreateMessageMetadata } from "../../index"
+import { openAiCodexOAuthManager } from "../../../integrations/openai-codex/oauth"
+import { SINGLE_COMPLETION_SYSTEM_PROMPT } from "../../../shared/single-completion"
 
 const deprecatedOpenAiCodexModelIds = [
 	"gpt-5.1-codex-max",
@@ -111,15 +113,10 @@ describe("OpenAiCodexHandler Fast mode request body", () => {
 		apiModelId: string,
 		options: { openAiCodexFastMode?: boolean } = {},
 		metadata?: ApiHandlerCreateMessageMetadata,
+		systemPrompt = "system prompt",
 	) => {
 		const handler = new OpenAiCodexHandler({ apiModelId, ...options })
-		return (handler as any).buildRequestBody(
-			handler.getModel(),
-			formattedInput,
-			"system prompt",
-			undefined,
-			metadata,
-		)
+		return (handler as any).buildRequestBody(handler.getModel(), formattedInput, systemPrompt, undefined, metadata)
 	}
 
 	it.each(["gpt-5.5", "gpt-5.4"])(
@@ -161,6 +158,89 @@ describe("OpenAiCodexHandler Fast mode request body", () => {
 		)
 
 		expect(body.service_tier).toBeUndefined()
+	})
+
+	it("should supply default instructions when the streaming request system prompt is empty", () => {
+		const body = buildRequestBody("gpt-5.5", {}, undefined, "")
+
+		expect(body.instructions).toBe(SINGLE_COMPLETION_SYSTEM_PROMPT)
+		expect(body.instructions.trim().length).toBeGreaterThan(0)
+	})
+})
+
+describe("OpenAiCodexHandler.completePrompt", () => {
+	let fetchMock: ReturnType<typeof vi.fn>
+
+	const sseBody = (...events: any[]) =>
+		new ReadableStream({
+			start(controller) {
+				const encoder = new TextEncoder()
+				for (const event of events) {
+					controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
+				}
+				controller.close()
+			},
+		})
+
+	beforeEach(() => {
+		vi.restoreAllMocks()
+		vi.spyOn(openAiCodexOAuthManager, "getAccessToken").mockResolvedValue("test-token")
+		vi.spyOn(openAiCodexOAuthManager, "getAccountId").mockResolvedValue("acct_test")
+
+		fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			body: sseBody(
+				{ type: "response.output_text.delta", delta: "Enhanced " },
+				{ type: "response.output_text.delta", delta: "prompt" },
+				{ type: "response.completed", response: { output: [] } },
+			),
+		})
+		vi.stubGlobal("fetch", fetchMock)
+	})
+
+	afterEach(() => {
+		vi.unstubAllGlobals()
+	})
+
+	it("streams lightweight completion requests with non-empty instructions required by the Codex backend", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const result = await handler.completePrompt("Generate an enhanced prompt")
+
+		expect(result).toBe("Enhanced prompt")
+		const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body)
+		expect(requestBody.stream).toBe(true)
+		expect(requestBody.instructions).toBe(SINGLE_COMPLETION_SYSTEM_PROMPT)
+		expect(requestBody.instructions.trim().length).toBeGreaterThan(0)
+		expect(requestBody.input).toEqual([
+			{
+				role: "user",
+				content: [{ type: "input_text", text: "Generate an enhanced prompt" }],
+			},
+		])
+	})
+
+	it("reads Codex lightweight completions from streamed SSE responses", async () => {
+		fetchMock.mockResolvedValueOnce({
+			ok: true,
+			body: sseBody({
+				type: "response.completed",
+				response: {
+					output: [
+						{
+							type: "message",
+							content: [{ type: "output_text", text: "Enhanced from final event" }],
+						},
+					],
+				},
+			}),
+		})
+
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const result = await handler.completePrompt("Generate an enhanced prompt")
+
+		expect(result).toBe("Enhanced from final event")
 	})
 })
 

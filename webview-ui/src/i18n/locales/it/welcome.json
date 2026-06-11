@@ -11,7 +11,139 @@
 	"landing": {
 		"greeting": "Benvenuto in C Code!",
 		"introduction": "Con una gamma di Modalità integrate ed estensibili, C Code ti permette di pianificare, architettare, codificare, debuggare e aumentare la tua produttività come mai prima d'ora.",
-		"getStarted": "Get Started"
+		"getStarted": "Get Started",
+		"setupLocalAi": "Configura AI locale",
+		"localAi": {
+			"title": "Configura AI locale",
+			"description": "Rileva il tuo hardware, scegli Ollama o LM Studio e configura un modello locale."
+		},
+		"provider": {
+			"title": "Usa un provider API",
+			"description": "Scegli OpenRouter o usa una chiave di un altro provider."
+		}
+	},
+	"localSetup": {
+		"heading": "Configura AI locale",
+		"subtitle": "Rispondi ad alcune domande e C Code ti aiuterà a configurare Ollama o a usare un server LM Studio esistente.",
+		"hardware": {
+			"heading": "Controllo hardware e runtime",
+			"detecting": "Rilevamento del computer e dei runtime AI locali…",
+			"system": "{{os}} {{arch}}, {{cores}} core CPU, {{ram}} di RAM",
+			"disk": "Disco libero: {{free}}",
+			"gpuDetected": "GPU rilevata: {{gpu}}",
+			"gpuUnknown": "Stato GPU sconosciuto. Restiamo prudenti invece di presumere che tu non abbia una GPU.",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "Aggiorna controllo"
+		},
+		"runtimeStatus": {
+			"running": "in esecuzione",
+			"installed-not-running": "installato, non in esecuzione",
+			"missing": "mancante",
+			"unknown": "sconosciuto",
+			"detection-failed": "rilevamento non riuscito"
+		},
+		"form": {
+			"usage": {
+				"label": "Come userai l'AI locale?",
+				"light": "Aiuto leggero con il codice",
+				"daily": "Coding quotidiano",
+				"agentic": "Refactor grandi e attività agentiche"
+			},
+			"preference": {
+				"label": "Per cosa deve ottimizzare la raccomandazione?",
+				"speed": "Velocità",
+				"balanced": "Bilanciamento",
+				"quality": "Qualità"
+			},
+			"privacy": {
+				"label": "Preferenza privacy",
+				"localOnly": "Solo locale",
+				"localPreferred": "Preferisco locale, va bene configurare dopo"
+			},
+			"diskBudget": "Budget disco del modello (GB)",
+			"runtime": {
+				"label": "Scelta del runtime",
+				"existing": "Usa un runtime locale esistente",
+				"ollama": "Configura Ollama",
+				"manual": "Configurazione manuale",
+				"lmStudio": "Usa LM Studio"
+			},
+			"providerPreference": {
+				"label": "Preferenza runtime locale rilevato"
+			},
+			"provider": {
+				"label": "Provider locale",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "Percorso più automatizzato: C Code può scaricare il modello Ollama consigliato con avanzamento.",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "Usa LM Studio se preferisci il suo gestore modelli basato su app e il server locale.",
+				"lmStudioReadyDescription": "LM Studio è in esecuzione con {{models}} modello/i disponibile/i.",
+				"readyBadge": "Pronto"
+			}
+		},
+		"actions": {
+			"manual": "Configurazione manuale",
+			"recommend": "Consiglia un modello",
+			"recommending": "Creazione raccomandazione…",
+			"adjust": "Modifica risposte",
+			"installHelp": "Aiuto installazione Ollama",
+			"confirmDownload": "Conferma e scarica",
+			"cancel": "Annulla configurazione",
+			"retry": "Riprova download",
+			"openOllamaDownload": "Apri download Ollama",
+			"useApiProvider": "Usa un provider API",
+			"useLmStudio": "Usa modello LM Studio",
+			"openLmStudioDownload": "Apri download di LM Studio",
+			"openLmStudioServerDocs": "Apri guida server LM Studio"
+		},
+		"recommendation": {
+			"heading": "Modello locale consigliato",
+			"apiHeading": "Provider API consigliato",
+			"apiDescription": "Questo computer potrebbe eseguire i modelli di coding locali lentamente o con qualità limitata. Un provider API è il percorso consigliato per una prima esperienza migliore.",
+			"manualStillAvailable": "Puoi comunque scegliere la configurazione locale manuale se vuoi sperimentare con Ollama.",
+			"size": "Download approssimativo: {{size}}",
+			"disk": "Disco libero rilevato: {{free}}",
+			"runtime": "Runtime/provider: {{runtime}} dalla sua API locale ufficiale",
+			"confidence": "Affidabilità raccomandazione: {{confidence}}",
+			"privacyHeading": "Nota privacy",
+			"warnings": "Prima di scaricare",
+			"weakHardwareWarning": "I modelli AI locali potrebbero essere lenti o non funzionare come previsto su questo hardware."
+		},
+		"confidence": {
+			"low": "bassa",
+			"medium": "media",
+			"high": "alta"
+		},
+		"progress": {
+			"heading": "Configurazione AI locale",
+			"starting": "Avvio configurazione AI locale…",
+			"model": "Modello: {{model}}",
+			"percent": "{{percent}}% completato",
+			"waiting": "In attesa dell'avanzamento del runtime locale…"
+		},
+		"manual": {
+			"heading": "Configurazione manuale AI locale",
+			"description": "C Code non eseguirà installer in silenzio. Installa Ollama o LM Studio da solo, avvia il server locale, poi torna e aggiorna la verifica.",
+			"stepInstall": "Scarica Ollama o LM Studio dal sito ufficiale.",
+			"stepStart": "Avvia Ollama o il server locale di LM Studio e assicurati che sia raggiungibile al suo URL locale predefinito.",
+			"stepRetry": "Torna qui, aggiorna il controllo del runtime ed esegui di nuovo la raccomandazione."
+		},
+		"success": {
+			"heading": "L'AI locale è pronta",
+			"description": "{{model}} è pronto per l'inferenza locale.",
+			"profile": "C Code ha salvato e attivato un profilo provider Local AI (Ollama).",
+			"lmStudioProfile": "C Code ha salvato e attivato un profilo provider Local AI (LM Studio)."
+		},
+		"lmStudio": {
+			"statusHeading": "Stato LM Studio: {{status}}",
+			"ready": "Scegli uno dei modelli segnalati da LM Studio, poi usalo per creare un profilo provider locale.",
+			"noModels": "LM Studio è raggiungibile, ma non segnala modelli utilizzabili. Scarica o carica un modello chat in LM Studio, poi aggiorna la verifica.",
+			"serverStopped": "LM Studio sembra installato, ma il server locale non è in esecuzione. Avvia il server locale in LM Studio, poi aggiorna la verifica.",
+			"detectionFailed": "Rilevamento di LM Studio non riuscito: {{error}}",
+			"missing": "LM Studio non è installato o non è raggiungibile. Apri la pagina ufficiale di download, installa LM Studio, scarica un modello, avvia il server locale e aggiorna la verifica.",
+			"unknownError": "errore sconosciuto",
+			"modelLabel": "Modello LM Studio"
+		}
 	},
 	"providerSignup": {
 		"heading": "Scegli il tuo provider",

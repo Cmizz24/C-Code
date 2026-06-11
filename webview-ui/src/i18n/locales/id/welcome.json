@@ -11,7 +11,139 @@
 	"landing": {
 		"greeting": "Selamat datang di C Code!",
 		"introduction": "Dengan berbagai Mode bawaan dan dapat diperluas, C Code memungkinkan Anda merencanakan, merancang, coding, debug, dan meningkatkan produktivitas seperti yang belum pernah terjadi sebelumnya.",
-		"getStarted": "Buat Akun Roo"
+		"getStarted": "Buat Akun Roo",
+		"setupLocalAi": "Siapkan AI lokal",
+		"localAi": {
+			"title": "Siapkan AI lokal",
+			"description": "Deteksi hardware-mu, pilih Ollama atau LM Studio, lalu siapkan model lokal."
+		},
+		"provider": {
+			"title": "Gunakan penyedia API",
+			"description": "Pilih OpenRouter atau gunakan key dari penyedia lain."
+		}
+	},
+	"localSetup": {
+		"heading": "Siapkan AI lokal",
+		"subtitle": "Jawab beberapa pertanyaan dan C Code akan membantu menyiapkan Ollama atau memakai server LM Studio yang sudah ada.",
+		"hardware": {
+			"heading": "Pemeriksaan hardware dan runtime",
+			"detecting": "Mendeteksi komputer dan runtime AI lokal Anda…",
+			"system": "{{os}} {{arch}}, {{cores}} core CPU, {{ram}} RAM",
+			"disk": "Disk kosong: {{free}}",
+			"gpuDetected": "GPU terdeteksi: {{gpu}}",
+			"gpuUnknown": "Status GPU tidak diketahui. Kami akan tetap konservatif, bukan menganggap Anda tidak punya GPU.",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "Segarkan pemeriksaan"
+		},
+		"runtimeStatus": {
+			"running": "berjalan",
+			"installed-not-running": "terinstal, tidak berjalan",
+			"missing": "tidak ada",
+			"unknown": "tidak diketahui",
+			"detection-failed": "deteksi gagal"
+		},
+		"form": {
+			"usage": {
+				"label": "Bagaimana Anda akan memakai AI lokal?",
+				"light": "Bantuan kode ringan",
+				"daily": "Coding harian",
+				"agentic": "Refactor besar dan tugas agentic"
+			},
+			"preference": {
+				"label": "Rekomendasi harus mengoptimalkan apa?",
+				"speed": "Kecepatan",
+				"balanced": "Seimbang",
+				"quality": "Kualitas"
+			},
+			"privacy": {
+				"label": "Preferensi privasi",
+				"localOnly": "Hanya lokal",
+				"localPreferred": "Lebih suka lokal, boleh konfigurasi nanti"
+			},
+			"diskBudget": "Anggaran disk model (GB)",
+			"runtime": {
+				"label": "Pilihan runtime",
+				"existing": "Gunakan runtime lokal yang sudah ada",
+				"ollama": "Siapkan Ollama",
+				"manual": "Setup manual",
+				"lmStudio": "Gunakan LM Studio"
+			},
+			"providerPreference": {
+				"label": "Preferensi runtime lokal yang terdeteksi"
+			},
+			"provider": {
+				"label": "Penyedia lokal",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "Jalur paling otomatis: C Code bisa mengunduh model Ollama yang direkomendasikan dengan progres.",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "Gunakan LM Studio jika kamu lebih suka pengelola model berbasis aplikasi dan server lokalnya.",
+				"lmStudioReadyDescription": "LM Studio berjalan dengan {{models}} model tersedia.",
+				"readyBadge": "Siap"
+			}
+		},
+		"actions": {
+			"manual": "Setup manual",
+			"recommend": "Rekomendasikan model",
+			"recommending": "Membuat rekomendasi…",
+			"adjust": "Sesuaikan jawaban",
+			"installHelp": "Bantuan instalasi Ollama",
+			"confirmDownload": "Konfirmasi dan unduh",
+			"cancel": "Batalkan setup",
+			"retry": "Coba unduh lagi",
+			"openOllamaDownload": "Buka unduhan Ollama",
+			"useApiProvider": "Gunakan penyedia API",
+			"useLmStudio": "Gunakan model LM Studio",
+			"openLmStudioDownload": "Buka unduhan LM Studio",
+			"openLmStudioServerDocs": "Buka panduan server LM Studio"
+		},
+		"recommendation": {
+			"heading": "Model lokal yang direkomendasikan",
+			"apiHeading": "Penyedia API direkomendasikan",
+			"apiDescription": "Komputer ini mungkin menjalankan model coding lokal dengan lambat atau kualitas terbatas. Penyedia API adalah jalur yang direkomendasikan untuk pengalaman pertama yang lebih baik.",
+			"manualStillAvailable": "Kamu masih bisa memilih penyiapan lokal manual jika ingin bereksperimen dengan Ollama.",
+			"size": "Perkiraan unduhan: {{size}}",
+			"disk": "Disk kosong terdeteksi: {{free}}",
+			"runtime": "Runtime/penyedia: {{runtime}} dari API lokal resminya",
+			"confidence": "Keyakinan rekomendasi: {{confidence}}",
+			"privacyHeading": "Catatan privasi",
+			"warnings": "Sebelum mengunduh",
+			"weakHardwareWarning": "Model AI lokal mungkin lambat atau tidak berfungsi seperti yang diharapkan di hardware ini."
+		},
+		"confidence": {
+			"low": "rendah",
+			"medium": "sedang",
+			"high": "tinggi"
+		},
+		"progress": {
+			"heading": "Menyiapkan AI lokal",
+			"starting": "Memulai setup AI lokal…",
+			"model": "Model: {{model}}",
+			"percent": "{{percent}}% selesai",
+			"waiting": "Menunggu progres runtime lokal…"
+		},
+		"manual": {
+			"heading": "Penyiapan AI lokal manual",
+			"description": "C Code tidak akan menjalankan installer diam-diam. Instal Ollama atau LM Studio sendiri, mulai server lokal, lalu kembali dan segarkan pemeriksaan.",
+			"stepInstall": "Unduh Ollama atau LM Studio dari situs resmi.",
+			"stepStart": "Mulai Ollama atau server lokal LM Studio dan pastikan dapat dijangkau di URL lokal default-nya.",
+			"stepRetry": "Kembali ke sini, segarkan pemeriksaan runtime, dan jalankan rekomendasi lagi."
+		},
+		"success": {
+			"heading": "AI lokal siap",
+			"description": "{{model}} siap untuk inferensi lokal.",
+			"profile": "C Code menyimpan dan mengaktifkan profil penyedia Local AI (Ollama).",
+			"lmStudioProfile": "C Code menyimpan dan mengaktifkan profil penyedia Local AI (LM Studio)."
+		},
+		"lmStudio": {
+			"statusHeading": "Status LM Studio: {{status}}",
+			"ready": "Pilih salah satu model yang dilaporkan LM Studio, lalu gunakan untuk membuat profil penyedia lokal.",
+			"noModels": "LM Studio dapat dijangkau, tetapi tidak melaporkan model yang bisa digunakan. Unduh atau muat model chat di LM Studio, lalu segarkan pemeriksaan.",
+			"serverStopped": "LM Studio tampaknya terinstal, tetapi server lokal tidak berjalan. Mulai server lokal di LM Studio, lalu segarkan pemeriksaan.",
+			"detectionFailed": "Deteksi LM Studio gagal: {{error}}",
+			"missing": "LM Studio tidak terinstal atau tidak dapat dijangkau. Buka halaman unduhan resmi, instal LM Studio, unduh model, mulai server lokal, lalu segarkan pemeriksaan.",
+			"unknownError": "error tidak dikenal",
+			"modelLabel": "Model LM Studio"
+		}
 	},
 	"providerSignup": {
 		"heading": "Pilih penyedia Anda",

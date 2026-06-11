@@ -76,15 +76,59 @@ export interface AgentPlan {
 	worktreePath: string
 	status: AgentStatus
 	signals: string[]
+	continuation?: AgentContinuationMetadata
 }
 
 export interface ExecutionPlan {
 	planId: string
+	goal?: string
 	sharedContext: string
 	sharedContract: string
 	fileOwnershipMap: Record<string, string>
 	agents: AgentPlan[]
 	createdAt: number
+	continuation?: ParallelPlanContinuationMetadata
+}
+
+export type AgentContinuationDecision = "reused" | "fresh"
+
+export interface AgentContinuationMetadata {
+	decision: AgentContinuationDecision
+	reason: string
+	sourcePlanId?: string
+	sourceAgentId?: string
+	sourceBranch?: string
+	sourceWorktreePath?: string
+	sourceTask?: string
+	sourceGoal?: string
+	newPlanId?: string
+	newAgentId?: string
+	newBranch?: string
+	reusedWorktreePath?: string
+	resetToCurrentBaseline?: boolean
+	relevanceScore?: number
+	relevanceSignals?: string[]
+	relevantFiles?: string[]
+	changeStats?: MergeReviewChangeStats
+	context?: string
+}
+
+export interface ParallelPlanContinuationMetadata {
+	schemaVersion: 1
+	workspaceRoot?: string
+	repositoryRoot?: string
+	sourcePlanId?: string
+	evaluatedAt: number
+	reusedAgentCount: number
+	freshAgentCount: number
+	decisions: Array<{
+		agentId: string
+		decision: AgentContinuationDecision
+		sourceAgentId?: string
+		reason: string
+		relevanceScore?: number
+		relevanceSignals?: string[]
+	}>
 }
 
 export interface WritePermission {

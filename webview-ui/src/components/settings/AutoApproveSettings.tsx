@@ -36,6 +36,7 @@ type AutoApproveSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	alwaysAllowParallelTasks?: boolean
 	alwaysAllowVisualBrowserInspector?: boolean
 	alwaysAllowImageGeneration?: boolean
+	memoryAutoApproveMistakeMemory?: boolean
 	maxConcurrentParallelTasks?: number
 	alwaysAllowExecute?: boolean
 	alwaysAllowFollowupQuestions?: boolean
@@ -56,6 +57,7 @@ type AutoApproveSettingsProps = HTMLAttributes<HTMLDivElement> & {
 		| "alwaysAllowParallelTasks"
 		| "alwaysAllowVisualBrowserInspector"
 		| "alwaysAllowImageGeneration"
+		| "memoryAutoApproveMistakeMemory"
 		| "maxConcurrentParallelTasks"
 		| "alwaysAllowExecute"
 		| "alwaysAllowFollowupQuestions"
@@ -79,6 +81,7 @@ export const AutoApproveSettings = ({
 	alwaysAllowParallelTasks,
 	alwaysAllowVisualBrowserInspector,
 	alwaysAllowImageGeneration,
+	memoryAutoApproveMistakeMemory,
 	maxConcurrentParallelTasks,
 	alwaysAllowExecute,
 	alwaysAllowFollowupQuestions,
@@ -186,6 +189,7 @@ export const AutoApproveSettings = ({
 						alwaysAllowParallelTasks={alwaysAllowParallelTasks}
 						alwaysAllowVisualBrowserInspector={alwaysAllowVisualBrowserInspector}
 						alwaysAllowImageGeneration={alwaysAllowImageGeneration}
+						memoryAutoApproveMistakeMemory={memoryAutoApproveMistakeMemory}
 						alwaysAllowExecute={alwaysAllowExecute}
 						alwaysAllowFollowupQuestions={alwaysAllowFollowupQuestions}
 						onToggle={(key, value) => setCachedStateField(key, value)}

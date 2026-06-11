@@ -502,6 +502,46 @@
 		"didSearch_other": "{{count}} परिणाम मिले",
 		"resultTooltip": "समानता स्कोर: {{score}} (फ़ाइल खोलने के लिए क्लिक करें)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Workspace",
+			"global": "Global",
+			"all": "सारी memory"
+		},
+		"statuses": {
+			"active": "Active",
+			"pending": "Pending",
+			"stale": "Stale",
+			"superseded": "Superseded",
+			"archived": "Archived",
+			"all": "सभी statuses"
+		},
+		"fields": {
+			"title": "शीर्षक",
+			"signature": "Signature",
+			"tool": "Tool",
+			"mode": "Mode",
+			"tags": "Tags",
+			"paths": "Paths",
+			"score": "Score"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo {{scope}} memory में <code>{{query}}</code> खोजना चाहता है",
+		"resultsFound_one": "1 matching memory मिली",
+		"resultsFound_other": "{{count}} matching memories मिलीं",
+		"noResults": "कोई matching memory नहीं मिली",
+		"untitledResult": "Memory result"
+	},
+	"mistakeMemory": {
+		"savedPending": "एक pending गलती memory सेव की गई",
+		"savedActive": "एक active गलती memory सेव की गई",
+		"savedArchived": "गलती memory archive की गई",
+		"approveAction": "Memory मंज़ूर करें",
+		"archiveAction": "Memory archive करें",
+		"autoApproved": "अपने-आप मंज़ूर",
+		"reusedExisting": "मौजूदा memory अपडेट की गई"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "सभी स्वीकृत करें"
@@ -601,5 +641,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "सेटिंग्स खोलें",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "Memory wipe approval के इंतज़ार में है",
+			"completed": "Memory मिटा दी गई",
+			"cancelled": "Memory wipe रद्द किया गया"
+		},
+		"status": {
+			"pending": "Approval लंबित",
+			"completed": "पूरा हुआ",
+			"cancelled": "रद्द किया गया"
+		},
+		"fields": {
+			"scope": "Scope",
+			"status": "Status",
+			"deletedScopes": "मिटाए गए scopes"
+		}
 	}
 }

@@ -54,6 +54,29 @@
 		},
 		"noData": "Aucune donnée d'image"
 	},
+	"visualBrowserInspector": {
+		"emptyStatus": "Aucune session de navigateur Playwright contrôlée n'est active. Au premier usage, C Code prépare automatiquement Chromium dans le stockage de l'extension.",
+		"headerDescription": "Capture du navigateur Playwright contrôlé uniquement. C Code prépare automatiquement Chromium dans le stockage de l'extension au premier usage. Les artefacts restent locaux sous <artifactPath>.roo/visual-browser-inspector</artifactPath>.",
+		"findings": {
+			"groupedSummary": "{{recommendationCount}} recommandation(s) regroupée(s) couvrent {{issueCount}} problème(s) d'analyse de page pour les tâches de correction de suivi.",
+			"analysisBasedNotice": "Les recommandations sont générées à partir de l'analyse locale de la page, ce ne sont pas des espaces réservés; les problèmes répétés sont regroupés par cause racine probable ou stratégie de correction.",
+			"affectedIssues": "{{count}} problème(s)",
+			"startFixTaskForRecommendation": "Démarrer une tâche de correction pour cette recommandation",
+			"userImpactLabel": "Impact utilisateur :",
+			"rootCauseLabel": "Cause racine probable :",
+			"suggestedFixLabel": "Correction suggérée :",
+			"recommendationLabel": "Recommandation :",
+			"implementationHintLabel": "Indice d'implémentation :",
+			"examplesLabel": "Exemples conservés pour inspection",
+			"issueNumber": "Problème {{number}}",
+			"boxLabel": "Boîte :",
+			"filesToInspectLabel": "Fichiers à inspecter :",
+			"verificationStepsLabel": "Étapes de vérification",
+			"individualFindingsLabel": "Constats individuels dans ce groupe",
+			"screenshotLabel": "Capture :",
+			"cropLabel": "Recadrage :"
+		}
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "Format d'URI de données invalide",

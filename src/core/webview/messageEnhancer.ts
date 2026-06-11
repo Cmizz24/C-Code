@@ -1,8 +1,10 @@
-import { ProviderSettings, ClineMessage, GlobalState } from "@roo-code/types"
+import { ProviderSettings, ClineMessage } from "@roo-code/types"
 import { supportPrompt } from "../../shared/support-prompt"
 import { singleCompletionHandler } from "../../utils/single-completion-handler"
 import { ProviderSettingsManager } from "../config/ProviderSettingsManager"
-import { ClineProvider } from "./ClineProvider"
+
+const MAX_CONTEXT_FILE_PATHS = 10
+const MAX_CONTEXT_PATH_LENGTH = 200
 
 export interface MessageEnhancerOptions {
 	text: string
@@ -12,6 +14,9 @@ export interface MessageEnhancerOptions {
 	enhancementApiConfigId?: string
 	includeTaskHistoryInEnhance?: boolean
 	currentClineMessages?: ClineMessage[]
+	currentTaskMode?: string
+	currentWorkingDirectory?: string
+	filesReadByRoo?: string[]
 	providerSettingsManager: ProviderSettingsManager
 }
 
@@ -40,6 +45,9 @@ export class MessageEnhancer {
 				enhancementApiConfigId,
 				includeTaskHistoryInEnhance,
 				currentClineMessages,
+				currentTaskMode,
+				currentWorkingDirectory,
+				filesReadByRoo,
 				providerSettingsManager,
 			} = options
 
@@ -59,13 +67,28 @@ export class MessageEnhancer {
 
 			// Prepare the prompt to enhance
 			let promptToEnhance = text
+			const contextBlocks: string[] = []
+
+			const currentTaskContext = this.extractCurrentTaskContext({
+				currentTaskMode,
+				currentWorkingDirectory,
+				filesReadByRoo,
+			})
+
+			if (currentTaskContext) {
+				contextBlocks.push(`Use the following current task context as needed:\n${currentTaskContext}`)
+			}
 
 			// Include task history if enabled and available
 			if (includeTaskHistoryInEnhance && currentClineMessages && currentClineMessages.length > 0) {
 				const taskHistory = this.extractTaskHistory(currentClineMessages)
 				if (taskHistory) {
-					promptToEnhance = `${text}\n\nUse the following previous conversation context as needed:\n${taskHistory}`
+					contextBlocks.push(`Use the following previous conversation context as needed:\n${taskHistory}`)
 				}
+			}
+
+			if (contextBlocks.length > 0) {
+				promptToEnhance = `${text}\n\n${contextBlocks.join("\n\n")}`
 			}
 
 			// Create the enhancement prompt using the support prompt system
@@ -123,5 +146,80 @@ export class MessageEnhancer {
 			console.error("Failed to extract task history:", error)
 			return ""
 		}
+	}
+
+	/**
+	 * Extracts concise, safe current task context for prompt enhancement.
+	 * This intentionally includes metadata only (mode, workspace, and already-tracked file paths), not file contents.
+	 */
+	private static extractCurrentTaskContext({
+		currentTaskMode,
+		currentWorkingDirectory,
+		filesReadByRoo,
+	}: Pick<MessageEnhancerOptions, "currentTaskMode" | "currentWorkingDirectory" | "filesReadByRoo">): string {
+		try {
+			const contextLines: string[] = []
+			const normalizedMode = this.normalizeContextValue(currentTaskMode, 80)
+			const normalizedWorkingDirectory = this.normalizeContextValue(
+				currentWorkingDirectory,
+				MAX_CONTEXT_PATH_LENGTH,
+			)
+			const normalizedFiles = this.extractFileContext(filesReadByRoo)
+
+			if (normalizedMode) {
+				contextLines.push(`- Current mode: ${normalizedMode}`)
+			}
+
+			if (normalizedWorkingDirectory) {
+				contextLines.push(`- Workspace: ${normalizedWorkingDirectory}`)
+			}
+
+			if (normalizedFiles) {
+				contextLines.push(`- Files already referenced in this task:\n${normalizedFiles}`)
+			}
+
+			return contextLines.join("\n")
+		} catch (error) {
+			console.error("Failed to extract current task context:", error)
+			return ""
+		}
+	}
+
+	private static extractFileContext(filesReadByRoo?: string[]): string {
+		if (!Array.isArray(filesReadByRoo) || filesReadByRoo.length === 0) {
+			return ""
+		}
+
+		const normalizedPaths = Array.from(
+			new Set(
+				filesReadByRoo
+					.map((filePath) => this.normalizeContextValue(filePath, MAX_CONTEXT_PATH_LENGTH))
+					.filter((filePath): filePath is string => Boolean(filePath)),
+			),
+		)
+
+		const selectedPaths = normalizedPaths.slice(0, MAX_CONTEXT_FILE_PATHS)
+		const remainingCount = normalizedPaths.length - selectedPaths.length
+		const fileLines = selectedPaths.map((filePath) => `  - ${filePath}`)
+
+		if (remainingCount > 0) {
+			fileLines.push(`  - ...and ${remainingCount} more`)
+		}
+
+		return fileLines.join("\n")
+	}
+
+	private static normalizeContextValue(value: unknown, maxLength: number): string {
+		if (typeof value !== "string") {
+			return ""
+		}
+
+		const normalized = value.trim().replace(/\s+/g, " ")
+
+		if (!normalized) {
+			return ""
+		}
+
+		return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized
 	}
 }

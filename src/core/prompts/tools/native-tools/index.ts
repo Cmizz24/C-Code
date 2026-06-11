@@ -11,6 +11,9 @@ import executeCommand from "./execute_command"
 import generateImage from "./generate_image"
 import visualBrowserInspector from "./visual_browser_inspector"
 import listFiles from "./list_files"
+import memorySearch from "./memory_search"
+import memoryWipe from "./memory_wipe"
+import mistakeMemory from "./mistake_memory"
 import newTask from "./new_task"
 import { createPlanParallelTasksTool } from "./plan_parallel_tasks"
 import readCommandOutput from "./read_command_output"
@@ -65,6 +68,9 @@ export function getNativeTools(options: NativeToolsOptions = {}): OpenAI.Chat.Ch
 		generateImage,
 		visualBrowserInspector,
 		listFiles,
+		memorySearch,
+		mistakeMemory,
+		memoryWipe,
 		newTask,
 		createPlanParallelTasksTool({ maxAgents: maxParallelAgents }),
 		readCommandOutput,

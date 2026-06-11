@@ -502,6 +502,46 @@
 		"didSearch_other": "{{count}} résultats trouvés",
 		"resultTooltip": "Score de similarité : {{score}} (cliquer pour ouvrir le fichier)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Espace de travail",
+			"global": "Globale",
+			"all": "Toute la mémoire"
+		},
+		"statuses": {
+			"active": "Active",
+			"pending": "En attente",
+			"stale": "Obsolète",
+			"superseded": "Remplacée",
+			"archived": "Archivée",
+			"all": "Tous les états"
+		},
+		"fields": {
+			"title": "Titre",
+			"signature": "Signature",
+			"tool": "Outil",
+			"mode": "Mode",
+			"tags": "Étiquettes",
+			"paths": "Chemins",
+			"score": "Score"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo veut rechercher dans la mémoire {{scope}} <code>{{query}}</code>",
+		"resultsFound_one": "1 mémoire correspondante trouvée",
+		"resultsFound_other": "{{count}} mémoires correspondantes trouvées",
+		"noResults": "Aucune mémoire correspondante trouvée",
+		"untitledResult": "Résultat de mémoire"
+	},
+	"mistakeMemory": {
+		"savedPending": "Mémoire d’erreur en attente enregistrée",
+		"savedActive": "Mémoire d’erreur active enregistrée",
+		"savedArchived": "Mémoire d’erreur archivée",
+		"approveAction": "Approuver la mémoire",
+		"archiveAction": "Archiver la mémoire",
+		"autoApproved": "Approuvée automatiquement",
+		"reusedExisting": "Mémoire existante mise à jour"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "Tout approuver"
@@ -601,5 +641,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "Ouvrir les paramètres",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "Effacement de mémoire en attente d’approbation",
+			"completed": "Mémoire effacée",
+			"cancelled": "Effacement de mémoire annulé"
+		},
+		"status": {
+			"pending": "En attente d’approbation",
+			"completed": "Terminé",
+			"cancelled": "Annulé"
+		},
+		"fields": {
+			"scope": "Portée",
+			"status": "Statut",
+			"deletedScopes": "Portées supprimées"
+		}
 	}
 }

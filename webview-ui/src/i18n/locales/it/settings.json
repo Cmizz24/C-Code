@@ -35,6 +35,7 @@
 		"checkpoints": "Punti di controllo",
 		"notifications": "Notifiche",
 		"contextManagement": "Contesto",
+		"memory": "Memoria",
 		"terminal": "Terminal",
 		"slashCommands": "Comandi Slash",
 		"prompts": "Prompt",
@@ -257,8 +258,12 @@
 			"description": "Approva automaticamente i piani di attività parallele validi e avvia gli agenti senza mostrare il modale di anteprima del piano"
 		},
 		"visualBrowserInspector": {
-			"label": "Browser",
+			"label": "Visual Browser Inspector",
 			"description": "Approva automaticamente le azioni del Visual Browser Inspector dalla chat, incluse l'apertura di pagine browser controllate, screenshot, ispezione DOM, ritagli, analisi e interazioni con la pagina. Questo non consente modifiche ai file né comandi del terminale."
+		},
+		"memory": {
+			"label": "Memoria",
+			"description": "Approva automaticamente i salvataggi di memorie di errore dalla chat e dagli errori degli strumenti. Quando è disattivato, puoi comunque rivedere le memorie in sospeso dalla chat o dalle impostazioni Memoria."
 		},
 		"imageGeneration": {
 			"label": "Immagini",
@@ -817,6 +822,114 @@
 		"enableSubfolderRules": {
 			"label": "Abilita regole sottocartelle",
 			"description": "Scopri e carica ricorsivamente i file .roo/rules e AGENTS.md dalle sottodirectory. Utile per i monorepo con regole per pacchetto."
+		}
+	},
+	"memory": {
+		"description": "Configura come C Code recupera, salva e gestisce le memorie in questo workspace e nel contesto globale.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Comportamento principale",
+				"description": "Scegli quando la memoria viene eseguita e quali ambiti di memoria può usare C."
+			},
+			"retrievalLimits": {
+				"title": "Limiti di recupero",
+				"description": "Regola quanto contesto di memoria viene incluso in ogni richiesta."
+			},
+			"management": {
+				"title": "Gestione memoria",
+				"description": "Controlla i conteggi della memoria e gestisci lezioni in sospeso, archiviate o salvate."
+			},
+			"advanced": {
+				"title": "Avanzate",
+				"description": "Controlla la conservazione delle candidate in sospeso della memoria degli errori."
+			}
+		},
+		"mode": {
+			"label": "Modalità memoria",
+			"description": "Usa la modalità automatica per attivare la memoria nei modelli con meno di 1M di token di contesto e disattivarla nei modelli con contesto più ampio, a meno che tu non la sovrascriva.",
+			"options": {
+				"auto": "Automatica",
+				"enabled": "Sempre attiva",
+				"disabled": "Disattivata"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Usa la memoria del workspace",
+			"description": "Recupera e salva lezioni limitate a questo workspace senza memorizzare percorsi assoluti del workspace."
+		},
+		"globalEnabled": {
+			"label": "Usa la memoria globale",
+			"description": "Recupera e salva lezioni applicabili in più workspace."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Cattura memorie degli errori",
+			"description": "Crea lezioni in sospeso da correzioni, errori di validazione ed errori ripetuti dei tool. Le lezioni in sospeso non vengono usate in modo permanente finché non sono approvate."
+		},
+		"autoApproveMistakeMemory": {
+			"label": "Approva automaticamente le memorie degli errori",
+			"description": "Salva le nuove lezioni di memoria degli errori come attive subito dopo la redazione, invece di creare candidate in sospeso. Tienilo disattivato a meno che tu non ti fidi dell’automazione."
+		},
+		"maxCharacters": {
+			"label": "Budget di caratteri della memoria",
+			"description": "Numero massimo di caratteri di contesto memoria da iniettare in una richiesta. Sotto pressione di contesto, la memoria viene tagliata o saltata per prima."
+		},
+		"maxEntries": {
+			"label": "Voci memoria massime",
+			"description": "Numero massimo di voci memoria attive da includere in una richiesta."
+		},
+		"pendingCandidateLimit": {
+			"label": "Limite memorie degli errori in sospeso",
+			"description": "Numero massimo di candidati mistake-memory in sospeso da conservare prima di eliminare quelli più vecchi."
+		},
+		"management": {
+			"title": "Gestione memoria",
+			"description": "Controlla i conteggi delle memorie del workspace e globali, approva lezioni in sospeso, archivia memorie o cancella la memoria salvata."
+		},
+		"summary": {
+			"workspace": "Memoria del workspace",
+			"global": "Memoria globale",
+			"active": "Attive",
+			"pending": "In sospeso",
+			"archived": "Archiviate",
+			"total": "Totale"
+		},
+		"scope": {
+			"workspace": "Workspace",
+			"global": "Globale"
+		},
+		"status": {
+			"active": "Attiva",
+			"pending": "In sospeso",
+			"stale": "Obsoleta",
+			"superseded": "Sostituita",
+			"archived": "Archiviata"
+		},
+		"kind": {
+			"lesson": "Lezione",
+			"mistake": "Errore"
+		},
+		"records": {
+			"count": "{{count}} record",
+			"empty": "Nessuna memoria salvata in questo ambito.",
+			"lesson": "Lezione",
+			"tags": "Tag",
+			"pathHints": "Suggerimenti percorso",
+			"created": "Creata",
+			"updated": "Aggiornata",
+			"lastUsed": "Ultimo utilizzo"
+		},
+		"actions": {
+			"refresh": "Aggiorna",
+			"approvePending": "Approva in sospeso",
+			"archivePending": "Archivia in sospeso",
+			"archiveAll": "Archivia tutto",
+			"clear": "Cancella"
+		},
+		"confirm": {
+			"title": "Conferma azione memoria",
+			"description": "Questa azione di memoria modifica o rimuove lezioni salvate. Non può essere annullata per la memoria cancellata.",
+			"cancel": "Annulla",
+			"confirm": "Continua"
 		}
 	},
 	"terminal": {

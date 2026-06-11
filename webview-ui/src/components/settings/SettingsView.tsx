@@ -11,6 +11,7 @@ import React, {
 } from "react"
 import {
 	CheckCheck,
+	Brain,
 	GitBranch,
 	Bell,
 	Database,
@@ -71,6 +72,7 @@ import { AutoApproveSettings } from "./AutoApproveSettings"
 import { CheckpointSettings } from "./CheckpointSettings"
 import { NotificationSettings } from "./NotificationSettings"
 import { ContextManagementSettings } from "./ContextManagementSettings"
+import { MemorySettings } from "./MemorySettings"
 import { TerminalSettings } from "./TerminalSettings"
 import { ExperimentalSettings } from "./ExperimentalSettings"
 import { ImageGenerationSettings, type SetImageGenerationSetting } from "./ImageGenerationSettings"
@@ -107,6 +109,7 @@ export const sectionNames = [
 	"checkpoints",
 	"notifications",
 	"contextManagement",
+	"memory",
 	"terminal",
 	"modes",
 	"mcp",
@@ -264,6 +267,16 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		includeCurrentTime,
 		includeCurrentCost,
 		maxGitStatusFiles,
+		memoryEnabled,
+		memoryWorkspaceEnabled,
+		memoryGlobalEnabled,
+		memoryMistakeMemoryEnabled,
+		memoryAutoApproveMistakeMemory,
+		memoryMaxCharacters,
+		memoryMaxEntries,
+		memoryPendingCandidateLimit,
+		memoryState,
+		memorySummary,
 	} = cachedState
 
 	const apiConfiguration = useMemo(() => cachedState.apiConfiguration ?? {}, [cachedState.apiConfiguration])
@@ -598,6 +611,14 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				includeCurrentTime: includeCurrentTime ?? true,
 				includeCurrentCost: includeCurrentCost ?? true,
 				maxGitStatusFiles: maxGitStatusFiles ?? 0,
+				memoryEnabled: memoryEnabled ?? null,
+				memoryWorkspaceEnabled: memoryWorkspaceEnabled ?? true,
+				memoryGlobalEnabled: memoryGlobalEnabled ?? true,
+				memoryMistakeMemoryEnabled: memoryMistakeMemoryEnabled ?? true,
+				memoryAutoApproveMistakeMemory: memoryAutoApproveMistakeMemory ?? false,
+				memoryMaxCharacters: Math.min(Math.max(0, memoryMaxCharacters ?? 2400), 20_000),
+				memoryMaxEntries: Math.min(Math.max(0, memoryMaxEntries ?? 8), 50),
+				memoryPendingCandidateLimit: Math.min(Math.max(0, memoryPendingCandidateLimit ?? 100), 1_000),
 				profileThresholds,
 				imageGenerationProvider,
 				openRouterImageApiKey,
@@ -744,6 +765,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			{ id: "checkpoints", icon: GitCommitVertical },
 			{ id: "notifications", icon: Bell },
 			{ id: "contextManagement", icon: Database },
+			{ id: "memory", icon: Brain },
 			{ id: "terminal", icon: SquareTerminal },
 			{ id: "prompts", icon: MessageSquare },
 			{ id: "worktrees", icon: GitBranch },
@@ -1039,6 +1061,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								alwaysAllowParallelTasks={alwaysAllowParallelTasks}
 								alwaysAllowVisualBrowserInspector={alwaysAllowVisualBrowserInspector}
 								alwaysAllowImageGeneration={alwaysAllowImageGeneration}
+								memoryAutoApproveMistakeMemory={memoryAutoApproveMistakeMemory}
 								maxConcurrentParallelTasks={maxConcurrentParallelTasks}
 								alwaysAllowExecute={alwaysAllowExecute}
 								alwaysAllowFollowupQuestions={alwaysAllowFollowupQuestions}
@@ -1125,6 +1148,22 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								maxGitStatusFiles={maxGitStatusFiles}
 								customSupportPrompts={customSupportPrompts || {}}
 								setCustomSupportPrompts={setCustomSupportPromptsField}
+								setCachedStateField={setCachedStateField}
+							/>
+						)}
+
+						{/* Memory Section */}
+						{renderTab === "memory" && (
+							<MemorySettings
+								memoryEnabled={memoryEnabled}
+								memoryWorkspaceEnabled={memoryWorkspaceEnabled}
+								memoryGlobalEnabled={memoryGlobalEnabled}
+								memoryMistakeMemoryEnabled={memoryMistakeMemoryEnabled}
+								memoryMaxCharacters={memoryMaxCharacters}
+								memoryMaxEntries={memoryMaxEntries}
+								memoryPendingCandidateLimit={memoryPendingCandidateLimit}
+								memoryState={memoryState}
+								memorySummary={memorySummary}
 								setCachedStateField={setCachedStateField}
 							/>
 						)}

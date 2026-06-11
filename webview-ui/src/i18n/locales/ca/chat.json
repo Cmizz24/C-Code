@@ -502,6 +502,46 @@
 		"didSearch_other": "S'han trobat {{count}} resultats",
 		"resultTooltip": "Puntuació de similitud: {{score}} (fes clic per obrir el fitxer)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Espai de treball",
+			"global": "Global",
+			"all": "Tota la memòria"
+		},
+		"statuses": {
+			"active": "Activa",
+			"pending": "Pendent",
+			"stale": "Obsoleta",
+			"superseded": "Substituïda",
+			"archived": "Arxivada",
+			"all": "Tots els estats"
+		},
+		"fields": {
+			"title": "Títol",
+			"signature": "Signatura",
+			"tool": "Eina",
+			"mode": "Mode",
+			"tags": "Etiquetes",
+			"paths": "Rutes",
+			"score": "Puntuació"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo vol cercar {{scope}} memòria per <code>{{query}}</code>",
+		"resultsFound_one": "S'ha trobat 1 memòria coincident",
+		"resultsFound_other": "S'han trobat {{count}} memòries coincidents",
+		"noResults": "No s'han trobat memòries coincidents",
+		"untitledResult": "Resultat de memòria"
+	},
+	"mistakeMemory": {
+		"savedPending": "S’ha desat una memòria d’error pendent",
+		"savedActive": "S’ha desat una memòria d’error activa",
+		"savedArchived": "Memòria d’error arxivada",
+		"approveAction": "Aprova memòria",
+		"archiveAction": "Arxiva memòria",
+		"autoApproved": "Aprovada automàticament",
+		"reusedExisting": "Memòria existent actualitzada"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "Aprovar tot"
@@ -601,5 +641,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "Obrir configuració",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "Esborrat de memòria pendent d’aprovació",
+			"completed": "Memòria esborrada",
+			"cancelled": "Esborrat de memòria cancel·lat"
+		},
+		"status": {
+			"pending": "Pendent d’aprovació",
+			"completed": "Completat",
+			"cancelled": "Cancel·lat"
+		},
+		"fields": {
+			"scope": "Abast",
+			"status": "Estat",
+			"deletedScopes": "Abasts esborrats"
+		}
 	}
 }

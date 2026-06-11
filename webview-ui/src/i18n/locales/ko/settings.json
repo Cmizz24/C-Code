@@ -35,6 +35,7 @@
 		"checkpoints": "체크포인트",
 		"notifications": "알림",
 		"contextManagement": "컨텍스트",
+		"memory": "메모리",
 		"terminal": "터미널",
 		"slashCommands": "슬래시 명령",
 		"prompts": "프롬프트",
@@ -257,8 +258,12 @@
 			"description": "유효한 병렬 작업 계획을 자동으로 승인하고 계획 미리 보기 모달을 표시하지 않고 에이전트를 시작합니다"
 		},
 		"visualBrowserInspector": {
-			"label": "브라우저",
+			"label": "Visual Browser Inspector",
 			"description": "채팅에서 시작된 Visual Browser Inspector 작업을 자동으로 승인합니다. 제어된 브라우저 페이지 열기, 스크린샷, DOM 검사, 크롭, 분석, 페이지 상호작용이 포함됩니다. 파일 편집이나 터미널 명령은 허용하지 않습니다."
+		},
+		"memory": {
+			"label": "메모리",
+			"description": "채팅과 도구 오류에서 저장되는 실수 메모리를 자동 승인합니다. 꺼져 있어도 보류 중인 메모리는 채팅 또는 메모리 설정에서 검토할 수 있습니다."
 		},
 		"imageGeneration": {
 			"label": "이미지",
@@ -817,6 +822,114 @@
 		"enableSubfolderRules": {
 			"label": "하위 폴더 규칙 활성화",
 			"description": "하위 디렉토리에서 .roo/rules 및 AGENTS.md 파일을 재귀적으로 검색하고 로드합니다. 패키지별 규칙이 있는 모노레포에 유용합니다."
+		}
+	},
+	"memory": {
+		"description": "C Code가 이 워크스페이스와 전역 컨텍스트에서 메모리를 검색, 저장, 관리하는 방식을 설정합니다.",
+		"sections": {
+			"coreBehavior": {
+				"title": "핵심 동작",
+				"description": "메모리를 언제 실행할지와 C가 사용할 수 있는 메모리 범위를 선택합니다."
+			},
+			"retrievalLimits": {
+				"title": "검색 제한",
+				"description": "각 요청에 포함할 메모리 컨텍스트 양을 조정합니다."
+			},
+			"management": {
+				"title": "메모리 관리",
+				"description": "메모리 개수를 확인하고 대기 중, 보관됨, 저장된 교훈을 관리합니다."
+			},
+			"advanced": {
+				"title": "고급",
+				"description": "대기 중인 mistake-memory 후보의 보존을 제어합니다."
+			}
+		},
+		"mode": {
+			"label": "메모리 모드",
+			"description": "자동 모드를 사용하면 context token 이 1M 미만인 모델에서는 메모리를 켜고, 더 큰 컨텍스트 모델에서는 직접 덮어쓰지 않는 한 꺼 둬.",
+			"options": {
+				"auto": "자동",
+				"enabled": "항상 켜기",
+				"disabled": "꺼짐"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "워크스페이스 메모리 사용",
+			"description": "절대 워크스페이스 경로를 저장하지 않고 이 워크스페이스에 한정된 교훈을 가져오고 저장해."
+		},
+		"globalEnabled": {
+			"label": "글로벌 메모리 사용",
+			"description": "여러 워크스페이스에 적용될 수 있는 교훈을 가져오고 저장해."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "실수 메모리 캡처",
+			"description": "수정, 검증 실패, 반복되는 tool 오류에서 보류 중인 교훈을 만들어. 보류 중인 교훈은 승인되기 전까지 영구적으로 사용되지 않아."
+		},
+		"autoApproveMistakeMemory": {
+			"label": "실수 메모리 자동 승인",
+			"description": "새 실수 메모리 레슨을 보류 후보로 만들지 않고 수정 후 즉시 활성 상태로 저장합니다. 자동화를 신뢰할 때만 켜고, 그렇지 않으면 꺼 두세요."
+		},
+		"maxCharacters": {
+			"label": "메모리 문자 예산",
+			"description": "요청에 주입할 메모리 컨텍스트의 최대 문자 수. 컨텍스트 압박이 있으면 메모리가 먼저 줄어들거나 건너뛰어져."
+		},
+		"maxEntries": {
+			"label": "최대 메모리 항목",
+			"description": "요청에 포함할 활성 메모리 항목의 최대 수."
+		},
+		"pendingCandidateLimit": {
+			"label": "보류 중인 실수 메모리 제한",
+			"description": "오래된 후보를 정리하기 전에 유지할 보류 중인 mistake-memory 후보의 최대 수."
+		},
+		"management": {
+			"title": "메모리 관리",
+			"description": "워크스페이스 및 글로벌 메모리 수를 확인하고, 보류 중인 교훈을 승인하고, 메모리를 보관하거나 저장된 메모리를 지워."
+		},
+		"summary": {
+			"workspace": "워크스페이스 메모리",
+			"global": "글로벌 메모리",
+			"active": "활성",
+			"pending": "보류 중",
+			"archived": "보관됨",
+			"total": "전체"
+		},
+		"scope": {
+			"workspace": "작업 공간",
+			"global": "전역"
+		},
+		"status": {
+			"active": "활성",
+			"pending": "보류 중",
+			"stale": "오래됨",
+			"superseded": "대체됨",
+			"archived": "보관됨"
+		},
+		"kind": {
+			"lesson": "교훈",
+			"mistake": "실수"
+		},
+		"records": {
+			"count": "{{count}}개 기록",
+			"empty": "이 범위에 저장된 메모리가 없습니다.",
+			"lesson": "교훈",
+			"tags": "태그",
+			"pathHints": "경로 힌트",
+			"created": "생성됨",
+			"updated": "업데이트됨",
+			"lastUsed": "마지막 사용"
+		},
+		"actions": {
+			"refresh": "새로 고침",
+			"approvePending": "보류 항목 승인",
+			"archivePending": "보류 항목 보관",
+			"archiveAll": "모두 보관",
+			"clear": "지우기"
+		},
+		"confirm": {
+			"title": "메모리 작업 확인",
+			"description": "이 메모리 작업은 저장된 교훈을 변경하거나 제거해. 지운 메모리는 되돌릴 수 없어.",
+			"cancel": "취소",
+			"confirm": "계속"
 		}
 	},
 	"terminal": {

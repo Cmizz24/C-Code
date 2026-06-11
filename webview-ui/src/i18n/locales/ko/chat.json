@@ -502,6 +502,46 @@
 		"didSearch_other": "{{count}}개의 결과를 찾았습니다",
 		"resultTooltip": "유사도 점수: {{score}} (클릭하여 파일 열기)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "작업 공간",
+			"global": "전역",
+			"all": "모든 메모리"
+		},
+		"statuses": {
+			"active": "활성",
+			"pending": "보류 중",
+			"stale": "오래됨",
+			"superseded": "대체됨",
+			"archived": "보관됨",
+			"all": "모든 상태"
+		},
+		"fields": {
+			"title": "제목",
+			"signature": "서명",
+			"tool": "도구",
+			"mode": "모드",
+			"tags": "태그",
+			"paths": "경로",
+			"score": "점수"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo가 {{scope}} 메모리에서 <code>{{query}}</code>을(를) 검색하고 싶어합니다",
+		"resultsFound_one": "일치하는 메모리 1개를 찾았습니다",
+		"resultsFound_other": "일치하는 메모리 {{count}}개를 찾았습니다",
+		"noResults": "일치하는 메모리를 찾지 못했습니다",
+		"untitledResult": "메모리 결과"
+	},
+	"mistakeMemory": {
+		"savedPending": "보류 중인 실수 메모리를 저장했습니다",
+		"savedActive": "활성 실수 메모리를 저장했습니다",
+		"savedArchived": "실수 메모리를 보관했습니다",
+		"approveAction": "메모리 승인",
+		"archiveAction": "메모리 보관",
+		"autoApproved": "자동 승인됨",
+		"reusedExisting": "기존 메모리 업데이트됨"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "모두 승인"
@@ -601,5 +641,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "설정 열기",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "메모리 삭제 승인 대기 중",
+			"completed": "메모리 삭제됨",
+			"cancelled": "메모리 삭제 취소됨"
+		},
+		"status": {
+			"pending": "승인 대기 중",
+			"completed": "완료됨",
+			"cancelled": "취소됨"
+		},
+		"fields": {
+			"scope": "범위",
+			"status": "상태",
+			"deletedScopes": "삭제된 범위"
+		}
 	}
 }

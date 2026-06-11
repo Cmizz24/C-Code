@@ -11,7 +11,139 @@
 	"landing": {
 		"greeting": "Chào mừng đến với C Code!",
 		"introduction": "Với nhiều Chế độ tích hợp và có thể mở rộng, C Code cho phép bạn lập kế hoạch, thiết kế kiến trúc, viết mã, gỡ lỗi và tăng năng suất như chưa từng có trước đây.",
-		"getStarted": "Tạo tài khoản Roo"
+		"getStarted": "Tạo tài khoản Roo",
+		"setupLocalAi": "Thiết lập AI cục bộ",
+		"localAi": {
+			"title": "Thiết lập AI cục bộ",
+			"description": "Phát hiện phần cứng của bạn, chọn Ollama hoặc LM Studio và thiết lập một model cục bộ."
+		},
+		"provider": {
+			"title": "Dùng nhà cung cấp API",
+			"description": "Chọn OpenRouter hoặc dùng key của nhà cung cấp khác."
+		}
+	},
+	"localSetup": {
+		"heading": "Thiết lập AI cục bộ",
+		"subtitle": "Trả lời vài câu hỏi và C Code sẽ giúp bạn thiết lập Ollama hoặc dùng một máy chủ LM Studio hiện có.",
+		"hardware": {
+			"heading": "Kiểm tra phần cứng và runtime",
+			"detecting": "Đang phát hiện máy tính và các runtime AI cục bộ…",
+			"system": "{{os}} {{arch}}, {{cores}} lõi CPU, {{ram}} RAM",
+			"disk": "Ổ đĩa trống: {{free}}",
+			"gpuDetected": "Đã phát hiện GPU: {{gpu}}",
+			"gpuUnknown": "Không rõ trạng thái GPU. Chúng tôi sẽ thận trọng thay vì khẳng định bạn không có GPU.",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "Làm mới kiểm tra"
+		},
+		"runtimeStatus": {
+			"running": "đang chạy",
+			"installed-not-running": "đã cài, chưa chạy",
+			"missing": "thiếu",
+			"unknown": "không rõ",
+			"detection-failed": "phát hiện thất bại"
+		},
+		"form": {
+			"usage": {
+				"label": "Bạn sẽ dùng AI cục bộ thế nào?",
+				"light": "Trợ giúp code nhẹ",
+				"daily": "Lập trình hằng ngày",
+				"agentic": "Refactor lớn và tác vụ agentic"
+			},
+			"preference": {
+				"label": "Đề xuất nên tối ưu cho gì?",
+				"speed": "Tốc độ",
+				"balanced": "Cân bằng",
+				"quality": "Chất lượng"
+			},
+			"privacy": {
+				"label": "Ưu tiên quyền riêng tư",
+				"localOnly": "Chỉ cục bộ",
+				"localPreferred": "Ưu tiên cục bộ, cấu hình sau cũng được"
+			},
+			"diskBudget": "Ngân sách ổ đĩa cho mô hình (GB)",
+			"runtime": {
+				"label": "Chọn runtime",
+				"existing": "Dùng runtime cục bộ hiện có",
+				"ollama": "Thiết lập Ollama",
+				"manual": "Thiết lập thủ công",
+				"lmStudio": "Dùng LM Studio"
+			},
+			"providerPreference": {
+				"label": "Ưu tiên runtime cục bộ đã phát hiện"
+			},
+			"provider": {
+				"label": "Nhà cung cấp cục bộ",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "Cách tự động nhất: C Code có thể tải model Ollama được đề xuất kèm tiến trình.",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "Dùng LM Studio nếu bạn thích trình quản lý model trong ứng dụng và máy chủ cục bộ của nó.",
+				"lmStudioReadyDescription": "LM Studio đang chạy với {{models}} model khả dụng.",
+				"readyBadge": "Sẵn sàng"
+			}
+		},
+		"actions": {
+			"manual": "Thiết lập thủ công",
+			"recommend": "Đề xuất mô hình",
+			"recommending": "Đang tạo đề xuất…",
+			"adjust": "Điều chỉnh câu trả lời",
+			"installHelp": "Trợ giúp cài Ollama",
+			"confirmDownload": "Xác nhận và tải xuống",
+			"cancel": "Hủy thiết lập",
+			"retry": "Thử tải lại",
+			"openOllamaDownload": "Mở tải Ollama",
+			"useApiProvider": "Dùng nhà cung cấp API",
+			"useLmStudio": "Dùng model LM Studio",
+			"openLmStudioDownload": "Mở trang tải LM Studio",
+			"openLmStudioServerDocs": "Mở hướng dẫn máy chủ LM Studio"
+		},
+		"recommendation": {
+			"heading": "Mô hình cục bộ được đề xuất",
+			"apiHeading": "Nên dùng nhà cung cấp API",
+			"apiDescription": "Máy tính này có thể chạy các mô hình coding cục bộ chậm hoặc với chất lượng hạn chế. Nhà cung cấp API là hướng được đề xuất để có trải nghiệm chạy lần đầu tốt hơn.",
+			"manualStillAvailable": "Bạn vẫn có thể chọn thiết lập cục bộ thủ công nếu muốn thử nghiệm với Ollama.",
+			"size": "Tải xuống xấp xỉ: {{size}}",
+			"disk": "Ổ đĩa trống đã phát hiện: {{free}}",
+			"runtime": "Runtime/nhà cung cấp: {{runtime}} từ API cục bộ chính thức",
+			"confidence": "Độ tin cậy đề xuất: {{confidence}}",
+			"privacyHeading": "Ghi chú quyền riêng tư",
+			"warnings": "Trước khi tải",
+			"weakHardwareWarning": "Các mô hình AI cục bộ có thể chậm hoặc không hoạt động như mong đợi trên phần cứng này."
+		},
+		"confidence": {
+			"low": "thấp",
+			"medium": "trung bình",
+			"high": "cao"
+		},
+		"progress": {
+			"heading": "Đang thiết lập AI cục bộ",
+			"starting": "Đang bắt đầu thiết lập AI cục bộ…",
+			"model": "Mô hình: {{model}}",
+			"percent": "Hoàn tất {{percent}}%",
+			"waiting": "Đang chờ tiến trình runtime cục bộ…"
+		},
+		"manual": {
+			"heading": "Thiết lập AI cục bộ thủ công",
+			"description": "C Code sẽ không âm thầm chạy trình cài đặt. Tự cài Ollama hoặc LM Studio, khởi động máy chủ cục bộ, rồi quay lại và làm mới kiểm tra.",
+			"stepInstall": "Tải Ollama hoặc LM Studio từ trang chính thức.",
+			"stepStart": "Khởi động Ollama hoặc máy chủ cục bộ LM Studio và đảm bảo có thể truy cập tại URL cục bộ mặc định của nó.",
+			"stepRetry": "Quay lại đây, làm mới kiểm tra runtime và chạy đề xuất lại."
+		},
+		"success": {
+			"heading": "AI cục bộ đã sẵn sàng",
+			"description": "{{model}} đã sẵn sàng cho inference cục bộ.",
+			"profile": "C Code đã lưu và kích hoạt hồ sơ nhà cung cấp Local AI (Ollama).",
+			"lmStudioProfile": "C Code đã lưu và kích hoạt hồ sơ nhà cung cấp Local AI (LM Studio)."
+		},
+		"lmStudio": {
+			"statusHeading": "Trạng thái LM Studio: {{status}}",
+			"ready": "Chọn một trong các model do LM Studio báo cáo, rồi dùng nó để tạo hồ sơ nhà cung cấp cục bộ.",
+			"noModels": "Có thể truy cập LM Studio, nhưng nó không báo cáo model dùng được. Tải xuống hoặc nạp một model chat trong LM Studio, rồi làm mới kiểm tra.",
+			"serverStopped": "Có vẻ LM Studio đã được cài đặt, nhưng máy chủ cục bộ chưa chạy. Khởi động máy chủ cục bộ trong LM Studio, rồi làm mới kiểm tra.",
+			"detectionFailed": "Phát hiện LM Studio thất bại: {{error}}",
+			"missing": "LM Studio chưa được cài đặt hoặc không thể truy cập. Mở trang tải xuống chính thức, cài LM Studio, tải một model, khởi động máy chủ cục bộ, rồi làm mới kiểm tra.",
+			"unknownError": "lỗi không xác định",
+			"modelLabel": "Model LM Studio"
+		}
 	},
 	"providerSignup": {
 		"heading": "Chọn nhà cung cấp của bạn",

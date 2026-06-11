@@ -35,6 +35,7 @@
 		"checkpoints": "Checkpoints",
 		"notifications": "Notificações",
 		"contextManagement": "Contexto",
+		"memory": "Memória",
 		"terminal": "Terminal",
 		"slashCommands": "Comandos de Barra",
 		"prompts": "Prompts",
@@ -257,8 +258,12 @@
 			"description": "Aprovar automaticamente planos válidos de tarefas paralelas e iniciar agentes sem mostrar o modal de pré-visualização do plano"
 		},
 		"visualBrowserInspector": {
-			"label": "Navegador",
+			"label": "Visual Browser Inspector",
 			"description": "Aprovar automaticamente ações do Visual Browser Inspector no chat, incluindo abrir páginas controladas do navegador, capturas de tela, inspeção do DOM, recortes, análise e interações com a página. Isso não permite edições de arquivos nem comandos de terminal."
+		},
+		"memory": {
+			"label": "Memória",
+			"description": "Aprova automaticamente salvamentos de memórias de erro pelo chat e por erros de ferramentas. Quando isso está desativado, memórias pendentes ainda podem ser revisadas pelo chat ou pelas configurações de Memória."
 		},
 		"imageGeneration": {
 			"label": "Imagens",
@@ -817,6 +822,114 @@
 		"enableSubfolderRules": {
 			"label": "Ativar regras de subpastas",
 			"description": "Descobrir e carregar recursivamente arquivos .roo/rules e AGENTS.md de subdiretórios. Útil para monorepos com regras por pacote."
+		}
+	},
+	"memory": {
+		"description": "Configure como C Code recupera, salva e gerencia memórias neste workspace e no contexto global.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Comportamento principal",
+				"description": "Escolha quando a memória roda e quais escopos de memória C pode usar."
+			},
+			"retrievalLimits": {
+				"title": "Limites de recuperação",
+				"description": "Ajuste quanto contexto de memória é incluído em cada solicitação."
+			},
+			"management": {
+				"title": "Gerenciamento de memória",
+				"description": "Revise contagens de memória e gerencie lições pendentes, arquivadas ou salvas."
+			},
+			"advanced": {
+				"title": "Avançado",
+				"description": "Controle a retenção de candidatas pendentes de memória de erros."
+			}
+		},
+		"mode": {
+			"label": "Modo de memória",
+			"description": "Use o modo automático para ativar a memória em modelos com menos de 1M de token de contexto e desativá-la em modelos com contexto maior, a menos que você substitua isso manualmente.",
+			"options": {
+				"auto": "Automático",
+				"enabled": "Sempre ativada",
+				"disabled": "Desativada"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Usar memória do workspace",
+			"description": "Recupere e salve lições limitadas a este workspace sem armazenar caminhos absolutos do workspace."
+		},
+		"globalEnabled": {
+			"label": "Usar memória global",
+			"description": "Recupere e salve lições que podem se aplicar a vários workspaces."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Capturar memórias de erros",
+			"description": "Crie lições pendentes a partir de correções, falhas de validação e erros repetidos de ferramentas. Lições pendentes não são usadas permanentemente até serem aprovadas."
+		},
+		"autoApproveMistakeMemory": {
+			"label": "Aprovar automaticamente memórias de erro",
+			"description": "Salve novas lições de memória de erro como ativas imediatamente após a redação, em vez de criar candidatas pendentes. Mantenha isso desativado a menos que você confie na automação."
+		},
+		"maxCharacters": {
+			"label": "Orçamento de caracteres da memória",
+			"description": "Máximo de caracteres de contexto de memória a injetar em uma solicitação. Sob pressão de contexto, a memória é reduzida ou ignorada primeiro."
+		},
+		"maxEntries": {
+			"label": "Máximo de entradas de memória",
+			"description": "Número máximo de entradas de memória ativas a incluir em uma solicitação."
+		},
+		"pendingCandidateLimit": {
+			"label": "Limite de memórias de erros pendentes",
+			"description": "Número máximo de candidatos pendentes de mistake-memory a manter antes de remover candidatos mais antigos."
+		},
+		"management": {
+			"title": "Gerenciamento de memória",
+			"description": "Revise contagens de memórias do workspace e globais, aprove lições pendentes, arquive memórias ou limpe a memória armazenada."
+		},
+		"summary": {
+			"workspace": "Memória do workspace",
+			"global": "Memória global",
+			"active": "Ativa",
+			"pending": "Pendente",
+			"archived": "Arquivada",
+			"total": "Total"
+		},
+		"scope": {
+			"workspace": "Workspace",
+			"global": "Global"
+		},
+		"status": {
+			"active": "Ativa",
+			"pending": "Pendente",
+			"stale": "Obsoleta",
+			"superseded": "Substituída",
+			"archived": "Arquivada"
+		},
+		"kind": {
+			"lesson": "Lição",
+			"mistake": "Erro"
+		},
+		"records": {
+			"count": "{{count}} registros",
+			"empty": "Nenhuma memória salva neste escopo.",
+			"lesson": "Lição",
+			"tags": "Tags",
+			"pathHints": "Dicas de caminho",
+			"created": "Criado",
+			"updated": "Atualizado",
+			"lastUsed": "Último uso"
+		},
+		"actions": {
+			"refresh": "Atualizar",
+			"approvePending": "Aprovar pendentes",
+			"archivePending": "Arquivar pendentes",
+			"archiveAll": "Arquivar tudo",
+			"clear": "Limpar"
+		},
+		"confirm": {
+			"title": "Confirmar ação de memória",
+			"description": "Esta ação de memória altera ou remove lições armazenadas. Isso não pode ser desfeito para memória limpa.",
+			"cancel": "Cancelar",
+			"confirm": "Continuar"
 		}
 	},
 	"terminal": {

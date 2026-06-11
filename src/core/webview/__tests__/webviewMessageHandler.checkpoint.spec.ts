@@ -10,6 +10,7 @@ vi.mock("../checkpointRestoreHandler")
 vi.mock("vscode", () => ({
 	window: {
 		showErrorMessage: vi.fn(),
+		createTextEditorDecorationType: vi.fn(() => ({ dispose: vi.fn() })),
 	},
 	workspace: {
 		workspaceFolders: undefined,

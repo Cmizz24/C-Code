@@ -1,6 +1,6 @@
 // npx vitest core/webview/__tests__/webviewMessageHandler.spec.ts
 
-import type { Mock } from "vitest"
+import type { Mock, MockInstance } from "vitest"
 
 // Mock dependencies - must come before imports
 vi.mock("../../../api/providers/fetchers/modelCache")
@@ -18,6 +18,16 @@ vi.mock("../../../integrations/openai-codex/rate-limits", () => ({
 
 vi.mock("../../../services/command/commands", () => ({
 	getCommands: vi.fn(),
+}))
+
+vi.mock("../../../services/local-ai", () => ({
+	LM_STUDIO_DOWNLOAD_URL: "https://lmstudio.ai/download",
+	probeLocalAi: vi.fn(),
+	recommendLocalAiModel: vi.fn(),
+	localAiSetupManager: {
+		start: vi.fn(),
+		cancel: vi.fn(),
+	},
 }))
 
 vi.mock("@anthropic-ai/vertex-sdk", () => ({
@@ -43,8 +53,15 @@ import EventEmitter from "events"
 
 import { webviewMessageHandler } from "../webviewMessageHandler"
 import { ClineProvider } from "../ClineProvider"
+import { MessageEnhancer } from "../messageEnhancer"
 import { getModels } from "../../../api/providers/fetchers/modelCache"
 import { getCommands } from "../../../services/command/commands"
+import {
+	LM_STUDIO_DOWNLOAD_URL,
+	localAiSetupManager,
+	probeLocalAi,
+	recommendLocalAiModel,
+} from "../../../services/local-ai"
 import { visualBrowserInspectorService } from "../../../services/visual-browser-inspector/VisualBrowserInspectorService"
 import { getCommand } from "../../../utils/commands"
 const { openAiCodexOAuthManager } = await import("../../../integrations/openai-codex/oauth")
@@ -52,6 +69,9 @@ const { fetchOpenAiCodexRateLimitInfo } = await import("../../../integrations/op
 
 const mockGetModels = getModels as Mock<typeof getModels>
 const mockGetCommands = vi.mocked(getCommands)
+const mockProbeLocalAi = vi.mocked(probeLocalAi)
+const mockRecommendLocalAiModel = vi.mocked(recommendLocalAiModel)
+const mockLocalAiSetupManager = vi.mocked(localAiSetupManager)
 const mockGetAccessToken = vi.mocked(openAiCodexOAuthManager.getAccessToken)
 const mockGetAccountId = vi.mocked(openAiCodexOAuthManager.getAccountId)
 const mockFetchOpenAiCodexRateLimitInfo = vi.mocked(fetchOpenAiCodexRateLimitInfo)
@@ -81,6 +101,9 @@ const mockClineProvider = {
 	getCurrentTask: vi.fn(),
 	getTaskWithId: vi.fn(),
 	createTask: vi.fn().mockResolvedValue({ taskId: "mock-task-id" }),
+	handleMemoryAction: vi.fn().mockResolvedValue(undefined),
+	postMemoryStateToWebview: vi.fn().mockResolvedValue(undefined),
+	upsertProviderProfile: vi.fn(),
 	createTaskWithHistoryItem: vi.fn(),
 	clearTask: vi.fn(),
 	notifyAcceptedFinalParentCompletion: vi.fn(),
@@ -106,10 +129,18 @@ vi.mock("vscode", () => {
 	const showTextDocument = vi.fn().mockResolvedValue(undefined)
 	const createTextEditorDecorationType = vi.fn(() => ({ dispose: vi.fn() }))
 	const executeCommand = vi.fn().mockResolvedValue(undefined)
+	const openExternal = vi.fn().mockResolvedValue(true)
+	const parse = vi.fn((value: string) => ({ toString: () => value, fsPath: value }))
 
 	return {
+		Uri: {
+			parse,
+		},
 		commands: {
 			executeCommand,
+		},
+		env: {
+			openExternal,
 		},
 		window: {
 			showInformationMessage,
@@ -184,6 +215,70 @@ vi.mock("../../mentions/resolveImageMentions", () => ({
 }))
 
 import { resolveImageMentions } from "../../mentions/resolveImageMentions"
+
+describe("webviewMessageHandler - enhancePrompt", () => {
+	let enhanceMessageSpy: MockInstance<typeof MessageEnhancer.enhanceMessage>
+
+	beforeEach(() => {
+		vi.clearAllMocks()
+		enhanceMessageSpy = vi.spyOn(MessageEnhancer, "enhanceMessage").mockResolvedValue({
+			success: true,
+			enhancedText: "Enhanced prompt",
+		})
+	})
+
+	afterEach(() => {
+		enhanceMessageSpy.mockRestore()
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue(undefined)
+		mockClineProvider.getState = vi.fn()
+	})
+
+	it("passes current task mode and Roo-ignore-filtered file context to the message enhancer", async () => {
+		const apiConfiguration = { apiProvider: "openai" }
+		const clineMessages = [{ type: "ask", text: "Existing task context", ts: 1000 }]
+		const trackedFiles = ["src/visible.ts", ".env", "src/also-visible.ts"]
+		const filterPaths = vi.fn((paths: string[]) => paths.filter((filePath) => filePath !== ".env"))
+		const getTaskMode = vi.fn().mockResolvedValue("code")
+		const getFilesReadByRoo = vi.fn().mockResolvedValue(trackedFiles)
+
+		mockClineProvider.getState = vi.fn().mockResolvedValue({
+			apiConfiguration,
+			customSupportPrompts: {},
+			listApiConfigMeta: [],
+			enhancementApiConfigId: undefined,
+			includeTaskHistoryInEnhance: true,
+			mode: "ask",
+		})
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue({
+			cwd: "/mock/workspace",
+			clineMessages,
+			getTaskMode,
+			fileContextTracker: { getFilesReadByRoo },
+			rooIgnoreController: { filterPaths },
+		} as any)
+
+		await webviewMessageHandler(mockClineProvider, { type: "enhancePrompt", text: "Improve this prompt" })
+
+		expect(getTaskMode).toHaveBeenCalled()
+		expect(getFilesReadByRoo).toHaveBeenCalled()
+		expect(filterPaths).toHaveBeenCalledWith(trackedFiles)
+		expect(enhanceMessageSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				text: "Improve this prompt",
+				apiConfiguration,
+				includeTaskHistoryInEnhance: true,
+				currentClineMessages: clineMessages,
+				currentTaskMode: "code",
+				currentWorkingDirectory: "/mock/workspace",
+				filesReadByRoo: ["src/visible.ts", "src/also-visible.ts"],
+			}),
+		)
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "enhancedPrompt",
+			text: "Enhanced prompt",
+		})
+	})
+})
 
 describe("webviewMessageHandler - testSmtpSettings", () => {
 	beforeEach(() => {
@@ -534,6 +629,201 @@ describe("webviewMessageHandler - requestOllamaModels", () => {
 	})
 })
 
+describe("webviewMessageHandler - local AI setup", () => {
+	const probe = {
+		os: "win32",
+		arch: "x64",
+		cpu: { model: "Test CPU", count: 8 },
+		memory: { totalBytes: 16 * 1024 ** 3, totalGb: 16 },
+		disk: { status: "known", freeBytes: 80 * 1024 ** 3, freeGb: 80, path: "C:" },
+		gpu: { status: "unknown", names: [] },
+		runtimes: {
+			ollama: { provider: "ollama", displayName: "Ollama", baseUrl: "http://localhost:11434", status: "running" },
+			lmStudio: {
+				provider: "lmstudio",
+				displayName: "LM Studio",
+				baseUrl: "http://localhost:1234/v1",
+				status: "missing",
+			},
+		},
+		probedAt: "2026-01-01T00:00:00.000Z",
+	} as any
+
+	const questionnaire = {
+		usageProfile: "daily",
+		preference: "balanced",
+		privacy: "local-only",
+		diskBudgetGb: 8,
+		runtimeChoice: "ollama",
+	} as any
+
+	const recommendation = {
+		provider: "ollama",
+		runtimeDisplayName: "Ollama",
+		baseUrl: "http://localhost:11434",
+		model: {
+			provider: "ollama",
+			tag: "qwen2.5-coder:7b",
+			displayName: "Qwen2.5 Coder 7B",
+			description: "Test model",
+			approximateSizeGb: 4.7,
+			minimumRamGb: 12,
+			recommendedRamGb: 16,
+			tier: "standard",
+			defaultNumCtx: 8192,
+		},
+		ollamaNumCtx: 8192,
+		confidence: "high",
+		reasons: [],
+		warnings: [],
+		diskBudgetGb: 8,
+		privacyNote: "Inference runs locally once Ollama and the selected model are installed.",
+	} as any
+
+	beforeEach(() => {
+		vi.clearAllMocks()
+		mockClineProvider.getState = vi.fn().mockResolvedValue({ apiConfiguration: {}, mode: "code" })
+	})
+
+	it("posts a local AI hardware probe result", async () => {
+		mockProbeLocalAi.mockResolvedValue(probe)
+
+		await webviewMessageHandler(mockClineProvider, { type: "localAiProbe" } as any)
+
+		expect(mockProbeLocalAi).toHaveBeenCalledWith("/mock/workspace")
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "localAiProbeResult",
+			payload: probe,
+		})
+	})
+
+	it("posts a deterministic local AI recommendation", async () => {
+		mockRecommendLocalAiModel.mockReturnValue(recommendation)
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "localAiRecommend",
+			payload: { probe, questionnaire },
+		} as any)
+
+		expect(mockRecommendLocalAiModel).toHaveBeenCalledWith({ probe, questionnaire })
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "localAiRecommendationResult",
+			payload: recommendation,
+		})
+	})
+
+	it("streams setup progress, upserts provider profile, and posts success result", async () => {
+		mockLocalAiSetupManager.start.mockImplementation(async (_request: any, progress: any) => {
+			await progress({ stage: "download", message: "downloading", percent: 42, modelTag: "qwen2.5-coder:7b" })
+			return {
+				success: true,
+				profileName: "Local AI (Ollama)",
+				modelTag: "qwen2.5-coder:7b",
+				providerSettings: {
+					apiProvider: "ollama",
+					ollamaBaseUrl: "http://localhost:11434",
+					ollamaModelId: "qwen2.5-coder:7b",
+					ollamaNumCtx: 8192,
+				},
+			}
+		})
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "localAiStartSetup",
+			payload: { recommendation, questionnaire },
+		} as any)
+
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "localAiSetupProgress",
+			payload: { stage: "download", message: "downloading", percent: 42, modelTag: "qwen2.5-coder:7b" },
+		})
+		expect(mockClineProvider.upsertProviderProfile).toHaveBeenCalledWith("Local AI (Ollama)", {
+			apiProvider: "ollama",
+			ollamaBaseUrl: "http://localhost:11434",
+			ollamaModelId: "qwen2.5-coder:7b",
+			ollamaNumCtx: 8192,
+		})
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "localAiSetupResult",
+			payload: expect.objectContaining({ success: true, modelTag: "qwen2.5-coder:7b" }),
+			success: true,
+		})
+	})
+
+	it("upserts an LM Studio provider profile when LM Studio setup succeeds", async () => {
+		const lmStudioRecommendation = {
+			...recommendation,
+			provider: "lmstudio",
+			recommendedSetup: "existing",
+			runtimeDisplayName: "LM Studio",
+			baseUrl: "http://localhost:1234/v1",
+			model: { ...recommendation.model, provider: "lmstudio", tag: "local-model", displayName: "local-model" },
+		} as any
+		const lmStudioQuestionnaire = {
+			...questionnaire,
+			runtimeChoice: "lmstudio",
+			providerPreference: "lmstudio",
+			selectedModel: "local-model",
+		} as any
+
+		mockLocalAiSetupManager.start.mockImplementation(async (_request: any, progress: any) => {
+			await progress({ stage: "configure", message: "Configuring LM Studio", modelTag: "local-model" })
+			return {
+				success: true,
+				profileName: "Local AI (LM Studio)",
+				modelTag: "local-model",
+				providerSettings: {
+					apiProvider: "lmstudio",
+					lmStudioBaseUrl: "http://localhost:1234/v1",
+					lmStudioModelId: "local-model",
+				},
+			}
+		})
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "localAiStartSetup",
+			payload: { recommendation: lmStudioRecommendation, questionnaire: lmStudioQuestionnaire },
+		} as any)
+
+		expect(mockClineProvider.upsertProviderProfile).toHaveBeenCalledWith("Local AI (LM Studio)", {
+			apiProvider: "lmstudio",
+			lmStudioBaseUrl: "http://localhost:1234/v1",
+			lmStudioModelId: "local-model",
+		})
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "localAiSetupResult",
+			payload: expect.objectContaining({ success: true, modelTag: "local-model" }),
+			success: true,
+		})
+	})
+
+	it("opens the official LM Studio download page without running an installer", async () => {
+		await webviewMessageHandler(mockClineProvider, { type: "localAiOpenDownload" } as any)
+
+		expect(vscode.Uri.parse).toHaveBeenCalledWith(LM_STUDIO_DOWNLOAD_URL)
+		expect(vscode.env.openExternal).toHaveBeenCalledWith(
+			expect.objectContaining({ fsPath: LM_STUDIO_DOWNLOAD_URL }),
+		)
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "localAiSetupProgress",
+			payload: expect.objectContaining({
+				stage: "runtime",
+				installUrl: LM_STUDIO_DOWNLOAD_URL,
+			}),
+		})
+	})
+
+	it("cancels in-progress local AI setup", async () => {
+		await webviewMessageHandler(mockClineProvider, { type: "localAiCancelSetup" } as any)
+
+		expect(mockLocalAiSetupManager.cancel).toHaveBeenCalled()
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "localAiSetupProgress",
+			payload: { stage: "cancelled", message: "Local AI setup cancellation requested." },
+		})
+	})
+})
+
 describe("webviewMessageHandler - requestRouterModels", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -569,9 +859,9 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 			type: "requestRouterModels",
 		})
 
-		// Verify getModels was called for each provider
-		expect(mockGetModels).toHaveBeenCalledWith({ provider: "openrouter" })
-		expect(mockGetModels).toHaveBeenCalledWith({ provider: "requesty", apiKey: "requesty-key" })
+		// Verify getModels was called for each provider with provider-specific configuration.
+		expect(mockGetModels).toHaveBeenCalledWith({ provider: "openrouter", apiKey: "openrouter-key" })
+		expect(mockGetModels).toHaveBeenCalledWith({ provider: "requesty", apiKey: "requesty-key", baseUrl: undefined })
 		expect(mockGetModels).toHaveBeenCalledWith(
 			expect.objectContaining({
 				provider: "unbound",
@@ -585,20 +875,23 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 		})
 
 		// Verify response was sent
-		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
-			type: "routerModels",
-			routerModels: {
-				openrouter: mockModels,
-				requesty: mockModels,
-				unbound: mockModels,
-				litellm: mockModels,
-				ollama: {},
-				lmstudio: {},
-				"vercel-ai-gateway": mockModels,
-				poe: {},
-			},
-			values: undefined,
-		})
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "routerModels",
+				routerModels: expect.objectContaining({
+					openrouter: mockModels,
+					requesty: mockModels,
+					unbound: mockModels,
+					litellm: mockModels,
+					ollama: {},
+					lmstudio: {},
+					"vercel-ai-gateway": mockModels,
+					poe: {},
+					bedrock: {},
+				}),
+				values: undefined,
+			}),
+		)
 	})
 
 	it("handles LiteLLM models with values from message when config is missing", async () => {
@@ -624,6 +917,7 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 		await webviewMessageHandler(mockClineProvider, {
 			type: "requestRouterModels",
 			values: {
+				provider: "litellm",
 				litellmApiKey: "message-litellm-key",
 				litellmBaseUrl: "http://message-url:4000",
 			},
@@ -670,20 +964,23 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 		)
 
 		// Verify response includes empty object for LiteLLM
-		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
-			type: "routerModels",
-			routerModels: {
-				openrouter: mockModels,
-				requesty: mockModels,
-				unbound: mockModels,
-				litellm: {},
-				ollama: {},
-				lmstudio: {},
-				"vercel-ai-gateway": mockModels,
-				poe: {},
-			},
-			values: undefined,
-		})
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "routerModels",
+				routerModels: expect.objectContaining({
+					openrouter: mockModels,
+					requesty: mockModels,
+					unbound: mockModels,
+					litellm: {},
+					ollama: {},
+					lmstudio: {},
+					"vercel-ai-gateway": mockModels,
+					poe: {},
+					bedrock: {},
+				}),
+				values: undefined,
+			}),
+		)
 	})
 
 	it("handles individual provider failures gracefully", async () => {
@@ -713,6 +1010,7 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 			type: "singleRouterModelFetchResponse",
 			success: false,
 			error: "Requesty API error",
+			requestId: undefined,
 			values: { provider: "requesty" },
 		})
 
@@ -720,24 +1018,29 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 			type: "singleRouterModelFetchResponse",
 			success: false,
 			error: "LiteLLM connection failed",
+			requestId: undefined,
 			values: { provider: "litellm" },
 		})
 
 		// Verify final routerModels response includes successful providers and empty objects for failed ones
-		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
-			type: "routerModels",
-			routerModels: {
-				openrouter: mockModels,
-				requesty: {},
-				unbound: mockModels,
-				litellm: {},
-				ollama: {},
-				lmstudio: {},
-				"vercel-ai-gateway": mockModels,
-				poe: {},
-			},
-			values: undefined,
-		})
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "routerModels",
+				routerModels: expect.objectContaining({
+					openrouter: mockModels,
+					requesty: {},
+					unbound: mockModels,
+					litellm: {},
+					ollama: {},
+					lmstudio: {},
+					"vercel-ai-gateway": mockModels,
+					poe: {},
+					bedrock: {},
+				}),
+				requestId: undefined,
+				values: undefined,
+			}),
+		)
 	})
 
 	it("handles Error objects and string errors correctly", async () => {
@@ -1109,6 +1412,72 @@ describe("webviewMessageHandler - mcpEnabled", () => {
 	})
 })
 
+describe("webviewMessageHandler - memory", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
+	it("persists the mistake-memory auto-approve setting", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "updateSettings",
+			updatedSettings: { memoryAutoApproveMistakeMemory: true },
+		})
+
+		expect(mockClineProvider.contextProxy.setValue).toHaveBeenCalledWith("memoryAutoApproveMistakeMemory", true)
+		expect(mockClineProvider.postStateToWebview).toHaveBeenCalledTimes(1)
+	})
+
+	it("refreshes WebView state after memory actions", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "memoryAction",
+			memoryAction: "refresh",
+		})
+
+		expect((mockClineProvider as any).handleMemoryAction).toHaveBeenCalledWith("refresh", {
+			memoryId: undefined,
+			memoryScope: undefined,
+			messageTs: undefined,
+		})
+		expect((mockClineProvider as any).postMemoryStateToWebview).toHaveBeenCalledTimes(1)
+		expect(mockClineProvider.postStateToWebview).not.toHaveBeenCalled()
+	})
+
+	it("passes direct chat memory action details to the provider", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "memoryAction",
+			memoryAction: "approveMemory",
+			memoryId: "mem_123",
+			memoryScope: "workspace",
+			messageTs: 123456,
+		})
+
+		expect((mockClineProvider as any).handleMemoryAction).toHaveBeenCalledWith("approveMemory", {
+			memoryId: "mem_123",
+			memoryScope: "workspace",
+			messageTs: 123456,
+		})
+		expect((mockClineProvider as any).postMemoryStateToWebview).toHaveBeenCalledTimes(1)
+		expect(mockClineProvider.postStateToWebview).not.toHaveBeenCalled()
+	})
+
+	it("passes individual memory delete action details to the provider", async () => {
+		await webviewMessageHandler(mockClineProvider, {
+			type: "memoryAction",
+			memoryAction: "deleteMemory",
+			memoryId: "mem_delete_123",
+			memoryScope: "global",
+		})
+
+		expect((mockClineProvider as any).handleMemoryAction).toHaveBeenCalledWith("deleteMemory", {
+			memoryId: "mem_delete_123",
+			memoryScope: "global",
+			messageTs: undefined,
+		})
+		expect((mockClineProvider as any).postMemoryStateToWebview).toHaveBeenCalledTimes(1)
+		expect(mockClineProvider.postStateToWebview).not.toHaveBeenCalled()
+	})
+})
+
 describe("webviewMessageHandler - requestCommands", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -1443,6 +1812,70 @@ describe("webviewMessageHandler - visualBrowserInspector", () => {
 		} finally {
 			getPanelStateSpy.mockRestore()
 			delete (mockClineProvider as any).postMessageToVisualBrowserInspectorPanels
+		}
+	})
+
+	it("passes extension storage to VBI service actions and forwards browser setup progress", async () => {
+		const executeSpy = vi.spyOn(visualBrowserInspectorService, "execute").mockResolvedValue({
+			action: "visual_browser_open",
+			session: {
+				sessionId: "session-1",
+				status: "active",
+				url: "http://localhost:3000",
+				createdAt: "2026-01-01T00:00:00.000Z",
+				updatedAt: "2026-01-01T00:00:00.000Z",
+				viewport: { name: "mobile", width: 390, height: 844 },
+				headless: false,
+				allowExternal: false,
+				artifacts: {
+					rootDir: ".roo/visual-browser-inspector/session-1",
+					screenshotsDir: ".roo/visual-browser-inspector/session-1/screenshots",
+					cropsDir: ".roo/visual-browser-inspector/session-1/crops",
+					metadataPath: ".roo/visual-browser-inspector/session-1/metadata.json",
+					findingsPath: ".roo/visual-browser-inspector/session-1/findings.json",
+				},
+			},
+			message: "Controlled Playwright browser session opened.",
+		} as any)
+		const getPanelStateSpy = vi.spyOn(visualBrowserInspectorService, "getPanelState").mockReturnValue({
+			screenshots: [],
+			crops: [],
+			inspections: [],
+			findings: [],
+			statusMessage: "Ready",
+		})
+
+		try {
+			await webviewMessageHandler(mockClineProvider, {
+				type: "visualBrowserInspector",
+				payload: { action: "open", url: "http://localhost:3000", viewport: "mobile" },
+			} as any)
+
+			expect(executeSpy).toHaveBeenCalledWith(
+				expect.objectContaining({ action: "visual_browser_open", url: "http://localhost:3000" }),
+				expect.objectContaining({
+					cwd: "/mock/workspace",
+					globalStoragePath: "/mock/global/storage",
+					toWebviewUri: expect.any(Function),
+					log: expect.any(Function),
+					onBrowserInstallStatus: expect.any(Function),
+				}),
+			)
+
+			const [, options] = executeSpy.mock.calls[0]
+			await options.onBrowserInstallStatus?.("Preparing Chromium for Visual Browser Inspector.")
+
+			expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+				type: "visualBrowserInspector",
+				payload: expect.objectContaining({
+					message: "Preparing Chromium for Visual Browser Inspector.",
+					source: "panel",
+					status: "running",
+				}),
+			})
+		} finally {
+			executeSpy.mockRestore()
+			getPanelStateSpy.mockRestore()
 		}
 	})
 

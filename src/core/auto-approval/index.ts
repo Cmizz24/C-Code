@@ -23,6 +23,7 @@ export type AutoApprovalState =
 	| "alwaysAllowParallelTasks"
 	| "alwaysAllowVisualBrowserInspector"
 	| "alwaysAllowImageGeneration"
+	| "memoryAutoApproveMistakeMemory"
 	| "alwaysAllowExecute"
 	| "alwaysAllowFollowupQuestions"
 
@@ -170,6 +171,10 @@ export async function checkAutoApproval({
 
 		if (tool.tool === "generateImage") {
 			return state.alwaysAllowImageGeneration === true ? { decision: "approve" } : { decision: "ask" }
+		}
+
+		if (tool.tool === "mistakeMemory") {
+			return state.memoryAutoApproveMistakeMemory === true ? { decision: "approve" } : { decision: "ask" }
 		}
 
 		const isOutsideWorkspace = !!tool.isOutsideWorkspace

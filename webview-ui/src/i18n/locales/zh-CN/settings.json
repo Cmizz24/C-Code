@@ -35,6 +35,7 @@
 		"checkpoints": "存档点",
 		"notifications": "通知",
 		"contextManagement": "上下文",
+		"memory": "记忆",
 		"terminal": "终端",
 		"slashCommands": "斜杠命令",
 		"prompts": "提示词",
@@ -257,8 +258,12 @@
 			"description": "自动批准有效的并行任务计划并启动代理，而不显示计划预览模态框"
 		},
 		"visualBrowserInspector": {
-			"label": "浏览器",
+			"label": "Visual Browser Inspector",
 			"description": "自动批准来自聊天的 Visual Browser Inspector 操作，包括打开受控浏览器页面、截图、DOM 检查、裁剪、分析和页面交互。这不会允许文件编辑或终端命令。"
+		},
+		"memory": {
+			"label": "记忆",
+			"description": "自动批准来自聊天和工具错误的错误记忆保存。关闭时，仍可在聊天或记忆设置中审查待处理记忆。"
 		},
 		"imageGeneration": {
 			"label": "图像",
@@ -817,6 +822,114 @@
 		"enableSubfolderRules": {
 			"label": "启用子文件夹规则",
 			"description": "递归发现并加载子目录中的 .roo/rules 和 AGENTS.md 文件。适用于具有每包规则的 monorepo。"
+		}
+	},
+	"memory": {
+		"description": "配置 C Code 如何在此工作区和全局上下文中检索、保存和管理记忆。",
+		"sections": {
+			"coreBehavior": {
+				"title": "核心行为",
+				"description": "选择记忆何时运行，以及 C 可以使用哪些记忆范围。"
+			},
+			"retrievalLimits": {
+				"title": "检索限制",
+				"description": "调整每次请求包含的记忆上下文量。"
+			},
+			"management": {
+				"title": "记忆管理",
+				"description": "查看记忆数量，并管理待处理、已归档或已保存的经验。"
+			},
+			"advanced": {
+				"title": "高级",
+				"description": "控制待处理 mistake-memory 候选项的保留。"
+			}
+		},
+		"mode": {
+			"label": "记忆模式",
+			"description": "使用自动模式：对 context token 低于 1M 的模型启用记忆；对更大上下文模型保持关闭，除非你手动覆盖。",
+			"options": {
+				"auto": "自动",
+				"enabled": "始终启用",
+				"disabled": "已禁用"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "使用工作区记忆",
+			"description": "检索并保存限定在此工作区的经验，不存储绝对工作区路径。"
+		},
+		"globalEnabled": {
+			"label": "使用全局记忆",
+			"description": "检索并保存可跨工作区应用的经验。"
+		},
+		"mistakeMemoryEnabled": {
+			"label": "捕获错误记忆",
+			"description": "根据纠正、验证失败和重复的 tool 错误创建待处理经验。待处理经验在批准前不会永久使用。"
+		},
+		"autoApproveMistakeMemory": {
+			"label": "自动批准错误记忆",
+			"description": "在脱敏后立即将新的错误记忆经验保存为活跃状态，而不是创建待处理候选。除非你信任自动化，否则请保持关闭。"
+		},
+		"maxCharacters": {
+			"label": "记忆字符预算",
+			"description": "注入请求的记忆上下文最大字符数。在上下文压力较高时，记忆会优先被裁剪或跳过。"
+		},
+		"maxEntries": {
+			"label": "最大记忆条目数",
+			"description": "一个请求中包含的最大活跃记忆条目数。"
+		},
+		"pendingCandidateLimit": {
+			"label": "待处理错误记忆限制",
+			"description": "在裁剪较旧候选项之前，保留的待处理 mistake-memory 候选项最大数量。"
+		},
+		"management": {
+			"title": "记忆管理",
+			"description": "查看工作区和全局记忆计数，批准待处理经验，归档记忆，或清除已存储的记忆。"
+		},
+		"summary": {
+			"workspace": "工作区记忆",
+			"global": "全局记忆",
+			"active": "活跃",
+			"pending": "待处理",
+			"archived": "已归档",
+			"total": "总计"
+		},
+		"scope": {
+			"workspace": "工作区",
+			"global": "全局"
+		},
+		"status": {
+			"active": "活跃",
+			"pending": "待处理",
+			"stale": "过时",
+			"superseded": "已被取代",
+			"archived": "已归档"
+		},
+		"kind": {
+			"lesson": "经验",
+			"mistake": "错误"
+		},
+		"records": {
+			"count": "{{count}} 条记录",
+			"empty": "此范围内没有保存的记忆。",
+			"lesson": "经验",
+			"tags": "标签",
+			"pathHints": "路径提示",
+			"created": "创建时间",
+			"updated": "更新时间",
+			"lastUsed": "上次使用"
+		},
+		"actions": {
+			"refresh": "刷新",
+			"approvePending": "批准待处理",
+			"archivePending": "归档待处理",
+			"archiveAll": "全部归档",
+			"clear": "清除"
+		},
+		"confirm": {
+			"title": "确认记忆操作",
+			"description": "此记忆操作会更改或删除已存储的经验。清除的记忆无法撤销。",
+			"cancel": "取消",
+			"confirm": "继续"
 		}
 	},
 	"terminal": {

@@ -36,7 +36,7 @@ import { safeWriteJson } from "../../../utils/safeWriteJson"
 import { ClineProvider } from "../ClineProvider"
 import { MessageManager } from "../../message-manager"
 import { AgentBus } from "../../agents/AgentBus"
-import { WorktreeMergeError } from "../../agents/WorktreeManager"
+import { WorktreeManagerGitUnavailableError, WorktreeMergeError } from "../../agents/WorktreeManager"
 import { EmailNotificationService } from "../../../services/notifications/EmailNotificationService"
 
 // Mock setup must come before imports.
@@ -70,6 +70,7 @@ vi.mock("../../../utils/storage", () => ({
 	getSettingsDirectoryPath: vi.fn().mockResolvedValue("/test/settings/path"),
 	getTaskDirectoryPath: vi.fn().mockResolvedValue("/test/task/path"),
 	getGlobalStoragePath: vi.fn().mockResolvedValue("/test/storage/path"),
+	getStorageBasePath: vi.fn().mockResolvedValue("/test/storage/path"),
 }))
 
 vi.mock("@modelcontextprotocol/sdk/types.js", () => ({
@@ -761,15 +762,153 @@ describe("ClineProvider", () => {
 		ts,
 	})
 
+	const createCleanMergedParallelAgentTool = (
+		options: { plan?: ExecutionPlan; planId?: string } = {},
+	): ClineSayTool => {
+		const plan = JSON.parse(JSON.stringify(options.plan ?? createExecutionPlan())) as ExecutionPlan
+		plan.planId = options.planId ?? plan.planId
+		plan.goal = plan.goal ?? "Build a dashboard from agreed UI and styling contracts"
+		plan.continuation = {
+			schemaVersion: 1,
+			workspaceRoot: "/test/workspace",
+			repositoryRoot: "/test/workspace",
+			sourcePlanId: plan.planId,
+			evaluatedAt: 1_700_000_000,
+			reusedAgentCount: 0,
+			freshAgentCount: plan.agents.length,
+			decisions: [],
+		}
+		plan.agents = plan.agents.map((agent) => ({
+			...agent,
+			status: "complete",
+			worktreePath: `/tmp/${plan.planId}/${agent.id}`,
+		}))
+
+		const mergeReviewEntries = plan.agents.map((agent) => {
+			const ownedPath = agent.owns[0]?.path ?? `src/${agent.id}.ts`
+			return {
+				agentId: agent.id,
+				mode: agent.mode,
+				task: agent.task,
+				diff: `diff --git a/${ownedPath} b/${ownedPath}\n+done\n`,
+				worktreePath: agent.worktreePath,
+				branch: `roo/parallel/${plan.planId}/${agent.id}`,
+				changeStats: { filesChanged: 1, additions: 1, deletions: 0, totalChanges: 1, binaryFiles: 0 },
+				mergeStatus: "merged" as const,
+			}
+		})
+
+		const agentCompletionPackets = plan.agents.map((agent, index) => {
+			const ownedPath = agent.owns[0]?.path ?? `src/${agent.id}.ts`
+			return createAgentCompletionPacket(plan, agent, {
+				status: "complete",
+				completionResult: `${agent.id} completed clean merged work for ${ownedPath}`,
+				artifactManifest: [
+					{
+						path: ownedPath,
+						status: "modified",
+						additions: 1,
+						deletions: 0,
+						binary: false,
+						source: "merge-review",
+						agentId: agent.id,
+					},
+				],
+				validation: [
+					{
+						name: "unit-tests",
+						status: "passed",
+						summary: "Relevant tests passed.",
+						ts: 1_700_000_002 + index,
+						source: "provider",
+					},
+				],
+				merge: {
+					readiness: "ready",
+					result: "merged",
+					branch: `roo/parallel/${plan.planId}/${agent.id}`,
+					worktreePath: agent.worktreePath,
+					clean: true,
+					materialized: true,
+					notes: ["Merged cleanly."],
+					ts: 1_700_000_002 + index,
+				},
+				ts: 1_700_000_002 + index,
+			})
+		})
+
+		return {
+			tool: "parallelAgents",
+			executionPlan: plan,
+			parallelStatus: "merged",
+			agentStatusUpdates: plan.agents.map((agent) => ({
+				agentId: agent.id,
+				status: "complete",
+				reason: `${agent.id} completed clean merged work`,
+			})),
+			mergeReviewEntries,
+			agentCompletionPackets,
+			parallelPlanCompletionPacket: buildParallelPlanCompletionPacket(plan, agentCompletionPackets, {
+				status: "merged",
+				ts: 1_700_000_010,
+			}),
+			parallelContinuation: plan.continuation,
+		}
+	}
+
+	const createContinuationFollowupPlan = (): ExecutionPlan => ({
+		planId: "plan-followup",
+		goal: "Extend the dashboard and document the release notes",
+		sharedContext: "Continue the parent request with current workspace state only.",
+		sharedContract: "Reuse prior work only as compact context.",
+		fileOwnershipMap: {
+			"src/dashboard.tsx": "dashboard-agent",
+			"docs/release-notes.md": "docs-agent",
+		},
+		createdAt: 1_700_000_020,
+		agents: [
+			{
+				id: "dashboard-agent",
+				mode: "code",
+				task: "Extend src/dashboard.tsx with dashboard filters for the new request",
+				owns: [{ path: "src/dashboard.tsx", mode: "exclusive" }],
+				mustNotTouch: [],
+				dependsOn: [],
+				worktreePath: "",
+				status: "pending",
+				signals: [],
+			},
+			{
+				id: "docs-agent",
+				mode: "code",
+				task: "Write release notes in docs/release-notes.md for a separate documentation update",
+				owns: [{ path: "docs/release-notes.md", mode: "exclusive" }],
+				mustNotTouch: [],
+				dependsOn: [],
+				worktreePath: "",
+				status: "pending",
+				signals: [],
+			},
+		],
+	})
+
 	const createWorktreeManagerMock = (overrides: Record<string, unknown> = {}) => ({
 		validateGitRepository: vi.fn().mockResolvedValue(undefined),
 		captureWorkspaceBaseline: vi.fn().mockResolvedValue({ commit: "baseline", ref: "refs/roo/baseline" }),
 		createWorktree: vi.fn(async (agentId: string) => `/tmp/${agentId}`),
+		inspectReusableWorktree: vi.fn().mockResolvedValue({ reusable: false, reason: "not configured" }),
+		reuseWorktree: vi.fn(async (params: { worktreePath: string; newBranch: string }) => ({
+			worktreePath: params.worktreePath,
+			branch: params.newBranch,
+			repositoryRoot: "/test/workspace",
+			resetToCurrentBaseline: false,
+		})),
 		prepareMergeReview: vi.fn(
 			async ({ agentId }: { agentId: string }) => `diff --git a/src/${agentId}.ts b/src/${agentId}.ts\n+done\n`,
 		),
 		mergeBranch: vi.fn().mockResolvedValue(undefined),
 		removeWorktree: vi.fn().mockResolvedValue(undefined),
+		forgetWorktree: vi.fn(),
 		cleanup: vi.fn().mockResolvedValue(undefined),
 		cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
 		...overrides,
@@ -814,10 +953,16 @@ describe("ClineProvider", () => {
 	const seedPersistedTaskMessages = async (messages: ClineMessage[]) => {
 		const fsUtils = await import("../../../utils/fs")
 		const fsPromises = await import("fs/promises")
-		vi.spyOn(fsUtils, "fileExistsAtPath").mockResolvedValueOnce(true).mockResolvedValueOnce(true)
-		;(vi.mocked(fsPromises.readFile) as any)
-			.mockResolvedValueOnce(JSON.stringify(messages))
-			.mockResolvedValueOnce(JSON.stringify(messages))
+		vi.spyOn(fsUtils, "fileExistsAtPath").mockImplementation(async (filePath: string) =>
+			filePath.endsWith("ui_messages.json"),
+		)
+		;(vi.mocked(fsPromises.readFile) as any).mockImplementation(async (filePath: string) => {
+			if (filePath.endsWith("ui_messages.json")) {
+				return JSON.stringify(messages)
+			}
+
+			throw Object.assign(new Error(`ENOENT: no such file or directory, open '${filePath}'`), { code: "ENOENT" })
+		})
 	}
 
 	test("constructor initializes correctly", () => {
@@ -4167,6 +4312,296 @@ describe("ClineProvider", () => {
 		await expect(approvalPromise).resolves.toEqual({ approved: false })
 	})
 
+	test("requestPlanApproval decorates follow-up agents with reused continuation only for clean relevant prior work", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		parentTask.clineMessages = [
+			{ type: "say", say: "text", text: "OLD CHILD TRANSCRIPT SECRET should never be replayed", ts: 90 },
+			createParallelAgentToolMessage(createCleanMergedParallelAgentTool({ planId: "plan-old" }), 100),
+		]
+		await provider.addClineToStack(parentTask)
+		const inspectReusableWorktree = vi.fn().mockResolvedValue({
+			reusable: true,
+			worktreePath: "/tmp/plan-old/dashboard-agent",
+			branch: "roo/parallel/plan-old/dashboard-agent",
+			repositoryRoot: "/test/workspace",
+			gitCommonDir: "/test/workspace/.git",
+			currentHead: "current-head",
+			worktreeHead: "prior-head",
+			resetRequired: true,
+		})
+		;(provider as any).worktreeManager = createWorktreeManagerMock({
+			validateGitRepository: vi.fn().mockResolvedValue("/test/workspace"),
+			inspectReusableWorktree,
+		})
+		const plan = createContinuationFollowupPlan()
+
+		const approvalPromise = provider.requestPlanApproval(plan)
+
+		await vi.waitFor(() =>
+			expect(mockPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({ type: "showPlanPreview", executionPlan: plan }),
+			),
+		)
+		expect(inspectReusableWorktree).toHaveBeenCalledTimes(1)
+		expect(inspectReusableWorktree).toHaveBeenCalledWith({
+			worktreePath: "/tmp/plan-old/dashboard-agent",
+			branch: "roo/parallel/plan-old/dashboard-agent",
+			expectedRepositoryRoot: "/test/workspace",
+		})
+
+		const dashboardAgent = plan.agents.find((agent) => agent.id === "dashboard-agent")!
+		const docsAgent = plan.agents.find((agent) => agent.id === "docs-agent")!
+		expect(dashboardAgent.continuation).toEqual(
+			expect.objectContaining({
+				decision: "reused",
+				sourcePlanId: "plan-old",
+				sourceAgentId: "dashboard-agent",
+				sourceWorktreePath: "/tmp/plan-old/dashboard-agent",
+				sourceBranch: "roo/parallel/plan-old/dashboard-agent",
+				newPlanId: "plan-followup",
+				newBranch: "roo/parallel/plan-followup/dashboard-agent",
+				resetToCurrentBaseline: true,
+				relevantFiles: ["src/dashboard.tsx"],
+			}),
+		)
+		expect(dashboardAgent.continuation?.context).toContain("[PARALLEL AGENT CONTINUATION CONTEXT]")
+		expect(dashboardAgent.continuation?.context).toContain("Prior result summary")
+		expect(dashboardAgent.continuation?.context).toContain("New agent task")
+		expect(dashboardAgent.continuation?.context).not.toContain("OLD CHILD TRANSCRIPT SECRET")
+		expect((dashboardAgent.continuation?.context ?? "").length).toBeLessThanOrEqual(2_500)
+		expect(docsAgent.continuation).toEqual(
+			expect.objectContaining({
+				decision: "fresh",
+				reason: "No prior agent had strong conservative file/path overlap with this new agent.",
+				newBranch: "roo/parallel/plan-followup/docs-agent",
+			}),
+		)
+		expect(plan.continuation).toEqual(
+			expect.objectContaining({
+				schemaVersion: 1,
+				workspaceRoot: "/test/workspace",
+				repositoryRoot: "/test/workspace",
+				sourcePlanId: "plan-old",
+				reusedAgentCount: 1,
+				freshAgentCount: 1,
+			}),
+		)
+		expect(plan.continuation?.decisions).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "dashboard-agent",
+					decision: "reused",
+					sourceAgentId: "dashboard-agent",
+				}),
+				expect.objectContaining({ agentId: "docs-agent", decision: "fresh" }),
+			]),
+		)
+
+		await provider.cancelExecutionPlan()
+		await expect(approvalPromise).resolves.toEqual({ approved: false })
+	})
+
+	test("requestPlanApproval falls back to fresh worktrees when retained worktree safety inspection fails", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		parentTask.clineMessages = [
+			createParallelAgentToolMessage(createCleanMergedParallelAgentTool({ planId: "plan-old" })),
+		]
+		await provider.addClineToStack(parentTask)
+		const inspectReusableWorktree = vi.fn().mockResolvedValue({
+			reusable: false,
+			reason: "retained worktree has uncommitted or untracked changes",
+			worktreePath: "/tmp/plan-old/dashboard-agent",
+			branch: "roo/parallel/plan-old/dashboard-agent",
+			repositoryRoot: "/test/workspace",
+		})
+		;(provider as any).worktreeManager = createWorktreeManagerMock({
+			validateGitRepository: vi.fn().mockResolvedValue("/test/workspace"),
+			inspectReusableWorktree,
+		})
+		const plan = createContinuationFollowupPlan()
+
+		const approvalPromise = provider.requestPlanApproval(plan)
+
+		await vi.waitFor(() =>
+			expect(mockPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({ type: "showPlanPreview", executionPlan: plan }),
+			),
+		)
+
+		const dashboardAgent = plan.agents.find((agent) => agent.id === "dashboard-agent")!
+		expect(dashboardAgent.continuation).toEqual(
+			expect.objectContaining({
+				decision: "fresh",
+				sourcePlanId: "plan-old",
+				sourceAgentId: "dashboard-agent",
+				reason: expect.stringContaining("Retained worktree is not safely reusable"),
+			}),
+		)
+		expect(dashboardAgent.continuation?.context).toBeUndefined()
+		expect(plan.continuation).toEqual(expect.objectContaining({ reusedAgentCount: 0, freshAgentCount: 2 }))
+
+		await provider.cancelExecutionPlan()
+		await expect(approvalPromise).resolves.toEqual({ approved: false })
+	})
+
+	test("approved execution plans persist continuation decisions in the native parallelAgents row", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		parentTask.clineMessages = [
+			createParallelAgentToolMessage(createCleanMergedParallelAgentTool({ planId: "plan-old" })),
+		]
+		await provider.addClineToStack(parentTask)
+		const worktreeManager = createWorktreeManagerMock({
+			validateGitRepository: vi.fn().mockResolvedValue("/test/workspace"),
+			inspectReusableWorktree: vi.fn().mockResolvedValue({
+				reusable: true,
+				worktreePath: "/tmp/plan-old/dashboard-agent",
+				branch: "roo/parallel/plan-old/dashboard-agent",
+				repositoryRoot: "/test/workspace",
+				gitCommonDir: "/test/workspace/.git",
+				currentHead: "current-head",
+				worktreeHead: "current-head",
+				resetRequired: false,
+			}),
+			reuseWorktree: vi.fn().mockResolvedValue({
+				worktreePath: "/tmp/plan-old/dashboard-agent",
+				branch: "roo/parallel/plan-followup/dashboard-agent",
+				repositoryRoot: "/test/workspace",
+				resetToCurrentBaseline: false,
+			}),
+		})
+		;(provider as any).worktreeManager = worktreeManager
+		const plan = createContinuationFollowupPlan()
+
+		const approvalPromise = provider.requestPlanApproval(plan)
+		await vi.waitFor(() =>
+			expect(mockPostMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "showPlanPreview" })),
+		)
+		await provider.approveExecutionPlan(plan)
+		await expect(approvalPromise).resolves.toEqual({ approved: true, plan, startResult: { ok: true } })
+
+		await vi.waitFor(() => expect(getParallelAgentToolMessages(parentTask).length).toBeGreaterThan(1))
+		const persistedTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask).at(-1)!)
+		expect(persistedTool.executionPlan?.planId).toBe("plan-followup")
+		expect(persistedTool.parallelContinuation).toEqual(
+			expect.objectContaining({ sourcePlanId: "plan-old", reusedAgentCount: 1, freshAgentCount: 1 }),
+		)
+		expect(persistedTool.executionPlan?.continuation).toEqual(
+			expect.objectContaining({ sourcePlanId: "plan-old", reusedAgentCount: 1, freshAgentCount: 1 }),
+		)
+		expect(persistedTool.executionPlan?.agents[0].continuation).toEqual(
+			expect.objectContaining({ decision: "reused", sourceAgentId: "dashboard-agent" }),
+		)
+		expect(persistedTool.executionPlan?.agents[1].continuation).toEqual(
+			expect.objectContaining({ decision: "fresh" }),
+		)
+	})
+
+	test("createAgentWorktree falls back to a fresh worktree when retained reuse fails at launch time", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const plan = createContinuationFollowupPlan()
+		plan.agents[0].continuation = {
+			decision: "reused",
+			reason: "Prior clean merged work matched.",
+			sourcePlanId: "plan-old",
+			sourceAgentId: "dashboard-agent",
+			sourceBranch: "roo/parallel/plan-old/dashboard-agent",
+			sourceWorktreePath: "/tmp/plan-old/dashboard-agent",
+			newPlanId: "plan-followup",
+			newAgentId: "dashboard-agent",
+			newBranch: "roo/parallel/plan-followup/dashboard-agent",
+			context: "compact prior context",
+		}
+		;(provider as any).activeExecutionPlan = plan
+		const worktreeManager = createWorktreeManagerMock({
+			reuseWorktree: vi.fn().mockRejectedValue(new Error("retained worktree became dirty")),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/fresh-${agentId}`),
+		})
+		;(provider as any).worktreeManager = worktreeManager
+
+		await expect(provider.createAgentWorktree("dashboard-agent", "plan-followup")).resolves.toBe(
+			"/tmp/fresh-dashboard-agent",
+		)
+
+		expect(worktreeManager.reuseWorktree).toHaveBeenCalledWith({
+			worktreePath: "/tmp/plan-old/dashboard-agent",
+			sourceBranch: "roo/parallel/plan-old/dashboard-agent",
+			newBranch: "roo/parallel/plan-followup/dashboard-agent",
+		})
+		expect(worktreeManager.createWorktree).toHaveBeenCalledWith("dashboard-agent", "plan-followup")
+		expect(plan.agents[0].worktreePath).toBe("")
+		expect(plan.agents[0].continuation).toEqual(
+			expect.objectContaining({
+				decision: "fresh",
+				reason: expect.stringContaining("Retained worktree reuse failed"),
+			}),
+		)
+		expect(plan.agents[0].continuation?.context).toBeUndefined()
+		expect(plan.agents[0].continuation?.reusedWorktreePath).toBeUndefined()
+	})
+
+	test("createAgentWorktree does not retry fresh worktree creation when git executable is unavailable", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const plan = createContinuationFollowupPlan()
+		plan.agents[0].continuation = {
+			decision: "reused",
+			reason: "Prior clean merged work matched.",
+			sourcePlanId: "plan-old",
+			sourceAgentId: "dashboard-agent",
+			sourceBranch: "roo/parallel/plan-old/dashboard-agent",
+			sourceWorktreePath: "/tmp/plan-old/dashboard-agent",
+			newPlanId: "plan-followup",
+			newAgentId: "dashboard-agent",
+			newBranch: "roo/parallel/plan-followup/dashboard-agent",
+			context: "compact prior context",
+		}
+		;(provider as any).activeExecutionPlan = plan
+		const gitUnavailable = new WorktreeManagerGitUnavailableError(
+			"Git executable unavailable while preparing parallel worktrees.",
+		)
+		const worktreeManager = createWorktreeManagerMock({
+			reuseWorktree: vi.fn().mockRejectedValue(gitUnavailable),
+			createWorktree: vi.fn(async (agentId: string) => `/tmp/fresh-${agentId}`),
+		})
+		;(provider as any).worktreeManager = worktreeManager
+
+		await expect(provider.createAgentWorktree("dashboard-agent", "plan-followup")).rejects.toThrow(
+			"Git executable unavailable",
+		)
+
+		expect(worktreeManager.reuseWorktree).toHaveBeenCalledTimes(1)
+		expect(worktreeManager.createWorktree).not.toHaveBeenCalled()
+		expect(plan.agents[0].continuation?.decision).toBe("reused")
+	})
+
+	test("teardownParallelExecution logs and swallows cleanup rejection to avoid unhandled promises", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const plan = createExecutionPlan()
+		;(provider as any).activeExecutionPlan = plan
+		;(provider as any).parallelStatusPhase = "running"
+		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
+		const cleanup = vi.fn().mockRejectedValue(new Error("Repository not initialized"))
+		const removeWorktree = vi.fn().mockResolvedValue(undefined)
+		;(provider as any).worktreeManager = createWorktreeManagerMock({ cleanup, removeWorktree })
+		const logSpy = vi.spyOn(provider, "log")
+
+		await expect(
+			(provider as any).teardownParallelExecution({
+				markCancelled: true,
+				resetBus: true,
+				cleanupWorktrees: true,
+			}),
+		).resolves.toBeUndefined()
+
+		expect(cleanup).toHaveBeenCalledWith({ retainWorktreePaths: [] })
+		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
+		expect(logSpy).toHaveBeenCalledWith(
+			expect.stringContaining("Ignoring worktree cleanup failure during teardown: Repository not initialized"),
+		)
+	})
+
 	test("requestPlanApproval auto-starts valid parallel plans when parallel tasks auto-approval is enabled", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const parentTask = new Task(defaultTaskOptions)
@@ -5197,6 +5632,7 @@ describe("ClineProvider", () => {
 		)
 		const mergeBranch = vi.fn().mockResolvedValue(undefined)
 		const removeWorktree = vi.fn().mockResolvedValue(undefined)
+		const forgetWorktree = vi.fn()
 		const cleanupPlanBaseline = vi.fn().mockResolvedValue(undefined)
 		;(provider as any).activeExecutionPlan = plan
 		;(provider as any).worktreePathsByAgentId.set("dashboard-agent", "/tmp/dashboard-agent")
@@ -5208,6 +5644,7 @@ describe("ClineProvider", () => {
 			prepareMergeReview,
 			mergeBranch,
 			removeWorktree,
+			forgetWorktree,
 			cleanup: vi.fn().mockResolvedValue(undefined),
 			cleanupPlanBaseline,
 		}
@@ -5227,8 +5664,9 @@ describe("ClineProvider", () => {
 			ownedPaths: ["src/styles.css"],
 			autoApproved: true,
 		})
-		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
-		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
+		expect(removeWorktree).not.toHaveBeenCalled()
+		expect(forgetWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
+		expect(forgetWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
 		expect(cleanupPlanBaseline).toHaveBeenCalledWith("plan-webview-provider")
 		expect(
 			mockPostMessage.mock.calls.some(([message]: [ExtensionMessage]) => message.type === "showMergeReview"),
@@ -5636,6 +6074,7 @@ describe("ClineProvider", () => {
 		await provider.addClineToStack(parentTask)
 		const mergeBranch = vi.fn().mockResolvedValue(undefined)
 		const removeWorktree = vi.fn().mockResolvedValue(undefined)
+		const forgetWorktree = vi.fn()
 		;(provider as any).activeExecutionPlan = undefined
 		;(provider as any).worktreeManager = {
 			validateGitRepository: vi.fn().mockResolvedValue(undefined),
@@ -5647,6 +6086,7 @@ describe("ClineProvider", () => {
 			),
 			mergeBranch,
 			removeWorktree,
+			forgetWorktree,
 			cleanup: vi.fn().mockResolvedValue(undefined),
 			cleanupPlanBaseline: vi.fn().mockResolvedValue(undefined),
 		}
@@ -5659,8 +6099,9 @@ describe("ClineProvider", () => {
 			ownedPaths: ["src/dashboard.tsx"],
 			autoApproved: false,
 		})
-		expect(removeWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
+		expect(removeWorktree).not.toHaveBeenCalledWith("/tmp/dashboard-agent")
 		expect(removeWorktree).toHaveBeenCalledWith("/tmp/styles-agent")
+		expect(forgetWorktree).toHaveBeenCalledWith("/tmp/dashboard-agent")
 		const statusTool = parseParallelAgentToolMessage(getParallelAgentToolMessages(parentTask)[0])
 		expect(statusTool.parallelStatus).toBe("merged")
 		expect(statusTool.mergeReviewEntries).toEqual(
@@ -7734,8 +8175,8 @@ describe("ClineProvider - Router Models", () => {
 
 		// Verify getModels was called for each provider with correct options
 		expect(getModels).toHaveBeenCalledWith({ provider: "openrouter", apiKey: "openrouter-key" })
-		expect(getModels).toHaveBeenCalledWith({ provider: "requesty", apiKey: "requesty-key" })
-		expect(getModels).toHaveBeenCalledWith({ provider: "unbound" })
+		expect(getModels).toHaveBeenCalledWith({ provider: "requesty", apiKey: "requesty-key", baseUrl: undefined })
+		expect(getModels).toHaveBeenCalledWith(expect.objectContaining({ provider: "unbound" }))
 		expect(getModels).toHaveBeenCalledWith({ provider: "vercel-ai-gateway" })
 		expect(getModels).toHaveBeenCalledWith({
 			provider: "litellm",
@@ -7755,7 +8196,9 @@ describe("ClineProvider - Router Models", () => {
 				lmstudio: {},
 				"vercel-ai-gateway": mockModels,
 				poe: {},
+				bedrock: {},
 			},
+			requestId: undefined,
 			values: undefined,
 		})
 	})
@@ -7800,7 +8243,9 @@ describe("ClineProvider - Router Models", () => {
 				litellm: {},
 				"vercel-ai-gateway": mockModels,
 				poe: {},
+				bedrock: {},
 			},
+			requestId: undefined,
 			values: undefined,
 		})
 
@@ -7809,6 +8254,7 @@ describe("ClineProvider - Router Models", () => {
 			type: "singleRouterModelFetchResponse",
 			success: false,
 			error: "Requesty API error",
+			requestId: undefined,
 			values: { provider: "requesty" },
 		})
 
@@ -7816,6 +8262,7 @@ describe("ClineProvider - Router Models", () => {
 			type: "singleRouterModelFetchResponse",
 			success: false,
 			error: "LiteLLM connection failed",
+			requestId: undefined,
 			values: { provider: "litellm" },
 		})
 	})
@@ -7842,6 +8289,7 @@ describe("ClineProvider - Router Models", () => {
 		await messageHandler({
 			type: "requestRouterModels",
 			values: {
+				provider: "litellm",
 				litellmApiKey: "message-litellm-key",
 				litellmBaseUrl: "http://message-url:4000",
 			},
@@ -7894,7 +8342,9 @@ describe("ClineProvider - Router Models", () => {
 				lmstudio: {},
 				"vercel-ai-gateway": mockModels,
 				poe: {},
+				bedrock: {},
 			},
+			requestId: undefined,
 			values: undefined,
 		})
 	})

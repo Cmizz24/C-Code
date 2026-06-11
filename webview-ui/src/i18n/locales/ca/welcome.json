@@ -11,7 +11,139 @@
 	"landing": {
 		"greeting": "Benvingut a C Code!",
 		"introduction": "Amb una gamma de Modes integrats i ampliables, C Code et permet planificar, arquitectar, codificar, depurar i augmentar la teva productivitat com mai abans.",
-		"getStarted": "Get Started"
+		"getStarted": "Get Started",
+		"setupLocalAi": "Configura AI local",
+		"localAi": {
+			"title": "Configura AI local",
+			"description": "Detecta el teu maquinari, tria Ollama o LM Studio i configura un model local."
+		},
+		"provider": {
+			"title": "Fes servir un proveïdor d'API",
+			"description": "Tria OpenRouter o porta una clau d'un altre proveïdor."
+		}
+	},
+	"localSetup": {
+		"heading": "Configura AI local",
+		"subtitle": "Respon unes quantes preguntes i C Code t'ajudarà a configurar Ollama o a fer servir un servidor LM Studio existent.",
+		"hardware": {
+			"heading": "Comprovació de maquinari i runtime",
+			"detecting": "Detectant el teu ordinador i runtimes d'AI locals…",
+			"system": "{{os}} {{arch}}, {{cores}} nuclis de CPU, {{ram}} de RAM",
+			"disk": "Disc lliure: {{free}}",
+			"gpuDetected": "GPU detectada: {{gpu}}",
+			"gpuUnknown": "L'estat de la GPU és desconegut. Serem conservadors en lloc d'assumir que no tens GPU.",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "Actualitza la comprovació"
+		},
+		"runtimeStatus": {
+			"running": "en execució",
+			"installed-not-running": "instal·lat, no en execució",
+			"missing": "absent",
+			"unknown": "desconegut",
+			"detection-failed": "detecció fallida"
+		},
+		"form": {
+			"usage": {
+				"label": "Com faràs servir l'AI local?",
+				"light": "Ajuda lleugera amb codi",
+				"daily": "Programació diària",
+				"agentic": "Refactors grans i tasques agèntiques"
+			},
+			"preference": {
+				"label": "Per a què ha d'optimitzar la recomanació?",
+				"speed": "Velocitat",
+				"balanced": "Equilibri",
+				"quality": "Qualitat"
+			},
+			"privacy": {
+				"label": "Preferència de privadesa",
+				"localOnly": "Només local",
+				"localPreferred": "Prefereixo local, puc configurar-ho més tard"
+			},
+			"diskBudget": "Pressupost de disc per al model (GB)",
+			"runtime": {
+				"label": "Elecció de runtime",
+				"existing": "Fes servir un runtime local existent",
+				"ollama": "Configura Ollama",
+				"manual": "Configuració manual",
+				"lmStudio": "Fes servir LM Studio"
+			},
+			"providerPreference": {
+				"label": "Preferència de runtime local detectat"
+			},
+			"provider": {
+				"label": "Proveïdor local",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "Camí més automatitzat: C Code pot descarregar el model d'Ollama recomanat amb progrés.",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "Fes servir LM Studio si prefereixes el seu gestor de models basat en app i servidor local.",
+				"lmStudioReadyDescription": "LM Studio s'està executant amb {{models}} model(s) disponible(s).",
+				"readyBadge": "A punt"
+			}
+		},
+		"actions": {
+			"manual": "Configuració manual",
+			"recommend": "Recomana un model",
+			"recommending": "Creant recomanació…",
+			"adjust": "Ajusta les respostes",
+			"installHelp": "Ajuda d'instal·lació d'Ollama",
+			"confirmDownload": "Confirma i descarrega",
+			"cancel": "Cancel·la la configuració",
+			"retry": "Reintenta la descàrrega",
+			"openOllamaDownload": "Obre la descàrrega d'Ollama",
+			"useApiProvider": "Utilitza un proveïdor d'API",
+			"useLmStudio": "Fes servir el model de LM Studio",
+			"openLmStudioDownload": "Obre la descàrrega de LM Studio",
+			"openLmStudioServerDocs": "Obre la guia del servidor de LM Studio"
+		},
+		"recommendation": {
+			"heading": "Model local recomanat",
+			"apiHeading": "Es recomana un proveïdor d'API",
+			"apiDescription": "Aquest ordinador pot executar els models de codi locals lentament o amb qualitat limitada. Un proveïdor d'API és el camí recomanat per a una millor experiència en la primera execució.",
+			"manualStillAvailable": "Encara pots triar la configuració local manual si vols experimentar amb Ollama.",
+			"size": "Descàrrega aproximada: {{size}}",
+			"disk": "Disc lliure detectat: {{free}}",
+			"runtime": "Runtime/proveïdor: {{runtime}} des de la seva API local oficial",
+			"confidence": "Confiança de la recomanació: {{confidence}}",
+			"privacyHeading": "Nota de privadesa",
+			"warnings": "Abans de descarregar",
+			"weakHardwareWarning": "Els models d'AI locals poden ser lents o pot ser que no funcionin com s'espera en aquest maquinari."
+		},
+		"confidence": {
+			"low": "baixa",
+			"medium": "mitjana",
+			"high": "alta"
+		},
+		"progress": {
+			"heading": "Configurant AI local",
+			"starting": "Iniciant la configuració d'AI local…",
+			"model": "Model: {{model}}",
+			"percent": "{{percent}}% completat",
+			"waiting": "Esperant el progrés del runtime local…"
+		},
+		"manual": {
+			"heading": "Configuració manual d'AI local",
+			"description": "C Code no executarà instal·ladors en silenci. Instal·la Ollama o LM Studio pel teu compte, inicia el servidor local i després torna aquí i actualitza la comprovació.",
+			"stepInstall": "Descarrega Ollama o LM Studio des del lloc oficial.",
+			"stepStart": "Inicia Ollama o el servidor local de LM Studio i assegura't que sigui accessible a la seva URL local predeterminada.",
+			"stepRetry": "Torna aquí, actualitza la comprovació del runtime i executa la recomanació de nou."
+		},
+		"success": {
+			"heading": "L'AI local està a punt",
+			"description": "{{model}} està a punt per a inferència local.",
+			"profile": "C Code ha desat i activat un perfil de proveïdor Local AI (Ollama).",
+			"lmStudioProfile": "C Code ha desat i activat un perfil de proveïdor Local AI (LM Studio)."
+		},
+		"lmStudio": {
+			"statusHeading": "Estat de LM Studio: {{status}}",
+			"ready": "Tria un dels models informats per LM Studio i després fes-lo servir per crear un perfil de proveïdor local.",
+			"noModels": "LM Studio és accessible, però no ha informat cap model usable. Descarrega o carrega un model de xat a LM Studio i actualitza la comprovació.",
+			"serverStopped": "LM Studio sembla instal·lat, però el servidor local no s'està executant. Inicia el servidor local a LM Studio i actualitza la comprovació.",
+			"detectionFailed": "La detecció de LM Studio ha fallat: {{error}}",
+			"missing": "LM Studio no està instal·lat o no és accessible. Obre la pàgina oficial de descàrrega, instal·la LM Studio, descarrega un model, inicia el servidor local i actualitza la comprovació.",
+			"unknownError": "error desconegut",
+			"modelLabel": "Model de LM Studio"
+		}
 	},
 	"providerSignup": {
 		"heading": "Tria el teu proveïdor",

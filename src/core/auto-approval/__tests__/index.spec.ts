@@ -18,6 +18,7 @@ const createState = (overrides: Partial<AutoApprovalSettings> = {}): AutoApprova
 		alwaysAllowParallelTasks: false,
 		alwaysAllowVisualBrowserInspector: false,
 		alwaysAllowImageGeneration: false,
+		memoryAutoApproveMistakeMemory: false,
 		alwaysAllowExecute: false,
 		alwaysAllowFollowupQuestions: false,
 		followupAutoApproveTimeoutMs: undefined,
@@ -126,6 +127,58 @@ describe("checkAutoApproval", () => {
 				}),
 				ask: "tool",
 				text: JSON.stringify({ tool: "generateImage", isOutsideWorkspace: false }),
+			})
+
+			expect(result).toEqual({ decision: "ask" })
+		})
+	})
+
+	describe("mistake memory tools", () => {
+		it("auto-approves mistakeMemory when the memory setting and global auto-approval are enabled", async () => {
+			const result = await checkAutoApproval({
+				state: createState({ memoryAutoApproveMistakeMemory: true }),
+				ask: "tool",
+				text: JSON.stringify({ tool: "mistakeMemory" }),
+			})
+
+			expect(result).toEqual({ decision: "approve" })
+		})
+
+		it("asks when global auto-approval is disabled", async () => {
+			const result = await checkAutoApproval({
+				state: createState({ autoApprovalEnabled: false, memoryAutoApproveMistakeMemory: true }),
+				ask: "tool",
+				text: JSON.stringify({ tool: "mistakeMemory" }),
+			})
+
+			expect(result).toEqual({ decision: "ask" })
+		})
+
+		it.each([false, undefined])(
+			"asks when the mistake memory auto-approval setting is %s",
+			async (memoryAutoApproveMistakeMemory) => {
+				const result = await checkAutoApproval({
+					state: createState({ memoryAutoApproveMistakeMemory }),
+					ask: "tool",
+					text: JSON.stringify({ tool: "mistakeMemory" }),
+				})
+
+				expect(result).toEqual({ decision: "ask" })
+			},
+		)
+
+		it("does not fall through to read, write, or execute auto-approval categories", async () => {
+			const result = await checkAutoApproval({
+				state: createState({
+					alwaysAllowReadOnly: true,
+					alwaysAllowWrite: true,
+					alwaysAllowWriteOutsideWorkspace: true,
+					alwaysAllowWriteProtected: true,
+					alwaysAllowExecute: true,
+					memoryAutoApproveMistakeMemory: false,
+				}),
+				ask: "tool",
+				text: JSON.stringify({ tool: "mistakeMemory", isOutsideWorkspace: false }),
 			})
 
 			expect(result).toEqual({ decision: "ask" })

@@ -35,6 +35,7 @@
 		"checkpoints": "Punts de control",
 		"notifications": "Notificacions",
 		"contextManagement": "Context",
+		"memory": "Memòria",
 		"terminal": "Terminal",
 		"slashCommands": "Comandes de barra",
 		"prompts": "Indicacions",
@@ -257,8 +258,12 @@
 			"description": "Aprova automàticament els plans de tasques paral·leles vàlids i inicia els agents sense mostrar el modal de previsualització del pla"
 		},
 		"visualBrowserInspector": {
-			"label": "Navegador",
+			"label": "Visual Browser Inspector",
 			"description": "Aprova automàticament les accions del Visual Browser Inspector des del xat, incloent-hi l'obertura de pàgines de navegador controlades, captures de pantalla, inspecció del DOM, retalls, anàlisi i interaccions amb la pàgina. Això no permet editar fitxers ni executar comandes de terminal."
+		},
+		"memory": {
+			"label": "Memòria",
+			"description": "Aprova automàticament els desats de memòria d’errors des del xat i els errors d’eines. Quan això està desactivat, la memòria pendent encara es pot revisar des del xat o des de la configuració de Memòria."
 		},
 		"imageGeneration": {
 			"label": "Imatges",
@@ -817,6 +822,114 @@
 		"enableSubfolderRules": {
 			"label": "Activa les regles dels subdirectoris",
 			"description": "Descobreix i carrega recursivament fitxers .roo/rules i AGENTS.md des de subdirectoris. Útil per a monorepos amb regles per paquet."
+		}
+	},
+	"memory": {
+		"description": "Configura com C Code recupera, desa i gestiona memòries en aquest espai de treball i en el context global.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Comportament principal",
+				"description": "Tria quan s'executa la memòria i quins àmbits de memòria pot usar C."
+			},
+			"retrievalLimits": {
+				"title": "Límits de recuperació",
+				"description": "Ajusta quant context de memòria s'inclou en cada sol·licitud."
+			},
+			"management": {
+				"title": "Gestió de memòria",
+				"description": "Revisa els recomptes de memòria i gestiona lliçons pendents, arxivades o desades."
+			},
+			"advanced": {
+				"title": "Avançat",
+				"description": "Controla la retenció de candidates pendents de memòria d'errors."
+			}
+		},
+		"mode": {
+			"label": "Mode de memòria",
+			"description": "Fes servir el mode automàtic per activar la memòria en models amb menys d'1M de token de context i desactivar-la en models amb context més gran, tret que ho sobreescriguis.",
+			"options": {
+				"auto": "Automàtic",
+				"enabled": "Sempre activada",
+				"disabled": "Desactivada"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Fes servir la memòria de l'espai de treball",
+			"description": "Recupera i desa lliçons limitades a aquest espai de treball sense emmagatzemar rutes absolutes de l'espai de treball."
+		},
+		"globalEnabled": {
+			"label": "Fes servir la memòria global",
+			"description": "Recupera i desa lliçons que es poden aplicar a diversos espais de treball."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Captura memòries d'errors",
+			"description": "Crea lliçons pendents a partir de correccions, errors de validació i errors repetits d'eines. Les lliçons pendents no s'usen permanentment fins que s'aproven."
+		},
+		"autoApproveMistakeMemory": {
+			"label": "Aprova automàticament les memòries d’errors",
+			"description": "Desa les noves lliçons de memòria d’errors com a actives immediatament després de la redacció, en lloc de crear candidates pendents. Mantén-ho desactivat tret que confiïs en l’automatització."
+		},
+		"maxCharacters": {
+			"label": "Pressupost de caràcters de memòria",
+			"description": "Nombre màxim de caràcters de context de memòria que s'injecten en una sol·licitud. Amb pressió de context, la memòria es retalla o s'omet primer."
+		},
+		"maxEntries": {
+			"label": "Entrades de memòria màximes",
+			"description": "Nombre màxim d'entrades de memòria actives que s'inclouen en una sol·licitud."
+		},
+		"pendingCandidateLimit": {
+			"label": "Límit de memòries d'errors pendents",
+			"description": "Nombre màxim de candidats de memòria d'errors pendents que es conserven abans de podar els candidats més antics."
+		},
+		"management": {
+			"title": "Gestió de memòria",
+			"description": "Revisa els recomptes de memòries de l'espai de treball i globals, aprova lliçons pendents, arxiva memòries o esborra la memòria desada."
+		},
+		"summary": {
+			"workspace": "Memòria de l'espai de treball",
+			"global": "Memòria global",
+			"active": "Activa",
+			"pending": "Pendent",
+			"archived": "Arxivada",
+			"total": "Total"
+		},
+		"scope": {
+			"workspace": "Espai de treball",
+			"global": "Global"
+		},
+		"status": {
+			"active": "Activa",
+			"pending": "Pendent",
+			"stale": "Obsoleta",
+			"superseded": "Substituïda",
+			"archived": "Arxivada"
+		},
+		"kind": {
+			"lesson": "Lliçó",
+			"mistake": "Error"
+		},
+		"records": {
+			"count": "{{count}} registres",
+			"empty": "No hi ha memòries desades en aquest àmbit.",
+			"lesson": "Lliçó",
+			"tags": "Etiquetes",
+			"pathHints": "Pistes de camí",
+			"created": "Creat",
+			"updated": "Actualitzat",
+			"lastUsed": "Últim ús"
+		},
+		"actions": {
+			"refresh": "Actualitza",
+			"approvePending": "Aprova pendents",
+			"archivePending": "Arxiva pendents",
+			"archiveAll": "Arxiva-ho tot",
+			"clear": "Esborra"
+		},
+		"confirm": {
+			"title": "Confirma l'acció de memòria",
+			"description": "Aquesta acció de memòria canvia o elimina lliçons desades. Això no es pot desfer en el cas de memòria esborrada.",
+			"cancel": "Cancel·la",
+			"confirm": "Continua"
 		}
 	},
 	"terminal": {

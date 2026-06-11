@@ -35,6 +35,7 @@
 		"checkpoints": "Checkpoints",
 		"notifications": "Meldingen",
 		"contextManagement": "Context",
+		"memory": "Geheugen",
 		"terminal": "Terminal",
 		"slashCommands": "Slash-opdrachten",
 		"prompts": "Prompts",
@@ -257,8 +258,12 @@
 			"description": "Keur geldige plannen voor parallelle taken automatisch goed en start agents zonder het modal voor planvoorbeeld te tonen"
 		},
 		"visualBrowserInspector": {
-			"label": "Browser",
+			"label": "Visual Browser Inspector",
 			"description": "Keur Visual Browser Inspector-acties vanuit de chat automatisch goed, inclusief het openen van gecontroleerde browserpagina's, screenshots, DOM-inspectie, uitsneden, analyse en pagina-interacties. Dit staat geen bestandsbewerkingen of terminalopdrachten toe."
+		},
+		"memory": {
+			"label": "Memory",
+			"description": "Keur foutmemory-opslag vanuit chat en toolfouten automatisch goed. Als dit uit staat, kun je memory in behandeling nog steeds bekijken vanuit chat of de Memory-instellingen."
 		},
 		"imageGeneration": {
 			"label": "Afbeeldingen",
@@ -817,6 +822,114 @@
 		"enableSubfolderRules": {
 			"label": "Submap-regels inschakelen",
 			"description": "Recursief .roo/rules en AGENTS.md-bestanden uit submappen ontdekken en laden. Handig voor monorepo's met regels per pakket."
+		}
+	},
+	"memory": {
+		"description": "Configureer hoe C Code memories ophaalt, opslaat en beheert in deze workspace en globale context.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Basisgedrag",
+				"description": "Kies wanneer memory draait en welke memory-scopes C mag gebruiken."
+			},
+			"retrievalLimits": {
+				"title": "Ophaallimieten",
+				"description": "Stem af hoeveel memory-context met elke request wordt meegestuurd."
+			},
+			"management": {
+				"title": "Memory-beheer",
+				"description": "Bekijk memory-aantallen en beheer pending, gearchiveerde of opgeslagen lessons."
+			},
+			"advanced": {
+				"title": "Geavanceerd",
+				"description": "Beheer hoe lang pending mistake-memory-kandidaten bewaard blijven."
+			}
+		},
+		"mode": {
+			"label": "Geheugenmodus",
+			"description": "Gebruik de automatische modus om geheugen in te schakelen voor modellen met minder dan 1M context-token en uit te schakelen voor modellen met grotere context, tenzij je dit overschrijft.",
+			"options": {
+				"auto": "Automatisch",
+				"enabled": "Altijd ingeschakeld",
+				"disabled": "Uitgeschakeld"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Workspace-geheugen gebruiken",
+			"description": "Haal lessen op en sla ze op voor deze workspace zonder absolute workspace-paden op te slaan."
+		},
+		"globalEnabled": {
+			"label": "Globaal geheugen gebruiken",
+			"description": "Haal lessen op en sla ze op die in meerdere workspaces kunnen gelden."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Foutgeheugens vastleggen",
+			"description": "Maak wachtende lessen van correcties, validatiefouten en herhaalde tool-fouten. Wachtende lessen worden pas permanent gebruikt nadat ze zijn goedgekeurd."
+		},
+		"autoApproveMistakeMemory": {
+			"label": "Foutmemories automatisch goedkeuren",
+			"description": "Sla nieuwe lessen voor foutmemories direct na redactie op als actief, in plaats van kandidaten in behandeling te maken. Laat dit uit tenzij je de automatisering vertrouwt."
+		},
+		"maxCharacters": {
+			"label": "Tekenbudget voor geheugen",
+			"description": "Maximum aantal tekens geheugencontext om in een verzoek te injecteren. Bij contextdruk wordt geheugen eerst ingekort of overgeslagen."
+		},
+		"maxEntries": {
+			"label": "Maximum aantal geheugenitems",
+			"description": "Maximum aantal actieve geheugenitems om in een verzoek op te nemen."
+		},
+		"pendingCandidateLimit": {
+			"label": "Limiet voor wachtende foutgeheugens",
+			"description": "Maximum aantal wachtende mistake-memory-kandidaten dat wordt bewaard voordat oudere kandidaten worden opgeschoond."
+		},
+		"management": {
+			"title": "Geheugenbeheer",
+			"description": "Bekijk aantallen voor workspace- en globaal geheugen, keur wachtende lessen goed, archiveer geheugens of wis opgeslagen geheugen."
+		},
+		"summary": {
+			"workspace": "Workspace-geheugen",
+			"global": "Globaal geheugen",
+			"active": "Actief",
+			"pending": "Wachtend",
+			"archived": "Gearchiveerd",
+			"total": "Totaal"
+		},
+		"scope": {
+			"workspace": "Workspace",
+			"global": "Globaal"
+		},
+		"status": {
+			"active": "Actief",
+			"pending": "In behandeling",
+			"stale": "Verouderd",
+			"superseded": "Vervangen",
+			"archived": "Gearchiveerd"
+		},
+		"kind": {
+			"lesson": "Les",
+			"mistake": "Fout"
+		},
+		"records": {
+			"count": "{{count}} records",
+			"empty": "Geen opgeslagen memories in dit bereik.",
+			"lesson": "Les",
+			"tags": "Tags",
+			"pathHints": "Pad-hints",
+			"created": "Aangemaakt",
+			"updated": "Bijgewerkt",
+			"lastUsed": "Laatst gebruikt"
+		},
+		"actions": {
+			"refresh": "Vernieuwen",
+			"approvePending": "Wachtende goedkeuren",
+			"archivePending": "Wachtende archiveren",
+			"archiveAll": "Alles archiveren",
+			"clear": "Wissen"
+		},
+		"confirm": {
+			"title": "Geheugenactie bevestigen",
+			"description": "Deze geheugenactie wijzigt of verwijdert opgeslagen lessen. Dit kan niet ongedaan worden gemaakt voor gewist geheugen.",
+			"cancel": "Annuleren",
+			"confirm": "Doorgaan"
 		}
 	},
 	"terminal": {

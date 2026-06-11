@@ -16,6 +16,7 @@ import { toolNamesSchema } from "./tool.js"
 import { languagesSchema } from "./vscode.js"
 import { openAiCodexFastStatusSchema } from "./providers/openai-codex.js"
 import { IMAGE_GENERATION_API_METHODS, IMAGE_GENERATION_PROVIDER_IDS } from "./image-generation.js"
+import { memoryGlobalSettingsSchema } from "./memory.js"
 
 export const cloudflareWorkersAiImageUsageStateSchema = z.object({
 	utcDate: z.string(),
@@ -115,212 +116,214 @@ export const normalizeParallelTaskConcurrency = (value: unknown): number => {
  * GlobalSettings
  */
 
-export const globalSettingsSchema = z.object({
-	currentApiConfigName: z.string().optional(),
-	listApiConfigMeta: z.array(providerSettingsEntrySchema).optional(),
-	pinnedApiConfigs: z.record(z.string(), z.boolean()).optional(),
+export const globalSettingsSchema = z
+	.object({
+		currentApiConfigName: z.string().optional(),
+		listApiConfigMeta: z.array(providerSettingsEntrySchema).optional(),
+		pinnedApiConfigs: z.record(z.string(), z.boolean()).optional(),
 
-	lastShownAnnouncementId: z.string().optional(),
-	customInstructions: z.string().optional(),
-	taskHistory: z.array(historyItemSchema).optional(),
-	dismissedUpsells: z.array(z.string()).optional(),
+		lastShownAnnouncementId: z.string().optional(),
+		customInstructions: z.string().optional(),
+		taskHistory: z.array(historyItemSchema).optional(),
+		dismissedUpsells: z.array(z.string()).optional(),
 
-	// Image generation settings - kept independent from chat provider profiles.
-	imageGenerationProvider: z.enum(IMAGE_GENERATION_PROVIDER_IDS).optional(),
-	openRouterImageApiKey: z.string().optional(),
-	openRouterImageBaseUrl: z.string().optional(),
-	openRouterImageGenerationSelectedModel: z.string().optional(),
-	openRouterImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
-	openAiImageApiKey: z.string().optional(),
-	openAiImageBaseUrl: z.string().optional(),
-	openAiImageGenerationSelectedModel: z.string().optional(),
-	openAiImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
-	cloudflareImageApiKey: z.string().optional(),
-	cloudflareImageAccountId: z.string().optional(),
-	cloudflareImageBaseUrl: z.string().optional(),
-	cloudflareImageGenerationSelectedModel: z.string().optional(),
-	cloudflareImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
-	cloudflareWorkersAiImageUsage: cloudflareWorkersAiImageUsageStateSchema.optional(),
-	comfyUiImageApiKey: z.string().optional(),
-	comfyUiImageBaseUrl: z.string().optional(),
-	comfyUiImageGenerationSelectedModel: z.string().optional(),
-	comfyUiImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
-	comfyUiImageGenerationNegativePrompt: z.string().optional(),
-	automatic1111ImageApiKey: z.string().optional(),
-	automatic1111ImageBaseUrl: z.string().optional(),
-	automatic1111ImageGenerationSelectedModel: z.string().optional(),
-	automatic1111ImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
-	automatic1111ImageGenerationNegativePrompt: z.string().optional(),
-	ollamaImageApiKey: z.string().optional(),
-	ollamaImageBaseUrl: z.string().optional(),
-	ollamaImageGenerationSelectedModel: z.string().optional(),
-	ollamaImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
-	lmStudioImageApiKey: z.string().optional(),
-	lmStudioImageBaseUrl: z.string().optional(),
-	lmStudioImageGenerationSelectedModel: z.string().optional(),
-	lmStudioImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
-	openAiCodexFastStatus: openAiCodexFastStatusSchema.optional(),
+		// Image generation settings - kept independent from chat provider profiles.
+		imageGenerationProvider: z.enum(IMAGE_GENERATION_PROVIDER_IDS).optional(),
+		openRouterImageApiKey: z.string().optional(),
+		openRouterImageBaseUrl: z.string().optional(),
+		openRouterImageGenerationSelectedModel: z.string().optional(),
+		openRouterImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+		openAiImageApiKey: z.string().optional(),
+		openAiImageBaseUrl: z.string().optional(),
+		openAiImageGenerationSelectedModel: z.string().optional(),
+		openAiImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+		cloudflareImageApiKey: z.string().optional(),
+		cloudflareImageAccountId: z.string().optional(),
+		cloudflareImageBaseUrl: z.string().optional(),
+		cloudflareImageGenerationSelectedModel: z.string().optional(),
+		cloudflareImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+		cloudflareWorkersAiImageUsage: cloudflareWorkersAiImageUsageStateSchema.optional(),
+		comfyUiImageApiKey: z.string().optional(),
+		comfyUiImageBaseUrl: z.string().optional(),
+		comfyUiImageGenerationSelectedModel: z.string().optional(),
+		comfyUiImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+		comfyUiImageGenerationNegativePrompt: z.string().optional(),
+		automatic1111ImageApiKey: z.string().optional(),
+		automatic1111ImageBaseUrl: z.string().optional(),
+		automatic1111ImageGenerationSelectedModel: z.string().optional(),
+		automatic1111ImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+		automatic1111ImageGenerationNegativePrompt: z.string().optional(),
+		ollamaImageApiKey: z.string().optional(),
+		ollamaImageBaseUrl: z.string().optional(),
+		ollamaImageGenerationSelectedModel: z.string().optional(),
+		ollamaImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+		lmStudioImageApiKey: z.string().optional(),
+		lmStudioImageBaseUrl: z.string().optional(),
+		lmStudioImageGenerationSelectedModel: z.string().optional(),
+		lmStudioImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
+		openAiCodexFastStatus: openAiCodexFastStatusSchema.optional(),
 
-	customCondensingPrompt: z.string().optional(),
+		customCondensingPrompt: z.string().optional(),
 
-	autoApprovalEnabled: z.boolean().optional(),
-	alwaysAllowReadOnly: z.boolean().optional(),
-	alwaysAllowReadOnlyOutsideWorkspace: z.boolean().optional(),
-	alwaysAllowWrite: z.boolean().optional(),
-	alwaysAllowWriteOutsideWorkspace: z.boolean().optional(),
-	alwaysAllowWriteProtected: z.boolean().optional(),
-	writeDelayMs: z.number().min(0).optional(),
-	requestDelaySeconds: z.number().optional(),
-	alwaysAllowMcp: z.boolean().optional(),
-	alwaysAllowModeSwitch: z.boolean().optional(),
-	alwaysAllowSubtasks: z.boolean().optional(),
-	alwaysAllowParallelTasks: z.boolean().optional(),
-	maxConcurrentParallelTasks: z
-		.number()
-		.int()
-		.min(MIN_PARALLEL_TASK_CONCURRENCY)
-		.max(MAX_PARALLEL_TASK_CONCURRENCY)
-		.optional(),
-	alwaysAllowVisualBrowserInspector: z.boolean().optional(),
-	alwaysAllowImageGeneration: z.boolean().optional(),
-	alwaysAllowExecute: z.boolean().optional(),
-	alwaysAllowFollowupQuestions: z.boolean().optional(),
-	followupAutoApproveTimeoutMs: z.number().optional(),
-	allowedCommands: z.array(z.string()).optional(),
-	deniedCommands: z.array(z.string()).optional(),
-	commandExecutionTimeout: z.number().optional(),
-	commandTimeoutAllowlist: z.array(z.string()).optional(),
-	preventCompletionWithOpenTodos: z.boolean().optional(),
-	allowedMaxRequests: z.number().nullish(),
-	allowedMaxCost: z.number().nullish(),
-	autoCondenseContext: z.boolean().optional(),
-	autoCondenseContextPercent: z.number().optional(),
+		autoApprovalEnabled: z.boolean().optional(),
+		alwaysAllowReadOnly: z.boolean().optional(),
+		alwaysAllowReadOnlyOutsideWorkspace: z.boolean().optional(),
+		alwaysAllowWrite: z.boolean().optional(),
+		alwaysAllowWriteOutsideWorkspace: z.boolean().optional(),
+		alwaysAllowWriteProtected: z.boolean().optional(),
+		writeDelayMs: z.number().min(0).optional(),
+		requestDelaySeconds: z.number().optional(),
+		alwaysAllowMcp: z.boolean().optional(),
+		alwaysAllowModeSwitch: z.boolean().optional(),
+		alwaysAllowSubtasks: z.boolean().optional(),
+		alwaysAllowParallelTasks: z.boolean().optional(),
+		maxConcurrentParallelTasks: z
+			.number()
+			.int()
+			.min(MIN_PARALLEL_TASK_CONCURRENCY)
+			.max(MAX_PARALLEL_TASK_CONCURRENCY)
+			.optional(),
+		alwaysAllowVisualBrowserInspector: z.boolean().optional(),
+		alwaysAllowImageGeneration: z.boolean().optional(),
+		alwaysAllowExecute: z.boolean().optional(),
+		alwaysAllowFollowupQuestions: z.boolean().optional(),
+		followupAutoApproveTimeoutMs: z.number().optional(),
+		allowedCommands: z.array(z.string()).optional(),
+		deniedCommands: z.array(z.string()).optional(),
+		commandExecutionTimeout: z.number().optional(),
+		commandTimeoutAllowlist: z.array(z.string()).optional(),
+		preventCompletionWithOpenTodos: z.boolean().optional(),
+		allowedMaxRequests: z.number().nullish(),
+		allowedMaxCost: z.number().nullish(),
+		autoCondenseContext: z.boolean().optional(),
+		autoCondenseContextPercent: z.number().optional(),
 
-	/**
-	 * Whether to include current time in the environment details
-	 * @default true
-	 */
-	includeCurrentTime: z.boolean().optional(),
-	/**
-	 * Whether to include current cost in the environment details
-	 * @default true
-	 */
-	includeCurrentCost: z.boolean().optional(),
-	/**
-	 * Maximum number of git status file entries to include in the environment details.
-	 * Set to 0 to disable git status. The header (branch, commits) is always included when > 0.
-	 * @default 0
-	 */
-	maxGitStatusFiles: z.number().optional(),
+		/**
+		 * Whether to include current time in the environment details
+		 * @default true
+		 */
+		includeCurrentTime: z.boolean().optional(),
+		/**
+		 * Whether to include current cost in the environment details
+		 * @default true
+		 */
+		includeCurrentCost: z.boolean().optional(),
+		/**
+		 * Maximum number of git status file entries to include in the environment details.
+		 * Set to 0 to disable git status. The header (branch, commits) is always included when > 0.
+		 * @default 0
+		 */
+		maxGitStatusFiles: z.number().optional(),
 
-	/**
-	 * Whether to include diagnostic messages (errors, warnings) in tool outputs
-	 * @default true
-	 */
-	includeDiagnosticMessages: z.boolean().optional(),
-	/**
-	 * Maximum number of diagnostic messages to include in tool outputs
-	 * @default 50
-	 */
-	maxDiagnosticMessages: z.number().optional(),
+		/**
+		 * Whether to include diagnostic messages (errors, warnings) in tool outputs
+		 * @default true
+		 */
+		includeDiagnosticMessages: z.boolean().optional(),
+		/**
+		 * Maximum number of diagnostic messages to include in tool outputs
+		 * @default 50
+		 */
+		maxDiagnosticMessages: z.number().optional(),
 
-	enableCheckpoints: z.boolean().optional(),
-	checkpointTimeout: z
-		.number()
-		.int()
-		.min(MIN_CHECKPOINT_TIMEOUT_SECONDS)
-		.max(MAX_CHECKPOINT_TIMEOUT_SECONDS)
-		.optional(),
+		enableCheckpoints: z.boolean().optional(),
+		checkpointTimeout: z
+			.number()
+			.int()
+			.min(MIN_CHECKPOINT_TIMEOUT_SECONDS)
+			.max(MAX_CHECKPOINT_TIMEOUT_SECONDS)
+			.optional(),
 
-	ttsEnabled: z.boolean().optional(),
-	ttsSpeed: z.number().optional(),
-	soundEnabled: z.boolean().optional(),
-	soundVolume: z.number().optional(),
-	emailNotificationsEnabled: z.boolean().optional(),
-	emailNotifyOnSuccess: z.boolean().optional(),
-	emailNotifyOnFailure: z.boolean().optional(),
-	smtpHost: z.string().optional(),
-	smtpPort: z.number().int().min(1).max(65535).optional(),
-	smtpSecure: z.boolean().optional(),
-	smtpRequireTls: z.boolean().optional(),
-	smtpUsername: z.string().optional(),
-	smtpPassword: z.string().optional(),
-	smtpFromAddress: z.string().optional(),
-	smtpRecipients: z.array(z.string()).optional(),
-	smtpSubjectTemplate: z.string().optional(),
+		ttsEnabled: z.boolean().optional(),
+		ttsSpeed: z.number().optional(),
+		soundEnabled: z.boolean().optional(),
+		soundVolume: z.number().optional(),
+		emailNotificationsEnabled: z.boolean().optional(),
+		emailNotifyOnSuccess: z.boolean().optional(),
+		emailNotifyOnFailure: z.boolean().optional(),
+		smtpHost: z.string().optional(),
+		smtpPort: z.number().int().min(1).max(65535).optional(),
+		smtpSecure: z.boolean().optional(),
+		smtpRequireTls: z.boolean().optional(),
+		smtpUsername: z.string().optional(),
+		smtpPassword: z.string().optional(),
+		smtpFromAddress: z.string().optional(),
+		smtpRecipients: z.array(z.string()).optional(),
+		smtpSubjectTemplate: z.string().optional(),
 
-	maxOpenTabsContext: z.number().optional(),
-	maxWorkspaceFiles: z.number().optional(),
-	showRooIgnoredFiles: z.boolean().optional(),
-	enableSubfolderRules: z.boolean().optional(),
-	maxImageFileSize: z.number().optional(),
-	maxTotalImageSize: z.number().optional(),
+		maxOpenTabsContext: z.number().optional(),
+		maxWorkspaceFiles: z.number().optional(),
+		showRooIgnoredFiles: z.boolean().optional(),
+		enableSubfolderRules: z.boolean().optional(),
+		maxImageFileSize: z.number().optional(),
+		maxTotalImageSize: z.number().optional(),
 
-	terminalOutputPreviewSize: z.enum(["small", "medium", "large"]).optional(),
-	terminalShellIntegrationTimeout: z.number().optional(),
-	terminalShellIntegrationDisabled: z.boolean().optional(),
-	terminalCommandDelay: z.number().optional(),
-	terminalPowershellCounter: z.boolean().optional(),
-	terminalZshClearEolMark: z.boolean().optional(),
-	terminalZshOhMy: z.boolean().optional(),
-	terminalZshP10k: z.boolean().optional(),
-	terminalZdotdir: z.boolean().optional(),
-	execaShellPath: z.string().optional(),
+		terminalOutputPreviewSize: z.enum(["small", "medium", "large"]).optional(),
+		terminalShellIntegrationTimeout: z.number().optional(),
+		terminalShellIntegrationDisabled: z.boolean().optional(),
+		terminalCommandDelay: z.number().optional(),
+		terminalPowershellCounter: z.boolean().optional(),
+		terminalZshClearEolMark: z.boolean().optional(),
+		terminalZshOhMy: z.boolean().optional(),
+		terminalZshP10k: z.boolean().optional(),
+		terminalZdotdir: z.boolean().optional(),
+		execaShellPath: z.string().optional(),
 
-	diagnosticsEnabled: z.boolean().optional(),
-	remoteDebugLoggingInstallId: z.string().optional(),
+		diagnosticsEnabled: z.boolean().optional(),
+		remoteDebugLoggingInstallId: z.string().optional(),
 
-	rateLimitSeconds: z.number().optional(),
-	experiments: experimentsSchema.optional(),
+		rateLimitSeconds: z.number().optional(),
+		experiments: experimentsSchema.optional(),
 
-	codebaseIndexModels: codebaseIndexModelsSchema.optional(),
-	codebaseIndexConfig: codebaseIndexConfigSchema.optional(),
+		codebaseIndexModels: codebaseIndexModelsSchema.optional(),
+		codebaseIndexConfig: codebaseIndexConfigSchema.optional(),
 
-	language: languagesSchema.optional(),
+		language: languagesSchema.optional(),
 
-	mcpEnabled: z.boolean().optional(),
+		mcpEnabled: z.boolean().optional(),
 
-	mode: z.string().optional(),
-	modeApiConfigs: z.record(z.string(), z.string()).optional(),
-	customModes: z.array(modeConfigSchema).optional(),
-	customModePrompts: customModePromptsSchema.optional(),
-	customSupportPrompts: customSupportPromptsSchema.optional(),
-	enhancementApiConfigId: z.string().optional(),
-	includeTaskHistoryInEnhance: z.boolean().optional(),
-	historyPreviewCollapsed: z.boolean().optional(),
-	reasoningBlockCollapsed: z.boolean().optional(),
-	/**
-	 * Controls the keyboard behavior for sending messages in the chat input.
-	 * - "send": Enter sends message, Shift+Enter creates newline (default)
-	 * - "newline": Enter creates newline, Shift+Enter/Ctrl+Enter sends message
-	 * @default "send"
-	 */
-	enterBehavior: z.enum(["send", "newline"]).optional(),
-	profileThresholds: z.record(z.string(), z.number()).optional(),
-	hasOpenedModeSelector: z.boolean().optional(),
-	lastModeExportPath: z.string().optional(),
-	lastModeImportPath: z.string().optional(),
-	lastSettingsExportPath: z.string().optional(),
-	lastTaskExportPath: z.string().optional(),
-	lastImageSavePath: z.string().optional(),
+		mode: z.string().optional(),
+		modeApiConfigs: z.record(z.string(), z.string()).optional(),
+		customModes: z.array(modeConfigSchema).optional(),
+		customModePrompts: customModePromptsSchema.optional(),
+		customSupportPrompts: customSupportPromptsSchema.optional(),
+		enhancementApiConfigId: z.string().optional(),
+		includeTaskHistoryInEnhance: z.boolean().optional(),
+		historyPreviewCollapsed: z.boolean().optional(),
+		reasoningBlockCollapsed: z.boolean().optional(),
+		/**
+		 * Controls the keyboard behavior for sending messages in the chat input.
+		 * - "send": Enter sends message, Shift+Enter creates newline (default)
+		 * - "newline": Enter creates newline, Shift+Enter/Ctrl+Enter sends message
+		 * @default "send"
+		 */
+		enterBehavior: z.enum(["send", "newline"]).optional(),
+		profileThresholds: z.record(z.string(), z.number()).optional(),
+		hasOpenedModeSelector: z.boolean().optional(),
+		lastModeExportPath: z.string().optional(),
+		lastModeImportPath: z.string().optional(),
+		lastSettingsExportPath: z.string().optional(),
+		lastTaskExportPath: z.string().optional(),
+		lastImageSavePath: z.string().optional(),
 
-	/**
-	 * Path to worktree to auto-open after switching workspaces.
-	 * Used by the worktree feature to open the Roo Code sidebar in a new window.
-	 */
-	worktreeAutoOpenPath: z.string().optional(),
-	/**
-	 * Whether to show the worktree selector in the home screen.
-	 * @default true
-	 */
-	showWorktreesInHomeScreen: z.boolean().optional(),
+		/**
+		 * Path to worktree to auto-open after switching workspaces.
+		 * Used by the worktree feature to open the Roo Code sidebar in a new window.
+		 */
+		worktreeAutoOpenPath: z.string().optional(),
+		/**
+		 * Whether to show the worktree selector in the home screen.
+		 * @default true
+		 */
+		showWorktreesInHomeScreen: z.boolean().optional(),
 
-	/**
-	 * List of native tool names to globally disable.
-	 * Tools in this list will be excluded from prompt generation and rejected at execution time.
-	 */
-	disabledTools: z.array(toolNamesSchema).optional(),
-})
+		/**
+		 * List of native tool names to globally disable.
+		 * Tools in this list will be excluded from prompt generation and rejected at execution time.
+		 */
+		disabledTools: z.array(toolNamesSchema).optional(),
+	})
+	.merge(memoryGlobalSettingsSchema)
 
 export type GlobalSettings = z.infer<typeof globalSettingsSchema>
 

@@ -1063,6 +1063,42 @@ export class NativeToolCallParser {
 				}
 				break
 
+			case "memory_search":
+				if (partialArgs.query !== undefined) {
+					nativeArgs = {
+						query: partialArgs.query,
+						scope: partialArgs.scope ?? undefined,
+						status: partialArgs.status ?? undefined,
+						limit: this.coerceOptionalNumber(partialArgs.limit),
+						includePending: this.coerceOptionalBoolean(partialArgs.includePending),
+					}
+				}
+				break
+
+			case "mistake_memory":
+				if (partialArgs.lesson !== undefined) {
+					nativeArgs = {
+						lesson: partialArgs.lesson,
+						correction: partialArgs.correction ?? undefined,
+						error: partialArgs.error ?? undefined,
+						tool_name: partialArgs.tool_name ?? undefined,
+						file_paths: Array.isArray(partialArgs.file_paths) ? partialArgs.file_paths : undefined,
+						tags: Array.isArray(partialArgs.tags) ? partialArgs.tags : undefined,
+						scope: partialArgs.scope ?? undefined,
+						approve: this.coerceOptionalBoolean(partialArgs.approve),
+					}
+				}
+				break
+
+			case "memory_wipe":
+				if (partialArgs.scope !== undefined) {
+					nativeArgs = {
+						scope: partialArgs.scope,
+						confirmation: partialArgs.confirmation ?? undefined,
+					}
+				}
+				break
+
 			case "generate_image":
 				if (partialArgs.prompt !== undefined || partialArgs.path !== undefined) {
 					nativeArgs = {
@@ -1415,6 +1451,42 @@ export class NativeToolCallParser {
 						nativeArgs = {
 							query: args.query,
 							path: args.path,
+						} as NativeArgsFor<TName>
+					}
+					break
+
+				case "memory_search":
+					if (args.query !== undefined) {
+						nativeArgs = {
+							query: args.query,
+							scope: args.scope ?? undefined,
+							status: args.status ?? undefined,
+							limit: this.coerceOptionalNumber(args.limit),
+							includePending: this.coerceOptionalBoolean(args.includePending),
+						} as NativeArgsFor<TName>
+					}
+					break
+
+				case "mistake_memory":
+					if (args.lesson !== undefined) {
+						nativeArgs = {
+							lesson: args.lesson,
+							correction: args.correction ?? undefined,
+							error: args.error ?? undefined,
+							tool_name: args.tool_name ?? undefined,
+							file_paths: Array.isArray(args.file_paths) ? args.file_paths : undefined,
+							tags: Array.isArray(args.tags) ? args.tags : undefined,
+							scope: args.scope ?? undefined,
+							approve: this.coerceOptionalBoolean(args.approve),
+						} as NativeArgsFor<TName>
+					}
+					break
+
+				case "memory_wipe":
+					if (args.scope !== undefined) {
+						nativeArgs = {
+							scope: args.scope,
+							confirmation: args.confirmation ?? undefined,
 						} as NativeArgsFor<TName>
 					}
 					break

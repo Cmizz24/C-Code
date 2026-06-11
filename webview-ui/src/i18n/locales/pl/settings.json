@@ -35,6 +35,7 @@
 		"checkpoints": "Punkty kontrolne",
 		"notifications": "Powiadomienia",
 		"contextManagement": "Kontekst",
+		"memory": "Pamięć",
 		"terminal": "Terminal",
 		"slashCommands": "Polecenia Slash",
 		"prompts": "Podpowiedzi",
@@ -257,8 +258,12 @@
 			"description": "Automatycznie zatwierdzaj prawidłowe plany zadań równoległych i uruchamiaj agentów bez wyświetlania modala podglądu planu"
 		},
 		"visualBrowserInspector": {
-			"label": "Przeglądarka",
+			"label": "Visual Browser Inspector",
 			"description": "Automatycznie zatwierdzaj akcje Visual Browser Inspector z czatu, w tym otwieranie kontrolowanych stron przeglądarki, zrzuty ekranu, inspekcję DOM, wycinki, analizę i interakcje ze stroną. Nie pozwala to na edycję plików ani polecenia terminala."
+		},
+		"memory": {
+			"label": "Pamięć",
+			"description": "Automatycznie zatwierdzaj zapisywanie pamięci błędów z czatu i błędów narzędzi. Gdy to jest wyłączone, oczekującą pamięć nadal możesz sprawdzić z czatu lub ustawień pamięci."
 		},
 		"imageGeneration": {
 			"label": "Obrazy",
@@ -817,6 +822,114 @@
 		"enableSubfolderRules": {
 			"label": "Włącz reguły podfolderów",
 			"description": "Rekursywnie odkrywaj i ładuj pliki .roo/rules i AGENTS.md z podkatalogów. Przydatne dla monorepo z regułami dla poszczególnych pakietów."
+		}
+	},
+	"memory": {
+		"description": "Skonfiguruj, jak C Code pobiera, zapisuje i zarządza pamięcią w tym obszarze roboczym oraz kontekście globalnym.",
+		"sections": {
+			"coreBehavior": {
+				"title": "Główne zachowanie",
+				"description": "Wybierz, kiedy pamięć działa i z których zakresów pamięci C może korzystać."
+			},
+			"retrievalLimits": {
+				"title": "Limity pobierania",
+				"description": "Dostosuj, ile kontekstu pamięci jest dołączane do każdego żądania."
+			},
+			"management": {
+				"title": "Zarządzanie pamięcią",
+				"description": "Sprawdzaj liczniki pamięci i zarządzaj oczekującymi, zarchiwizowanymi lub zapisanymi lekcjami."
+			},
+			"advanced": {
+				"title": "Zaawansowane",
+				"description": "Kontroluj przechowywanie oczekujących kandydatów pamięci błędów."
+			}
+		},
+		"mode": {
+			"label": "Tryb pamięci",
+			"description": "Użyj trybu automatycznego, aby włączać pamięć dla modeli poniżej 1M context token i wyłączać ją dla modeli z większym kontekstem, chyba że ręcznie to nadpiszesz.",
+			"options": {
+				"auto": "Automatycznie",
+				"enabled": "Zawsze włączona",
+				"disabled": "Wyłączona"
+			}
+		},
+		"workspaceEnabled": {
+			"label": "Używaj pamięci workspace",
+			"description": "Pobieraj i zapisuj lekcje ograniczone do tego workspace bez zapisywania bezwzględnych ścieżek workspace."
+		},
+		"globalEnabled": {
+			"label": "Używaj pamięci globalnej",
+			"description": "Pobieraj i zapisuj lekcje, które mogą mieć zastosowanie w wielu workspace'ach."
+		},
+		"mistakeMemoryEnabled": {
+			"label": "Przechwytuj pamięć błędów",
+			"description": "Twórz oczekujące lekcje z poprawek, błędów walidacji i powtarzających się błędów tool. Oczekujące lekcje nie są używane na stałe, dopóki ich nie zatwierdzisz."
+		},
+		"autoApproveMistakeMemory": {
+			"label": "Automatycznie zatwierdzaj pamięć błędów",
+			"description": "Zapisuj nowe lekcje pamięci błędów jako aktywne od razu po redakcji, zamiast tworzyć oczekujące kandydatury. Pozostaw to wyłączone, chyba że ufasz automatyzacji."
+		},
+		"maxCharacters": {
+			"label": "Budżet znaków pamięci",
+			"description": "Maksymalna liczba znaków kontekstu pamięci wstrzykiwana do żądania. Przy presji kontekstu pamięć jest najpierw skracana albo pomijana."
+		},
+		"maxEntries": {
+			"label": "Maksymalna liczba wpisów pamięci",
+			"description": "Maksymalna liczba aktywnych wpisów pamięci do uwzględnienia w żądaniu."
+		},
+		"pendingCandidateLimit": {
+			"label": "Limit oczekujących pamięci błędów",
+			"description": "Maksymalna liczba oczekujących kandydatów mistake-memory przed usunięciem starszych kandydatów."
+		},
+		"management": {
+			"title": "Zarządzanie pamięcią",
+			"description": "Sprawdzaj liczniki pamięci workspace i globalnej, zatwierdzaj oczekujące lekcje, archiwizuj pamięci albo czyść zapisaną pamięć."
+		},
+		"summary": {
+			"workspace": "Pamięć workspace",
+			"global": "Pamięć globalna",
+			"active": "Aktywne",
+			"pending": "Oczekujące",
+			"archived": "Zarchiwizowane",
+			"total": "Łącznie"
+		},
+		"scope": {
+			"workspace": "Workspace",
+			"global": "Globalna"
+		},
+		"status": {
+			"active": "Aktywna",
+			"pending": "Oczekująca",
+			"stale": "Nieaktualna",
+			"superseded": "Zastąpiona",
+			"archived": "Zarchiwizowana"
+		},
+		"kind": {
+			"lesson": "Lekcja",
+			"mistake": "Błąd"
+		},
+		"records": {
+			"count": "{{count}} rekordów",
+			"empty": "Brak zapisanych memories w tym zakresie.",
+			"lesson": "Lekcja",
+			"tags": "Tagi",
+			"pathHints": "Wskazówki ścieżek",
+			"created": "Utworzono",
+			"updated": "Zaktualizowano",
+			"lastUsed": "Ostatnio użyto"
+		},
+		"actions": {
+			"refresh": "Odśwież",
+			"approvePending": "Zatwierdź oczekujące",
+			"archivePending": "Archiwizuj oczekujące",
+			"archiveAll": "Archiwizuj wszystko",
+			"clear": "Wyczyść"
+		},
+		"confirm": {
+			"title": "Potwierdź akcję pamięci",
+			"description": "Ta akcja pamięci zmienia lub usuwa zapisane lekcje. Wyczyszczonej pamięci nie można przywrócić.",
+			"cancel": "Anuluj",
+			"confirm": "Kontynuuj"
 		}
 	},
 	"terminal": {

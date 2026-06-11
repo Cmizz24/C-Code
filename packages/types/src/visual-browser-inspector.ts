@@ -206,6 +206,39 @@ export interface VisualBrowserIssue {
 	relatedArtifacts?: VisualBrowserIssueArtifactReference[]
 }
 
+export interface VisualBrowserRecommendationExample {
+	issueIndex: number
+	title: string
+	severity: VisualBrowserIssueSeverity
+	confidence: number
+	visualEvidence: string
+	selectorOrElement: string
+	boundingBox: VisualBrowserBoundingBox
+	screenshotId: string
+	cropId: string | null
+	filesToInspect: string[]
+}
+
+export interface VisualBrowserRecommendationGroup {
+	id: string
+	title: string
+	category?: VisualBrowserIssueCategory
+	severity: VisualBrowserIssueSeverity
+	fixPriority?: VisualBrowserFixPriority
+	confidence: number
+	affectedCount: number
+	issueIndexes: number[]
+	summary: string
+	rootCause: string
+	suggestedFix: string
+	recommendation: string
+	implementationHint?: string
+	userImpact?: string
+	filesToInspect: string[]
+	verificationSteps?: string[]
+	examples: VisualBrowserRecommendationExample[]
+}
+
 export interface VisualBrowserAnalysisResult {
 	summary: string
 	analysisMode?: "local-heuristic"
@@ -213,6 +246,7 @@ export interface VisualBrowserAnalysisResult {
 	scope?: "screenshot" | "crop" | "inspection"
 	privacyNotice?: string
 	recommendationSummary?: string
+	recommendationGroups?: VisualBrowserRecommendationGroup[]
 	issues: VisualBrowserIssue[]
 }
 
@@ -315,12 +349,13 @@ export interface VisualBrowserAnalyzeCropParams extends VisualBrowserSessionPara
 	prompt?: string
 }
 
-export type VisualBrowserStartFixTaskScope = "all" | "finding" | "issue"
+export type VisualBrowserStartFixTaskScope = "all" | "finding" | "recommendation" | "issue"
 
 export interface VisualBrowserStartFixTaskRequest extends VisualBrowserSessionParams {
 	action: "start_fix_task"
 	scope?: VisualBrowserStartFixTaskScope
 	findingIndex?: number
+	recommendationIndex?: number
 	issueIndex?: number
 	screenshotId?: string
 	cropId?: string

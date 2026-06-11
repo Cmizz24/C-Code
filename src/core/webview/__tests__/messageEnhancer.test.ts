@@ -116,6 +116,51 @@ describe("MessageEnhancer", () => {
 			expect(calledPrompt).not.toContain("Using tool") // reasoning messages should be filtered
 		})
 
+		it("should include concise current task context when available", async () => {
+			const result = await MessageEnhancer.enhanceMessage({
+				text: "Update the login flow",
+				apiConfiguration: mockApiConfiguration,
+				listApiConfigMeta: mockListApiConfigMeta,
+				currentTaskMode: "code",
+				currentWorkingDirectory: "/workspace/project",
+				filesReadByRoo: ["src/auth/login.ts", "src/auth/session.ts"],
+				providerSettingsManager: mockProviderSettingsManager,
+			})
+
+			expect(result.success).toBe(true)
+
+			const calledPrompt = mockSingleCompletionHandler.mock.calls[0][1]
+			expect(calledPrompt).toContain("Update the login flow")
+			expect(calledPrompt).toContain("current task context")
+			expect(calledPrompt).toContain("- Current mode: code")
+			expect(calledPrompt).toContain("- Workspace: /workspace/project")
+			expect(calledPrompt).toContain("- Files already referenced in this task:")
+			expect(calledPrompt).toContain("  - src/auth/login.ts")
+			expect(calledPrompt).toContain("  - src/auth/session.ts")
+		})
+
+		it("should dedupe and limit current task file context", async () => {
+			const filesReadByRoo = [
+				"src/file-1.ts",
+				"src/file-1.ts",
+				...Array.from({ length: 11 }, (_, index) => `src/file-${index + 2}.ts`),
+			]
+
+			await MessageEnhancer.enhanceMessage({
+				text: "Use these files",
+				apiConfiguration: mockApiConfiguration,
+				listApiConfigMeta: mockListApiConfigMeta,
+				filesReadByRoo,
+				providerSettingsManager: mockProviderSettingsManager,
+			})
+
+			const calledPrompt = mockSingleCompletionHandler.mock.calls[0][1]
+			expect(calledPrompt.match(/src\/file-1\.ts/g)).toHaveLength(1)
+			expect(calledPrompt).toContain("src/file-10.ts")
+			expect(calledPrompt).not.toContain("src/file-11.ts")
+			expect(calledPrompt).toContain("...and 2 more")
+		})
+
 		it("should limit task history to last 10 messages", async () => {
 			// Create 15 messages
 			const mockClineMessages: ClineMessage[] = Array.from({ length: 15 }, (_, i) => ({

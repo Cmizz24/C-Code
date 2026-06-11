@@ -54,6 +54,29 @@
 		},
 		"noData": "Sense dades d'imatge"
 	},
+	"visualBrowserInspector": {
+		"emptyStatus": "No hi ha cap sessió de navegador Playwright controlada activa. En el primer ús, C Code prepara Chromium automàticament a l'emmagatzematge de l'extensió.",
+		"headerDescription": "Només captura del navegador Playwright controlat. C Code prepara Chromium automàticament a l'emmagatzematge de l'extensió en el primer ús. Els artefactes es queden locals a <artifactPath>.roo/visual-browser-inspector</artifactPath>.",
+		"findings": {
+			"groupedSummary": "{{recommendationCount}} recomanació/ns agrupada/es cobreixen {{issueCount}} problema/es d'anàlisi de pàgina per a tasques de correcció de seguiment.",
+			"analysisBasedNotice": "Les recomanacions es generen a partir de l'anàlisi local de la pàgina, no són marcadors de posició; els problemes repetits s'agrupen per causa arrel probable o estratègia de correcció.",
+			"affectedIssues": "{{count}} problema/es",
+			"startFixTaskForRecommendation": "Inicia una tasca de correcció per a aquesta recomanació",
+			"userImpactLabel": "Impacte en l'usuari:",
+			"rootCauseLabel": "Causa arrel probable:",
+			"suggestedFixLabel": "Correcció suggerida:",
+			"recommendationLabel": "Recomanació:",
+			"implementationHintLabel": "Pista d'implementació:",
+			"examplesLabel": "Exemples conservats per inspeccionar-los",
+			"issueNumber": "Problema {{number}}",
+			"boxLabel": "Quadre:",
+			"filesToInspectLabel": "Fitxers a inspeccionar:",
+			"verificationStepsLabel": "Passos de verificació",
+			"individualFindingsLabel": "Troballes individuals en aquest grup",
+			"screenshotLabel": "Captura:",
+			"cropLabel": "Retall:"
+		}
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "Format d'URI de dades no vàlid",

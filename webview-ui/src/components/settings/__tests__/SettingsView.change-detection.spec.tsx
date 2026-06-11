@@ -23,6 +23,7 @@ vi.mock("@src/context/ExtensionStateContext", () => ({
 vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string) => key,
+		i18n: { language: "en" },
 	}),
 }))
 

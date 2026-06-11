@@ -502,6 +502,46 @@
 		"didSearch_other": "{{count}} Ergebnisse gefunden",
 		"resultTooltip": "Ähnlichkeitswert: {{score}} (klicken zum Öffnen der Datei)"
 	},
+	"memory": {
+		"scopes": {
+			"workspace": "Workspace",
+			"global": "Global",
+			"all": "Alle Memories"
+		},
+		"statuses": {
+			"active": "Aktiv",
+			"pending": "Ausstehend",
+			"stale": "Veraltet",
+			"superseded": "Ersetzt",
+			"archived": "Archiviert",
+			"all": "Alle Status"
+		},
+		"fields": {
+			"title": "Titel",
+			"signature": "Signatur",
+			"tool": "Tool",
+			"mode": "Modus",
+			"tags": "Tags",
+			"paths": "Pfade",
+			"score": "Score"
+		}
+	},
+	"memorySearch": {
+		"wantsToSearch": "Roo möchte {{scope}} Memory nach <code>{{query}}</code> durchsuchen",
+		"resultsFound_one": "1 passende Memory gefunden",
+		"resultsFound_other": "{{count}} passende Memories gefunden",
+		"noResults": "Keine passenden Memories gefunden",
+		"untitledResult": "Memory-Ergebnis"
+	},
+	"mistakeMemory": {
+		"savedPending": "Ausstehende Fehler-Memory gespeichert",
+		"savedActive": "Aktive Fehler-Memory gespeichert",
+		"savedArchived": "Fehler-Memory archiviert",
+		"approveAction": "Memory genehmigen",
+		"archiveAction": "Memory archivieren",
+		"autoApproved": "Automatisch genehmigt",
+		"reusedExisting": "Vorhandene Memory aktualisiert"
+	},
 	"read-batch": {
 		"approve": {
 			"title": "Alle genehmigen"
@@ -601,5 +641,22 @@
 		"message": "This provider is no longer supported. Please select a different provider in your API profile settings.",
 		"openSettings": "Einstellungen öffnen",
 		"rooMessage": "As part of our decision to retire the original C Code router support, we also ended the C Code Router, which only existed to support the extension. Sorry about the hassle."
+	},
+	"memoryWipe": {
+		"statusTitle": {
+			"pending": "Memory-Löschung wartet auf Genehmigung",
+			"completed": "Memory gelöscht",
+			"cancelled": "Memory-Löschung abgebrochen"
+		},
+		"status": {
+			"pending": "Wartet auf Genehmigung",
+			"completed": "Abgeschlossen",
+			"cancelled": "Abgebrochen"
+		},
+		"fields": {
+			"scope": "Bereich",
+			"status": "Status",
+			"deletedScopes": "Gelöschte Bereiche"
+		}
 	}
 }

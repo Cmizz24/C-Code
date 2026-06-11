@@ -11,7 +11,139 @@
 	"landing": {
 		"greeting": "C Codeへようこそ！",
 		"introduction": "組み込みおよび拡張可能なモードを備えたC Codeは、計画、アーキテクチャ設計、コーディング、デバッグ、そして今までにない生産性向上を可能にします。",
-		"getStarted": "Get Started"
+		"getStarted": "Get Started",
+		"setupLocalAi": "ローカルAIをセットアップ",
+		"localAi": {
+			"title": "ローカルAIをセットアップ",
+			"description": "ハードウェアを検出し、Ollama または LM Studio を選んでローカルモデルをセットアップします。"
+		},
+		"provider": {
+			"title": "APIプロバイダーを使う",
+			"description": "OpenRouterを選ぶか、別のプロバイダーのキーを使います。"
+		}
+	},
+	"localSetup": {
+		"heading": "ローカルAIをセットアップ",
+		"subtitle": "いくつかの質問に答えると、C Code が Ollama のセットアップまたは既存の LM Studio サーバーの利用を支援します。",
+		"hardware": {
+			"heading": "ハードウェアとruntimeのチェック",
+			"detecting": "コンピューターとローカルAI runtimesを検出しています…",
+			"system": "{{os}} {{arch}}、CPU {{cores}} コア、RAM {{ram}}",
+			"disk": "空きディスク: {{free}}",
+			"gpuDetected": "GPUを検出: {{gpu}}",
+			"gpuUnknown": "GPUの状態は不明です。GPUがないと決めつけず、控えめに判断します。",
+			"runtime": "{{runtime}}: {{status}}",
+			"refresh": "チェックを更新"
+		},
+		"runtimeStatus": {
+			"running": "実行中",
+			"installed-not-running": "インストール済み、未実行",
+			"missing": "未検出",
+			"unknown": "不明",
+			"detection-failed": "検出に失敗"
+		},
+		"form": {
+			"usage": {
+				"label": "ローカルAIをどう使いますか？",
+				"light": "軽いコード支援",
+				"daily": "日常的なコーディング",
+				"agentic": "大規模なリファクタリングとエージェント的タスク"
+			},
+			"preference": {
+				"label": "おすすめは何を重視しますか？",
+				"speed": "速度",
+				"balanced": "バランス",
+				"quality": "品質"
+			},
+			"privacy": {
+				"label": "プライバシー設定",
+				"localOnly": "ローカルのみ",
+				"localPreferred": "ローカル優先、後で設定してもよい"
+			},
+			"diskBudget": "モデルのディスク予算 (GB)",
+			"runtime": {
+				"label": "Runtimeの選択",
+				"existing": "既存のローカルruntimeを使う",
+				"ollama": "Ollamaをセットアップ",
+				"manual": "手動セットアップ",
+				"lmStudio": "LM Studio を使う"
+			},
+			"providerPreference": {
+				"label": "検出されたローカルruntimeの優先設定"
+			},
+			"provider": {
+				"label": "ローカルプロバイダー",
+				"ollamaTitle": "Ollama",
+				"ollamaDescription": "最も自動化された方法: C Code が推奨 Ollama モデルを進捗付きでダウンロードできます。",
+				"lmStudioTitle": "LM Studio",
+				"lmStudioDescription": "アプリベースのモデル管理とローカルサーバーを使いたい場合は LM Studio を選んでください。",
+				"lmStudioReadyDescription": "LM Studio は {{models}} 個の利用可能なモデルで実行中です。",
+				"readyBadge": "準備完了"
+			}
+		},
+		"actions": {
+			"manual": "手動セットアップ",
+			"recommend": "モデルをおすすめ",
+			"recommending": "おすすめを作成中…",
+			"adjust": "回答を調整",
+			"installHelp": "Ollamaインストールヘルプ",
+			"confirmDownload": "確認してダウンロード",
+			"cancel": "セットアップをキャンセル",
+			"retry": "ダウンロードを再試行",
+			"openOllamaDownload": "Ollamaダウンロードを開く",
+			"useApiProvider": "APIプロバイダーを使う",
+			"useLmStudio": "LM Studio モデルを使う",
+			"openLmStudioDownload": "LM Studio ダウンロードを開く",
+			"openLmStudioServerDocs": "LM Studio サーバーガイドを開く"
+		},
+		"recommendation": {
+			"heading": "おすすめのローカルモデル",
+			"apiHeading": "APIプロバイダーをおすすめします",
+			"apiDescription": "このコンピューターではローカルのcoding modelsが遅かったり、品質が限られたりする可能性があります。初回体験を良くするにはAPIプロバイダーがおすすめです。",
+			"manualStillAvailable": "Ollamaを試したい場合は、引き続き手動のローカル設定を選べます。",
+			"size": "おおよそのダウンロード: {{size}}",
+			"disk": "検出された空きディスク: {{free}}",
+			"runtime": "Runtime/プロバイダー: 公式ローカルAPIの{{runtime}}",
+			"confidence": "おすすめの信頼度: {{confidence}}",
+			"privacyHeading": "プライバシーメモ",
+			"warnings": "ダウンロード前に",
+			"weakHardwareWarning": "このハードウェアでは、ローカル AI モデルが遅くなったり、意図したとおりに動作しない場合があります。"
+		},
+		"confidence": {
+			"low": "低",
+			"medium": "中",
+			"high": "高"
+		},
+		"progress": {
+			"heading": "ローカルAIをセットアップ中",
+			"starting": "ローカルAIセットアップを開始しています…",
+			"model": "モデル: {{model}}",
+			"percent": "{{percent}}% 完了",
+			"waiting": "ローカル runtime の進捗を待機中…"
+		},
+		"manual": {
+			"heading": "ローカル AI の手動セットアップ",
+			"description": "C Code はインストーラーを黙って実行しません。Ollama または LM Studio を自分でインストールし、ローカルサーバーを起動してから戻ってチェックを更新してください。",
+			"stepInstall": "公式サイトから Ollama または LM Studio をダウンロードしてください。",
+			"stepStart": "Ollama または LM Studio のローカルサーバーを起動し、既定のローカル URL で到達できることを確認してください。",
+			"stepRetry": "ここに戻り、runtimeチェックを更新して、おすすめをもう一度実行します。"
+		},
+		"success": {
+			"heading": "ローカルAIの準備ができました",
+			"description": "{{model}} はローカル推論の準備ができています。",
+			"profile": "C CodeはLocal AI (Ollama)プロバイダープロファイルを保存して有効化しました。",
+			"lmStudioProfile": "C Code は Local AI (LM Studio) プロバイダープロファイルを保存して有効化しました。"
+		},
+		"lmStudio": {
+			"statusHeading": "LM Studio ステータス: {{status}}",
+			"ready": "LM Studio が報告したモデルのいずれかを選び、ローカルプロバイダープロファイルを作成します。",
+			"noModels": "LM Studio には到達できますが、利用可能なモデルが報告されていません。LM Studio でチャットモデルをダウンロードまたはロードしてから、チェックを更新してください。",
+			"serverStopped": "LM Studio はインストールされているようですが、ローカルサーバーが実行されていません。LM Studio でローカルサーバーを起動してから、チェックを更新してください。",
+			"detectionFailed": "LM Studio の検出に失敗しました: {{error}}",
+			"missing": "LM Studio がインストールされていないか、到達できません。公式ダウンロードページを開き、LM Studio をインストールし、モデルをダウンロードし、ローカルサーバーを起動してからチェックを更新してください。",
+			"unknownError": "不明なエラー",
+			"modelLabel": "LM Studio モデル"
+		}
 	},
 	"providerSignup": {
 		"heading": "プロバイダーを選択",

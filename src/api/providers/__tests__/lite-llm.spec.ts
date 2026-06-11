@@ -36,6 +36,7 @@ vi.mock("../fetchers/modelCache", () => ({
 			"gpt-5o": { ...litellmDefaultModelInfo, maxTokens: 8192 },
 			"gpt-5.1": { ...litellmDefaultModelInfo, maxTokens: 8192 },
 			"gpt-5-mini": { ...litellmDefaultModelInfo, maxTokens: 8192 },
+			"cache-capable-model": { ...litellmDefaultModelInfo, supportsPromptCache: true, maxTokens: 8192 },
 			"gpt-4": { ...litellmDefaultModelInfo, maxTokens: 8192 },
 			"claude-3-opus": { ...litellmDefaultModelInfo, maxTokens: 8192 },
 			"llama-3": { ...litellmDefaultModelInfo, maxTokens: 8192 },
@@ -69,6 +70,7 @@ describe("LiteLLMHandler", () => {
 		it("should add cache control headers when litellmUsePromptCache is enabled", async () => {
 			const optionsWithCache: ApiHandlerOptions = {
 				...mockOptions,
+				litellmModelId: "cache-capable-model",
 				litellmUsePromptCache: true,
 			}
 			handler = new LiteLLMHandler(optionsWithCache)
