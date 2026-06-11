@@ -122,6 +122,20 @@ async function sayToolError(cline: Task, action: string, error: Error): Promise<
 	}
 }
 
+async function cleanupActiveDiffPreview(cline: Task, context: string): Promise<void> {
+	try {
+		if (cline.diffViewProvider?.isEditing) {
+			await cline.diffViewProvider.revertChanges()
+		}
+	} catch (error) {
+		console.warn(
+			`[presentAssistantMessage] Failed to clean up active diff preview after ${context}: ${
+				error instanceof Error ? error.message : String(error)
+			}`,
+		)
+	}
+}
+
 /**
  * Processes and presents assistant message content to the user interface.
  *
@@ -388,6 +402,7 @@ export async function presentAssistantMessage(cline: Task) {
 			if (!toolCallId) {
 				const errorMessage =
 					"Invalid tool call: missing tool_use.id. XML tool calls are no longer supported. Remove any XML tool markup (e.g. <read_file>...</read_file>) and use native tool calling instead."
+				await cleanupActiveDiffPreview(cline, "missing tool_use.id")
 				// Record a tool error for visibility. Use the reported tool name if present.
 				try {
 					if (
@@ -541,6 +556,7 @@ export async function presentAssistantMessage(cline: Task) {
 						`Invalid tool call for '${block.name}': missing nativeArgs. ` +
 						`This usually means the model streamed invalid or incomplete arguments and the call could not be finalized.`
 
+					await cleanupActiveDiffPreview(cline, `missing nativeArgs for ${block.name}`)
 					cline.consecutiveMistakeCount++
 					try {
 						cline.recordToolError(block.name as ToolName, errorMessage)
@@ -717,6 +733,7 @@ export async function presentAssistantMessage(cline: Task) {
 						includedTools,
 					)
 				} catch (error) {
+					await cleanupActiveDiffPreview(cline, `validation failure for ${block.name}`)
 					cline.consecutiveMistakeCount++
 					try {
 						cline.recordToolError(
@@ -1051,6 +1068,7 @@ export async function presentAssistantMessage(cline: Task) {
 						askApproval,
 						handleError,
 						pushToolResult,
+						toolCallId,
 					})
 					break
 				default: {
@@ -1125,7 +1143,7 @@ export async function presentAssistantMessage(cline: Task) {
 		}
 	}
 
-	await cline.drainQueuedMistakeMemories().catch((error) => {
+	void cline.drainQueuedMistakeMemories({ promptForApproval: false }).catch((error) => {
 		console.warn(
 			`[presentAssistantMessage] Failed to drain queued mistake memories: ${
 				error instanceof Error ? error.message : String(error)

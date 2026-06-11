@@ -138,12 +138,12 @@ export class VisualBrowserInspectorTool extends BaseTool<"visual_browser_inspect
 				},
 			})
 
-			await task.say(
-				"tool",
-				JSON.stringify(buildVisualBrowserToolPayloadFromResult(result, toolCallId)),
-				undefined,
-				false,
-			)
+			const completePayload = buildVisualBrowserToolPayloadFromResult(result, toolCallId)
+			const didUpdateExistingMessage = await task.updateVisualBrowserInspectorMessage(completePayload)
+
+			if (!didUpdateExistingMessage) {
+				await task.say("tool", JSON.stringify(completePayload), undefined, false)
+			}
 
 			pushToolResult(formatResponse.toolResult(JSON.stringify(result, null, 2)))
 		} catch (error) {

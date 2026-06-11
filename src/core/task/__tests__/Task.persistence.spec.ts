@@ -579,6 +579,178 @@ describe("Task persistence", () => {
 		})
 	})
 
+	describe("visual browser inspector message updates", () => {
+		it("coalesces a running VBI row into a persisted say/tool update by toolCallId", async () => {
+			const task = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+				startTask: false,
+			})
+			vi.mocked(mockProvider.postMessageToWebview).mockClear()
+			mockSaveTaskMessages.mockClear()
+
+			const runningTool: ClineSayTool = {
+				tool: "visualBrowserInspector",
+				action: "visual_browser_capture",
+				visualBrowserStatus: "running",
+				sessionId: "session-1",
+				toolCallId: "tool-call-1",
+			}
+
+			task.clineMessages.push({
+				type: "ask",
+				ask: "tool",
+				ts: 789,
+				text: JSON.stringify(runningTool),
+			})
+
+			const visualBrowserResult = {
+				action: "visual_browser_capture",
+				session: { sessionId: "session-1", status: "active", url: "http://localhost:3000" },
+				message: "Captured screenshot.",
+			} as any
+
+			const didUpdate = await task.updateVisualBrowserInspectorMessage({
+				tool: "visualBrowserInspector",
+				action: "visual_browser_capture",
+				visualBrowserStatus: "complete",
+				visualBrowserResult,
+				sessionId: "session-1",
+				url: "http://localhost:3000",
+				screenshotId: "shot-1",
+				toolCallId: "tool-call-1",
+				message: "Captured screenshot.",
+			})
+
+			expect(didUpdate).toBe(true)
+			expect(task.clineMessages).toHaveLength(1)
+			const updatedMessage = task.clineMessages[0]
+			expect(updatedMessage).toMatchObject({
+				type: "say",
+				say: "tool",
+				ts: 789,
+				isAnswered: true,
+			})
+			expect(updatedMessage.ask).toBeUndefined()
+
+			const updatedTool = JSON.parse(updatedMessage.text!) as ClineSayTool
+			expect(updatedTool).toMatchObject({
+				tool: "visualBrowserInspector",
+				action: "visual_browser_capture",
+				visualBrowserStatus: "complete",
+				visualBrowserResult,
+				sessionId: "session-1",
+				url: "http://localhost:3000",
+				screenshotId: "shot-1",
+				toolCallId: "tool-call-1",
+				message: "Captured screenshot.",
+			})
+			expect(mockProvider.postMessageToWebview).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "messageUpdated",
+					clineMessage: updatedMessage,
+				}),
+			)
+			expect(mockSaveTaskMessages).toHaveBeenCalledTimes(1)
+		})
+
+		it("updates the latest running VBI row when completed payload has no toolCallId", async () => {
+			const task = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+				startTask: false,
+			})
+			vi.mocked(mockProvider.postMessageToWebview).mockClear()
+			mockSaveTaskMessages.mockClear()
+
+			task.clineMessages.push(
+				{
+					type: "ask",
+					ask: "tool",
+					ts: 1,
+					text: JSON.stringify({
+						tool: "visualBrowserInspector",
+						visualBrowserStatus: "complete",
+						message: "Older completed row.",
+					} satisfies ClineSayTool),
+				},
+				{
+					type: "ask",
+					ask: "tool",
+					ts: 2,
+					text: JSON.stringify({
+						tool: "visualBrowserInspector",
+						action: "visual_browser_open",
+						visualBrowserStatus: "running",
+						sessionId: "session-2",
+					} satisfies ClineSayTool),
+				},
+			)
+
+			const didUpdate = await task.updateVisualBrowserInspectorMessage({
+				tool: "visualBrowserInspector",
+				action: "visual_browser_open",
+				visualBrowserStatus: "complete",
+				sessionId: "session-2",
+				message: "Opened local preview.",
+			})
+
+			expect(didUpdate).toBe(true)
+			expect(task.clineMessages[0].type).toBe("ask")
+			const updatedMessage = task.clineMessages[1]
+			expect(updatedMessage).toMatchObject({
+				type: "say",
+				say: "tool",
+				ts: 2,
+				isAnswered: true,
+			})
+			const updatedTool = JSON.parse(updatedMessage.text!) as ClineSayTool
+			expect(updatedTool).toMatchObject({
+				tool: "visualBrowserInspector",
+				visualBrowserStatus: "complete",
+				sessionId: "session-2",
+				message: "Opened local preview.",
+			})
+			expect(mockSaveTaskMessages).toHaveBeenCalledTimes(1)
+		})
+
+		it("returns false without persisting when there is no VBI row to update", async () => {
+			const task = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+				startTask: false,
+			})
+			vi.mocked(mockProvider.postMessageToWebview).mockClear()
+			mockSaveTaskMessages.mockClear()
+
+			task.clineMessages.push({
+				type: "say",
+				say: "text",
+				text: "ordinary message",
+				ts: 456,
+			})
+
+			const didUpdate = await task.updateVisualBrowserInspectorMessage({
+				tool: "visualBrowserInspector",
+				action: "visual_browser_capture",
+				visualBrowserStatus: "complete",
+				toolCallId: "missing-tool-call",
+			})
+
+			expect(didUpdate).toBe(false)
+			expect(task.clineMessages[0]).toMatchObject({
+				type: "say",
+				say: "text",
+				text: "ordinary message",
+			})
+			expect(mockProvider.postMessageToWebview).not.toHaveBeenCalled()
+			expect(mockSaveTaskMessages).not.toHaveBeenCalled()
+		})
+	})
+
 	describe("parallel agent reload recovery", () => {
 		const createPlan = (): ExecutionPlan => ({
 			planId: "plan-1",

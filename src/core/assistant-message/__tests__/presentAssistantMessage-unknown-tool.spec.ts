@@ -2,6 +2,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import { presentAssistantMessage } from "../presentAssistantMessage"
+import { isValidToolName, validateToolUse } from "../../tools/validateToolUse"
 
 // Mock dependencies
 vi.mock("../../task/Task")
@@ -22,6 +23,9 @@ describe("presentAssistantMessage - Unknown Tool Handling", () => {
 	let mockTask: any
 
 	beforeEach(() => {
+		vi.mocked(isValidToolName).mockReturnValue(false)
+		vi.mocked(validateToolUse).mockImplementation(() => undefined)
+
 		// Create a mock Task with minimal properties needed for testing
 		mockTask = {
 			taskId: "test-task-id",
@@ -43,6 +47,10 @@ describe("presentAssistantMessage - Unknown Tool Handling", () => {
 			recordToolUsage: vi.fn(),
 			recordToolError: vi.fn(),
 			drainQueuedMistakeMemories: vi.fn().mockResolvedValue(undefined),
+			diffViewProvider: {
+				isEditing: false,
+				revertChanges: vi.fn().mockResolvedValue(undefined),
+			},
 			toolRepetitionDetector: {
 				check: vi.fn().mockReturnValue({ allowExecution: true }),
 			},
@@ -113,6 +121,8 @@ describe("presentAssistantMessage - Unknown Tool Handling", () => {
 	})
 
 	it("should fail fast when tool_use is missing id (legacy/XML-style tool call)", async () => {
+		mockTask.diffViewProvider.isEditing = true
+
 		// tool_use without an id is treated as legacy/XML-style tool call and must be rejected.
 		mockTask.assistantMessageContent = [
 			{
@@ -138,9 +148,114 @@ describe("presentAssistantMessage - Unknown Tool Handling", () => {
 
 		// Verify recordToolError was called
 		expect(mockTask.recordToolError).toHaveBeenCalled()
+		expect(mockTask.diffViewProvider.revertChanges).toHaveBeenCalledTimes(1)
+		expect(mockTask.diffViewProvider.revertChanges.mock.invocationCallOrder[0]).toBeLessThan(
+			mockTask.recordToolError.mock.invocationCallOrder[0],
+		)
 
 		// Verify error message was shown to user
 		expect(mockTask.say).toHaveBeenCalledWith("error", expect.anything())
+	})
+
+	it("cleans up an active diff preview before reporting a missing nativeArgs tool error", async () => {
+		vi.mocked(isValidToolName).mockReturnValue(true)
+		mockTask.diffViewProvider.isEditing = true
+		mockTask.assistantMessageContent = [
+			{
+				type: "tool_use",
+				id: "tool_call_missing_native_args",
+				name: "list_files",
+				params: { path: "." },
+				partial: false,
+			},
+		]
+
+		await presentAssistantMessage(mockTask)
+
+		expect(mockTask.diffViewProvider.revertChanges).toHaveBeenCalledTimes(1)
+		expect(mockTask.recordToolError).toHaveBeenCalledWith(
+			"list_files",
+			expect.stringContaining("missing nativeArgs"),
+		)
+		expect(mockTask.diffViewProvider.revertChanges.mock.invocationCallOrder[0]).toBeLessThan(
+			mockTask.recordToolError.mock.invocationCallOrder[0],
+		)
+		const toolResult = mockTask.userMessageContent.find(
+			(item: any) => item.type === "tool_result" && item.tool_use_id === "tool_call_missing_native_args",
+		)
+		expect(toolResult).toEqual(
+			expect.objectContaining({
+				is_error: true,
+				content: expect.stringContaining("missing nativeArgs"),
+			}),
+		)
+	})
+
+	it("cleans up an active diff preview before recording validation failures", async () => {
+		vi.mocked(isValidToolName).mockReturnValue(true)
+		vi.mocked(validateToolUse).mockImplementation(() => {
+			throw new Error("Tool is not allowed in this mode")
+		})
+		mockTask.diffViewProvider.isEditing = true
+		mockTask.assistantMessageContent = [
+			{
+				type: "tool_use",
+				id: "tool_call_validation_error",
+				name: "list_files",
+				params: { path: "." },
+				nativeArgs: { path: "." },
+				partial: false,
+			},
+		]
+
+		await presentAssistantMessage(mockTask)
+
+		expect(mockTask.diffViewProvider.revertChanges).toHaveBeenCalledTimes(1)
+		expect(mockTask.recordToolError).toHaveBeenCalledWith(
+			"list_files",
+			"Tool is not allowed in this mode",
+			"validation_error",
+		)
+		expect(mockTask.diffViewProvider.revertChanges.mock.invocationCallOrder[0]).toBeLessThan(
+			mockTask.recordToolError.mock.invocationCallOrder[0],
+		)
+		const toolResult = mockTask.userMessageContent.find(
+			(item: any) => item.type === "tool_result" && item.tool_use_id === "tool_call_validation_error",
+		)
+		expect(toolResult).toEqual(
+			expect.objectContaining({
+				is_error: true,
+				content: expect.stringContaining("Tool is not allowed in this mode"),
+			}),
+		)
+	})
+
+	it("drains queued mistake memories noninteractively without blocking presentation", async () => {
+		let resolveDrain!: () => void
+		const drainPromise = new Promise<void>((resolve) => {
+			resolveDrain = resolve
+		})
+		mockTask.drainQueuedMistakeMemories = vi.fn().mockReturnValue(drainPromise)
+		mockTask.assistantMessageContent = [
+			{
+				type: "tool_use",
+				id: "tool_call_nonblocking_drain",
+				name: "unknown_tool",
+				params: {},
+				partial: false,
+			},
+		]
+
+		const result = await Promise.race([
+			presentAssistantMessage(mockTask).then(() => "resolved"),
+			new Promise<string>((resolve) => setTimeout(() => resolve("pending"), 10)),
+		])
+
+		expect(result).toBe("resolved")
+		expect(mockTask.drainQueuedMistakeMemories).toHaveBeenCalledWith({ promptForApproval: false })
+
+		resolveDrain()
+		await drainPromise
 	})
 
 	it("should handle unknown tool without freezing (native tool calling)", async () => {

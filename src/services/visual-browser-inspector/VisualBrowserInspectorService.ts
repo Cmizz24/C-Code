@@ -67,6 +67,10 @@ export interface VisualBrowserExecuteOptions {
 	onBrowserInstallStatus?: (message: string) => void | Promise<void>
 }
 
+export interface VisualBrowserControlledSessionCleanupOptions {
+	log?: (message: string) => void
+}
+
 export interface CropResult {
 	region: VisualBrowserBoundingBox
 	width: number
@@ -1110,6 +1114,11 @@ export class VisualBrowserInspectorService {
 		}
 
 		return this.createPanelState(runtime, options)
+	}
+
+	async disposeControlledSessions(options: VisualBrowserControlledSessionCleanupOptions = {}): Promise<number> {
+		const closedRuntimes = await this.closeControlledRuntimes({ log: options.log })
+		return closedRuntimes.length
 	}
 
 	private async open(

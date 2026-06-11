@@ -159,7 +159,7 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 			await task.say("completion_result", result, undefined, false)
 
 			if (isParallelAgentTask(task)) {
-				this.completeParallelAgentTask(task)
+				await this.completeParallelAgentTask(task)
 				return
 			}
 
@@ -188,7 +188,7 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 								pushToolResult,
 							)
 							if (delegation === "delegated") {
-								this.emitTaskCompleted(task)
+								await this.emitTaskCompleted(task)
 							}
 							if (delegation !== "continue") return
 						} else {
@@ -215,7 +215,7 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 			const { response, text, images } = await task.ask("completion_result", "", false)
 
 			if (response === "yesButtonClicked") {
-				this.emitTaskCompleted(task)
+				await this.emitTaskCompleted(task)
 				return
 			}
 
@@ -288,13 +288,14 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 		}
 	}
 
-	private completeParallelAgentTask(task: Task): void {
+	private async completeParallelAgentTask(task: Task): Promise<void> {
 		task.markAgentTerminal()
 		task.cancelCurrentRequest()
-		this.emitTaskCompleted(task)
+		await this.emitTaskCompleted(task)
 	}
 
-	private emitTaskCompleted(task: Task): void {
+	private async emitTaskCompleted(task: Task): Promise<void> {
+		await task.cleanupControlledBrowserSessions("task completion")
 		// Force final token usage update before emitting TaskCompleted.
 		// This ensures the latest stats are captured regardless of throttle timer.
 		task.emitFinalTokenUsageUpdate()

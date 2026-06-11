@@ -64,6 +64,7 @@ describe("attemptCompletionTool", () => {
 			todoList: undefined,
 			say: vi.fn().mockResolvedValue(undefined),
 			ask: vi.fn().mockResolvedValue({ response: "yesButtonClicked", text: "", images: [] }),
+			cleanupControlledBrowserSessions: vi.fn().mockResolvedValue(undefined),
 			emitFinalTokenUsageUpdate: vi.fn(),
 			emit: vi.fn(),
 			getTokenUsage: vi.fn().mockReturnValue({}),
@@ -531,6 +532,16 @@ describe("attemptCompletionTool", () => {
 				await attemptCompletionTool.handle(mockTask as Task, block, callbacks)
 
 				expect(mockHandleError).not.toHaveBeenCalled()
+				const cleanupControlledBrowserSessions = mockTask.cleanupControlledBrowserSessions as ReturnType<typeof vi.fn>
+				const emit = mockTask.emit as ReturnType<typeof vi.fn>
+				const emitFinalTokenUsageUpdate = mockTask.emitFinalTokenUsageUpdate as ReturnType<typeof vi.fn>
+				expect(cleanupControlledBrowserSessions).toHaveBeenCalledWith("task completion")
+				expect(cleanupControlledBrowserSessions.mock.invocationCallOrder[0]).toBeLessThan(
+					emit.mock.invocationCallOrder[0],
+				)
+				expect(cleanupControlledBrowserSessions.mock.invocationCallOrder[0]).toBeLessThan(
+					emitFinalTokenUsageUpdate.mock.invocationCallOrder[0],
+				)
 				expect(mockTask.emit).toHaveBeenCalledWith(
 					RooCodeEventName.TaskCompleted,
 					"task_1",
@@ -699,6 +710,10 @@ describe("attemptCompletionTool", () => {
 				expect(consoleError).not.toHaveBeenCalled()
 				expect(parallelTask.markAgentTerminal).toHaveBeenCalledTimes(1)
 				expect(parallelTask.cancelCurrentRequest).toHaveBeenCalledTimes(1)
+				expect(parallelTask.cleanupControlledBrowserSessions).toHaveBeenCalledWith("task completion")
+				expect(parallelTask.cleanupControlledBrowserSessions.mock.invocationCallOrder[0]).toBeLessThan(
+					parallelTask.emit.mock.invocationCallOrder[0],
+				)
 				expect(mockTask.emit).toHaveBeenCalledWith(
 					RooCodeEventName.TaskCompleted,
 					"task_1",

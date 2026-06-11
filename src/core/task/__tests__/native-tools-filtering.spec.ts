@@ -203,6 +203,10 @@ describe("Native Tools Filtering by Mode", () => {
 
 			expect(switchModeTool.function.description).toContain("requires a capability or tool group")
 			expect(switchModeTool.function.description).toContain("rather than refusing")
+			expect(switchModeTool.function.description).toContain(
+				"Do not request a mode switch when the current mode can complete the work",
+			)
+			expect(switchModeTool.function.description).toContain("avoid reflexive switches to Code")
 			expect(switchModeTool.function.description).toContain("CLI Tools")
 			expect(switchModeTool.function.description).toContain("visual_browser_inspector")
 			expect(switchModeTool.function.description).toContain("image_generation")
@@ -212,6 +216,8 @@ describe("Native Tools Filtering by Mode", () => {
 			expect(newTaskTool.function.description).toContain("delegate work to a capable mode")
 			expect(newTaskTool.function.description).toContain("unavailable tools")
 			expect(newTaskTool.function.description).toContain("rather than refusing")
+			expect(newTaskTool.function.description).toContain("Do not reflexively delegate to Code")
+			expect(newTaskTool.function.description).toContain("current mode can complete the work")
 			expect(newTaskTool.function.description).toContain("Prefer switch_mode")
 			expect(newTaskTool.function.description).toContain("explicit image-generation requests")
 			expect(newTaskTool.function.description).toContain("do not delegate to browser/MCP/manual web UI workflows")
