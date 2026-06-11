@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@/utils/test-utils"
+import { render, screen, fireEvent, cleanup } from "@/utils/test-utils"
 
 import { TranslationProvider } from "@/i18n/__mocks__/TranslationContext"
 
@@ -33,6 +33,10 @@ describe("AutoApproveToggle", () => {
 
 	beforeEach(() => {
 		mockOnToggle.mockClear()
+	})
+
+	afterEach(() => {
+		cleanup()
 	})
 
 	test("renders all toggle buttons with correct initial ARIA attributes", () => {
