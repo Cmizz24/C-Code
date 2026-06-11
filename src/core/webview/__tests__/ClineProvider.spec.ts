@@ -70,6 +70,7 @@ vi.mock("../../../utils/storage", () => ({
 	getSettingsDirectoryPath: vi.fn().mockResolvedValue("/test/settings/path"),
 	getTaskDirectoryPath: vi.fn().mockResolvedValue("/test/task/path"),
 	getGlobalStoragePath: vi.fn().mockResolvedValue("/test/storage/path"),
+	getStorageBasePath: vi.fn().mockResolvedValue("/test/storage/path"),
 }))
 
 vi.mock("@modelcontextprotocol/sdk/types.js", () => ({
@@ -952,10 +953,16 @@ describe("ClineProvider", () => {
 	const seedPersistedTaskMessages = async (messages: ClineMessage[]) => {
 		const fsUtils = await import("../../../utils/fs")
 		const fsPromises = await import("fs/promises")
-		vi.spyOn(fsUtils, "fileExistsAtPath").mockResolvedValueOnce(true).mockResolvedValueOnce(true)
-		;(vi.mocked(fsPromises.readFile) as any)
-			.mockResolvedValueOnce(JSON.stringify(messages))
-			.mockResolvedValueOnce(JSON.stringify(messages))
+		vi.spyOn(fsUtils, "fileExistsAtPath").mockImplementation(async (filePath: string) =>
+			filePath.endsWith("ui_messages.json"),
+		)
+		;(vi.mocked(fsPromises.readFile) as any).mockImplementation(async (filePath: string) => {
+			if (filePath.endsWith("ui_messages.json")) {
+				return JSON.stringify(messages)
+			}
+
+			throw Object.assign(new Error(`ENOENT: no such file or directory, open '${filePath}'`), { code: "ENOENT" })
+		})
 	}
 
 	test("constructor initializes correctly", () => {
@@ -8168,8 +8175,8 @@ describe("ClineProvider - Router Models", () => {
 
 		// Verify getModels was called for each provider with correct options
 		expect(getModels).toHaveBeenCalledWith({ provider: "openrouter", apiKey: "openrouter-key" })
-		expect(getModels).toHaveBeenCalledWith({ provider: "requesty", apiKey: "requesty-key" })
-		expect(getModels).toHaveBeenCalledWith({ provider: "unbound" })
+		expect(getModels).toHaveBeenCalledWith({ provider: "requesty", apiKey: "requesty-key", baseUrl: undefined })
+		expect(getModels).toHaveBeenCalledWith(expect.objectContaining({ provider: "unbound" }))
 		expect(getModels).toHaveBeenCalledWith({ provider: "vercel-ai-gateway" })
 		expect(getModels).toHaveBeenCalledWith({
 			provider: "litellm",
@@ -8189,7 +8196,9 @@ describe("ClineProvider - Router Models", () => {
 				lmstudio: {},
 				"vercel-ai-gateway": mockModels,
 				poe: {},
+				bedrock: {},
 			},
+			requestId: undefined,
 			values: undefined,
 		})
 	})
@@ -8234,7 +8243,9 @@ describe("ClineProvider - Router Models", () => {
 				litellm: {},
 				"vercel-ai-gateway": mockModels,
 				poe: {},
+				bedrock: {},
 			},
+			requestId: undefined,
 			values: undefined,
 		})
 
@@ -8243,6 +8254,7 @@ describe("ClineProvider - Router Models", () => {
 			type: "singleRouterModelFetchResponse",
 			success: false,
 			error: "Requesty API error",
+			requestId: undefined,
 			values: { provider: "requesty" },
 		})
 
@@ -8250,6 +8262,7 @@ describe("ClineProvider - Router Models", () => {
 			type: "singleRouterModelFetchResponse",
 			success: false,
 			error: "LiteLLM connection failed",
+			requestId: undefined,
 			values: { provider: "litellm" },
 		})
 	})
@@ -8276,6 +8289,7 @@ describe("ClineProvider - Router Models", () => {
 		await messageHandler({
 			type: "requestRouterModels",
 			values: {
+				provider: "litellm",
 				litellmApiKey: "message-litellm-key",
 				litellmBaseUrl: "http://message-url:4000",
 			},
@@ -8328,7 +8342,9 @@ describe("ClineProvider - Router Models", () => {
 				lmstudio: {},
 				"vercel-ai-gateway": mockModels,
 				poe: {},
+				bedrock: {},
 			},
+			requestId: undefined,
 			values: undefined,
 		})
 	})

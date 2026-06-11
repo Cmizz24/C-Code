@@ -9,6 +9,7 @@ vi.mock("vscode", () => ({
 		showInformationMessage: vi.fn(),
 		showErrorMessage: vi.fn(),
 		showTextDocument: vi.fn(),
+		createTextEditorDecorationType: vi.fn(() => ({ dispose: vi.fn() })),
 	},
 	workspace: {
 		workspaceFolders: [{ uri: { fsPath: "/mock/workspace" } }],
