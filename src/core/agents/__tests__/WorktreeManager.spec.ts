@@ -28,7 +28,7 @@ const fsMock = vi.mocked(fs)
 const retainedGitCommonDir = "/repo/.git"
 const mergePatchDir = "C:/tmp/roo-parallel-merge-patch-1"
 const mergePatchPath = path.join(mergePatchDir, "agent.diff")
-const quotedMergePatchPath = `"${mergePatchPath.replace(/"/g, '\\"')}"`
+const quotedMergePatchPath = `"${mergePatchPath}"`
 
 type ExecCallback = (error: Error | null | undefined, stdout: string, stderr: string) => void
 
