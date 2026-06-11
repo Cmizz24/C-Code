@@ -12,7 +12,7 @@ vi.mock("@src/utils/vscode", () => ({
 
 vi.mock("@roo/package", () => ({
 	Package: {
-		version: "3.54.0",
+		version: "3.54.1",
 	},
 }))
 
@@ -29,8 +29,8 @@ vi.mock("react-i18next", () => ({
 		if (i18nKey === "chat:announcement.finalRelease.intro") {
 			return (
 				<span>
-					C Code 3.54.0 is ready from Cmizz{"'"}s consolidated fork base. Follow the fork repository for
-					release notes, fixes, and development updates:{" "}
+					C Code 3.54.1 is ready from Cmizz{"'"}s consolidated fork base with the missing PR #11 content
+					included. Follow the fork repository for release notes, fixes, and development updates:{" "}
 					{components?.repoLink && React.cloneElement(components.repoLink, {}, "Cmizz24/C-Code")}.
 				</span>
 			)
@@ -53,24 +53,26 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string, options?: { version?: string }) => {
 			const translations: Record<string, string> = {
-				"chat:announcement.finalRelease.title": "C Code 3.54.0 release",
+				"chat:announcement.finalRelease.title": "C Code 3.54.1 corrected release",
 				"chat:announcement.finalRelease.summary":
-					"This release focuses on C Code-specific creation tools, provider/model hygiene, diagnostics, and UI polish while preserving respectful attribution to the original Roo Code project.",
-				"chat:announcement.finalRelease.highlightsHeading": "Highlights in this release:",
+					"This corrected patch release now reflects everything merged into C Code 3.54.x: long-term memory, local AI onboarding, image creation, Visual Browser Inspector reliability, prompt enhancement compatibility, provider/tooling hygiene, diagnostics, and orchestrator fixes.",
+				"chat:announcement.finalRelease.highlightsHeading": "Highlights in this corrected release:",
+				"chat:announcement.finalRelease.memory":
+					"Long-term memory with local conversation-memory storage and retrieval, memory search, mistake memory, approval flow, chat memory cards, Memory settings, wipe tooling, and individual deletion.",
+				"chat:announcement.finalRelease.localAiSetup":
+					"First-run local AI setup with hardware checks, Ollama and LM Studio recommendations/setup, weak-hardware warnings, and refined welcome-provider selection.",
 				"chat:announcement.finalRelease.imageGeneration":
 					"Native image generation from chat, with Image Generation settings, prompt approval, previews, and OpenRouter, OpenAI/OpenAI-compatible, and Cloudflare Workers AI providers.",
-				"chat:announcement.finalRelease.dynamicModels":
-					"Dynamic OpenRouter image-model discovery plus refreshed provider/model metadata and cache scoping.",
 				"chat:announcement.finalRelease.visualInspector":
-					"Visual Browser Inspector integration for inspecting browser state alongside chat workflows.",
-				"chat:announcement.finalRelease.diagnostics":
-					"Opt-in remote diagnostics through the existing debug toggle, sent to Cmizz's diagnostics endpoint with anonymous/private event payloads.",
-				"chat:announcement.finalRelease.providerHygiene":
-					"ChatGPT Plus/Pro Codex catalog cleanup filters stale unsupported models and falls back to supported defaults.",
-				"chat:announcement.finalRelease.toolingPolish":
-					"Settings, i18n, Windows-safe command guidance, and native tool/mode-flow polish from the C Code work.",
-				"chat:announcement.finalRelease.unsupportedLocal":
-					"Local image-generation backends such as Ollama, LM Studio, ComfyUI, and Automatic1111 are not exposed as supported image-generation providers in this release.",
+					"Visual Browser Inspector reliability improvements with Playwright browser management, retry/browser cleanup fixes, lifecycle coverage, and grouped recommended fixes.",
+				"chat:announcement.finalRelease.promptEnhancement":
+					"Codex prompt enhancement completions and provider-context compatibility fixes keep Enhance Prompt working across providers.",
+				"chat:announcement.finalRelease.orchestration":
+					"Orchestrator and delegation fixes restore parent tasks cleanly after delegated completion and harden worktree/test flows.",
+				"chat:announcement.finalRelease.providerTooling":
+					"MCP Marketplace/setup flows, ChatGPT Plus/Pro Codex model hygiene, opt-in remote diagnostics, provider/model metadata, settings/i18n, and Windows-safe tooling remain current.",
+				"chat:announcement.finalRelease.supportedImageProviders":
+					"Image generation remains routed through OpenRouter, OpenAI/OpenAI-compatible endpoints, and Cloudflare Workers AI; local Ollama and LM Studio are for local chat/provider setup, not image generation.",
 				"chat:announcement.finalRelease.signoff": "Thanks for using C Code.",
 			}
 
@@ -87,19 +89,22 @@ describe("Announcement", () => {
 	it("renders the C Code fork update announcement", () => {
 		render(<Announcement hideAnnouncement={vi.fn()} />)
 
-		expect(screen.getByText("C Code 3.54.0 release")).toBeInTheDocument()
-		expect(screen.getByText(/C Code 3.54.0 is ready from Cmizz's consolidated fork base/)).toBeInTheDocument()
+		expect(screen.getByText("C Code 3.54.1 corrected release")).toBeInTheDocument()
+		expect(screen.getByText(/C Code 3.54.1 is ready from Cmizz's consolidated fork base/)).toBeInTheDocument()
 		expect(
 			screen.getByText(
-				"This release focuses on C Code-specific creation tools, provider/model hygiene, diagnostics, and UI polish while preserving respectful attribution to the original Roo Code project.",
+				"This corrected patch release now reflects everything merged into C Code 3.54.x: long-term memory, local AI onboarding, image creation, Visual Browser Inspector reliability, prompt enhancement compatibility, provider/tooling hygiene, diagnostics, and orchestrator fixes.",
 			),
 		).toBeInTheDocument()
-		expect(screen.getByText("Highlights in this release:")).toBeInTheDocument()
+		expect(screen.getByText("Highlights in this corrected release:")).toBeInTheDocument()
+		expect(screen.getByText(/Long-term memory with local conversation-memory storage/)).toBeInTheDocument()
+		expect(screen.getByText(/First-run local AI setup with hardware checks/)).toBeInTheDocument()
 		expect(screen.getByText(/Native image generation from chat/)).toBeInTheDocument()
 		expect(screen.getByText(/Cloudflare Workers AI providers/)).toBeInTheDocument()
-		expect(screen.getByText(/Visual Browser Inspector integration/)).toBeInTheDocument()
-		expect(screen.getByText(/Opt-in remote diagnostics/)).toBeInTheDocument()
-		expect(screen.getByText(/ChatGPT Plus\/Pro Codex catalog cleanup/)).toBeInTheDocument()
+		expect(screen.getByText(/Visual Browser Inspector reliability improvements/)).toBeInTheDocument()
+		expect(screen.getByText(/Codex prompt enhancement completions/)).toBeInTheDocument()
+		expect(screen.getByText(/Orchestrator and delegation fixes/)).toBeInTheDocument()
+		expect(screen.getByText(/MCP Marketplace\/setup flows/)).toBeInTheDocument()
 		expect(screen.getByText("Thanks for using C Code.")).toBeInTheDocument()
 	})
 

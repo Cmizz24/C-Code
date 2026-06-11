@@ -1,5 +1,42 @@
 # C Code Changelog
 
+## 3.54.1
+
+This corrected patch release includes the full C Code 3.54 release content plus the PR #11 work that landed after the previous release-prep commit, so the update popup and GitHub release notes now match what is actually in `main`.
+
+### Added
+
+- Added long-term memory support with local conversation-memory storage and retrieval, memory search, mistake memory capture, approval flow, chat memory cards, Memory settings UI, wipe tooling, and individual memory deletion.
+- Added first-run local AI setup with hardware checks, local-provider recommendations, guided Ollama and LM Studio setup, weak-hardware warnings, and refined welcome-provider selection.
+- Added native image generation through the `generate_image` tool with chat approval, generated-image previews, workspace save paths, and Image Generation settings integration.
+- Added Cloudflare Workers AI image generation support, including account/model settings and safe usage metadata such as provider-reported or locally estimated Neurons, estimated cost, reset time, and quota notes when available.
+- Added OpenRouter dynamic image-model discovery so image-capable models can be refreshed from provider metadata instead of relying only on static lists.
+- Added Visual Browser Inspector integration for UI/browser inspection workflows alongside chat, with Playwright browser-management reliability improvements.
+- Added opt-in remote diagnostics to `https://cmtesting.site/api/extension/debug-log` behind the existing debug toggle, using a clean event contract with anonymous/private payloads that avoid transcripts, secrets, and private file contents.
+
+### Changed
+
+- Updated the in-app update popup and release-facing GitHub content so the 3.54.x release notes include both merged branches, including the missing PR #11 memory, local AI, prompt-enhancement, Visual Browser Inspector, and orchestration work.
+- Improved first-run provider onboarding for local AI by surfacing Ollama and LM Studio recommendations based on hardware checks and warning when local hardware may be weak for the recommended path.
+- Improved Visual Browser Inspector reliability with a Playwright browser manager, retry/browser cleanup fixes, lifecycle coverage, and grouped recommended fixes.
+- Refreshed provider/model metadata and dynamic discovery cache scoping so provider-specific model lists are less likely to leak stale or cross-provider entries.
+- Improved OpenRouter and provider-model discovery paths for image-capable models, including safer handling of model output modalities and metadata refreshes.
+- Polished Image Generation settings, chat image metadata display, provider validation, and related i18n/UI copy.
+- Improved Windows-safe command guidance, native tool descriptions, mode/tool-flow behavior, and validation around image generation versus browser inspection.
+
+### Fixed
+
+- Fixed Codex prompt enhancement completions and provider-context compatibility paths so Enhance Prompt works reliably across provider selections.
+- Fixed orchestrator and delegation restoration after delegated completion so parent tasks resume cleanly.
+- Filtered stale unsupported ChatGPT Plus/Pro Codex model entries and added fallback behavior to keep users on supported defaults when a configured Codex model is no longer usable.
+- Fixed settings/i18n/UI edge cases from the C Code feature stack, including provider composition and startup localization paths.
+- Tightened remote diagnostics payload structure so diagnostic logging stays opt-in, private, and stable for downstream ingestion.
+- Hardened worktree/test flows and QA coverage around the corrected release feature set.
+
+### Removed
+
+- Removed local image-generation backends from the supported `generate_image` tool flow. OpenRouter, OpenAI/OpenAI-compatible endpoints, and Cloudflare Workers AI are the supported image-generation providers for this release; local Ollama and LM Studio remain part of local chat/provider setup, while Ollama, LM Studio, ComfyUI, and Automatic1111 image-generation behavior is not advertised as supported.
+
 ## 3.54.0
 
 ### Added

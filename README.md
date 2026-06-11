@@ -1,6 +1,6 @@
 # C Code
 
-> Cmizz's personal Roo Code fork for VS Code: an AI dev team in your editor with native image generation, Visual Browser Inspector, parallel agents, MCP workflows, Codex fast mode, SMTP completion rollups, opt-in diagnostics, expanded provider support, and Windows-safe tooling.
+> Cmizz's personal Roo Code fork for VS Code: an AI dev team in your editor with long-term memory, first-run local AI setup, native image generation, Visual Browser Inspector, parallel agents, MCP workflows, Codex fast mode, SMTP completion rollups, opt-in diagnostics, expanded provider support, and Windows-safe tooling.
 
 C Code is Cmizz's independently maintained fork of the original [Roo Code](https://github.com/RooCodeInc/Roo-Code) extension. It keeps the agentic coding workflow that made Roo Code useful while giving the project its own name, repository, release path, and fork-specific features under the C Code / Cmizz identity.
 
@@ -14,14 +14,18 @@ Compared with upstream Roo Code, C Code keeps the familiar agentic coding workfl
 
 - **Parallel agents for larger workflows** — split complex work across coordinated background agents, checkpoint before execution, review worktree output, and merge approved agent results back into the parent task.
 - **Active agent coordination** — parallel agents communicate during execution, coordinate ownership and write intent, avoid stepping on each other's files, and surface coordination/status information in the UI.
+- **Long-term memory** — store and retrieve local conversation memories, search memory, capture mistakes for later reuse, approve pending memories, show memory cards in chat, manage Memory settings, wipe stored memory, and delete individual memories.
+- **First-run local AI setup** — the welcome flow can check hardware, recommend local AI paths, guide Ollama and LM Studio setup, warn on weak hardware, and keep provider selection clearer for first-time users.
 - **Native image generation** — generate or edit images directly from chat with the `generate_image` tool, prompt approval, workspace-relative save paths, previews in chat, and dedicated Image Generation settings.
 - **Cloudflare Workers AI image generation** — use Cloudflare Workers AI as a supported image provider with account/model settings plus usage details such as provider-reported or locally estimated Neurons, cost, reset, and quota notes when available.
 - **OpenRouter dynamic image models** — discover image-capable OpenRouter models dynamically, keep provider/model caches scoped correctly, and surface refreshed provider metadata in model selection flows.
-- **Visual Browser Inspector** — inspect visual browser state for UI debugging and chat handoff workflows without replacing the dedicated image-generation path.
+- **Visual Browser Inspector** — inspect visual browser state for UI debugging and chat handoff workflows with Playwright browser-management, retry/browser cleanup, lifecycle coverage, and recommended-fixes grouping improvements.
 - **Opt-in remote diagnostics** — when the existing debug toggle is enabled, C Code can send anonymous/private diagnostic events to `https://cmtesting.site/api/extension/debug-log` using a clean event contract that avoids transcripts, secrets, and private file contents.
 - **MCP Marketplace and setup flows** — discover MCP servers for search, code, docs, databases, files, browsers, and team workflows; launch guided MCP setup tasks; and create custom local MCP servers from natural language requirements.
 - **SMTP completion notifications** — send task outcome emails using saved SMTP settings, including final parent workflow rollups with overall task summaries, child-task context, requests, token usage, cost, and tool attempt/failure counts without exposing transcripts or secrets.
 - **OpenAI Codex / ChatGPT Plus/Pro workflow support** — use the OpenAI Codex provider with OAuth-style ChatGPT subscription access, GPT-5.x/Codex model defaults, fast-mode controls, authentication/status reporting, stale unsupported model filtering, and supported-model fallback.
+- **Prompt enhancement compatibility** — Codex prompt enhancement completions and provider-context fixes keep Enhance Prompt working across provider choices.
+- **Orchestrator and delegation reliability** — delegated completion restores parent task state cleanly, with worktree/test hardening for safer multi-agent workflows.
 - **Expanded provider and model support** — includes Xiaomi MiMo, DeepSeek, OpenRouter, Requesty, Vercel AI Gateway, Qwen Code, LM Studio, OpenAI, Anthropic, Gemini, xAI, Bedrock, Vertex, Moonshot, MiniMax, Mistral, Fireworks, SambaNova, Poe, and other provider metadata updates from the fork.
 - **Xiaomi MiMo AMS-ready support** — adds Xiaomi MiMo chat models with a MiMo V2.5 Pro default model, long-context metadata, official pricing metadata, and both standard and token-plan AMS endpoint options.
 - **Windows-safe command behavior** — command guidance and execution handling are tuned for Windows shells while preserving normal cross-platform development workflows.
@@ -60,14 +64,26 @@ C Code keeps the broad provider ecosystem from Roo Code and adds fork-specific p
 
 ---
 
+## Long-term memory and local AI setup
+
+C Code 3.54.1 includes the missing PR #11 user-facing work for memory and local onboarding:
+
+- Save local conversation memories, search them from tools, surface matching memory cards in chat, and manage memory approval before entries become active.
+- Capture mistake memories, archive or reuse existing memory, wipe stored memory when needed, and delete individual memories from the UI.
+- Configure Memory settings separately from provider settings so memory behavior stays visible and controllable.
+- Start first-run local AI onboarding with hardware checks, local-provider recommendations, guided Ollama setup, guided LM Studio setup, weak-hardware warnings, and refined provider selection.
+- Use local Ollama and LM Studio for local chat/provider setup while image generation remains on the supported OpenRouter, OpenAI/OpenAI-compatible, and Cloudflare Workers AI image-provider path.
+
+---
+
 ## Image generation and visual inspection
 
-C Code 3.54.0 adds a clearer creation and inspection workflow:
+C Code 3.54.1 keeps creation and inspection workflows distinct and corrected:
 
 - Ask C Code to generate or edit an image from chat, approve or adjust the prompt, and save the result directly into your workspace.
 - Configure OpenRouter, OpenAI/OpenAI-compatible, or Cloudflare Workers AI image generation separately from chat provider profiles.
 - Review generated image previews and safe provider metadata in chat, including Cloudflare Workers AI usage estimates when available.
-- Use Visual Browser Inspector for UI/browser inspection workflows while keeping image generation routed through the dedicated `generate_image` tool.
+- Use Visual Browser Inspector for UI/browser inspection workflows with improved browser lifecycle handling, retries, cleanup, and grouped recommended fixes while keeping image generation routed through the dedicated `generate_image` tool.
 
 ---
 
@@ -97,12 +113,12 @@ C Code includes MCP workflow improvements for discovering, installing, configuri
 
 ## Stable release
 
-- **Current stable C Code version:** 3.54.0
+- **Current stable C Code version:** 3.54.1
 - **Publisher / publication identity:** Cmizz
 - **Package name:** `c-code`
-- **Stable VSIX artifact:** `bin/c-code-3.54.0.vsix`
+- **Stable VSIX artifact:** `bin/c-code-3.54.1.vsix`
 
-Version 3.54.0 is the prepared stable C Code release line for the next official GitHub release.
+Version 3.54.1 is the corrected stable C Code patch release line for the next official GitHub release. The existing 3.54.0 tag remains untouched.
 
 ---
 

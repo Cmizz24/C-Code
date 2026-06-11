@@ -52,13 +52,14 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 						{t("chat:announcement.finalRelease.highlightsHeading")}
 					</p>
 					<ul className="mb-3 list-disc space-y-1 pl-5">
+						<li>{t("chat:announcement.finalRelease.memory")}</li>
+						<li>{t("chat:announcement.finalRelease.localAiSetup")}</li>
 						<li>{t("chat:announcement.finalRelease.imageGeneration")}</li>
-						<li>{t("chat:announcement.finalRelease.dynamicModels")}</li>
 						<li>{t("chat:announcement.finalRelease.visualInspector")}</li>
-						<li>{t("chat:announcement.finalRelease.diagnostics")}</li>
-						<li>{t("chat:announcement.finalRelease.providerHygiene")}</li>
-						<li>{t("chat:announcement.finalRelease.toolingPolish")}</li>
-						<li>{t("chat:announcement.finalRelease.unsupportedLocal")}</li>
+						<li>{t("chat:announcement.finalRelease.promptEnhancement")}</li>
+						<li>{t("chat:announcement.finalRelease.orchestration")}</li>
+						<li>{t("chat:announcement.finalRelease.providerTooling")}</li>
+						<li>{t("chat:announcement.finalRelease.supportedImageProviders")}</li>
 					</ul>
 					<p>
 						<Trans
