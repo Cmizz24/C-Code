@@ -822,6 +822,32 @@
 		"enableSubfolderRules": {
 			"label": "サブフォルダルールを有効化",
 			"description": "サブディレクトリから.roo/rulesとAGENTS.mdファイルを再帰的に検出してロードします。パッケージごとのルールを持つモノレポに便利です。"
+		},
+		"contextWindowManagement": {
+			"title": "コンテキストウィンドウ管理",
+			"description": "condense の前に優先度の低いチャンクを hot cache と cold cache の間で移動し、より多くの有用なコンテキストを RAM に保持します。",
+			"enabled": {
+				"label": "hot/cold コンテキストキャッシュを有効化",
+				"description": "有効にすると、C は復元可能なコンテキストチャンクを RAM に保持し、キャッシュ負荷を処理できる場合は condensing を回避しようとします。"
+			},
+			"coldCacheRamBudget": {
+				"label": "Cold cache RAM 予算",
+				"description": "後で ask_for_context で取得できる cold コンテキストチャンクに C が使用できる RAM 量を選択します。",
+				"options": {
+					"256": "256MB",
+					"512": "512MB",
+					"1024": "1GB",
+					"2048": "2GB+"
+				}
+			},
+			"stats": {
+				"title": "ライブキャッシュ統計",
+				"hotCacheTokens": "Hot cache tokens",
+				"coldCacheChunks": "Cold cache チャンク",
+				"ramUsed": "使用 RAM",
+				"swapsThisSession": "このセッションの swap",
+				"condensingAvoided": "condensing を回避した回数"
+			}
 		}
 	},
 	"memory": {

@@ -822,6 +822,32 @@
 		"enableSubfolderRules": {
 			"label": "启用子文件夹规则",
 			"description": "递归发现并加载子目录中的 .roo/rules 和 AGENTS.md 文件。适用于具有每包规则的 monorepo。"
+		},
+		"contextWindowManagement": {
+			"title": "上下文窗口管理",
+			"description": "在 condense 前，将较低优先级的 chunk 在 hot cache 和 cold cache 之间移动，让更多有用上下文保留在 RAM 中。",
+			"enabled": {
+				"label": "启用 hot/cold 上下文 cache",
+				"description": "启用后，C 会把可恢复的上下文 chunk 保留在 RAM 中，并在可以处理 cache pressure 时尝试避免 condensing。"
+			},
+			"coldCacheRamBudget": {
+				"label": "Cold cache RAM 预算",
+				"description": "选择 C 可用于 cold 上下文 chunk 的 RAM 量，这些 chunk 稍后可用 ask_for_context 取回。",
+				"options": {
+					"256": "256MB",
+					"512": "512MB",
+					"1024": "1GB",
+					"2048": "2GB+"
+				}
+			},
+			"stats": {
+				"title": "实时 cache 统计",
+				"hotCacheTokens": "Hot cache tokens",
+				"coldCacheChunks": "Cold cache chunks",
+				"ramUsed": "已用 RAM",
+				"swapsThisSession": "本会话 swaps",
+				"condensingAvoided": "避免 condensing 的次数"
+			}
 		}
 	},
 	"memory": {

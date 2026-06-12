@@ -822,6 +822,32 @@
 		"enableSubfolderRules": {
 			"label": "Activar reglas de subcarpetas",
 			"description": "Descubrir y cargar recursivamente archivos .roo/rules y AGENTS.md desde subdirectorios. Útil para monorepos con reglas por paquete."
+		},
+		"contextWindowManagement": {
+			"title": "Gestión de la ventana de contexto",
+			"description": "Conserva más contexto útil disponible en RAM moviendo fragmentos de menor prioridad entre las cachés hot y cold antes de condensar.",
+			"enabled": {
+				"label": "Habilitar caché de contexto hot/cold",
+				"description": "Cuando está habilitado, C mantiene en RAM fragmentos de contexto recuperables e intenta evitar condensar cuando se puede gestionar la presión de caché."
+			},
+			"coldCacheRamBudget": {
+				"label": "Presupuesto de RAM de caché cold",
+				"description": "Elige cuánta RAM puede usar C para fragmentos de contexto cold que se pueden recuperar más tarde con ask_for_context.",
+				"options": {
+					"256": "256MB",
+					"512": "512MB",
+					"1024": "1GB",
+					"2048": "2GB+"
+				}
+			},
+			"stats": {
+				"title": "Estadísticas de caché en vivo",
+				"hotCacheTokens": "Tokens de caché hot",
+				"coldCacheChunks": "Fragmentos de caché cold",
+				"ramUsed": "RAM usada",
+				"swapsThisSession": "Intercambios en esta sesión",
+				"condensingAvoided": "Veces que se evitó condensar"
+			}
 		}
 	},
 	"memory": {

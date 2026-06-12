@@ -575,6 +575,19 @@ export class ReadFileTool extends BaseTool<"read_file"> {
 			.map((r) => r.nativeContent)
 			.join("\n\n---\n\n")
 
+		for (const result of fileResults) {
+			if (result.status === "approved" && result.nativeContent) {
+				task.registerContextChunk({
+					type: "file_content",
+					content: result.nativeContent,
+					metadata: {
+						filePath: result.path,
+						source: "read_file",
+					},
+				})
+			}
+		}
+
 		const fileImageUrls = fileResults.filter((r) => r.imageDataUrl).map((r) => r.imageDataUrl as string)
 
 		let statusMessage = ""
@@ -758,7 +771,16 @@ export class ReadFileTool extends BaseTool<"read_file"> {
 						}
 						const imageResult = await processImageFile(fullPath)
 						if (imageResult) {
-							results.push(`File: ${relPath}\n[Image file - content processed for vision model]`)
+							const content = `File: ${relPath}\n[Image file - content processed for vision model]`
+							results.push(content)
+							task.registerContextChunk({
+								type: "file_content",
+								content,
+								metadata: {
+									filePath: relPath,
+									source: "read_file",
+								},
+							})
 						}
 					} else {
 						results.push(`File: ${relPath}\nError: Cannot read binary file`)
@@ -794,7 +816,16 @@ export class ReadFileTool extends BaseTool<"read_file"> {
 					}
 				}
 
-				results.push(`File: ${relPath}\n${content}`)
+				const chunkContent = `File: ${relPath}\n${content}`
+				results.push(chunkContent)
+				task.registerContextChunk({
+					type: "file_content",
+					content: chunkContent,
+					metadata: {
+						filePath: relPath,
+						source: "read_file",
+					},
+				})
 
 				// Track file in context
 				await task.fileContextTracker.trackFileContext(relPath, "read_tool")

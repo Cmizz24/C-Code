@@ -822,6 +822,32 @@
 		"enableSubfolderRules": {
 			"label": "सबफ़ोल्डर नियम सक्षम करें",
 			"description": "उपनिर्देशिकाओं से .roo/rules और AGENTS.md फ़ाइलों को पुनरावर्ती रूप से खोजें और लोड करें। प्रति-पैकेज नियमों वाले मोनोरेपो के लिए उपयोगी।"
+		},
+		"contextWindowManagement": {
+			"title": "Context Window प्रबंधन",
+			"description": "Condense करने से पहले कम प्राथमिकता वाले chunks को hot और cold caches के बीच ले जाकर RAM में ज़्यादा उपयोगी context उपलब्ध रखो.",
+			"enabled": {
+				"label": "Hot/cold context cache सक्षम करें",
+				"description": "सक्षम होने पर, C recoverable context chunks को RAM में रखता है और cache pressure सँभाला जा सके तो condensing से बचने की कोशिश करता है."
+			},
+			"coldCacheRamBudget": {
+				"label": "Cold cache RAM बजट",
+				"description": "चुनो कि C cold context chunks के लिए कितनी RAM इस्तेमाल कर सकता है, जिन्हें बाद में ask_for_context से वापस लाया जा सकता है.",
+				"options": {
+					"256": "256MB",
+					"512": "512MB",
+					"1024": "1GB",
+					"2048": "2GB+"
+				}
+			},
+			"stats": {
+				"title": "Live cache आँकड़े",
+				"hotCacheTokens": "Hot cache tokens",
+				"coldCacheChunks": "Cold cache chunks",
+				"ramUsed": "उपयोग की गई RAM",
+				"swapsThisSession": "इस session में swaps",
+				"condensingAvoided": "Condensing से बचाए गए बार"
+			}
 		}
 	},
 	"memory": {

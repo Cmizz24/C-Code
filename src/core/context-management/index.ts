@@ -6,6 +6,7 @@ import { MAX_CONDENSE_THRESHOLD, MIN_CONDENSE_THRESHOLD, summarizeConversation, 
 import { ApiMessage } from "../task-persistence/apiMessages"
 import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "@roo-code/types"
 import { RooIgnoreController } from "../ignore/RooIgnoreController"
+import type { ContextWindowManager } from "../context/ContextWindowManager"
 
 /**
  * Context Management
@@ -225,6 +226,8 @@ export type ContextManagementOptions = {
 	cwd?: string
 	/** Optional controller for file access validation */
 	rooIgnoreController?: RooIgnoreController
+	/** Optional RAM context cache manager that can handle pressure before condensing/truncation. */
+	contextWindowManager?: ContextWindowManager
 }
 
 export type ContextManagementResult = SummarizeResponse & {
@@ -232,6 +235,7 @@ export type ContextManagementResult = SummarizeResponse & {
 	truncationId?: string
 	messagesRemoved?: number
 	newContextTokensAfterTruncation?: number
+	contextCacheHandled?: boolean
 }
 
 /**
@@ -258,6 +262,7 @@ export async function manageContext({
 	filesReadByRoo,
 	cwd,
 	rooIgnoreController,
+	contextWindowManager,
 }: ContextManagementOptions): Promise<ContextManagementResult> {
 	let error: string | undefined
 	let errorDetails: string | undefined
@@ -299,8 +304,22 @@ export async function manageContext({
 	}
 	// If no specific threshold is found for the profile, fall back to global setting
 
+	const contextPercent = (100 * prevContextTokens) / contextWindow
+	const cacheCanAttemptPressure =
+		(autoCondenseContext && contextPercent >= effectiveThreshold) || prevContextTokens > allowedTokens
+	if (cacheCanAttemptPressure) {
+		const cachePressureResult = contextWindowManager?.handlePressure({
+			totalTokens: prevContextTokens,
+			allowedTokens,
+			protectedMessageTimestamps: typeof lastMessage.ts === "number" ? [lastMessage.ts] : undefined,
+		})
+
+		if (cachePressureResult?.handled) {
+			return { messages, summary: "", cost, prevContextTokens, contextCacheHandled: true }
+		}
+	}
+
 	if (autoCondenseContext) {
-		const contextPercent = (100 * prevContextTokens) / contextWindow
 		if (contextPercent >= effectiveThreshold || prevContextTokens > allowedTokens) {
 			// Attempt to intelligently condense the context
 			const result = await summarizeConversation({

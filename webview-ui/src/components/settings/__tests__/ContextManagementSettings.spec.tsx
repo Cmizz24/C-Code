@@ -47,15 +47,15 @@ vi.mock("@/components/ui", () => ({
 			{children}
 		</button>
 	),
-	Select: ({ children, ...props }: any) => (
-		<div role="combobox" {...props}>
+	Select: ({ children, value, onValueChange, ...props }: any) => (
+		<select role="combobox" value={value} onChange={(e) => onValueChange?.(e.target.value)} {...props}>
 			{children}
-		</div>
+		</select>
 	),
-	SelectTrigger: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-	SelectValue: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-	SelectContent: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-	SelectItem: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+	SelectTrigger: ({ children }: any) => <>{children}</>,
+	SelectValue: () => null,
+	SelectContent: ({ children }: any) => <>{children}</>,
+	SelectItem: ({ children, value }: any) => <option value={value}>{children}</option>,
 	StandardTooltip: ({ children, content }: any) => <div title={content}>{children}</div>,
 }))
 
@@ -88,6 +88,16 @@ describe("ContextManagementSettings", () => {
 	const defaultProps = {
 		autoCondenseContext: false,
 		autoCondenseContextPercent: 80,
+		contextCacheEnabled: true,
+		coldCacheRamBudgetMb: 512,
+		contextCacheStats: {
+			hotCacheTokens: 0,
+			coldCacheChunks: 0,
+			ramUsedMb: 0,
+			swapsThisSession: 0,
+			condensingAvoided: 0,
+		},
+		contextCacheWarning: undefined,
 		listApiConfigMeta: [],
 		maxOpenTabsContext: 20,
 		maxWorkspaceFiles: 200,
@@ -201,6 +211,84 @@ describe("ContextManagementSettings", () => {
 		// Check for checkboxes
 		expect(screen.getByTestId("show-rooignored-files-checkbox")).toBeInTheDocument()
 		expect(screen.getByTestId("auto-condense-context-checkbox")).toBeInTheDocument()
+	})
+
+	describe("Context Window Management cache settings", () => {
+		it("renders context cache controls, RAM budget options, stats, and warning", () => {
+			render(
+				<ContextManagementSettings
+					{...defaultProps}
+					contextCacheStats={{
+						hotCacheTokens: 12345,
+						coldCacheChunks: 7,
+						ramUsedMb: 12.5,
+						swapsThisSession: 3,
+						condensingAvoided: 2,
+					}}
+					contextCacheWarning="Cold cache full — falling back to condensing"
+				/>,
+			)
+
+			expect(screen.getByText("settings:contextManagement.contextWindowManagement.title")).toBeInTheDocument()
+			expect(
+				screen.getByText("settings:contextManagement.contextWindowManagement.description"),
+			).toBeInTheDocument()
+			expect(screen.getByTestId("context-cache-enabled-checkbox")).toBeInTheDocument()
+			expect(screen.getByTestId("cold-cache-ram-budget-select")).toBeInTheDocument()
+			expect(
+				screen.getByText("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.options.256"),
+			).toBeInTheDocument()
+			expect(
+				screen.getByText("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.options.512"),
+			).toBeInTheDocument()
+			expect(
+				screen.getByText("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.options.1024"),
+			).toBeInTheDocument()
+			expect(
+				screen.getByText("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.options.2048"),
+			).toBeInTheDocument()
+
+			const stats = screen.getByTestId("context-cache-stats")
+			expect(stats).toHaveTextContent("settings:contextManagement.contextWindowManagement.stats.hotCacheTokens")
+			expect(stats).toHaveTextContent("12,345")
+			expect(stats).toHaveTextContent("settings:contextManagement.contextWindowManagement.stats.coldCacheChunks")
+			expect(stats).toHaveTextContent("7")
+			expect(stats).toHaveTextContent("settings:contextManagement.contextWindowManagement.stats.ramUsed")
+			expect(stats).toHaveTextContent("12.5 MB")
+			expect(stats).toHaveTextContent("settings:contextManagement.contextWindowManagement.stats.swapsThisSession")
+			expect(stats).toHaveTextContent("3")
+			expect(stats).toHaveTextContent(
+				"settings:contextManagement.contextWindowManagement.stats.condensingAvoided",
+			)
+			expect(stats).toHaveTextContent("2")
+
+			expect(screen.getByTestId("context-cache-warning")).toHaveTextContent(
+				"Cold cache full — falling back to condensing",
+			)
+		})
+
+		it("calls setCachedStateField when context cache toggle is changed", async () => {
+			const setCachedStateField = vi.fn()
+			render(<ContextManagementSettings {...defaultProps} setCachedStateField={setCachedStateField} />)
+
+			const checkbox = screen.getByTestId("context-cache-enabled-checkbox").querySelector("input")!
+			fireEvent.click(checkbox)
+
+			await waitFor(() => {
+				expect(setCachedStateField).toHaveBeenCalledWith("contextCacheEnabled", false)
+			})
+		})
+
+		it("calls setCachedStateField when cold cache RAM budget changes", async () => {
+			const setCachedStateField = vi.fn()
+			render(<ContextManagementSettings {...defaultProps} setCachedStateField={setCachedStateField} />)
+
+			fireEvent.change(screen.getByTestId("cold-cache-ram-budget-select"), { target: { value: "1024" } })
+
+			await waitFor(() => {
+				expect(setCachedStateField).toHaveBeenCalledWith("coldCacheRamBudgetMb", 1024)
+			})
+		})
 	})
 
 	describe("Edge cases for maxDiagnosticMessages", () => {
@@ -333,9 +421,9 @@ describe("ContextManagementSettings", () => {
 		const slider = screen.getByTestId("condense-threshold-slider")
 		expect(slider).toBeInTheDocument()
 
-		// Should render the profile select dropdown
+		// Should render the RAM budget select and profile select dropdown
 		const selects = screen.getAllByRole("combobox")
-		expect(selects).toHaveLength(1)
+		expect(selects).toHaveLength(2)
 	})
 
 	describe("Auto Condense Context functionality", () => {
@@ -368,8 +456,8 @@ describe("ContextManagementSettings", () => {
 
 			// Threshold settings should be visible
 			expect(screen.getByTestId("condense-threshold-slider")).toBeInTheDocument()
-			// One combobox for profile selection
-			expect(screen.getAllByRole("combobox")).toHaveLength(1)
+			// One combobox for RAM budget and one for profile selection
+			expect(screen.getAllByRole("combobox")).toHaveLength(2)
 		})
 
 		it("updates auto condense context percent", () => {
@@ -448,11 +536,24 @@ describe("ContextManagementSettings", () => {
 			render(<ContextManagementSettings {...defaultProps} />)
 
 			// Check that labels are present
+			expect(
+				screen.getAllByText("settings:contextManagement.contextWindowManagement.enabled.label").length,
+			).toBeGreaterThan(0)
+			expect(
+				screen.getAllByText("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.label")
+					.length,
+			).toBeGreaterThan(0)
 			expect(screen.getByText("settings:contextManagement.openTabs.label")).toBeInTheDocument()
 			expect(screen.getByText("settings:contextManagement.workspaceFiles.label")).toBeInTheDocument()
 			expect(screen.getByText("settings:contextManagement.rooignore.label")).toBeInTheDocument()
 
 			// Check that descriptions are present
+			expect(
+				screen.getByText("settings:contextManagement.contextWindowManagement.enabled.description"),
+			).toBeInTheDocument()
+			expect(
+				screen.getByText("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.description"),
+			).toBeInTheDocument()
 			expect(screen.getByText("settings:contextManagement.openTabs.description")).toBeInTheDocument()
 			expect(screen.getByText("settings:contextManagement.workspaceFiles.description")).toBeInTheDocument()
 			expect(screen.getByText("settings:contextManagement.rooignore.description")).toBeInTheDocument()
@@ -464,6 +565,9 @@ describe("ContextManagementSettings", () => {
 			expect(screen.getByTestId("open-tabs-limit-slider")).toBeInTheDocument()
 			expect(screen.getByTestId("workspace-files-limit-slider")).toBeInTheDocument()
 			expect(screen.getByTestId("show-rooignored-files-checkbox")).toBeInTheDocument()
+			expect(screen.getByTestId("context-cache-enabled-checkbox")).toBeInTheDocument()
+			expect(screen.getByTestId("cold-cache-ram-budget-select")).toBeInTheDocument()
+			expect(screen.getByTestId("context-cache-stats")).toBeInTheDocument()
 		})
 	})
 
@@ -474,6 +578,10 @@ describe("ContextManagementSettings", () => {
 			// Verify that translation keys are being used (mocked to return the key)
 			expect(screen.getByText("settings:sections.contextManagement")).toBeInTheDocument()
 			expect(screen.getByText("settings:contextManagement.description")).toBeInTheDocument()
+			expect(screen.getByText("settings:contextManagement.contextWindowManagement.title")).toBeInTheDocument()
+			expect(
+				screen.getByText("settings:contextManagement.contextWindowManagement.description"),
+			).toBeInTheDocument()
 			expect(screen.getByText("settings:contextManagement.openTabs.label")).toBeInTheDocument()
 			expect(screen.getByText("settings:contextManagement.workspaceFiles.label")).toBeInTheDocument()
 			expect(screen.getByText("settings:contextManagement.rooignore.label")).toBeInTheDocument()

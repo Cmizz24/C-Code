@@ -136,6 +136,7 @@ import { ContextProxy } from "../config/ContextProxy"
 import { ProviderSettingsManager } from "../config/ProviderSettingsManager"
 import { CustomModesManager } from "../config/CustomModesManager"
 import { MemoryStorage } from "../memory"
+import { DEFAULT_COLD_CACHE_RAM_BUDGET_MB } from "../context/ContextWindowManager"
 import { Task } from "../task/Task"
 
 import { webviewMessageHandler } from "./webviewMessageHandler"
@@ -5205,6 +5206,8 @@ export class ClineProvider
 			allowedMaxCost,
 			autoCondenseContext,
 			autoCondenseContextPercent,
+			contextCacheEnabled,
+			coldCacheRamBudgetMb,
 			soundEnabled,
 			ttsEnabled,
 			ttsSpeed,
@@ -5340,10 +5343,20 @@ export class ClineProvider
 			allowedMaxCost,
 			autoCondenseContext: autoCondenseContext ?? true,
 			autoCondenseContextPercent: autoCondenseContextPercent ?? 100,
+			contextCacheEnabled: contextCacheEnabled ?? true,
+			coldCacheRamBudgetMb: coldCacheRamBudgetMb ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
 			uriScheme: vscode.env.uriScheme,
 			currentTaskId: currentTask?.taskId,
 			currentTaskItem: currentTask?.taskId ? this.taskHistoryStore.get(currentTask.taskId) : undefined,
 			clineMessages: currentTask?.clineMessages || [],
+			contextCacheStats: currentTask?.getContextCacheStats() ?? {
+				hotCacheTokens: 0,
+				coldCacheChunks: 0,
+				ramUsedMb: 0,
+				swapsThisSession: 0,
+				condensingAvoided: 0,
+			},
+			contextCacheWarning: currentTask?.getContextCacheWarning(),
 			currentTaskTodos: currentTask?.todoList || [],
 			messageQueue: currentTask?.messageQueueService?.messages,
 			taskHistory: this.taskHistoryStore.getAll().filter((item: HistoryItem) => item.ts && item.task),
@@ -5549,6 +5562,8 @@ export class ClineProvider
 			allowedMaxCost: stateValues.allowedMaxCost,
 			autoCondenseContext: stateValues.autoCondenseContext ?? true,
 			autoCondenseContextPercent: stateValues.autoCondenseContextPercent ?? 100,
+			contextCacheEnabled: stateValues.contextCacheEnabled ?? true,
+			coldCacheRamBudgetMb: stateValues.coldCacheRamBudgetMb ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
 			taskHistory: this.taskHistoryStore.getAll(),
 			allowedCommands: stateValues.allowedCommands,
 			deniedCommands: stateValues.deniedCommands,

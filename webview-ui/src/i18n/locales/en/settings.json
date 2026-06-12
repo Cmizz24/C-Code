@@ -884,6 +884,32 @@
 		"enableSubfolderRules": {
 			"label": "Enable subfolder rules",
 			"description": "Recursively discover and load .roo/rules and AGENTS.md files from subdirectories. Useful for monorepos with per-package rules."
+		},
+		"contextWindowManagement": {
+			"title": "Context Window Management",
+			"description": "Keep more useful context available in RAM by moving lower-priority chunks between hot and cold caches before condensing.",
+			"enabled": {
+				"label": "Enable hot/cold context cache",
+				"description": "When enabled, C keeps recoverable context chunks in RAM and tries to avoid condensing when cache pressure can be handled."
+			},
+			"coldCacheRamBudget": {
+				"label": "Cold cache RAM budget",
+				"description": "Choose how much RAM C can use for cold context chunks that can be retrieved later with ask_for_context.",
+				"options": {
+					"256": "256MB",
+					"512": "512MB",
+					"1024": "1GB",
+					"2048": "2GB+"
+				}
+			},
+			"stats": {
+				"title": "Live cache stats",
+				"hotCacheTokens": "Hot cache tokens",
+				"coldCacheChunks": "Cold cache chunks",
+				"ramUsed": "RAM used",
+				"swapsThisSession": "Swaps this session",
+				"condensingAvoided": "Times condensing avoided"
+			}
 		}
 	},
 	"memory": {

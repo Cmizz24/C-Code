@@ -16,6 +16,7 @@ import type { OpenAiCodexRateLimitInfo } from "./providers/openai-codex-rate-lim
 import type { SkillMetadata } from "./skills.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
 import type { GeneratedImageMetadata } from "./image-generation.js"
+import type { ContextCacheSearchResult, ContextCacheStats } from "./context-management.js"
 import type {
 	MemoryKind,
 	MemoryRankBreakdown,
@@ -325,6 +326,8 @@ export type ExtensionState = Pick<
 	| "deniedCommands"
 	| "allowedMaxRequests"
 	| "allowedMaxCost"
+	| "contextCacheEnabled"
+	| "coldCacheRamBudgetMb"
 	| "ttsEnabled"
 	| "ttsSpeed"
 	| "soundEnabled"
@@ -410,6 +413,8 @@ export type ExtensionState = Pick<
 	lockApiConfigAcrossModes?: boolean
 	memoryState?: MemoryState
 	memorySummary?: MemorySummary
+	contextCacheStats?: ContextCacheStats
+	contextCacheWarning?: string
 	version: string
 	clineMessages: ClineMessage[]
 	currentTaskId?: string
@@ -881,6 +886,7 @@ export interface ClineSayTool {
 		| "appliedDiff"
 		| "newFileCreated"
 		| "codebaseSearch"
+		| "askForContext"
 		| "memorySearch"
 		| "mistakeMemory"
 		| "memoryWipe"
@@ -954,6 +960,8 @@ export interface ClineSayTool {
 	toolName?: string
 	mistakeSignature?: string
 	memoryResults?: MemorySearchChatResult[]
+	contextResults?: ContextCacheSearchResult[]
+	filePath?: string
 	autoApproved?: boolean
 	reusedExisting?: boolean
 	memoryWipeStatus?: "pending" | "completed" | "cancelled"

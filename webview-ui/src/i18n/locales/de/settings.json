@@ -822,6 +822,32 @@
 		"enableSubfolderRules": {
 			"label": "Unterordner-Regeln aktivieren",
 			"description": "Rekursiv .roo/rules und AGENTS.md-Dateien aus Unterverzeichnissen laden. Nützlich für Monorepos mit paketspezifischen Regeln."
+		},
+		"contextWindowManagement": {
+			"title": "Verwaltung des Kontextfensters",
+			"description": "Halte mehr nützlichen Kontext im RAM verfügbar, indem niedriger priorisierte Chunks vor dem Kondensieren zwischen Hot- und Cold-Caches verschoben werden.",
+			"enabled": {
+				"label": "Hot/Cold-Kontextcache aktivieren",
+				"description": "Wenn aktiviert, behält C wiederherstellbare Kontext-Chunks im RAM und versucht, Kondensieren zu vermeiden, wenn Cache-Druck bewältigt werden kann."
+			},
+			"coldCacheRamBudget": {
+				"label": "RAM-Budget für Cold Cache",
+				"description": "Wähle aus, wie viel RAM C für Cold-Kontext-Chunks verwenden darf, die später mit ask_for_context abgerufen werden können.",
+				"options": {
+					"256": "256MB",
+					"512": "512MB",
+					"1024": "1GB",
+					"2048": "2GB+"
+				}
+			},
+			"stats": {
+				"title": "Live-Cache-Statistiken",
+				"hotCacheTokens": "Hot-Cache-token",
+				"coldCacheChunks": "Cold-Cache-Chunks",
+				"ramUsed": "Verwendeter RAM",
+				"swapsThisSession": "Swaps in dieser Sitzung",
+				"condensingAvoided": "Wie oft Kondensieren vermieden wurde"
+			}
 		}
 	},
 	"memory": {

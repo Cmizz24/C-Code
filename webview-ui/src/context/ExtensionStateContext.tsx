@@ -254,6 +254,16 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		organizationAllowList: ORGANIZATION_ALLOW_ALL,
 		autoCondenseContext: true,
 		autoCondenseContextPercent: 100,
+		contextCacheEnabled: true,
+		coldCacheRamBudgetMb: 512,
+		contextCacheStats: {
+			hotCacheTokens: 0,
+			coldCacheChunks: 0,
+			ramUsedMb: 0,
+			swapsThisSession: 0,
+			condensingAvoided: 0,
+		},
+		contextCacheWarning: undefined,
 		profileThresholds: {},
 		codebaseIndexConfig: {
 			codebaseIndexEnabled: true,

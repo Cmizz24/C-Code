@@ -26,6 +26,29 @@ export const CONTEXT_MANAGEMENT_EVENTS = [
  */
 export type ContextManagementEvent = (typeof CONTEXT_MANAGEMENT_EVENTS)[number]
 
+export interface ContextCacheStats {
+	hotCacheTokens: number
+	coldCacheChunks: number
+	ramUsedMb: number
+	swapsThisSession: number
+	condensingAvoided: number
+}
+
+export interface ContextCacheSearchResult {
+	id: string
+	type: string
+	content: string
+	filePath?: string
+	tokens: number
+	score: number
+	breakdown?: {
+		queryMatches: number
+		filePathMatch: boolean
+		typeBoost: number
+		recencyBoost: number
+	}
+}
+
 /**
  * Type guard function to check if a value is a valid context management event.
  */

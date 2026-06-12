@@ -1,5 +1,6 @@
 import { HTMLAttributes } from "react"
 import React from "react"
+import type { ContextCacheStats } from "@roo-code/types"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { VSCodeCheckbox, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { FoldVertical } from "lucide-react"
@@ -25,9 +26,31 @@ import { Section } from "./Section"
 import { SearchableSetting } from "./SearchableSetting"
 import { vscode } from "@/utils/vscode"
 
+const DEFAULT_CONTEXT_CACHE_STATS: ContextCacheStats = {
+	hotCacheTokens: 0,
+	coldCacheChunks: 0,
+	ramUsedMb: 0,
+	swapsThisSession: 0,
+	condensingAvoided: 0,
+}
+
+const COLD_CACHE_RAM_OPTIONS = [256, 512, 1024, 2048] as const
+
+const formatContextCacheNumber = (value: number | undefined) => (value ?? 0).toLocaleString()
+
+const formatContextCacheRamUsed = (value: number | undefined) => {
+	const ramUsedMb = value ?? 0
+	const formatted = Number.isInteger(ramUsedMb) ? ramUsedMb.toString() : ramUsedMb.toFixed(1)
+	return `${formatted} MB`
+}
+
 type ContextManagementSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	autoCondenseContext: boolean
 	autoCondenseContextPercent: number
+	contextCacheEnabled: boolean
+	coldCacheRamBudgetMb: number
+	contextCacheStats?: ContextCacheStats
+	contextCacheWarning?: string
 	listApiConfigMeta: any[]
 	maxOpenTabsContext: number
 	maxWorkspaceFiles: number
@@ -47,6 +70,8 @@ type ContextManagementSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	setCachedStateField: SetCachedStateField<
 		| "autoCondenseContext"
 		| "autoCondenseContextPercent"
+		| "contextCacheEnabled"
+		| "coldCacheRamBudgetMb"
 		| "maxOpenTabsContext"
 		| "maxWorkspaceFiles"
 		| "showRooIgnoredFiles"
@@ -66,6 +91,10 @@ type ContextManagementSettingsProps = HTMLAttributes<HTMLDivElement> & {
 export const ContextManagementSettings = ({
 	autoCondenseContext,
 	autoCondenseContextPercent,
+	contextCacheEnabled,
+	coldCacheRamBudgetMb,
+	contextCacheStats = DEFAULT_CONTEXT_CACHE_STATS,
+	contextCacheWarning,
 	listApiConfigMeta,
 	maxOpenTabsContext,
 	maxWorkspaceFiles,
@@ -88,6 +117,28 @@ export const ContextManagementSettings = ({
 }: ContextManagementSettingsProps) => {
 	const { t } = useAppTranslation()
 	const [selectedThresholdProfile, setSelectedThresholdProfile] = React.useState<string>("default")
+	const contextCacheStatItems = [
+		{
+			label: t("settings:contextManagement.contextWindowManagement.stats.hotCacheTokens"),
+			value: formatContextCacheNumber(contextCacheStats.hotCacheTokens),
+		},
+		{
+			label: t("settings:contextManagement.contextWindowManagement.stats.coldCacheChunks"),
+			value: formatContextCacheNumber(contextCacheStats.coldCacheChunks),
+		},
+		{
+			label: t("settings:contextManagement.contextWindowManagement.stats.ramUsed"),
+			value: formatContextCacheRamUsed(contextCacheStats.ramUsedMb),
+		},
+		{
+			label: t("settings:contextManagement.contextWindowManagement.stats.swapsThisSession"),
+			value: formatContextCacheNumber(contextCacheStats.swapsThisSession),
+		},
+		{
+			label: t("settings:contextManagement.contextWindowManagement.stats.condensingAvoided"),
+			value: formatContextCacheNumber(contextCacheStats.condensingAvoided),
+		},
+	]
 
 	// Helper function to get the CONDENSE prompt value
 	const getCondensePromptValue = (): string => {
@@ -143,6 +194,86 @@ export const ContextManagementSettings = ({
 			<SectionHeader description={t("settings:contextManagement.description")}>
 				{t("settings:sections.contextManagement")}
 			</SectionHeader>
+
+			<Section>
+				<div className="flex flex-col gap-4">
+					<div>
+						<h3 className="font-bold m-0">
+							{t("settings:contextManagement.contextWindowManagement.title")}
+						</h3>
+						<p className="text-vscode-descriptionForeground text-sm mt-1 mb-0">
+							{t("settings:contextManagement.contextWindowManagement.description")}
+						</p>
+					</div>
+
+					<SearchableSetting
+						settingId="context-cache-enabled"
+						section="contextManagement"
+						label={t("settings:contextManagement.contextWindowManagement.enabled.label")}>
+						<VSCodeCheckbox
+							checked={contextCacheEnabled}
+							onChange={(e: any) => setCachedStateField("contextCacheEnabled", e.target.checked)}
+							data-testid="context-cache-enabled-checkbox">
+							<span className="font-medium">
+								{t("settings:contextManagement.contextWindowManagement.enabled.label")}
+							</span>
+						</VSCodeCheckbox>
+						<div className="text-vscode-descriptionForeground text-sm mt-1">
+							{t("settings:contextManagement.contextWindowManagement.enabled.description")}
+						</div>
+					</SearchableSetting>
+
+					<SearchableSetting
+						settingId="context-cache-ram-budget"
+						section="contextManagement"
+						label={t("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.label")}>
+						<span className="block font-medium mb-1">
+							{t("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.label")}
+						</span>
+						<Select
+							value={String(coldCacheRamBudgetMb)}
+							onValueChange={(value) => setCachedStateField("coldCacheRamBudgetMb", Number(value))}
+							data-testid="cold-cache-ram-budget-select">
+							<SelectTrigger className="w-full">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{COLD_CACHE_RAM_OPTIONS.map((value) => (
+									<SelectItem key={value} value={String(value)}>
+										{t(
+											`settings:contextManagement.contextWindowManagement.coldCacheRamBudget.options.${value}`,
+										)}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<div className="text-vscode-descriptionForeground text-sm mt-1">
+							{t("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.description")}
+						</div>
+					</SearchableSetting>
+
+					<div className="flex flex-col gap-2" data-testid="context-cache-stats">
+						<div className="font-medium">
+							{t("settings:contextManagement.contextWindowManagement.stats.title")}
+						</div>
+						<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+							{contextCacheStatItems.map((item) => (
+								<div key={item.label} className="rounded border border-vscode-input-border p-2">
+									<div className="text-vscode-descriptionForeground text-xs">{item.label}</div>
+									<div className="font-medium">{item.value}</div>
+								</div>
+							))}
+						</div>
+						{contextCacheWarning && (
+							<div
+								className="rounded border border-vscode-inputValidation-warningBorder bg-vscode-inputValidation-warningBackground text-vscode-inputValidation-warningForeground p-2 text-sm"
+								data-testid="context-cache-warning">
+								{contextCacheWarning}
+							</div>
+						)}
+					</div>
+				</div>
+			</Section>
 
 			<Section>
 				<SearchableSetting

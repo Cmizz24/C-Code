@@ -264,6 +264,14 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 			// Track file edit operation
 			if (relPath) {
 				await task.fileContextTracker.trackFileContext(relPath, "roo_edited" as RecordSource)
+				task.registerContextChunk({
+					type: "diff",
+					content: `${unifiedPatch}\n\nApplied diff input:\n${diffContent}`,
+					metadata: {
+						filePath: relPath,
+						source: "apply_diff",
+					},
+				})
 			}
 
 			// Used to determine if we should wait for busy terminal to update before sending api request

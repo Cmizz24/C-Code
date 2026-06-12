@@ -72,6 +72,7 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 
 		try {
 			let fileExists: boolean
+			let contextCacheDiffContent = ""
 			const absolutePath = path.resolve(task.cwd, relPath)
 
 			if (task.diffViewProvider.editType !== undefined) {
@@ -137,6 +138,7 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 					? formatResponse.createPrettyPatch(relPath, task.diffViewProvider.originalContent, newContent)
 					: convertNewFileToUnifiedDiff(newContent, relPath)
 				unified = sanitizeUnifiedDiff(unified)
+				contextCacheDiffContent = unified
 				const diffStats = computeDiffStats(unified) || undefined
 				const changeSummary = formatChangeSummary(diffStats)
 				const completeMessage = JSON.stringify({
@@ -182,6 +184,7 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 					? formatResponse.createPrettyPatch(relPath, task.diffViewProvider.originalContent, newContent)
 					: convertNewFileToUnifiedDiff(newContent, relPath)
 				unified = sanitizeUnifiedDiff(unified)
+				contextCacheDiffContent = unified
 				const diffStats = computeDiffStats(unified) || undefined
 				const changeSummary = formatChangeSummary(diffStats)
 				const completeMessage = JSON.stringify({
@@ -209,6 +212,14 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 			reportFileProgress(task, relPath, `Finalizing write result for ${relPath}.`)
 			if (relPath) {
 				await task.fileContextTracker.trackFileContext(relPath, "roo_edited" as RecordSource)
+				task.registerContextChunk({
+					type: "diff",
+					content: contextCacheDiffContent || `File: ${relPath}\n${newContent}`,
+					metadata: {
+						filePath: relPath,
+						source: "write_to_file",
+					},
+				})
 			}
 
 			task.didEditFile = true

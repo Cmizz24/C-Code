@@ -822,6 +822,32 @@
 		"enableSubfolderRules": {
 			"label": "Alt klasör kurallarını etkinleştir",
 			"description": "Alt dizinlerden .roo/rules ve AGENTS.md dosyalarını yinelemeli olarak keşfet ve yükle. Paket başına kuralları olan monorepo'lar için kullanışlı."
+		},
+		"contextWindowManagement": {
+			"title": "Bağlam Penceresi Yönetimi",
+			"description": "Condensing öncesinde düşük öncelikli chunk'ları hot ve cold cache'ler arasında taşıyarak RAM'de daha fazla yararlı bağlam hazır tut.",
+			"enabled": {
+				"label": "Hot/cold bağlam cache'ini etkinleştir",
+				"description": "Etkinleştirildiğinde C, kurtarılabilir bağlam chunk'larını RAM'de tutar ve cache pressure yönetilebildiğinde condensing işleminden kaçınmaya çalışır."
+			},
+			"coldCacheRamBudget": {
+				"label": "Cold cache RAM bütçesi",
+				"description": "C'nin daha sonra ask_for_context ile geri getirilebilecek cold bağlam chunk'ları için ne kadar RAM kullanabileceğini seç.",
+				"options": {
+					"256": "256MB",
+					"512": "512MB",
+					"1024": "1GB",
+					"2048": "2GB+"
+				}
+			},
+			"stats": {
+				"title": "Canlı cache istatistikleri",
+				"hotCacheTokens": "Hot cache tokens",
+				"coldCacheChunks": "Cold cache chunk'ları",
+				"ramUsed": "Kullanılan RAM",
+				"swapsThisSession": "Bu oturumdaki swap'lar",
+				"condensingAvoided": "Condensing'den kaçınılan kez"
+			}
 		}
 	},
 	"memory": {
