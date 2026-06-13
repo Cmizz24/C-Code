@@ -53,6 +53,7 @@ export const toolNames = [
 	"plan_parallel_tasks",
 	"coordinate_agents",
 	"codebase_search",
+	"ask_for_context",
 	"memory_search",
 	"mistake_memory",
 	"memory_wipe",

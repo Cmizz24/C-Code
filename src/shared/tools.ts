@@ -3,6 +3,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import type {
 	AgentCoordinationKind,
 	AgentDependency,
+	AskForContextToolParams,
 	ClineAsk,
 	FileOwnership,
 	GenerateImageParams,
@@ -82,6 +83,7 @@ export const toolParamNames = [
 	"task",
 	"size",
 	"query",
+	"filePath",
 	"args",
 	"skill", // skill tool parameter
 	"start_line",
@@ -202,6 +204,7 @@ export type NativeToolArgs = {
 		follow_up: Array<{ text: string; mode?: string }>
 	}
 	codebase_search: { query: string; path?: string }
+	ask_for_context: AskForContextToolParams
 	memory_search: MemorySearchToolParams
 	mistake_memory: MistakeMemoryToolParams
 	memory_wipe: MemoryWipeToolParams
@@ -304,6 +307,11 @@ export interface CodebaseSearchToolUse extends ToolUse<"codebase_search"> {
 export interface MemorySearchToolUse extends ToolUse<"memory_search"> {
 	name: "memory_search"
 	params: Partial<Pick<Record<ToolParamName, string>, "query" | "scope" | "status" | "limit" | "includePending">>
+}
+
+export interface AskForContextToolUse extends ToolUse<"ask_for_context"> {
+	name: "ask_for_context"
+	params: Partial<Pick<Record<ToolParamName, string>, "query" | "filePath">>
 }
 
 export interface MistakeMemoryToolUse extends ToolUse<"mistake_memory"> {
@@ -431,6 +439,7 @@ export const TOOL_DISPLAY_NAMES: Record<ToolName, string> = {
 	plan_parallel_tasks: "plan parallel tasks",
 	coordinate_agents: "coordinate with parallel agents",
 	codebase_search: "codebase search",
+	ask_for_context: "ask context cache",
 	memory_search: "search memories",
 	mistake_memory: "save mistake memory",
 	memory_wipe: "wipe memory",
@@ -463,7 +472,7 @@ export const TOOL_GROUPS: Record<ToolGroup, ToolGroupConfig> = {
 		tools: ["use_mcp_tool", "access_mcp_resource"],
 	},
 	memory: {
-		tools: ["memory_search", "mistake_memory", "memory_wipe"],
+		tools: ["ask_for_context", "memory_search", "mistake_memory", "memory_wipe"],
 	},
 	modes: {
 		tools: ["switch_mode", "new_task"],
@@ -481,6 +490,7 @@ export const ALWAYS_AVAILABLE_TOOLS: ToolName[] = [
 	"switch_mode",
 	"new_task",
 	"coordinate_agents",
+	"ask_for_context",
 	"memory_search",
 	"mistake_memory",
 	"memory_wipe",

@@ -822,6 +822,40 @@
 		"enableSubfolderRules": {
 			"label": "Activa les regles dels subdirectoris",
 			"description": "Descobreix i carrega recursivament fitxers .roo/rules i AGENTS.md des de subdirectoris. Útil per a monorepos amb regles per paquet."
+		},
+		"contextWindowManagement": {
+			"title": "Gestió de la finestra de context",
+			"description": "Mantén més context útil disponible a la RAM movent fragments de menor prioritat entre les memòries cau hot i cold abans de condensar.",
+			"enabled": {
+				"label": "Activa la memòria cau de context hot/cold",
+				"description": "Quan està activat, C conserva a la RAM fragments de context recuperables i intenta evitar la condensació quan es pot gestionar la pressió de la memòria cau."
+			},
+			"coldCacheRamBudget": {
+				"label": "Pressupost de RAM de la cold cache",
+				"description": "Tria quanta RAM pot utilitzar C per als fragments de context cold que es poden recuperar després amb ask_for_context.",
+				"options": {
+					"256": "256MB",
+					"512": "512MB",
+					"1024": "1GB",
+					"2048": "2GB+"
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}} (recomanat)",
+				"vramNote": "C fa servir la RAM del sistema per als fragments de context freds. Les extensions de VS Code no tenen emmagatzematge VRAM directe i portable, i moure fragments de text a la VRAM afegeix complexitat amb poc benefici."
+			},
+			"stats": {
+				"title": "Estadístiques en directe de la memòria cau",
+				"hotCacheTokens": "Tokens de hot cache",
+				"coldCacheChunks": "Fragments de cold cache",
+				"ramUsed": "RAM utilitzada",
+				"swapsThisSession": "Intercanvis en aquesta sessió",
+				"condensingAvoided": "Vegades que s'ha evitat la condensació",
+				"hotCacheChunks": "Fragments de memòria cau calenta",
+				"ramBudget": "Pressupost de RAM"
+			}
 		}
 	},
 	"memory": {

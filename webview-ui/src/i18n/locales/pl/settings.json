@@ -822,6 +822,40 @@
 		"enableSubfolderRules": {
 			"label": "Włącz reguły podfolderów",
 			"description": "Rekursywnie odkrywaj i ładuj pliki .roo/rules i AGENTS.md z podkatalogów. Przydatne dla monorepo z regułami dla poszczególnych pakietów."
+		},
+		"contextWindowManagement": {
+			"title": "Zarządzanie oknem kontekstu",
+			"description": "Zachowaj więcej przydatnego kontekstu w RAM, przenosząc chunki o niższym priorytecie między cache hot i cold przed kondensowaniem.",
+			"enabled": {
+				"label": "Włącz cache kontekstu hot/cold",
+				"description": "Po włączeniu C trzyma odzyskiwalne chunki kontekstu w RAM i próbuje uniknąć kondensowania, gdy presję cache da się obsłużyć."
+			},
+			"coldCacheRamBudget": {
+				"label": "Budżet RAM cache cold",
+				"description": "Wybierz, ile RAM C może używać na chunki kontekstu cold, które można później odzyskać przez ask_for_context.",
+				"options": {
+					"256": "256MB",
+					"512": "512MB",
+					"1024": "1GB",
+					"2048": "2GB+"
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}} (zalecane)",
+				"vramNote": "C używa systemowego RAM dla cold context chunks. Rozszerzenia VS Code nie mają przenośnego bezpośredniego magazynu VRAM, a przenoszenie chunków tekstu do VRAM dodaje złożoność przy małej korzyści."
+			},
+			"stats": {
+				"title": "Statystyki cache na żywo",
+				"hotCacheTokens": "Tokeny cache hot",
+				"coldCacheChunks": "Chunki cache cold",
+				"ramUsed": "Użyty RAM",
+				"swapsThisSession": "Swapy w tej sesji",
+				"condensingAvoided": "Liczba unikniętych kondensowań",
+				"hotCacheChunks": "Chunki hot cache",
+				"ramBudget": "Budżet RAM"
+			}
 		}
 	},
 	"memory": {

@@ -832,6 +832,40 @@
 		"enableSubfolderRules": {
 			"label": "啟用子資料夾規則",
 			"description": "遞迴發現並載入子目錄中的 .roo/rules 和 AGENTS.md 檔案。適用於具有每包規則的 monorepo。"
+		},
+		"contextWindowManagement": {
+			"title": "上下文視窗管理",
+			"description": "在 condense 前，將較低優先級的 chunk 在 hot cache 和 cold cache 之間移動，讓更多有用上下文保留在 RAM 中。",
+			"enabled": {
+				"label": "啟用 hot/cold 上下文 cache",
+				"description": "啟用後，C 會把可恢復的上下文 chunk 保留在 RAM 中，並在可以處理 cache pressure 時嘗試避免 condensing。"
+			},
+			"coldCacheRamBudget": {
+				"label": "Cold cache RAM 預算",
+				"description": "選擇 C 可用於 cold 上下文 chunk 的 RAM 量，這些 chunk 稍後可用 ask_for_context 取回。",
+				"options": {
+					"256": "256MB",
+					"512": "512MB",
+					"1024": "1GB",
+					"2048": "2GB+"
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}}（建議）",
+				"vramNote": "C 使用系統 RAM 存放冷上下文區塊。VS Code 擴充功能沒有可攜式的直接 VRAM 儲存，把文字區塊移入 VRAM 會增加複雜度，但收益很小。"
+			},
+			"stats": {
+				"title": "即時 cache 統計",
+				"hotCacheTokens": "Hot cache tokens",
+				"coldCacheChunks": "Cold cache chunks",
+				"ramUsed": "已用 RAM",
+				"swapsThisSession": "本工作階段 swaps",
+				"condensingAvoided": "避免 condensing 的次數",
+				"hotCacheChunks": "熱快取區塊",
+				"ramBudget": "RAM 預算"
+			}
 		}
 	},
 	"memory": {

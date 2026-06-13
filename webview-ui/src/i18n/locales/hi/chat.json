@@ -19,7 +19,17 @@
 		"shareSuccessPublic": "सार्वजनिक लिंक क्लिपबोर्ड में कॉपी किया गया",
 		"openApiHistory": "API इतिहास खोलें",
 		"openUiHistory": "UI इतिहास खोलें",
-		"backToParentTask": "मूल कार्य"
+		"backToParentTask": "मूल कार्य",
+		"contextCache": {
+			"label": "Context Cache",
+			"hotCache": "Hot cache",
+			"coldCache": "Cold cache",
+			"hotShort": "hot",
+			"coldShort": "cold",
+			"swaps": "स्वैप",
+			"condensingAvoided": "Condensing टाली गई",
+			"warning": "चेतावनी"
+		}
 	},
 	"unpin": "पिन करें",
 	"pin": "अवपिन करें",
@@ -424,6 +434,32 @@
 			"messagesRemoved": "{{count}} संदेश हटाया गया",
 			"messagesRemoved_other": "{{count}} संदेश हटाए गए",
 			"description": "संदर्भ विंडो सीमा के भीतर रहने के लिए बातचीत से पुराने संदेश हटा दिए गए। संघनन की तुलना में यह एक तेज़ लेकिन कम संदर्भ-संरक्षित दृष्टिकोण है।"
+		},
+		"contextCache": {
+			"summary": {
+				"chunks_one": "{{count}} chunk",
+				"chunks_other": "{{count}} chunks"
+			},
+			"titles": {
+				"chunks_moved_to_cold": "Context को cold cache में ले जाया गया",
+				"chunks_pulled_from_cold": "Context को cold cache से निकाला गया",
+				"condensing_avoided": "Context condensing टाली गई",
+				"cold_cache_full": "Cold cache भर गया"
+			},
+			"descriptions": {
+				"chunks_moved_to_cold": "पुराने context chunks को hot window से हटाकर बाद में वापस लाने के लिए RAM में रखा गया।",
+				"chunks_pulled_from_cold": "ask_for_context ने अधिक context मांगा, इसलिए संबंधित cold-cache chunks बहाल किए गए।",
+				"condensing_avoided": "Hot/cold cache ने पर्याप्त जगह खाली कर दी, इसलिए C ने automatic condensing छोड़ दी।",
+				"cold_cache_full": "RAM budget भर गया है, इसलिए C regular context condensing पर लौट गया।"
+			},
+			"details": {
+				"chunks": "Chunks",
+				"tokens": "Tokens",
+				"ram": "RAM",
+				"query": "क्वेरी",
+				"file": "फ़ाइल",
+				"warning": "चेतावनी"
+			}
 		}
 	},
 	"skill": {

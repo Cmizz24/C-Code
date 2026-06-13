@@ -822,6 +822,40 @@
 		"enableSubfolderRules": {
 			"label": "Submap-regels inschakelen",
 			"description": "Recursief .roo/rules en AGENTS.md-bestanden uit submappen ontdekken en laden. Handig voor monorepo's met regels per pakket."
+		},
+		"contextWindowManagement": {
+			"title": "Contextvensterbeheer",
+			"description": "Houd meer nuttige context beschikbaar in RAM door chunks met lagere prioriteit vóór het condenseren tussen hot en cold caches te verplaatsen.",
+			"enabled": {
+				"label": "Hot/cold-contextcache inschakelen",
+				"description": "Wanneer ingeschakeld houdt C herstelbare contextchunks in RAM en probeert condenseren te vermijden wanneer cachedruk kan worden afgehandeld."
+			},
+			"coldCacheRamBudget": {
+				"label": "RAM-budget voor cold cache",
+				"description": "Kies hoeveel RAM C mag gebruiken voor cold contextchunks die later met ask_for_context kunnen worden opgehaald.",
+				"options": {
+					"256": "256MB",
+					"512": "512MB",
+					"1024": "1GB",
+					"2048": "2GB+"
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}} (aanbevolen)",
+				"vramNote": "C gebruikt systeem-RAM voor cold contextchunks. VS Code-extensies hebben geen draagbare directe VRAM-opslag, en tekstchunks naar VRAM verplaatsen voegt complexiteit toe met weinig voordeel."
+			},
+			"stats": {
+				"title": "Live cache-statistieken",
+				"hotCacheTokens": "Hot cache tokens",
+				"coldCacheChunks": "Cold cache chunks",
+				"ramUsed": "Gebruikte RAM",
+				"swapsThisSession": "Swaps deze sessie",
+				"condensingAvoided": "Aantal keren condenseren vermeden",
+				"hotCacheChunks": "Hotcachechunks",
+				"ramBudget": "RAM-budget"
+			}
 		}
 	},
 	"memory": {

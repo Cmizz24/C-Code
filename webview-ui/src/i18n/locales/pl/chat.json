@@ -19,7 +19,17 @@
 		"shareSuccessPublic": "Link publiczny skopiowany do schowka",
 		"openApiHistory": "Otwórz historię API",
 		"openUiHistory": "Otwórz historię UI",
-		"backToParentTask": "Zadanie nadrzędne"
+		"backToParentTask": "Zadanie nadrzędne",
+		"contextCache": {
+			"label": "Pamięć cache kontekstu",
+			"hotCache": "Hot cache",
+			"coldCache": "Cold cache",
+			"hotShort": "hot",
+			"coldShort": "cold",
+			"swaps": "Zamiany",
+			"condensingAvoided": "Uniknięte kondensacje",
+			"warning": "Ostrzeżenie"
+		}
 	},
 	"unpin": "Odepnij",
 	"pin": "Przypnij",
@@ -424,6 +434,32 @@
 			"messagesRemoved": "{{count}} wiadomość usunięta",
 			"messagesRemoved_other": "{{count}} wiadomości usunięte",
 			"description": "Starsze wiadomości zostały usunięte z konwersacji, aby pozostać w granicach okna kontekstu. To szybsze, ale mniej zachowujące kontekst podejście w porównaniu z kondensacją."
+		},
+		"contextCache": {
+			"summary": {
+				"chunks_one": "{{count}} chunk",
+				"chunks_other": "{{count}} chunki"
+			},
+			"titles": {
+				"chunks_moved_to_cold": "Kontekst przeniesiony do cold cache",
+				"chunks_pulled_from_cold": "Kontekst pobrany z cold cache",
+				"condensing_avoided": "Uniknięto kondensacji kontekstu",
+				"cold_cache_full": "Cold cache pełny"
+			},
+			"descriptions": {
+				"chunks_moved_to_cold": "Starsze chunki kontekstu zostały usunięte z hot window i zachowane w RAM do późniejszego pobrania.",
+				"chunks_pulled_from_cold": "Odpowiednie chunki cold cache zostały przywrócone po tym, jak ask_for_context poprosiło o więcej kontekstu.",
+				"condensing_avoided": "Hot/cold cache zwolnił wystarczająco dużo miejsca, więc C pominął automatyczną kondensację.",
+				"cold_cache_full": "Budżet RAM jest pełny, więc C wrócił do zwykłej kondensacji kontekstu."
+			},
+			"details": {
+				"chunks": "Chunki",
+				"tokens": "Tokens",
+				"ram": "RAM",
+				"query": "Zapytanie",
+				"file": "Plik",
+				"warning": "Ostrzeżenie"
+			}
 		}
 	},
 	"skill": {

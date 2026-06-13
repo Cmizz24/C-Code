@@ -822,6 +822,40 @@
 		"enableSubfolderRules": {
 			"label": "Abilita regole sottocartelle",
 			"description": "Scopri e carica ricorsivamente i file .roo/rules e AGENTS.md dalle sottodirectory. Utile per i monorepo con regole per pacchetto."
+		},
+		"contextWindowManagement": {
+			"title": "Gestione finestra di contesto",
+			"description": "Mantieni più contesto utile disponibile in RAM spostando chunk a priorità inferiore tra cache hot e cold prima della condensazione.",
+			"enabled": {
+				"label": "Abilita cache di contesto hot/cold",
+				"description": "Quando abilitata, C mantiene in RAM chunk di contesto recuperabili e prova a evitare la condensazione quando la pressione della cache può essere gestita."
+			},
+			"coldCacheRamBudget": {
+				"label": "Budget RAM della cache cold",
+				"description": "Scegli quanta RAM C può usare per chunk di contesto cold che possono essere recuperati più tardi con ask_for_context.",
+				"options": {
+					"256": "256MB",
+					"512": "512MB",
+					"1024": "1GB",
+					"2048": "2GB+"
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}} (consigliato)",
+				"vramNote": "C usa la RAM di sistema per i frammenti di contesto freddi. Le estensioni VS Code non hanno uno storage VRAM diretto portabile, e spostare frammenti di testo nella VRAM aggiunge complessità con pochi benefici."
+			},
+			"stats": {
+				"title": "Statistiche cache live",
+				"hotCacheTokens": "Token della cache hot",
+				"coldCacheChunks": "Chunk della cache cold",
+				"ramUsed": "RAM usata",
+				"swapsThisSession": "Swap in questa sessione",
+				"condensingAvoided": "Volte in cui la condensazione è stata evitata",
+				"hotCacheChunks": "Frammenti della cache calda",
+				"ramBudget": "Budget RAM"
+			}
 		}
 	},
 	"memory": {

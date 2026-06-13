@@ -12,6 +12,7 @@ import {
 	type ExtensionState,
 	type SkillMetadata,
 	type Command,
+	type ContextCacheBudgetOption,
 	type McpServer,
 	RouterModels,
 	ORGANIZATION_ALLOW_ALL,
@@ -31,6 +32,12 @@ import { experimentDefault } from "@roo/experiments"
 
 import { vscode } from "@src/utils/vscode"
 import { convertTextMateToHljs } from "@src/utils/textMateToHljs"
+
+const DEFAULT_COLD_CACHE_RAM_BUDGET_MB = 1024
+const DEFAULT_CONTEXT_CACHE_BUDGET_OPTIONS: ContextCacheBudgetOption[] = [
+	{ valueMb: DEFAULT_COLD_CACHE_RAM_BUDGET_MB, recommended: true },
+	{ valueMb: 2048 },
+]
 
 export interface ExtensionStateContextType extends ExtensionState {
 	historyPreviewCollapsed?: boolean // Add the new state property
@@ -254,6 +261,19 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		organizationAllowList: ORGANIZATION_ALLOW_ALL,
 		autoCondenseContext: true,
 		autoCondenseContextPercent: 100,
+		contextCacheEnabled: true,
+		coldCacheRamBudgetMb: DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
+		contextCacheBudgetOptions: DEFAULT_CONTEXT_CACHE_BUDGET_OPTIONS,
+		contextCacheStats: {
+			hotCacheTokens: 0,
+			hotCacheChunks: 0,
+			coldCacheChunks: 0,
+			ramUsedMb: 0,
+			ramBudgetMb: DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
+			swapsThisSession: 0,
+			condensingAvoided: 0,
+		},
+		contextCacheWarning: undefined,
 		profileThresholds: {},
 		codebaseIndexConfig: {
 			codebaseIndexEnabled: true,

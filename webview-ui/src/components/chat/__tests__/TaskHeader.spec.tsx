@@ -4,7 +4,7 @@ import React from "react"
 import { render, screen, fireEvent } from "@/utils/test-utils"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
-import type { ProviderSettings } from "@roo-code/types"
+import type { ContextCacheStats, ProviderSettings } from "@roo-code/types"
 
 import TaskHeader, { TaskHeaderProps } from "../TaskHeader"
 
@@ -40,6 +40,9 @@ const mockExtensionState: {
 	apiConfiguration: ProviderSettings
 	currentTaskItem: { id: string } | null
 	clineMessages: any[]
+	contextCacheEnabled: boolean
+	contextCacheStats: ContextCacheStats
+	contextCacheWarning?: string
 } = {
 	apiConfiguration: {
 		apiProvider: "anthropic",
@@ -48,6 +51,17 @@ const mockExtensionState: {
 	} as ProviderSettings,
 	currentTaskItem: { id: "test-task-id" },
 	clineMessages: [],
+	contextCacheEnabled: true,
+	contextCacheStats: {
+		hotCacheTokens: 12345,
+		hotCacheChunks: 3,
+		coldCacheChunks: 7,
+		ramUsedMb: 128,
+		ramBudgetMb: 2048,
+		swapsThisSession: 5,
+		condensingAvoided: 2,
+	},
+	contextCacheWarning: undefined,
 }
 
 // Mock the ExtensionStateContext
@@ -107,6 +121,57 @@ describe("TaskHeader", () => {
 			</QueryClientProvider>,
 		)
 	}
+
+	beforeEach(() => {
+		vi.clearAllMocks()
+		mockExtensionState.contextCacheEnabled = true
+		mockExtensionState.contextCacheStats = {
+			hotCacheTokens: 12345,
+			hotCacheChunks: 3,
+			coldCacheChunks: 7,
+			ramUsedMb: 128,
+			ramBudgetMb: 2048,
+			swapsThisSession: 5,
+			condensingAvoided: 2,
+		}
+		mockExtensionState.contextCacheWarning = undefined
+	})
+
+	it("should display hot and cold context cache status in the collapsed header", () => {
+		renderTaskHeader()
+
+		const status = screen.getByTestId("context-cache-collapsed-status")
+		expect(status).toBeInTheDocument()
+		expect(status).toHaveTextContent("3 chat:task.contextCache.hotShort / 7 chat:task.contextCache.coldShort")
+		expect(status).toHaveTextContent("128MB/2GB")
+	})
+
+	it("should display context cache stats and warnings when expanded", () => {
+		mockExtensionState.contextCacheWarning = "Cold cache full — falling back to condensing"
+
+		renderTaskHeader()
+		fireEvent.click(screen.getByText("Test task"))
+
+		const status = screen.getByTestId("context-cache-status")
+		expect(status).toHaveTextContent("chat:task.contextCache.label")
+		expect(status).toHaveTextContent("chat:task.contextCache.hotCache: 3 / 12.3k chat:contextManagement.tokens")
+		expect(status).toHaveTextContent("chat:task.contextCache.coldCache: 7 / 128MB / 2GB")
+		expect(status).toHaveTextContent("chat:task.contextCache.swaps: 5")
+		expect(status).toHaveTextContent("chat:task.contextCache.condensingAvoided: 2")
+		expect(screen.getByTestId("context-cache-status-warning")).toHaveTextContent(
+			"Cold cache full — falling back to condensing",
+		)
+	})
+
+	it("should hide context cache status when the context cache is disabled", () => {
+		mockExtensionState.contextCacheEnabled = false
+
+		renderTaskHeader()
+
+		expect(screen.queryByTestId("context-cache-collapsed-status")).not.toBeInTheDocument()
+		fireEvent.click(screen.getByText("Test task"))
+		expect(screen.queryByTestId("context-cache-status")).not.toBeInTheDocument()
+	})
 
 	it("should display cost when totalCost is greater than 0", () => {
 		renderTaskHeader()

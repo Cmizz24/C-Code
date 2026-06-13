@@ -19,7 +19,17 @@
 		"shareSuccessPublic": "Enlace público copiado al portapapeles",
 		"openApiHistory": "Abrir historial de API",
 		"openUiHistory": "Abrir historial de UI",
-		"backToParentTask": "Tarea principal"
+		"backToParentTask": "Tarea principal",
+		"contextCache": {
+			"label": "Caché de contexto",
+			"hotCache": "Caché caliente",
+			"coldCache": "Caché fría",
+			"hotShort": "caliente",
+			"coldShort": "fría",
+			"swaps": "Intercambios",
+			"condensingAvoided": "Condensaciones evitadas",
+			"warning": "Advertencia"
+		}
 	},
 	"unpin": "Desfijar",
 	"pin": "Fijar",
@@ -424,6 +434,32 @@
 			"messagesRemoved": "{{count}} mensaje eliminado",
 			"messagesRemoved_other": "{{count}} mensajes eliminados",
 			"description": "Se eliminaron mensajes más antiguos de la conversación para mantenerse dentro del límite de la ventana de contexto. Este es un enfoque rápido pero menos conservador del contexto en comparación con la condensación."
+		},
+		"contextCache": {
+			"summary": {
+				"chunks_one": "{{count}} fragmento",
+				"chunks_other": "{{count}} fragmentos"
+			},
+			"titles": {
+				"chunks_moved_to_cold": "Contexto movido a la caché fría",
+				"chunks_pulled_from_cold": "Contexto recuperado de la caché fría",
+				"condensing_avoided": "Condensación de contexto evitada",
+				"cold_cache_full": "Caché fría llena"
+			},
+			"descriptions": {
+				"chunks_moved_to_cold": "Los fragmentos de contexto antiguos se sacaron de la ventana caliente y se mantuvieron en RAM para recuperarlos más tarde.",
+				"chunks_pulled_from_cold": "Se restauraron fragmentos relevantes de la caché fría después de que ask_for_context solicitara más contexto.",
+				"condensing_avoided": "La caché caliente/fría liberó espacio suficiente, así que C omitió la condensación automática.",
+				"cold_cache_full": "El presupuesto de RAM está lleno, así que C volvió a la condensación de contexto normal."
+			},
+			"details": {
+				"chunks": "Fragmentos",
+				"tokens": "Tokens",
+				"ram": "RAM",
+				"query": "Consulta",
+				"file": "Archivo",
+				"warning": "Advertencia"
+			}
 		}
 	},
 	"skill": {

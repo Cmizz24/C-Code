@@ -51,7 +51,13 @@ import { Markdown } from "./Markdown"
 import { CommandExecution } from "./CommandExecution"
 import { CommandExecutionError } from "./CommandExecutionError"
 import { AutoApprovedRequestLimitWarning } from "./AutoApprovedRequestLimitWarning"
-import { InProgressRow, CondensationResultRow, CondensationErrorRow, TruncationResultRow } from "./context-management"
+import {
+	InProgressRow,
+	CondensationResultRow,
+	CondensationErrorRow,
+	TruncationResultRow,
+	ContextCacheEventRow,
+} from "./context-management"
 import CodebaseSearchResultsDisplay from "./CodebaseSearchResultsDisplay"
 import { appendImages } from "@src/utils/imageUtils"
 import { McpExecution } from "./McpExecution"
@@ -2340,6 +2346,11 @@ export const ChatRowContent = ({
 					// Completed state
 					if (message.contextTruncation) {
 						return <TruncationResultRow data={message.contextTruncation} />
+					}
+					return null
+				case "context_cache_event":
+					if (message.contextCacheEvent) {
+						return <ContextCacheEventRow event={message.contextCacheEvent} />
 					}
 					return null
 				case "codebase_search_result":

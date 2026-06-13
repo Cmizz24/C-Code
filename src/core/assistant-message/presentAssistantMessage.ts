@@ -42,6 +42,7 @@ import { visualBrowserInspectorTool } from "../tools/VisualBrowserInspectorTool"
 import { applyDiffTool as applyDiffToolClass } from "../tools/ApplyDiffTool"
 import { isValidToolName, validateToolUse } from "../tools/validateToolUse"
 import { codebaseSearchTool } from "../tools/CodebaseSearchTool"
+import { askForContextTool } from "../tools/AskForContextTool"
 import { memorySearchTool } from "../tools/MemorySearchTool"
 import { memoryWipeTool } from "../tools/MemoryWipeTool"
 import { mistakeMemoryTool } from "../tools/MistakeMemoryTool"
@@ -488,6 +489,8 @@ export async function presentAssistantMessage(cline: Task) {
 						return `[${block.name} to '${block.params.mode_slug}'${block.params.reason ? ` because: ${block.params.reason}` : ""}]`
 					case "codebase_search":
 						return `[${block.name} for '${block.params.query}']`
+					case "ask_for_context":
+						return `[${block.name} for '${block.params.query}']`
 					case "memory_search":
 						return `[${block.name} for '${block.params.query}']`
 					case "mistake_memory":
@@ -876,6 +879,13 @@ export async function presentAssistantMessage(cline: Task) {
 					break
 				case "codebase_search":
 					await codebaseSearchTool.handle(cline, block as ToolUse<"codebase_search">, {
+						askApproval,
+						handleError,
+						pushToolResult,
+					})
+					break
+				case "ask_for_context":
+					await askForContextTool.handle(cline, block as ToolUse<"ask_for_context">, {
 						askApproval,
 						handleError,
 						pushToolResult,

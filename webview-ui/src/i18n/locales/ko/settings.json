@@ -822,6 +822,40 @@
 		"enableSubfolderRules": {
 			"label": "하위 폴더 규칙 활성화",
 			"description": "하위 디렉토리에서 .roo/rules 및 AGENTS.md 파일을 재귀적으로 검색하고 로드합니다. 패키지별 규칙이 있는 모노레포에 유용합니다."
+		},
+		"contextWindowManagement": {
+			"title": "컨텍스트 창 관리",
+			"description": "condensing 전에 우선순위가 낮은 chunk를 hot cache와 cold cache 사이로 이동해 더 많은 유용한 context를 RAM에 유지합니다.",
+			"enabled": {
+				"label": "hot/cold 컨텍스트 cache 활성화",
+				"description": "활성화하면 C가 복구 가능한 context chunk를 RAM에 유지하고 cache pressure를 처리할 수 있을 때 condensing을 피하려고 합니다."
+			},
+			"coldCacheRamBudget": {
+				"label": "Cold cache RAM 예산",
+				"description": "나중에 ask_for_context로 가져올 수 있는 cold context chunk에 C가 사용할 RAM 양을 선택합니다.",
+				"options": {
+					"256": "256MB",
+					"512": "512MB",
+					"1024": "1GB",
+					"2048": "2GB+"
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}}(권장)",
+				"vramNote": "C는 콜드 컨텍스트 청크에 시스템 RAM을 사용합니다. VS Code 확장에는 이식 가능한 직접 VRAM 저장소가 없으며, 텍스트 청크를 VRAM으로 옮기면 이점은 적고 복잡도만 커집니다."
+			},
+			"stats": {
+				"title": "실시간 cache 통계",
+				"hotCacheTokens": "Hot cache tokens",
+				"coldCacheChunks": "Cold cache chunks",
+				"ramUsed": "사용한 RAM",
+				"swapsThisSession": "이번 세션의 swap",
+				"condensingAvoided": "condensing을 피한 횟수",
+				"hotCacheChunks": "핫 캐시 청크",
+				"ramBudget": "RAM 예산"
+			}
 		}
 	},
 	"memory": {

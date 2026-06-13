@@ -20,6 +20,7 @@ describe("filterNativeToolsForMode - disabledTools", () => {
 	const nativeTools: OpenAI.Chat.ChatCompletionTool[] = [
 		makeTool("execute_command"),
 		makeTool("read_file"),
+		makeTool("ask_for_context"),
 		makeTool("write_to_file"),
 		makeTool("apply_diff"),
 		makeTool("edit"),
@@ -96,12 +97,34 @@ describe("filterNativeToolsForMode - disabledTools", () => {
 
 		const resultNames = result.map((t) => (t as any).function.name)
 		expect(resultNames).toContain("read_file")
+		expect(resultNames).toContain("ask_for_context")
 		expect(resultNames).toContain("switch_mode")
 		expect(resultNames).toContain("new_task")
 		expect(resultNames).not.toContain("execute_command")
 		expect(resultNames).not.toContain("write_to_file")
 		expect(resultNames).not.toContain("visual_browser_inspector")
 		expect(resultNames).not.toContain("generate_image")
+	})
+
+	it("exposes ask_for_context as always available but honors disabledTools", () => {
+		const readOnlyModes: ModeConfig[] = [
+			{
+				slug: "read-only-mode",
+				name: "Read Only Mode",
+				roleDefinition: "A mode with only read tools.",
+				groups: ["read"],
+			},
+		]
+
+		const readOnlyResult = filterNativeToolsForMode(nativeTools, "read-only-mode", readOnlyModes, undefined)
+		const readOnlyNames = readOnlyResult.map((t) => (t as any).function.name)
+		expect(readOnlyNames).toContain("ask_for_context")
+
+		const disabledResult = filterNativeToolsForMode(nativeTools, "code", undefined, undefined, undefined, {
+			disabledTools: ["ask_for_context"],
+		})
+		const disabledNames = disabledResult.map((t) => (t as any).function.name)
+		expect(disabledNames).not.toContain("ask_for_context")
 	})
 
 	it("combines disabledTools with other setting-based exclusions", () => {

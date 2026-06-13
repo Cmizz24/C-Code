@@ -822,6 +822,40 @@
 		"enableSubfolderRules": {
 			"label": "Bật quy tắc thư mục con",
 			"description": "Khám phá và tải đệ quy các tệp .roo/rules và AGENTS.md từ các thư mục con. Hữu ích cho monorepo có quy tắc theo gói."
+		},
+		"contextWindowManagement": {
+			"title": "Quản lý cửa sổ ngữ cảnh",
+			"description": "Giữ thêm ngữ cảnh hữu ích trong RAM bằng cách di chuyển các chunk ưu tiên thấp hơn giữa hot cache và cold cache trước khi condensing.",
+			"enabled": {
+				"label": "Bật cache ngữ cảnh hot/cold",
+				"description": "Khi bật, C giữ các chunk ngữ cảnh có thể khôi phục trong RAM và cố tránh condensing khi có thể xử lý áp lực cache."
+			},
+			"coldCacheRamBudget": {
+				"label": "Ngân sách RAM cold cache",
+				"description": "Chọn lượng RAM C có thể dùng cho các chunk ngữ cảnh cold có thể truy xuất lại sau bằng ask_for_context.",
+				"options": {
+					"256": "256MB",
+					"512": "512MB",
+					"1024": "1GB",
+					"2048": "2GB+"
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}} (được khuyến nghị)",
+				"vramNote": "C dùng RAM hệ thống cho các chunk ngữ cảnh lạnh. Tiện ích VS Code không có bộ lưu trữ VRAM trực tiếp và portable, còn việc đưa chunk văn bản vào VRAM làm tăng độ phức tạp nhưng ít lợi ích."
+			},
+			"stats": {
+				"title": "Thống kê cache trực tiếp",
+				"hotCacheTokens": "Hot cache tokens",
+				"coldCacheChunks": "Cold cache chunks",
+				"ramUsed": "RAM đã dùng",
+				"swapsThisSession": "Swap trong phiên này",
+				"condensingAvoided": "Số lần tránh condensing",
+				"hotCacheChunks": "Chunk cache nóng",
+				"ramBudget": "Ngân sách RAM"
+			}
 		}
 	},
 	"memory": {

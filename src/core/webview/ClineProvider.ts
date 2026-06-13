@@ -136,6 +136,11 @@ import { ContextProxy } from "../config/ContextProxy"
 import { ProviderSettingsManager } from "../config/ProviderSettingsManager"
 import { CustomModesManager } from "../config/CustomModesManager"
 import { MemoryStorage } from "../memory"
+import {
+	DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
+	getContextCacheBudgetOptions,
+	normalizeColdCacheRamBudgetMb,
+} from "../context/ContextWindowManager"
 import { Task } from "../task/Task"
 
 import { webviewMessageHandler } from "./webviewMessageHandler"
@@ -156,6 +161,14 @@ import {
 	type WorktreeMergeReviewDiagnostics,
 } from "../agents/WorktreeManager"
 import { OrchestratorEventLoop } from "../orchestrator/OrchestratorEventLoop"
+
+function getDetectedContextCacheBudgetOptions() {
+	try {
+		return getContextCacheBudgetOptions(os.totalmem())
+	} catch {
+		return getContextCacheBudgetOptions()
+	}
+}
 
 const ORCHESTRATOR_MODE_SLUG = "orchestrator"
 
@@ -5205,6 +5218,9 @@ export class ClineProvider
 			allowedMaxCost,
 			autoCondenseContext,
 			autoCondenseContextPercent,
+			contextCacheEnabled,
+			coldCacheRamBudgetMb,
+			contextCacheBudgetOptions,
 			soundEnabled,
 			ttsEnabled,
 			ttsSpeed,
@@ -5318,6 +5334,10 @@ export class ClineProvider
 		const cwd = this.cwd
 		const currentTask = this.getCurrentTask()
 		const memoryState = await this.getMemoryState()
+		const normalizedColdCacheRamBudgetMb = normalizeColdCacheRamBudgetMb(
+			coldCacheRamBudgetMb ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
+			contextCacheBudgetOptions,
+		)
 
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
@@ -5340,10 +5360,23 @@ export class ClineProvider
 			allowedMaxCost,
 			autoCondenseContext: autoCondenseContext ?? true,
 			autoCondenseContextPercent: autoCondenseContextPercent ?? 100,
+			contextCacheEnabled: contextCacheEnabled ?? true,
+			coldCacheRamBudgetMb: normalizedColdCacheRamBudgetMb,
+			contextCacheBudgetOptions,
 			uriScheme: vscode.env.uriScheme,
 			currentTaskId: currentTask?.taskId,
 			currentTaskItem: currentTask?.taskId ? this.taskHistoryStore.get(currentTask.taskId) : undefined,
 			clineMessages: currentTask?.clineMessages || [],
+			contextCacheStats: currentTask?.getContextCacheStats() ?? {
+				hotCacheTokens: 0,
+				hotCacheChunks: 0,
+				coldCacheChunks: 0,
+				ramUsedMb: 0,
+				ramBudgetMb: normalizedColdCacheRamBudgetMb,
+				swapsThisSession: 0,
+				condensingAvoided: 0,
+			},
+			contextCacheWarning: currentTask?.getContextCacheWarning(),
 			currentTaskTodos: currentTask?.todoList || [],
 			messageQueue: currentTask?.messageQueueService?.messages,
 			taskHistory: this.taskHistoryStore.getAll().filter((item: HistoryItem) => item.ts && item.task),
@@ -5522,6 +5555,11 @@ export class ClineProvider
 
 		const organizationAllowList = ORGANIZATION_ALLOW_ALL
 		const memoryState = await this.getMemoryState()
+		const contextCacheBudgetOptions = getDetectedContextCacheBudgetOptions()
+		const coldCacheRamBudgetMb = normalizeColdCacheRamBudgetMb(
+			stateValues.coldCacheRamBudgetMb ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
+			contextCacheBudgetOptions,
+		)
 
 		// Return the same structure as before.
 		return {
@@ -5549,6 +5587,9 @@ export class ClineProvider
 			allowedMaxCost: stateValues.allowedMaxCost,
 			autoCondenseContext: stateValues.autoCondenseContext ?? true,
 			autoCondenseContextPercent: stateValues.autoCondenseContextPercent ?? 100,
+			contextCacheEnabled: stateValues.contextCacheEnabled ?? true,
+			coldCacheRamBudgetMb,
+			contextCacheBudgetOptions,
 			taskHistory: this.taskHistoryStore.getAll(),
 			allowedCommands: stateValues.allowedCommands,
 			deniedCommands: stateValues.deniedCommands,

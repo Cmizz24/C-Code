@@ -109,3 +109,8 @@ export interface GenerateImageParams {
 	path: string
 	image?: string
 }
+
+export interface AskForContextToolParams {
+	query: string
+	filePath?: string
+}

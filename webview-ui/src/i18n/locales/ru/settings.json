@@ -822,6 +822,40 @@
 		"enableSubfolderRules": {
 			"label": "Включить правила подпапок",
 			"description": "Рекурсивно обнаруживать и загружать файлы .roo/rules и AGENTS.md из подкаталогов. Полезно для монорепозиториев с правилами для каждого пакета."
+		},
+		"contextWindowManagement": {
+			"title": "Управление контекстным окном",
+			"description": "Держи больше полезного контекста в RAM, перемещая чанки с более низким приоритетом между hot и cold cache перед сжатием.",
+			"enabled": {
+				"label": "Включить hot/cold cache контекста",
+				"description": "Когда включено, C хранит восстанавливаемые чанки контекста в RAM и пытается избежать сжатия, если давление на cache можно обработать."
+			},
+			"coldCacheRamBudget": {
+				"label": "Бюджет RAM для cold cache",
+				"description": "Выбери, сколько RAM C может использовать для cold-чанков контекста, которые позже можно получить через ask_for_context.",
+				"options": {
+					"256": "256MB",
+					"512": "512MB",
+					"1024": "1GB",
+					"2048": "2GB+"
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}} (рекомендуется)",
+				"vramNote": "C использует системную RAM для фрагментов холодного контекста. У расширений VS Code нет переносимого прямого хранилища VRAM, а перенос текстовых фрагментов в VRAM добавляет сложность при малой пользе."
+			},
+			"stats": {
+				"title": "Живая статистика cache",
+				"hotCacheTokens": "Tokens hot cache",
+				"coldCacheChunks": "Чанки cold cache",
+				"ramUsed": "Использовано RAM",
+				"swapsThisSession": "Swaps в этой сессии",
+				"condensingAvoided": "Сколько раз удалось избежать сжатия",
+				"hotCacheChunks": "Фрагменты горячего кэша",
+				"ramBudget": "Бюджет RAM"
+			}
 		}
 	},
 	"memory": {

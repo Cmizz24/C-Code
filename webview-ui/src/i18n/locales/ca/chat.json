@@ -19,7 +19,17 @@
 		"shareSuccessPublic": "Enllaç públic copiat al porta-retalls",
 		"openApiHistory": "Obrir historial d'API",
 		"openUiHistory": "Obrir historial d'UI",
-		"backToParentTask": "Tasca principal"
+		"backToParentTask": "Tasca principal",
+		"contextCache": {
+			"label": "Memòria cau de context",
+			"hotCache": "Memòria cau calenta",
+			"coldCache": "Memòria cau freda",
+			"hotShort": "calent",
+			"coldShort": "fred",
+			"swaps": "Intercanvis",
+			"condensingAvoided": "Condensacions evitades",
+			"warning": "Avís"
+		}
 	},
 	"unpin": "Desfixar",
 	"pin": "Fixar",
@@ -424,6 +434,32 @@
 			"messagesRemoved": "{{count}} missatge eliminat",
 			"messagesRemoved_other": "{{count}} missatges eliminats",
 			"description": "S'han eliminat missatges més antics de la conversa per mantenir-se dins del límit de la finestra de context. Aquest és un enfocament ràpid però menys conservador del context en comparació amb la condensació."
+		},
+		"contextCache": {
+			"summary": {
+				"chunks_one": "{{count}} fragment",
+				"chunks_other": "{{count}} fragments"
+			},
+			"titles": {
+				"chunks_moved_to_cold": "Context mogut a la memòria cau freda",
+				"chunks_pulled_from_cold": "Context recuperat de la memòria cau freda",
+				"condensing_avoided": "Condensació de context evitada",
+				"cold_cache_full": "Memòria cau freda plena"
+			},
+			"descriptions": {
+				"chunks_moved_to_cold": "Els fragments de context antics s'han tret de la finestra calenta i s'han mantingut en RAM per recuperar-los més tard.",
+				"chunks_pulled_from_cold": "S'han restaurat fragments rellevants de la memòria cau freda després que ask_for_context demanés més context.",
+				"condensing_avoided": "La memòria cau calenta/freda ha alliberat prou espai, així que C ha omès la condensació automàtica.",
+				"cold_cache_full": "El pressupost de RAM és ple, així que C ha tornat a la condensació de context normal."
+			},
+			"details": {
+				"chunks": "Fragments",
+				"tokens": "Tokens",
+				"ram": "RAM",
+				"query": "Consulta",
+				"file": "Fitxer",
+				"warning": "Avís"
+			}
 		}
 	},
 	"skill": {

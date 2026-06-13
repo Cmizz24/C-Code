@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { ChevronUp, ChevronDown, HardDriveDownload, HardDriveUpload, FoldVertical, ArrowLeft } from "lucide-react"
 import prettyBytes from "pretty-bytes"
 
-import type { ClineMessage } from "@roo-code/types"
+import type { ClineMessage, ContextCacheStats } from "@roo-code/types"
 
 import { getModelMaxOutputTokens } from "@roo/api"
 
@@ -39,6 +39,30 @@ export interface TaskHeaderProps {
 	todos?: any[]
 }
 
+const DEFAULT_CONTEXT_CACHE_STATS: ContextCacheStats = {
+	hotCacheTokens: 0,
+	hotCacheChunks: 0,
+	coldCacheChunks: 0,
+	ramUsedMb: 0,
+	ramBudgetMb: 1024,
+	swapsThisSession: 0,
+	condensingAvoided: 0,
+}
+
+const formatContextCacheRamValue = (valueMb: number | undefined) => {
+	const safeValueMb = Number.isFinite(valueMb) && (valueMb ?? 0) > 0 ? (valueMb ?? 0) : 0
+
+	if (safeValueMb >= 1024 && safeValueMb % 1024 === 0) {
+		return `${safeValueMb / 1024}GB`
+	}
+
+	const formatted = Number.isInteger(safeValueMb) ? safeValueMb.toString() : safeValueMb.toFixed(1)
+	return `${formatted}MB`
+}
+
+const formatContextCacheSummary = (stats: ContextCacheStats, t: ReturnType<typeof useTranslation>["t"]) =>
+	`${formatLargeNumber(stats.hotCacheChunks)} ${t("chat:task.contextCache.hotShort")} / ${formatLargeNumber(stats.coldCacheChunks)} ${t("chat:task.contextCache.coldShort")} · ${formatContextCacheRamValue(stats.ramUsedMb)}/${formatContextCacheRamValue(stats.ramBudgetMb)}`
+
 const TaskHeader = ({
 	task,
 	tokensIn,
@@ -56,7 +80,8 @@ const TaskHeader = ({
 	todos,
 }: TaskHeaderProps) => {
 	const { t } = useTranslation()
-	const { apiConfiguration, currentTaskItem } = useExtensionState()
+	const { apiConfiguration, currentTaskItem, contextCacheEnabled, contextCacheStats, contextCacheWarning } =
+		useExtensionState()
 	const { id: modelId, info: model } = useSelectedModel(apiConfiguration)
 	const [isTaskExpanded, setIsTaskExpanded] = useState(false)
 
@@ -93,6 +118,56 @@ const TaskHeader = ({
 	const isSubtask = !!parentTaskId
 	const displayCost = aggregatedCost ?? totalCost
 	const shouldShowCost = Number.isFinite(displayCost) && displayCost > 0
+	const safeContextCacheStats = contextCacheStats ?? DEFAULT_CONTEXT_CACHE_STATS
+	const shouldShowContextCacheStatus = contextCacheEnabled !== false
+	const contextCacheSummary = formatContextCacheSummary(safeContextCacheStats, t)
+	const contextCacheTooltip = (
+		<Table className="text-base ml-1.5">
+			<TableBody>
+				<TableRow>
+					<TableCell className="font-medium whitespace-nowrap">
+						{t("chat:task.contextCache.hotCache")}
+					</TableCell>
+					<TableCell className="text-right text-[0.9em] font-mono">
+						{formatLargeNumber(safeContextCacheStats.hotCacheChunks)} /{" "}
+						{formatLargeNumber(safeContextCacheStats.hotCacheTokens)} {t("chat:contextManagement.tokens")}
+					</TableCell>
+				</TableRow>
+				<TableRow>
+					<TableCell className="font-medium whitespace-nowrap">
+						{t("chat:task.contextCache.coldCache")}
+					</TableCell>
+					<TableCell className="text-right text-[0.9em] font-mono">
+						{formatLargeNumber(safeContextCacheStats.coldCacheChunks)} ·{" "}
+						{formatContextCacheRamValue(safeContextCacheStats.ramUsedMb)} /{" "}
+						{formatContextCacheRamValue(safeContextCacheStats.ramBudgetMb)}
+					</TableCell>
+				</TableRow>
+				<TableRow>
+					<TableCell className="font-medium whitespace-nowrap">{t("chat:task.contextCache.swaps")}</TableCell>
+					<TableCell className="text-right text-[0.9em] font-mono">
+						{formatLargeNumber(safeContextCacheStats.swapsThisSession)}
+					</TableCell>
+				</TableRow>
+				<TableRow>
+					<TableCell className="font-medium whitespace-nowrap">
+						{t("chat:task.contextCache.condensingAvoided")}
+					</TableCell>
+					<TableCell className="text-right text-[0.9em] font-mono">
+						{formatLargeNumber(safeContextCacheStats.condensingAvoided)}
+					</TableCell>
+				</TableRow>
+				{contextCacheWarning && (
+					<TableRow>
+						<TableCell className="font-medium whitespace-nowrap">
+							{t("chat:task.contextCache.warning")}
+						</TableCell>
+						<TableCell className="text-right text-[0.9em] font-mono">{contextCacheWarning}</TableCell>
+					</TableRow>
+				)}
+			</TableBody>
+		</Table>
+	)
 
 	const handleBackToParent = () => {
 		if (parentTaskId) {
@@ -178,7 +253,7 @@ const TaskHeader = ({
 					<div
 						className="flex items-center justify-between text-sm text-muted-foreground/70"
 						onClick={(e) => e.stopPropagation()}>
-						<div className="flex items-center gap-2">
+						<div className="flex items-center gap-2 flex-wrap">
 							<StandardTooltip
 								content={(() => {
 									const availableSpace = contextWindow - (contextTokens || 0) - reservedForOutput
@@ -239,6 +314,19 @@ const TaskHeader = ({
 									})()}
 								</span>
 							</StandardTooltip>
+							{shouldShowContextCacheStatus && (
+								<>
+									<span>·</span>
+									<StandardTooltip content={contextCacheTooltip} side="top" sideOffset={8}>
+										<span
+											className="flex items-center gap-1.5"
+											data-testid="context-cache-collapsed-status">
+											<HardDriveDownload className="size-3" />
+											<span>{contextCacheSummary}</span>
+										</span>
+									</StandardTooltip>
+								</>
+							)}
 							{shouldShowCost && (
 								<>
 									<span>·</span>
@@ -320,6 +408,52 @@ const TaskHeader = ({
 														maxTokens={maxTokens || undefined}
 													/>
 													{condenseButton}
+												</div>
+											</td>
+										</tr>
+									)}
+
+									{shouldShowContextCacheStatus && (
+										<tr data-testid="context-cache-status">
+											<th className="font-medium text-left align-top w-1 whitespace-nowrap pr-3 h-[24px]">
+												{t("chat:task.contextCache.label")}
+											</th>
+											<td className="font-light align-top">
+												<div className="flex flex-col gap-1">
+													<div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
+														<span>
+															{t("chat:task.contextCache.hotCache")}:{" "}
+															{formatLargeNumber(safeContextCacheStats.hotCacheChunks)} /{" "}
+															{formatLargeNumber(safeContextCacheStats.hotCacheTokens)}{" "}
+															{t("chat:contextManagement.tokens")}
+														</span>
+														<span>
+															{t("chat:task.contextCache.coldCache")}:{" "}
+															{formatLargeNumber(safeContextCacheStats.coldCacheChunks)} /{" "}
+															{formatContextCacheRamValue(
+																safeContextCacheStats.ramUsedMb,
+															)}{" "}
+															/{" "}
+															{formatContextCacheRamValue(
+																safeContextCacheStats.ramBudgetMb,
+															)}
+														</span>
+														<span>
+															{t("chat:task.contextCache.swaps")}:{" "}
+															{formatLargeNumber(safeContextCacheStats.swapsThisSession)}
+														</span>
+														<span>
+															{t("chat:task.contextCache.condensingAvoided")}:{" "}
+															{formatLargeNumber(safeContextCacheStats.condensingAvoided)}
+														</span>
+													</div>
+													{contextCacheWarning && (
+														<div
+															className="text-vscode-inputValidation-warningForeground"
+															data-testid="context-cache-status-warning">
+															{contextCacheWarning}
+														</div>
+													)}
 												</div>
 											</td>
 										</tr>

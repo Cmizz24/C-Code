@@ -31,6 +31,9 @@ import {
 	type AgentStatus,
 	type ContextCondense,
 	type ContextTruncation,
+	type ContextCacheBudgetOption,
+	type ContextCacheEvent,
+	type ContextCacheStats,
 	type ClineMessage,
 	type ClineSayTool,
 	type ClineSay,
@@ -110,6 +113,12 @@ import { RooProtectedController } from "../protect/RooProtectedController"
 import { type AssistantMessageContent, presentAssistantMessage } from "../assistant-message"
 import { NativeToolCallParser } from "../assistant-message/NativeToolCallParser"
 import { manageContext, willManageContext } from "../context-management"
+import {
+	ContextWindowManager,
+	DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
+	normalizeColdCacheRamBudgetMb,
+} from "../context/ContextWindowManager"
+import type { RegisterContextChunkInput } from "../context/ContextChunk"
 import { ClineProvider } from "../webview/ClineProvider"
 import { MultiSearchReplaceDiffStrategy } from "../diff/strategies/multi-search-replace"
 import {
@@ -131,7 +140,12 @@ import {
 	checkpointDiff,
 } from "../checkpoints"
 import { processUserContentMentions } from "../mentions/processUserContentMentions"
-import { getMessagesSinceLastSummary, summarizeConversation, getEffectiveApiHistory } from "../condense"
+import {
+	getMessagesSinceLastSummary,
+	summarizeConversation,
+	getEffectiveApiHistory,
+	injectSyntheticToolResults,
+} from "../condense"
 import { MessageQueueService } from "../message-queue/MessageQueueService"
 import { AutoApprovalHandler, checkAutoApproval } from "../auto-approval"
 import { MessageManager } from "../message-manager"
@@ -467,6 +481,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	// Token Usage Cache
 	private tokenUsageSnapshot?: TokenUsage
 	private tokenUsageSnapshotAt?: number
+	private contextWindowManager?: ContextWindowManager
 
 	// Tool Usage Cache
 	private toolUsageSnapshot?: ToolUsage
@@ -922,6 +937,90 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this._taskMode = normalizeModeSlug(mode || defaultModeSlug)
 	}
 
+	private configureContextWindowManager(
+		settings:
+			| {
+					contextCacheEnabled?: boolean
+					coldCacheRamBudgetMb?: number
+					contextCacheBudgetOptions?: readonly ContextCacheBudgetOption[]
+			  }
+			| undefined,
+		modelInfo: ModelInfo,
+	): void {
+		if ((settings?.contextCacheEnabled ?? true) === false) {
+			this.contextWindowManager = undefined
+			return
+		}
+
+		const coldCacheBudgetOptions = settings?.contextCacheBudgetOptions
+		const options = {
+			hotTokenBudget: modelInfo.contextWindow,
+			coldCacheBudgetOptions,
+			coldCacheRamBudgetMb: normalizeColdCacheRamBudgetMb(
+				settings?.coldCacheRamBudgetMb ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
+				coldCacheBudgetOptions,
+			),
+		}
+
+		if (!this.contextWindowManager) {
+			this.contextWindowManager = new ContextWindowManager(options)
+			return
+		}
+
+		this.contextWindowManager.updateOptions(options)
+	}
+
+	public getContextWindowManager(): ContextWindowManager | undefined {
+		return this.contextWindowManager
+	}
+
+	public registerContextChunk(input: RegisterContextChunkInput): void {
+		this.contextWindowManager?.registerChunk({
+			...input,
+			metadata: {
+				taskId: this.taskId,
+				...input.metadata,
+			},
+		})
+	}
+
+	public getContextCacheStats(): ContextCacheStats {
+		return (
+			this.contextWindowManager?.getStats() ?? {
+				hotCacheTokens: 0,
+				hotCacheChunks: 0,
+				coldCacheChunks: 0,
+				ramUsedMb: 0,
+				ramBudgetMb: DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
+				swapsThisSession: 0,
+				condensingAvoided: 0,
+			}
+		)
+	}
+
+	public getContextCacheWarning(): string | undefined {
+		return this.contextWindowManager?.getWarning()
+	}
+
+	public async emitContextCacheEvents(): Promise<void> {
+		const events = this.contextWindowManager?.drainEvents() ?? []
+
+		for (const event of events) {
+			await this.say(
+				"context_cache_event",
+				undefined /* text */,
+				undefined /* images */,
+				false /* partial */,
+				undefined /* checkpoint */,
+				undefined /* progressStatus */,
+				{ isNonInteractive: true } /* options */,
+				undefined /* contextCondense */,
+				undefined /* contextTruncation */,
+				event,
+			)
+		}
+	}
+
 	static create(options: TaskOptions): [Task, Promise<void>] {
 		const instance = new Task({ ...options, startTask: false })
 		const { images, task, historyItem } = options
@@ -1068,6 +1167,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			}
 
 			this.apiConversationHistory.push(messageWithTs)
+			this.registerConversationTurnChunk(messageWithTs as ApiMessage)
 		} else {
 			// For user messages, validate tool_result IDs ONLY when the immediately previous *effective* message
 			// is an assistant message.
@@ -1100,9 +1200,38 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			const validatedMessage = validateAndFixToolResultIds(messageToAdd, historyForValidation)
 			const messageWithTs = { ...validatedMessage, ts: Date.now() }
 			this.apiConversationHistory.push(messageWithTs)
+			this.registerConversationTurnChunk(messageWithTs as ApiMessage)
 		}
 
 		await this.saveApiConversationHistory()
+	}
+
+	private registerConversationTurnChunk(message: ApiMessage): void {
+		if (!message.ts) {
+			return
+		}
+
+		this.registerContextChunk({
+			type: "conversation_turn",
+			content: this.stringifyApiMessageForContextCache(message),
+			metadata: {
+				role: message.role,
+				messageTimestamps: [message.ts],
+			},
+		})
+	}
+
+	private stringifyApiMessageForContextCache(message: ApiMessage): string {
+		const content =
+			typeof message.content === "string"
+				? message.content
+				: JSON.stringify(
+						message.content,
+						(_key, value) => (typeof value === "bigint" ? value.toString() : value),
+						2,
+					)
+
+		return `${message.role ?? "message"}:\n${content}`
 	}
 
 	// NOTE: We intentionally do NOT mutate stored messages to merge consecutive user turns.
@@ -2010,6 +2139,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		} = {},
 		contextCondense?: ContextCondense,
 		contextTruncation?: ContextTruncation,
+		contextCacheEvent?: ContextCacheEvent,
 	): Promise<undefined> {
 		if (this.abort) {
 			throw new Error(`[RooCode#say] task ${this.taskId}.${this.instanceId} aborted`)
@@ -2028,6 +2158,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					lastMessage.images = images
 					lastMessage.partial = partial
 					lastMessage.progressStatus = progressStatus
+					lastMessage.contextCacheEvent = contextCacheEvent
 					this.updateClineMessage(lastMessage)
 				} else {
 					// This is a new partial message, so add it with partial state.
@@ -2046,6 +2177,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						partial,
 						contextCondense,
 						contextTruncation,
+						contextCacheEvent,
 					})
 				}
 			} else {
@@ -2061,6 +2193,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					lastMessage.images = images
 					lastMessage.partial = false
 					lastMessage.progressStatus = progressStatus
+					lastMessage.contextCacheEvent = contextCacheEvent
 
 					// Instead of streaming partialMessage events, we do a save
 					// and post like normal to persist to disk.
@@ -2084,6 +2217,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						images,
 						contextCondense,
 						contextTruncation,
+						contextCacheEvent,
 					})
 				}
 			}
@@ -2108,6 +2242,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				checkpoint,
 				contextCondense,
 				contextTruncation,
+				contextCacheEvent,
 			})
 		}
 	}
@@ -4463,10 +4598,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		const systemPrompt = await this.getSystemPrompt()
 		const { contextTokens } = this.getTokenUsage()
+		const modelInfo = this.api.getModel().info
+		this.configureContextWindowManager(state, modelInfo)
 
 		if (contextTokens) {
-			const modelInfo = this.api.getModel().info
-
 			const maxTokens = getModelMaxOutputTokens({
 				modelId: this.api.getModel().id,
 				model: modelInfo,
@@ -4580,6 +4715,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					filesReadByRoo: contextMgmtFilesReadByRoo,
 					cwd: this.cwd,
 					rooIgnoreController: this.rooIgnoreController,
+					contextWindowManager: this.contextWindowManager,
 				})
 				if (truncateResult.messages !== this.apiConversationHistory) {
 					await this.overwriteApiConversationHistory(truncateResult.messages)
@@ -4626,6 +4762,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						contextTruncation,
 					)
 				}
+				await this.emitContextCacheEvents()
 			} finally {
 				// Notify webview that context management is complete (sets isCondensing = false)
 				// This removes the in-progress spinner and allows the completed result to show
@@ -4642,13 +4779,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		// This allows non-destructive condensing where messages are tagged but not deleted,
 		// enabling accurate rewind operations while still sending condensed history to the API.
 		const effectiveHistory = getEffectiveApiHistory(this.apiConversationHistory)
-		const messagesSinceLastSummary = getMessagesSinceLastSummary(effectiveHistory)
+		const cacheFilteredHistory = this.applyContextCacheRequestFilter(effectiveHistory)
+		const messagesSinceLastSummary = getMessagesSinceLastSummary(cacheFilteredHistory)
 		// For API only: merge consecutive user messages (excludes summary messages per
 		// mergeConsecutiveApiMessages implementation) without mutating stored history.
 		const mergedForApi = mergeConsecutiveApiMessages(messagesSinceLastSummary, { roles: ["user"] })
 		const messagesWithoutImages = maybeRemoveImageBlocks(mergedForApi, this.api)
 		const cleanConversationHistory = this.buildCleanConversationHistory(messagesWithoutImages as ApiMessage[])
-		const modelInfo = this.api.getModel().info
 		let requestConversationHistory: typeof cleanConversationHistory = cleanConversationHistory
 		try {
 			const memoryPrompt = await buildMemoryPromptForRequest({
@@ -5080,6 +5217,19 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		return cleanConversationHistory
+	}
+
+	private applyContextCacheRequestFilter(messages: ApiMessage[]): ApiMessage[] {
+		const hiddenMessageTimestamps = this.contextWindowManager?.getHiddenMessageTimestamps()
+		if (!hiddenMessageTimestamps || hiddenMessageTimestamps.size === 0) {
+			return messages
+		}
+
+		const filteredMessages = messages.filter((message) => {
+			return typeof message.ts !== "number" || !hiddenMessageTimestamps.has(message.ts)
+		})
+
+		return injectSyntheticToolResults(filteredMessages)
 	}
 	public async checkpointRestore(options: CheckpointRestoreOptions) {
 		return checkpointRestore(this, options)

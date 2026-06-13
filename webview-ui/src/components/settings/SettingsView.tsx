@@ -137,11 +137,21 @@ const isSmtpTestRelevantField = (field: keyof ExtensionStateContextType) =>
 		field === "emailNotifyOnSuccess" ||
 		field === "emailNotifyOnFailure")
 
+const DEFAULT_COLD_CACHE_RAM_BUDGET_MB = 1024
+
 const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, targetSection }, ref) => {
 	const { t } = useAppTranslation()
 
 	const extensionState = useExtensionState()
-	const { currentApiConfigName, listApiConfigMeta, uriScheme, settingsImportedAt } = extensionState
+	const {
+		currentApiConfigName,
+		listApiConfigMeta,
+		uriScheme,
+		settingsImportedAt,
+		contextCacheBudgetOptions,
+		contextCacheStats,
+		contextCacheWarning,
+	} = extensionState
 
 	const [isDiscardDialogShow, setDiscardDialogShow] = useState(false)
 	const [isChangeDetected, setChangeDetected] = useState(false)
@@ -185,6 +195,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		alwaysAllowWriteProtected,
 		autoCondenseContext,
 		autoCondenseContextPercent,
+		contextCacheEnabled,
+		coldCacheRamBudgetMb,
 		enableCheckpoints,
 		checkpointTimeout,
 		experiments,
@@ -560,6 +572,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				allowedMaxCost: allowedMaxCost ?? null,
 				autoCondenseContext,
 				autoCondenseContextPercent,
+				contextCacheEnabled: contextCacheEnabled ?? true,
+				coldCacheRamBudgetMb: coldCacheRamBudgetMb ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
 				soundEnabled: soundEnabled ?? true,
 				soundVolume: soundVolume ?? 0.5,
 				ttsEnabled,
@@ -1132,6 +1146,11 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 							<ContextManagementSettings
 								autoCondenseContext={autoCondenseContext}
 								autoCondenseContextPercent={autoCondenseContextPercent}
+								contextCacheEnabled={contextCacheEnabled ?? true}
+								coldCacheRamBudgetMb={coldCacheRamBudgetMb ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB}
+								contextCacheBudgetOptions={contextCacheBudgetOptions}
+								contextCacheStats={contextCacheStats}
+								contextCacheWarning={contextCacheWarning}
 								listApiConfigMeta={listApiConfigMeta ?? []}
 								maxOpenTabsContext={maxOpenTabsContext}
 								maxWorkspaceFiles={maxWorkspaceFiles ?? 200}

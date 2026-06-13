@@ -1063,6 +1063,15 @@ export class NativeToolCallParser {
 				}
 				break
 
+			case "ask_for_context":
+				if (partialArgs.query !== undefined) {
+					nativeArgs = {
+						query: partialArgs.query,
+						filePath: partialArgs.filePath,
+					}
+				}
+				break
+
 			case "memory_search":
 				if (partialArgs.query !== undefined) {
 					nativeArgs = {
@@ -1451,6 +1460,15 @@ export class NativeToolCallParser {
 						nativeArgs = {
 							query: args.query,
 							path: args.path,
+						} as NativeArgsFor<TName>
+					}
+					break
+
+				case "ask_for_context":
+					if (args.query !== undefined) {
+						nativeArgs = {
+							query: args.query,
+							filePath: args.filePath,
 						} as NativeArgsFor<TName>
 					}
 					break

@@ -119,6 +119,7 @@ export class ExecuteCommandTool extends BaseTool<"execute_command"> {
 					task.didRejectTool = true
 				}
 
+				this.registerTaskOutputChunk(task, canonicalCommand, result)
 				pushToolResult(result)
 			} catch (error: unknown) {
 				const status: CommandExecutionStatus = { executionId, status: "fallback" }
@@ -138,6 +139,7 @@ export class ExecuteCommandTool extends BaseTool<"execute_command"> {
 						task.didRejectTool = true
 					}
 
+					this.registerTaskOutputChunk(task, canonicalCommand, result)
 					pushToolResult(result)
 				} else {
 					pushToolResult(`Command failed to execute in terminal due to a shell integration error.`)
@@ -154,6 +156,42 @@ export class ExecuteCommandTool extends BaseTool<"execute_command"> {
 	override async handlePartial(task: Task, block: ToolUse<"execute_command">): Promise<void> {
 		const command = block.params.command
 		await task.ask("command", command ?? "", block.partial).catch(() => {})
+	}
+
+	private registerTaskOutputChunk(task: Task, command: string, result: ToolResponse): void {
+		const output = this.stringifyToolResponse(result)
+		if (!output.trim()) {
+			return
+		}
+
+		task.registerContextChunk({
+			type: "task_output",
+			content: `Command: ${command}\n\n${output}`,
+			metadata: {
+				source: "execute_command",
+				title: command,
+			},
+		})
+	}
+
+	private stringifyToolResponse(result: ToolResponse): string {
+		if (typeof result === "string") {
+			return result
+		}
+
+		return result
+			.map((block) => {
+				if (typeof block === "string") {
+					return block
+				}
+
+				if (block.type === "text") {
+					return block.text
+				}
+
+				return JSON.stringify(block)
+			})
+			.join("\n")
 	}
 }
 

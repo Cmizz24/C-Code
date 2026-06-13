@@ -197,6 +197,8 @@ export const globalSettingsSchema = z
 		allowedMaxCost: z.number().nullish(),
 		autoCondenseContext: z.boolean().optional(),
 		autoCondenseContextPercent: z.number().optional(),
+		contextCacheEnabled: z.boolean().optional(),
+		coldCacheRamBudgetMb: z.number().optional(),
 
 		/**
 		 * Whether to include current time in the environment details

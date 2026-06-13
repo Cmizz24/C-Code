@@ -19,7 +19,17 @@
 		"shareSuccessPublic": "Link público copiado para a área de transferência",
 		"openApiHistory": "Abrir histórico da API",
 		"openUiHistory": "Abrir histórico da UI",
-		"backToParentTask": "Tarefa pai"
+		"backToParentTask": "Tarefa pai",
+		"contextCache": {
+			"label": "Cache de contexto",
+			"hotCache": "Cache quente",
+			"coldCache": "Cache frio",
+			"hotShort": "quente",
+			"coldShort": "frio",
+			"swaps": "Trocas",
+			"condensingAvoided": "Condensações evitadas",
+			"warning": "Aviso"
+		}
 	},
 	"unpin": "Desfixar",
 	"pin": "Fixar",
@@ -424,6 +434,32 @@
 			"messagesRemoved": "{{count}} mensagem removida",
 			"messagesRemoved_other": "{{count}} mensagens removidas",
 			"description": "Mensagens mais antigas foram removidas da conversa para permanecer dentro do limite da janela de contexto. Esta é uma abordagem rápida, mas menos preservadora de contexto em comparação com a condensação."
+		},
+		"contextCache": {
+			"summary": {
+				"chunks_one": "{{count}} trecho",
+				"chunks_other": "{{count}} trechos"
+			},
+			"titles": {
+				"chunks_moved_to_cold": "Contexto movido para o cache frio",
+				"chunks_pulled_from_cold": "Contexto puxado do cache frio",
+				"condensing_avoided": "Condensação de contexto evitada",
+				"cold_cache_full": "Cache frio cheio"
+			},
+			"descriptions": {
+				"chunks_moved_to_cold": "Trechos antigos de contexto foram removidos da janela quente e mantidos na RAM para recuperação posterior.",
+				"chunks_pulled_from_cold": "Trechos relevantes do cache frio foram restaurados depois que ask_for_context pediu mais contexto.",
+				"condensing_avoided": "O cache quente/frio liberou espaço suficiente, então C pulou a condensação automática.",
+				"cold_cache_full": "O orçamento de RAM está cheio, então C voltou para a condensação de contexto normal."
+			},
+			"details": {
+				"chunks": "Trechos",
+				"tokens": "Tokens",
+				"ram": "RAM",
+				"query": "Consulta",
+				"file": "Arquivo",
+				"warning": "Aviso"
+			}
 		}
 	},
 	"skill": {

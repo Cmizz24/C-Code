@@ -19,7 +19,17 @@
 		"shareSuccessPublic": "公開リンクをクリップボードにコピーしました",
 		"openApiHistory": "API履歴を開く",
 		"openUiHistory": "UI履歴を開く",
-		"backToParentTask": "親タスク"
+		"backToParentTask": "親タスク",
+		"contextCache": {
+			"label": "コンテキストキャッシュ",
+			"hotCache": "ホットキャッシュ",
+			"coldCache": "コールドキャッシュ",
+			"hotShort": "ホット",
+			"coldShort": "コールド",
+			"swaps": "スワップ",
+			"condensingAvoided": "凝縮回避",
+			"warning": "警告"
+		}
 	},
 	"unpin": "ピン留めを解除",
 	"pin": "ピン留め",
@@ -424,6 +434,32 @@
 			"messagesRemoved": "{{count}}件のメッセージを削除",
 			"messagesRemoved_other": "{{count}}件のメッセージを削除",
 			"description": "コンテキストウィンドウの制限内に収めるため、古いメッセージが会話から削除されました。これは圧縮と比較して高速ですが、コンテキストの保持性が低いアプローチです。"
+		},
+		"contextCache": {
+			"summary": {
+				"chunks_one": "{{count}} チャンク",
+				"chunks_other": "{{count}} チャンク"
+			},
+			"titles": {
+				"chunks_moved_to_cold": "コンテキストをコールドキャッシュへ移動",
+				"chunks_pulled_from_cold": "コールドキャッシュからコンテキストを取得",
+				"condensing_avoided": "コンテキスト凝縮を回避",
+				"cold_cache_full": "コールドキャッシュが満杯"
+			},
+			"descriptions": {
+				"chunks_moved_to_cold": "古いコンテキストチャンクをホットウィンドウから外し、後で取得できるよう RAM に保持しました。",
+				"chunks_pulled_from_cold": "ask_for_context が追加コンテキストを要求したため、関連するコールドキャッシュチャンクを復元しました。",
+				"condensing_avoided": "ホット/コールドキャッシュが十分な空きを作ったため、C は自動凝縮をスキップしました。",
+				"cold_cache_full": "RAM 予算が満杯のため、C は通常のコンテキスト凝縮に戻りました。"
+			},
+			"details": {
+				"chunks": "チャンク",
+				"tokens": "Tokens",
+				"ram": "RAM",
+				"query": "クエリ",
+				"file": "ファイル",
+				"warning": "警告"
+			}
 		}
 	},
 	"skill": {

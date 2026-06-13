@@ -628,6 +628,110 @@ describe("Context Management", () => {
 			summarizeSpy.mockRestore()
 		})
 
+		it("should let context cache pressure handling avoid condensing and truncation", async () => {
+			vi.clearAllMocks()
+			const summarizeSpy = vi.spyOn(condenseModule, "summarizeConversation")
+			const modelInfo = createModelInfo(100000, 30000)
+			const totalTokens = 70001
+			const messagesWithTimestamp: ApiMessage[] = [
+				...messages.slice(0, -1),
+				{ ...messages[messages.length - 1], content: "", ts: 500 },
+			]
+			const allowedTokens = modelInfo.contextWindow * (1 - TOKEN_BUFFER_PERCENTAGE) - modelInfo.maxTokens!
+			const contextWindowManager = {
+				handlePressure: vi.fn().mockReturnValue({ handled: true, movedChunks: 2, movedTokens: 1000 }),
+			}
+
+			const result = await manageContext({
+				messages: messagesWithTimestamp,
+				totalTokens,
+				contextWindow: modelInfo.contextWindow,
+				maxTokens: modelInfo.maxTokens,
+				apiHandler: mockApiHandler,
+				autoCondenseContext: true,
+				autoCondenseContextPercent: 100,
+				systemPrompt: "System prompt",
+				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
+				contextWindowManager: contextWindowManager as any,
+			})
+
+			expect(contextWindowManager.handlePressure).toHaveBeenCalledWith({
+				totalTokens,
+				allowedTokens,
+				protectedMessageTimestamps: [500],
+			})
+			expect(summarizeSpy).not.toHaveBeenCalled()
+			expect(result).toEqual({
+				messages: messagesWithTimestamp,
+				summary: "",
+				cost: 0,
+				prevContextTokens: totalTokens,
+				contextCacheHandled: true,
+			})
+
+			summarizeSpy.mockRestore()
+		})
+
+		it("should fall back to summarizeConversation when context cache cannot handle pressure", async () => {
+			const mockSummary = "This is a fallback summary after cache pressure failed"
+			const mockSummarizeResponse: condenseModule.SummarizeResponse = {
+				messages: [
+					{ role: "user", content: "First message" },
+					{ role: "user", content: mockSummary, isSummary: true },
+					{ role: "assistant", content: "Last message" },
+				],
+				summary: mockSummary,
+				cost: 0.02,
+				newContextTokens: 100,
+			}
+			const summarizeSpy = vi
+				.spyOn(condenseModule, "summarizeConversation")
+				.mockResolvedValue(mockSummarizeResponse)
+			const modelInfo = createModelInfo(100000, 30000)
+			const totalTokens = 70001
+			const messagesWithSmallContent = [
+				...messages.slice(0, -1),
+				{ ...messages[messages.length - 1], content: "" },
+			]
+			const contextWindowManager = {
+				handlePressure: vi.fn().mockReturnValue({ handled: false, movedChunks: 1, movedTokens: 200 }),
+			}
+
+			const result = await manageContext({
+				messages: messagesWithSmallContent,
+				totalTokens,
+				contextWindow: modelInfo.contextWindow,
+				maxTokens: modelInfo.maxTokens,
+				apiHandler: mockApiHandler,
+				autoCondenseContext: true,
+				autoCondenseContextPercent: 100,
+				systemPrompt: "System prompt",
+				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
+				contextWindowManager: contextWindowManager as any,
+			})
+
+			expect(contextWindowManager.handlePressure).toHaveBeenCalled()
+			expect(summarizeSpy).toHaveBeenCalledWith({
+				messages: messagesWithSmallContent,
+				apiHandler: mockApiHandler,
+				systemPrompt: "System prompt",
+				taskId,
+				isAutomaticTrigger: true,
+			})
+			expect(result).toMatchObject({
+				messages: mockSummarizeResponse.messages,
+				summary: mockSummary,
+				cost: 0.02,
+				prevContextTokens: totalTokens,
+			})
+
+			summarizeSpy.mockRestore()
+		})
+
 		it("should fall back to truncateConversation when autoCondenseContext is true but summarization fails", async () => {
 			// Mock the summarizeConversation function to return an error
 			const mockSummarizeResponse: condenseModule.SummarizeResponse = {

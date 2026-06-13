@@ -822,6 +822,40 @@
 		"enableSubfolderRules": {
 			"label": "Aktifkan aturan subfolder",
 			"description": "Temukan dan muat file .roo/rules dan AGENTS.md secara rekursif dari subdirektori. Berguna untuk monorepo dengan aturan per-paket."
+		},
+		"contextWindowManagement": {
+			"title": "Manajemen Jendela Konteks",
+			"description": "Jaga lebih banyak konteks berguna tetap tersedia di RAM dengan memindahkan chunk prioritas lebih rendah antara cache hot dan cold sebelum condensing.",
+			"enabled": {
+				"label": "Aktifkan cache konteks hot/cold",
+				"description": "Saat diaktifkan, C menyimpan chunk konteks yang bisa dipulihkan di RAM dan mencoba menghindari condensing saat tekanan cache bisa ditangani."
+			},
+			"coldCacheRamBudget": {
+				"label": "Anggaran RAM cache cold",
+				"description": "Pilih berapa banyak RAM yang bisa digunakan C untuk chunk konteks cold yang dapat diambil nanti dengan ask_for_context.",
+				"options": {
+					"256": "256MB",
+					"512": "512MB",
+					"1024": "1GB",
+					"2048": "2GB+"
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}} (disarankan)",
+				"vramNote": "C menggunakan RAM sistem untuk chunk konteks dingin. Ekstensi VS Code tidak punya penyimpanan VRAM langsung yang portabel, dan memindahkan chunk teks ke VRAM menambah kompleksitas dengan manfaat kecil."
+			},
+			"stats": {
+				"title": "Statistik cache live",
+				"hotCacheTokens": "Token cache hot",
+				"coldCacheChunks": "Chunk cache cold",
+				"ramUsed": "RAM digunakan",
+				"swapsThisSession": "Swap sesi ini",
+				"condensingAvoided": "Berapa kali condensing dihindari",
+				"hotCacheChunks": "Chunk cache panas",
+				"ramBudget": "Budget RAM"
+			}
 		}
 	},
 	"memory": {
