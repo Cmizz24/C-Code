@@ -19,7 +19,17 @@
 		"shareSuccessPublic": "Liên kết công khai đã được sao chép vào clipboard",
 		"openApiHistory": "Mở lịch sử API",
 		"openUiHistory": "Mở lịch sử UI",
-		"backToParentTask": "Nhiệm vụ cha"
+		"backToParentTask": "Nhiệm vụ cha",
+		"contextCache": {
+			"label": "Bộ nhớ đệm ngữ cảnh",
+			"hotCache": "Cache nóng",
+			"coldCache": "Cache lạnh",
+			"hotShort": "nóng",
+			"coldShort": "lạnh",
+			"swaps": "Lượt hoán đổi",
+			"condensingAvoided": "Đã tránh condensing",
+			"warning": "Cảnh báo"
+		}
 	},
 	"unpin": "Bỏ ghim khỏi đầu",
 	"pin": "Ghim lên đầu",
@@ -425,6 +435,32 @@
 			"messagesRemoved": "{{count}} tin nhắn đã xóa",
 			"messagesRemoved_other": "{{count}} tin nhắn đã xóa",
 			"description": "Các tin nhắn cũ hơn đã bị xóa khỏi cuộc trò chuyện để giữ trong giới hạn cửa sổ ngữ cảnh. Đây là cách tiếp cận nhanh nhưng ít bảo toàn ngữ cảnh hơn so với cô đọng."
+		},
+		"contextCache": {
+			"summary": {
+				"chunks_one": "{{count}} chunk",
+				"chunks_other": "{{count}} chunk"
+			},
+			"titles": {
+				"chunks_moved_to_cold": "Ngữ cảnh đã chuyển vào cache lạnh",
+				"chunks_pulled_from_cold": "Ngữ cảnh đã kéo từ cache lạnh",
+				"condensing_avoided": "Đã tránh condensing ngữ cảnh",
+				"cold_cache_full": "Cache lạnh đã đầy"
+			},
+			"descriptions": {
+				"chunks_moved_to_cold": "Các chunk ngữ cảnh cũ đã được đưa khỏi cửa sổ nóng và giữ trong RAM để truy xuất sau.",
+				"chunks_pulled_from_cold": "Các chunk cache lạnh liên quan đã được khôi phục sau khi ask_for_context yêu cầu thêm ngữ cảnh.",
+				"condensing_avoided": "Cache nóng/lạnh đã giải phóng đủ chỗ, nên C bỏ qua condensing tự động.",
+				"cold_cache_full": "Ngân sách RAM đã đầy, nên C quay lại condensing ngữ cảnh thông thường."
+			},
+			"details": {
+				"chunks": "Chunk",
+				"tokens": "Tokens",
+				"ram": "RAM",
+				"query": "Truy vấn",
+				"file": "Tệp",
+				"warning": "Cảnh báo"
+			}
 		}
 	},
 	"skill": {

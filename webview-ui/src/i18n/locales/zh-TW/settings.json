@@ -848,7 +848,13 @@
 					"512": "512MB",
 					"1024": "1GB",
 					"2048": "2GB+"
-				}
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}}（建議）",
+				"vramNote": "C 使用系統 RAM 存放冷上下文區塊。VS Code 擴充功能沒有可攜式的直接 VRAM 儲存，把文字區塊移入 VRAM 會增加複雜度，但收益很小。"
 			},
 			"stats": {
 				"title": "即時 cache 統計",
@@ -856,7 +862,9 @@
 				"coldCacheChunks": "Cold cache chunks",
 				"ramUsed": "已用 RAM",
 				"swapsThisSession": "本工作階段 swaps",
-				"condensingAvoided": "避免 condensing 的次數"
+				"condensingAvoided": "避免 condensing 的次數",
+				"hotCacheChunks": "熱快取區塊",
+				"ramBudget": "RAM 預算"
 			}
 		}
 	},

@@ -1,15 +1,29 @@
-import type { ContextCacheSearchResult, ContextCacheStats } from "@roo-code/types"
+import type {
+	ContextCacheBudgetOption,
+	ContextCacheEvent,
+	ContextCacheSearchResult,
+	ContextCacheStats,
+} from "@roo-code/types"
 
 import { ColdCache } from "./ColdCache"
 import { ContextChunk, ContextChunkSearchResult, RegisterContextChunkInput, createContextChunk } from "./ContextChunk"
 import { HotCache } from "./HotCache"
 
-export const DEFAULT_COLD_CACHE_RAM_BUDGET_MB = 512
+export const DEFAULT_COLD_CACHE_RAM_BUDGET_MB = 1024
 export const CONTEXT_CACHE_FULL_WARNING = "Cold cache full — falling back to condensing"
+
+const BYTES_PER_MB = 1024 * 1024
+const FALLBACK_SYSTEM_RAM_BYTES = 8 * 1024 * BYTES_PER_MB
+const MIN_COLD_CACHE_RAM_BUDGET_MB = 1024
+const CONTEXT_CACHE_MAX_RAM_RATIO = 0.25
+const CONTEXT_CACHE_RAM_HEADROOM_MB = 2 * 1024
+const MAX_COLD_CACHE_RAM_BUDGET_MB = 32 * 1024
+const CONTEXT_CACHE_EVENT_QUEUE_LIMIT = 20
 
 export interface ContextWindowManagerOptions {
 	hotTokenBudget: number
 	coldCacheRamBudgetMb?: number
+	coldCacheBudgetOptions?: readonly ContextCacheBudgetOption[]
 }
 
 export interface ContextPressureOptions {
@@ -25,26 +39,76 @@ export interface ContextPressureResult {
 	warning?: string
 }
 
-export function normalizeColdCacheRamBudgetMb(value: unknown): number {
-	const numeric = typeof value === "number" ? value : Number(value)
-	if (!Number.isFinite(numeric)) {
-		return DEFAULT_COLD_CACHE_RAM_BUDGET_MB
-	}
+function getSafeContextCacheBudgetLimitMb(totalMemoryBytes: number): number {
+	const totalMb =
+		Number.isFinite(totalMemoryBytes) && totalMemoryBytes > 0
+			? Math.floor(totalMemoryBytes / BYTES_PER_MB)
+			: Math.floor(FALLBACK_SYSTEM_RAM_BYTES / BYTES_PER_MB)
+	const ratioLimit = Math.floor(totalMb * CONTEXT_CACHE_MAX_RAM_RATIO)
+	const headroomLimit = totalMb - CONTEXT_CACHE_RAM_HEADROOM_MB
 
-	if (numeric <= 256) {
-		return 256
-	}
-	if (numeric <= 512) {
-		return 512
-	}
-	if (numeric <= 1024) {
-		return 1024
-	}
-	return 2048
+	return Math.max(MIN_COLD_CACHE_RAM_BUDGET_MB, Math.min(ratioLimit, headroomLimit, MAX_COLD_CACHE_RAM_BUDGET_MB))
 }
 
-export function coldCacheRamBudgetMbToBytes(value: unknown = DEFAULT_COLD_CACHE_RAM_BUDGET_MB): number {
-	return normalizeColdCacheRamBudgetMb(value) * 1024 * 1024
+export function getContextCacheBudgetOptions(
+	totalMemoryBytes: number = FALLBACK_SYSTEM_RAM_BYTES,
+): ContextCacheBudgetOption[] {
+	const safeLimitMb = getSafeContextCacheBudgetLimitMb(totalMemoryBytes)
+	const values: number[] = []
+
+	for (let value = 1024; value <= Math.min(safeLimitMb, 6144); value += 1024) {
+		values.push(value)
+	}
+
+	for (let value = 8192; value <= safeLimitMb; value += 2048) {
+		values.push(value)
+	}
+
+	return values
+		.filter((value) => value <= safeLimitMb)
+		.map((valueMb) => ({
+			valueMb,
+			recommended: valueMb === DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
+		}))
+}
+
+function getColdCacheBudgetOptionValues(options?: readonly ContextCacheBudgetOption[]): number[] {
+	const optionValues = (options?.length ? options : getContextCacheBudgetOptions())
+		.map((option) => option.valueMb)
+		.filter((value) => Number.isFinite(value) && value > 0)
+		.map((value) => Math.floor(value))
+		.sort((left, right) => left - right)
+
+	return [...new Set(optionValues)].length > 0 ? [...new Set(optionValues)] : [DEFAULT_COLD_CACHE_RAM_BUDGET_MB]
+}
+
+export function normalizeColdCacheRamBudgetMb(
+	value: unknown,
+	budgetOptions?: readonly ContextCacheBudgetOption[],
+): number {
+	const optionValues = getColdCacheBudgetOptionValues(budgetOptions)
+	const defaultValue = optionValues.includes(DEFAULT_COLD_CACHE_RAM_BUDGET_MB)
+		? DEFAULT_COLD_CACHE_RAM_BUDGET_MB
+		: (optionValues[0] ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB)
+	const numeric = typeof value === "number" ? value : Number(value)
+	if (!Number.isFinite(numeric)) {
+		return defaultValue
+	}
+
+	for (const optionValue of optionValues) {
+		if (numeric <= optionValue) {
+			return optionValue
+		}
+	}
+
+	return optionValues.at(-1) ?? defaultValue
+}
+
+export function coldCacheRamBudgetMbToBytes(
+	value: unknown = DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
+	budgetOptions?: readonly ContextCacheBudgetOption[],
+): number {
+	return normalizeColdCacheRamBudgetMb(value, budgetOptions) * BYTES_PER_MB
 }
 
 function toSearchResult(result: ContextChunkSearchResult): ContextCacheSearchResult {
@@ -62,14 +126,25 @@ function toSearchResult(result: ContextChunkSearchResult): ContextCacheSearchRes
 export class ContextWindowManager {
 	private readonly hotCache: HotCache
 	private readonly coldCache: ColdCache
+	private coldCacheBudgetOptions: readonly ContextCacheBudgetOption[]
+	private coldCacheRamBudgetMb: number
 	private readonly hiddenMessageTimestamps = new Set<number>()
+	private readonly contextCacheEvents: ContextCacheEvent[] = []
 	private warning: string | undefined
 	private swapsThisSession = 0
 	private condensingAvoided = 0
+	private contextCacheEventSequence = 0
 
 	constructor(options: ContextWindowManagerOptions) {
+		this.coldCacheBudgetOptions = options.coldCacheBudgetOptions ?? getContextCacheBudgetOptions()
+		this.coldCacheRamBudgetMb = normalizeColdCacheRamBudgetMb(
+			options.coldCacheRamBudgetMb,
+			this.coldCacheBudgetOptions,
+		)
 		this.hotCache = new HotCache(Math.max(1, Math.floor(options.hotTokenBudget)))
-		this.coldCache = new ColdCache(coldCacheRamBudgetMbToBytes(options.coldCacheRamBudgetMb))
+		this.coldCache = new ColdCache(
+			coldCacheRamBudgetMbToBytes(this.coldCacheRamBudgetMb, this.coldCacheBudgetOptions),
+		)
 	}
 
 	updateOptions(options: Partial<ContextWindowManagerOptions>): void {
@@ -78,8 +153,18 @@ export class ContextWindowManager {
 			this.moveChunksToCold(evicted)
 		}
 
-		if (options.coldCacheRamBudgetMb !== undefined) {
-			const result = this.coldCache.updateBudget(coldCacheRamBudgetMbToBytes(options.coldCacheRamBudgetMb))
+		if (options.coldCacheBudgetOptions !== undefined) {
+			this.coldCacheBudgetOptions = options.coldCacheBudgetOptions
+		}
+
+		if (options.coldCacheRamBudgetMb !== undefined || options.coldCacheBudgetOptions !== undefined) {
+			this.coldCacheRamBudgetMb = normalizeColdCacheRamBudgetMb(
+				options.coldCacheRamBudgetMb ?? this.coldCacheRamBudgetMb,
+				this.coldCacheBudgetOptions,
+			)
+			const result = this.coldCache.updateBudget(
+				coldCacheRamBudgetMbToBytes(this.coldCacheRamBudgetMb, this.coldCacheBudgetOptions),
+			)
 			for (const evictedChunk of result.evicted) {
 				this.unhideMessageTimestamps(evictedChunk)
 			}
@@ -132,6 +217,11 @@ export class ContextWindowManager {
 		}
 
 		this.condensingAvoided++
+		this.recordContextCacheEvent({
+			type: "condensing_avoided",
+			chunkCount: moved.movedChunks,
+			tokenCount: moved.movedTokens,
+		})
 		return {
 			handled: true,
 			movedChunks: moved.movedChunks,
@@ -142,6 +232,8 @@ export class ContextWindowManager {
 
 	askForContext(query: string, options: { filePath?: string; limit?: number } = {}): ContextCacheSearchResult[] {
 		const results = this.coldCache.search(query, { filePath: options.filePath, limit: options.limit ?? 3 })
+		let pulledChunks = 0
+		let pulledTokens = 0
 
 		for (const result of results) {
 			const chunk = this.coldCache.remove(result.chunk.id)
@@ -153,6 +245,18 @@ export class ContextWindowManager {
 			const evicted = this.hotCache.add(chunk, { protectedIds: new Set([chunk.id]) })
 			this.moveChunksToCold(evicted)
 			this.swapsThisSession++
+			pulledChunks++
+			pulledTokens += chunk.tokens
+		}
+
+		if (pulledChunks > 0) {
+			this.recordContextCacheEvent({
+				type: "chunks_pulled_from_cold",
+				chunkCount: pulledChunks,
+				tokenCount: pulledTokens,
+				query,
+				filePath: options.filePath,
+			})
 		}
 
 		return results.map(toSearchResult)
@@ -164,11 +268,19 @@ export class ContextWindowManager {
 
 		return {
 			hotCacheTokens: hotStats.tokens,
+			hotCacheChunks: hotStats.chunks,
 			coldCacheChunks: coldStats.chunks,
 			ramUsedMb: coldStats.ramUsedMb,
+			ramBudgetMb: this.coldCacheRamBudgetMb,
 			swapsThisSession: this.swapsThisSession,
 			condensingAvoided: this.condensingAvoided,
 		}
+	}
+
+	drainEvents(): ContextCacheEvent[] {
+		const events = [...this.contextCacheEvents]
+		this.contextCacheEvents.length = 0
+		return events
 	}
 
 	getWarning(): string | undefined {
@@ -203,6 +315,8 @@ export class ContextWindowManager {
 		let accepted = true
 		let movedChunks = 0
 		let movedTokens = 0
+		let rejectedChunks = 0
+		let rejectedTokens = 0
 
 		for (const chunk of chunks) {
 			const result = this.coldCache.add(chunk)
@@ -212,6 +326,8 @@ export class ContextWindowManager {
 			if (!result.accepted) {
 				accepted = false
 				this.warning = CONTEXT_CACHE_FULL_WARNING
+				rejectedChunks++
+				rejectedTokens += chunk.tokens
 				continue
 			}
 
@@ -221,7 +337,40 @@ export class ContextWindowManager {
 			this.swapsThisSession++
 		}
 
+		if (movedChunks > 0) {
+			this.recordContextCacheEvent({
+				type: "chunks_moved_to_cold",
+				chunkCount: movedChunks,
+				tokenCount: movedTokens,
+			})
+		}
+
+		if (rejectedChunks > 0) {
+			this.recordContextCacheEvent({
+				type: "cold_cache_full",
+				chunkCount: rejectedChunks,
+				tokenCount: rejectedTokens,
+				warning: CONTEXT_CACHE_FULL_WARNING,
+			})
+		}
+
 		return { accepted, movedChunks, movedTokens }
+	}
+
+	private recordContextCacheEvent(event: Omit<ContextCacheEvent, "id" | "createdAt">): void {
+		const createdAt = Date.now()
+		const coldStats = this.coldCache.getStats()
+		this.contextCacheEvents.push({
+			id: `${createdAt}-${this.contextCacheEventSequence++}`,
+			createdAt,
+			ramUsedMb: coldStats.ramUsedMb,
+			ramBudgetMb: this.coldCacheRamBudgetMb,
+			...event,
+		})
+
+		if (this.contextCacheEvents.length > CONTEXT_CACHE_EVENT_QUEUE_LIMIT) {
+			this.contextCacheEvents.splice(0, this.contextCacheEvents.length - CONTEXT_CACHE_EVENT_QUEUE_LIMIT)
+		}
 	}
 
 	private hideMessageTimestamps(chunk: ContextChunk): void {

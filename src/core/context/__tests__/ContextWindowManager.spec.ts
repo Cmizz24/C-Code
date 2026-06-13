@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
 	CONTEXT_CACHE_FULL_WARNING,
 	ContextWindowManager,
+	getContextCacheBudgetOptions,
 	normalizeColdCacheRamBudgetMb,
 } from "../ContextWindowManager"
 
@@ -32,11 +33,26 @@ describe("ContextWindowManager", () => {
 	}
 
 	it("normalizes cold cache RAM budgets to the supported settings options", () => {
-		expect(normalizeColdCacheRamBudgetMb(undefined)).toBe(512)
-		expect(normalizeColdCacheRamBudgetMb(128)).toBe(256)
-		expect(normalizeColdCacheRamBudgetMb(384)).toBe(512)
-		expect(normalizeColdCacheRamBudgetMb(900)).toBe(1024)
-		expect(normalizeColdCacheRamBudgetMb(4096)).toBe(2048)
+		const options = getContextCacheBudgetOptions(32 * 1024 * 1024 * 1024)
+
+		expect(normalizeColdCacheRamBudgetMb(undefined, options)).toBe(1024)
+		expect(normalizeColdCacheRamBudgetMb(128, options)).toBe(1024)
+		expect(normalizeColdCacheRamBudgetMb(1536, options)).toBe(2048)
+		expect(normalizeColdCacheRamBudgetMb(7000, options)).toBe(8192)
+		expect(normalizeColdCacheRamBudgetMb(65536, options)).toBe(8192)
+	})
+
+	it("generates dynamic cold cache RAM options with safe headroom and fallback", () => {
+		expect(getContextCacheBudgetOptions().map((option) => option.valueMb)).toEqual([1024, 2048])
+		expect(getContextCacheBudgetOptions(-1).map((option) => option.valueMb)).toEqual([1024, 2048])
+
+		const options = getContextCacheBudgetOptions(64 * 1024 * 1024 * 1024)
+
+		expect(options.map((option) => option.valueMb)).toEqual([
+			1024, 2048, 3072, 4096, 5120, 6144, 8192, 10240, 12288, 14336, 16384,
+		])
+		expect(options.find((option) => option.valueMb === 1024)?.recommended).toBe(true)
+		expect(options.find((option) => option.valueMb === 8192)?.recommended).toBe(false)
 	})
 
 	it("moves old conversation turns to cold cache, hides timestamps, and promotes retrieved matches", () => {
@@ -65,6 +81,11 @@ describe("ContextWindowManager", () => {
 			swapsThisSession: 2,
 			condensingAvoided: 1,
 		})
+		expect(manager.drainEvents()).toEqual([
+			expect.objectContaining({ type: "chunks_moved_to_cold", chunkCount: 2, tokenCount: 400 }),
+			expect.objectContaining({ type: "condensing_avoided", chunkCount: 2, tokenCount: 400 }),
+		])
+		expect(manager.drainEvents()).toEqual([])
 
 		const matches = manager.askForContext("beta", { limit: 3 })
 
@@ -81,6 +102,28 @@ describe("ContextWindowManager", () => {
 			swapsThisSession: 3,
 			condensingAvoided: 1,
 		})
+		expect(manager.drainEvents()).toEqual([
+			expect.objectContaining({
+				type: "chunks_pulled_from_cold",
+				chunkCount: 1,
+				tokenCount: 200,
+				query: "beta",
+			}),
+		])
+	})
+
+	it("keeps context cache events bounded", () => {
+		const manager = new ContextWindowManager({ hotTokenBudget: 1 })
+
+		for (let index = 0; index < 25; index++) {
+			registerConversationTurn(manager, `Conversation turn ${index}`, index, 2)
+		}
+
+		const events = manager.drainEvents()
+
+		expect(events).toHaveLength(20)
+		expect(events.every((event) => event.type === "chunks_moved_to_cold")).toBe(true)
+		expect(new Set(events.map((event) => event.id)).size).toBe(20)
 	})
 
 	it("does not evict non-conversation chunks or protected conversation turns for request pressure", () => {
@@ -120,5 +163,13 @@ describe("ContextWindowManager", () => {
 			warning: CONTEXT_CACHE_FULL_WARNING,
 		})
 		expect(manager.getWarning()).toBe(CONTEXT_CACHE_FULL_WARNING)
+		expect(manager.drainEvents()).toEqual([
+			expect.objectContaining({
+				type: "cold_cache_full",
+				chunkCount: 1,
+				tokenCount: 200,
+				warning: CONTEXT_CACHE_FULL_WARNING,
+			}),
+		])
 	})
 })

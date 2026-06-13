@@ -900,7 +900,13 @@
 					"512": "512MB",
 					"1024": "1GB",
 					"2048": "2GB+"
-				}
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}} (recommended)",
+				"vramNote": "C uses system RAM for cold context chunks. VS Code extensions do not have portable direct VRAM storage, and moving text chunks into VRAM adds complexity with little benefit."
 			},
 			"stats": {
 				"title": "Live cache stats",
@@ -908,7 +914,9 @@
 				"coldCacheChunks": "Cold cache chunks",
 				"ramUsed": "RAM used",
 				"swapsThisSession": "Swaps this session",
-				"condensingAvoided": "Times condensing avoided"
+				"condensingAvoided": "Times condensing avoided",
+				"hotCacheChunks": "Hot cache chunks",
+				"ramBudget": "RAM budget"
 			}
 		}
 	},

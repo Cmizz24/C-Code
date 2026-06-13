@@ -19,7 +19,17 @@
 		"shareSuccessPublic": "公开链接已复制到剪贴板",
 		"openApiHistory": "打开 API 历史",
 		"openUiHistory": "打开 UI 历史",
-		"backToParentTask": "父任务"
+		"backToParentTask": "父任务",
+		"contextCache": {
+			"label": "上下文缓存",
+			"hotCache": "热缓存",
+			"coldCache": "冷缓存",
+			"hotShort": "热",
+			"coldShort": "冷",
+			"swaps": "交换",
+			"condensingAvoided": "已避免压缩",
+			"warning": "警告"
+		}
 	},
 	"unpin": "取消置顶",
 	"pin": "置顶",
@@ -425,6 +435,32 @@
 			"messagesRemoved": "已移除 {{count}} 条消息",
 			"messagesRemoved_other": "已移除 {{count}} 条消息",
 			"description": "为保持在上下文窗口限制内，已从对话中移除较旧的消息。与压缩相比，这是一种快速但上下文保留较少的方法。"
+		},
+		"contextCache": {
+			"summary": {
+				"chunks_one": "{{count}} 个块",
+				"chunks_other": "{{count}} 个块"
+			},
+			"titles": {
+				"chunks_moved_to_cold": "上下文已移入冷缓存",
+				"chunks_pulled_from_cold": "上下文已从冷缓存取回",
+				"condensing_avoided": "已避免上下文压缩",
+				"cold_cache_full": "冷缓存已满"
+			},
+			"descriptions": {
+				"chunks_moved_to_cold": "较旧的上下文块已移出热窗口，并保留在 RAM 中以便稍后检索。",
+				"chunks_pulled_from_cold": "ask_for_context 请求更多上下文后，相关冷缓存块已恢复。",
+				"condensing_avoided": "热/冷缓存释放了足够空间，因此 C 跳过了自动压缩。",
+				"cold_cache_full": "RAM 预算已满，因此 C 回退到常规上下文压缩。"
+			},
+			"details": {
+				"chunks": "块",
+				"tokens": "Tokens",
+				"ram": "RAM",
+				"query": "查询",
+				"file": "文件",
+				"warning": "警告"
+			}
 		}
 	},
 	"skill": {

@@ -838,7 +838,13 @@
 					"512": "512MB",
 					"1024": "1GB",
 					"2048": "2GB+"
-				}
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}} (önerilen)",
+				"vramNote": "C soğuk bağlam chunk'ları için sistem RAM'i kullanır. VS Code eklentilerinde taşınabilir doğrudan VRAM depolama yoktur ve metin chunk'larını VRAM'e taşımak az faydayla karmaşıklık ekler."
 			},
 			"stats": {
 				"title": "Canlı cache istatistikleri",
@@ -846,7 +852,9 @@
 				"coldCacheChunks": "Cold cache chunk'ları",
 				"ramUsed": "Kullanılan RAM",
 				"swapsThisSession": "Bu oturumdaki swap'lar",
-				"condensingAvoided": "Condensing'den kaçınılan kez"
+				"condensingAvoided": "Condensing'den kaçınılan kez",
+				"hotCacheChunks": "Sıcak önbellek chunk'ları",
+				"ramBudget": "RAM bütçesi"
 			}
 		}
 	},

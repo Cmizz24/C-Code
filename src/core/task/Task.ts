@@ -31,6 +31,8 @@ import {
 	type AgentStatus,
 	type ContextCondense,
 	type ContextTruncation,
+	type ContextCacheBudgetOption,
+	type ContextCacheEvent,
 	type ContextCacheStats,
 	type ClineMessage,
 	type ClineSayTool,
@@ -936,7 +938,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	private configureContextWindowManager(
-		settings: { contextCacheEnabled?: boolean; coldCacheRamBudgetMb?: number } | undefined,
+		settings:
+			| {
+					contextCacheEnabled?: boolean
+					coldCacheRamBudgetMb?: number
+					contextCacheBudgetOptions?: readonly ContextCacheBudgetOption[]
+			  }
+			| undefined,
 		modelInfo: ModelInfo,
 	): void {
 		if ((settings?.contextCacheEnabled ?? true) === false) {
@@ -944,10 +952,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			return
 		}
 
+		const coldCacheBudgetOptions = settings?.contextCacheBudgetOptions
 		const options = {
 			hotTokenBudget: modelInfo.contextWindow,
+			coldCacheBudgetOptions,
 			coldCacheRamBudgetMb: normalizeColdCacheRamBudgetMb(
 				settings?.coldCacheRamBudgetMb ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
+				coldCacheBudgetOptions,
 			),
 		}
 
@@ -977,8 +988,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		return (
 			this.contextWindowManager?.getStats() ?? {
 				hotCacheTokens: 0,
+				hotCacheChunks: 0,
 				coldCacheChunks: 0,
 				ramUsedMb: 0,
+				ramBudgetMb: DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
 				swapsThisSession: 0,
 				condensingAvoided: 0,
 			}
@@ -987,6 +1000,25 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	public getContextCacheWarning(): string | undefined {
 		return this.contextWindowManager?.getWarning()
+	}
+
+	public async emitContextCacheEvents(): Promise<void> {
+		const events = this.contextWindowManager?.drainEvents() ?? []
+
+		for (const event of events) {
+			await this.say(
+				"context_cache_event",
+				undefined /* text */,
+				undefined /* images */,
+				false /* partial */,
+				undefined /* checkpoint */,
+				undefined /* progressStatus */,
+				{ isNonInteractive: true } /* options */,
+				undefined /* contextCondense */,
+				undefined /* contextTruncation */,
+				event,
+			)
+		}
 	}
 
 	static create(options: TaskOptions): [Task, Promise<void>] {
@@ -2107,6 +2139,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		} = {},
 		contextCondense?: ContextCondense,
 		contextTruncation?: ContextTruncation,
+		contextCacheEvent?: ContextCacheEvent,
 	): Promise<undefined> {
 		if (this.abort) {
 			throw new Error(`[RooCode#say] task ${this.taskId}.${this.instanceId} aborted`)
@@ -2125,6 +2158,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					lastMessage.images = images
 					lastMessage.partial = partial
 					lastMessage.progressStatus = progressStatus
+					lastMessage.contextCacheEvent = contextCacheEvent
 					this.updateClineMessage(lastMessage)
 				} else {
 					// This is a new partial message, so add it with partial state.
@@ -2143,6 +2177,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						partial,
 						contextCondense,
 						contextTruncation,
+						contextCacheEvent,
 					})
 				}
 			} else {
@@ -2158,6 +2193,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					lastMessage.images = images
 					lastMessage.partial = false
 					lastMessage.progressStatus = progressStatus
+					lastMessage.contextCacheEvent = contextCacheEvent
 
 					// Instead of streaming partialMessage events, we do a save
 					// and post like normal to persist to disk.
@@ -2181,6 +2217,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						images,
 						contextCondense,
 						contextTruncation,
+						contextCacheEvent,
 					})
 				}
 			}
@@ -2205,6 +2242,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				checkpoint,
 				contextCondense,
 				contextTruncation,
+				contextCacheEvent,
 			})
 		}
 	}
@@ -4724,6 +4762,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						contextTruncation,
 					)
 				}
+				await this.emitContextCacheEvents()
 			} finally {
 				// Notify webview that context management is complete (sets isCondensing = false)
 				// This removes the in-progress spinner and allows the completed result to show

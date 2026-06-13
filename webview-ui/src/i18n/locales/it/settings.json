@@ -838,7 +838,13 @@
 					"512": "512MB",
 					"1024": "1GB",
 					"2048": "2GB+"
-				}
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}} (consigliato)",
+				"vramNote": "C usa la RAM di sistema per i frammenti di contesto freddi. Le estensioni VS Code non hanno uno storage VRAM diretto portabile, e spostare frammenti di testo nella VRAM aggiunge complessità con pochi benefici."
 			},
 			"stats": {
 				"title": "Statistiche cache live",
@@ -846,7 +852,9 @@
 				"coldCacheChunks": "Chunk della cache cold",
 				"ramUsed": "RAM usata",
 				"swapsThisSession": "Swap in questa sessione",
-				"condensingAvoided": "Volte in cui la condensazione è stata evitata"
+				"condensingAvoided": "Volte in cui la condensazione è stata evitata",
+				"hotCacheChunks": "Frammenti della cache calda",
+				"ramBudget": "Budget RAM"
 			}
 		}
 	},

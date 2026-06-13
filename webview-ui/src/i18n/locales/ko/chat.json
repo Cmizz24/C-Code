@@ -19,7 +19,17 @@
 		"shareSuccessPublic": "공개 링크가 클립보드에 복사되었습니다",
 		"openApiHistory": "API 기록 열기",
 		"openUiHistory": "UI 기록 열기",
-		"backToParentTask": "상위 작업"
+		"backToParentTask": "상위 작업",
+		"contextCache": {
+			"label": "컨텍스트 캐시",
+			"hotCache": "핫 캐시",
+			"coldCache": "콜드 캐시",
+			"hotShort": "핫",
+			"coldShort": "콜드",
+			"swaps": "스왑",
+			"condensingAvoided": "압축 회피",
+			"warning": "경고"
+		}
 	},
 	"unpin": "고정 해제하기",
 	"pin": "고정하기",
@@ -424,6 +434,32 @@
 			"messagesRemoved": "{{count}}개 메시지 제거됨",
 			"messagesRemoved_other": "{{count}}개 메시지 제거됨",
 			"description": "컨텍스트 윈도우 제한 내에 유지하기 위해 대화에서 오래된 메시지가 제거되었습니다. 이것은 압축에 비해 빠르지만 컨텍스트 보존 능력이 낮은 접근 방식입니다."
+		},
+		"contextCache": {
+			"summary": {
+				"chunks_one": "{{count}}개 청크",
+				"chunks_other": "{{count}}개 청크"
+			},
+			"titles": {
+				"chunks_moved_to_cold": "컨텍스트를 콜드 캐시로 이동",
+				"chunks_pulled_from_cold": "콜드 캐시에서 컨텍스트 가져옴",
+				"condensing_avoided": "컨텍스트 압축 회피",
+				"cold_cache_full": "콜드 캐시가 가득 참"
+			},
+			"descriptions": {
+				"chunks_moved_to_cold": "오래된 컨텍스트 청크를 핫 윈도우에서 빼내 나중에 가져올 수 있도록 RAM에 보관했습니다.",
+				"chunks_pulled_from_cold": "ask_for_context가 더 많은 컨텍스트를 요청해 관련 콜드 캐시 청크를 복원했습니다.",
+				"condensing_avoided": "핫/콜드 캐시가 충분한 공간을 확보해 C가 자동 압축을 건너뛰었습니다.",
+				"cold_cache_full": "RAM 예산이 가득 차서 C가 일반 컨텍스트 압축으로 돌아갔습니다."
+			},
+			"details": {
+				"chunks": "청크",
+				"tokens": "Tokens",
+				"ram": "RAM",
+				"query": "쿼리",
+				"file": "파일",
+				"warning": "경고"
+			}
 		}
 	},
 	"skill": {

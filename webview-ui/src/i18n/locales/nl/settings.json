@@ -838,7 +838,13 @@
 					"512": "512MB",
 					"1024": "1GB",
 					"2048": "2GB+"
-				}
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}} (aanbevolen)",
+				"vramNote": "C gebruikt systeem-RAM voor cold contextchunks. VS Code-extensies hebben geen draagbare directe VRAM-opslag, en tekstchunks naar VRAM verplaatsen voegt complexiteit toe met weinig voordeel."
 			},
 			"stats": {
 				"title": "Live cache-statistieken",
@@ -846,7 +852,9 @@
 				"coldCacheChunks": "Cold cache chunks",
 				"ramUsed": "Gebruikte RAM",
 				"swapsThisSession": "Swaps deze sessie",
-				"condensingAvoided": "Aantal keren condenseren vermeden"
+				"condensingAvoided": "Aantal keren condenseren vermeden",
+				"hotCacheChunks": "Hotcachechunks",
+				"ramBudget": "RAM-budget"
 			}
 		}
 	},

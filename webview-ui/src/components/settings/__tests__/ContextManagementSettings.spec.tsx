@@ -4,12 +4,18 @@ import { render, screen, fireEvent, waitFor } from "@/utils/test-utils"
 import { ContextManagementSettings } from "../ContextManagementSettings"
 
 // Mock the translation hook
-vi.mock("@/hooks/useAppTranslation", () => ({
+vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
-		t: (key: string) => {
+		t: (key: string, options?: Record<string, any>) => {
 			// Return specific translations for our test cases
-			if (key === "settings:contextManagement.diagnostics.maxMessages.unlimitedLabel") {
-				return "Unlimited"
+			if (key === "settings:contextManagement.contextWindowManagement.coldCacheRamBudget.units.gb") {
+				return `${options?.value}GB`
+			}
+			if (key === "settings:contextManagement.contextWindowManagement.coldCacheRamBudget.units.mb") {
+				return `${options?.value}MB`
+			}
+			if (key === "settings:contextManagement.contextWindowManagement.coldCacheRamBudget.recommendedOption") {
+				return `${options?.value} (recommended)`
 			}
 			return key
 		},
@@ -89,11 +95,13 @@ describe("ContextManagementSettings", () => {
 		autoCondenseContext: false,
 		autoCondenseContextPercent: 80,
 		contextCacheEnabled: true,
-		coldCacheRamBudgetMb: 512,
+		coldCacheRamBudgetMb: 1024,
 		contextCacheStats: {
 			hotCacheTokens: 0,
+			hotCacheChunks: 0,
 			coldCacheChunks: 0,
 			ramUsedMb: 0,
+			ramBudgetMb: 1024,
 			swapsThisSession: 0,
 			condensingAvoided: 0,
 		},
@@ -214,14 +222,23 @@ describe("ContextManagementSettings", () => {
 	})
 
 	describe("Context Window Management cache settings", () => {
-		it("renders context cache controls, RAM budget options, stats, and warning", () => {
+		it("renders context cache controls, dynamic RAM budget options, stats, warning, and VRAM note", () => {
 			render(
 				<ContextManagementSettings
 					{...defaultProps}
+					coldCacheRamBudgetMb={8192}
+					contextCacheBudgetOptions={[
+						{ valueMb: 1024, recommended: true },
+						{ valueMb: 6144 },
+						{ valueMb: 8192 },
+						{ valueMb: 6144 },
+					]}
 					contextCacheStats={{
 						hotCacheTokens: 12345,
+						hotCacheChunks: 4,
 						coldCacheChunks: 7,
 						ramUsedMb: 12.5,
+						ramBudgetMb: 2048,
 						swapsThisSession: 3,
 						condensingAvoided: 2,
 					}}
@@ -235,26 +252,25 @@ describe("ContextManagementSettings", () => {
 			).toBeInTheDocument()
 			expect(screen.getByTestId("context-cache-enabled-checkbox")).toBeInTheDocument()
 			expect(screen.getByTestId("cold-cache-ram-budget-select")).toBeInTheDocument()
+			expect(screen.getByText("1GB (recommended)")).toBeInTheDocument()
+			expect(screen.getByText("6GB")).toBeInTheDocument()
+			expect(screen.getByText("8GB")).toBeInTheDocument()
+			expect(screen.getByText("8GB")).toHaveValue("8192")
 			expect(
-				screen.getByText("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.options.256"),
-			).toBeInTheDocument()
-			expect(
-				screen.getByText("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.options.512"),
-			).toBeInTheDocument()
-			expect(
-				screen.getByText("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.options.1024"),
-			).toBeInTheDocument()
-			expect(
-				screen.getByText("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.options.2048"),
+				screen.getByText("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.vramNote"),
 			).toBeInTheDocument()
 
 			const stats = screen.getByTestId("context-cache-stats")
 			expect(stats).toHaveTextContent("settings:contextManagement.contextWindowManagement.stats.hotCacheTokens")
 			expect(stats).toHaveTextContent("12,345")
+			expect(stats).toHaveTextContent("settings:contextManagement.contextWindowManagement.stats.hotCacheChunks")
+			expect(stats).toHaveTextContent("4")
 			expect(stats).toHaveTextContent("settings:contextManagement.contextWindowManagement.stats.coldCacheChunks")
 			expect(stats).toHaveTextContent("7")
 			expect(stats).toHaveTextContent("settings:contextManagement.contextWindowManagement.stats.ramUsed")
-			expect(stats).toHaveTextContent("12.5 MB")
+			expect(stats).toHaveTextContent("12.5MB")
+			expect(stats).toHaveTextContent("settings:contextManagement.contextWindowManagement.stats.ramBudget")
+			expect(stats).toHaveTextContent("2GB")
 			expect(stats).toHaveTextContent("settings:contextManagement.contextWindowManagement.stats.swapsThisSession")
 			expect(stats).toHaveTextContent("3")
 			expect(stats).toHaveTextContent(
@@ -283,11 +299,25 @@ describe("ContextManagementSettings", () => {
 			const setCachedStateField = vi.fn()
 			render(<ContextManagementSettings {...defaultProps} setCachedStateField={setCachedStateField} />)
 
-			fireEvent.change(screen.getByTestId("cold-cache-ram-budget-select"), { target: { value: "1024" } })
+			fireEvent.change(screen.getByTestId("cold-cache-ram-budget-select"), { target: { value: "2048" } })
 
 			await waitFor(() => {
-				expect(setCachedStateField).toHaveBeenCalledWith("coldCacheRamBudgetMb", 1024)
+				expect(setCachedStateField).toHaveBeenCalledWith("coldCacheRamBudgetMb", 2048)
 			})
+		})
+
+		it("adds the current RAM budget if detected options do not include it", () => {
+			render(
+				<ContextManagementSettings
+					{...defaultProps}
+					coldCacheRamBudgetMb={3072}
+					contextCacheBudgetOptions={[{ valueMb: 1024, recommended: true }, { valueMb: 2048 }]}
+				/>,
+			)
+
+			expect(screen.getByText("1GB (recommended)")).toBeInTheDocument()
+			expect(screen.getByText("2GB")).toBeInTheDocument()
+			expect(screen.getByText("3GB")).toBeInTheDocument()
 		})
 	})
 
@@ -553,6 +583,9 @@ describe("ContextManagementSettings", () => {
 			).toBeInTheDocument()
 			expect(
 				screen.getByText("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.description"),
+			).toBeInTheDocument()
+			expect(
+				screen.getByText("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.vramNote"),
 			).toBeInTheDocument()
 			expect(screen.getByText("settings:contextManagement.openTabs.description")).toBeInTheDocument()
 			expect(screen.getByText("settings:contextManagement.workspaceFiles.description")).toBeInTheDocument()

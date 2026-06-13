@@ -137,6 +137,8 @@ const isSmtpTestRelevantField = (field: keyof ExtensionStateContextType) =>
 		field === "emailNotifyOnSuccess" ||
 		field === "emailNotifyOnFailure")
 
+const DEFAULT_COLD_CACHE_RAM_BUDGET_MB = 1024
+
 const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, targetSection }, ref) => {
 	const { t } = useAppTranslation()
 
@@ -146,6 +148,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		listApiConfigMeta,
 		uriScheme,
 		settingsImportedAt,
+		contextCacheBudgetOptions,
 		contextCacheStats,
 		contextCacheWarning,
 	} = extensionState
@@ -570,7 +573,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				autoCondenseContext,
 				autoCondenseContextPercent,
 				contextCacheEnabled: contextCacheEnabled ?? true,
-				coldCacheRamBudgetMb: coldCacheRamBudgetMb ?? 512,
+				coldCacheRamBudgetMb: coldCacheRamBudgetMb ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
 				soundEnabled: soundEnabled ?? true,
 				soundVolume: soundVolume ?? 0.5,
 				ttsEnabled,
@@ -1144,7 +1147,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								autoCondenseContext={autoCondenseContext}
 								autoCondenseContextPercent={autoCondenseContextPercent}
 								contextCacheEnabled={contextCacheEnabled ?? true}
-								coldCacheRamBudgetMb={coldCacheRamBudgetMb ?? 512}
+								coldCacheRamBudgetMb={coldCacheRamBudgetMb ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB}
+								contextCacheBudgetOptions={contextCacheBudgetOptions}
 								contextCacheStats={contextCacheStats}
 								contextCacheWarning={contextCacheWarning}
 								listApiConfigMeta={listApiConfigMeta ?? []}

@@ -19,7 +19,17 @@
 		"shareSuccessPublic": "Link pubblico copiato negli appunti",
 		"openApiHistory": "Apri cronologia API",
 		"openUiHistory": "Apri cronologia UI",
-		"backToParentTask": "Attività principale"
+		"backToParentTask": "Attività principale",
+		"contextCache": {
+			"label": "Cache del contesto",
+			"hotCache": "Cache calda",
+			"coldCache": "Cache fredda",
+			"hotShort": "calda",
+			"coldShort": "fredda",
+			"swaps": "Scambi",
+			"condensingAvoided": "Condensazioni evitate",
+			"warning": "Avviso"
+		}
 	},
 	"unpin": "Rilascia",
 	"pin": "Fissa",
@@ -424,6 +434,32 @@
 			"messagesRemoved": "{{count}} messaggio rimosso",
 			"messagesRemoved_other": "{{count}} messaggi rimossi",
 			"description": "I messaggi più vecchi sono stati rimossi dalla conversazione per rimanere entro il limite della finestra di contesto. Questo è un approccio veloce ma meno conservativo del contesto rispetto alla condensazione."
+		},
+		"contextCache": {
+			"summary": {
+				"chunks_one": "{{count}} frammento",
+				"chunks_other": "{{count}} frammenti"
+			},
+			"titles": {
+				"chunks_moved_to_cold": "Contesto spostato nella cache fredda",
+				"chunks_pulled_from_cold": "Contesto recuperato dalla cache fredda",
+				"condensing_avoided": "Condensazione del contesto evitata",
+				"cold_cache_full": "Cache fredda piena"
+			},
+			"descriptions": {
+				"chunks_moved_to_cold": "I vecchi frammenti di contesto sono stati spostati fuori dalla finestra calda e mantenuti in RAM per recuperarli più tardi.",
+				"chunks_pulled_from_cold": "I frammenti rilevanti della cache fredda sono stati ripristinati dopo che ask_for_context ha richiesto più contesto.",
+				"condensing_avoided": "La cache calda/fredda ha liberato abbastanza spazio, quindi C ha saltato la condensazione automatica.",
+				"cold_cache_full": "Il budget RAM è pieno, quindi C è tornato alla normale condensazione del contesto."
+			},
+			"details": {
+				"chunks": "Frammenti",
+				"tokens": "Tokens",
+				"ram": "RAM",
+				"query": "Query",
+				"file": "File",
+				"warning": "Avviso"
+			}
 		}
 	},
 	"skill": {

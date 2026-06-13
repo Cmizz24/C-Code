@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { contextCacheEventSchema } from "./context-management.js"
+
 /**
  * ClineAsk
  */
@@ -166,6 +168,7 @@ export const clineSays = [
 	"condense_context",
 	"condense_context_error",
 	"sliding_window_truncation",
+	"context_cache_event",
 	"codebase_search_result",
 	"user_edit_todos",
 	"too_many_tools_warning",
@@ -243,6 +246,7 @@ export type ContextTruncation = z.infer<typeof contextTruncationSchema>
  * Context Management Fields:
  * - `contextCondense`: Present when `say: "condense_context"` and condensation succeeded
  * - `contextTruncation`: Present when `say: "sliding_window_truncation"` and truncation occurred
+ * - `contextCacheEvent`: Present when `say: "context_cache_event"` and cache activity occurred
  *
  * Note: These fields are mutually exclusive - a message will have at most one of them.
  */
@@ -268,6 +272,11 @@ export const clineMessageSchema = z.object({
 	 * Present when `say: "sliding_window_truncation"`.
 	 */
 	contextTruncation: contextTruncationSchema.optional(),
+	/**
+	 * Data for hot/cold context cache activity.
+	 * Present when `say: "context_cache_event"`.
+	 */
+	contextCacheEvent: contextCacheEventSchema.optional(),
 	isProtected: z.boolean().optional(),
 	apiProtocol: z.union([z.literal("openai"), z.literal("anthropic")]).optional(),
 	isAnswered: z.boolean().optional(),

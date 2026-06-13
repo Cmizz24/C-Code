@@ -838,7 +838,13 @@
 					"512": "512MB",
 					"1024": "1GB",
 					"2048": "2GB+"
-				}
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}}（推奨）",
+				"vramNote": "C はコールドコンテキストチャンクにシステム RAM を使います。VS Code 拡張機能には移植可能な直接 VRAM ストレージがなく、テキストチャンクを VRAM に移すと複雑さが増す割に利点はほとんどありません。"
 			},
 			"stats": {
 				"title": "ライブキャッシュ統計",
@@ -846,7 +852,9 @@
 				"coldCacheChunks": "Cold cache チャンク",
 				"ramUsed": "使用 RAM",
 				"swapsThisSession": "このセッションの swap",
-				"condensingAvoided": "condensing を回避した回数"
+				"condensingAvoided": "condensing を回避した回数",
+				"hotCacheChunks": "ホットキャッシュチャンク",
+				"ramBudget": "RAM 予算"
 			}
 		}
 	},

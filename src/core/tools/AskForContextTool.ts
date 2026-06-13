@@ -45,6 +45,7 @@ export class AskForContextTool extends BaseTool<"ask_for_context"> {
 					{ isNonInteractive: true },
 				)
 				.catch(() => {})
+			await task.emitContextCacheEvents?.()
 
 			pushToolResult(
 				JSON.stringify(

@@ -838,7 +838,13 @@
 					"512": "512MB",
 					"1024": "1GB",
 					"2048": "2GB+"
-				}
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}} (disarankan)",
+				"vramNote": "C menggunakan RAM sistem untuk chunk konteks dingin. Ekstensi VS Code tidak punya penyimpanan VRAM langsung yang portabel, dan memindahkan chunk teks ke VRAM menambah kompleksitas dengan manfaat kecil."
 			},
 			"stats": {
 				"title": "Statistik cache live",
@@ -846,7 +852,9 @@
 				"coldCacheChunks": "Chunk cache cold",
 				"ramUsed": "RAM digunakan",
 				"swapsThisSession": "Swap sesi ini",
-				"condensingAvoided": "Berapa kali condensing dihindari"
+				"condensingAvoided": "Berapa kali condensing dihindari",
+				"hotCacheChunks": "Chunk cache panas",
+				"ramBudget": "Budget RAM"
 			}
 		}
 	},

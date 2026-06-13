@@ -19,7 +19,17 @@
 		"shareSuccessPublic": "Openbare link gekopieerd naar klembord",
 		"openApiHistory": "API-geschiedenis openen",
 		"openUiHistory": "UI-geschiedenis openen",
-		"backToParentTask": "Bovenliggende taak"
+		"backToParentTask": "Bovenliggende taak",
+		"contextCache": {
+			"label": "Contextcache",
+			"hotCache": "Hotcache",
+			"coldCache": "Coldcache",
+			"hotShort": "hot",
+			"coldShort": "cold",
+			"swaps": "Wissels",
+			"condensingAvoided": "Condensing vermeden",
+			"warning": "Waarschuwing"
+		}
 	},
 	"unpin": "Losmaken",
 	"pin": "Vastmaken",
@@ -456,6 +466,32 @@
 			"messagesRemoved": "{{count}} bericht verwijderd",
 			"messagesRemoved_other": "{{count}} berichten verwijderd",
 			"description": "Oudere berichten zijn uit het gesprek verwijderd om binnen de limiet van het contextvenster te blijven. Dit is een snelle maar minder contextbehoudende aanpak in vergelijking met samenvoeging."
+		},
+		"contextCache": {
+			"summary": {
+				"chunks_one": "{{count}} chunk",
+				"chunks_other": "{{count}} chunks"
+			},
+			"titles": {
+				"chunks_moved_to_cold": "Context naar coldcache verplaatst",
+				"chunks_pulled_from_cold": "Context uit coldcache opgehaald",
+				"condensing_avoided": "Contextcondensing vermeden",
+				"cold_cache_full": "Coldcache vol"
+			},
+			"descriptions": {
+				"chunks_moved_to_cold": "Oudere contextchunks zijn uit het hot venster gehaald en in RAM bewaard om later op te halen.",
+				"chunks_pulled_from_cold": "Relevante coldcachechunks zijn hersteld nadat ask_for_context om meer context vroeg.",
+				"condensing_avoided": "De hot/cold cache maakte genoeg ruimte vrij, dus C sloeg automatisch condenseren over.",
+				"cold_cache_full": "Het RAM-budget is vol, dus C viel terug op gewone contextcondensing."
+			},
+			"details": {
+				"chunks": "Chunks",
+				"tokens": "Tokens",
+				"ram": "RAM",
+				"query": "Query",
+				"file": "Bestand",
+				"warning": "Waarschuwing"
+			}
 		}
 	},
 	"skill": {

@@ -1,6 +1,6 @@
 import { HTMLAttributes } from "react"
 import React from "react"
-import type { ContextCacheStats } from "@roo-code/types"
+import type { ContextCacheBudgetOption, ContextCacheStats } from "@roo-code/types"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { VSCodeCheckbox, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { FoldVertical } from "lucide-react"
@@ -26,22 +26,35 @@ import { Section } from "./Section"
 import { SearchableSetting } from "./SearchableSetting"
 import { vscode } from "@/utils/vscode"
 
+const DEFAULT_COLD_CACHE_RAM_BUDGET_MB = 1024
+const FALLBACK_CONTEXT_CACHE_BUDGET_OPTIONS: ContextCacheBudgetOption[] = [
+	{ valueMb: DEFAULT_COLD_CACHE_RAM_BUDGET_MB, recommended: true },
+	{ valueMb: 2048 },
+]
+
 const DEFAULT_CONTEXT_CACHE_STATS: ContextCacheStats = {
 	hotCacheTokens: 0,
+	hotCacheChunks: 0,
 	coldCacheChunks: 0,
 	ramUsedMb: 0,
+	ramBudgetMb: DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
 	swapsThisSession: 0,
 	condensingAvoided: 0,
 }
 
-const COLD_CACHE_RAM_OPTIONS = [256, 512, 1024, 2048] as const
-
 const formatContextCacheNumber = (value: number | undefined) => (value ?? 0).toLocaleString()
 
-const formatContextCacheRamUsed = (value: number | undefined) => {
-	const ramUsedMb = value ?? 0
-	const formatted = Number.isInteger(ramUsedMb) ? ramUsedMb.toString() : ramUsedMb.toFixed(1)
-	return `${formatted} MB`
+const formatContextCacheRamValue = (valueMb: number | undefined, t: ReturnType<typeof useAppTranslation>["t"]) => {
+	const safeValueMb = valueMb ?? 0
+
+	if (safeValueMb >= 1024 && safeValueMb % 1024 === 0) {
+		return t("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.units.gb", {
+			value: safeValueMb / 1024,
+		})
+	}
+
+	const formatted = Number.isInteger(safeValueMb) ? safeValueMb.toString() : safeValueMb.toFixed(1)
+	return t("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.units.mb", { value: formatted })
 }
 
 type ContextManagementSettingsProps = HTMLAttributes<HTMLDivElement> & {
@@ -49,6 +62,7 @@ type ContextManagementSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	autoCondenseContextPercent: number
 	contextCacheEnabled: boolean
 	coldCacheRamBudgetMb: number
+	contextCacheBudgetOptions?: readonly ContextCacheBudgetOption[]
 	contextCacheStats?: ContextCacheStats
 	contextCacheWarning?: string
 	listApiConfigMeta: any[]
@@ -93,6 +107,7 @@ export const ContextManagementSettings = ({
 	autoCondenseContextPercent,
 	contextCacheEnabled,
 	coldCacheRamBudgetMb,
+	contextCacheBudgetOptions = [],
 	contextCacheStats = DEFAULT_CONTEXT_CACHE_STATS,
 	contextCacheWarning,
 	listApiConfigMeta,
@@ -117,10 +132,43 @@ export const ContextManagementSettings = ({
 }: ContextManagementSettingsProps) => {
 	const { t } = useAppTranslation()
 	const [selectedThresholdProfile, setSelectedThresholdProfile] = React.useState<string>("default")
+	const coldCacheRamBudgetOptions = React.useMemo(() => {
+		const sourceOptions = contextCacheBudgetOptions.length
+			? contextCacheBudgetOptions
+			: FALLBACK_CONTEXT_CACHE_BUDGET_OPTIONS
+		const mergedOptions = new Map<number, ContextCacheBudgetOption>()
+
+		for (const option of sourceOptions) {
+			if (!Number.isFinite(option.valueMb) || option.valueMb <= 0) {
+				continue
+			}
+
+			const valueMb = Math.floor(option.valueMb)
+			const existing = mergedOptions.get(valueMb)
+			mergedOptions.set(valueMb, {
+				valueMb,
+				recommended: Boolean(existing?.recommended || option.recommended),
+			})
+		}
+
+		if (
+			Number.isFinite(coldCacheRamBudgetMb) &&
+			coldCacheRamBudgetMb > 0 &&
+			!mergedOptions.has(Math.floor(coldCacheRamBudgetMb))
+		) {
+			mergedOptions.set(Math.floor(coldCacheRamBudgetMb), { valueMb: Math.floor(coldCacheRamBudgetMb) })
+		}
+
+		return [...mergedOptions.values()].sort((a, b) => a.valueMb - b.valueMb)
+	}, [coldCacheRamBudgetMb, contextCacheBudgetOptions])
 	const contextCacheStatItems = [
 		{
 			label: t("settings:contextManagement.contextWindowManagement.stats.hotCacheTokens"),
 			value: formatContextCacheNumber(contextCacheStats.hotCacheTokens),
+		},
+		{
+			label: t("settings:contextManagement.contextWindowManagement.stats.hotCacheChunks"),
+			value: formatContextCacheNumber(contextCacheStats.hotCacheChunks),
 		},
 		{
 			label: t("settings:contextManagement.contextWindowManagement.stats.coldCacheChunks"),
@@ -128,7 +176,11 @@ export const ContextManagementSettings = ({
 		},
 		{
 			label: t("settings:contextManagement.contextWindowManagement.stats.ramUsed"),
-			value: formatContextCacheRamUsed(contextCacheStats.ramUsedMb),
+			value: formatContextCacheRamValue(contextCacheStats.ramUsedMb, t),
+		},
+		{
+			label: t("settings:contextManagement.contextWindowManagement.stats.ramBudget"),
+			value: formatContextCacheRamValue(contextCacheStats.ramBudgetMb, t),
 		},
 		{
 			label: t("settings:contextManagement.contextWindowManagement.stats.swapsThisSession"),
@@ -238,17 +290,23 @@ export const ContextManagementSettings = ({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								{COLD_CACHE_RAM_OPTIONS.map((value) => (
-									<SelectItem key={value} value={String(value)}>
-										{t(
-											`settings:contextManagement.contextWindowManagement.coldCacheRamBudget.options.${value}`,
-										)}
+								{coldCacheRamBudgetOptions.map((option) => (
+									<SelectItem key={option.valueMb} value={String(option.valueMb)}>
+										{option.recommended
+											? t(
+													"settings:contextManagement.contextWindowManagement.coldCacheRamBudget.recommendedOption",
+													{ value: formatContextCacheRamValue(option.valueMb, t) },
+												)
+											: formatContextCacheRamValue(option.valueMb, t)}
 									</SelectItem>
 								))}
 							</SelectContent>
 						</Select>
 						<div className="text-vscode-descriptionForeground text-sm mt-1">
 							{t("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.description")}
+						</div>
+						<div className="text-vscode-descriptionForeground text-sm mt-1">
+							{t("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.vramNote")}
 						</div>
 					</SearchableSetting>
 

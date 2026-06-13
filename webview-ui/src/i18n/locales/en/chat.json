@@ -19,7 +19,17 @@
 		"shareSuccessPublic": "Public link copied to clipboard",
 		"openApiHistory": "Open API History",
 		"openUiHistory": "Open UI History",
-		"backToParentTask": "Parent task"
+		"backToParentTask": "Parent task",
+		"contextCache": {
+			"label": "Context Cache",
+			"hotCache": "Hot cache",
+			"coldCache": "Cold cache",
+			"hotShort": "hot",
+			"coldShort": "cold",
+			"swaps": "Swaps",
+			"condensingAvoided": "Condensing avoided",
+			"warning": "Warning"
+		}
 	},
 	"unpin": "Unpin",
 	"pin": "Pin",
@@ -212,6 +222,32 @@
 			"messagesRemoved": "{{count}} message removed",
 			"messagesRemoved_other": "{{count}} messages removed",
 			"description": "Older messages were removed from the conversation to stay within the context window limit. This is a fast but less context-preserving approach compared to condensation."
+		},
+		"contextCache": {
+			"summary": {
+				"chunks_one": "{{count}} chunk",
+				"chunks_other": "{{count}} chunks"
+			},
+			"titles": {
+				"chunks_moved_to_cold": "Moved context to cold cache",
+				"chunks_pulled_from_cold": "Pulled context from cold cache",
+				"condensing_avoided": "Avoided context condensing",
+				"cold_cache_full": "Cold cache full"
+			},
+			"descriptions": {
+				"chunks_moved_to_cold": "Older context chunks were moved out of the hot window and kept in RAM for later retrieval.",
+				"chunks_pulled_from_cold": "Relevant cold-cache chunks were restored after ask_for_context requested more context.",
+				"condensing_avoided": "The hot/cold cache freed enough room, so C skipped automatic condensing.",
+				"cold_cache_full": "The RAM budget is full, so C fell back to regular context condensing."
+			},
+			"details": {
+				"chunks": "Chunks",
+				"tokens": "Tokens",
+				"ram": "RAM",
+				"query": "Query",
+				"file": "File",
+				"warning": "Warning"
+			}
 		}
 	},
 	"skill": {

@@ -19,7 +19,17 @@
 		"shareSuccessPublic": "公開連結已複製到剪貼簿",
 		"openApiHistory": "開啟 API 歷史紀錄",
 		"openUiHistory": "開啟 UI 歷史紀錄",
-		"backToParentTask": "上層工作"
+		"backToParentTask": "上層工作",
+		"contextCache": {
+			"label": "上下文快取",
+			"hotCache": "熱快取",
+			"coldCache": "冷快取",
+			"hotShort": "熱",
+			"coldShort": "冷",
+			"swaps": "交換",
+			"condensingAvoided": "已避免壓縮",
+			"warning": "警告"
+		}
 	},
 	"unpin": "取消釘選",
 	"pin": "釘選",
@@ -212,6 +222,32 @@
 			"messagesRemoved": "已移除 {{count}} 則訊息",
 			"messagesRemoved_other": "已移除 {{count}} 則訊息",
 			"description": "為保持在上下文視窗限制內，已從對話中移除較舊的訊息。與壓縮相比，這是一種快速但上下文保留較少的方法。"
+		},
+		"contextCache": {
+			"summary": {
+				"chunks_one": "{{count}} 個區塊",
+				"chunks_other": "{{count}} 個區塊"
+			},
+			"titles": {
+				"chunks_moved_to_cold": "上下文已移至冷快取",
+				"chunks_pulled_from_cold": "上下文已從冷快取取回",
+				"condensing_avoided": "已避免上下文壓縮",
+				"cold_cache_full": "冷快取已滿"
+			},
+			"descriptions": {
+				"chunks_moved_to_cold": "較舊的上下文區塊已移出熱視窗，並保留在 RAM 中以便稍後擷取。",
+				"chunks_pulled_from_cold": "ask_for_context 要求更多上下文後，相關冷快取區塊已還原。",
+				"condensing_avoided": "熱/冷快取釋放了足夠空間，因此 C 略過自動壓縮。",
+				"cold_cache_full": "RAM 預算已滿，因此 C 回退到一般上下文壓縮。"
+			},
+			"details": {
+				"chunks": "區塊",
+				"tokens": "Tokens",
+				"ram": "RAM",
+				"query": "查詢",
+				"file": "檔案",
+				"warning": "警告"
+			}
 		}
 	},
 	"skill": {

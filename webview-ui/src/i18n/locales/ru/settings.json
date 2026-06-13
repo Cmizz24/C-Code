@@ -838,7 +838,13 @@
 					"512": "512MB",
 					"1024": "1GB",
 					"2048": "2GB+"
-				}
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}} (рекомендуется)",
+				"vramNote": "C использует системную RAM для фрагментов холодного контекста. У расширений VS Code нет переносимого прямого хранилища VRAM, а перенос текстовых фрагментов в VRAM добавляет сложность при малой пользе."
 			},
 			"stats": {
 				"title": "Живая статистика cache",
@@ -846,7 +852,9 @@
 				"coldCacheChunks": "Чанки cold cache",
 				"ramUsed": "Использовано RAM",
 				"swapsThisSession": "Swaps в этой сессии",
-				"condensingAvoided": "Сколько раз удалось избежать сжатия"
+				"condensingAvoided": "Сколько раз удалось избежать сжатия",
+				"hotCacheChunks": "Фрагменты горячего кэша",
+				"ramBudget": "Бюджет RAM"
 			}
 		}
 	},

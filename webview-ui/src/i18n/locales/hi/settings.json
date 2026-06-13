@@ -838,7 +838,13 @@
 					"512": "512MB",
 					"1024": "1GB",
 					"2048": "2GB+"
-				}
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}} (अनुशंसित)",
+				"vramNote": "C cold context chunks के लिए system RAM का उपयोग करता है। VS Code extensions के पास portable direct VRAM storage नहीं होता, और text chunks को VRAM में ले जाना कम लाभ के साथ जटिलता बढ़ाता है।"
 			},
 			"stats": {
 				"title": "Live cache आँकड़े",
@@ -846,7 +852,9 @@
 				"coldCacheChunks": "Cold cache chunks",
 				"ramUsed": "उपयोग की गई RAM",
 				"swapsThisSession": "इस session में swaps",
-				"condensingAvoided": "Condensing से बचाए गए बार"
+				"condensingAvoided": "Condensing से बचाए गए बार",
+				"hotCacheChunks": "Hot cache chunks",
+				"ramBudget": "RAM budget"
 			}
 		}
 	},

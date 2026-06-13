@@ -19,7 +19,17 @@
 		"shareSuccessPublic": "Öffentlicher Link in die Zwischenablage kopiert",
 		"openApiHistory": "API-Verlauf öffnen",
 		"openUiHistory": "UI-Verlauf öffnen",
-		"backToParentTask": "Übergeordnete Aufgabe"
+		"backToParentTask": "Übergeordnete Aufgabe",
+		"contextCache": {
+			"label": "Kontext-Cache",
+			"hotCache": "Hot Cache",
+			"coldCache": "Cold Cache",
+			"hotShort": "hot",
+			"coldShort": "cold",
+			"swaps": "Wechsel",
+			"condensingAvoided": "Kondensieren vermieden",
+			"warning": "Warnung"
+		}
 	},
 	"unpin": "Lösen von oben",
 	"pin": "Anheften",
@@ -424,6 +434,32 @@
 			"messagesRemoved": "{{count}} Nachricht entfernt",
 			"messagesRemoved_other": "{{count}} Nachrichten entfernt",
 			"description": "Ältere Nachrichten wurden aus der Konversation entfernt, um innerhalb des Kontextfenster-Limits zu bleiben. Dies ist ein schnellerer, aber weniger kontexterhaltender Ansatz im Vergleich zur Komprimierung."
+		},
+		"contextCache": {
+			"summary": {
+				"chunks_one": "{{count}} Chunk",
+				"chunks_other": "{{count}} Chunks"
+			},
+			"titles": {
+				"chunks_moved_to_cold": "Kontext in den Cold Cache verschoben",
+				"chunks_pulled_from_cold": "Kontext aus dem Cold Cache geholt",
+				"condensing_avoided": "Kontext-Kondensierung vermieden",
+				"cold_cache_full": "Cold Cache voll"
+			},
+			"descriptions": {
+				"chunks_moved_to_cold": "Ältere Kontext-Chunks wurden aus dem Hot Window entfernt und für spätere Abfragen im RAM gehalten.",
+				"chunks_pulled_from_cold": "Relevante Cold-Cache-Chunks wurden wiederhergestellt, nachdem ask_for_context mehr Kontext angefordert hat.",
+				"condensing_avoided": "Der Hot/Cold Cache hat genug Platz freigegeben, daher hat C das automatische Kondensieren übersprungen.",
+				"cold_cache_full": "Das RAM-Budget ist voll, daher ist C auf die reguläre Kontext-Kondensierung zurückgefallen."
+			},
+			"details": {
+				"chunks": "Chunks",
+				"tokens": "Tokens",
+				"ram": "RAM",
+				"query": "Abfrage",
+				"file": "Datei",
+				"warning": "Warnung"
+			}
 		}
 	},
 	"skill": {

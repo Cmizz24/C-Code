@@ -19,7 +19,17 @@
 		"shareSuccessPublic": "Genel bağlantı panoya kopyalandı",
 		"openApiHistory": "API Geçmişini Aç",
 		"openUiHistory": "UI Geçmişini Aç",
-		"backToParentTask": "Üst görev"
+		"backToParentTask": "Üst görev",
+		"contextCache": {
+			"label": "Bağlam önbelleği",
+			"hotCache": "Sıcak önbellek",
+			"coldCache": "Soğuk önbellek",
+			"hotShort": "sıcak",
+			"coldShort": "soğuk",
+			"swaps": "Takaslar",
+			"condensingAvoided": "Condensing önlendi",
+			"warning": "Uyarı"
+		}
 	},
 	"unpin": "Sabitlemeyi iptal et",
 	"pin": "Sabitle",
@@ -425,6 +435,32 @@
 			"messagesRemoved": "{{count}} mesaj kaldırıldı",
 			"messagesRemoved_other": "{{count}} mesaj kaldırıldı",
 			"description": "Bağlam penceresi sınırında kalmak için eski mesajlar konuşmadan kaldırıldı. Bu, yoğunlaştırmaya kıyasla hızlı ancak daha az bağlam koruyucu bir yaklaşımdır."
+		},
+		"contextCache": {
+			"summary": {
+				"chunks_one": "{{count}} chunk",
+				"chunks_other": "{{count}} chunk"
+			},
+			"titles": {
+				"chunks_moved_to_cold": "Bağlam soğuk önbelleğe taşındı",
+				"chunks_pulled_from_cold": "Bağlam soğuk önbellekten çekildi",
+				"condensing_avoided": "Bağlam condensing önlendi",
+				"cold_cache_full": "Soğuk önbellek dolu"
+			},
+			"descriptions": {
+				"chunks_moved_to_cold": "Eski bağlam chunk'ları sıcak pencereden çıkarıldı ve sonra alınmak üzere RAM'de tutuldu.",
+				"chunks_pulled_from_cold": "ask_for_context daha fazla bağlam istediğinde ilgili soğuk önbellek chunk'ları geri yüklendi.",
+				"condensing_avoided": "Sıcak/soğuk önbellek yeterli alan açtı, bu yüzden C otomatik condensing'i atladı.",
+				"cold_cache_full": "RAM bütçesi dolu, bu yüzden C normal bağlam condensing'e geri döndü."
+			},
+			"details": {
+				"chunks": "Chunk'lar",
+				"tokens": "Tokens",
+				"ram": "RAM",
+				"query": "Sorgu",
+				"file": "Dosya",
+				"warning": "Uyarı"
+			}
 		}
 	},
 	"skill": {

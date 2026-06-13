@@ -838,7 +838,13 @@
 					"512": "512MB",
 					"1024": "1GB",
 					"2048": "2GB+"
-				}
+				},
+				"units": {
+					"gb": "{{value}}GB",
+					"mb": "{{value}}MB"
+				},
+				"recommendedOption": "{{value}}（推荐）",
+				"vramNote": "C 使用系统 RAM 存放冷上下文块。VS Code 扩展没有可移植的直接 VRAM 存储，把文本块移入 VRAM 会增加复杂度，但收益很小。"
 			},
 			"stats": {
 				"title": "实时 cache 统计",
@@ -846,7 +852,9 @@
 				"coldCacheChunks": "Cold cache chunks",
 				"ramUsed": "已用 RAM",
 				"swapsThisSession": "本会话 swaps",
-				"condensingAvoided": "避免 condensing 的次数"
+				"condensingAvoided": "避免 condensing 的次数",
+				"hotCacheChunks": "热缓存块",
+				"ramBudget": "RAM 预算"
 			}
 		}
 	},
