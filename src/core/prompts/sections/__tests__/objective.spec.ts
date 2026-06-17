@@ -6,10 +6,18 @@ describe("getObjectiveSection", () => {
 
 		// Check that all numbered items are present
 		expect(objective).toContain("1. Analyze the user's task")
-		expect(objective).toContain("2. Work through these goals sequentially")
+		expect(objective).toContain("2. Work through these goals in a practical order")
 		expect(objective).toContain("3. Remember, you have extensive capabilities")
 		expect(objective).toContain("4. Once you've completed the user's task")
 		expect(objective).toContain("5. The user may provide feedback")
+	})
+
+	it("should encourage safe parallel context gathering for independent work", () => {
+		const objective = getObjectiveSection()
+
+		expect(objective).toContain("Keep dependent steps sequential")
+		expect(objective).toContain("independent reads, searches, audits, tests, or analysis")
+		expect(objective).toContain("parallel tool-calling support")
 	})
 
 	it("should include analysis guidance", () => {

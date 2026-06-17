@@ -43,12 +43,18 @@ jobs:
             console.log(`🔖 Nightly version set to ${pkg.version}`);
           EOF
       - name: Build VSIX
-        run: pnpm vsix:nightly # Produces bin/roo-code-nightly-0.0.[count].vsix
+        run: pnpm vsix:nightly # Produces bin/c-code-nightly-0.0.[count].vsix
       - name: Publish to VS Code Marketplace
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: npx vsce publish --packagePath "bin/$(/bin/ls bin | head -n1)"
+        run: |
+          package_path="$(find bin -maxdepth 1 -type f -name 'c-code-nightly-*.vsix' | sort | tail -n1)"
+          test -n "$package_path"
+          npx vsce publish --packagePath "$package_path"
       - name: Publish to Open VSX Registry
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: npx ovsx publish "bin/$(ls bin | head -n1)"
+        run: |
+          package_path="$(find bin -maxdepth 1 -type f -name 'c-code-nightly-*.vsix' | sort | tail -n1)"
+          test -n "$package_path"
+          npx ovsx publish "$package_path"

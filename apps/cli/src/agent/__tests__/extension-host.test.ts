@@ -4,12 +4,21 @@ import { EventEmitter } from "events"
 import fs from "fs"
 
 import type { ExtensionMessage, WebviewMessage } from "@roo-code/types"
+import { setRuntimeConfigValues } from "@roo-code/vscode-shim"
 
 import { DEFAULT_FLAGS } from "@/types/index.js"
 
 import { type ExtensionHostOptions, ExtensionHost } from "../extension-host.js"
 import { ExtensionClient } from "../extension-client.js"
 import { AgentLoopState } from "../agent-state.js"
+
+const { mockGetExtensionPackageName } = vi.hoisted(() => ({
+	mockGetExtensionPackageName: vi.fn(() => "c-code"),
+}))
+
+vi.mock("@/lib/utils/extension-identity.js", () => ({
+	getExtensionPackageName: mockGetExtensionPackageName,
+}))
 
 vi.mock("@roo-code/vscode-shim", () => ({
 	createVSCodeAPI: vi.fn(() => ({
@@ -86,6 +95,7 @@ describe("ExtensionHost", () => {
 
 	beforeEach(() => {
 		vi.resetAllMocks()
+		mockGetExtensionPackageName.mockReturnValue("c-code")
 		if (initialRooCliRuntimeEnv === undefined) {
 			delete process.env.ROO_CLI_RUNTIME
 		} else {
@@ -253,6 +263,15 @@ describe("ExtensionHost", () => {
 						(call[1] as WebviewMessage).type === "updateSettings",
 				)
 				expect(updateSettingsCall).toBeDefined()
+			})
+
+			it("should apply runtime config under the actual extension package name", () => {
+				const host = createTestHost({ extensionPath: "/my/c-code-extension" })
+
+				host.markWebviewReady()
+
+				expect(mockGetExtensionPackageName).toHaveBeenCalledWith("/my/c-code-extension")
+				expect(setRuntimeConfigValues).toHaveBeenCalledWith("c-code", expect.objectContaining({ mode: "code" }))
 			})
 
 			it("should force terminalShellIntegrationDisabled when terminalShell is provided", () => {
