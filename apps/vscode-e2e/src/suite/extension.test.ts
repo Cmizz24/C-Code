@@ -2,6 +2,7 @@ import * as assert from "assert"
 import * as vscode from "vscode"
 
 import { setDefaultSuiteTimeout } from "./test-utils"
+import { EXTENSION_PACKAGE_NAME, getCommand } from "./utils"
 
 suite("Roo Code Extension", function () {
 	setDefaultSuiteTimeout(this)
@@ -32,10 +33,12 @@ suite("Roo Code Extension", function () {
 			"terminalExplainCommand",
 		]
 
-		const commands = new Set((await vscode.commands.getCommands(true)).filter((cmd) => cmd.startsWith("roo-cline")))
+		const commands = new Set(
+			(await vscode.commands.getCommands(true)).filter((cmd) => cmd.startsWith(EXTENSION_PACKAGE_NAME)),
+		)
 
 		for (const command of expectedCommands) {
-			assert.ok(commands.has(`roo-cline.${command}`), `Command ${command} should be registered`)
+			assert.ok(commands.has(getCommand(command)), `Command ${command} should be registered`)
 		}
 	})
 })

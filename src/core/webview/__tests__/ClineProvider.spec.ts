@@ -3033,6 +3033,60 @@ describe("ClineProvider", () => {
 		expect(mockPostMessage).not.toHaveBeenCalled()
 	})
 
+	test("getStateToPostToWebview uses default context cache fields for partial task doubles", async () => {
+		const partialTask = {
+			taskId: "partial-task-id",
+			clineMessages: [{ type: "say", say: "text", text: "hello", ts: 1 } satisfies ClineMessage],
+			todoList: [{ id: "todo-1", content: "Keep state posting stable", status: "pending" as const }],
+		}
+		;(provider as any).clineStack = [partialTask]
+		await provider.setValues({ coldCacheRamBudgetMb: 2048 })
+
+		const state = await provider.getStateToPostToWebview()
+
+		expect(state.currentTaskId).toBe("partial-task-id")
+		expect(state.clineMessages).toBe(partialTask.clineMessages)
+		expect(state.currentTaskTodos).toBe(partialTask.todoList)
+		expect(state.contextCacheStats).toEqual({
+			hotCacheTokens: 0,
+			hotCacheChunks: 0,
+			coldCacheChunks: 0,
+			ramUsedMb: 0,
+			ramBudgetMb: 2048,
+			swapsThisSession: 0,
+			condensingAvoided: 0,
+		})
+		expect(state.contextCacheWarning).toBeUndefined()
+	})
+
+	test("getStateToPostToWebview preserves task-provided context cache fields", async () => {
+		const stats = {
+			hotCacheTokens: 123,
+			hotCacheChunks: 4,
+			coldCacheChunks: 5,
+			ramUsedMb: 6,
+			ramBudgetMb: 2048,
+			swapsThisSession: 7,
+			condensingAvoided: 8,
+		}
+		const getContextCacheStats = vi.fn().mockReturnValue(stats)
+		const getContextCacheWarning = vi.fn().mockReturnValue("Cold cache full")
+		const task = {
+			taskId: "context-task-id",
+			clineMessages: [],
+			getContextCacheStats,
+			getContextCacheWarning,
+		}
+		;(provider as any).clineStack = [task]
+
+		const state = await provider.getStateToPostToWebview()
+
+		expect(state.contextCacheStats).toBe(stats)
+		expect(state.contextCacheWarning).toBe("Cold cache full")
+		expect(getContextCacheStats).toHaveBeenCalledTimes(1)
+		expect(getContextCacheWarning).toHaveBeenCalledTimes(1)
+	})
+
 	test("dispose is idempotent — second call is a no-op", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 

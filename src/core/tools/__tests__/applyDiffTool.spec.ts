@@ -180,6 +180,7 @@ describe("applyDiffTool", () => {
 			relPath,
 		)
 		expect(mockTask.diffViewProvider.saveChanges).toHaveBeenCalledWith(true, 1000, expect.any(Function))
+		expect(mockHandleError).not.toHaveBeenCalled()
 		expect(toolResult).toContain("Tool result message")
 	})
 

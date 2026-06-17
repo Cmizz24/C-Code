@@ -623,6 +623,16 @@ describe("SYSTEM_PROMPT", () => {
 			expect(prompt).toContain("Complete the active planning todo before requesting plan approval")
 			expect(prompt).toContain("Do not add a separate manual 'Review and verify the result' todo")
 			expect(prompt).toContain("clean structured plan-level completion/merge/validation evidence")
+
+			if (planningMode === "architect") {
+				expect(prompt).toContain("Before planning, gather the smallest practical context needed")
+				expect(prompt).toContain("simple, tightly coupled, or single-file implementation planning")
+			} else {
+				expect(prompt).toContain("For complex or intensive work, quickly identify independent workstreams")
+				expect(prompt).toContain("Run independent reads, searches, audits, tests, or analysis in parallel")
+				expect(prompt).toContain("Coordinate agents only on true dependencies or missing shared contracts")
+				expect(prompt).toContain("do not force parallelization for dependent work")
+			}
 		}
 	})
 

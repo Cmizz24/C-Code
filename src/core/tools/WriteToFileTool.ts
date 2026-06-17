@@ -212,7 +212,7 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 			reportFileProgress(task, relPath, `Finalizing write result for ${relPath}.`)
 			if (relPath) {
 				await task.fileContextTracker.trackFileContext(relPath, "roo_edited" as RecordSource)
-				task.registerContextChunk({
+				task.registerContextChunk?.({
 					type: "diff",
 					content: contextCacheDiffContent || `File: ${relPath}\n${newContent}`,
 					metadata: {
@@ -231,7 +231,7 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 			await task.diffViewProvider.reset()
 			this.resetPartialState()
 
-			task.processQueuedMessages()
+			task.processQueuedMessages?.()
 
 			return
 		} catch (error) {

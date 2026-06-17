@@ -375,6 +375,7 @@ describe("writeToFileTool", () => {
 			expect(mockAskApproval).toHaveBeenCalled()
 			expect(mockCline.diffViewProvider.saveChanges).toHaveBeenCalled()
 			expect(mockCline.fileContextTracker.trackFileContext).toHaveBeenCalledWith(testFilePath, "roo_edited")
+			expect(mockHandleError).not.toHaveBeenCalled()
 			expect(mockCline.didEditFile).toBe(true)
 		})
 
