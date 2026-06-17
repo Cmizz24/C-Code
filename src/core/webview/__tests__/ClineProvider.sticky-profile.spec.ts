@@ -830,6 +830,36 @@ describe("ClineProvider - Sticky Provider Profile", () => {
 		})
 	})
 
+	describe("Context cache state", () => {
+		it("should default context-cache state for task-like objects without context-cache methods", async () => {
+			await provider.resolveWebviewView(mockWebviewView)
+
+			const mockTask = {
+				taskId: "test-task-id",
+				emit: vi.fn(),
+				saveClineMessages: vi.fn(),
+				clineMessages: [],
+				apiConversationHistory: [],
+				updateApiConfiguration: vi.fn(),
+			}
+
+			await provider.addClineToStack(mockTask as any)
+
+			const state = await provider.getStateToPostToWebview()
+
+			expect(state.contextCacheStats).toEqual({
+				hotCacheTokens: 0,
+				hotCacheChunks: 0,
+				coldCacheChunks: 0,
+				ramUsedMb: 0,
+				ramBudgetMb: 1024,
+				swapsThisSession: 0,
+				condensingAvoided: 0,
+			})
+			expect(state.contextCacheWarning).toBeUndefined()
+		})
+	})
+
 	describe("Error handling", () => {
 		it("should handle errors gracefully when saving profile fails", async () => {
 			await provider.resolveWebviewView(mockWebviewView)
