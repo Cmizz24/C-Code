@@ -31,6 +31,7 @@ import { DEFAULT_FLAGS, type SupportedProvider } from "@/types/index.js"
 import type { User } from "@/lib/sdk/index.js"
 import { getProviderSettings } from "@/lib/utils/provider.js"
 import { createEphemeralStorageDir } from "@/lib/storage/index.js"
+import { getExtensionPackageName } from "@/lib/utils/extension-identity.js"
 
 import type { WaitingForInputEvent, TaskCompletedEvent } from "./events.js"
 import type { AgentStateInfo } from "./agent-state.js"
@@ -450,7 +451,10 @@ export class ExtensionHost extends EventEmitter implements ExtensionHostInterfac
 		// sending webviewDidLaunch. This prevents a race condition where the
 		// webviewDidLaunch handler's first-time init sync reads default state
 		// instead of the CLI-provided settings.
-		setRuntimeConfigValues("roo-cline", this.initialSettings as Record<string, unknown>)
+		setRuntimeConfigValues(
+			getExtensionPackageName(this.options.extensionPath),
+			this.initialSettings as Record<string, unknown>,
+		)
 		this.sendToExtension({ type: "updateSettings", updatedSettings: this.initialSettings })
 
 		// Now trigger extension initialization. The context proxy should already

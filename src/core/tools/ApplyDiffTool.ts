@@ -245,7 +245,7 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 
 				if (!didApprove) {
 					await task.diffViewProvider.revertChanges()
-					task.processQueuedMessages()
+					task.processQueuedMessages?.()
 					return
 				}
 
@@ -264,7 +264,7 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 			// Track file edit operation
 			if (relPath) {
 				await task.fileContextTracker.trackFileContext(relPath, "roo_edited" as RecordSource)
-				task.registerContextChunk({
+				task.registerContextChunk?.({
 					type: "diff",
 					content: `${unifiedPatch}\n\nApplied diff input:\n${diffContent}`,
 					metadata: {
@@ -302,14 +302,14 @@ export class ApplyDiffTool extends BaseTool<"apply_diff"> {
 			this.resetPartialState()
 
 			// Process any queued messages after file edit completes
-			task.processQueuedMessages()
+			task.processQueuedMessages?.()
 
 			return
 		} catch (error) {
 			await handleError("applying diff", error as Error)
 			await task.diffViewProvider.reset()
 			this.resetPartialState()
-			task.processQueuedMessages()
+			task.processQueuedMessages?.()
 			return
 		} finally {
 			if (didAcquireWriteIntent && relPath) {

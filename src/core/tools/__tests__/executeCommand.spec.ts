@@ -507,6 +507,27 @@ describe("executeCommand", () => {
 			expect(result).toContain("Process terminated by signal SIGINT")
 			expect(result).toContain("within working directory '/test/project'")
 		})
+
+		it("backgrounds on agent timeout even when supersedePendingAsk is unavailable", async () => {
+			mockTerminal.getCurrentWorkingDirectory.mockReturnValue("/test/project")
+			const pendingProcess = new Promise<void>(() => {}) as any
+			pendingProcess.continue = vitest.fn()
+			mockTerminal.runCommand.mockReturnValue(pendingProcess)
+
+			const options: ExecuteCommandOptions = {
+				executionId: "test-123",
+				command: "long-running-command",
+				terminalShellIntegrationDisabled: false,
+				agentTimeout: 1,
+			}
+
+			const [rejected, result] = await executeCommandInTerminal(mockTask, options)
+
+			expect(rejected).toBe(false)
+			expect(pendingProcess.continue).toHaveBeenCalled()
+			expect(result).toContain("Command is still running in terminal")
+			expect(result).toContain("/test/project")
+		})
 	})
 
 	describe("Terminal Working Directory Updates", () => {

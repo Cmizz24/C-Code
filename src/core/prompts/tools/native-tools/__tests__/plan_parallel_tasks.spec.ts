@@ -22,6 +22,9 @@ describe("createPlanParallelTasksTool", () => {
 		const parameters = tool.function.parameters as any
 		const agentProperties = parameters.properties.agents.items.properties
 
+		expect(tool.function.description).toContain("Prefer fast practical context gathering first")
+		expect(tool.function.description).toContain("identify independent workstreams")
+		expect(tool.function.description).toContain("tightly coupled changes")
 		expect(tool.function.description).toContain("sharedContext")
 		expect(tool.function.description).toContain("sharedContract")
 		expect(tool.function.description).toContain("UI/CSS/component contracts")

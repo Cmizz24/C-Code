@@ -127,7 +127,7 @@ export class ExecuteCommandTool extends BaseTool<"execute_command"> {
 				await task.say("shell_integration_warning")
 
 				// Invalidate pending ask from first execution to prevent race condition
-				task.supersedePendingAsk()
+				task.supersedePendingAsk?.()
 
 				if (error instanceof ShellIntegrationError) {
 					const [rejected, result] = await executeCommandInTerminal(task, {
@@ -164,7 +164,7 @@ export class ExecuteCommandTool extends BaseTool<"execute_command"> {
 			return
 		}
 
-		task.registerContextChunk({
+		task.registerContextChunk?.({
 			type: "task_output",
 			content: `Command: ${command}\n\n${output}`,
 			metadata: {
@@ -435,7 +435,7 @@ export async function executeCommandInTerminal(
 					agentTimeoutId = setTimeout(() => {
 						runInBackground = true
 						process.continue()
-						task.supersedePendingAsk()
+						task.supersedePendingAsk?.()
 						resolve()
 					}, agentTimeout)
 				}),

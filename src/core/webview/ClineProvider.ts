@@ -144,7 +144,7 @@ import {
 import { Task } from "../task/Task"
 
 import { webviewMessageHandler } from "./webviewMessageHandler"
-import type { ClineMessage, ClineSayTool, TodoItem } from "@roo-code/types"
+import type { ClineMessage, ClineSayTool, ContextCacheStats, TodoItem } from "@roo-code/types"
 import { readApiMessages, saveApiMessages, saveTaskMessages, TaskHistoryStore } from "../task-persistence"
 import { readTaskMessages } from "../task-persistence/taskMessages"
 import { getNonce } from "./getNonce"
@@ -466,6 +466,8 @@ type RemoteDebugTaskEventOptions = {
 	flushImmediately?: boolean
 	featureArea?: string
 }
+
+type ContextCacheStateTask = Partial<Pick<Task, "getContextCacheStats" | "getContextCacheWarning">>
 
 const PARALLEL_AGENT_ACTIVITY_LIMIT = 50
 const PARALLEL_AGENT_COORDINATION_LIMIT = 24
@@ -5191,6 +5193,33 @@ export class ClineProvider
 		}
 	}
 
+	private getDefaultContextCacheStats(ramBudgetMb: number): ContextCacheStats {
+		return {
+			hotCacheTokens: 0,
+			hotCacheChunks: 0,
+			coldCacheChunks: 0,
+			ramUsedMb: 0,
+			ramBudgetMb,
+			swapsThisSession: 0,
+			condensingAvoided: 0,
+		}
+	}
+
+	private getCurrentTaskContextCacheStats(
+		currentTask: ContextCacheStateTask | undefined,
+		defaultStats: ContextCacheStats,
+	): ContextCacheStats {
+		return typeof currentTask?.getContextCacheStats === "function"
+			? (currentTask.getContextCacheStats() ?? defaultStats)
+			: defaultStats
+	}
+
+	private getCurrentTaskContextCacheWarning(currentTask: ContextCacheStateTask | undefined): string | undefined {
+		return typeof currentTask?.getContextCacheWarning === "function"
+			? currentTask.getContextCacheWarning()
+			: undefined
+	}
+
 	async getStateToPostToWebview(): Promise<ExtensionState> {
 		// Ensure the store is initialized before reading task history
 		await this.taskHistoryStore.initialized
@@ -5338,6 +5367,9 @@ export class ClineProvider
 			coldCacheRamBudgetMb ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
 			contextCacheBudgetOptions,
 		)
+		const defaultContextCacheStats = this.getDefaultContextCacheStats(normalizedColdCacheRamBudgetMb)
+		const contextCacheStats = this.getCurrentTaskContextCacheStats(currentTask, defaultContextCacheStats)
+		const contextCacheWarning = this.getCurrentTaskContextCacheWarning(currentTask)
 
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
@@ -5367,16 +5399,8 @@ export class ClineProvider
 			currentTaskId: currentTask?.taskId,
 			currentTaskItem: currentTask?.taskId ? this.taskHistoryStore.get(currentTask.taskId) : undefined,
 			clineMessages: currentTask?.clineMessages || [],
-			contextCacheStats: currentTask?.getContextCacheStats() ?? {
-				hotCacheTokens: 0,
-				hotCacheChunks: 0,
-				coldCacheChunks: 0,
-				ramUsedMb: 0,
-				ramBudgetMb: normalizedColdCacheRamBudgetMb,
-				swapsThisSession: 0,
-				condensingAvoided: 0,
-			},
-			contextCacheWarning: currentTask?.getContextCacheWarning(),
+			contextCacheStats,
+			contextCacheWarning,
 			currentTaskTodos: currentTask?.todoList || [],
 			messageQueue: currentTask?.messageQueueService?.messages,
 			taskHistory: this.taskHistoryStore.getAll().filter((item: HistoryItem) => item.ts && item.task),

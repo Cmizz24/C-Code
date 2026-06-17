@@ -59,6 +59,8 @@ import type { UriHandler } from "../interfaces/webview.js"
 // Package version constant
 const Package = { version: "1.0.0" }
 
+const SUPPORTED_EXTENSION_IDS = new Set(["cmizz.c-code", "RooVeterinaryInc.roo-cline"])
+
 /**
  * Options for creating the VSCode API mock
  */
@@ -280,7 +282,7 @@ export function createVSCodeAPIMock(
 			all: [],
 			getExtension: (extensionId: string) => {
 				// Mock the extension object with extensionUri for theme loading
-				if (extensionId === "RooVeterinaryInc.roo-cline") {
+				if (SUPPORTED_EXTENSION_IDS.has(extensionId)) {
 					return {
 						id: extensionId,
 						extensionUri: context.extensionUri,

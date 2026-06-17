@@ -6,7 +6,7 @@ describe("getToolUseGuidelinesSection", () => {
 
 		expect(guidelines).toContain("1. Assess what information")
 		expect(guidelines).toContain("2. Choose the most appropriate tool")
-		expect(guidelines).toContain("6. If multiple actions are needed")
+		expect(guidelines).toContain("6. If multiple actions are needed and they are independent")
 	})
 
 	it("should route unsupported actions to capable modes instead of refusing", () => {
@@ -45,6 +45,10 @@ describe("getToolUseGuidelinesSection", () => {
 		const guidelines = getToolUseGuidelinesSection()
 
 		expect(guidelines).toContain("you may use multiple tools in a single message")
+		expect(guidelines).toContain("independent (such as unrelated reads, searches, audits, tests, or analysis)")
+		expect(guidelines).toContain("run in parallel where supported")
+		expect(guidelines).toContain("Keep dependent steps sequential")
+		expect(guidelines).toContain("do not parallelize tool calls that may conflict")
 		expect(guidelines).not.toContain("use one tool at a time per message")
 	})
 

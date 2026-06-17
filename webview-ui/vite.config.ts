@@ -97,6 +97,8 @@ export default defineConfig(({ mode }) => {
 		plugins,
 		resolve: {
 			alias: {
+				"@roo/modes": resolve(__dirname, "./src/shims/modes.ts"),
+				"@roo/tools": resolve(__dirname, "./src/shims/tools.ts"),
 				"@": resolve(__dirname, "./src"),
 				"@src": resolve(__dirname, "./src"),
 				"@roo": resolve(__dirname, "../src/shared"),

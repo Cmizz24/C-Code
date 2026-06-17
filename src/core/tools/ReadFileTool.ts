@@ -577,7 +577,7 @@ export class ReadFileTool extends BaseTool<"read_file"> {
 
 		for (const result of fileResults) {
 			if (result.status === "approved" && result.nativeContent) {
-				task.registerContextChunk({
+				task.registerContextChunk?.({
 					type: "file_content",
 					content: result.nativeContent,
 					metadata: {
@@ -773,7 +773,7 @@ export class ReadFileTool extends BaseTool<"read_file"> {
 						if (imageResult) {
 							const content = `File: ${relPath}\n[Image file - content processed for vision model]`
 							results.push(content)
-							task.registerContextChunk({
+							task.registerContextChunk?.({
 								type: "file_content",
 								content,
 								metadata: {
@@ -818,7 +818,7 @@ export class ReadFileTool extends BaseTool<"read_file"> {
 
 				const chunkContent = `File: ${relPath}\n${content}`
 				results.push(chunkContent)
-				task.registerContextChunk({
+				task.registerContextChunk?.({
 					type: "file_content",
 					content: chunkContent,
 					metadata: {

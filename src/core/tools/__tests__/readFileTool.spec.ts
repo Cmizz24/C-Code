@@ -682,6 +682,8 @@ describe("ReadFileTool", () => {
 			await readFileTool.execute({ path: "test.ts" }, mockTask as any, callbacks)
 
 			expect(mockTask.fileContextTracker.trackFileContext).toHaveBeenCalledWith("test.ts", "read_tool")
+			expect("registerContextChunk" in mockTask).toBe(false)
+			expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining("File: test.ts"))
 		})
 	})
 

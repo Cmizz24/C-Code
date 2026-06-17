@@ -161,6 +161,7 @@ describe("executeCommandTool", () => {
 			// The exact message depends on the terminal mock's behavior
 			const result = mockPushToolResult.mock.calls[0][0]
 			expect(result).toContain("Command")
+			expect(mockHandleError).not.toHaveBeenCalled()
 		})
 
 		it("should pass along custom working directory if provided", async () => {
