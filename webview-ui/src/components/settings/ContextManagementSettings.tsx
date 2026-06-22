@@ -2,7 +2,7 @@ import { HTMLAttributes } from "react"
 import React from "react"
 import type { ContextCacheBudgetOption, ContextCacheStats } from "@roo-code/types"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
-import { VSCodeCheckbox, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeTextArea, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { FoldVertical } from "lucide-react"
 
 import { supportPrompt } from "@roo/support-prompt"
@@ -132,35 +132,28 @@ export const ContextManagementSettings = ({
 }: ContextManagementSettingsProps) => {
 	const { t } = useAppTranslation()
 	const [selectedThresholdProfile, setSelectedThresholdProfile] = React.useState<string>("default")
-	const coldCacheRamBudgetOptions = React.useMemo(() => {
+	const coldCacheRamBudgetBounds = React.useMemo(() => {
 		const sourceOptions = contextCacheBudgetOptions.length
 			? contextCacheBudgetOptions
 			: FALLBACK_CONTEXT_CACHE_BUDGET_OPTIONS
-		const mergedOptions = new Map<number, ContextCacheBudgetOption>()
-
-		for (const option of sourceOptions) {
-			if (!Number.isFinite(option.valueMb) || option.valueMb <= 0) {
-				continue
-			}
-
-			const valueMb = Math.floor(option.valueMb)
-			const existing = mergedOptions.get(valueMb)
-			mergedOptions.set(valueMb, {
-				valueMb,
-				recommended: Boolean(existing?.recommended || option.recommended),
-			})
-		}
-
-		if (
-			Number.isFinite(coldCacheRamBudgetMb) &&
-			coldCacheRamBudgetMb > 0 &&
-			!mergedOptions.has(Math.floor(coldCacheRamBudgetMb))
-		) {
-			mergedOptions.set(Math.floor(coldCacheRamBudgetMb), { valueMb: Math.floor(coldCacheRamBudgetMb) })
-		}
-
-		return [...mergedOptions.values()].sort((a, b) => a.valueMb - b.valueMb)
-	}, [coldCacheRamBudgetMb, contextCacheBudgetOptions])
+		const values = sourceOptions
+			.map((option) => Math.floor(option.valueMb))
+			.filter((value) => Number.isFinite(value) && value > 0)
+			.sort((a, b) => a - b)
+		const min = values[0] ?? FALLBACK_CONTEXT_CACHE_BUDGET_OPTIONS[0].valueMb
+		const max = values.at(-1) ?? FALLBACK_CONTEXT_CACHE_BUDGET_OPTIONS.at(-1)!.valueMb
+		return { min, max }
+	}, [contextCacheBudgetOptions])
+	const normalizedColdCacheRamBudgetMb = Math.min(
+		coldCacheRamBudgetBounds.max,
+		Math.max(coldCacheRamBudgetBounds.min, Math.floor(coldCacheRamBudgetMb || coldCacheRamBudgetBounds.min)),
+	)
+	const recommendedColdCacheRamBudgetMb = React.useMemo(() => {
+		const sourceOptions = contextCacheBudgetOptions.length
+			? contextCacheBudgetOptions
+			: FALLBACK_CONTEXT_CACHE_BUDGET_OPTIONS
+		return sourceOptions.find((option) => option.recommended)?.valueMb
+	}, [contextCacheBudgetOptions])
 	const contextCacheStatItems = [
 		{
 			label: t("settings:contextManagement.contextWindowManagement.stats.hotCacheTokens"),
@@ -282,26 +275,35 @@ export const ContextManagementSettings = ({
 						<span className="block font-medium mb-1">
 							{t("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.label")}
 						</span>
-						<Select
-							value={String(coldCacheRamBudgetMb)}
-							onValueChange={(value) => setCachedStateField("coldCacheRamBudgetMb", Number(value))}
-							data-testid="cold-cache-ram-budget-select">
-							<SelectTrigger className="w-full">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{coldCacheRamBudgetOptions.map((option) => (
-									<SelectItem key={option.valueMb} value={String(option.valueMb)}>
-										{option.recommended
-											? t(
-													"settings:contextManagement.contextWindowManagement.coldCacheRamBudget.recommendedOption",
-													{ value: formatContextCacheRamValue(option.valueMb, t) },
-												)
-											: formatContextCacheRamValue(option.valueMb, t)}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+						<VSCodeTextField
+							type="text"
+							inputMode="numeric"
+							value={String(normalizedColdCacheRamBudgetMb)}
+							onInput={(e: any) => {
+								const value = Number(e.target.value)
+								if (!Number.isFinite(value)) {
+									return
+								}
+								setCachedStateField(
+									"coldCacheRamBudgetMb",
+									Math.min(
+										coldCacheRamBudgetBounds.max,
+										Math.max(coldCacheRamBudgetBounds.min, Math.floor(value)),
+									),
+								)
+							}}
+							data-testid="cold-cache-ram-budget-input"
+						/>
+						<div className="text-vscode-descriptionForeground text-xs mt-1">
+							{formatContextCacheRamValue(coldCacheRamBudgetBounds.min, t)} –{" "}
+							{formatContextCacheRamValue(coldCacheRamBudgetBounds.max, t)}
+							{recommendedColdCacheRamBudgetMb
+								? ` • ${t(
+										"settings:contextManagement.contextWindowManagement.coldCacheRamBudget.recommendedOption",
+										{ value: formatContextCacheRamValue(recommendedColdCacheRamBudgetMb, t) },
+									)}`
+								: ""}
+						</div>
 						<div className="text-vscode-descriptionForeground text-sm mt-1">
 							{t("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.description")}
 						</div>

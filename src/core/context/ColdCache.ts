@@ -76,6 +76,22 @@ export class ColdCache {
 		return [...this.chunks.values()]
 	}
 
+	replaceAll(chunks: ContextChunk[]): ColdCacheAddResult {
+		this.chunks.clear()
+		this.byteCount = 0
+
+		for (const chunk of chunks) {
+			if (chunk.bytes > this.budgetBytes) {
+				continue
+			}
+
+			this.chunks.set(chunk.id, chunk)
+			this.byteCount += chunk.bytes
+		}
+
+		return this.enforceBudget()
+	}
+
 	search(query: string, options: { filePath?: string; limit?: number } = {}): ContextChunkSearchResult[] {
 		const terms = uniqueTerms(query)
 		const normalizedFilePath = options.filePath?.toLowerCase()

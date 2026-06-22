@@ -17,7 +17,7 @@ describe("askForContextTool", () => {
 			recordToolError: vi.fn(),
 			sayAndCreateMissingParamError: vi.fn().mockResolvedValue("Missing query parameter"),
 			say: vi.fn().mockResolvedValue(undefined),
-			getContextWindowManager: vi.fn(),
+			askForColdContext: vi.fn().mockResolvedValue([]),
 		}
 
 		mockCallbacks = {
@@ -64,8 +64,7 @@ describe("askForContextTool", () => {
 				},
 			},
 		]
-		const askForContext = vi.fn().mockReturnValue(contextResults)
-		mockTask.getContextWindowManager.mockReturnValue({ askForContext })
+		mockTask.askForColdContext.mockResolvedValue(contextResults)
 		mockTask.consecutiveMistakeCount = 2
 		const block: ToolUse<"ask_for_context"> = {
 			type: "tool_use",
@@ -80,7 +79,10 @@ describe("askForContextTool", () => {
 
 		await askForContextTool.handle(mockTask as Task, block, mockCallbacks)
 
-		expect(askForContext).toHaveBeenCalledWith("cached helper", { filePath: "src/helpers.ts", limit: 3 })
+		expect(mockTask.askForColdContext).toHaveBeenCalledWith("cached helper", {
+			filePath: "src/helpers.ts",
+			limit: 3,
+		})
 		expect(mockTask.consecutiveMistakeCount).toBe(0)
 		expect(mockTask.say).toHaveBeenCalledWith("tool", expect.any(String), undefined, false, undefined, undefined, {
 			isNonInteractive: true,
@@ -102,7 +104,6 @@ describe("askForContextTool", () => {
 	})
 
 	it("returns an empty result set when no context manager is active", async () => {
-		mockTask.getContextWindowManager.mockReturnValue(undefined)
 		const block: ToolUse<"ask_for_context"> = {
 			type: "tool_use",
 			name: "ask_for_context",
@@ -124,11 +125,7 @@ describe("askForContextTool", () => {
 
 	it("delegates context manager errors to handleError", async () => {
 		const error = new Error("cold cache failed")
-		mockTask.getContextWindowManager.mockReturnValue({
-			askForContext: vi.fn(() => {
-				throw error
-			}),
-		})
+		mockTask.askForColdContext.mockRejectedValue(error)
 		const block: ToolUse<"ask_for_context"> = {
 			type: "tool_use",
 			name: "ask_for_context",

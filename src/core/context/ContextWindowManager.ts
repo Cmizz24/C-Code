@@ -1,7 +1,9 @@
 import type {
 	ContextCacheBudgetOption,
+	ContextCacheChunkSnapshot,
 	ContextCacheEvent,
 	ContextCacheSearchResult,
+	ContextCacheSnapshot,
 	ContextCacheStats,
 } from "@roo-code/types"
 
@@ -82,26 +84,79 @@ function getColdCacheBudgetOptionValues(options?: readonly ContextCacheBudgetOpt
 	return [...new Set(optionValues)].length > 0 ? [...new Set(optionValues)] : [DEFAULT_COLD_CACHE_RAM_BUDGET_MB]
 }
 
+function getColdCacheBudgetBounds(options?: readonly ContextCacheBudgetOption[]): { min: number; max: number } {
+	const optionValues = getColdCacheBudgetOptionValues(options)
+	return {
+		min: optionValues[0] ?? MIN_COLD_CACHE_RAM_BUDGET_MB,
+		max: optionValues.at(-1) ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
+	}
+}
+
 export function normalizeColdCacheRamBudgetMb(
 	value: unknown,
 	budgetOptions?: readonly ContextCacheBudgetOption[],
 ): number {
-	const optionValues = getColdCacheBudgetOptionValues(budgetOptions)
-	const defaultValue = optionValues.includes(DEFAULT_COLD_CACHE_RAM_BUDGET_MB)
-		? DEFAULT_COLD_CACHE_RAM_BUDGET_MB
-		: (optionValues[0] ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB)
+	const { min, max } = getColdCacheBudgetBounds(budgetOptions)
+	const defaultValue =
+		DEFAULT_COLD_CACHE_RAM_BUDGET_MB >= min && DEFAULT_COLD_CACHE_RAM_BUDGET_MB <= max
+			? DEFAULT_COLD_CACHE_RAM_BUDGET_MB
+			: min
 	const numeric = typeof value === "number" ? value : Number(value)
 	if (!Number.isFinite(numeric)) {
 		return defaultValue
 	}
 
-	for (const optionValue of optionValues) {
-		if (numeric <= optionValue) {
-			return optionValue
-		}
+	return Math.min(max, Math.max(min, Math.floor(numeric)))
+}
+
+function isContextCacheChunkSnapshot(value: unknown): value is ContextCacheChunkSnapshot {
+	if (!value || typeof value !== "object") {
+		return false
 	}
 
-	return optionValues.at(-1) ?? defaultValue
+	const chunk = value as Record<string, unknown>
+	return (
+		typeof chunk.id === "string" &&
+		typeof chunk.type === "string" &&
+		typeof chunk.content === "string" &&
+		typeof chunk.tokens === "number" &&
+		typeof chunk.bytes === "number" &&
+		typeof chunk.priority === "number" &&
+		typeof chunk.createdAt === "number" &&
+		typeof chunk.lastAccessedAt === "number"
+	)
+}
+
+function snapshotChunk(chunk: ContextChunk): ContextCacheChunkSnapshot {
+	return {
+		id: chunk.id,
+		type: chunk.type,
+		content: chunk.content,
+		tokens: chunk.tokens,
+		bytes: chunk.bytes,
+		priority: chunk.priority,
+		createdAt: chunk.createdAt,
+		lastAccessedAt: chunk.lastAccessedAt,
+		metadata: chunk.metadata,
+	}
+}
+
+function restoreChunk(snapshot: ContextCacheChunkSnapshot): ContextChunk | undefined {
+	if (!isContextCacheChunkSnapshot(snapshot)) {
+		return undefined
+	}
+
+	return {
+		id: snapshot.id,
+		type: snapshot.type as ContextChunk["type"],
+		content: snapshot.content,
+		tokens: Math.max(0, Math.floor(snapshot.tokens)),
+		bytes: Math.max(0, Math.floor(snapshot.bytes)),
+		priority: Math.floor(snapshot.priority),
+		createdAt: snapshot.createdAt,
+		lastAccessedAt: snapshot.lastAccessedAt,
+		metadata: snapshot.metadata,
+	}
 }
 
 export function coldCacheRamBudgetMbToBytes(
@@ -293,6 +348,50 @@ export class ContextWindowManager {
 
 	getHiddenMessageTimestamps(): Set<number> {
 		return new Set(this.hiddenMessageTimestamps)
+	}
+
+	exportSnapshot(): ContextCacheSnapshot {
+		return {
+			version: 1,
+			coldCacheRamBudgetMb: this.coldCacheRamBudgetMb,
+			swapsThisSession: this.swapsThisSession,
+			condensingAvoided: this.condensingAvoided,
+			warning: this.warning,
+			hiddenMessageTimestamps: [...this.hiddenMessageTimestamps],
+			hotChunks: this.hotCache.values().map(snapshotChunk),
+			coldChunks: this.coldCache.values().map(snapshotChunk),
+		}
+	}
+
+	importSnapshot(snapshot: ContextCacheSnapshot | undefined): void {
+		if (!snapshot || snapshot.version !== 1) {
+			return
+		}
+
+		this.coldCacheRamBudgetMb = normalizeColdCacheRamBudgetMb(
+			snapshot.coldCacheRamBudgetMb,
+			this.coldCacheBudgetOptions,
+		)
+		this.coldCache.updateBudget(coldCacheRamBudgetMbToBytes(this.coldCacheRamBudgetMb, this.coldCacheBudgetOptions))
+
+		const hotChunks = (snapshot.hotChunks ?? [])
+			.map(restoreChunk)
+			.filter((chunk): chunk is ContextChunk => Boolean(chunk))
+		const coldChunks = (snapshot.coldChunks ?? [])
+			.map(restoreChunk)
+			.filter((chunk): chunk is ContextChunk => Boolean(chunk))
+
+		const evictedFromHot = this.hotCache.replaceAll(hotChunks)
+		this.coldCache.replaceAll([...coldChunks, ...evictedFromHot])
+		this.hiddenMessageTimestamps.clear()
+		for (const timestamp of snapshot.hiddenMessageTimestamps ?? []) {
+			if (Number.isFinite(timestamp)) {
+				this.hiddenMessageTimestamps.add(timestamp)
+			}
+		}
+		this.swapsThisSession = Math.max(0, Math.floor(snapshot.swapsThisSession ?? 0))
+		this.condensingAvoided = Math.max(0, Math.floor(snapshot.condensingAvoided ?? 0))
+		this.warning = snapshot.warning
 	}
 
 	hasChunks(): boolean {

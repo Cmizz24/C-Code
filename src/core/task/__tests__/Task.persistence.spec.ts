@@ -24,6 +24,8 @@ const {
 	mockSaveTaskMessages,
 	mockReadApiMessages,
 	mockReadTaskMessages,
+	mockSaveContextCache,
+	mockReadContextCache,
 	mockTaskMetadata,
 	mockPWaitFor,
 } = vi.hoisted(() => ({
@@ -31,6 +33,8 @@ const {
 	mockSaveTaskMessages: vi.fn().mockResolvedValue(undefined),
 	mockReadApiMessages: vi.fn().mockResolvedValue([]),
 	mockReadTaskMessages: vi.fn().mockResolvedValue([]),
+	mockSaveContextCache: vi.fn().mockResolvedValue(undefined),
+	mockReadContextCache: vi.fn().mockResolvedValue(undefined),
 	mockTaskMetadata: vi.fn().mockResolvedValue({
 		historyItem: { id: "test-id", ts: Date.now(), task: "test" },
 		tokenUsage: {
@@ -84,6 +88,8 @@ vi.mock("../../task-persistence", () => ({
 	saveTaskMessages: mockSaveTaskMessages,
 	readApiMessages: mockReadApiMessages,
 	readTaskMessages: mockReadTaskMessages,
+	saveContextCache: mockSaveContextCache,
+	readContextCache: mockReadContextCache,
 	taskMetadata: mockTaskMetadata,
 	TaskHistoryStore: vi.fn().mockImplementation(() => ({
 		initialize: vi.fn().mockResolvedValue(undefined),
@@ -192,6 +198,7 @@ vi.mock("../../../utils/storage", () => ({
 	getSettingsDirectoryPath: vi
 		.fn()
 		.mockImplementation((globalStoragePath) => Promise.resolve(`${globalStoragePath}/settings`)),
+	getStorageBasePath: vi.fn().mockImplementation((globalStoragePath) => Promise.resolve(globalStoragePath)),
 }))
 
 vi.mock("../../../utils/fs", () => ({
@@ -850,6 +857,59 @@ describe("Task persistence", () => {
 			)
 			expect(preservedReview.parallelStatus).toBe("review")
 			expect(preservedReview.mergeReviewEntries).toEqual(reviewTool.mergeReviewEntries)
+		})
+	})
+
+	describe("context cache persistence", () => {
+		it("restores persisted cold-cache snapshot before recalling context", async () => {
+			const snapshot = {
+				version: 1 as const,
+				coldCacheRamBudgetMb: 1024,
+				swapsThisSession: 0,
+				condensingAvoided: 0,
+				hiddenMessageTimestamps: [111],
+				hotChunks: [],
+				coldChunks: [
+					{
+						id: "cold-1",
+						type: "conversation_turn",
+						content: "Persisted cold cache chunk about websocket reconnect backoff",
+						tokens: 12,
+						bytes: 58,
+						priority: 1,
+						createdAt: 1,
+						lastAccessedAt: 1,
+						metadata: { messageTimestamps: [111] },
+					},
+				],
+			}
+			mockReadContextCache.mockResolvedValueOnce(snapshot)
+
+			const task = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+				startTask: false,
+			})
+
+			const results = await task.askForColdContext("websocket reconnect", { limit: 3 })
+
+			expect(mockReadContextCache).toHaveBeenCalledWith({
+				taskId: task.taskId,
+				globalStoragePath: mockExtensionContext.globalStorageUri.fsPath,
+			})
+			expect(results).toHaveLength(1)
+			expect(results[0]).toMatchObject({
+				id: "cold-1",
+				content: "Persisted cold cache chunk about websocket reconnect backoff",
+			})
+			expect(mockSaveContextCache).toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: task.taskId,
+					globalStoragePath: mockExtensionContext.globalStorageUri.fsPath,
+					snapshot: expect.objectContaining({ coldChunks: [] }),
+				}),
+			)
 		})
 	})
 

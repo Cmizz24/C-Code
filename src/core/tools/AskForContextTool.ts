@@ -22,7 +22,7 @@ export class AskForContextTool extends BaseTool<"ask_for_context"> {
 		}
 
 		try {
-			const contextResults = task.getContextWindowManager()?.askForContext(query, { filePath, limit: 3 }) ?? []
+			const contextResults = await task.askForColdContext(query, { filePath, limit: 3 })
 
 			task.consecutiveMistakeCount = 0
 			await task

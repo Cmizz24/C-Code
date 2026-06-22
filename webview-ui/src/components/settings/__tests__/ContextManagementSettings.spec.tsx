@@ -88,6 +88,9 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 		</label>
 	),
 	VSCodeTextArea: ({ value, onChange, ...props }: any) => <textarea value={value} onChange={onChange} {...props} />,
+	VSCodeTextField: ({ value, onInput, onChange, ...props }: any) => (
+		<input value={value} onInput={onInput} onChange={onChange} {...props} />
+	),
 }))
 
 describe("ContextManagementSettings", () => {
@@ -222,7 +225,7 @@ describe("ContextManagementSettings", () => {
 	})
 
 	describe("Context Window Management cache settings", () => {
-		it("renders context cache controls, dynamic RAM budget options, stats, warning, and VRAM note", () => {
+		it("renders context cache controls, dynamic RAM budget bounds, stats, warning, and VRAM note", () => {
 			render(
 				<ContextManagementSettings
 					{...defaultProps}
@@ -251,11 +254,9 @@ describe("ContextManagementSettings", () => {
 				screen.getByText("settings:contextManagement.contextWindowManagement.description"),
 			).toBeInTheDocument()
 			expect(screen.getByTestId("context-cache-enabled-checkbox")).toBeInTheDocument()
-			expect(screen.getByTestId("cold-cache-ram-budget-select")).toBeInTheDocument()
-			expect(screen.getByText("1GB (recommended)")).toBeInTheDocument()
-			expect(screen.getByText("6GB")).toBeInTheDocument()
-			expect(screen.getByText("8GB")).toBeInTheDocument()
-			expect(screen.getByText("8GB")).toHaveValue("8192")
+			expect(screen.getByTestId("cold-cache-ram-budget-input")).toBeInTheDocument()
+			expect(screen.getByTestId("cold-cache-ram-budget-input")).toHaveValue("8192")
+			expect(screen.getByText(/1GB.*8GB.*1GB \(recommended\)/)).toBeInTheDocument()
 			expect(
 				screen.getByText("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.vramNote"),
 			).toBeInTheDocument()
@@ -295,18 +296,18 @@ describe("ContextManagementSettings", () => {
 			})
 		})
 
-		it("calls setCachedStateField when cold cache RAM budget changes", async () => {
+		it("calls setCachedStateField in 1MB increments when cold cache RAM budget changes", async () => {
 			const setCachedStateField = vi.fn()
 			render(<ContextManagementSettings {...defaultProps} setCachedStateField={setCachedStateField} />)
 
-			fireEvent.change(screen.getByTestId("cold-cache-ram-budget-select"), { target: { value: "2048" } })
+			fireEvent.input(screen.getByTestId("cold-cache-ram-budget-input"), { target: { value: "1537" } })
 
 			await waitFor(() => {
-				expect(setCachedStateField).toHaveBeenCalledWith("coldCacheRamBudgetMb", 2048)
+				expect(setCachedStateField).toHaveBeenCalledWith("coldCacheRamBudgetMb", 1537)
 			})
 		})
 
-		it("adds the current RAM budget if detected options do not include it", () => {
+		it("clamps current RAM budget to detected bounds", () => {
 			render(
 				<ContextManagementSettings
 					{...defaultProps}
@@ -315,9 +316,8 @@ describe("ContextManagementSettings", () => {
 				/>,
 			)
 
-			expect(screen.getByText("1GB (recommended)")).toBeInTheDocument()
-			expect(screen.getByText("2GB")).toBeInTheDocument()
-			expect(screen.getByText("3GB")).toBeInTheDocument()
+			expect(screen.getByTestId("cold-cache-ram-budget-input")).toHaveValue("2048")
+			expect(screen.getByText(/1GB.*2GB.*1GB \(recommended\)/)).toBeInTheDocument()
 		})
 	})
 
@@ -451,9 +451,10 @@ describe("ContextManagementSettings", () => {
 		const slider = screen.getByTestId("condense-threshold-slider")
 		expect(slider).toBeInTheDocument()
 
-		// Should render the RAM budget select and profile select dropdown
+		// Should render the profile select dropdown; RAM budget is now a 1MB-increment text field.
+		expect(screen.getByTestId("cold-cache-ram-budget-input")).toBeInTheDocument()
 		const selects = screen.getAllByRole("combobox")
-		expect(selects).toHaveLength(2)
+		expect(selects).toHaveLength(1)
 	})
 
 	describe("Auto Condense Context functionality", () => {
@@ -486,8 +487,9 @@ describe("ContextManagementSettings", () => {
 
 			// Threshold settings should be visible
 			expect(screen.getByTestId("condense-threshold-slider")).toBeInTheDocument()
-			// One combobox for RAM budget and one for profile selection
-			expect(screen.getAllByRole("combobox")).toHaveLength(2)
+			// One combobox for profile selection; RAM budget is a 1MB-increment text field.
+			expect(screen.getByTestId("cold-cache-ram-budget-input")).toBeInTheDocument()
+			expect(screen.getAllByRole("combobox")).toHaveLength(1)
 		})
 
 		it("updates auto condense context percent", () => {
@@ -599,7 +601,7 @@ describe("ContextManagementSettings", () => {
 			expect(screen.getByTestId("workspace-files-limit-slider")).toBeInTheDocument()
 			expect(screen.getByTestId("show-rooignored-files-checkbox")).toBeInTheDocument()
 			expect(screen.getByTestId("context-cache-enabled-checkbox")).toBeInTheDocument()
-			expect(screen.getByTestId("cold-cache-ram-budget-select")).toBeInTheDocument()
+			expect(screen.getByTestId("cold-cache-ram-budget-input")).toBeInTheDocument()
 			expect(screen.getByTestId("context-cache-stats")).toBeInTheDocument()
 		})
 	})

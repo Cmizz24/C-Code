@@ -32,13 +32,13 @@ describe("ContextWindowManager", () => {
 		})
 	}
 
-	it("normalizes cold cache RAM budgets to the supported settings options", () => {
+	it("normalizes cold cache RAM budgets to 1MB increments within supported bounds", () => {
 		const options = getContextCacheBudgetOptions(32 * 1024 * 1024 * 1024)
 
 		expect(normalizeColdCacheRamBudgetMb(undefined, options)).toBe(1024)
 		expect(normalizeColdCacheRamBudgetMb(128, options)).toBe(1024)
-		expect(normalizeColdCacheRamBudgetMb(1536, options)).toBe(2048)
-		expect(normalizeColdCacheRamBudgetMb(7000, options)).toBe(8192)
+		expect(normalizeColdCacheRamBudgetMb(1536, options)).toBe(1536)
+		expect(normalizeColdCacheRamBudgetMb(7000, options)).toBe(7000)
 		expect(normalizeColdCacheRamBudgetMb(65536, options)).toBe(8192)
 	})
 

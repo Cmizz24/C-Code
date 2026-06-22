@@ -45,6 +45,38 @@ export interface ContextCacheStats {
 	condensingAvoided: number
 }
 
+export interface ContextCacheChunkSnapshot {
+	id: string
+	type: string
+	content: string
+	tokens: number
+	bytes: number
+	priority: number
+	createdAt: number
+	lastAccessedAt: number
+	metadata?: {
+		filePath?: string
+		taskId?: string
+		role?: string
+		source?: string
+		title?: string
+		toolName?: string
+		createdBy?: string
+		messageTimestamps?: number[]
+	}
+}
+
+export interface ContextCacheSnapshot {
+	version: 1
+	coldCacheRamBudgetMb: number
+	swapsThisSession: number
+	condensingAvoided: number
+	warning?: string
+	hiddenMessageTimestamps: number[]
+	hotChunks: ContextCacheChunkSnapshot[]
+	coldChunks: ContextCacheChunkSnapshot[]
+}
+
 export const CONTEXT_CACHE_EVENT_TYPES = [
 	"chunks_moved_to_cold",
 	"chunks_pulled_from_cold",

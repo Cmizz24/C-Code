@@ -59,6 +59,18 @@ export class HotCache {
 		return [...this.chunks.values()]
 	}
 
+	replaceAll(chunks: ContextChunk[]): ContextChunk[] {
+		this.chunks.clear()
+		this.tokenCount = 0
+
+		for (const chunk of chunks) {
+			this.chunks.set(chunk.id, chunk)
+			this.tokenCount += chunk.tokens
+		}
+
+		return this.trimToBudget()
+	}
+
 	getTokenCount(): number {
 		return this.tokenCount
 	}

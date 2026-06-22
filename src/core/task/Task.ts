@@ -30,6 +30,8 @@ import {
 	type AgentActivityKind,
 	type AgentStatus,
 	type ContextCondense,
+	type ContextCacheSnapshot,
+	type ContextCacheSearchResult,
 	type ContextTruncation,
 	type ContextCacheBudgetOption,
 	type ContextCacheEvent,
@@ -123,7 +125,9 @@ import { ClineProvider } from "../webview/ClineProvider"
 import { MultiSearchReplaceDiffStrategy } from "../diff/strategies/multi-search-replace"
 import {
 	type ApiMessage,
+	readContextCache,
 	readApiMessages,
+	saveContextCache,
 	saveApiMessages,
 	readTaskMessages,
 	saveTaskMessages,
@@ -974,6 +978,22 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		return this.contextWindowManager
 	}
 
+	public async askForColdContext(
+		query: string,
+		options: { filePath?: string; limit?: number } = {},
+	): Promise<ContextCacheSearchResult[]> {
+		if (!this.contextWindowManager) {
+			await this.restoreContextCacheSnapshot()
+		}
+
+		const results = this.contextWindowManager?.askForContext(query, options) ?? []
+		if (results.length > 0) {
+			await this.saveContextCacheSnapshot()
+		}
+
+		return results
+	}
+
 	public registerContextChunk(input: RegisterContextChunkInput): void {
 		this.contextWindowManager?.registerChunk({
 			...input,
@@ -982,6 +1002,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				...input.metadata,
 			},
 		})
+		void this.saveContextCacheSnapshot()
 	}
 
 	public getContextCacheStats(): ContextCacheStats {
@@ -1019,6 +1040,39 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				event,
 			)
 		}
+	}
+
+	private async getSavedContextCacheSnapshot(): Promise<ContextCacheSnapshot | undefined> {
+		return readContextCache({ taskId: this.taskId, globalStoragePath: this.globalStoragePath })
+	}
+
+	private async saveContextCacheSnapshot(): Promise<boolean> {
+		const snapshot = this.contextWindowManager?.exportSnapshot()
+		if (!snapshot) {
+			return true
+		}
+
+		try {
+			await saveContextCache({
+				snapshot,
+				taskId: this.taskId,
+				globalStoragePath: this.globalStoragePath,
+			})
+			return true
+		} catch (error) {
+			console.error("Failed to save context cache snapshot:", error)
+			return false
+		}
+	}
+
+	private async restoreContextCacheSnapshot(): Promise<void> {
+		if (!this.contextWindowManager) {
+			const state = await this.providerRef.deref()?.getState()
+			this.configureContextWindowManager(state, this.api.getModel().info)
+		}
+
+		const snapshot = await this.getSavedContextCacheSnapshot()
+		this.contextWindowManager?.importSnapshot(snapshot)
 	}
 
 	static create(options: TaskOptions): [Task, Promise<void>] {
@@ -2437,6 +2491,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// This is important in case the user deletes messages without resuming
 			// the task first.
 			this.apiConversationHistory = await this.getSavedApiConversationHistory()
+			await this.restoreContextCacheSnapshot()
 
 			const lastClineMessage = this.clineMessages
 				.slice()
@@ -4483,6 +4538,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			if (truncateResult.messages !== this.apiConversationHistory) {
 				await this.overwriteApiConversationHistory(truncateResult.messages)
 			}
+			if (truncateResult.contextCacheHandled) {
+				await this.saveContextCacheSnapshot()
+			}
 
 			if (truncateResult.summary) {
 				const { summary, cost, prevContextTokens, newContextTokens = 0 } = truncateResult
@@ -4719,6 +4777,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				})
 				if (truncateResult.messages !== this.apiConversationHistory) {
 					await this.overwriteApiConversationHistory(truncateResult.messages)
+				}
+				if (truncateResult.contextCacheHandled) {
+					await this.saveContextCacheSnapshot()
 				}
 				if (truncateResult.error) {
 					await this.say("condense_context_error", truncateResult.error)
