@@ -14,7 +14,7 @@ import type { ApiHandlerOptions } from "../../shared/api"
 
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { getModelParams } from "../transform/model-params"
-import { convertToR1Format } from "../transform/r1-format"
+import { convertToR1Format, type DeepSeekAssistantMessage } from "../transform/r1-format"
 
 import { OpenAiHandler } from "./openai"
 import type { ApiHandlerCreateMessageMetadata } from "../index"
@@ -55,6 +55,23 @@ function toDeepSeekReasoningEffort(effort?: ReasoningEffortExtended | "disable" 
 		default:
 			return undefined
 	}
+}
+
+function ensureReasoningContentForToolCalls(messages: OpenAI.Chat.ChatCompletionMessageParam[]) {
+	return messages.map((message) => {
+		if (message.role !== "assistant") {
+			return message
+		}
+
+		const assistantMessage = message as DeepSeekAssistantMessage
+		const hasToolCalls = Array.isArray(assistantMessage.tool_calls) && assistantMessage.tool_calls.length > 0
+
+		if (!hasToolCalls || typeof assistantMessage.reasoning_content === "string") {
+			return message
+		}
+
+		return { ...assistantMessage, reasoning_content: "" }
+	})
 }
 
 export class DeepSeekHandler extends OpenAiHandler {
@@ -109,11 +126,14 @@ export class DeepSeekHandler extends OpenAiHandler {
 		const convertedMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages], {
 			mergeToolResultText: isThinkingModel,
 		})
+		const requestMessages = isThinkingModel
+			? ensureReasoningContentForToolCalls(convertedMessages)
+			: convertedMessages
 
 		const requestOptions: DeepSeekChatCompletionParams = {
 			model: modelId,
 			...(isThinkingModel ? {} : { temperature }),
-			messages: convertedMessages,
+			messages: requestMessages,
 			stream: true as const,
 			stream_options: { include_usage: true },
 			...(supportsThinkingToggle || isLegacyDeepSeekReasoner(modelId)

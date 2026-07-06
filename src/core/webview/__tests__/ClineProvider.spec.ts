@@ -3052,7 +3052,7 @@ describe("ClineProvider", () => {
 			hotCacheChunks: 0,
 			coldCacheChunks: 0,
 			ramUsedMb: 0,
-			ramBudgetMb: 2048,
+			ramBudgetMb: state.coldCacheRamBudgetMb,
 			swapsThisSession: 0,
 			condensingAvoided: 0,
 		})

@@ -6,7 +6,7 @@ import { fileURLToPath } from "url"
 import process from "node:process"
 import * as console from "node:console"
 
-import { copyPaths, copyWasms, copyLocales, setupLocaleWatcher } from "@roo-code/build"
+import { copyPaths, copyWasms, copyLocales, setupLocaleWatcher, withFileLock } from "@roo-code/build"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -60,7 +60,7 @@ async function removeDirWithRetries(dirPath, retries = 5, retryDelayMs = 200) {
 	}
 }
 
-async function main() {
+async function buildExtension() {
 	const name = "extension"
 	const production = process.argv.includes("--production")
 	const watch = process.argv.includes("--watch")
@@ -185,6 +185,17 @@ async function main() {
 		await Promise.all([extensionCtx.rebuild(), workerCtx.rebuild()])
 		await Promise.all([extensionCtx.dispose(), workerCtx.dispose()])
 	}
+}
+
+async function main() {
+	const watch = process.argv.includes("--watch")
+
+	if (watch) {
+		await buildExtension()
+		return
+	}
+
+	await withFileLock(path.join(__dirname, ".extension-build.lock"), buildExtension)
 }
 
 main().catch((e) => {

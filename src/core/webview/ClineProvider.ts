@@ -145,7 +145,7 @@ import {
 import { Task } from "../task/Task"
 
 import { webviewMessageHandler } from "./webviewMessageHandler"
-import type { ClineMessage, ClineSayTool, ContextCacheStats, TodoItem } from "@roo-code/types"
+import type { ClineMessage, ClineSayTool, TodoItem } from "@roo-code/types"
 import { readApiMessages, saveApiMessages, saveTaskMessages, TaskHistoryStore } from "../task-persistence"
 import { readTaskMessages } from "../task-persistence/taskMessages"
 import { getNonce } from "./getNonce"
@@ -172,34 +172,6 @@ function getDetectedContextCacheBudgetOptions() {
 }
 
 const ORCHESTRATOR_MODE_SLUG = "orchestrator"
-
-function getDefaultContextCacheStats(ramBudgetMb: number): ContextCacheStats {
-	return {
-		hotCacheTokens: 0,
-		hotCacheChunks: 0,
-		coldCacheChunks: 0,
-		ramUsedMb: 0,
-		ramBudgetMb,
-		swapsThisSession: 0,
-		condensingAvoided: 0,
-	}
-}
-
-function getTaskContextCacheStats(currentTask: Task | undefined, ramBudgetMb: number): ContextCacheStats {
-	const statsProvider = currentTask as Partial<Pick<Task, "getContextCacheStats">> | undefined
-
-	return typeof statsProvider?.getContextCacheStats === "function"
-		? statsProvider.getContextCacheStats()
-		: getDefaultContextCacheStats(ramBudgetMb)
-}
-
-function getTaskContextCacheWarning(currentTask: Task | undefined): string | undefined {
-	const warningProvider = currentTask as Partial<Pick<Task, "getContextCacheWarning">> | undefined
-
-	return typeof warningProvider?.getContextCacheWarning === "function"
-		? warningProvider.getContextCacheWarning()
-		: undefined
-}
 
 async function restoreDelegatedParentMode(
 	provider: {
@@ -5428,8 +5400,6 @@ export class ClineProvider
 			currentTaskId: currentTask?.taskId,
 			currentTaskItem: currentTask?.taskId ? this.taskHistoryStore.get(currentTask.taskId) : undefined,
 			clineMessages: currentTask?.clineMessages || [],
-			contextCacheStats: getTaskContextCacheStats(currentTask, normalizedColdCacheRamBudgetMb),
-			contextCacheWarning: getTaskContextCacheWarning(currentTask),
 			contextCacheStats,
 			contextCacheWarning,
 			currentTaskTodos: currentTask?.todoList || [],

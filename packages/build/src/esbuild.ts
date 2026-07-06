@@ -4,6 +4,42 @@ import { execSync } from "child_process"
 
 import { ViewsContainer, Views, Menus, Configuration, Keybindings, contributesSchema } from "./types.js"
 
+function isRetryableFileSystemError(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		"code" in error &&
+		(error.code === "EBUSY" || error.code === "EPERM" || error.code === "EACCES")
+	)
+}
+
+function sleepSync(delayMs: number): void {
+	const start = Date.now()
+
+	while (Date.now() - start < delayMs) {
+		/* Busy wait */
+	}
+}
+
+function copyFileWithRetries(srcPath: string, dstPath: string, maxRetries: number = 5): void {
+	for (let attempt = 1; attempt <= maxRetries; attempt++) {
+		try {
+			fs.copyFileSync(srcPath, dstPath)
+			return
+		} catch (error) {
+			const isLastAttempt = attempt === maxRetries
+
+			if (isLastAttempt || !isRetryableFileSystemError(error)) {
+				throw error
+			}
+
+			const baseDelay = process.platform === "win32" ? 200 : 100
+			const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), 2000)
+			console.warn(`[copyFile] Attempt ${attempt} failed for ${dstPath}, retrying in ${delay}ms...`)
+			sleepSync(delay)
+		}
+	}
+}
+
 function copyDir(srcDir: string, dstDir: string, count: number): number {
 	const entries = fs.readdirSync(srcDir, { withFileTypes: true })
 
@@ -16,7 +52,7 @@ function copyDir(srcDir: string, dstDir: string, count: number): number {
 			count = copyDir(srcPath, dstPath, count)
 		} else {
 			count = count + 1
-			fs.copyFileSync(srcPath, dstPath)
+			copyFileWithRetries(srcPath, dstPath)
 		}
 	}
 
@@ -69,18 +105,75 @@ function rmDir(dirPath: string, maxRetries: number = 5): void {
 			const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), 2000) // Cap at 2s
 			console.warn(`[rmDir] Attempt ${attempt} failed for ${dirPath}, retrying in ${delay}ms...`)
 
-			// Synchronous sleep for simplicity in build scripts.
-			const start = Date.now()
-
-			while (Date.now() - start < delay) {
-				/* Busy wait */
-			}
+			sleepSync(delay)
 		}
 	}
 }
 
 type CopyPathOptions = {
 	optional?: boolean
+}
+
+type FileLockOptions = {
+	retryDelayMs?: number
+	staleMs?: number
+	maxRetries?: number
+}
+
+async function acquireFileLock(lockDir: string, options: FileLockOptions = {}): Promise<() => Promise<void>> {
+	const retryDelayMs = options.retryDelayMs ?? 250
+	const staleMs = options.staleMs ?? 120_000
+	const maxRetries = options.maxRetries ?? 240
+	const ownerPath = path.join(lockDir, "owner")
+	const ownerToken = `${process.pid}:${Date.now()}:${Math.random()}`
+
+	for (let attempt = 0; attempt <= maxRetries; attempt++) {
+		try {
+			await fs.promises.mkdir(lockDir)
+			await fs.promises.writeFile(ownerPath, ownerToken)
+
+			return async () => {
+				const currentOwner = await fs.promises.readFile(ownerPath, "utf8").catch(() => undefined)
+
+				if (currentOwner === ownerToken) {
+					await fs.promises.rm(lockDir, { recursive: true, force: true })
+				}
+			}
+		} catch (error) {
+			if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) {
+				throw error
+			}
+
+			const stats = await fs.promises.stat(lockDir).catch(() => undefined)
+
+			if (stats && Date.now() - stats.mtimeMs > staleMs) {
+				await fs.promises.rm(lockDir, { recursive: true, force: true }).catch(() => undefined)
+				continue
+			}
+
+			if (attempt === maxRetries) {
+				throw new Error(`Timed out waiting for file lock: ${lockDir}`)
+			}
+
+			await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+		}
+	}
+
+	throw new Error(`Timed out waiting for file lock: ${lockDir}`)
+}
+
+export async function withFileLock<T>(
+	lockDir: string,
+	callback: () => T | Promise<T>,
+	options?: FileLockOptions,
+): Promise<T> {
+	const releaseLock = await acquireFileLock(lockDir, options)
+
+	try {
+		return await callback()
+	} finally {
+		await releaseLock()
+	}
 }
 
 export function copyPaths(copyPaths: [string, string, CopyPathOptions?][], srcDir: string, dstDir: string) {
@@ -98,7 +191,7 @@ export function copyPaths(copyPaths: [string, string, CopyPathOptions?][], srcDi
 				const count = copyDir(path.join(srcDir, srcRelPath), path.join(dstDir, dstRelPath), 0)
 				console.log(`[copyPaths] Copied ${count} files from ${srcRelPath} to ${dstRelPath}`)
 			} else {
-				fs.copyFileSync(path.join(srcDir, srcRelPath), path.join(dstDir, dstRelPath))
+				copyFileWithRetries(path.join(srcDir, srcRelPath), path.join(dstDir, dstRelPath))
 				console.log(`[copyPaths] Copied ${srcRelPath} to ${dstRelPath}`)
 			}
 		} catch (error) {
@@ -117,7 +210,7 @@ export function copyWasms(srcDir: string, distDir: string): void {
 	fs.mkdirSync(distDir, { recursive: true })
 
 	// Tiktoken WASM file.
-	fs.copyFileSync(
+	copyFileWithRetries(
 		path.join(nodeModulesDir, "tiktoken", "lite", "tiktoken_bg.wasm"),
 		path.join(distDir, "tiktoken_bg.wasm"),
 	)
@@ -128,7 +221,7 @@ export function copyWasms(srcDir: string, distDir: string): void {
 	const workersDir = path.join(distDir, "workers")
 	fs.mkdirSync(workersDir, { recursive: true })
 
-	fs.copyFileSync(
+	copyFileWithRetries(
 		path.join(nodeModulesDir, "tiktoken", "lite", "tiktoken_bg.wasm"),
 		path.join(workersDir, "tiktoken_bg.wasm"),
 	)
@@ -136,7 +229,7 @@ export function copyWasms(srcDir: string, distDir: string): void {
 	console.log(`[copyWasms] Copied tiktoken WASMs to ${workersDir}`)
 
 	// Main tree-sitter WASM file.
-	fs.copyFileSync(
+	copyFileWithRetries(
 		path.join(nodeModulesDir, "web-tree-sitter", "tree-sitter.wasm"),
 		path.join(distDir, "tree-sitter.wasm"),
 	)
@@ -154,7 +247,7 @@ export function copyWasms(srcDir: string, distDir: string): void {
 	const wasmFiles = fs.readdirSync(languageWasmDir).filter((file) => file.endsWith(".wasm"))
 
 	wasmFiles.forEach((filename) => {
-		fs.copyFileSync(path.join(languageWasmDir, filename), path.join(distDir, filename))
+		copyFileWithRetries(path.join(languageWasmDir, filename), path.join(distDir, filename))
 	})
 
 	console.log(`[copyWasms] Copied ${wasmFiles.length} tree-sitter language wasms to ${distDir}`)
@@ -197,7 +290,7 @@ function copyEsbuildWasmFiles(nodeModulesDir: string, distDir: string): void {
 	]
 
 	for (const { src, dest } of filesToCopy) {
-		fs.copyFileSync(src, dest)
+		copyFileWithRetries(src, dest)
 
 		// Make CLI executable.
 		if (src.endsWith("esbuild")) {

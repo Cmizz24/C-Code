@@ -6,6 +6,9 @@
 		"test": {
 			"dependsOn": ["@roo-code/types#build"]
 		},
+		"@roo-code/vscode-webview#test": {
+			"dependsOn": ["@roo-code/types#build", "c-code#test"]
+		},
 		"format": {},
 		"clean": {
 			"cache": false
