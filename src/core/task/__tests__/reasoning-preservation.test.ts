@@ -480,4 +480,102 @@ describe("Task reasoning preservation", () => {
 			text: assistantText,
 		})
 	})
+
+	it("should preserve top-level reasoning_content for DeepSeek tool-call continuations", async () => {
+		const task = new Task({
+			provider: mockProvider as ClineProvider,
+			apiConfiguration: {
+				apiProvider: "deepseek",
+				apiModelId: "deepseek-v4-pro",
+			} as ProviderSettings,
+			task: "Test task",
+			startTask: false,
+		})
+
+		task.api = {
+			getModel: vi.fn().mockReturnValue({
+				id: "deepseek-v4-pro",
+				info: {
+					contextWindow: 16000,
+					supportsPromptCache: true,
+					preserveReasoning: true,
+				},
+			}),
+		} as any
+
+		const cleanConversationHistory = (task as any).buildCleanConversationHistory([
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "call_123",
+						name: "read_file",
+						input: { path: "README.md" },
+					},
+				],
+				reasoning_content: "I need to inspect the requested file first.",
+			},
+		])
+
+		expect(cleanConversationHistory).toHaveLength(1)
+		expect(cleanConversationHistory[0]).toMatchObject({
+			role: "assistant",
+			reasoning_content: "I need to inspect the requested file first.",
+			content: [
+				{
+					type: "tool_use",
+					id: "call_123",
+					name: "read_file",
+					input: { path: "README.md" },
+				},
+			],
+		})
+	})
+
+	it("should store DeepSeek streaming reasoning as top-level reasoning_content", async () => {
+		const task = new Task({
+			provider: mockProvider as ClineProvider,
+			apiConfiguration: {
+				apiProvider: "deepseek",
+				apiModelId: "deepseek-v4-pro",
+			} as ProviderSettings,
+			task: "Test task",
+			startTask: false,
+		})
+
+		;(task as any).saveApiConversationHistory = vi.fn().mockResolvedValue(undefined)
+
+		task.api = {
+			getModel: vi.fn().mockReturnValue({
+				id: "deepseek-v4-pro",
+				info: {
+					contextWindow: 16000,
+					supportsPromptCache: true,
+					preserveReasoning: true,
+				},
+			}),
+		} as any
+
+		await (task as any).addToApiConversationHistory(
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "call_123",
+						name: "read_file",
+						input: { path: "README.md" },
+					},
+				],
+			},
+			"I need to inspect the requested file first.",
+		)
+
+		expect(task.apiConversationHistory).toHaveLength(1)
+		expect(task.apiConversationHistory[0]).toMatchObject({
+			role: "assistant",
+			reasoning_content: "I need to inspect the requested file first.",
+		})
+	})
 })

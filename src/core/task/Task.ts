@@ -1071,6 +1071,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				modelId,
 			)
 			const isAnthropicProtocol = apiProtocol === "anthropic"
+			const shouldPreserveReasoningContent =
+				apiProvider === "deepseek" && (this.api as any).getModel?.()?.info?.preserveReasoning === true
 
 			// Start from the original assistant message
 			const messageWithTs: any = {
@@ -1082,6 +1084,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// Store reasoning_details array if present (for models like Gemini 3)
 			if (reasoningDetails) {
 				messageWithTs.reasoning_details = reasoningDetails
+			}
+
+			if (apiProvider === "deepseek" && shouldPreserveReasoningContent && reasoning) {
+				messageWithTs.reasoning_content = reasoning
 			}
 
 			// Store reasoning: Anthropic thinking (with signature), plain text (most providers), or encrypted (OpenAI Native)
@@ -5090,6 +5096,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		const cleanConversationHistory: (Anthropic.Messages.MessageParam | ReasoningItemForRequest)[] = []
+		const shouldPreserveReasoningContent =
+			this.apiConfiguration.apiProvider === "deepseek" &&
+			(this.api as any).getModel?.()?.info?.preserveReasoning === true
 
 		for (const msg of messages) {
 			// Standalone reasoning: send encrypted, skip plain text
@@ -5121,6 +5130,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 				// Check if this message has reasoning_details (OpenRouter format for Gemini 3, etc.)
 				const msgWithDetails = msg
+				const topLevelReasoningContent =
+					shouldPreserveReasoningContent && typeof msg.reasoning_content === "string"
+						? msg.reasoning_content
+						: undefined
+
 				if (msgWithDetails.reasoning_details && Array.isArray(msgWithDetails.reasoning_details)) {
 					// Build the assistant message with reasoning_details
 					let assistantContent: Anthropic.Messages.MessageParam["content"]
@@ -5138,6 +5152,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						role: "assistant",
 						content: assistantContent,
 						reasoning_details: msgWithDetails.reasoning_details,
+						...(topLevelReasoningContent ? { reasoning_content: topLevelReasoningContent } : {}),
 					} as any)
 
 					continue
@@ -5174,6 +5189,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					cleanConversationHistory.push({
 						role: "assistant",
 						content: assistantContent,
+						...(topLevelReasoningContent ? { reasoning_content: topLevelReasoningContent } : {}),
 					} satisfies Anthropic.Messages.MessageParam)
 
 					continue
@@ -5181,7 +5197,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					// Check if the model's preserveReasoning flag is set
 					// If true, include the reasoning block in API requests
 					// If false/undefined, strip it out (stored for history only, not sent back to API)
-					const shouldPreserveForApi = this.api.getModel().info.preserveReasoning === true
+					const shouldPreserveForApi = shouldPreserveReasoningContent
 					let assistantContent: Anthropic.Messages.MessageParam["content"]
 
 					if (shouldPreserveForApi) {
@@ -5201,6 +5217,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					cleanConversationHistory.push({
 						role: "assistant",
 						content: assistantContent,
+						...(topLevelReasoningContent ? { reasoning_content: topLevelReasoningContent } : {}),
 					} satisfies Anthropic.Messages.MessageParam)
 
 					continue
@@ -5212,6 +5229,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				cleanConversationHistory.push({
 					role: msg.role,
 					content: msg.content as Anthropic.Messages.ContentBlockParam[] | string,
+					...(msg.role === "assistant" &&
+					shouldPreserveReasoningContent &&
+					typeof msg.reasoning_content === "string"
+						? { reasoning_content: msg.reasoning_content }
+						: {}),
 				})
 			}
 		}
