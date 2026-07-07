@@ -3719,6 +3719,63 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			break
 		}
 
+		case "fetchQwenCodePlanUsage": {
+			try {
+				const oauthPath = message.text
+				const { fetchQwenCodePlanUsage } = await import("../../integrations/qwen-code/plan-usage")
+				const usage = await fetchQwenCodePlanUsage(oauthPath || undefined)
+
+				provider.cachedProviderPlanUsage["qwen-code"] = usage as unknown as Record<string, unknown>
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "qwen-code",
+					values: usage as unknown as Record<string, unknown>,
+				})
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				provider.log(`Error fetching Qwen Code plan usage: ${errorMessage}`)
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "qwen-code",
+					error: errorMessage,
+				})
+			}
+			break
+		}
+
+		case "fetchSambaNovaPlanUsage": {
+			try {
+				const apiKey = message.text
+				if (!apiKey) {
+					provider.postMessageToWebview({
+						type: "providerPlanUsage",
+						providerName: "sambanova",
+						error: "No SambaNova API key provided",
+					})
+					break
+				}
+
+				const { fetchSambaNovaPlanUsage } = await import("../../integrations/sambanova/plan-usage")
+				const usage = await fetchSambaNovaPlanUsage(apiKey)
+
+				provider.cachedProviderPlanUsage["sambanova"] = usage as unknown as Record<string, unknown>
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "sambanova",
+					values: usage as unknown as Record<string, unknown>,
+				})
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				provider.log(`Error fetching SambaNova plan usage: ${errorMessage}`)
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "sambanova",
+					error: errorMessage,
+				})
+			}
+			break
+		}
+
 		case "openDebugApiHistory":
 		case "openDebugUiHistory": {
 			const currentTask = provider.getCurrentTask()

@@ -400,4 +400,31 @@ describe("SECRET_STATE_KEYS", () => {
 		expect(SECRET_STATE_KEYS).not.toContain("apiModelId")
 		expect(SECRET_STATE_KEYS).not.toContain("anthropicBaseUrl")
 	})
+
+	it("should include vertexJsonCredentials (GCP JSON credentials)", () => {
+		expect(SECRET_STATE_KEYS).toContain("vertexJsonCredentials")
+	})
+
+	it("should include all vertex credential fields", () => {
+		expect(SECRET_STATE_KEYS).toContain("vertexJsonCredentials")
+	})
+})
+
+describe("scopeApiKeysPerWorkspace setting", () => {
+	it("should accept scopeApiKeysPerWorkspace as a boolean in global settings", () => {
+		const parsed = globalSettingsSchema.safeParse({ scopeApiKeysPerWorkspace: true })
+		expect(parsed.success).toBe(true)
+	})
+
+	it("should default scopeApiKeysPerWorkspace to undefined (off)", () => {
+		const parsed = globalSettingsSchema.safeParse({})
+		expect(parsed.success).toBe(true)
+		if (parsed.success) {
+			expect(parsed.data.scopeApiKeysPerWorkspace).toBeUndefined()
+		}
+	})
+
+	it("should include scopeApiKeysPerWorkspace in GLOBAL_SETTINGS_KEYS", () => {
+		expect(GLOBAL_STATE_KEYS).toContain("scopeApiKeysPerWorkspace")
+	})
 })

@@ -10,6 +10,22 @@ const KIMI_32K_MAX_OUTPUT_TOKENS = 32_768
 const KIMI_DEPRECATED_PREVIEW_DESCRIPTION = "Deprecated preview model retained for existing configurations."
 
 export const moonshotModels = {
+	"kimi-k2.7-code": {
+		maxTokens: KIMI_32K_MAX_OUTPUT_TOKENS,
+		contextWindow: KIMI_256K_CONTEXT_WINDOW,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoningBinary: true,
+		preserveReasoning: true,
+		supportsTemperature: true,
+		defaultTemperature: 1.0,
+		inputPrice: 0.95,
+		outputPrice: 4.0,
+		cacheReadsPrice: 0.19,
+		subscriptionBased: true,
+		description:
+			"Kimi K2.7 Code is Moonshot AI's coding-focused model with 256K context, visual/text input, thinking and non-thinking modes, and enhanced agentic coding capabilities.",
+	},
 	"kimi-k2.6": {
 		maxTokens: KIMI_32K_MAX_OUTPUT_TOKENS,
 		contextWindow: KIMI_256K_CONTEXT_WINDOW,

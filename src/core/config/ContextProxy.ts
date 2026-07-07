@@ -19,6 +19,9 @@ import {
 	isRetiredProvider,
 } from "@roo-code/types"
 
+/** Prefix for workspace-scoped API key secrets stored in workspaceState. */
+const WORKSPACE_SECRET_PREFIX = "ws_secret:"
+
 import { logger } from "../../utils/logging"
 import { supportPrompt } from "../../shared/support-prompt"
 import { normalizeModeSlug } from "../../shared/modes"
@@ -60,6 +63,7 @@ export class ContextProxy {
 
 	private stateCache: GlobalState
 	private secretCache: SecretState
+	private workspaceSecretCache: Record<string, string | undefined>
 	private workspaceStateCache: Record<string, unknown>
 	private _isInitialized = false
 
@@ -67,6 +71,7 @@ export class ContextProxy {
 		this.originalContext = context
 		this.stateCache = {}
 		this.secretCache = {}
+		this.workspaceSecretCache = {}
 		this.workspaceStateCache = {}
 		this._isInitialized = false
 	}
@@ -132,6 +137,27 @@ export class ContextProxy {
 		]
 
 		await Promise.all(promises)
+
+		// When scopeApiKeysPerWorkspace is enabled, load workspace-scoped API key
+		// secrets from workspaceState. These override the global secret values
+		// so different workspaces can use different API keys.
+		const scopeApiKeys = this.stateCache.scopeApiKeysPerWorkspace === true
+		if (scopeApiKeys) {
+			for (const key of SECRET_STATE_KEYS) {
+				try {
+					const wsKey = `${WORKSPACE_SECRET_PREFIX}${key}`
+					const wsValue = this.originalContext.workspaceState.get<string>(wsKey)
+					if (wsValue !== undefined) {
+						this.workspaceSecretCache[key] = wsValue
+						this.secretCache[key] = wsValue
+					}
+				} catch (error) {
+					logger.error(
+						`Error loading workspace secret ${key}: ${error instanceof Error ? error.message : String(error)}`,
+					)
+				}
+			}
+		}
 
 		// Migration: Move API keys from globalState to secrets when SECRET_STATE_KEYS is updated
 		await this.migrateSecretKeysFromGlobalState()
@@ -524,12 +550,38 @@ export class ContextProxy {
 	 */
 
 	getSecret(key: SecretStateKey) {
+		// When workspace-scoped API keys are enabled, check workspace secret
+		// cache first for SECRET_STATE_KEYS (provider API keys).
+		if (
+			this.stateCache.scopeApiKeysPerWorkspace === true &&
+			SECRET_STATE_KEYS.includes(key as (typeof SECRET_STATE_KEYS)[number])
+		) {
+			const wsValue = this.workspaceSecretCache[key as string]
+			if (wsValue !== undefined) {
+				return wsValue
+			}
+		}
 		return this.secretCache[key]
 	}
 
 	storeSecret(key: SecretStateKey, value?: string) {
 		// Update cache.
 		this.secretCache[key] = value
+
+		// When workspace-scoped API keys are enabled and this is a provider
+		// API key (SECRET_STATE_KEYS), store in workspaceState instead of global secrets.
+		if (
+			this.stateCache.scopeApiKeysPerWorkspace === true &&
+			SECRET_STATE_KEYS.includes(key as (typeof SECRET_STATE_KEYS)[number])
+		) {
+			const wsKey = `${WORKSPACE_SECRET_PREFIX}${String(key)}`
+			this.workspaceSecretCache[key as string] = value
+			if (value === undefined) {
+				delete this.workspaceSecretCache[key as string]
+				return this.originalContext.workspaceState.update(wsKey, undefined)
+			}
+			return this.originalContext.workspaceState.update(wsKey, value)
+		}
 
 		// Write directly to context.
 		return value === undefined
@@ -563,6 +615,16 @@ export class ContextProxy {
 			}),
 		]
 		await Promise.all(promises)
+
+		// When workspace-scoped API keys are enabled, override with workspace-scoped values.
+		if (this.stateCache.scopeApiKeysPerWorkspace === true) {
+			for (const key of SECRET_STATE_KEYS) {
+				const wsValue = this.workspaceSecretCache[key]
+				if (wsValue !== undefined) {
+					this.secretCache[key] = wsValue
+				}
+			}
+		}
 	}
 
 	private getAllSecretState(): SecretState {
@@ -719,13 +781,18 @@ export class ContextProxy {
 		// Clear in-memory caches
 		this.stateCache = {}
 		this.secretCache = {}
+		this.workspaceSecretCache = {}
 		this.workspaceStateCache = {}
+
+		// Also clear any workspace-scoped secret entries from workspaceState.
+		const wsSecretKeys = SECRET_STATE_KEYS.map((key) => `${WORKSPACE_SECRET_PREFIX}${key}`)
 
 		await Promise.all([
 			...GLOBAL_STATE_KEYS.map((key) => this.originalContext.globalState.update(key, undefined)),
 			...SECRET_STATE_KEYS.map((key) => this.originalContext.secrets.delete(key)),
 			...GLOBAL_SECRET_KEYS.map((key) => this.originalContext.secrets.delete(key)),
 			...WORKSPACE_SCOPED_KEYS.map((key) => this.originalContext.workspaceState.update(key, undefined)),
+			...wsSecretKeys.map((key) => this.originalContext.workspaceState.update(key, undefined)),
 		])
 
 		await this.initialize()

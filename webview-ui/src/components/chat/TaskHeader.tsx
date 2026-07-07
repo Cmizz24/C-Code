@@ -135,50 +135,62 @@ const TaskHeader = ({
 	// uses simple variables that ESLint can statically check.
 	const { apiKey, zaiApiLine, minimaxApiKey, minimaxBaseUrl } = apiConfiguration
 	const xiaomiMiMoPlatformCookie = (apiConfiguration as any).xiaomiMiMoPlatformCookie as string | undefined
+	const sambaNovaApiKey = (apiConfiguration as any).sambaNovaApiKey as string | undefined
+	const qwenCodeOauthPath = (apiConfiguration as any).qwenCodeOauthPath as string | undefined
 
 	useEffect(() => {
 		if (!isPlanBased || !providerName) return
 
-		if (!apiKey) return
-
-		const LIVE_PROVIDERS = ["poe", "zai", "moonshot", "minimax", "xiaomi-mimo"] as const
+		const LIVE_PROVIDERS = ["poe", "zai", "moonshot", "minimax", "xiaomi-mimo", "qwen-code", "sambanova"] as const
 		if (!(LIVE_PROVIDERS as readonly string[]).includes(providerName)) return
 
-		// Only fetch if we don't already have cached data, or if the cache is older than 5 minutes.
-		const cached = cachedProviderPlanUsage?.[providerName]
-		const CACHE_TTL_MS = 5 * 60 * 1000
-		if (cached && typeof (cached as any).fetchedAt === "number") {
-			const age = Date.now() - ((cached as any).fetchedAt as number)
-			if (age < CACHE_TTL_MS) return
-		}
-
+		// Always fetch live data — no caching/stale check.
 		switch (providerName) {
 			case "poe":
-				vscode.postMessage({ type: "fetchPoePlanUsage", text: apiKey })
+				if (apiKey) {
+					vscode.postMessage({ type: "fetchPoePlanUsage", text: apiKey })
+				}
 				break
 			case "zai":
-				// Determine if using China region
-				vscode.postMessage({
-					type: "fetchZAiPlanUsage",
-					text: apiKey,
-					bool: zaiApiLine ? zaiApiLine === "china_coding" || zaiApiLine === "china_api" : false,
-				})
+				if (apiKey) {
+					// Determine if using China region
+					vscode.postMessage({
+						type: "fetchZAiPlanUsage",
+						text: apiKey,
+						bool: zaiApiLine ? zaiApiLine === "china_coding" || zaiApiLine === "china_api" : false,
+					})
+				}
 				break
 			case "moonshot":
-				vscode.postMessage({ type: "fetchMoonshotPlanUsage", text: apiKey })
+				if (apiKey) {
+					vscode.postMessage({ type: "fetchMoonshotPlanUsage", text: apiKey })
+				}
 				break
 			case "minimax":
-				// Determine if using China region from the base URL
-				vscode.postMessage({
-					type: "fetchMiniMaxPlanUsage",
-					text: minimaxApiKey,
-					bool: minimaxBaseUrl === "https://api.minimaxi.com/v1",
-				})
+				if (minimaxApiKey) {
+					// Determine if using China region from the base URL
+					vscode.postMessage({
+						type: "fetchMiniMaxPlanUsage",
+						text: minimaxApiKey,
+						bool: minimaxBaseUrl === "https://api.minimaxi.com/v1",
+					})
+				}
 				break
 			case "xiaomi-mimo": {
 				// Use the platform cookie stored in settings
 				if (xiaomiMiMoPlatformCookie) {
 					vscode.postMessage({ type: "fetchXiaomiMiMoPlanUsage", text: xiaomiMiMoPlatformCookie })
+				}
+				break
+			}
+			case "qwen-code": {
+				// Qwen Code uses OAuth credentials; pass the custom path if configured
+				vscode.postMessage({ type: "fetchQwenCodePlanUsage", text: qwenCodeOauthPath ?? "" })
+				break
+			}
+			case "sambanova": {
+				if (sambaNovaApiKey) {
+					vscode.postMessage({ type: "fetchSambaNovaPlanUsage", text: sambaNovaApiKey })
 				}
 				break
 			}
@@ -191,7 +203,8 @@ const TaskHeader = ({
 		minimaxApiKey,
 		minimaxBaseUrl,
 		xiaomiMiMoPlatformCookie,
-		cachedProviderPlanUsage,
+		sambaNovaApiKey,
+		qwenCodeOauthPath,
 	])
 
 	const textContainerRef = useRef<HTMLDivElement>(null)
@@ -346,6 +359,66 @@ const TaskHeader = ({
 						creditsRemaining !== undefined && creditsRemaining <= 0
 							? "text-vscode-errorForeground"
 							: getPlanUsageColorClass(percent),
+				}
+			}
+			case "qwen-code": {
+				const usedPercent =
+					typeof (cached as any).usedPercent === "number"
+						? ((cached as any).usedPercent as number)
+						: undefined
+				const requestsRemaining =
+					typeof (cached as any).requestsRemaining === "number"
+						? ((cached as any).requestsRemaining as number)
+						: undefined
+				const windowLabel =
+					typeof (cached as any).windowLabel === "string"
+						? ((cached as any).windowLabel as string)
+						: undefined
+				if (usedPercent === undefined && requestsRemaining === undefined) return undefined
+				const percent = typeof usedPercent === "number" ? Math.round(usedPercent) : 0
+				return {
+					percent,
+					remainingText:
+						requestsRemaining !== undefined
+							? `${formatLargeNumber(requestsRemaining)} req${windowLabel ? ` / ${windowLabel}` : ""} left`
+							: undefined,
+					colorClass: getPlanUsageColorClass(percent),
+				}
+			}
+			case "sambanova": {
+				const dayUsedPercent =
+					typeof (cached as any).dayUsedPercent === "number"
+						? ((cached as any).dayUsedPercent as number)
+						: undefined
+				const minuteUsedPercent =
+					typeof (cached as any).minuteUsedPercent === "number"
+						? ((cached as any).minuteUsedPercent as number)
+						: undefined
+				const dayRequestsRemaining =
+					typeof (cached as any).dayRequestsRemaining === "number"
+						? ((cached as any).dayRequestsRemaining as number)
+						: undefined
+				// Prefer daily usage as the primary display; fall back to per-minute
+				if (
+					dayUsedPercent === undefined &&
+					minuteUsedPercent === undefined &&
+					dayRequestsRemaining === undefined
+				) {
+					return undefined
+				}
+				const percent =
+					typeof dayUsedPercent === "number"
+						? Math.round(dayUsedPercent)
+						: typeof minuteUsedPercent === "number"
+							? Math.round(minuteUsedPercent)
+							: 0
+				return {
+					percent,
+					remainingText:
+						dayRequestsRemaining !== undefined
+							? `${formatLargeNumber(dayRequestsRemaining)} req/day left`
+							: undefined,
+					colorClass: getPlanUsageColorClass(percent),
 				}
 			}
 			default:

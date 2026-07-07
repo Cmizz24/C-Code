@@ -27,8 +27,14 @@ vi.mock("../../../shared/package", () => ({
 	},
 }))
 
-import { attemptCompletionTool, AttemptCompletionCallbacks } from "../AttemptCompletionTool"
-import { verifyCompletionAgainstTask } from "../AttemptCompletionTool"
+import {
+	attemptCompletionTool,
+	AttemptCompletionCallbacks,
+	verifyCompletionAgainstTask,
+	verifyCompletion,
+	extractRequirements,
+	extractSignificantWords,
+} from "../AttemptCompletionTool"
 import { Task } from "../../task/Task"
 import * as vscode from "vscode"
 
@@ -1078,6 +1084,205 @@ describe("attemptCompletionTool", () => {
 					expect(result).toBeUndefined()
 				})
 			})
+		})
+	})
+
+	describe("extractSignificantWords", () => {
+		it("should filter out stop words and short words", () => {
+			const words = extractSignificantWords("The quick brown fox jumps over the lazy dog")
+			expect(words.has("the")).toBe(false) // stop word
+			expect(words.has("over")).toBe(false) // stop word
+			expect(words.has("quick")).toBe(true)
+			expect(words.has("brown")).toBe(true)
+			expect(words.has("fox")).toBe(true)
+			expect(words.has("jumps")).toBe(true)
+			expect(words.has("lazy")).toBe(true)
+			expect(words.has("dog")).toBe(true)
+		})
+
+		it("should handle punctuation and mixed case", () => {
+			const words = extractSignificantWords("Hello, World! This IS a Test.")
+			expect(words.has("hello")).toBe(true)
+			expect(words.has("world")).toBe(true)
+			expect(words.has("test")).toBe(true)
+			expect(words.has("this")).toBe(false) // stop word
+		})
+
+		it("should return empty set for stop-word-only text", () => {
+			const words = extractSignificantWords("the a an is are")
+			expect(words.size).toBe(0)
+		})
+	})
+
+	describe("extractRequirements", () => {
+		it("should return empty array for very short text", () => {
+			const reqs = extractRequirements("Hi")
+			expect(reqs).toEqual([])
+		})
+
+		it("should extract a single requirement from unstructured text", () => {
+			const reqs = extractRequirements("Fix the login bug in the authentication system")
+			expect(reqs.length).toBe(1)
+			expect(reqs[0].text).toBe("Fix the login bug in the authentication system")
+		})
+
+		it("should extract numbered list requirements", () => {
+			const task =
+				"Please complete these tasks:\n1. Fix the login bug\n2. Update the documentation\n3. Add unit tests"
+			const reqs = extractRequirements(task)
+			expect(reqs.length).toBe(3)
+			expect(reqs[0].text).toContain("Fix the login bug")
+			expect(reqs[1].text).toContain("Update the documentation")
+			expect(reqs[2].text).toContain("Add unit tests")
+		})
+
+		it("should extract bullet-point requirements", () => {
+			const task = "Requirements:\n- Fix the login bug\n- Update the documentation\n- Add unit tests"
+			const reqs = extractRequirements(task)
+			expect(reqs.length).toBe(3)
+			expect(reqs[0].text).toContain("Fix the login bug")
+			expect(reqs[1].text).toContain("Update the documentation")
+			expect(reqs[2].text).toContain("Add unit tests")
+		})
+
+		it("should extract requirements split by 'and'", () => {
+			const task = "Fix the login bug and add comprehensive unit tests for the payment system"
+			const reqs = extractRequirements(task)
+			expect(reqs.length).toBe(2)
+			expect(reqs[0].text).toContain("Fix the login bug")
+			expect(reqs[1].text).toContain("comprehensive unit tests")
+		})
+
+		it("should extract requirements split by 'also'", () => {
+			const task = "Update the database schema also refactor the authentication module"
+			const reqs = extractRequirements(task)
+			expect(reqs.length).toBe(2)
+		})
+
+		it("should extract requirements split by 'additionally'", () => {
+			const task = "Create the API endpoint additionally add error handling for invalid requests"
+			const reqs = extractRequirements(task)
+			expect(reqs.length).toBe(2)
+		})
+
+		it("should not split conjunctions when one segment is too short", () => {
+			// "and" with one very short segment should not split
+			const task = "Fix the login bug and the"
+			const reqs = extractRequirements(task)
+			expect(reqs.length).toBe(1)
+		})
+
+		it("should split on 'and' when both segments are substantial", () => {
+			const task = "Fix the login and the dashboard layout"
+			const reqs = extractRequirements(task)
+			expect(reqs.length).toBe(2)
+		})
+	})
+
+	describe("verifyCompletion (structured)", () => {
+		it("should return no error and completed requirements for well-addressed multi-requirement task", () => {
+			const task = "Fix the authentication bug and add unit tests for the payment module"
+			const result =
+				"I have fixed the authentication bug in the login flow and added comprehensive unit tests for the payment module."
+			const verification = verifyCompletion(task, result)
+			expect(verification.error).toBeUndefined()
+			expect(verification.requirements.length).toBe(2)
+			expect(verification.requirementsCompleted.length).toBe(2)
+		})
+
+		it("should return specific error listing unmet requirements", () => {
+			const task = "Fix the authentication bug and add unit tests for the payment module"
+			const result = "I have fixed the authentication bug in the login flow. Everything is working correctly now."
+			const verification = verifyCompletion(task, result)
+			expect(verification.error).toBeDefined()
+			expect(verification.error).toContain("not clearly addressed")
+			expect(verification.requirements.length).toBe(2)
+			expect(verification.requirementsCompleted.length).toBe(1)
+		})
+
+		it("should handle numbered list requirements", () => {
+			const task =
+				"Complete the following:\n1. Fix the authentication bug\n2. Update the documentation\n3. Add unit tests"
+			const result =
+				"I fixed the authentication bug and updated the documentation. The unit tests have also been added with full coverage."
+			const verification = verifyCompletion(task, result)
+			expect(verification.error).toBeUndefined()
+			expect(verification.requirements.length).toBe(3)
+			expect(verification.requirementsCompleted.length).toBe(3)
+		})
+
+		it("should flag missing requirements in numbered list", () => {
+			const task =
+				"Complete the following:\n1. Fix the authentication bug\n2. Update the documentation\n3. Add unit tests"
+			const result = "I fixed the authentication bug and everything is working correctly now."
+			const verification = verifyCompletion(task, result)
+			expect(verification.error).toBeDefined()
+			expect(verification.requirementsCompleted.length).toBeLessThan(3)
+		})
+
+		it("should return empty requirements for empty task", () => {
+			const verification = verifyCompletion("", "Done with everything.")
+			expect(verification.error).toBeUndefined()
+			expect(verification.requirements.length).toBe(0)
+			expect(verification.requirementsCompleted.length).toBe(0)
+		})
+
+		it("should return error for too-brief result with multiple requirements", () => {
+			const task = "Fix the login bug and update the documentation"
+			const verification = verifyCompletion(task, "Done")
+			expect(verification.error).toBeDefined()
+			expect(verification.error).toContain("too brief")
+			expect(verification.requirements.length).toBeGreaterThan(0)
+			expect(verification.requirementsCompleted.length).toBe(0)
+		})
+
+		it("should pass single-requirement task with good keyword overlap", () => {
+			const task = "Fix the CSS styling on the homepage"
+			const result = "I have fixed the CSS styling on the homepage and everything looks great."
+			const verification = verifyCompletion(task, result)
+			expect(verification.error).toBeUndefined()
+			expect(verification.requirements.length).toBe(1)
+			expect(verification.requirementsCompleted.length).toBe(1)
+		})
+
+		it("should fail single-requirement task with no keyword overlap", () => {
+			const task =
+				"Refactor the authentication module to use OAuth2 and add comprehensive unit tests for the payment processing pipeline"
+			const result =
+				"I have successfully updated the configuration file with the new settings for the application deployment pipeline."
+			const verification = verifyCompletion(task, result)
+			expect(verification.error).toBeDefined()
+			expect(verification.error).toContain("does not appear to address")
+		})
+
+		it("should handle conjunction-split requirements where only some are met", () => {
+			const task = "Create the REST API and add database migrations and write integration tests"
+			const result =
+				"I have created the REST API with full CRUD endpoints. The database migrations are also in place."
+			const verification = verifyCompletion(task, result)
+			expect(verification.requirements.length).toBe(3)
+			// The result mentions "REST API" and "database migrations" but not "integration tests"
+			const metCount = verification.requirementsCompleted.length
+			expect(metCount).toBeLessThan(3)
+		})
+
+		it("should not be overly strict when most keywords match", () => {
+			const task = "Implement user registration with email verification and password reset functionality"
+			const result =
+				"I implemented the user registration flow including email verification and password reset functionality. All features are tested and working."
+			const verification = verifyCompletion(task, result)
+			expect(verification.error).toBeUndefined()
+		})
+
+		it("should track requirementsCompleted indexes correctly", () => {
+			const task = "Fix the authentication bug and update the documentation and write comprehensive tests"
+			const result = "I fixed the authentication bug and added comprehensive tests for the module."
+			const verification = verifyCompletion(task, result)
+			// First requirement (authentication bug) and third (comprehensive tests) should be met
+			expect(verification.requirementsCompleted).toContain(0)
+			expect(verification.requirementsCompleted).toContain(2)
+			// Documentation requirement should not be met
+			expect(verification.requirementsCompleted).not.toContain(1)
 		})
 	})
 })

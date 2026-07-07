@@ -335,6 +335,14 @@ export const globalSettingsSchema = z
 		showWorktreesInHomeScreen: z.boolean().optional(),
 
 		/**
+		 * When enabled, API key secrets are stored per-workspace instead of globally.
+		 * This allows different workspaces to use different API keys for the same provider.
+		 * When disabled (default), all workspaces share the same API key secrets.
+		 * @default false
+		 */
+		scopeApiKeysPerWorkspace: z.boolean().optional(),
+
+		/**
 		 * List of native tool names to globally disable.
 		 * Tools in this list will be excluded from prompt generation and rejected at execution time.
 		 */
@@ -391,6 +399,7 @@ export const SECRET_STATE_KEYS = [
 	"fireworksApiKey",
 	"vercelAiGatewayApiKey",
 	"basetenApiKey",
+	"vertexJsonCredentials",
 ] as const
 
 // Global secrets that are part of GlobalSettings (not ProviderSettings)
