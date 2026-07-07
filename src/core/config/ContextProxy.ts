@@ -31,6 +31,23 @@ const PASS_THROUGH_STATE_KEYS = ["taskHistory"]
 
 export const isPassThroughStateKey = (key: string) => PASS_THROUGH_STATE_KEYS.includes(key)
 
+/**
+ * Keys that should be workspace-scoped (per-workspace) instead of global.
+ * This allows different VS Code windows/workspaces to have different
+ * provider configurations without affecting each other.
+ *
+ * Actual API key secrets stay global (shared) — only the selection/config
+ * metadata is workspace-scoped.
+ */
+export const WORKSPACE_SCOPED_KEYS: readonly string[] = [
+	"currentApiConfigName",
+	"apiProvider",
+	"apiModelId",
+	"modeApiConfigs",
+]
+
+export const isWorkspaceScopedKey = (key: string): boolean => WORKSPACE_SCOPED_KEYS.includes(key)
+
 const globalSettingsExportSchema = globalSettingsSchema.omit({
 	taskHistory: true,
 	listApiConfigMeta: true,
@@ -43,12 +60,14 @@ export class ContextProxy {
 
 	private stateCache: GlobalState
 	private secretCache: SecretState
+	private workspaceStateCache: Record<string, unknown>
 	private _isInitialized = false
 
 	constructor(context: vscode.ExtensionContext) {
 		this.originalContext = context
 		this.stateCache = {}
 		this.secretCache = {}
+		this.workspaceStateCache = {}
 		this._isInitialized = false
 	}
 
@@ -63,6 +82,31 @@ export class ContextProxy {
 				this.stateCache[key] = this.originalContext.globalState.get(key)
 			} catch (error) {
 				logger.error(`Error loading global ${key}: ${error instanceof Error ? error.message : String(error)}`)
+			}
+		}
+
+		// Load workspace-scoped keys from workspaceState.
+		// If workspaceState has a value, it overrides the globalState value in the cache.
+		// This provides per-workspace provider isolation.
+		for (const key of WORKSPACE_SCOPED_KEYS) {
+			try {
+				const workspaceValue = this.originalContext.workspaceState.get(key)
+				if (workspaceValue !== undefined) {
+					this.workspaceStateCache[key] = workspaceValue
+					;(this.stateCache as Record<string, unknown>)[key] = workspaceValue
+				} else {
+					// Migration: If workspace doesn't have its own value yet,
+					// seed it from globalState so existing users see no change.
+					const globalValue = this.stateCache[key as GlobalStateKey]
+					if (globalValue !== undefined) {
+						this.workspaceStateCache[key] = globalValue
+						await this.originalContext.workspaceState.update(key, globalValue)
+					}
+				}
+			} catch (error) {
+				logger.error(
+					`Error loading workspace ${key}: ${error instanceof Error ? error.message : String(error)}`,
+				)
 			}
 		}
 
@@ -89,6 +133,9 @@ export class ContextProxy {
 
 		await Promise.all(promises)
 
+		// Migration: Move API keys from globalState to secrets when SECRET_STATE_KEYS is updated
+		await this.migrateSecretKeysFromGlobalState()
+
 		// Migration: Check for old nested image generation settings and migrate them
 		await this.migrateImageGenerationSettings()
 
@@ -105,6 +152,29 @@ export class ContextProxy {
 		await this.migrateLegacyAskMode()
 
 		this._isInitialized = true
+	}
+
+	/**
+	 * Migration: Move API keys from globalState to secrets when SECRET_STATE_KEYS is updated.
+	 * This handles the case where a key was previously stored in globalState but has since
+	 * been moved to SECRET_STATE_KEYS (e.g., poeApiKey was added to secrets later).
+	 */
+	private async migrateSecretKeysFromGlobalState() {
+		try {
+			for (const key of SECRET_STATE_KEYS) {
+				if (this.secretCache[key] === undefined && this.stateCache[key] !== undefined) {
+					logger.info(`[ContextProxy] Migrating secret key "${key}" from globalState to secrets`)
+					await this.originalContext.secrets.store(key, String(this.stateCache[key]))
+					this.secretCache[key] = String(this.stateCache[key])
+					await this.originalContext.globalState.update(key, undefined)
+					delete (this.stateCache as Record<string, unknown>)[key]
+				}
+			}
+		} catch (error) {
+			logger.error(
+				`Error during secret key migration from globalState: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
 	}
 
 	private async migrateLegacyAskMode() {
@@ -279,9 +349,11 @@ export class ContextProxy {
 
 			if (apiProvider !== undefined && !isKnownProvider) {
 				logger.info(`[ContextProxy] Found invalid provider "${apiProvider}" in storage - clearing it`)
-				// Clear the invalid provider from both cache and storage
+				// Clear the invalid provider from both cache and storage.
+				// apiProvider is workspace-scoped, so clear from workspaceState too.
 				this.stateCache.apiProvider = undefined
 				await this.originalContext.globalState.update("apiProvider", undefined)
+				await this.updateWorkspaceState("apiProvider", undefined)
 			}
 		} catch (error) {
 			logger.error(
@@ -393,6 +465,9 @@ export class ContextProxy {
 	/**
 	 * ExtensionContext.globalState
 	 * https://code.visualstudio.com/api/references/vscode-api#ExtensionContext.globalState
+	 *
+	 * For workspace-scoped keys, reads/writes are routed through workspaceState
+	 * instead of globalState to provide per-workspace provider isolation.
 	 */
 
 	getGlobalState<K extends GlobalStateKey>(key: K): GlobalState[K]
@@ -412,8 +487,31 @@ export class ContextProxy {
 			return this.originalContext.globalState.update(key, value)
 		}
 
+		// Route workspace-scoped keys through workspaceState for per-workspace isolation.
+		if (isWorkspaceScopedKey(key as string)) {
+			return this.updateWorkspaceState(key as string, value)
+		}
+
 		this.stateCache[key] = value
 		return this.originalContext.globalState.update(key, value)
+	}
+
+	/**
+	 * ExtensionContext.workspaceState
+	 * https://code.visualstudio.com/api/references/vscode-api#ExtensionContext.workspaceState
+	 *
+	 * Workspace-scoped state is per-workspace, allowing different VS Code
+	 * windows to have different provider configurations.
+	 */
+
+	getWorkspaceState(key: string): unknown {
+		return this.workspaceStateCache[key]
+	}
+
+	async updateWorkspaceState(key: string, value: unknown): Promise<void> {
+		this.workspaceStateCache[key] = value
+		;(this.stateCache as Record<string, unknown>)[key] = value
+		await this.originalContext.workspaceState.update(key, value)
 	}
 
 	private getAllGlobalState(): GlobalState {
@@ -621,11 +719,13 @@ export class ContextProxy {
 		// Clear in-memory caches
 		this.stateCache = {}
 		this.secretCache = {}
+		this.workspaceStateCache = {}
 
 		await Promise.all([
 			...GLOBAL_STATE_KEYS.map((key) => this.originalContext.globalState.update(key, undefined)),
 			...SECRET_STATE_KEYS.map((key) => this.originalContext.secrets.delete(key)),
 			...GLOBAL_SECRET_KEYS.map((key) => this.originalContext.secrets.delete(key)),
+			...WORKSPACE_SCOPED_KEYS.map((key) => this.originalContext.workspaceState.update(key, undefined)),
 		])
 
 		await this.initialize()

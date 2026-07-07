@@ -30,6 +30,7 @@ const minimaxCommonModelInfo = {
 	excludedTools: ["apply_diff"],
 	preserveReasoning: true,
 	cacheWritesPrice: MINIMAX_CACHE_WRITE_PRICE,
+	subscriptionBased: true,
 } satisfies ModelInfo
 
 const minimaxStandardPricing = {

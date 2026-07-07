@@ -17,6 +17,13 @@ import {
 import { Mode, modes, normalizeModeSlug } from "../../shared/modes"
 import { buildApiHandler } from "../../api"
 
+/**
+ * Prefix for workspace-scoped active profile keys in workspaceState.
+ * Each workspace gets its own active profile name stored under
+ * `${WORKSPACE_ACTIVE_PROFILE_PREFIX}${workspaceHash}`.
+ */
+export const WORKSPACE_ACTIVE_PROFILE_KEY = "workspaceActiveApiConfigName"
+
 // Type-safe model migrations mapping
 type ModelMigrations = {
 	[K in ProviderName]?: Record<string, string>
@@ -307,6 +314,22 @@ export class ProviderSettingsManager {
 	}
 
 	/**
+	 * Get the workspace-scoped active profile name from workspaceState.
+	 * Falls back to the global currentApiConfigName from the profiles blob.
+	 */
+	public getWorkspaceActiveProfile(): string | undefined {
+		return this.context.workspaceState.get<string>(WORKSPACE_ACTIVE_PROFILE_KEY)
+	}
+
+	/**
+	 * Set the workspace-scoped active profile name in workspaceState.
+	 * This allows different VS Code windows to have different active profiles.
+	 */
+	public async setWorkspaceActiveProfile(name: string): Promise<void> {
+		await this.context.workspaceState.update(WORKSPACE_ACTIVE_PROFILE_KEY, name)
+	}
+
+	/**
 	 * Clean model ID by removing prefix before "/"
 	 */
 	private cleanModelId(modelId: string | undefined): string | undefined {
@@ -411,6 +434,7 @@ export class ProviderSettingsManager {
 
 	/**
 	 * Activate a profile by name or ID.
+	 * Also stores the active profile name in workspaceState for per-workspace isolation.
 	 */
 	public async activateProfile(
 		params: { name: string } | { id: string },
@@ -422,6 +446,10 @@ export class ProviderSettingsManager {
 				const providerProfiles = await this.load()
 				providerProfiles.currentApiConfigName = name
 				await this.store(providerProfiles)
+
+				// Also update workspace-scoped active profile for per-workspace isolation.
+				await this.setWorkspaceActiveProfile(name)
+
 				return { name, ...providerSettings }
 			})
 		} catch (error) {

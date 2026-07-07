@@ -156,6 +156,7 @@ export interface ExtensionMessage {
 		| "localAiSetupResult"
 		| "memoryState"
 		| "memorySummary"
+		| "providerPlanUsage"
 	text?: string
 	/** For fileContent: { path, content, error? } */
 	fileContent?: { path: string; content: string | null; error?: string }
@@ -207,6 +208,7 @@ export interface ExtensionMessage {
 		| { path: string; type: "file" | "folder"; label?: string }[]
 		| { name: string; description?: string; argumentHint?: string; source: "global" | "project" | "built-in" }[]
 	error?: string
+	providerName?: string
 	setting?: string
 	value?: any // eslint-disable-line @typescript-eslint/no-explicit-any
 	hasContent?: boolean
@@ -392,6 +394,8 @@ export type ExtensionState = Pick<
 	| "lmStudioImageGenerationSelectedModel"
 	| "lmStudioImageGenerationApiMethod"
 	| "openAiCodexFastStatus"
+	| "providerPlanLimits"
+	| "providerPlanUsage"
 	| "includeTaskHistoryInEnhance"
 	| "reasoningBlockCollapsed"
 	| "enterBehavior"
@@ -471,6 +475,9 @@ export type ExtensionState = Pick<
 	apiModelId?: string
 	mcpServers?: McpServer[]
 	openAiCodexIsAuthenticated?: boolean
+	openAiCodexRateLimits?: OpenAiCodexRateLimitInfo
+	/** Cached live plan usage fetched from provider APIs, keyed by provider name. */
+	cachedProviderPlanUsage?: Record<string, Record<string, unknown>>
 	debug?: boolean
 	activeExecutionPlan?: ExecutionPlan
 
@@ -641,6 +648,11 @@ export interface WebviewMessage {
 		| "openDebugUiHistory"
 		| "downloadErrorDiagnostics"
 		| "requestOpenAiCodexRateLimits"
+		| "fetchPoePlanUsage"
+		| "fetchZAiPlanUsage"
+		| "fetchMoonshotPlanUsage"
+		| "fetchMiniMaxPlanUsage"
+		| "fetchXiaomiMiMoPlanUsage"
 		| "refreshCustomTools"
 		| "requestModes"
 		| "switchMode"

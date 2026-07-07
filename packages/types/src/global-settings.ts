@@ -27,6 +27,19 @@ export const cloudflareWorkersAiImageUsageStateSchema = z.object({
 	updatedAt: z.string(),
 })
 
+export const providerPlanLimitSchema = z.object({
+	tokenLimit: z.number().nonnegative().optional(),
+	costLimit: z.number().nonnegative().optional(),
+	resetPeriod: z.enum(["daily", "weekly", "monthly"]).default("monthly"),
+	lastReset: z.number().optional(),
+})
+
+export const providerPlanUsageSchema = z.object({
+	tokensUsed: z.number().nonnegative().default(0),
+	costUsed: z.number().nonnegative().default(0),
+	periodStart: z.number().optional(),
+})
+
 /**
  * Default delay in milliseconds after writes to allow diagnostics to detect potential problems.
  * This delay is particularly important for Go and other languages where tools like goimports
@@ -162,6 +175,8 @@ export const globalSettingsSchema = z
 		lmStudioImageGenerationSelectedModel: z.string().optional(),
 		lmStudioImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
 		openAiCodexFastStatus: openAiCodexFastStatusSchema.optional(),
+		providerPlanLimits: z.record(z.string(), providerPlanLimitSchema).optional(),
+		providerPlanUsage: z.record(z.string(), providerPlanUsageSchema).optional(),
 
 		customCondensingPrompt: z.string().optional(),
 
@@ -354,9 +369,12 @@ export const SECRET_STATE_KEYS = [
 	"geminiApiKey",
 	"openAiNativeApiKey",
 	"deepSeekApiKey",
+	"poeApiKey",
 	"moonshotApiKey",
 	"mistralApiKey",
 	"minimaxApiKey",
+	"xiaomiMiMoApiKey",
+	"xiaomiMiMoPlatformCookie",
 	"requestyApiKey",
 	"unboundApiKey",
 	"xaiApiKey",

@@ -143,6 +143,9 @@ export const modelInfoSchema = z.object({
 	isStealthModel: z.boolean().optional(),
 	// Flag to indicate if the model is free (no cost)
 	isFree: z.boolean().optional(),
+	// Flag to indicate if the model is subscription/plan-based (no per-token costs).
+	// When true, cost calculations are meaningless and the UI should show token usage instead.
+	subscriptionBased: z.boolean().optional(),
 	// Exclude specific native tools from being available (only applies to native protocol)
 	// These tools will be removed from the set of tools available to the model
 	excludedTools: z.array(z.string()).optional(),

@@ -4,7 +4,7 @@ import { ExtensionContext } from "vscode"
 
 import type { ProviderSettings } from "@roo-code/types"
 
-import { ProviderSettingsManager, ProviderProfiles } from "../ProviderSettingsManager"
+import { ProviderSettingsManager, ProviderProfiles, WORKSPACE_ACTIVE_PROFILE_KEY } from "../ProviderSettingsManager"
 
 // Mock VSCode ExtensionContext
 const mockSecrets = {
@@ -18,9 +18,15 @@ const mockGlobalState = {
 	update: vi.fn(),
 }
 
+const mockWorkspaceState = {
+	get: vi.fn().mockReturnValue(undefined),
+	update: vi.fn().mockResolvedValue(undefined),
+}
+
 const mockContext = {
 	secrets: mockSecrets,
 	globalState: mockGlobalState,
+	workspaceState: mockWorkspaceState,
 } as unknown as ExtensionContext
 
 describe("ProviderSettingsManager", () => {
@@ -868,6 +874,103 @@ describe("ProviderSettingsManager", () => {
 			await expect(providerSettingsManager.hasConfig("test")).rejects.toThrow(
 				"Failed to check config existence: Error: Failed to read provider profiles from secrets: Error: Storage failed",
 			)
+		})
+	})
+
+	describe("workspace-scoped active profile", () => {
+		it("should get workspace active profile from workspaceState", () => {
+			mockWorkspaceState.get.mockImplementation((key: string) => {
+				if (key === WORKSPACE_ACTIVE_PROFILE_KEY) return "workspace-profile"
+				return undefined
+			})
+
+			const result = providerSettingsManager.getWorkspaceActiveProfile()
+			expect(result).toBe("workspace-profile")
+			expect(mockWorkspaceState.get).toHaveBeenCalledWith(WORKSPACE_ACTIVE_PROFILE_KEY)
+		})
+
+		it("should return undefined when workspace active profile is not set", () => {
+			mockWorkspaceState.get.mockReturnValue(undefined)
+
+			const result = providerSettingsManager.getWorkspaceActiveProfile()
+			expect(result).toBeUndefined()
+		})
+
+		it("should set workspace active profile in workspaceState", async () => {
+			await providerSettingsManager.setWorkspaceActiveProfile("my-profile")
+
+			expect(mockWorkspaceState.update).toHaveBeenCalledWith(WORKSPACE_ACTIVE_PROFILE_KEY, "my-profile")
+		})
+
+		it("should update workspaceState when activating a profile", async () => {
+			// Setup existing profiles
+			mockSecrets.get.mockResolvedValue(
+				JSON.stringify({
+					currentApiConfigName: "default",
+					apiConfigs: {
+						default: { id: "default-id", apiProvider: "openrouter" },
+						"my-profile": { id: "my-profile-id", apiProvider: "anthropic" },
+					},
+					modeApiConfigs: {},
+					migrations: {
+						rateLimitSecondsMigrated: true,
+						openAiHeadersMigrated: true,
+						consecutiveMistakeLimitMigrated: true,
+						todoListEnabledMigrated: true,
+						claudeCodeLegacySettingsMigrated: true,
+					},
+				}),
+			)
+
+			await providerSettingsManager.initialize()
+			await providerSettingsManager.activateProfile({ name: "my-profile" })
+
+			// Should have written to workspaceState
+			expect(mockWorkspaceState.update).toHaveBeenCalledWith(WORKSPACE_ACTIVE_PROFILE_KEY, "my-profile")
+		})
+
+		it("should support different active profiles per workspace", async () => {
+			// Simulate workspace 1
+			const ws1State: Record<string, unknown> = {}
+			const ws1WorkspaceState = {
+				get: vi.fn((key: string) => ws1State[key]),
+				update: vi.fn((key: string, value: unknown) => {
+					ws1State[key] = value
+					return Promise.resolve()
+				}),
+			}
+
+			// Simulate workspace 2
+			const ws2State: Record<string, unknown> = {}
+			const ws2WorkspaceState = {
+				get: vi.fn((key: string) => ws2State[key]),
+				update: vi.fn((key: string, value: unknown) => {
+					ws2State[key] = value
+					return Promise.resolve()
+				}),
+			}
+
+			const ctx1 = {
+				secrets: mockSecrets,
+				globalState: mockGlobalState,
+				workspaceState: ws1WorkspaceState,
+			} as unknown as ExtensionContext
+
+			const ctx2 = {
+				secrets: mockSecrets,
+				globalState: mockGlobalState,
+				workspaceState: ws2WorkspaceState,
+			} as unknown as ExtensionContext
+
+			const psm1 = new ProviderSettingsManager(ctx1)
+			const psm2 = new ProviderSettingsManager(ctx2)
+
+			await psm1.setWorkspaceActiveProfile("profile-a")
+			await psm2.setWorkspaceActiveProfile("profile-b")
+
+			// Each workspace should have its own active profile
+			expect(psm1.getWorkspaceActiveProfile()).toBe("profile-a")
+			expect(psm2.getWorkspaceActiveProfile()).toBe("profile-b")
 		})
 	})
 })

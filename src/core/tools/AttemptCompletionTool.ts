@@ -41,6 +41,190 @@ function isAbortedTaskSayError(task: Task, error: unknown): boolean {
 	)
 }
 
+/**
+ * Common English stop words to filter out when extracting significant words.
+ */
+const STOP_WORDS = new Set([
+	"the",
+	"a",
+	"an",
+	"is",
+	"are",
+	"was",
+	"were",
+	"be",
+	"been",
+	"being",
+	"have",
+	"has",
+	"had",
+	"do",
+	"does",
+	"did",
+	"will",
+	"would",
+	"could",
+	"should",
+	"may",
+	"might",
+	"shall",
+	"can",
+	"need",
+	"dare",
+	"ought",
+	"used",
+	"to",
+	"of",
+	"in",
+	"for",
+	"on",
+	"with",
+	"at",
+	"by",
+	"from",
+	"as",
+	"into",
+	"through",
+	"during",
+	"before",
+	"after",
+	"above",
+	"below",
+	"between",
+	"out",
+	"off",
+	"over",
+	"under",
+	"again",
+	"further",
+	"then",
+	"once",
+	"and",
+	"but",
+	"or",
+	"nor",
+	"not",
+	"so",
+	"yet",
+	"both",
+	"either",
+	"neither",
+	"each",
+	"every",
+	"all",
+	"any",
+	"few",
+	"more",
+	"most",
+	"other",
+	"some",
+	"such",
+	"no",
+	"only",
+	"own",
+	"same",
+	"than",
+	"too",
+	"very",
+	"just",
+	"that",
+	"this",
+	"these",
+	"those",
+	"i",
+	"me",
+	"my",
+	"we",
+	"our",
+	"you",
+	"your",
+	"he",
+	"him",
+	"his",
+	"she",
+	"her",
+	"it",
+	"its",
+	"they",
+	"them",
+	"their",
+	"what",
+	"which",
+	"who",
+	"whom",
+	"when",
+	"where",
+	"why",
+	"how",
+	"if",
+	"then",
+	"else",
+	"about",
+	"up",
+	"down",
+	"there",
+	"here",
+])
+
+/**
+ * Extract significant words from text, filtering out stop words and short words.
+ */
+function extractSignificantWords(text: string): Set<string> {
+	return new Set(
+		text
+			.toLowerCase()
+			.replace(/[^a-z0-9\s]/g, " ")
+			.split(/\s+/)
+			.filter((word) => word.length > 2 && !STOP_WORDS.has(word)),
+	)
+}
+
+/**
+ * Verify that a completion result addresses the original task.
+ * Returns an error message string if verification fails, or undefined if it passes.
+ */
+export function verifyCompletionAgainstTask(originalTask: string, result: string): string | undefined {
+	// Skip verification if the original task is empty or very short.
+	if (!originalTask || originalTask.trim().length < 10) {
+		return undefined
+	}
+
+	// Skip verification if the result is substantial (likely a real answer).
+	if (result.trim().length < 20) {
+		return (
+			"Your completion result is too brief. Before calling attempt_completion, you MUST verify that " +
+			"your result directly addresses the user's original request. Review the original task, check that " +
+			"all requirements are met, and ensure you haven't missed any aspects of what was asked. " +
+			"Provide a more detailed completion result that clearly demonstrates the task is complete."
+		)
+	}
+
+	// Check keyword overlap between the original task and the result.
+	const taskWords = extractSignificantWords(originalTask)
+	const resultWords = extractSignificantWords(result)
+
+	if (taskWords.size === 0) {
+		return undefined
+	}
+
+	// Find words from the task that also appear in the result.
+	const overlap = [...taskWords].filter((word) => resultWords.has(word))
+	const overlapRatio = overlap.length / taskWords.size
+
+	// If less than 10% of significant task words appear in the result, flag it.
+	// Use a minimum of 1 word to avoid division issues with very short tasks.
+	if (taskWords.size >= 3 && overlap.length < 2 && overlapRatio < 0.1) {
+		return (
+			"Your completion result does not appear to address the user's original request. " +
+			"Before calling attempt_completion, you MUST verify that your result directly addresses " +
+			"the user's original request. Review the original task, check that all requirements are met, " +
+			"and ensure you haven't missed any aspects of what was asked."
+		)
+	}
+
+	return undefined
+}
+
 function isParallelAgentTask(task: Task): boolean {
 	return Boolean(task.agentId || task.agentBus)
 }
@@ -88,6 +272,9 @@ function formatCompletionCoordinationGate(task: Task): string | undefined {
 
 export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 	readonly name = "attempt_completion" as const
+
+	// Track per-task completion verification failure counts for bypass logic.
+	private readonly completionVerificationFailureCount: Map<string, number> = new Map()
 
 	async execute(params: AttemptCompletionParams, task: Task, callbacks: AttemptCompletionCallbacks): Promise<void> {
 		const { result } = params
@@ -139,6 +326,32 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 				task.recordToolError("attempt_completion")
 				pushToolResult(await task.sayAndCreateMissingParamError("attempt_completion", "result"))
 				return
+			}
+
+			// Completion verification: check that the result addresses the original task.
+			const enableCompletionVerification = vscode.workspace
+				.getConfiguration(Package.name)
+				.get<boolean>("enableCompletionVerification", true)
+
+			if (enableCompletionVerification) {
+				const originalTask = task.metadata.task ?? ""
+				const verificationFailures = this.completionVerificationFailureCount.get(task.taskId) ?? 0
+
+				// Bypass verification after 3 consecutive failures (user keeps accepting).
+				if (verificationFailures < 3) {
+					const verificationError = verifyCompletionAgainstTask(originalTask, result)
+
+					if (verificationError) {
+						this.completionVerificationFailureCount.set(task.taskId, verificationFailures + 1)
+						task.consecutiveMistakeCount++
+						task.recordToolError("attempt_completion", "Completion verification failed.")
+						pushToolResult(formatResponse.toolError(verificationError))
+						return
+					}
+				}
+
+				// Clear failure count on successful verification.
+				this.completionVerificationFailureCount.delete(task.taskId)
 			}
 
 			if (isParallelAgentTask(task)) {

@@ -1,4 +1,4 @@
-import { memo, useRef, useState, useMemo } from "react"
+import { memo, useRef, useState, useMemo, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { ChevronUp, ChevronDown, HardDriveDownload, HardDriveUpload, FoldVertical, ArrowLeft } from "lucide-react"
 import prettyBytes from "pretty-bytes"
@@ -63,6 +63,40 @@ const formatContextCacheRamValue = (valueMb: number | undefined) => {
 const formatContextCacheSummary = (stats: ContextCacheStats, t: ReturnType<typeof useTranslation>["t"]) =>
 	`${formatLargeNumber(stats.hotCacheChunks)} ${t("chat:task.contextCache.hotShort")} / ${formatLargeNumber(stats.coldCacheChunks)} ${t("chat:task.contextCache.coldShort")} · ${formatContextCacheRamValue(stats.ramUsedMb)}/${formatContextCacheRamValue(stats.ramBudgetMb)}`
 
+/**
+ * Format a reset timestamp into a human-readable "resets in Xh Ym" string.
+ * Returns undefined if no reset time is available or if it's in the past.
+ */
+function formatResetTime(resetsAt: number | undefined): string | undefined {
+	if (!resetsAt) return undefined
+	const diffMs = resetsAt - Date.now()
+	if (diffMs <= 0) return undefined
+	const totalMinutes = Math.ceil(diffMs / 60000)
+	const hours = Math.floor(totalMinutes / 60)
+	const minutes = totalMinutes % 60
+	if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`
+	if (hours > 0) return `${hours}h`
+	return `${minutes}m`
+}
+
+/**
+ * Get the Tailwind color class for a plan usage percentage.
+ */
+function getPlanUsageColorClass(usedPercent: number): string {
+	if (usedPercent >= 80) return "text-vscode-errorForeground"
+	if (usedPercent >= 50) return "text-vscode-editorWarning-foreground"
+	return "text-vscode-charts-green"
+}
+
+const formatPlanUsageCost = (value: number) => `$${Math.max(0, value).toFixed(2)}`
+
+type PlanUsageDisplay = {
+	percent: number
+	resetTime?: string
+	remainingText?: string
+	colorClass: string
+}
+
 const TaskHeader = ({
 	task,
 	tokensIn,
@@ -80,10 +114,85 @@ const TaskHeader = ({
 	todos,
 }: TaskHeaderProps) => {
 	const { t } = useTranslation()
-	const { apiConfiguration, currentTaskItem, contextCacheEnabled, contextCacheStats, contextCacheWarning } =
-		useExtensionState()
+	const {
+		apiConfiguration,
+		currentTaskItem,
+		contextCacheEnabled,
+		contextCacheStats,
+		contextCacheWarning,
+		openAiCodexRateLimits,
+		providerPlanLimits,
+		providerPlanUsage,
+		cachedProviderPlanUsage,
+	} = useExtensionState()
 	const { id: modelId, info: model } = useSelectedModel(apiConfiguration)
+	const isPlanBased = model?.subscriptionBased === true
+	const providerName = apiConfiguration.apiProvider
 	const [isTaskExpanded, setIsTaskExpanded] = useState(false)
+
+	// Auto-fetch live plan usage when switching to a plan-based provider with a live API.
+	// Extract individual apiConfiguration values so the useEffect dependency array
+	// uses simple variables that ESLint can statically check.
+	const { apiKey, zaiApiLine, minimaxApiKey, minimaxBaseUrl } = apiConfiguration
+	const xiaomiMiMoPlatformCookie = (apiConfiguration as any).xiaomiMiMoPlatformCookie as string | undefined
+
+	useEffect(() => {
+		if (!isPlanBased || !providerName) return
+
+		if (!apiKey) return
+
+		const LIVE_PROVIDERS = ["poe", "zai", "moonshot", "minimax", "xiaomi-mimo"] as const
+		if (!(LIVE_PROVIDERS as readonly string[]).includes(providerName)) return
+
+		// Only fetch if we don't already have cached data, or if the cache is older than 5 minutes.
+		const cached = cachedProviderPlanUsage?.[providerName]
+		const CACHE_TTL_MS = 5 * 60 * 1000
+		if (cached && typeof (cached as any).fetchedAt === "number") {
+			const age = Date.now() - ((cached as any).fetchedAt as number)
+			if (age < CACHE_TTL_MS) return
+		}
+
+		switch (providerName) {
+			case "poe":
+				vscode.postMessage({ type: "fetchPoePlanUsage", text: apiKey })
+				break
+			case "zai":
+				// Determine if using China region
+				vscode.postMessage({
+					type: "fetchZAiPlanUsage",
+					text: apiKey,
+					bool: zaiApiLine ? zaiApiLine === "china_coding" || zaiApiLine === "china_api" : false,
+				})
+				break
+			case "moonshot":
+				vscode.postMessage({ type: "fetchMoonshotPlanUsage", text: apiKey })
+				break
+			case "minimax":
+				// Determine if using China region from the base URL
+				vscode.postMessage({
+					type: "fetchMiniMaxPlanUsage",
+					text: minimaxApiKey,
+					bool: minimaxBaseUrl === "https://api.minimaxi.com/v1",
+				})
+				break
+			case "xiaomi-mimo": {
+				// Use the platform cookie stored in settings
+				if (xiaomiMiMoPlatformCookie) {
+					vscode.postMessage({ type: "fetchXiaomiMiMoPlanUsage", text: xiaomiMiMoPlatformCookie })
+				}
+				break
+			}
+		}
+	}, [
+		isPlanBased,
+		providerName,
+		apiKey,
+		zaiApiLine,
+		minimaxApiKey,
+		minimaxBaseUrl,
+		xiaomiMiMoPlatformCookie,
+		cachedProviderPlanUsage,
+	])
 
 	const textContainerRef = useRef<HTMLDivElement>(null)
 	const textRef = useRef<HTMLDivElement>(null)
@@ -114,10 +223,146 @@ const TaskHeader = ({
 
 	const hasTodos = todos && Array.isArray(todos) && todos.length > 0
 
+	// OpenAI Codex exposes provider-reported ChatGPT plan usage; prefer it over local estimates.
+	const openAiCodexPlanUsage = useMemo<PlanUsageDisplay | undefined>(() => {
+		if (providerName !== "openai-codex" || !openAiCodexRateLimits?.primary) return undefined
+		const { usedPercent, resetsAt } = openAiCodexRateLimits.primary
+		return {
+			percent: Math.round(usedPercent),
+			resetTime: formatResetTime(resetsAt),
+			colorClass: getPlanUsageColorClass(usedPercent),
+		}
+	}, [openAiCodexRateLimits, providerName])
+
+	// Locally tracked provider plan usage for all other configured providers.
+	const trackedPlanUsage = useMemo<PlanUsageDisplay | undefined>(() => {
+		if (!providerName) return undefined
+
+		const limit = providerPlanLimits?.[providerName]
+		const usage = providerPlanUsage?.[providerName]
+		const tokenLimit = typeof limit?.tokenLimit === "number" && limit.tokenLimit > 0 ? limit.tokenLimit : undefined
+		const costLimit = typeof limit?.costLimit === "number" && limit.costLimit > 0 ? limit.costLimit : undefined
+
+		if (!tokenLimit && !costLimit) return undefined
+
+		const tokensUsed =
+			typeof usage?.tokensUsed === "number" && Number.isFinite(usage.tokensUsed) ? usage.tokensUsed : 0
+		const costUsed = typeof usage?.costUsed === "number" && Number.isFinite(usage.costUsed) ? usage.costUsed : 0
+		const tokenPercent = tokenLimit ? (tokensUsed / tokenLimit) * 100 : 0
+		const costPercent = costLimit ? (costUsed / costLimit) * 100 : 0
+		const usedPercent = Math.max(tokenPercent, costPercent)
+		const remainingText =
+			tokenLimit && tokenPercent >= costPercent
+				? `${formatLargeNumber(Math.max(0, tokenLimit - tokensUsed))} tokens left`
+				: costLimit
+					? `${formatPlanUsageCost(costLimit - costUsed)} left`
+					: undefined
+
+		return {
+			percent: Math.round(usedPercent),
+			remainingText,
+			colorClass: getPlanUsageColorClass(usedPercent),
+		}
+	}, [providerName, providerPlanLimits, providerPlanUsage])
+
+	// Live API-fetched plan usage for providers with usable public APIs.
+	const liveProviderPlanUsage = useMemo<PlanUsageDisplay | undefined>(() => {
+		if (!providerName || !cachedProviderPlanUsage) return undefined
+
+		const cached = cachedProviderPlanUsage[providerName]
+		if (!cached) return undefined
+
+		switch (providerName) {
+			case "poe": {
+				const balance =
+					typeof (cached as any).currentPointBalance === "number"
+						? ((cached as any).currentPointBalance as number)
+						: undefined
+				if (balance === undefined) return undefined
+				return {
+					percent: 0, // Poe points don't have a percentage concept
+					remainingText: `${formatLargeNumber(balance)} points`,
+					colorClass: balance <= 0 ? "text-vscode-errorForeground" : "text-vscode-charts-green",
+				}
+			}
+			case "zai": {
+				const primary = (cached as any)?.primary as { usedPercent?: number; resetsAt?: number } | undefined
+				if (!primary || typeof primary.usedPercent !== "number") return undefined
+				return {
+					percent: Math.round(primary.usedPercent),
+					resetTime: formatResetTime(primary.resetsAt),
+					colorClass: getPlanUsageColorClass(primary.usedPercent),
+				}
+			}
+			case "moonshot": {
+				const balance =
+					typeof (cached as any).balance === "number" ? ((cached as any).balance as number) : undefined
+				const currency =
+					typeof (cached as any).currency === "string" ? ((cached as any).currency as string) : undefined
+				if (balance === undefined) return undefined
+				const currencyLabel = currency ? ` ${currency}` : ""
+				return {
+					percent: 0, // Balance doesn't have a percentage concept
+					remainingText: `${formatPlanUsageCost(balance)}${currencyLabel} balance`,
+					colorClass: balance <= 0 ? "text-vscode-errorForeground" : "text-vscode-charts-green",
+				}
+			}
+			case "minimax": {
+				const usedPercent =
+					typeof (cached as any).usedPercent === "number"
+						? ((cached as any).usedPercent as number)
+						: undefined
+				const tokensRemaining =
+					typeof (cached as any).tokensRemaining === "number"
+						? ((cached as any).tokensRemaining as number)
+						: undefined
+				if (usedPercent === undefined && tokensRemaining === undefined) return undefined
+				const percent = typeof usedPercent === "number" ? Math.round(usedPercent) : 0
+				return {
+					percent,
+					remainingText:
+						tokensRemaining !== undefined ? `${formatLargeNumber(tokensRemaining)} tokens left` : undefined,
+					colorClass: getPlanUsageColorClass(percent),
+				}
+			}
+			case "xiaomi-mimo": {
+				const creditsRemaining =
+					typeof (cached as any).creditsRemaining === "number"
+						? ((cached as any).creditsRemaining as number)
+						: undefined
+				const usedPercent =
+					typeof (cached as any).usedPercent === "number"
+						? ((cached as any).usedPercent as number)
+						: undefined
+				if (creditsRemaining === undefined && usedPercent === undefined) return undefined
+				const percent = typeof usedPercent === "number" ? Math.round(usedPercent) : 0
+				return {
+					percent,
+					remainingText:
+						creditsRemaining !== undefined
+							? `${formatLargeNumber(creditsRemaining)} credits left`
+							: undefined,
+					colorClass:
+						creditsRemaining !== undefined && creditsRemaining <= 0
+							? "text-vscode-errorForeground"
+							: getPlanUsageColorClass(percent),
+				}
+			}
+			default:
+				return undefined
+		}
+	}, [providerName, cachedProviderPlanUsage])
+
+	const planUsage = openAiCodexPlanUsage ?? liveProviderPlanUsage ?? trackedPlanUsage
+
 	// Determine if this is a subtask (has a parent)
 	const isSubtask = !!parentTaskId
 	const displayCost = aggregatedCost ?? totalCost
-	const shouldShowCost = Number.isFinite(displayCost) && displayCost > 0
+	const shouldShowCost = Number.isFinite(displayCost) && displayCost > 0 && !isPlanBased && !trackedPlanUsage
+	// For plan-based providers, show token usage prominently in the collapsed view
+	const hasTokenUsage =
+		(typeof tokensIn === "number" && tokensIn > 0) || (typeof tokensOut === "number" && tokensOut > 0)
+	const shouldShowTokenUsage = (isPlanBased || !!trackedPlanUsage) && hasTokenUsage
 	const safeContextCacheStats = contextCacheStats ?? DEFAULT_CONTEXT_CACHE_STATS
 	const shouldShowContextCacheStatus = contextCacheEnabled !== false
 	const contextCacheSummary = formatContextCacheSummary(safeContextCacheStats, t)
@@ -362,6 +607,39 @@ const TaskHeader = ({
 											</span>
 										</>
 									</StandardTooltip>
+								</>
+							)}
+							{shouldShowTokenUsage && (
+								<>
+									<span>·</span>
+									<span className="flex items-center gap-1">
+										{typeof tokensIn === "number" && tokensIn > 0 && (
+											<span>↑ {formatLargeNumber(tokensIn)}</span>
+										)}
+										{typeof tokensOut === "number" && tokensOut > 0 && (
+											<span>↓ {formatLargeNumber(tokensOut)}</span>
+										)}
+									</span>
+								</>
+							)}
+							{planUsage && (
+								<>
+									<span>·</span>
+									<span className={`flex items-center gap-1 ${planUsage.colorClass}`}>
+										<span data-testid="plan-usage-percent">{planUsage.percent}% plan used</span>
+										{planUsage.remainingText && (
+											<span
+												className="text-muted-foreground/70"
+												data-testid="plan-usage-remaining">
+												· {planUsage.remainingText}
+											</span>
+										)}
+										{planUsage.resetTime && (
+											<span className="text-muted-foreground/70" data-testid="plan-usage-reset">
+												· resets in {planUsage.resetTime}
+											</span>
+										)}
+									</span>
 								</>
 							)}
 						</div>

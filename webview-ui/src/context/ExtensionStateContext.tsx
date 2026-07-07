@@ -319,6 +319,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		lmStudioImageBaseUrl: "",
 		lmStudioImageGenerationSelectedModel: "",
 		lmStudioImageGenerationApiMethod: "images_api",
+		providerPlanLimits: {},
+		providerPlanUsage: {},
 		includeCurrentTime: true,
 		includeCurrentCost: true,
 		memoryEnabled: undefined,

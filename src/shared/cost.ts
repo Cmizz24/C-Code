@@ -48,6 +48,11 @@ function calculateApiCostInternal(
 	totalInputTokens: number,
 	totalOutputTokens: number,
 ): ApiCostResult {
+	// Subscription/plan-based providers have no meaningful per-token cost.
+	if (modelInfo.subscriptionBased) {
+		return { totalInputTokens, totalOutputTokens, totalCost: 0 }
+	}
+
 	const cacheWritesCost = ((modelInfo.cacheWritesPrice || 0) / 1_000_000) * cacheCreationInputTokens
 	const cacheReadsCost = ((modelInfo.cacheReadsPrice || 0) / 1_000_000) * cacheReadInputTokens
 	const baseInputCost = ((modelInfo.inputPrice || 0) / 1_000_000) * inputTokens

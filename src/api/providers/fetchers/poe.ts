@@ -21,6 +21,7 @@ export async function getPoeModels(apiKey?: string, baseURL?: string): Promise<M
 				maxTokens: m.maxOutputTokens,
 				supportsImages: m.supportsImages,
 				supportsPromptCache: m.supportsPromptCache,
+				subscriptionBased: true,
 				...(m.supportsReasoningBudget && { supportsReasoningBudget: m.supportsReasoningBudget }),
 				...(effort && {
 					supportsReasoningEffort: effort as ModelInfo["supportsReasoningEffort"],

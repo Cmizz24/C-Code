@@ -1198,6 +1198,51 @@ describe("ClineProvider", () => {
 	})
 
 	describe("email notification lifecycle dispatch", () => {
+		test("tracks configured provider plan usage when a task completes", async () => {
+			await provider.contextProxy.updateGlobalState("providerPlanLimits", {
+				openrouter: { tokenLimit: 1_000, costLimit: 10, resetPeriod: "monthly" },
+			})
+			const task = new Task({ ...defaultTaskOptions, taskId: "task-plan-usage" } as any)
+			;(provider as any).taskCreationCallback(task)
+
+			task.emit(
+				RooCodeEventName.TaskCompleted,
+				task.taskId,
+				createTokenUsage({ totalTokensIn: 100, totalTokensOut: 50, totalCost: 0.25 }),
+				createToolUsage(),
+			)
+
+			await vi.waitFor(() => {
+				expect(provider.contextProxy.getGlobalState("providerPlanUsage")?.openrouter).toEqual(
+					expect.objectContaining({ tokensUsed: 150, costUsed: 0.25 }),
+				)
+			})
+		})
+
+		test("skips provider plan usage tracking when no plan is configured", async () => {
+			await (provider as any).updatePlanUsage("anthropic", 100, 50, 0.25)
+
+			expect(provider.contextProxy.getGlobalState("providerPlanUsage")?.anthropic).toBeUndefined()
+		})
+
+		test("resets provider plan usage when the configured period rolls over", async () => {
+			const oldPeriodStart = Date.now() - 604_800_000 - 1_000
+			await provider.contextProxy.updateGlobalState("providerPlanLimits", {
+				anthropic: { tokenLimit: 1_000, costLimit: 10, resetPeriod: "weekly" },
+			})
+			await provider.contextProxy.updateGlobalState("providerPlanUsage", {
+				anthropic: { tokensUsed: 900, costUsed: 9, periodStart: oldPeriodStart },
+			})
+
+			await (provider as any).updatePlanUsage("anthropic", 10, 15, 0.5)
+
+			const usage = provider.contextProxy.getGlobalState("providerPlanUsage")?.anthropic
+			const limit = provider.contextProxy.getGlobalState("providerPlanLimits")?.anthropic
+			expect(usage).toEqual(expect.objectContaining({ tokensUsed: 25, costUsed: 0.5 }))
+			expect(usage?.periodStart).toBeGreaterThan(oldPeriodStart)
+			expect(limit?.lastReset).toBeGreaterThan(oldPeriodStart)
+		})
+
 		test("sends success notifications for top-level task completion", async () => {
 			const sendTaskNotification = installEmailNotificationServiceMock()
 			const logSpy = vi.spyOn(provider, "log")
@@ -9471,6 +9516,106 @@ describe("ClineProvider - Comprehensive Edit/Delete Edge Cases", () => {
 
 			fileExistsSpy.mockRestore()
 			warnSpy.mockRestore()
+		})
+	})
+
+	describe("mergeProfileApiKeys (API key persistence safety net)", () => {
+		it("should merge missing API key values from the active profile", async () => {
+			provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			await provider.resolveWebviewView(mockWebviewView)
+
+			const profileWithApiKey = {
+				name: "default",
+				id: "test-id",
+				apiProvider: "poe",
+				poeApiKey: "profile-poe-key-123",
+			}
+
+			;(provider as any).providerSettingsManager = {
+				getModeConfigId: vi.fn().mockResolvedValue(undefined),
+				getProfile: vi.fn().mockResolvedValue(profileWithApiKey),
+				saveConfig: vi.fn(),
+				listConfig: vi.fn().mockResolvedValue([]),
+				setModeConfig: vi.fn(),
+			} as any
+
+			// Provider settings from ContextProxy has no poeApiKey (simulating the bug)
+			const providerSettings = { apiProvider: "poe" } as any
+			const result = await (provider as any).mergeProfileApiKeys(providerSettings)
+
+			expect(result.poeApiKey).toBe("profile-poe-key-123")
+			expect(result.apiProvider).toBe("poe")
+		})
+
+		it("should not overwrite existing API key values from ContextProxy", async () => {
+			provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			await provider.resolveWebviewView(mockWebviewView)
+
+			const profileWithApiKey = {
+				name: "default",
+				id: "test-id",
+				apiProvider: "poe",
+				poeApiKey: "profile-old-key",
+			}
+
+			;(provider as any).providerSettingsManager = {
+				getModeConfigId: vi.fn().mockResolvedValue(undefined),
+				getProfile: vi.fn().mockResolvedValue(profileWithApiKey),
+				saveConfig: vi.fn(),
+				listConfig: vi.fn().mockResolvedValue([]),
+				setModeConfig: vi.fn(),
+			} as any
+
+			// Provider settings from ContextProxy already has a poeApiKey (more up-to-date)
+			const providerSettings = { apiProvider: "poe", poeApiKey: "current-secret-key" } as any
+			const result = await (provider as any).mergeProfileApiKeys(providerSettings)
+
+			// Should keep the existing value, not overwrite with the profile value
+			expect(result.poeApiKey).toBe("current-secret-key")
+		})
+
+		it("should return providerSettings unchanged when profile lookup fails", async () => {
+			provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			await provider.resolveWebviewView(mockWebviewView)
+			;(provider as any).providerSettingsManager = {
+				getModeConfigId: vi.fn().mockResolvedValue(undefined),
+				getProfile: vi.fn().mockRejectedValue(new Error("Profile not found")),
+				saveConfig: vi.fn(),
+				listConfig: vi.fn().mockResolvedValue([]),
+				setModeConfig: vi.fn(),
+			} as any
+
+			const providerSettings = { apiProvider: "poe" } as any
+			const result = await (provider as any).mergeProfileApiKeys(providerSettings)
+
+			// Should return unchanged
+			expect(result.apiProvider).toBe("poe")
+			expect(result.poeApiKey).toBeUndefined()
+		})
+
+		it("should merge xiaomiMiMoApiKey from profile when missing from ContextProxy", async () => {
+			provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			await provider.resolveWebviewView(mockWebviewView)
+
+			const profileWithApiKey = {
+				name: "default",
+				id: "test-id",
+				apiProvider: "xiaomi-mimo",
+				xiaomiMiMoApiKey: "xiaomi-key-456",
+			}
+
+			;(provider as any).providerSettingsManager = {
+				getModeConfigId: vi.fn().mockResolvedValue(undefined),
+				getProfile: vi.fn().mockResolvedValue(profileWithApiKey),
+				saveConfig: vi.fn(),
+				listConfig: vi.fn().mockResolvedValue([]),
+				setModeConfig: vi.fn(),
+			} as any
+
+			const providerSettings = { apiProvider: "xiaomi-mimo" } as any
+			const result = await (provider as any).mergeProfileApiKeys(providerSettings)
+
+			expect(result.xiaomiMiMoApiKey).toBe("xiaomi-key-456")
 		})
 	})
 })

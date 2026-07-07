@@ -22,6 +22,7 @@ export const moonshotModels = {
 		inputPrice: 0.95,
 		outputPrice: 4.0,
 		cacheReadsPrice: 0.16,
+		subscriptionBased: true,
 		description:
 			"Kimi K2.6 is Moonshot AI's latest multimodal model with 256K context, visual/text input, thinking and non-thinking modes, stronger agentic coding, and automatic context caching.",
 	},
@@ -37,6 +38,7 @@ export const moonshotModels = {
 		cacheReadsPrice: 0.1,
 		supportsTemperature: true,
 		defaultTemperature: 1.0,
+		subscriptionBased: true,
 		description:
 			"Kimi K2.5 is Moonshot AI's multimodal Kimi series model with improved reasoning, visual input, and enhanced performance across diverse tasks.",
 	},
@@ -50,6 +52,7 @@ export const moonshotModels = {
 		cacheWritesPrice: 0, // $0 per million tokens (cache miss)
 		cacheReadsPrice: 0.15, // $0.15 per million tokens (cache hit)
 		deprecated: true,
+		subscriptionBased: true,
 		description: `${KIMI_DEPRECATED_PREVIEW_DESCRIPTION} Kimi K2 is a state-of-the-art mixture-of-experts (MoE) language model with 32 billion activated parameters and 1 trillion total parameters.`,
 	},
 	"kimi-k2-0905-preview": {
@@ -62,6 +65,7 @@ export const moonshotModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0.15,
 		deprecated: true,
+		subscriptionBased: true,
 		description: `${KIMI_DEPRECATED_PREVIEW_DESCRIPTION} Kimi K2 model update with agentic coding improvements, frontend coding improvements, and 256K context support.`,
 	},
 	"kimi-k2-turbo-preview": {
@@ -74,6 +78,7 @@ export const moonshotModels = {
 		cacheWritesPrice: 0, // $0 per million tokens (cache miss)
 		cacheReadsPrice: 0.6, // $0.60 per million tokens (cache hit)
 		deprecated: true,
+		subscriptionBased: true,
 		description: `${KIMI_DEPRECATED_PREVIEW_DESCRIPTION} Kimi K2 Turbo is a high-speed version of the Kimi K2 mixture-of-experts (MoE) language model, optimized for faster output speeds.`,
 	},
 	"kimi-k2-thinking": {
@@ -90,6 +95,7 @@ export const moonshotModels = {
 		preserveReasoning: true,
 		defaultTemperature: 1.0,
 		deprecated: true,
+		subscriptionBased: true,
 		description: `${KIMI_DEPRECATED_PREVIEW_DESCRIPTION} The kimi-k2-thinking model is a general-purpose agentic reasoning model developed by Moonshot AI for deep reasoning and multi-turn tool use.`,
 	},
 	"kimi-k2-thinking-turbo": {
@@ -106,6 +112,7 @@ export const moonshotModels = {
 		preserveReasoning: true,
 		defaultTemperature: 1.0,
 		deprecated: true,
+		subscriptionBased: true,
 		description: `${KIMI_DEPRECATED_PREVIEW_DESCRIPTION} Kimi K2 Thinking Turbo is the high-speed variant of Moonshot AI's Kimi K2 reasoning model.`,
 	},
 	"moonshot-v1-8k": {
@@ -117,6 +124,7 @@ export const moonshotModels = {
 		outputPrice: 1.5,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0.15,
+		subscriptionBased: true,
 		description: "Moonshot v1 text model with an 8K context window.",
 	},
 	"moonshot-v1-32k": {
@@ -128,6 +136,7 @@ export const moonshotModels = {
 		outputPrice: 3.0,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0.3,
+		subscriptionBased: true,
 		description: "Moonshot v1 text model with a 32K context window.",
 	},
 	"moonshot-v1-128k": {
@@ -139,6 +148,7 @@ export const moonshotModels = {
 		outputPrice: 9.0,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0.9,
+		subscriptionBased: true,
 		description: "Moonshot v1 text model with a 128K context window.",
 	},
 } as const satisfies Record<string, ModelInfo>

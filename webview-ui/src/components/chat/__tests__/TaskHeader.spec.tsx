@@ -43,6 +43,9 @@ const mockExtensionState: {
 	contextCacheEnabled: boolean
 	contextCacheStats: ContextCacheStats
 	contextCacheWarning?: string
+	openAiCodexRateLimits?: any
+	providerPlanLimits?: any
+	providerPlanUsage?: any
 } = {
 	apiConfiguration: {
 		apiProvider: "anthropic",
@@ -62,6 +65,8 @@ const mockExtensionState: {
 		condensingAvoided: 2,
 	},
 	contextCacheWarning: undefined,
+	providerPlanLimits: {},
+	providerPlanUsage: {},
 }
 
 // Mock the ExtensionStateContext
@@ -82,7 +87,7 @@ vi.mock("@roo/array", () => ({
 }))
 
 // Create a variable to hold the mock model info for useSelectedModel
-let mockModelInfo: { contextWindow: number; maxTokens: number } | undefined = undefined
+let mockModelInfo: { contextWindow: number; maxTokens: number; subscriptionBased?: boolean } | undefined = undefined
 
 // Mock useSelectedModel hook
 vi.mock("@/components/ui/hooks/useSelectedModel", () => ({
@@ -135,6 +140,14 @@ describe("TaskHeader", () => {
 			condensingAvoided: 2,
 		}
 		mockExtensionState.contextCacheWarning = undefined
+		mockExtensionState.providerPlanLimits = {}
+		mockExtensionState.providerPlanUsage = {}
+		mockExtensionState.openAiCodexRateLimits = undefined
+		mockExtensionState.apiConfiguration = {
+			apiProvider: "anthropic",
+			apiKey: "test-api-key",
+			apiModelId: "claude-3-opus-20240229",
+		} as ProviderSettings
 	})
 
 	it("should display hot and cold context cache status in the collapsed header", () => {
@@ -336,6 +349,125 @@ describe("TaskHeader", () => {
 
 			// Should show 0% when available input space is 0
 			expect(screen.getByText("0%")).toBeInTheDocument()
+		})
+	})
+
+	describe("subscription-based (plan-based) providers", () => {
+		beforeEach(() => {
+			mockModelInfo = { contextWindow: 400000, maxTokens: 128000, subscriptionBased: true }
+			mockMaxOutputTokens = 128000
+		})
+
+		afterEach(() => {
+			mockModelInfo = undefined
+			mockMaxOutputTokens = 0
+		})
+
+		it("should not display cost for subscription-based providers even when totalCost > 0", () => {
+			renderTaskHeader({ totalCost: 0.05 })
+			expect(screen.queryByText("$0.05")).not.toBeInTheDocument()
+		})
+
+		it("should display token usage in collapsed view for subscription-based providers", () => {
+			renderTaskHeader({ tokensIn: 15000, tokensOut: 5000, totalCost: 0 })
+			// Token usage should be visible with ↑ and ↓ arrows
+			expect(screen.getByText(/↑/)).toBeInTheDocument()
+			expect(screen.getByText(/↓/)).toBeInTheDocument()
+		})
+
+		it("should display token usage in collapsed view when totalCost > 0 for subscription-based providers", () => {
+			renderTaskHeader({ tokensIn: 15000, tokensOut: 5000, totalCost: 0.05 })
+			// Should show tokens, NOT cost
+			expect(screen.getByText(/↑/)).toBeInTheDocument()
+			expect(screen.getByText(/↓/)).toBeInTheDocument()
+			expect(screen.queryByText("$0.05")).not.toBeInTheDocument()
+		})
+
+		it("should not display token usage in collapsed view when there are no tokens", () => {
+			renderTaskHeader({ tokensIn: 0, tokensOut: 0, totalCost: 0 })
+			// Should not show any ↑ or ↓ markers
+			expect(screen.queryByText(/↑/)).not.toBeInTheDocument()
+			expect(screen.queryByText(/↓/)).not.toBeInTheDocument()
+		})
+
+		it("should still show cost for non-subscription providers", () => {
+			// Reset to non-subscription model
+			mockModelInfo = { contextWindow: 200000, maxTokens: 8192 }
+			renderTaskHeader({ totalCost: 0.05 })
+			expect(screen.getByText("$0.05")).toBeInTheDocument()
+		})
+	})
+
+	describe("generic provider plan usage", () => {
+		beforeEach(() => {
+			mockModelInfo = { contextWindow: 200000, maxTokens: 8192 }
+			mockMaxOutputTokens = 8192
+		})
+
+		afterEach(() => {
+			mockModelInfo = undefined
+			mockMaxOutputTokens = 0
+		})
+
+		it("should display configured provider token plan usage and remaining tokens", () => {
+			mockExtensionState.providerPlanLimits = {
+				anthropic: { tokenLimit: 1000, resetPeriod: "monthly" },
+			}
+			mockExtensionState.providerPlanUsage = {
+				anthropic: { tokensUsed: 450, costUsed: 0.2, periodStart: Date.now() },
+			}
+
+			renderTaskHeader({ tokensIn: 300, tokensOut: 150, totalCost: 0.05 })
+
+			expect(screen.getByTestId("plan-usage-percent")).toHaveTextContent("45% plan used")
+			expect(screen.getByTestId("plan-usage-remaining")).toHaveTextContent("550 tokens left")
+			expect(screen.getByText(/↑/)).toBeInTheDocument()
+			expect(screen.getByText(/↓/)).toBeInTheDocument()
+			expect(screen.queryByText("$0.05")).not.toBeInTheDocument()
+		})
+
+		it("should use the higher cost percentage when cost is the limiting plan value", () => {
+			mockExtensionState.providerPlanLimits = {
+				anthropic: { tokenLimit: 1000, costLimit: 1, resetPeriod: "monthly" },
+			}
+			mockExtensionState.providerPlanUsage = {
+				anthropic: { tokensUsed: 100, costUsed: 0.8, periodStart: Date.now() },
+			}
+
+			renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0.05 })
+
+			expect(screen.getByTestId("plan-usage-percent")).toHaveTextContent("80% plan used")
+			expect(screen.getByTestId("plan-usage-remaining")).toHaveTextContent("$0.20 left")
+		})
+
+		it("should not display generic plan usage for providers without configured plans", () => {
+			renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0.05 })
+
+			expect(screen.queryByTestId("plan-usage-percent")).not.toBeInTheDocument()
+			expect(screen.getByText("$0.05")).toBeInTheDocument()
+		})
+
+		it("should prefer OpenAI Codex API rate limit usage over locally tracked plan usage", () => {
+			mockModelInfo = { contextWindow: 400000, maxTokens: 128000, subscriptionBased: true }
+			mockExtensionState.apiConfiguration = {
+				apiProvider: "openai-codex",
+				apiModelId: "gpt-5.5",
+			} as ProviderSettings
+			mockExtensionState.openAiCodexRateLimits = {
+				primary: { usedPercent: 12.2, resetsAt: Date.now() + 3_600_000 },
+				fetchedAt: Date.now(),
+			}
+			mockExtensionState.providerPlanLimits = {
+				"openai-codex": { tokenLimit: 1000, resetPeriod: "monthly" },
+			}
+			mockExtensionState.providerPlanUsage = {
+				"openai-codex": { tokensUsed: 900, costUsed: 0, periodStart: Date.now() },
+			}
+
+			renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0 })
+
+			expect(screen.getByTestId("plan-usage-percent")).toHaveTextContent("12% plan used")
+			expect(screen.queryByText("90% plan used")).not.toBeInTheDocument()
 		})
 	})
 })
