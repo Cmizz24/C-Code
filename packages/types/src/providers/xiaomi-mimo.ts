@@ -17,6 +17,7 @@ const xiaomiMiMoTextModelInfo = {
 	supportsImages: false,
 	supportsPromptCache: false,
 	supportsReasoningBinary: true,
+	subscriptionBased: true,
 } as const satisfies ModelInfo
 
 const xiaomiMiMoPromptCachePricing = {

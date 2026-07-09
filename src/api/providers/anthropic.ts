@@ -1,7 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { CacheControlEphemeral } from "@anthropic-ai/sdk/resources"
-import OpenAI from "openai"
 
 import {
 	type ModelInfo,
@@ -27,9 +26,74 @@ import {
 	convertOpenAIToolChoiceToAnthropic,
 } from "../../core/prompts/tools/native-tools/converters"
 
+const ANTHROPIC_CACHE_CONTROL: CacheControlEphemeral = { type: "ephemeral" }
+const PROMPT_CACHING_BETA = "prompt-caching-2024-07-31"
+const CACHEABLE_CONTENT_BLOCK_TYPES = new Set(["image", "document", "tool_use", "tool_result"])
+
+function addCacheControlToLastTool(tools: Anthropic.Tool[]): Anthropic.Tool[] {
+	if (tools.length === 0) {
+		return tools
+	}
+
+	const lastToolIndex = tools.length - 1
+
+	return tools.map((tool, index) =>
+		index === lastToolIndex ? { ...tool, cache_control: ANTHROPIC_CACHE_CONTROL } : tool,
+	)
+}
+
+function isCacheableContentBlock(content: Anthropic.Messages.ContentBlockParam): boolean {
+	const blockType = (content as { type: string }).type
+
+	if (blockType === "text") {
+		const text = (content as { text?: unknown }).text
+		return typeof text === "string" && text.trim().length > 0
+	}
+
+	return CACHEABLE_CONTENT_BLOCK_TYPES.has(blockType)
+}
+
+function findLastCacheableContentBlockIndex(content: Anthropic.Messages.ContentBlockParam[]): number {
+	for (let index = content.length - 1; index >= 0; index--) {
+		if (isCacheableContentBlock(content[index])) {
+			return index
+		}
+	}
+
+	return -1
+}
+
+function addCacheControlToMessage(message: Anthropic.Messages.MessageParam): Anthropic.Messages.MessageParam {
+	if (typeof message.content === "string") {
+		if (message.content.trim().length === 0) {
+			return message
+		}
+
+		return {
+			...message,
+			content: [{ type: "text", text: message.content, cache_control: ANTHROPIC_CACHE_CONTROL }],
+		}
+	}
+
+	const cacheableContentBlockIndex = findLastCacheableContentBlockIndex(message.content)
+
+	if (cacheableContentBlockIndex === -1) {
+		return message
+	}
+
+	return {
+		...message,
+		content: message.content.map((content, index) =>
+			index === cacheableContentBlockIndex ? { ...content, cache_control: ANTHROPIC_CACHE_CONTROL } : content,
+		),
+	}
+}
+
 export class AnthropicHandler extends BaseProvider implements SingleCompletionHandler {
 	private options: ApiHandlerOptions
 	private client: Anthropic
+	private thinkingBlocks = new Map<number, any>()
+	private lastThoughtSignature?: string
 	private readonly providerName = "Anthropic"
 
 	constructor(options: ApiHandlerOptions) {
@@ -50,8 +114,10 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 		messages: Anthropic.Messages.MessageParam[],
 		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
+		this.thinkingBlocks.clear()
+		this.lastThoughtSignature = undefined
+
 		let stream: AnthropicStream<Anthropic.Messages.RawMessageStreamEvent>
-		const cacheControl: CacheControlEphemeral = { type: "ephemeral" }
 		let {
 			id: modelId,
 			info,
@@ -64,10 +130,17 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 
 		// Filter out non-Anthropic blocks (reasoning, thoughtSignature, etc.) before sending to the API
 		const sanitizedMessages = filterNonAnthropicBlocks(messages)
+		const tools = convertOpenAIToolsToAnthropic(metadata?.tools ?? [])
 
 		const nativeToolParams = {
-			tools: convertOpenAIToolsToAnthropic(metadata?.tools ?? []),
+			tools,
 			tool_choice: convertOpenAIToolChoiceToAnthropic(metadata?.tool_choice, metadata?.parallelToolCalls),
+		}
+		const cacheOptimizedNativeToolParams = {
+			...nativeToolParams,
+			// Tool definitions are the first Anthropic prompt prefix and are stable across most agent requests.
+			// Caching the last tool uses one of the four breakpoints while preserving the system and message breakpoints.
+			tools: addCacheControlToLastTool(tools),
 		}
 		const samplingParams = temperature === undefined ? {} : { temperature }
 		const thinkingParam = thinking as any
@@ -128,25 +201,15 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 						...adaptiveThinkingParams,
 						...samplingParams,
 						// Setting cache breakpoint for system prompt so new tasks can reuse it.
-						system: [{ text: systemPrompt, type: "text", cache_control: cacheControl }],
+						system: [{ text: systemPrompt, type: "text", cache_control: ANTHROPIC_CACHE_CONTROL }],
 						messages: sanitizedMessages.map((message, index) => {
 							if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
-								return {
-									...message,
-									content:
-										typeof message.content === "string"
-											? [{ type: "text", text: message.content, cache_control: cacheControl }]
-											: message.content.map((content, contentIndex) =>
-													contentIndex === message.content.length - 1
-														? { ...content, cache_control: cacheControl }
-														: content,
-												),
-								}
+								return addCacheControlToMessage(message)
 							}
 							return message
 						}),
 						stream: true,
-						...nativeToolParams,
+						...cacheOptimizedNativeToolParams,
 					},
 					(() => {
 						// prompt caching: https://x.com/alexalbert__/status/1823751995901272068
@@ -177,7 +240,9 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 							case "claude-haiku-4-5-20251001":
 							case "claude-haiku-4-5":
 							case "claude-3-haiku-20240307":
-								betas.push("prompt-caching-2024-07-31")
+								if (!betas.includes(PROMPT_CACHING_BETA)) {
+									betas.push(PROMPT_CACHING_BETA)
+								}
 								return { headers: { "anthropic-beta": betas.join(",") } }
 							default:
 								return undefined
@@ -249,13 +314,29 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 				case "content_block_start":
 					switch (chunk.content_block.type) {
 						case "thinking":
+							this.upsertThinkingBlock(chunk.index, {
+								type: "thinking",
+								thinking: chunk.content_block.thinking ?? "",
+								...((chunk.content_block as any).signature
+									? { signature: (chunk.content_block as any).signature }
+									: {}),
+							})
+
 							// We may receive multiple text blocks, in which
 							// case just insert a line break between them.
 							if (chunk.index > 0) {
 								yield { type: "reasoning", text: "\n" }
 							}
 
-							yield { type: "reasoning", text: chunk.content_block.thinking }
+							if (chunk.content_block.thinking) {
+								yield { type: "reasoning", text: chunk.content_block.thinking }
+							}
+							break
+						case "redacted_thinking":
+							this.upsertThinkingBlock(chunk.index, {
+								type: "redacted_thinking",
+								data: (chunk.content_block as any).data ?? "",
+							})
 							break
 						case "text":
 							// We may receive multiple text blocks, in which
@@ -279,13 +360,23 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 						}
 					}
 					break
-				case "content_block_delta":
-					switch (chunk.delta.type) {
+				case "content_block_delta": {
+					const contentBlockIndex = (chunk as any).index ?? 0
+					switch ((chunk.delta as any).type) {
 						case "thinking_delta":
-							yield { type: "reasoning", text: chunk.delta.thinking }
+							this.appendThinkingDelta(contentBlockIndex, (chunk.delta as any).thinking ?? "")
+							if ((chunk.delta as any).thinking) {
+								yield { type: "reasoning", text: (chunk.delta as any).thinking }
+							}
+							break
+						case "signature_delta":
+							this.setThinkingSignature(contentBlockIndex, (chunk.delta as any).signature)
+							break
+						case "redacted_thinking_delta":
+							this.appendRedactedThinkingDelta(contentBlockIndex, (chunk.delta as any).data ?? "")
 							break
 						case "text_delta":
-							yield { type: "text", text: chunk.delta.text }
+							yield { type: "text", text: (chunk.delta as any).text }
 							break
 						case "input_json_delta": {
 							// Emit tool call partial chunks as arguments stream in
@@ -294,13 +385,14 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 								index: chunk.index,
 								id: undefined,
 								name: undefined,
-								arguments: chunk.delta.partial_json,
+								arguments: (chunk.delta as any).partial_json,
 							}
 							break
 						}
 					}
 
 					break
+				}
 				case "content_block_stop":
 					// Block complete - no action needed for now.
 					// NativeToolCallParser handles tool call completion
@@ -326,6 +418,59 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 				totalCost,
 			}
 		}
+	}
+
+	private upsertThinkingBlock(index: number, block: any) {
+		this.thinkingBlocks.set(index, block)
+		if (block.type === "thinking" && block.signature) {
+			this.lastThoughtSignature = block.signature
+		}
+	}
+
+	private appendThinkingDelta(index: number, thinking: string) {
+		const existing = this.thinkingBlocks.get(index)
+		if (existing?.type === "thinking") {
+			existing.thinking = `${existing.thinking ?? ""}${thinking}`
+			return
+		}
+
+		this.thinkingBlocks.set(index, { type: "thinking", thinking })
+	}
+
+	private appendRedactedThinkingDelta(index: number, data: string) {
+		const existing = this.thinkingBlocks.get(index)
+		if (existing?.type === "redacted_thinking") {
+			existing.data = `${existing.data ?? ""}${data}`
+			return
+		}
+
+		this.thinkingBlocks.set(index, { type: "redacted_thinking", data })
+	}
+
+	private setThinkingSignature(index: number, signature?: string) {
+		if (!signature) {
+			return
+		}
+
+		const existing = this.thinkingBlocks.get(index)
+		if (existing?.type === "thinking") {
+			existing.signature = signature
+		} else {
+			this.thinkingBlocks.set(index, { type: "thinking", thinking: "", signature })
+		}
+		this.lastThoughtSignature = signature
+	}
+
+	getThoughtSignature(): string | undefined {
+		return this.lastThoughtSignature
+	}
+
+	getThinkingBlocks(): Anthropic.Messages.ContentBlockParam[] | undefined {
+		const blocks = Array.from(this.thinkingBlocks.entries())
+			.sort(([a], [b]) => a - b)
+			.map(([, block]) => ({ ...block }))
+
+		return blocks.length > 0 ? (blocks as Anthropic.Messages.ContentBlockParam[]) : undefined
 	}
 
 	getModel() {

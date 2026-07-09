@@ -17,7 +17,9 @@ export type RooReasoningParams = {
 	effort?: ReasoningEffortExtended
 }
 
-export type AnthropicReasoningParams = BetaThinkingConfigParam | { type: "adaptive" }
+export type AnthropicReasoningParams =
+	| BetaThinkingConfigParam
+	| { type: "adaptive"; display?: "summarized" | "omitted" }
 
 const ANTHROPIC_ADAPTIVE_THINKING_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
 
@@ -143,7 +145,7 @@ export const getAnthropicReasoning = ({
 		const canUseSelectedEffort = !hasSelectedEffort || shouldUseReasoningEffort({ model, settings })
 
 		if (model.requiredReasoningEffort || (settings?.enableReasoningEffort === true && canUseSelectedEffort)) {
-			return { type: "adaptive" }
+			return { type: "adaptive", display: "summarized" }
 		}
 	}
 

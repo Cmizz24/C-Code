@@ -58,7 +58,9 @@ export function validateToolUse(
 			includedTools,
 		)
 	) {
-		throw new Error(`Tool "${toolName}" is not allowed in ${mode} mode.`)
+		throw new Error(
+			`Tool "${toolName}" is not allowed in ${mode} mode. Use switch_mode to continue in a mode that allows this tool, or new_task to delegate the work to a capable mode.`,
+		)
 	}
 }
 

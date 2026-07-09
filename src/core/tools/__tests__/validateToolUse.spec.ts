@@ -337,7 +337,7 @@ describe("mode-validator", () => {
 		it("throws error for disallowed tools in architect mode", () => {
 			// execute_command is a valid tool but not allowed in architect mode
 			expect(() => validateToolUse("execute_command", "architect", [])).toThrow(
-				'Tool "execute_command" is not allowed in architect mode.',
+				'Tool "execute_command" is not allowed in architect mode. Use switch_mode to continue in a mode that allows this tool, or new_task to delegate the work to a capable mode.',
 			)
 		})
 
@@ -348,7 +348,7 @@ describe("mode-validator", () => {
 		it("throws error when tool requirement is not met", () => {
 			const requirements = { apply_diff: false }
 			expect(() => validateToolUse("apply_diff", codeMode, [], requirements)).toThrow(
-				'Tool "apply_diff" is not allowed in code mode.',
+				'Tool "apply_diff" is not allowed in code mode. Use switch_mode to continue in a mode that allows this tool, or new_task to delegate the work to a capable mode.',
 			)
 		})
 
@@ -359,7 +359,7 @@ describe("mode-validator", () => {
 
 		it("denies background-only coordination tool unless the runtime requirement is met", () => {
 			expect(() => validateToolUse("coordinate_agents", codeMode, [], { coordinate_agents: false })).toThrow(
-				'Tool "coordinate_agents" is not allowed in code mode.',
+				'Tool "coordinate_agents" is not allowed in code mode. Use switch_mode to continue in a mode that allows this tool, or new_task to delegate the work to a capable mode.',
 			)
 			expect(() => validateToolUse("coordinate_agents", codeMode, [], { coordinate_agents: true })).not.toThrow()
 		})
@@ -379,10 +379,10 @@ describe("mode-validator", () => {
 			)
 
 			expect(() => validateToolUse("execute_command", codeMode, [], toolRequirements)).toThrow(
-				'Tool "execute_command" is not allowed in code mode.',
+				'Tool "execute_command" is not allowed in code mode. Use switch_mode to continue in a mode that allows this tool, or new_task to delegate the work to a capable mode.',
 			)
 			expect(() => validateToolUse("search_files", codeMode, [], toolRequirements)).toThrow(
-				'Tool "search_files" is not allowed in code mode.',
+				'Tool "search_files" is not allowed in code mode. Use switch_mode to continue in a mode that allows this tool, or new_task to delegate the work to a capable mode.',
 			)
 		})
 

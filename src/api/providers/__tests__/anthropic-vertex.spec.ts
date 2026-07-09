@@ -508,6 +508,14 @@ describe("VertexHandler", () => {
 					},
 				},
 				{
+					type: "content_block_delta",
+					index: 0,
+					delta: {
+						type: "signature_delta",
+						signature: "vertex_sig_123",
+					},
+				},
+				{
 					type: "content_block_start",
 					index: 1,
 					content_block: {
@@ -541,6 +549,14 @@ describe("VertexHandler", () => {
 			expect(reasoningChunks).toHaveLength(2)
 			expect(reasoningChunks[0].text).toBe("Let me think about this...")
 			expect(reasoningChunks[1].text).toBe(" I need to consider all options.")
+			expect(handler.getThoughtSignature()).toBe("vertex_sig_123")
+			expect(handler.getThinkingBlocks()).toEqual([
+				{
+					type: "thinking",
+					thinking: "Let me think about this... I need to consider all options.",
+					signature: "vertex_sig_123",
+				},
+			])
 
 			// Verify text content is processed correctly
 			const textChunks = chunks.filter((chunk) => chunk.type === "text")

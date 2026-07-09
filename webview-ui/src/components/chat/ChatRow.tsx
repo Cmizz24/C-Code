@@ -26,6 +26,7 @@ import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate } from "@src/utils/mcp"
 import { vscode } from "@src/utils/vscode"
 import { formatPathTooltip } from "@src/utils/formatPathTooltip"
+import { formatLargeNumber } from "@src/utils/format"
 
 import { ToolUseBlock, ToolUseBlockHeader } from "../common/ToolUseBlock"
 import UpdateTodoListToolBlock from "./UpdateTodoListToolBlock"
@@ -291,13 +292,15 @@ export const ChatRowContent = ({
 		vscode.postMessage({ type: "selectImages", context: "edit", messageTs: message.ts })
 	}, [message.ts])
 
-	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
+	const isPlanBased = model?.subscriptionBased === true
+
+	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage, apiReqTokensIn, apiReqTokensOut] = useMemo(() => {
 		if (message.text !== null && message.text !== undefined && message.say === "api_req_started") {
 			const info = safeJsonParse<ClineApiReqInfo>(message.text)
-			return [info?.cost, info?.cancelReason, info?.streamingFailedMessage]
+			return [info?.cost, info?.cancelReason, info?.streamingFailedMessage, info?.tokensIn, info?.tokensOut]
 		}
 
-		return [undefined, undefined, undefined]
+		return [undefined, undefined, undefined, undefined, undefined]
 	}, [message.text, message.say])
 
 	// When resuming task, last won't be api_req_failed but a resume_task
@@ -2052,11 +2055,22 @@ export const ChatRowContent = ({
 									{icon}
 									{title}
 								</div>
-								<div
-									className="text-xs text-vscode-dropdown-foreground border-vscode-dropdown-border/50 border px-1.5 py-0.5 rounded-lg"
-									style={{ opacity: cost !== null && cost !== undefined && cost > 0 ? 1 : 0 }}>
-									${Number(cost || 0)?.toFixed(4)}
-								</div>
+								{isPlanBased && (apiReqTokensIn || apiReqTokensOut) ? (
+									<div className="text-xs text-vscode-dropdown-foreground border-vscode-dropdown-border/50 border px-1.5 py-0.5 rounded-lg flex items-center gap-1">
+										{typeof apiReqTokensIn === "number" && apiReqTokensIn > 0 && (
+											<span>↑{formatLargeNumber(apiReqTokensIn)}</span>
+										)}
+										{typeof apiReqTokensOut === "number" && apiReqTokensOut > 0 && (
+											<span>↓{formatLargeNumber(apiReqTokensOut)}</span>
+										)}
+									</div>
+								) : (
+									<div
+										className="text-xs text-vscode-dropdown-foreground border-vscode-dropdown-border/50 border px-1.5 py-0.5 rounded-lg"
+										style={{ opacity: cost !== null && cost !== undefined && cost > 0 ? 1 : 0 }}>
+										${Number(cost || 0)?.toFixed(4)}
+									</div>
+								)}
 							</div>
 							{(((cost === null || cost === undefined) && apiRequestFailedMessage) ||
 								apiReqStreamingFailedMessage) && (

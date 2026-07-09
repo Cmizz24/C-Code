@@ -20,6 +20,7 @@ import type { ApiHandlerOptions } from "../../shared/api"
 
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { getModelParams } from "../transform/model-params"
+import { sanitizeResponsesApiInput } from "../transform/responses-api-input"
 
 import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
@@ -603,7 +604,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 			}
 		}
 
-		return formattedInput
+		return sanitizeResponsesApiInput(formattedInput)
 	}
 
 	private async *makeCodexRequest(

@@ -853,6 +853,78 @@ describe("Task persistence", () => {
 		})
 	})
 
+	// ── Context cache rehydration ──────────────────────────────────────────
+
+	describe("context cache rehydration", () => {
+		const savedApiHistory = [
+			{ role: "user" as const, content: "first saved user turn ".repeat(20), ts: 1001 },
+			{
+				role: "assistant" as const,
+				content: [{ type: "text" as const, text: "saved assistant response ".repeat(20) }],
+				ts: 1002,
+			},
+			{ role: "user" as const, content: "latest saved user turn ".repeat(20), ts: 1003 },
+		]
+
+		it("rehydrates saved API messages into the context cache when restoring history", async () => {
+			mockReadApiMessages.mockResolvedValue(savedApiHistory)
+
+			const task = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+				startTask: false,
+			})
+
+			expect(task.getContextCacheStats().hotCacheChunks).toBe(0)
+			expect(task.getContextCacheStats().coldCacheChunks).toBe(0)
+
+			await task.restoreClineMessagesFromHistory()
+
+			expect(task.apiConversationHistory).toHaveLength(savedApiHistory.length)
+			;(task as any).configureContextWindowManager(
+				{ contextCacheEnabled: true, coldCacheRamBudgetMb: 1 },
+				{ contextWindow: 1 },
+			)
+
+			const stats = task.getContextCacheStats()
+			expect(stats.hotCacheChunks + stats.coldCacheChunks).toBe(savedApiHistory.length)
+			expect(stats.coldCacheChunks).toBeGreaterThan(0)
+
+			const filteredHistory = (task as any).applyContextCacheRequestFilter(task.apiConversationHistory)
+			expect(filteredHistory.map((message: any) => message.ts)).toEqual([1003])
+		})
+
+		it("rebuilds restored cache state without duplicating chunks", async () => {
+			mockReadApiMessages.mockResolvedValue(savedApiHistory)
+
+			const task = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+				startTask: false,
+			})
+
+			await task.restoreClineMessagesFromHistory()
+			;(task as any).configureContextWindowManager(
+				{ contextCacheEnabled: true, coldCacheRamBudgetMb: 1 },
+				{ contextWindow: 1 },
+			)
+			const firstStats = task.getContextCacheStats()
+
+			await task.restoreClineMessagesFromHistory()
+			;(task as any).configureContextWindowManager(
+				{ contextCacheEnabled: true, coldCacheRamBudgetMb: 1 },
+				{ contextWindow: 1 },
+			)
+			const secondStats = task.getContextCacheStats()
+
+			expect(firstStats.hotCacheChunks + firstStats.coldCacheChunks).toBe(savedApiHistory.length)
+			expect(secondStats.hotCacheChunks + secondStats.coldCacheChunks).toBe(savedApiHistory.length)
+			expect(secondStats.coldCacheChunks).toBeGreaterThan(0)
+		})
+	})
+
 	// ── flushPendingToolResultsToHistory — save failure/success ───────────
 
 	describe("flushPendingToolResultsToHistory persistence", () => {

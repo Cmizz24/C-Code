@@ -115,10 +115,11 @@ import { NativeToolCallParser } from "../assistant-message/NativeToolCallParser"
 import { manageContext, willManageContext } from "../context-management"
 import {
 	ContextWindowManager,
+	type ContextChunkRegistrationOptions,
 	DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
 	normalizeColdCacheRamBudgetMb,
 } from "../context/ContextWindowManager"
-import type { RegisterContextChunkInput } from "../context/ContextChunk"
+import type { ContextChunk, RegisterContextChunkInput } from "../context/ContextChunk"
 import { ClineProvider } from "../webview/ClineProvider"
 import { MultiSearchReplaceDiffStrategy } from "../diff/strategies/multi-search-replace"
 import {
@@ -170,6 +171,7 @@ const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
 const DEFAULT_USAGE_COLLECTION_TIMEOUT_MS = 5000 // 5 seconds
 const FORCED_CONTEXT_REDUCTION_PERCENT = 75 // Keep 75% of context (remove 25%) on context window errors
 const MAX_CONTEXT_WINDOW_RETRIES = 3 // Maximum retries for context window errors
+const CONDENSE_FAILURE_COOLDOWN_MS = 5 * 60 * 1000 // 5 minutes
 
 export interface TaskOptions extends CreateTaskOptions {
 	provider: ClineProvider
@@ -197,6 +199,12 @@ export interface TaskOptions extends CreateTaskOptions {
 
 interface MistakeMemoryDrainOptions {
 	promptForApproval?: boolean
+}
+
+interface RecentCondenseFailure {
+	failedAt: number
+	signature: string
+	message: string
 }
 
 export class Task extends EventEmitter<TaskEvents> implements TaskLike {
@@ -482,6 +490,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private tokenUsageSnapshot?: TokenUsage
 	private tokenUsageSnapshotAt?: number
 	private contextWindowManager?: ContextWindowManager
+	private readonly contextCacheRegisteredMessageKeys = new Set<string>()
+	private contextCacheNeedsRebuild = true
+	private recentCondenseFailure?: RecentCondenseFailure
 
 	// Tool Usage Cache
 	private toolUsageSnapshot?: ToolUsage
@@ -949,6 +960,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	): void {
 		if ((settings?.contextCacheEnabled ?? true) === false) {
 			this.contextWindowManager = undefined
+			this.contextCacheRegisteredMessageKeys.clear()
+			this.contextCacheNeedsRebuild = true
 			return
 		}
 
@@ -964,24 +977,38 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		if (!this.contextWindowManager) {
 			this.contextWindowManager = new ContextWindowManager(options)
-			return
+			this.contextCacheNeedsRebuild = true
+		} else {
+			if (this.contextCacheNeedsRebuild) {
+				this.contextWindowManager.clearCachedChunks()
+				this.contextCacheRegisteredMessageKeys.clear()
+			}
+			this.contextWindowManager.updateOptions(options)
 		}
 
-		this.contextWindowManager.updateOptions(options)
+		if (this.contextCacheNeedsRebuild) {
+			this.rebuildContextCacheFromApiConversationHistory()
+		}
 	}
 
 	public getContextWindowManager(): ContextWindowManager | undefined {
 		return this.contextWindowManager
 	}
 
-	public registerContextChunk(input: RegisterContextChunkInput): void {
-		this.contextWindowManager?.registerChunk({
-			...input,
-			metadata: {
-				taskId: this.taskId,
-				...input.metadata,
+	public registerContextChunk(
+		input: RegisterContextChunkInput,
+		options: ContextChunkRegistrationOptions = {},
+	): ContextChunk | undefined {
+		return this.contextWindowManager?.registerChunk(
+			{
+				...input,
+				metadata: {
+					taskId: this.taskId,
+					...input.metadata,
+				},
 			},
-		})
+			options,
+		)
 	}
 
 	public getContextCacheStats(): ContextCacheStats {
@@ -1043,6 +1070,18 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		return readApiMessages({ taskId: this.taskId, globalStoragePath: this.globalStoragePath })
 	}
 
+	private setApiConversationHistory(newHistory: ApiMessage[]): void {
+		this.apiConversationHistory = newHistory
+		this.contextCacheNeedsRebuild = true
+		this.rebuildContextCacheFromApiConversationHistory()
+	}
+
+	private async loadSavedApiConversationHistory(): Promise<ApiMessage[]> {
+		const savedHistory = await this.getSavedApiConversationHistory()
+		this.setApiConversationHistory(savedHistory)
+		return savedHistory
+	}
+
 	private async addToApiConversationHistory(message: Anthropic.MessageParam, reasoning?: string) {
 		// Capture the encrypted_content / thought signatures from the provider (e.g., OpenAI Responses API, Google GenAI) if present.
 		// We only persist data reported by the current response body.
@@ -1050,6 +1089,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			getResponseId?: () => string | undefined
 			getEncryptedContent?: () => { encrypted_content: string; id?: string } | undefined
 			getThoughtSignature?: () => string | undefined
+			getThinkingBlocks?: () => Anthropic.Messages.ContentBlockParam[] | undefined
 			getSummary?: () => any[] | undefined
 			getReasoningDetails?: () => any[] | undefined
 		}
@@ -1058,6 +1098,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			const responseId = handler.getResponseId?.()
 			const reasoningData = handler.getEncryptedContent?.()
 			const thoughtSignature = handler.getThoughtSignature?.()
+			const thinkingBlocks = handler.getThinkingBlocks?.()
 			const reasoningSummary = handler.getSummary?.()
 			const reasoningDetails = handler.getReasoningDetails?.()
 
@@ -1071,6 +1112,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				modelId,
 			)
 			const isAnthropicProtocol = apiProtocol === "anthropic"
+			const shouldPreserveReasoningContent =
+				apiProvider === "deepseek" && (this.api as any).getModel?.()?.info?.preserveReasoning === true
 
 			// Start from the original assistant message
 			const messageWithTs: any = {
@@ -1084,9 +1127,32 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				messageWithTs.reasoning_details = reasoningDetails
 			}
 
+			if (apiProvider === "deepseek" && shouldPreserveReasoningContent && reasoning) {
+				messageWithTs.reasoning_content = reasoning
+			}
+
 			// Store reasoning: Anthropic thinking (with signature), plain text (most providers), or encrypted (OpenAI Native)
 			// Skip if reasoning_details already contains the reasoning (to avoid duplication)
-			if (isAnthropicProtocol && reasoning && thoughtSignature && !reasoningDetails) {
+			if (isAnthropicProtocol && thinkingBlocks?.length && !reasoningDetails) {
+				const hasExistingThinkingBlock = Array.isArray(messageWithTs.content)
+					? messageWithTs.content.some(
+							(block: any) => block?.type === "thinking" || block?.type === "redacted_thinking",
+						)
+					: false
+
+				if (!hasExistingThinkingBlock) {
+					if (typeof messageWithTs.content === "string") {
+						messageWithTs.content = [
+							...thinkingBlocks,
+							{ type: "text", text: messageWithTs.content } satisfies Anthropic.Messages.TextBlockParam,
+						]
+					} else if (Array.isArray(messageWithTs.content)) {
+						messageWithTs.content = [...thinkingBlocks, ...messageWithTs.content]
+					} else if (!messageWithTs.content) {
+						messageWithTs.content = [...thinkingBlocks]
+					}
+				}
+			} else if (isAnthropicProtocol && reasoning && thoughtSignature && !reasoningDetails) {
 				// Anthropic provider with extended thinking: Store as proper `thinking` block
 				// This format passes through anthropic-filter.ts and is properly round-tripped
 				// for interleaved thinking with tool use (required by Anthropic API)
@@ -1206,19 +1272,48 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		await this.saveApiConversationHistory()
 	}
 
-	private registerConversationTurnChunk(message: ApiMessage): void {
-		if (!message.ts) {
+	private registerConversationTurnChunk(message: ApiMessage, options: ContextChunkRegistrationOptions = {}): void {
+		if (typeof message.ts !== "number") {
 			return
 		}
 
-		this.registerContextChunk({
-			type: "conversation_turn",
-			content: this.stringifyApiMessageForContextCache(message),
-			metadata: {
-				role: message.role,
-				messageTimestamps: [message.ts],
+		const content = this.stringifyApiMessageForContextCache(message)
+		const cacheKey = `${message.ts}:${message.role ?? "message"}:${content}`
+		if (this.contextCacheRegisteredMessageKeys.has(cacheKey)) {
+			return
+		}
+
+		const chunk = this.registerContextChunk(
+			{
+				type: "conversation_turn",
+				content,
+				metadata: {
+					role: message.role,
+					messageTimestamps: [message.ts],
+				},
 			},
-		})
+			options,
+		)
+
+		if (chunk) {
+			this.contextCacheRegisteredMessageKeys.add(cacheKey)
+		}
+	}
+
+	private rebuildContextCacheFromApiConversationHistory(): void {
+		if (!this.contextWindowManager) {
+			this.contextCacheNeedsRebuild = true
+			return
+		}
+
+		this.contextWindowManager.clearCachedChunks()
+		this.contextCacheRegisteredMessageKeys.clear()
+
+		for (const message of this.apiConversationHistory) {
+			this.registerConversationTurnChunk(message, { recordEvents: false, countSwaps: false })
+		}
+
+		this.contextCacheNeedsRebuild = false
 	}
 
 	private stringifyApiMessageForContextCache(message: ApiMessage): string {
@@ -1239,7 +1334,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	// so rewind/edit behavior can still reference original message boundaries.
 
 	async overwriteApiConversationHistory(newHistory: ApiMessage[]) {
-		this.apiConversationHistory = newHistory
+		this.setApiConversationHistory(newHistory)
 		await this.saveApiConversationHistory()
 	}
 
@@ -2022,6 +2117,20 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		// to ensure tool_use/tool_result pairs are complete in history
 		await this.flushPendingToolResultsToHistory()
 
+		const recentCondenseFailureMessage = this.getRecentCondenseFailureMessage()
+		if (recentCondenseFailureMessage) {
+			await this.say(
+				"condense_context_error",
+				recentCondenseFailureMessage,
+				undefined /* images */,
+				false /* partial */,
+				undefined /* checkpoint */,
+				undefined /* progressStatus */,
+				{ isNonInteractive: true } /* options */,
+			)
+			return
+		}
+
 		const systemPrompt = await this.getSystemPrompt()
 
 		// Get condensing configuration
@@ -2092,6 +2201,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			rooIgnoreController: this.rooIgnoreController,
 		})
 		if (error) {
+			this.recordCondenseFailure(error, errorDetails)
 			await this.say(
 				"condense_context_error",
 				error,
@@ -2103,6 +2213,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			)
 			return
 		}
+		this.clearCondenseFailure()
 		await this.overwriteApiConversationHistory(messages)
 
 		const contextCondense: ContextCondense = {
@@ -2436,7 +2547,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// task, and it was because we were waiting for resume).
 			// This is important in case the user deletes messages without resuming
 			// the task first.
-			this.apiConversationHistory = await this.getSavedApiConversationHistory()
+			await this.loadSavedApiConversationHistory()
 
 			const lastClineMessage = this.clineMessages
 				.slice()
@@ -2465,7 +2576,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			// Make sure that the api conversation history can be resumed by the API,
 			// even if it goes out of sync with cline messages.
-			let existingApiConversationHistory: ApiMessage[] = await this.getSavedApiConversationHistory()
+			let existingApiConversationHistory: ApiMessage[] = this.apiConversationHistory
 
 			// Tool blocks are always preserved; native tool calling only.
 
@@ -2828,6 +2939,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	public async restoreClineMessagesFromHistory(): Promise<void> {
 		this.clineMessages = await this.getSavedClineMessages()
+		await this.loadSavedApiConversationHistory()
 		restoreTodoListForTask(this)
 	}
 
@@ -2870,7 +2982,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		// Load conversation history if not already loaded
 		if (this.apiConversationHistory.length === 0) {
-			this.apiConversationHistory = await this.getSavedApiConversationHistory()
+			await this.loadSavedApiConversationHistory()
 		}
 
 		// Add environment details to the existing last user message (which contains the tool_result)
@@ -4405,6 +4517,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		const { contextTokens } = this.getTokenUsage()
 		const modelInfo = this.api.getModel().info
+		this.configureContextWindowManager(state, modelInfo)
 
 		const maxTokens = getModelMaxOutputTokens({
 			modelId: this.api.getModel().id,
@@ -4460,6 +4573,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		try {
+			const shouldSkipAutoCondense = Boolean(this.getRecentCondenseFailureMessage())
 			// Generate environment details to include in the condensed summary
 			const environmentDetails = await getEnvironmentDetails(this, true)
 
@@ -4470,7 +4584,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				maxTokens,
 				contextWindow,
 				apiHandler: this.api,
-				autoCondenseContext: true,
+				autoCondenseContext: !shouldSkipAutoCondense,
 				autoCondenseContextPercent: FORCED_CONTEXT_REDUCTION_PERCENT,
 				systemPrompt: await this.getSystemPrompt(),
 				taskId: this.taskId,
@@ -4478,13 +4592,19 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				currentProfileId,
 				metadata,
 				environmentDetails,
+				contextWindowManager: this.contextWindowManager,
 			})
 
 			if (truncateResult.messages !== this.apiConversationHistory) {
 				await this.overwriteApiConversationHistory(truncateResult.messages)
 			}
 
+			if (truncateResult.error) {
+				this.recordCondenseFailure(truncateResult.error, truncateResult.errorDetails)
+			}
+
 			if (truncateResult.summary) {
+				this.clearCondenseFailure()
 				const { summary, cost, prevContextTokens, newContextTokens = 0 } = truncateResult
 				const contextCondense: ContextCondense = { summary, cost, newContextTokens, prevContextTokens }
 				await this.say(
@@ -4517,6 +4637,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					contextTruncation,
 				)
 			}
+			await this.emitContextCacheEvents()
 		} finally {
 			// Notify webview that context management is complete (removes in-progress spinner)
 			// IMPORTANT: Must always be sent to dismiss the spinner, even on error
@@ -4624,11 +4745,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					: await this.api.countTokens([{ type: "text", text: lastMessageContent as string }])
 			}
 
+			const shouldSkipAutoCondense = Boolean(this.getRecentCondenseFailureMessage())
+			const autoCondenseContextForRequest = autoCondenseContext && !shouldSkipAutoCondense
+
 			const contextManagementWillRun = willManageContext({
 				totalTokens: contextTokens,
 				contextWindow,
 				maxTokens,
-				autoCondenseContext,
+				autoCondenseContext: autoCondenseContextForRequest,
 				autoCondenseContextPercent,
 				profileThresholds,
 				currentProfileId,
@@ -4638,7 +4762,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// Send condenseTaskContextStarted BEFORE manageContext to show in-progress indicator
 			// This notification must be sent here (not earlier) because the early check uses stale token count
 			// (before user message is added to history), which could incorrectly skip showing the indicator
-			if (contextManagementWillRun && autoCondenseContext) {
+			if (contextManagementWillRun && autoCondenseContextForRequest) {
 				await this.providerRef
 					.deref()
 					?.postMessageToWebview({ type: "condenseTaskContextStarted", text: this.taskId })
@@ -4692,7 +4816,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			// Get files read by Roo for code folding - only when context management will run
 			const contextMgmtFilesReadByRoo =
-				contextManagementWillRun && autoCondenseContext
+				contextManagementWillRun && autoCondenseContextForRequest
 					? await this.getFilesReadByRooSafely("attemptApiRequest")
 					: undefined
 
@@ -4703,7 +4827,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					maxTokens,
 					contextWindow,
 					apiHandler: this.api,
-					autoCondenseContext,
+					autoCondenseContext: autoCondenseContextForRequest,
 					autoCondenseContextPercent,
 					systemPrompt,
 					taskId: this.taskId,
@@ -4721,9 +4845,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					await this.overwriteApiConversationHistory(truncateResult.messages)
 				}
 				if (truncateResult.error) {
+					this.recordCondenseFailure(truncateResult.error, truncateResult.errorDetails)
 					await this.say("condense_context_error", truncateResult.error)
 				}
 				if (truncateResult.summary) {
+					this.clearCondenseFailure()
 					const { summary, cost, prevContextTokens, newContextTokens = 0, condenseId } = truncateResult
 					const contextCondense: ContextCondense = {
 						summary,
@@ -4767,7 +4893,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				// Notify webview that context management is complete (sets isCondensing = false)
 				// This removes the in-progress spinner and allows the completed result to show
 				// IMPORTANT: Must always be sent to dismiss the spinner, even on error
-				if (contextManagementWillRun && autoCondenseContext) {
+				if (contextManagementWillRun && autoCondenseContextForRequest) {
 					await this.providerRef
 						.deref()
 						?.postMessageToWebview({ type: "condenseTaskContextResponse", text: this.taskId })
@@ -4787,6 +4913,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const messagesWithoutImages = maybeRemoveImageBlocks(mergedForApi, this.api)
 		const cleanConversationHistory = this.buildCleanConversationHistory(messagesWithoutImages as ApiMessage[])
 		let requestConversationHistory: typeof cleanConversationHistory = cleanConversationHistory
+		const contextCacheRecallHint = this.contextWindowManager?.getRecallHint()
+		if (contextCacheRecallHint) {
+			requestConversationHistory = appendMemoryPromptToLastUserMessage(
+				requestConversationHistory,
+				contextCacheRecallHint,
+			)
+		}
 		try {
 			const memoryPrompt = await buildMemoryPromptForRequest({
 				globalStoragePath: this.globalStoragePath,
@@ -4800,7 +4933,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				rooIgnoreController: this.rooIgnoreController,
 				contextTokens,
 			})
-			requestConversationHistory = appendMemoryPromptToLastUserMessage(cleanConversationHistory, memoryPrompt)
+			requestConversationHistory = appendMemoryPromptToLastUserMessage(requestConversationHistory, memoryPrompt)
 		} catch (error) {
 			console.warn(
 				`[Task#${this.taskId}] Failed to build ephemeral memory context: ${
@@ -5090,6 +5223,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		const cleanConversationHistory: (Anthropic.Messages.MessageParam | ReasoningItemForRequest)[] = []
+		const shouldPreserveReasoningContent =
+			this.apiConfiguration.apiProvider === "deepseek" &&
+			(this.api as any).getModel?.()?.info?.preserveReasoning === true
 
 		for (const msg of messages) {
 			// Standalone reasoning: send encrypted, skip plain text
@@ -5121,6 +5257,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 				// Check if this message has reasoning_details (OpenRouter format for Gemini 3, etc.)
 				const msgWithDetails = msg
+				const topLevelReasoningContent =
+					shouldPreserveReasoningContent && typeof msg.reasoning_content === "string"
+						? msg.reasoning_content
+						: undefined
+
 				if (msgWithDetails.reasoning_details && Array.isArray(msgWithDetails.reasoning_details)) {
 					// Build the assistant message with reasoning_details
 					let assistantContent: Anthropic.Messages.MessageParam["content"]
@@ -5138,6 +5279,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						role: "assistant",
 						content: assistantContent,
 						reasoning_details: msgWithDetails.reasoning_details,
+						...(topLevelReasoningContent ? { reasoning_content: topLevelReasoningContent } : {}),
 					} as any)
 
 					continue
@@ -5174,6 +5316,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					cleanConversationHistory.push({
 						role: "assistant",
 						content: assistantContent,
+						...(topLevelReasoningContent ? { reasoning_content: topLevelReasoningContent } : {}),
 					} satisfies Anthropic.Messages.MessageParam)
 
 					continue
@@ -5181,7 +5324,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					// Check if the model's preserveReasoning flag is set
 					// If true, include the reasoning block in API requests
 					// If false/undefined, strip it out (stored for history only, not sent back to API)
-					const shouldPreserveForApi = this.api.getModel().info.preserveReasoning === true
+					const shouldPreserveForApi = shouldPreserveReasoningContent
 					let assistantContent: Anthropic.Messages.MessageParam["content"]
 
 					if (shouldPreserveForApi) {
@@ -5201,6 +5344,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					cleanConversationHistory.push({
 						role: "assistant",
 						content: assistantContent,
+						...(topLevelReasoningContent ? { reasoning_content: topLevelReasoningContent } : {}),
 					} satisfies Anthropic.Messages.MessageParam)
 
 					continue
@@ -5212,6 +5356,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				cleanConversationHistory.push({
 					role: msg.role,
 					content: msg.content as Anthropic.Messages.ContentBlockParam[] | string,
+					...(msg.role === "assistant" &&
+					shouldPreserveReasoningContent &&
+					typeof msg.reasoning_content === "string"
+						? { reasoning_content: msg.reasoning_content }
+						: {}),
 				})
 			}
 		}
@@ -5270,8 +5419,62 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		if (error) {
 			this.emit(RooCodeEventName.TaskToolFailed, this.taskId, toolName, error)
-			this.queueMistakeMemoryFromToolError(toolName, error, source)
+			if (this.shouldQueueMistakeMemoryFromToolError(error, source)) {
+				this.queueMistakeMemoryFromToolError(toolName, error, source)
+			}
 		}
+	}
+
+	private getCondenseFailureSignature(error: string, errorDetails?: string): string {
+		return [error, errorDetails].filter(Boolean).join("\n").toLowerCase().replace(/\s+/g, " ").trim()
+	}
+
+	private isProviderCapacityCondenseError(error: string, errorDetails?: string): boolean {
+		const signature = this.getCondenseFailureSignature(error, errorDetails)
+		return /\b(429|rate limit|usage limit|quota|insufficient_quota|exhausted|too many requests)\b/i.test(signature)
+	}
+
+	private recordCondenseFailure(error: string, errorDetails?: string): void {
+		if (!this.isProviderCapacityCondenseError(error, errorDetails)) {
+			return
+		}
+
+		this.recentCondenseFailure = {
+			failedAt: Date.now(),
+			signature: this.getCondenseFailureSignature(error, errorDetails).slice(0, 500),
+			message: error,
+		}
+	}
+
+	private clearCondenseFailure(): void {
+		this.recentCondenseFailure = undefined
+	}
+
+	private getRecentCondenseFailureMessage(): string | undefined {
+		if (!this.recentCondenseFailure) {
+			return undefined
+		}
+
+		if (Date.now() - this.recentCondenseFailure.failedAt > CONDENSE_FAILURE_COOLDOWN_MS) {
+			this.clearCondenseFailure()
+			return undefined
+		}
+
+		return `Skipping context condensing because the previous condense request recently failed with a provider capacity error: ${this.recentCondenseFailure.message}. Falling back to sliding-window truncation when needed until the cooldown expires.`
+	}
+
+	private shouldQueueMistakeMemoryFromToolError(
+		error: string,
+		source: "tool_error" | "validation_error" = "tool_error",
+	): boolean {
+		if (source !== "validation_error") {
+			return true
+		}
+
+		return !(
+			/Tool "[^"]+" is not allowed in .+ mode\./i.test(error) ||
+			/can only edit files matching pattern:/i.test(error)
+		)
 	}
 
 	public async drainQueuedMistakeMemories(options: MistakeMemoryDrainOptions = {}): Promise<void> {

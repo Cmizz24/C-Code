@@ -458,6 +458,24 @@ describe("reasoning.ts", () => {
 
 			expect(result).toBeUndefined()
 		})
+
+		it("should request summarized display for adaptive Anthropic reasoning", () => {
+			const adaptiveModel: ModelInfo = {
+				...baseModel,
+				supportsReasoningAdaptive: true,
+				requiredReasoningEffort: true,
+			}
+
+			const options = {
+				...baseOptions,
+				model: adaptiveModel,
+				reasoningEffort: "high" as const,
+			}
+
+			const result = getAnthropicReasoning(options)
+
+			expect(result).toEqual({ type: "adaptive", display: "summarized" })
+		})
 	})
 
 	describe("getOpenAiReasoning", () => {

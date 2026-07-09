@@ -30,6 +30,8 @@ import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from ".
 export class AnthropicVertexHandler extends BaseProvider implements SingleCompletionHandler {
 	protected options: ApiHandlerOptions
 	private client: AnthropicVertex
+	private thinkingBlocks = new Map<number, any>()
+	private lastThoughtSignature?: string
 
 	constructor(options: ApiHandlerOptions) {
 		super()
@@ -68,6 +70,9 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 		messages: Anthropic.Messages.MessageParam[],
 		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
+		this.thinkingBlocks.clear()
+		this.lastThoughtSignature = undefined
+
 		let { id, info, temperature, maxTokens, reasoning: thinking, reasoningEffort } = this.getModel()
 
 		const { supportsPromptCache } = info
@@ -154,11 +159,28 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 							break
 						}
 						case "thinking": {
+							this.upsertThinkingBlock(chunk.index!, {
+								type: "thinking",
+								thinking: (chunk.content_block as any).thinking ?? "",
+								...((chunk.content_block as any).signature
+									? { signature: (chunk.content_block as any).signature }
+									: {}),
+							})
+
 							if (chunk.index! > 0) {
 								yield { type: "reasoning", text: "\n" }
 							}
 
-							yield { type: "reasoning", text: (chunk.content_block as any).thinking }
+							if ((chunk.content_block as any).thinking) {
+								yield { type: "reasoning", text: (chunk.content_block as any).thinking }
+							}
+							break
+						}
+						case "redacted_thinking": {
+							this.upsertThinkingBlock(chunk.index!, {
+								type: "redacted_thinking",
+								data: (chunk.content_block as any).data ?? "",
+							})
 							break
 						}
 						case "tool_use": {
@@ -177,13 +199,25 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 					break
 				}
 				case "content_block_delta": {
-					switch (chunk.delta!.type) {
+					const contentBlockIndex = (chunk as any).index ?? 0
+					switch ((chunk.delta as any).type) {
 						case "text_delta": {
-							yield { type: "text", text: chunk.delta!.text }
+							yield { type: "text", text: (chunk.delta as any).text }
 							break
 						}
 						case "thinking_delta": {
-							yield { type: "reasoning", text: (chunk.delta as any).thinking }
+							this.appendThinkingDelta(contentBlockIndex, (chunk.delta as any).thinking ?? "")
+							if ((chunk.delta as any).thinking) {
+								yield { type: "reasoning", text: (chunk.delta as any).thinking }
+							}
+							break
+						}
+						case "signature_delta": {
+							this.setThinkingSignature(contentBlockIndex, (chunk.delta as any).signature)
+							break
+						}
+						case "redacted_thinking_delta": {
+							this.appendRedactedThinkingDelta(contentBlockIndex, (chunk.delta as any).data ?? "")
 							break
 						}
 						case "input_json_delta": {
@@ -210,6 +244,59 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 				}
 			}
 		}
+	}
+
+	private upsertThinkingBlock(index: number, block: any) {
+		this.thinkingBlocks.set(index, block)
+		if (block.type === "thinking" && block.signature) {
+			this.lastThoughtSignature = block.signature
+		}
+	}
+
+	private appendThinkingDelta(index: number, thinking: string) {
+		const existing = this.thinkingBlocks.get(index)
+		if (existing?.type === "thinking") {
+			existing.thinking = `${existing.thinking ?? ""}${thinking}`
+			return
+		}
+
+		this.thinkingBlocks.set(index, { type: "thinking", thinking })
+	}
+
+	private appendRedactedThinkingDelta(index: number, data: string) {
+		const existing = this.thinkingBlocks.get(index)
+		if (existing?.type === "redacted_thinking") {
+			existing.data = `${existing.data ?? ""}${data}`
+			return
+		}
+
+		this.thinkingBlocks.set(index, { type: "redacted_thinking", data })
+	}
+
+	private setThinkingSignature(index: number, signature?: string) {
+		if (!signature) {
+			return
+		}
+
+		const existing = this.thinkingBlocks.get(index)
+		if (existing?.type === "thinking") {
+			existing.signature = signature
+		} else {
+			this.thinkingBlocks.set(index, { type: "thinking", thinking: "", signature })
+		}
+		this.lastThoughtSignature = signature
+	}
+
+	getThoughtSignature(): string | undefined {
+		return this.lastThoughtSignature
+	}
+
+	getThinkingBlocks(): Anthropic.Messages.ContentBlockParam[] | undefined {
+		const blocks = Array.from(this.thinkingBlocks.entries())
+			.sort(([a], [b]) => a - b)
+			.map(([, block]) => ({ ...block }))
+
+		return blocks.length > 0 ? (blocks as Anthropic.Messages.ContentBlockParam[]) : undefined
 	}
 
 	getModel() {

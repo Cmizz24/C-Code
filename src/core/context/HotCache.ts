@@ -40,6 +40,11 @@ export class HotCache {
 		return existing
 	}
 
+	clear(): void {
+		this.chunks.clear()
+		this.tokenCount = 0
+	}
+
 	get(id: string): ContextChunk | undefined {
 		const chunk = this.chunks.get(id)
 		if (!chunk) {

@@ -2,7 +2,7 @@ import type OpenAI from "openai"
 
 const ASK_FOR_CONTEXT_DESCRIPTION = `Search Roo's in-memory cold context cache for information that was previously swapped out of the active context window. This returns up to three matching context chunks verbatim and promotes those chunks back into hot context.
 
-Use this when you need details that may have been evicted from the current prompt, such as earlier file contents, command output, diffs, error logs, or conversation turns. This searches only the current task's RAM cache; it does not read files from disk or search long-term memory.
+Use this when you see a cold context cache hint, need details that may have been evicted from the current prompt, or are about to answer from memory after context pressure/condensing. Prefer focused queries with filenames, symbols, error text, or user-request terms; include filePath when the missing detail is tied to one file. Recalled chunks are promoted back into hot context so subsequent requests can reuse them. This searches only the current task's RAM cache; it does not read files from disk or search long-term memory.
 
 Parameters:
 - query: (required) Natural language query describing the context to retrieve.

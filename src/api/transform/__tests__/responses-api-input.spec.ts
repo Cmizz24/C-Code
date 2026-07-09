@@ -73,8 +73,12 @@ describe("convertToResponsesApiInput", () => {
 			])
 		})
 
-		it("should convert tool_result to function_call_output", () => {
+		it("should convert paired tool_result to function_call_output", () => {
 			const messages: Anthropic.Messages.MessageParam[] = [
+				{
+					role: "assistant",
+					content: [{ type: "tool_use", id: "tool_123", name: "read_file", input: { path: "test.txt" } }],
+				},
 				{
 					role: "user",
 					content: [
@@ -91,6 +95,12 @@ describe("convertToResponsesApiInput", () => {
 
 			expect(result).toEqual([
 				{
+					type: "function_call",
+					call_id: "tool_123",
+					name: "read_file",
+					arguments: '{"path":"test.txt"}',
+				},
+				{
 					type: "function_call_output",
 					call_id: "tool_123",
 					output: "Result text",
@@ -100,6 +110,10 @@ describe("convertToResponsesApiInput", () => {
 
 		it("should use (empty) for empty tool_result content", () => {
 			const messages: Anthropic.Messages.MessageParam[] = [
+				{
+					role: "assistant",
+					content: [{ type: "tool_use", id: "tool_123", name: "read_file", input: {} }],
+				},
 				{
 					role: "user",
 					content: [
@@ -116,6 +130,12 @@ describe("convertToResponsesApiInput", () => {
 
 			expect(result).toEqual([
 				{
+					type: "function_call",
+					call_id: "tool_123",
+					name: "read_file",
+					arguments: "{}",
+				},
+				{
 					type: "function_call_output",
 					call_id: "tool_123",
 					output: "(empty)",
@@ -125,6 +145,10 @@ describe("convertToResponsesApiInput", () => {
 
 		it("should extract text from array tool_result content", () => {
 			const messages: Anthropic.Messages.MessageParam[] = [
+				{
+					role: "assistant",
+					content: [{ type: "tool_use", id: "tool_123", name: "read_file", input: {} }],
+				},
 				{
 					role: "user",
 					content: [
@@ -144,6 +168,12 @@ describe("convertToResponsesApiInput", () => {
 
 			expect(result).toEqual([
 				{
+					type: "function_call",
+					call_id: "tool_123",
+					name: "read_file",
+					arguments: "{}",
+				},
+				{
 					type: "function_call_output",
 					call_id: "tool_123",
 					output: "Line 1\nLine 2",
@@ -153,6 +183,10 @@ describe("convertToResponsesApiInput", () => {
 
 		it("should flush pending user content before tool_result", () => {
 			const messages: Anthropic.Messages.MessageParam[] = [
+				{
+					role: "assistant",
+					content: [{ type: "tool_use", id: "tool_123", name: "read_file", input: {} }],
+				},
 				{
 					role: "user",
 					content: [
@@ -169,9 +203,30 @@ describe("convertToResponsesApiInput", () => {
 			const result = convertToResponsesApiInput(messages)
 
 			expect(result).toEqual([
+				{ type: "function_call", call_id: "tool_123", name: "read_file", arguments: "{}" },
 				{ role: "user", content: [{ type: "input_text", text: "Here is context" }] },
 				{ type: "function_call_output", call_id: "tool_123", output: "Done" },
 			])
+		})
+
+		it("should drop orphan tool_result blocks while preserving user text", () => {
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: "Here is context" },
+						{
+							type: "tool_result",
+							tool_use_id: "missing_call",
+							content: "Done",
+						},
+					],
+				},
+			]
+
+			const result = convertToResponsesApiInput(messages)
+
+			expect(result).toEqual([{ role: "user", content: [{ type: "input_text", text: "Here is context" }] }])
 		})
 	})
 

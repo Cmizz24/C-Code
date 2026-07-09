@@ -27,13 +27,11 @@ const deepSeekV4FlashPricing = {
 } as const satisfies Partial<ModelInfo>
 
 const deepSeekV4ProPricing = {
-	// Current official promotional pricing through 2026-05-31 15:59 UTC.
-	// The same pricing page lists the scheduled post-promotion prices as
-	// cache hit $0.0145, cache miss $1.74, output $3.48 per 1M tokens.
-	inputPrice: 0.435,
-	outputPrice: 0.87,
-	cacheWritesPrice: 0.435,
-	cacheReadsPrice: 0.003625,
+	// Post-promotion list pricing (75% off promo ended 2026-05-31 15:59 UTC).
+	inputPrice: 1.74,
+	outputPrice: 3.48,
+	cacheWritesPrice: 1.74,
+	cacheReadsPrice: 0.0145,
 } as const satisfies Partial<ModelInfo>
 
 const deepSeekV4FlashInfo = {
@@ -58,7 +56,7 @@ export const deepSeekModels = {
 		...DEEP_SEEK_V4_REASONING,
 		...deepSeekV4ProPricing,
 		description:
-			"DeepSeek-V4-Pro: flagship DeepSeek V4 model with 1M context, 384K maximum output, thinking/non-thinking modes, JSON output, tool calls, chat prefix completion (beta), and non-thinking FIM completion (beta).",
+			"DeepSeek-V4-Pro: flagship DeepSeek V4 model with 1M context, 384K maximum output, thinking/non-thinking modes, JSON output, tool calls, chat prefix completion (beta), and non-thinking FIM completion (beta). Post-promotion list pricing as of 2026-06-01.",
 	},
 	"deepseek-v4-flash": {
 		...deepSeekV4FlashInfo,

@@ -15,6 +15,8 @@ describe("ask_for_context native tool", () => {
 		expect(functionDef.name).toBe("ask_for_context")
 		expect(functionDef.strict).toBe(true)
 		expect(functionDef.description).toContain("up to three matching context chunks verbatim")
+		expect(functionDef.description).toContain("cold context cache hint")
+		expect(functionDef.description).toContain("promoted back into hot context")
 		expect(schema.required).toContain("query")
 		expect(schema.properties.query.type).toBe("string")
 		expect(schema.properties.filePath.type).toEqual(["string", "null"])

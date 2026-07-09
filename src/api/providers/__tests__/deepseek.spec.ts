@@ -216,10 +216,10 @@ describe("DeepSeekHandler", () => {
 			expect(model.info.reasoningEffort).toBe("high")
 			expect(model.info.requiredReasoningEffort).toBe(true)
 			expect(model.info.preserveReasoning).toBe(true)
-			expect(model.info.inputPrice).toBe(0.435)
-			expect(model.info.outputPrice).toBe(0.87)
-			expect(model.info.cacheWritesPrice).toBe(0.435)
-			expect(model.info.cacheReadsPrice).toBe(0.003625)
+			expect(model.info.inputPrice).toBe(1.74)
+			expect(model.info.outputPrice).toBe(3.48)
+			expect(model.info.cacheWritesPrice).toBe(1.74)
+			expect(model.info.cacheReadsPrice).toBe(0.0145)
 		})
 
 		it("should return current V4 Flash model info", () => {
@@ -717,6 +717,55 @@ describe("DeepSeekHandler", () => {
 			const toolCallChunks = chunks.filter((chunk) => chunk.type === "tool_call_partial")
 			expect(toolCallChunks.length).toBeGreaterThan(0)
 			expect(toolCallChunks[0].name).toBe("get_weather")
+		})
+
+		it("should include blank reasoning_content for thinking-mode assistant tool calls when history lacks it", async () => {
+			const thinkingHandler = new DeepSeekHandler({
+				...mockOptions,
+				apiModelId: "deepseek-v4-pro",
+			})
+
+			const stream = thinkingHandler.createMessage(systemPrompt, [
+				{ role: "user", content: "Read the file" },
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: "call_123",
+							name: "read_file",
+							input: { path: "README.md" },
+						},
+					],
+				} as Anthropic.Messages.MessageParam,
+				{
+					role: "user",
+					content: [{ type: "tool_result", tool_use_id: "call_123", content: "# README" }],
+				},
+			])
+
+			for await (const _chunk of stream) {
+				// Consume the stream so the request is sent.
+			}
+
+			const callArgs = mockCreate.mock.calls[0][0]
+			const assistantToolCallMessage = callArgs.messages.find((message: any) => message.role === "assistant")
+
+			expect(assistantToolCallMessage).toMatchObject({
+				role: "assistant",
+				content: null,
+				reasoning_content: "",
+				tool_calls: [
+					{
+						id: "call_123",
+						type: "function",
+						function: {
+							name: "read_file",
+							arguments: '{"path":"README.md"}',
+						},
+					},
+				],
+			})
 		})
 	})
 })

@@ -9,6 +9,7 @@ export const sambaNovaModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.6,
 		outputPrice: 1.2,
+		subscriptionBased: true,
 		description: "Meta Llama 3.3 70B Instruct on SambaNova with 128K context.",
 	},
 	"DeepSeek-V3.1": {
@@ -18,6 +19,7 @@ export const sambaNovaModels = {
 		supportsPromptCache: false,
 		inputPrice: 3,
 		outputPrice: 4.5,
+		subscriptionBased: true,
 		description: "DeepSeek V3.1 on SambaNova with 128K context.",
 	},
 	"DeepSeek-V3.2": {
@@ -27,6 +29,7 @@ export const sambaNovaModels = {
 		supportsPromptCache: false,
 		inputPrice: 3,
 		outputPrice: 4.5,
+		subscriptionBased: true,
 		description: "DeepSeek V3.2 on SambaNova with 32K context.",
 	},
 	"Llama-4-Maverick-17B-128E-Instruct": {
@@ -36,6 +39,7 @@ export const sambaNovaModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.63,
 		outputPrice: 1.8,
+		subscriptionBased: true,
 		description: "Meta Llama 4 Maverick 17B 128E Instruct on SambaNova with 128K context.",
 	},
 	"MiniMax-M2.7": {
@@ -45,6 +49,7 @@ export const sambaNovaModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.6,
 		outputPrice: 2.4,
+		subscriptionBased: true,
 		description: "MiniMax M2.7 on SambaNova with 196K context.",
 	},
 	"gemma-3-12b-it": {
@@ -54,6 +59,7 @@ export const sambaNovaModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.35,
 		outputPrice: 0.59,
+		subscriptionBased: true,
 		description: "Gemma 3 12B IT on SambaNova with 128K context.",
 	},
 	"gemma-4-31B-it": {
@@ -63,6 +69,7 @@ export const sambaNovaModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.38,
 		outputPrice: 1.15,
+		subscriptionBased: true,
 		description: "Gemma 4 31B IT on SambaNova with 128K context.",
 	},
 	"gpt-oss-120b": {
@@ -72,6 +79,7 @@ export const sambaNovaModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.22,
 		outputPrice: 0.59,
+		subscriptionBased: true,
 		description: "OpenAI gpt-oss-120b on SambaNova with 128K context.",
 	},
 	"Meta-Llama-3.1-8B-Instruct": {
@@ -82,6 +90,7 @@ export const sambaNovaModels = {
 		inputPrice: 0.1,
 		outputPrice: 0.2,
 		deprecated: true,
+		subscriptionBased: true,
 		description: "Deprecated Meta Llama 3.1 8B Instruct SambaNova entry retained for existing configurations.",
 	},
 	"DeepSeek-R1": {
@@ -93,6 +102,7 @@ export const sambaNovaModels = {
 		inputPrice: 5,
 		outputPrice: 7,
 		deprecated: true,
+		subscriptionBased: true,
 		description: "Deprecated DeepSeek R1 SambaNova entry retained for existing configurations.",
 	},
 	"DeepSeek-V3-0324": {
@@ -103,6 +113,7 @@ export const sambaNovaModels = {
 		inputPrice: 3,
 		outputPrice: 4.5,
 		deprecated: true,
+		subscriptionBased: true,
 		description: "Deprecated DeepSeek V3 0324 SambaNova entry retained for existing configurations.",
 	},
 	"Qwen3-32B": {
@@ -113,6 +124,7 @@ export const sambaNovaModels = {
 		inputPrice: 0.4,
 		outputPrice: 0.8,
 		deprecated: true,
+		subscriptionBased: true,
 		description: "Deprecated Qwen3 32B SambaNova entry retained for existing configurations.",
 	},
 } as const satisfies Record<string, ModelInfo>

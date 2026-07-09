@@ -4,7 +4,7 @@ import * as vscode from "vscode"
 
 import { GLOBAL_STATE_KEYS, SECRET_STATE_KEYS, GLOBAL_SECRET_KEYS } from "@roo-code/types"
 
-import { ContextProxy } from "../ContextProxy"
+import { ContextProxy, isWorkspaceScopedKey, WORKSPACE_SCOPED_KEYS } from "../ContextProxy"
 
 vi.mock("vscode", () => ({
 	Uri: {
@@ -22,6 +22,7 @@ describe("ContextProxy", () => {
 	let mockContext: any
 	let mockGlobalState: any
 	let mockSecrets: any
+	let mockWorkspaceState: any
 
 	beforeEach(async () => {
 		// Reset mocks
@@ -40,10 +41,17 @@ describe("ContextProxy", () => {
 			delete: vi.fn().mockResolvedValue(undefined),
 		}
 
+		// Mock workspaceState (per-workspace storage)
+		mockWorkspaceState = {
+			get: vi.fn().mockReturnValue(undefined),
+			update: vi.fn().mockResolvedValue(undefined),
+		}
+
 		// Mock the extension context
 		mockContext = {
 			globalState: mockGlobalState,
 			secrets: mockSecrets,
+			workspaceState: mockWorkspaceState,
 			extensionUri: { path: "/test/extension" },
 			extensionPath: "/test/extension",
 			globalStorageUri: { path: "/test/storage" },
@@ -152,14 +160,15 @@ describe("ContextProxy", () => {
 
 	describe("updateGlobalState", () => {
 		it("should update state directly in original context", async () => {
-			await proxy.updateGlobalState("apiProvider", "deepseek")
+			// Use a non-workspace-scoped key since apiProvider is now workspace-scoped
+			await proxy.updateGlobalState("mode", "code")
 
 			// Should have called original context
-			expect(mockGlobalState.update).toHaveBeenCalledWith("apiProvider", "deepseek")
+			expect(mockGlobalState.update).toHaveBeenCalledWith("mode", "code")
 
 			// Should have stored the value in cache
-			const storedValue = await proxy.getGlobalState("apiProvider")
-			expect(storedValue).toBe("deepseek")
+			const storedValue = await proxy.getGlobalState("mode")
+			expect(storedValue).toBe("code")
 		})
 
 		it("should bypass cache for pass-through state keys", async () => {
@@ -398,9 +407,12 @@ describe("ContextProxy", () => {
 		})
 
 		it("should update all global state keys to undefined", async () => {
-			// Setup initial state
+			// Setup initial state - apiModelId and apiProvider are workspace-scoped
+			// so they go to workspaceState, not globalState
 			await proxy.updateGlobalState("apiModelId", "gpt-4")
 			await proxy.updateGlobalState("apiProvider", "openai")
+			// Use a non-workspace-scoped key for globalState
+			await proxy.updateGlobalState("mode", "code")
 
 			// Reset all state
 			await proxy.resetAllState()
@@ -410,8 +422,8 @@ describe("ContextProxy", () => {
 				expect(mockGlobalState.update).toHaveBeenCalledWith(key, undefined)
 			}
 
-			// Total calls should include initial setup + reset operations
-			const expectedUpdateCalls = 2 + GLOBAL_STATE_KEYS.length
+			// Total calls: 1 setup (mode) + GLOBAL_STATE_KEYS.length (reset)
+			const expectedUpdateCalls = 1 + GLOBAL_STATE_KEYS.length
 			expect(mockGlobalState.update).toHaveBeenCalledTimes(expectedUpdateCalls)
 		})
 
@@ -825,6 +837,243 @@ Output only the summary of the conversation so far, without any additional comme
 				(call: any[]) => call[0] === "customSupportPrompts",
 			)
 			expect(customSupportPromptsUpdateCalls.length).toBe(0)
+		})
+	})
+
+	describe("workspace-scoped state", () => {
+		it("isWorkspaceScopedKey should identify workspace-scoped keys", () => {
+			expect(isWorkspaceScopedKey("currentApiConfigName")).toBe(true)
+			expect(isWorkspaceScopedKey("apiProvider")).toBe(true)
+			expect(isWorkspaceScopedKey("apiModelId")).toBe(true)
+			expect(isWorkspaceScopedKey("modeApiConfigs")).toBe(true)
+			expect(isWorkspaceScopedKey("mode")).toBe(false)
+			expect(isWorkspaceScopedKey("autoApprovalEnabled")).toBe(false)
+			expect(isWorkspaceScopedKey("taskHistory")).toBe(false)
+		})
+
+		it("WORKSPACE_SCOPED_KEYS should contain expected keys", () => {
+			expect(WORKSPACE_SCOPED_KEYS).toContain("currentApiConfigName")
+			expect(WORKSPACE_SCOPED_KEYS).toContain("apiProvider")
+			expect(WORKSPACE_SCOPED_KEYS).toContain("apiModelId")
+			expect(WORKSPACE_SCOPED_KEYS).toContain("modeApiConfigs")
+		})
+
+		it("should load workspace-scoped values from workspaceState on initialization", async () => {
+			vi.clearAllMocks()
+			mockGlobalState.get.mockImplementation((key: string) => {
+				if (key === "apiProvider") return "openai"
+				return undefined
+			})
+			mockWorkspaceState.get.mockImplementation((key: string) => {
+				if (key === "apiProvider") return "anthropic"
+				return undefined
+			})
+			mockSecrets.get.mockResolvedValue(undefined)
+
+			const proxyWithWorkspaceState = new ContextProxy(mockContext)
+			await proxyWithWorkspaceState.initialize()
+
+			// Workspace state should override global state for workspace-scoped keys
+			expect(proxyWithWorkspaceState.getGlobalState("apiProvider")).toBe("anthropic")
+		})
+
+		it("should fall back to global state when workspace state has no value", async () => {
+			vi.clearAllMocks()
+			mockGlobalState.get.mockImplementation((key: string) => {
+				if (key === "apiProvider") return "openai"
+				return undefined
+			})
+			mockWorkspaceState.get.mockReturnValue(undefined)
+			mockSecrets.get.mockResolvedValue(undefined)
+
+			const proxyWithFallback = new ContextProxy(mockContext)
+			await proxyWithFallback.initialize()
+
+			// Should fall back to global state value
+			expect(proxyWithFallback.getGlobalState("apiProvider")).toBe("openai")
+
+			// Should have seeded workspace state with the global value
+			expect(mockWorkspaceState.update).toHaveBeenCalledWith("apiProvider", "openai")
+		})
+
+		it("should route updateGlobalState to workspaceState for workspace-scoped keys", async () => {
+			await proxy.updateGlobalState("apiProvider", "anthropic")
+
+			// Should write to workspaceState, not globalState
+			expect(mockWorkspaceState.update).toHaveBeenCalledWith("apiProvider", "anthropic")
+
+			// Should NOT write to globalState for workspace-scoped keys
+			const globalStateUpdatesForApiProvider = mockGlobalState.update.mock.calls.filter(
+				(call: unknown[]) => call[0] === "apiProvider",
+			)
+			expect(globalStateUpdatesForApiProvider).toHaveLength(0)
+		})
+
+		it("should route updateGlobalState to globalState for non-workspace-scoped keys", async () => {
+			await proxy.updateGlobalState("mode", "code")
+
+			// Should write to globalState (mode is NOT workspace-scoped)
+			expect(mockGlobalState.update).toHaveBeenCalledWith("mode", "code")
+
+			// Should NOT write to workspaceState for non-workspace-scoped keys
+			const workspaceUpdatesForMode = mockWorkspaceState.update.mock.calls.filter(
+				(call: unknown[]) => call[0] === "mode",
+			)
+			expect(workspaceUpdatesForMode).toHaveLength(0)
+		})
+
+		it("should return updated workspace-scoped value after updateGlobalState", async () => {
+			await proxy.updateGlobalState("apiModelId", "gpt-4")
+
+			expect(proxy.getGlobalState("apiModelId")).toBe("gpt-4")
+		})
+
+		it("getWorkspaceState should return workspace-scoped values", async () => {
+			await proxy.updateGlobalState("currentApiConfigName", "my-profile")
+
+			expect(proxy.getWorkspaceState("currentApiConfigName")).toBe("my-profile")
+		})
+
+		it("should include workspace-scoped values in getValues()", async () => {
+			await proxy.updateGlobalState("apiProvider", "anthropic")
+			await proxy.updateGlobalState("apiModelId", "claude-3-opus")
+			await proxy.updateGlobalState("currentApiConfigName", "work-profile")
+
+			const values = proxy.getValues()
+
+			expect(values.apiProvider).toBe("anthropic")
+			expect(values.apiModelId).toBe("claude-3-opus")
+			expect(values.currentApiConfigName).toBe("work-profile")
+		})
+
+		it("should clear workspace-scoped state on resetAllState", async () => {
+			await proxy.updateGlobalState("apiProvider", "anthropic")
+			await proxy.updateGlobalState("currentApiConfigName", "my-profile")
+
+			expect(proxy.getGlobalState("apiProvider")).toBe("anthropic")
+
+			await proxy.resetAllState()
+
+			// Workspace state should have been cleared
+			for (const key of WORKSPACE_SCOPED_KEYS) {
+				expect(mockWorkspaceState.update).toHaveBeenCalledWith(key, undefined)
+			}
+		})
+
+		it("should demonstrate workspace isolation between two proxy instances", async () => {
+			// Simulate two different workspaces by creating two proxies
+			// with separate workspaceState stores
+			const workspace1State: Record<string, unknown> = {}
+			const workspace2State: Record<string, unknown> = {}
+
+			const mockWorkspaceState1 = {
+				get: vi.fn((key: string) => workspace1State[key]),
+				update: vi.fn((key: string, value: unknown) => {
+					workspace1State[key] = value
+					return Promise.resolve()
+				}),
+			}
+
+			const mockWorkspaceState2 = {
+				get: vi.fn((key: string) => workspace2State[key]),
+				update: vi.fn((key: string, value: unknown) => {
+					workspace2State[key] = value
+					return Promise.resolve()
+				}),
+			}
+
+			const mockGlobalState1 = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			}
+
+			const mockGlobalState2 = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			}
+
+			const mockSecrets1 = {
+				get: vi.fn().mockResolvedValue(undefined),
+				store: vi.fn().mockResolvedValue(undefined),
+				delete: vi.fn().mockResolvedValue(undefined),
+			}
+
+			const mockSecrets2 = {
+				get: vi.fn().mockResolvedValue(undefined),
+				store: vi.fn().mockResolvedValue(undefined),
+				delete: vi.fn().mockResolvedValue(undefined),
+			}
+
+			const context1 = {
+				globalState: mockGlobalState1,
+				secrets: mockSecrets1,
+				workspaceState: mockWorkspaceState1,
+				extensionUri: { path: "/test/extension" },
+				extensionPath: "/test/extension",
+				globalStorageUri: { path: "/test/storage" },
+				logUri: { path: "/test/logs" },
+				extension: { packageJSON: { version: "1.0.0" } },
+				extensionMode: vscode.ExtensionMode.Development,
+			}
+
+			const context2 = {
+				globalState: mockGlobalState2,
+				secrets: mockSecrets2,
+				workspaceState: mockWorkspaceState2,
+				extensionUri: { path: "/test/extension" },
+				extensionPath: "/test/extension",
+				globalStorageUri: { path: "/test/storage" },
+				logUri: { path: "/test/logs" },
+				extension: { packageJSON: { version: "1.0.0" } },
+				extensionMode: vscode.ExtensionMode.Development,
+			}
+
+			const proxy1 = new ContextProxy(context1 as any)
+			await proxy1.initialize()
+
+			const proxy2 = new ContextProxy(context2 as any)
+			await proxy2.initialize()
+
+			// Set different providers in each workspace
+			await proxy1.updateGlobalState("apiProvider", "anthropic")
+			await proxy2.updateGlobalState("apiProvider", "openai")
+
+			// Each workspace should have its own value
+			expect(proxy1.getGlobalState("apiProvider")).toBe("anthropic")
+			expect(proxy2.getGlobalState("apiProvider")).toBe("openai")
+
+			// Changing one should NOT affect the other
+			await proxy1.updateGlobalState("currentApiConfigName", "workspace1-profile")
+			await proxy2.updateGlobalState("currentApiConfigName", "workspace2-profile")
+
+			expect(proxy1.getGlobalState("currentApiConfigName")).toBe("workspace1-profile")
+			expect(proxy2.getGlobalState("currentApiConfigName")).toBe("workspace2-profile")
+		})
+
+		it("should not seed workspaceState when global value is undefined", async () => {
+			vi.clearAllMocks()
+			mockGlobalState.get.mockReturnValue(undefined)
+			mockWorkspaceState.get.mockReturnValue(undefined)
+			mockSecrets.get.mockResolvedValue(undefined)
+
+			const proxyWithNoGlobal = new ContextProxy(mockContext)
+			await proxyWithNoGlobal.initialize()
+
+			// Should not attempt to write to workspaceState when global is undefined
+			const workspaceUpdates = mockWorkspaceState.update.mock.calls.filter((call: unknown[]) =>
+				WORKSPACE_SCOPED_KEYS.includes(call[0] as string),
+			)
+			expect(workspaceUpdates).toHaveLength(0)
+		})
+
+		it("should support setValue routing for workspace-scoped keys", async () => {
+			await proxy.setValue("apiProvider", "deepseek")
+
+			// Should route through workspaceState
+			expect(mockWorkspaceState.update).toHaveBeenCalledWith("apiProvider", "deepseek")
+
+			// Should be accessible via getValue
+			expect(proxy.getValue("apiProvider")).toBe("deepseek")
 		})
 	})
 })

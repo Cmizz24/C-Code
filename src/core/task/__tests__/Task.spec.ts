@@ -15,6 +15,7 @@ import type { ApiHandlerCreateMessageMetadata } from "../../../api"
 import { ContextProxy } from "../../config/ContextProxy"
 import { processUserContentMentions } from "../../mentions/processUserContentMentions"
 import { MultiSearchReplaceDiffStrategy } from "../../diff/strategies/multi-search-replace"
+import { summarizeConversation } from "../../condense"
 
 // Mock delay before any imports that might use it
 vi.mock("delay", () => ({
@@ -2036,6 +2037,18 @@ describe("Cline", () => {
 })
 
 describe("Queued message processing after condense", () => {
+	const defaultSummarizeResponse = {
+		messages: [{ role: "user" as const, content: [{ type: "text" as const, text: "continued" }], ts: Date.now() }],
+		summary: "summary",
+		cost: 0,
+		newContextTokens: 1,
+	}
+
+	afterEach(() => {
+		vi.mocked(summarizeConversation).mockReset()
+		vi.mocked(summarizeConversation).mockResolvedValue(defaultSummarizeResponse)
+	})
+
 	function createProvider(): any {
 		const storageUri = { fsPath: path.join(os.tmpdir(), "test-storage") }
 		const ctx = {
@@ -2154,6 +2167,47 @@ describe("Queued message processing after condense", () => {
 
 		expect(spyB).toHaveBeenCalledWith("B message", undefined)
 		expect(taskB.messageQueueService.isEmpty()).toBe(true)
+	})
+
+	it("does not repeatedly call condensing API during provider capacity cooldown for context-window recovery", async () => {
+		const provider = createProvider()
+		provider.getState = vi.fn().mockResolvedValue({ contextCacheEnabled: false })
+		const task = new Task({
+			provider,
+			apiConfiguration: apiConfig,
+			task: "initial task",
+			startTask: false,
+		})
+		task.apiConversationHistory = [
+			{ role: "user", content: "start", ts: 1 },
+			{ role: "assistant", content: "middle", ts: 2 },
+			{ role: "user", content: "continue", ts: 3 },
+			{ role: "assistant", content: "more", ts: 4 },
+			{ role: "user", content: "final", ts: 5 },
+		]
+
+		vi.spyOn(task as any, "getSystemPrompt").mockResolvedValue("system")
+		vi.spyOn(task, "getTokenUsage").mockReturnValue({ contextTokens: 950 } as any)
+		vi.spyOn(task.api, "getModel").mockReturnValue({
+			id: "test-model",
+			info: { contextWindow: 1_000, maxTokens: 100 } as ModelInfo,
+		})
+		vi.spyOn(task.api, "countTokens").mockResolvedValue(10)
+		vi.spyOn(task, "say").mockResolvedValue(undefined)
+
+		const summarizeMock = vi.mocked(summarizeConversation)
+		summarizeMock.mockReset()
+		summarizeMock.mockResolvedValue({
+			messages: task.apiConversationHistory,
+			summary: "",
+			cost: 0,
+			error: "Condensing API call failed: Rate limit exceeded; usage limit has been reached.",
+		})
+
+		await (task as any).handleContextWindowExceededError()
+		await (task as any).handleContextWindowExceededError()
+
+		expect(summarizeMock).toHaveBeenCalledTimes(1)
 	})
 })
 

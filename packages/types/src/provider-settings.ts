@@ -339,6 +339,7 @@ const xiaomiMiMoSchema = apiModelIdProviderModelSchema.extend({
 		.union([z.literal("https://api.xiaomimimo.com/v1"), z.literal("https://token-plan-ams.xiaomimimo.com/v1")])
 		.optional(),
 	xiaomiMiMoApiKey: z.string().optional(),
+	xiaomiMiMoPlatformCookie: z.string().optional(),
 })
 
 const requestySchema = baseProviderSettingsSchema.extend({

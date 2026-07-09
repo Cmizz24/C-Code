@@ -41,6 +41,358 @@ function isAbortedTaskSayError(task: Task, error: unknown): boolean {
 	)
 }
 
+/**
+ * Common English stop words to filter out when extracting significant words.
+ */
+const STOP_WORDS = new Set([
+	"the",
+	"a",
+	"an",
+	"is",
+	"are",
+	"was",
+	"were",
+	"be",
+	"been",
+	"being",
+	"have",
+	"has",
+	"had",
+	"do",
+	"does",
+	"did",
+	"will",
+	"would",
+	"could",
+	"should",
+	"may",
+	"might",
+	"shall",
+	"can",
+	"need",
+	"dare",
+	"ought",
+	"used",
+	"to",
+	"of",
+	"in",
+	"for",
+	"on",
+	"with",
+	"at",
+	"by",
+	"from",
+	"as",
+	"into",
+	"through",
+	"during",
+	"before",
+	"after",
+	"above",
+	"below",
+	"between",
+	"out",
+	"off",
+	"over",
+	"under",
+	"again",
+	"further",
+	"then",
+	"once",
+	"and",
+	"but",
+	"or",
+	"nor",
+	"not",
+	"so",
+	"yet",
+	"both",
+	"either",
+	"neither",
+	"each",
+	"every",
+	"all",
+	"any",
+	"few",
+	"more",
+	"most",
+	"other",
+	"some",
+	"such",
+	"no",
+	"only",
+	"own",
+	"same",
+	"than",
+	"too",
+	"very",
+	"just",
+	"that",
+	"this",
+	"these",
+	"those",
+	"i",
+	"me",
+	"my",
+	"we",
+	"our",
+	"you",
+	"your",
+	"he",
+	"him",
+	"his",
+	"she",
+	"her",
+	"it",
+	"its",
+	"they",
+	"them",
+	"their",
+	"what",
+	"which",
+	"who",
+	"whom",
+	"when",
+	"where",
+	"why",
+	"how",
+	"if",
+	"then",
+	"else",
+	"about",
+	"up",
+	"down",
+	"there",
+	"here",
+])
+
+/**
+ * Extract significant words from text, filtering out stop words and short words.
+ */
+export function extractSignificantWords(text: string): Set<string> {
+	return new Set(
+		text
+			.toLowerCase()
+			.replace(/[^a-z0-9\s]/g, " ")
+			.split(/\s+/)
+			.filter((word) => word.length > 2 && !STOP_WORDS.has(word)),
+	)
+}
+
+/**
+ * Represents a single requirement extracted from the original task.
+ */
+export interface ExtractedRequirement {
+	/** The raw text of the requirement */
+	text: string
+	/** Significant words from this requirement */
+	keywords: Set<string>
+}
+
+/**
+ * Extract structured requirements from the original task text.
+ * Looks for numbered lists, bullet points, and conjunction-based splits.
+ * Returns an array of requirements; treats the whole task as one if no structure is found.
+ */
+export function extractRequirements(task: string): ExtractedRequirement[] {
+	const requirements: ExtractedRequirement[] = []
+	const trimmedTask = task.trim()
+
+	if (trimmedTask.length < 10) {
+		return []
+	}
+
+	// Strategy 1: Split on numbered list patterns ("1.", "2.", "1)", "2)") or bullet points ("-", "*", "•")
+	const numberedPattern = /\n\s*(?:\d+[.)]\s+|[-*•]\s+)/
+	const segments = trimmedTask
+		.split(numberedPattern)
+		.map((s) => s.trim())
+		.filter((s) => s.length > 5)
+
+	if (segments.length > 1) {
+		for (let i = 0; i < segments.length; i++) {
+			// Clean up leading list markers that may remain
+			const cleaned = segments[i].replace(/^\d+[.)]\s*/, "").trim()
+			// Skip header/preamble text that ends with ":" or ";" (e.g., "Please complete these tasks:")
+			if (i === 0 && /[:;]\s*$/.test(cleaned)) {
+				continue
+			}
+			if (cleaned.length > 5) {
+				requirements.push({
+					text: cleaned,
+					keywords: extractSignificantWords(cleaned),
+				})
+			}
+		}
+	}
+
+	// Strategy 2: If no list found, try splitting on conjunctions / transition phrases
+	if (requirements.length === 0) {
+		const conjunctionPattern = /\s+(?:and|also|additionally|furthermore|moreover|plus|as well as)\s+/i
+		const conjSegments = trimmedTask
+			.split(conjunctionPattern)
+			.map((s) => s.trim())
+			.filter((s) => s.length > 10)
+
+		if (conjSegments.length > 1) {
+			for (const segment of conjSegments) {
+				requirements.push({
+					text: segment,
+					keywords: extractSignificantWords(segment),
+				})
+			}
+		}
+	}
+
+	// Strategy 3: Fallback — treat entire task as a single requirement
+	if (requirements.length === 0) {
+		requirements.push({
+			text: trimmedTask,
+			keywords: extractSignificantWords(trimmedTask),
+		})
+	}
+
+	return requirements
+}
+
+/**
+ * Check if a single requirement is addressed by the result.
+ * Uses keyword overlap — a requirement is met if at least one significant keyword
+ * appears in the result, or if the overall overlap ratio is reasonable.
+ */
+function isRequirementMet(requirement: ExtractedRequirement, resultWords: Set<string>): boolean {
+	if (requirement.keywords.size === 0) {
+		// No keywords to check — assume met (can't disprove).
+		return true
+	}
+
+	const overlap = [...requirement.keywords].filter((w) => resultWords.has(w))
+	const overlapRatio = overlap.length / requirement.keywords.size
+
+	// Require at least 1 keyword match, OR a 30% overlap ratio for short keyword sets.
+	return overlap.length >= 1 || overlapRatio >= 0.3
+}
+
+/**
+ * Result of structured completion verification, including per-requirement status.
+ */
+export interface VerificationResult {
+	/** Error message if verification failed, undefined if passed */
+	error: string | undefined
+	/** Requirements extracted from the original task */
+	requirements: ExtractedRequirement[]
+	/** Indexes of requirements that were verified as met */
+	requirementsCompleted: number[]
+}
+
+/**
+ * Verify that a completion result addresses the original task.
+ * Uses structured requirement extraction and per-requirement checking.
+ * Returns a VerificationResult with per-requirement completion status.
+ */
+export function verifyCompletion(originalTask: string, result: string): VerificationResult {
+	const emptyResult = (requirements: ExtractedRequirement[], completed: number[]): VerificationResult => ({
+		error: undefined,
+		requirements,
+		requirementsCompleted: completed,
+	})
+
+	// Skip verification if the original task is empty or very short.
+	if (!originalTask || originalTask.trim().length < 10) {
+		return emptyResult([], [])
+	}
+
+	// Extract structured requirements from the original task.
+	const requirements = extractRequirements(originalTask)
+
+	if (requirements.length === 0) {
+		return emptyResult([], [])
+	}
+
+	// Skip verification if the result is substantial (likely a real answer).
+	if (result.trim().length < 20) {
+		return {
+			error:
+				"Your completion result is too brief. Before calling attempt_completion, you MUST verify that " +
+				"your result directly addresses the user's original request. Review the original task, check that " +
+				"all requirements are met, and ensure you haven't missed any aspects of what was asked. " +
+				"Provide a more detailed completion result that clearly demonstrates the task is complete.",
+			requirements,
+			requirementsCompleted: [],
+		}
+	}
+
+	// If only one requirement (entire task as single block), fall back to overall keyword overlap check.
+	if (requirements.length === 1) {
+		const taskWords = requirements[0].keywords
+		const resultWords = extractSignificantWords(result)
+
+		if (taskWords.size === 0) {
+			return emptyResult(requirements, [0])
+		}
+
+		const overlap = [...taskWords].filter((word) => resultWords.has(word))
+		const overlapRatio = overlap.length / taskWords.size
+
+		if (taskWords.size >= 3 && overlap.length < 2 && overlapRatio < 0.1) {
+			return {
+				error:
+					"Your completion result does not appear to address the user's original request. " +
+					"Before calling attempt_completion, you MUST verify that your result directly addresses " +
+					"the user's original request. Review the original task, check that all requirements are met, " +
+					"and ensure you haven't missed any aspects of what was asked.",
+				requirements,
+				requirementsCompleted: [],
+			}
+		}
+
+		return emptyResult(requirements, [0])
+	}
+
+	// Multiple requirements: check each one against the result.
+	const resultWords = extractSignificantWords(result)
+	const unmetRequirements: string[] = []
+	const completedIndexes: number[] = []
+
+	for (let i = 0; i < requirements.length; i++) {
+		if (isRequirementMet(requirements[i], resultWords)) {
+			completedIndexes.push(i)
+		} else {
+			// Truncate long requirements for the feedback message.
+			const displayText =
+				requirements[i].text.length > 80 ? requirements[i].text.substring(0, 77) + "..." : requirements[i].text
+			unmetRequirements.push(displayText)
+		}
+	}
+
+	if (unmetRequirements.length === 0) {
+		return emptyResult(requirements, completedIndexes)
+	}
+
+	// Build a specific feedback message listing unmet requirements.
+	const requirementList = unmetRequirements.map((r, i) => `  ${i + 1}. ${r}`).join("\n")
+
+	return {
+		error:
+			"Your completion result does not appear to address all requirements from the original task. " +
+			"The following requirements were not clearly addressed:\n" +
+			requirementList +
+			"\nBefore calling attempt_completion, review the original task and ensure each requirement is " +
+			"explicitly addressed in your result. If you have addressed these requirements using different " +
+			"terminology, make sure the connection is clear in your completion message.",
+		requirements,
+		requirementsCompleted: completedIndexes,
+	}
+}
+
+/**
+ * Backward-compatible wrapper around verifyCompletion that returns just the error string.
+ * Used by existing tests and callers that only need the error message.
+ */
+export function verifyCompletionAgainstTask(originalTask: string, result: string): string | undefined {
+	return verifyCompletion(originalTask, result).error
+}
+
 function isParallelAgentTask(task: Task): boolean {
 	return Boolean(task.agentId || task.agentBus)
 }
@@ -88,6 +440,12 @@ function formatCompletionCoordinationGate(task: Task): string | undefined {
 
 export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 	readonly name = "attempt_completion" as const
+
+	// Track per-task completion verification failure counts for bypass logic.
+	private readonly completionVerificationFailureCount: Map<string, number> = new Map()
+
+	// Track per-task requirements completion status for observability.
+	private readonly requirementsCompletedMap: Map<string, number[]> = new Map()
 
 	async execute(params: AttemptCompletionParams, task: Task, callbacks: AttemptCompletionCallbacks): Promise<void> {
 		const { result } = params
@@ -139,6 +497,35 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 				task.recordToolError("attempt_completion")
 				pushToolResult(await task.sayAndCreateMissingParamError("attempt_completion", "result"))
 				return
+			}
+
+			// Completion verification: check that the result addresses the original task.
+			const enableCompletionVerification = vscode.workspace
+				.getConfiguration(Package.name)
+				.get<boolean>("enableCompletionVerification", true)
+
+			if (enableCompletionVerification) {
+				const originalTask = task.metadata.task ?? ""
+				const verificationFailures = this.completionVerificationFailureCount.get(task.taskId) ?? 0
+
+				// Bypass verification after 3 consecutive failures (user keeps accepting).
+				if (verificationFailures < 3) {
+					const verificationResult = verifyCompletion(originalTask, result)
+
+					// Track which requirements have been verified as completed.
+					this.requirementsCompletedMap.set(task.taskId, verificationResult.requirementsCompleted)
+
+					if (verificationResult.error) {
+						this.completionVerificationFailureCount.set(task.taskId, verificationFailures + 1)
+						task.consecutiveMistakeCount++
+						task.recordToolError("attempt_completion", "Completion verification failed.")
+						pushToolResult(formatResponse.toolError(verificationResult.error))
+						return
+					}
+				}
+
+				// Clear failure count on successful verification.
+				this.completionVerificationFailureCount.delete(task.taskId)
 			}
 
 			if (isParallelAgentTask(task)) {

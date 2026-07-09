@@ -14,6 +14,7 @@ export const qwenCodeModels = {
 		outputPrice: 0,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
+		subscriptionBased: true,
 		description:
 			"Qwen3 Coder Plus - High-performance coding model with 1M context window, 65K maximum output, and context cache support for large codebases. Pricing depends on the Qwen Code access path and is not represented by simple per-token fields.",
 	},
@@ -26,6 +27,7 @@ export const qwenCodeModels = {
 		outputPrice: 0,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
+		subscriptionBased: true,
 		description:
 			"Qwen3 Coder Flash - Fast coding model with 1M context window, 65K maximum output, and context cache support optimized for speed. Pricing depends on the Qwen Code access path and is not represented by simple per-token fields.",
 	},

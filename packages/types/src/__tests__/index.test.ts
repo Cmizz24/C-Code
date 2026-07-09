@@ -3,6 +3,7 @@
 import {
 	CLOUDFLARE_WORKERS_AI_DAILY_FREE_NEURONS,
 	GLOBAL_STATE_KEYS,
+	SECRET_STATE_KEYS,
 	MODELS_BY_PROVIDER,
 	type ModelInfo,
 	applyCloudflareWorkersAiImageUsageUpdate,
@@ -11,7 +12,9 @@ import {
 	getCloudflareWorkersAiImageUsageSnapshot,
 	modelIdKeysByProvider,
 	providerNames,
+	globalSettingsSchema,
 	providerSettingsSchemaDiscriminated,
+	providerSettingsSchema,
 } from "../index.js"
 import {
 	anthropicModels,
@@ -65,6 +68,33 @@ describe("GLOBAL_STATE_KEYS", () => {
 	it("should contain Cloudflare Workers AI image usage aggregate but not image API key secret", () => {
 		expect(GLOBAL_STATE_KEYS).toContain("cloudflareWorkersAiImageUsage")
 		expect(GLOBAL_STATE_KEYS).not.toContain("cloudflareImageApiKey")
+	})
+
+	it("should contain generic provider plan limit and usage state", () => {
+		expect(GLOBAL_STATE_KEYS).toContain("providerPlanLimits")
+		expect(GLOBAL_STATE_KEYS).toContain("providerPlanUsage")
+	})
+
+	it("should accept generic provider plan limit and usage settings", () => {
+		const parsed = globalSettingsSchema.safeParse({
+			providerPlanLimits: {
+				anthropic: {
+					tokenLimit: 1_000_000,
+					costLimit: 20,
+					resetPeriod: "monthly",
+					lastReset: 1_700_000_000,
+				},
+			},
+			providerPlanUsage: {
+				anthropic: {
+					tokensUsed: 12_000,
+					costUsed: 1.25,
+					periodStart: 1_700_000_000,
+				},
+			},
+		})
+
+		expect(parsed.success).toBe(true)
 	})
 
 	it("should not contain OpenAI Compatible API key (secret)", () => {
@@ -331,5 +361,70 @@ describe("Xiaomi MiMo provider settings", () => {
 			supportsImages: true,
 			deprecated: true,
 		})
+	})
+})
+
+describe("SECRET_STATE_KEYS", () => {
+	it("should include all provider API key fields from the schema", () => {
+		// Extract all field names from the providerSettingsSchema that end with "Key" or "Key" variants
+		// This ensures that any new provider API key field added to the schema is also added to SECRET_STATE_KEYS
+		const schemaKeys = providerSettingsSchema.keyof().options as string[]
+		const apiKeyPattern = /(?:apiKey|ApiKey|awsAccessKey|awsSecretKey|awsSessionToken)$/
+
+		// Exclude boolean/config flags that match the pattern but aren't actual secrets
+		const nonSecretExceptions = ["awsUseApiKey"]
+
+		const apiKeyFieldsInSchema = schemaKeys.filter(
+			(key) =>
+				apiKeyPattern.test(key) &&
+				!nonSecretExceptions.includes(key) &&
+				!key.startsWith("codebaseIndex") &&
+				!key.startsWith("codeIndex"),
+		)
+
+		for (const key of apiKeyFieldsInSchema) {
+			expect(SECRET_STATE_KEYS).toContain(key)
+		}
+	})
+
+	it("should include poeApiKey", () => {
+		expect(SECRET_STATE_KEYS).toContain("poeApiKey")
+	})
+
+	it("should include xiaomiMiMoApiKey", () => {
+		expect(SECRET_STATE_KEYS).toContain("xiaomiMiMoApiKey")
+	})
+
+	it("should not include non-secret provider settings", () => {
+		expect(SECRET_STATE_KEYS).not.toContain("apiProvider")
+		expect(SECRET_STATE_KEYS).not.toContain("apiModelId")
+		expect(SECRET_STATE_KEYS).not.toContain("anthropicBaseUrl")
+	})
+
+	it("should include vertexJsonCredentials (GCP JSON credentials)", () => {
+		expect(SECRET_STATE_KEYS).toContain("vertexJsonCredentials")
+	})
+
+	it("should include all vertex credential fields", () => {
+		expect(SECRET_STATE_KEYS).toContain("vertexJsonCredentials")
+	})
+})
+
+describe("scopeApiKeysPerWorkspace setting", () => {
+	it("should accept scopeApiKeysPerWorkspace as a boolean in global settings", () => {
+		const parsed = globalSettingsSchema.safeParse({ scopeApiKeysPerWorkspace: true })
+		expect(parsed.success).toBe(true)
+	})
+
+	it("should default scopeApiKeysPerWorkspace to undefined (off)", () => {
+		const parsed = globalSettingsSchema.safeParse({})
+		expect(parsed.success).toBe(true)
+		if (parsed.success) {
+			expect(parsed.data.scopeApiKeysPerWorkspace).toBeUndefined()
+		}
+	})
+
+	it("should include scopeApiKeysPerWorkspace in GLOBAL_SETTINGS_KEYS", () => {
+		expect(GLOBAL_STATE_KEYS).toContain("scopeApiKeysPerWorkspace")
 	})
 })

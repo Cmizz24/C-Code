@@ -3536,6 +3536,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				const { fetchOpenAiCodexRateLimitInfo } = await import("../../integrations/openai-codex/rate-limits")
 				const rateLimits = await fetchOpenAiCodexRateLimitInfo(accessToken, { accountId })
 
+				provider.cachedOpenAiCodexRateLimits = rateLimits
 				provider.postMessageToWebview({
 					type: "openAiCodexRateLimits",
 					values: rateLimits,
@@ -3545,6 +3546,230 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				provider.log(`Error fetching OpenAI Codex rate limits: ${errorMessage}`)
 				provider.postMessageToWebview({
 					type: "openAiCodexRateLimits",
+					error: errorMessage,
+				})
+			}
+			break
+		}
+
+		case "fetchPoePlanUsage": {
+			try {
+				const apiKey = message.text
+				if (!apiKey) {
+					provider.postMessageToWebview({
+						type: "providerPlanUsage",
+						providerName: "poe",
+						error: "No Poe API key provided",
+					})
+					break
+				}
+
+				const { fetchPoePlanUsage } = await import("../../integrations/poe/plan-usage")
+				const usage = await fetchPoePlanUsage(apiKey)
+
+				provider.cachedProviderPlanUsage["poe"] = usage as unknown as Record<string, unknown>
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "poe",
+					values: usage as unknown as Record<string, unknown>,
+				})
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				provider.log(`Error fetching Poe plan usage: ${errorMessage}`)
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "poe",
+					error: errorMessage,
+				})
+			}
+			break
+		}
+
+		case "fetchZAiPlanUsage": {
+			try {
+				const apiKey = message.text
+				const isChina = message.bool ?? false
+				if (!apiKey) {
+					provider.postMessageToWebview({
+						type: "providerPlanUsage",
+						providerName: "zai",
+						error: "No Z.AI API key provided",
+					})
+					break
+				}
+
+				const { fetchZAiPlanUsage } = await import("../../integrations/zai/plan-usage")
+				const usage = await fetchZAiPlanUsage(apiKey, isChina)
+
+				provider.cachedProviderPlanUsage["zai"] = usage as unknown as Record<string, unknown>
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "zai",
+					values: usage as unknown as Record<string, unknown>,
+				})
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				provider.log(`Error fetching Z.AI plan usage: ${errorMessage}`)
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "zai",
+					error: errorMessage,
+				})
+			}
+			break
+		}
+
+		case "fetchMoonshotPlanUsage": {
+			try {
+				const apiKey = message.text
+				if (!apiKey) {
+					provider.postMessageToWebview({
+						type: "providerPlanUsage",
+						providerName: "moonshot",
+						error: "No Moonshot/Kimi API key provided",
+					})
+					break
+				}
+
+				const { fetchMoonshotPlanUsage } = await import("../../integrations/moonshot/plan-usage")
+				const usage = await fetchMoonshotPlanUsage(apiKey)
+
+				provider.cachedProviderPlanUsage["moonshot"] = usage as unknown as Record<string, unknown>
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "moonshot",
+					values: usage as unknown as Record<string, unknown>,
+				})
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				provider.log(`Error fetching Moonshot/Kimi plan usage: ${errorMessage}`)
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "moonshot",
+					error: errorMessage,
+				})
+			}
+			break
+		}
+
+		case "fetchMiniMaxPlanUsage": {
+			try {
+				const apiKey = message.text
+				if (!apiKey) {
+					provider.postMessageToWebview({
+						type: "providerPlanUsage",
+						providerName: "minimax",
+						error: "No MiniMax API key provided",
+					})
+					break
+				}
+
+				const { fetchMiniMaxPlanUsage } = await import("../../integrations/minimax/plan-usage")
+				const isChina = message.bool ?? false
+				const usage = await fetchMiniMaxPlanUsage(apiKey, isChina)
+
+				provider.cachedProviderPlanUsage["minimax"] = usage as unknown as Record<string, unknown>
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "minimax",
+					values: usage as unknown as Record<string, unknown>,
+				})
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				provider.log(`Error fetching MiniMax plan usage: ${errorMessage}`)
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "minimax",
+					error: errorMessage,
+				})
+			}
+			break
+		}
+
+		case "fetchXiaomiMiMoPlanUsage": {
+			try {
+				const cookie = message.text
+				if (!cookie) {
+					provider.postMessageToWebview({
+						type: "providerPlanUsage",
+						providerName: "xiaomi-mimo",
+						error: "No Xiaomi MiMo platform cookie provided. Please set your cookie in provider settings.",
+					})
+					break
+				}
+
+				const { fetchXiaomiMiMoPlanUsage } = await import("../../integrations/xiaomi-mimo/plan-usage")
+				const usage = await fetchXiaomiMiMoPlanUsage(cookie)
+
+				provider.cachedProviderPlanUsage["xiaomi-mimo"] = usage as unknown as Record<string, unknown>
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "xiaomi-mimo",
+					values: usage as unknown as Record<string, unknown>,
+				})
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				provider.log(`Error fetching Xiaomi MiMo plan usage: ${errorMessage}`)
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "xiaomi-mimo",
+					error: errorMessage,
+				})
+			}
+			break
+		}
+
+		case "fetchQwenCodePlanUsage": {
+			try {
+				const oauthPath = message.text
+				const { fetchQwenCodePlanUsage } = await import("../../integrations/qwen-code/plan-usage")
+				const usage = await fetchQwenCodePlanUsage(oauthPath || undefined)
+
+				provider.cachedProviderPlanUsage["qwen-code"] = usage as unknown as Record<string, unknown>
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "qwen-code",
+					values: usage as unknown as Record<string, unknown>,
+				})
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				provider.log(`Error fetching Qwen Code plan usage: ${errorMessage}`)
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "qwen-code",
+					error: errorMessage,
+				})
+			}
+			break
+		}
+
+		case "fetchSambaNovaPlanUsage": {
+			try {
+				const apiKey = message.text
+				if (!apiKey) {
+					provider.postMessageToWebview({
+						type: "providerPlanUsage",
+						providerName: "sambanova",
+						error: "No SambaNova API key provided",
+					})
+					break
+				}
+
+				const { fetchSambaNovaPlanUsage } = await import("../../integrations/sambanova/plan-usage")
+				const usage = await fetchSambaNovaPlanUsage(apiKey)
+
+				provider.cachedProviderPlanUsage["sambanova"] = usage as unknown as Record<string, unknown>
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "sambanova",
+					values: usage as unknown as Record<string, unknown>,
+				})
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				provider.log(`Error fetching SambaNova plan usage: ${errorMessage}`)
+				provider.postMessageToWebview({
+					type: "providerPlanUsage",
+					providerName: "sambanova",
 					error: errorMessage,
 				})
 			}

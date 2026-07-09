@@ -1,6 +1,18 @@
 // npx vitest run src/__tests__/index.test.ts
 
-import { generatePackageJson } from "../index.js"
+import * as fs from "fs"
+import { fileURLToPath } from "url"
+
+import { copyPaths, generatePackageJson, withFileLock } from "../index.js"
+
+vi.mock("fs", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("fs")>()
+
+	return {
+		...actual,
+		copyFileSync: vi.fn(actual.copyFileSync),
+	}
+})
 
 describe("generatePackageJson", () => {
 	it("should be a test", () => {
@@ -218,5 +230,87 @@ describe("generatePackageJson", () => {
 			},
 			scripts: {},
 		})
+	})
+})
+
+describe("copyPaths", () => {
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+
+	it("retries transient file-lock copy errors", () => {
+		vi.spyOn(fs, "lstatSync").mockReturnValue({
+			isDirectory: () => false,
+		} as fs.Stats)
+
+		const copyFileSync = vi.mocked(fs.copyFileSync)
+		const busyError = Object.assign(new Error("resource busy or locked"), { code: "EBUSY" })
+
+		copyFileSync.mockImplementationOnce(() => {
+			throw busyError
+		})
+		copyFileSync.mockImplementationOnce(() => undefined)
+
+		copyPaths([["source.txt", "dest.txt"]], "src-dir", "dst-dir")
+
+		expect(copyFileSync).toHaveBeenCalledTimes(2)
+		expect(copyFileSync).toHaveBeenLastCalledWith(
+			expect.stringContaining("source.txt"),
+			expect.stringContaining("dest.txt"),
+		)
+	})
+})
+
+describe("withFileLock", () => {
+	const lockDir = fileURLToPath(new URL("./tmp-build-lock", import.meta.url))
+
+	beforeEach(async () => {
+		await fs.promises.rm(lockDir, { recursive: true, force: true })
+	})
+
+	afterEach(async () => {
+		vi.restoreAllMocks()
+		await fs.promises.rm(lockDir, { recursive: true, force: true })
+	})
+
+	it("serializes concurrent callbacks for the same lock directory", async () => {
+		const events: string[] = []
+		let firstStarted!: () => void
+		let releaseFirst!: () => void
+		const firstHasStarted = new Promise<void>((resolve) => {
+			firstStarted = resolve
+		})
+		const firstCanFinish = new Promise<void>((resolve) => {
+			releaseFirst = resolve
+		})
+
+		const first = withFileLock(
+			lockDir,
+			async () => {
+				events.push("first:start")
+				firstStarted()
+				await firstCanFinish
+				events.push("first:end")
+			},
+			{ retryDelayMs: 1, maxRetries: 100 },
+		)
+		await firstHasStarted
+
+		const second = withFileLock(
+			lockDir,
+			async () => {
+				events.push("second:start")
+			},
+			{ retryDelayMs: 1, maxRetries: 100 },
+		)
+
+		await new Promise((resolve) => setTimeout(resolve, 25))
+
+		expect(events).toEqual(["first:start"])
+
+		releaseFirst()
+		await Promise.all([first, second])
+
+		expect(events).toEqual(["first:start", "first:end", "second:start"])
 	})
 })

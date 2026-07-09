@@ -95,6 +95,11 @@ export default defineConfig(({ mode }) => {
 
 	return {
 		plugins,
+		css: {
+			postcss: {
+				plugins: [],
+			},
+		},
 		resolve: {
 			alias: {
 				"@roo/modes": resolve(__dirname, "./src/shims/modes.ts"),

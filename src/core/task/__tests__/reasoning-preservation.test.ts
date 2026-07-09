@@ -480,4 +480,178 @@ describe("Task reasoning preservation", () => {
 			text: assistantText,
 		})
 	})
+
+	it("should preserve top-level reasoning_content for DeepSeek tool-call continuations", async () => {
+		const task = new Task({
+			provider: mockProvider as ClineProvider,
+			apiConfiguration: {
+				apiProvider: "deepseek",
+				apiModelId: "deepseek-v4-pro",
+			} as ProviderSettings,
+			task: "Test task",
+			startTask: false,
+		})
+
+		task.api = {
+			getModel: vi.fn().mockReturnValue({
+				id: "deepseek-v4-pro",
+				info: {
+					contextWindow: 16000,
+					supportsPromptCache: true,
+					preserveReasoning: true,
+				},
+			}),
+		} as any
+
+		const cleanConversationHistory = (task as any).buildCleanConversationHistory([
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "call_123",
+						name: "read_file",
+						input: { path: "README.md" },
+					},
+				],
+				reasoning_content: "I need to inspect the requested file first.",
+			},
+		])
+
+		expect(cleanConversationHistory).toHaveLength(1)
+		expect(cleanConversationHistory[0]).toMatchObject({
+			role: "assistant",
+			reasoning_content: "I need to inspect the requested file first.",
+			content: [
+				{
+					type: "tool_use",
+					id: "call_123",
+					name: "read_file",
+					input: { path: "README.md" },
+				},
+			],
+		})
+	})
+
+	it("should store provider-supplied Anthropic thinking blocks even when display was omitted", async () => {
+		const task = new Task({
+			provider: mockProvider as ClineProvider,
+			apiConfiguration: {
+				apiProvider: "anthropic",
+				apiModelId: "claude-fable-5",
+			} as ProviderSettings,
+			task: "Test task",
+			startTask: false,
+		})
+
+		;(task as any).saveApiConversationHistory = vi.fn().mockResolvedValue(undefined)
+		task.apiConversationHistory = []
+		task.api = {
+			getModel: vi.fn().mockReturnValue({
+				id: "claude-fable-5",
+				info: {
+					contextWindow: 1_000_000,
+					supportsPromptCache: true,
+				},
+			}),
+			getThinkingBlocks: vi.fn().mockReturnValue([{ type: "thinking", thinking: "", signature: "sig_omitted" }]),
+		} as any
+
+		await (task as any).addToApiConversationHistory({
+			role: "assistant",
+			content: [
+				{
+					type: "tool_use",
+					id: "toolu_123",
+					name: "read_file",
+					input: { path: "README.md" },
+				},
+			],
+		})
+
+		expect(task.apiConversationHistory[0].content).toEqual([
+			{ type: "thinking", thinking: "", signature: "sig_omitted" },
+			{
+				type: "tool_use",
+				id: "toolu_123",
+				name: "read_file",
+				input: { path: "README.md" },
+			},
+		])
+	})
+
+	it("should preserve provider-supplied Anthropic redacted thinking blocks", async () => {
+		const task = new Task({
+			provider: mockProvider as ClineProvider,
+			apiConfiguration: {
+				apiProvider: "anthropic",
+				apiModelId: "claude-fable-5",
+			} as ProviderSettings,
+			task: "Test task",
+			startTask: false,
+		})
+
+		;(task as any).saveApiConversationHistory = vi.fn().mockResolvedValue(undefined)
+		task.apiConversationHistory = []
+		task.api = {
+			getModel: vi.fn().mockReturnValue({ id: "claude-fable-5", info: { contextWindow: 1_000_000 } }),
+			getThinkingBlocks: vi.fn().mockReturnValue([{ type: "redacted_thinking", data: "opaque-data" }]),
+		} as any
+
+		await (task as any).addToApiConversationHistory({
+			role: "assistant",
+			content: [{ type: "text", text: "Done" }],
+		})
+
+		expect(task.apiConversationHistory[0].content).toEqual([
+			{ type: "redacted_thinking", data: "opaque-data" },
+			{ type: "text", text: "Done" },
+		])
+	})
+
+	it("should store DeepSeek streaming reasoning as top-level reasoning_content", async () => {
+		const task = new Task({
+			provider: mockProvider as ClineProvider,
+			apiConfiguration: {
+				apiProvider: "deepseek",
+				apiModelId: "deepseek-v4-pro",
+			} as ProviderSettings,
+			task: "Test task",
+			startTask: false,
+		})
+
+		;(task as any).saveApiConversationHistory = vi.fn().mockResolvedValue(undefined)
+
+		task.api = {
+			getModel: vi.fn().mockReturnValue({
+				id: "deepseek-v4-pro",
+				info: {
+					contextWindow: 16000,
+					supportsPromptCache: true,
+					preserveReasoning: true,
+				},
+			}),
+		} as any
+
+		await (task as any).addToApiConversationHistory(
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "call_123",
+						name: "read_file",
+						input: { path: "README.md" },
+					},
+				],
+			},
+			"I need to inspect the requested file first.",
+		)
+
+		expect(task.apiConversationHistory).toHaveLength(1)
+		expect(task.apiConversationHistory[0]).toMatchObject({
+			role: "assistant",
+			reasoning_content: "I need to inspect the requested file first.",
+		})
+	})
 })

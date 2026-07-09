@@ -39,6 +39,36 @@ describe("AwsBedrockHandler - Extended Thinking", () => {
 	})
 
 	describe("Extended Thinking Support", () => {
+		it("should include adaptive thinking display for adaptive-only Claude models", async () => {
+			handler = new AwsBedrockHandler({
+				apiProvider: "bedrock",
+				apiModelId: "anthropic.claude-opus-4-8",
+				awsRegion: "us-east-1",
+				enableReasoningEffort: true,
+				reasoningEffort: "xhigh",
+			})
+
+			mockSend.mockResolvedValue({
+				stream: (async function* () {
+					yield { messageStart: { role: "assistant" } }
+					yield { metadata: { usage: { inputTokens: 100, outputTokens: 50 } } }
+				})(),
+			})
+
+			const messages = [{ role: "user" as const, content: "Test message" }]
+			const stream = handler.createMessage("System prompt", messages)
+
+			for await (const _chunk of stream) {
+				// consume stream
+			}
+
+			expect(capturedPayload.additionalModelRequestFields).toMatchObject({
+				thinking: { type: "adaptive", display: "summarized" },
+				output_config: { effort: "xhigh" },
+			})
+			expect(capturedPayload.inferenceConfig).not.toHaveProperty("temperature")
+		})
+
 		it("should include thinking parameter for Claude Sonnet 4 when reasoning is enabled", async () => {
 			handler = new AwsBedrockHandler({
 				apiProvider: "bedrock",

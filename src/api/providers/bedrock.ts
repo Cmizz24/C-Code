@@ -62,6 +62,7 @@ interface BedrockAdditionalModelFields {
 	thinking?: {
 		type: "enabled" | "adaptive"
 		budget_tokens?: number
+		display?: "summarized" | "omitted"
 	}
 	output_config?: {
 		effort?: "low" | "medium" | "high" | "xhigh" | "max"
@@ -421,14 +422,14 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 					: modelConfig.info.adaptiveThinkingEffort
 			const adaptiveThinkingEffort = selectedAdaptiveThinkingEffort
 			additionalModelRequestFields = {
-				thinking: { type: "adaptive" },
+				thinking: { type: "adaptive", display: "summarized" },
 				...(adaptiveThinkingEffort && { output_config: { effort: adaptiveThinkingEffort } }),
 			}
 
 			logger.info("Adaptive thinking enabled for Bedrock request", {
 				ctx: "bedrock",
 				modelId: modelConfig.id,
-				thinking: { type: "adaptive" },
+				thinking: { type: "adaptive", display: "summarized" },
 			})
 		}
 

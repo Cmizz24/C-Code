@@ -66,6 +66,7 @@ import {
 	applyCloudflareWorkersAiImageUsageUpdate,
 	getModelId,
 	isRetiredProvider,
+	SECRET_STATE_KEYS,
 	type MemoryAction,
 	type MemoryEntry,
 	type MemoryScope,
@@ -145,7 +146,7 @@ import {
 import { Task } from "../task/Task"
 
 import { webviewMessageHandler } from "./webviewMessageHandler"
-import type { ClineMessage, ClineSayTool, ContextCacheStats, TodoItem } from "@roo-code/types"
+import type { ClineMessage, ClineSayTool, TodoItem } from "@roo-code/types"
 import { readApiMessages, saveApiMessages, saveTaskMessages, TaskHistoryStore } from "../task-persistence"
 import { readTaskMessages } from "../task-persistence/taskMessages"
 import { getNonce } from "./getNonce"
@@ -173,33 +174,15 @@ function getDetectedContextCacheBudgetOptions() {
 
 const ORCHESTRATOR_MODE_SLUG = "orchestrator"
 
-function getDefaultContextCacheStats(ramBudgetMb: number): ContextCacheStats {
-	return {
-		hotCacheTokens: 0,
-		hotCacheChunks: 0,
-		coldCacheChunks: 0,
-		ramUsedMb: 0,
-		ramBudgetMb,
-		swapsThisSession: 0,
-		condensingAvoided: 0,
-	}
-}
+const PROVIDER_PLAN_RESET_PERIOD_MS = {
+	daily: 86_400_000,
+	weekly: 604_800_000,
+	monthly: 2_592_000_000,
+} as const
 
-function getTaskContextCacheStats(currentTask: Task | undefined, ramBudgetMb: number): ContextCacheStats {
-	const statsProvider = currentTask as Partial<Pick<Task, "getContextCacheStats">> | undefined
+type ProviderPlanResetPeriod = keyof typeof PROVIDER_PLAN_RESET_PERIOD_MS
 
-	return typeof statsProvider?.getContextCacheStats === "function"
-		? statsProvider.getContextCacheStats()
-		: getDefaultContextCacheStats(ramBudgetMb)
-}
-
-function getTaskContextCacheWarning(currentTask: Task | undefined): string | undefined {
-	const warningProvider = currentTask as Partial<Pick<Task, "getContextCacheWarning">> | undefined
-
-	return typeof warningProvider?.getContextCacheWarning === "function"
-		? warningProvider.getContextCacheWarning()
-		: undefined
-}
+const DEFAULT_PROVIDER_PLAN_RESET_PERIOD: ProviderPlanResetPeriod = "monthly"
 
 async function restoreDelegatedParentMode(
 	provider: {
@@ -588,10 +571,19 @@ export class ClineProvider
 	private readonly emailNotificationTaskToolUsage = new Map<string, ToolUsage>()
 	private readonly emailNotificationTaskRequestCounts = new Map<string, number>()
 	private readonly emailNotificationTaskContexts = new Map<string, EmailNotificationTaskContext>()
+	private readonly providerPlanUsageRecordedTaskIds = new Set<string>()
 	private readonly remoteDebugLogger: RemoteDebugLogger
 	private readonly remoteDebugSessionId = randomUUID()
 	private readonly remoteDebugUsageEventTimestamps = new Map<string, number>()
 	private readonly remoteDebugApiRequestStartedKeys = new Set<string>()
+	public cachedOpenAiCodexRateLimits: import("@roo-code/types").OpenAiCodexRateLimitInfo | undefined
+
+	/**
+	 * Cached live plan usage fetched from provider APIs.
+	 * Keyed by provider name (e.g. "poe", "zai", "moonshot").
+	 */
+	public cachedProviderPlanUsage: Record<string, Record<string, unknown>> = {}
+
 	private parallelStatusUpdateQueue: Promise<void> = Promise.resolve()
 	private parallelStatusUpdatePromise?: Promise<void>
 	private parallelStatusUpdateRequested = false
@@ -1660,6 +1652,11 @@ export class ClineProvider
 
 	private async notifyTaskCompletion(task: Task, tokenUsage?: TokenUsage, toolUsage?: ToolUsage): Promise<void> {
 		this.rememberEmailNotificationTaskContext(task, "completed")
+		void this.updateTaskPlanUsage(task, tokenUsage).catch((error) => {
+			this.log(
+				`[provider-plan-usage] Failed to update plan usage for task ${task.taskId}: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		})
 
 		const taskDiagnostics = this.getEmailNotificationTaskDiagnostics(task)
 		const summary = this.getEmailNotificationSummary(task)
@@ -1871,6 +1868,105 @@ export class ClineProvider
 				usageScope: "Task only (live completion event)",
 			})
 		}
+	}
+
+	private getProviderPlanResetPeriodMs(resetPeriod: unknown): number {
+		const period =
+			typeof resetPeriod === "string" && resetPeriod in PROVIDER_PLAN_RESET_PERIOD_MS
+				? (resetPeriod as ProviderPlanResetPeriod)
+				: DEFAULT_PROVIDER_PLAN_RESET_PERIOD
+
+		return PROVIDER_PLAN_RESET_PERIOD_MS[period]
+	}
+
+	private toFinitePlanUsageNumber(value: unknown): number {
+		return typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : 0
+	}
+
+	private async updateTaskPlanUsage(task: Task, tokenUsage?: TokenUsage): Promise<void> {
+		if (this.providerPlanUsageRecordedTaskIds.has(task.taskId)) {
+			return
+		}
+
+		const providerName = task.apiConfiguration?.apiProvider
+
+		if (!providerName) {
+			return
+		}
+
+		this.providerPlanUsageRecordedTaskIds.add(task.taskId)
+
+		const usage = tokenUsage ?? task.tokenUsage
+
+		await this.updatePlanUsage(
+			providerName,
+			this.toFinitePlanUsageNumber(usage?.totalTokensIn),
+			this.toFinitePlanUsageNumber(usage?.totalTokensOut),
+			this.toFinitePlanUsageNumber(usage?.totalCost),
+		)
+	}
+
+	private async updatePlanUsage(
+		providerName: string,
+		tokensIn: number,
+		tokensOut: number,
+		cost: number,
+	): Promise<boolean> {
+		const planLimits = this.contextProxy.getGlobalState("providerPlanLimits") ?? {}
+		const limit = planLimits[providerName]
+
+		if (!limit) {
+			return false
+		}
+
+		const hasTokenLimit = this.toFinitePlanUsageNumber(limit.tokenLimit) > 0
+		const hasCostLimit = this.toFinitePlanUsageNumber(limit.costLimit) > 0
+
+		if (!hasTokenLimit && !hasCostLimit) {
+			return false
+		}
+
+		const now = Date.now()
+		const planUsage = this.contextProxy.getGlobalState("providerPlanUsage") ?? {}
+		const currentUsage = planUsage[providerName]
+		const periodMs = this.getProviderPlanResetPeriodMs(limit.resetPeriod)
+		const currentPeriodStart =
+			typeof currentUsage?.periodStart === "number" && Number.isFinite(currentUsage.periodStart)
+				? currentUsage.periodStart
+				: now
+		const shouldReset = now - currentPeriodStart > periodMs
+		const periodStart = shouldReset ? now : currentPeriodStart
+		const nextUsage = {
+			tokensUsed:
+				(shouldReset ? 0 : this.toFinitePlanUsageNumber(currentUsage?.tokensUsed)) +
+				this.toFinitePlanUsageNumber(tokensIn) +
+				this.toFinitePlanUsageNumber(tokensOut),
+			costUsed:
+				(shouldReset ? 0 : this.toFinitePlanUsageNumber(currentUsage?.costUsed)) +
+				this.toFinitePlanUsageNumber(cost),
+			periodStart,
+		}
+
+		if (shouldReset) {
+			await this.contextProxy.updateGlobalState("providerPlanLimits", {
+				...planLimits,
+				[providerName]: {
+					...limit,
+					lastReset: now,
+				},
+			})
+		}
+
+		await this.contextProxy.updateGlobalState("providerPlanUsage", {
+			...planUsage,
+			[providerName]: nextUsage,
+		})
+
+		if (this.isViewLaunched) {
+			await this.postStateToWebviewWithoutClineMessages()
+		}
+
+		return true
 	}
 
 	public async notifyAcceptedFinalParentCompletion(
@@ -4460,6 +4556,39 @@ export class ClineProvider
 		}
 	}
 
+	/**
+	 * Merges missing API key values from the active profile in the ProviderSettingsManager
+	 * profiles blob into the given providerSettings. This serves as a safety net for cases
+	 * where an API key was not loaded into ContextProxy's secret cache (e.g., keys added to
+	 * SECRET_STATE_KEYS after the user saved them, or keys stored only in the profiles blob).
+	 *
+	 * Values already present in providerSettings take precedence (they are more up-to-date).
+	 */
+	private async mergeProfileApiKeys(providerSettings: ProviderSettings): Promise<ProviderSettings> {
+		try {
+			const currentConfigName = this.contextProxy.getValues().currentApiConfigName || "default"
+			const profile = await this.providerSettingsManager.getProfile({ name: currentConfigName })
+
+			if (!profile) {
+				return providerSettings
+			}
+
+			const merged = { ...providerSettings }
+
+			for (const key of SECRET_STATE_KEYS) {
+				const typedKey = key as keyof ProviderSettings
+				if (!merged[typedKey] && profile[typedKey]) {
+					;(merged as Record<string, unknown>)[key] = profile[typedKey]
+				}
+			}
+
+			return merged
+		} catch {
+			// Profile not found or other error — return as-is
+			return providerSettings
+		}
+	}
+
 	getProviderProfileEntries(): ProviderSettingsEntry[] {
 		return this.contextProxy.getValues().listApiConfigMeta || []
 	}
@@ -5384,6 +5513,8 @@ export class ClineProvider
 			lmStudioImageGenerationSelectedModel,
 			lmStudioImageGenerationApiMethod,
 			openAiCodexFastStatus,
+			providerPlanLimits,
+			providerPlanUsage,
 			lockApiConfigAcrossModes,
 		} = await this.getState()
 
@@ -5428,8 +5559,6 @@ export class ClineProvider
 			currentTaskId: currentTask?.taskId,
 			currentTaskItem: currentTask?.taskId ? this.taskHistoryStore.get(currentTask.taskId) : undefined,
 			clineMessages: currentTask?.clineMessages || [],
-			contextCacheStats: getTaskContextCacheStats(currentTask, normalizedColdCacheRamBudgetMb),
-			contextCacheWarning: getTaskContextCacheWarning(currentTask),
 			contextCacheStats,
 			contextCacheWarning,
 			currentTaskTodos: currentTask?.todoList || [],
@@ -5563,6 +5692,8 @@ export class ClineProvider
 			lmStudioImageGenerationSelectedModel,
 			lmStudioImageGenerationApiMethod,
 			openAiCodexFastStatus: openAiCodexFastStatus ?? { state: "off" },
+			providerPlanLimits: providerPlanLimits ?? {},
+			providerPlanUsage: providerPlanUsage ?? {},
 			openAiCodexIsAuthenticated: await (async () => {
 				try {
 					const { openAiCodexOAuthManager } = await import("../../integrations/openai-codex/oauth")
@@ -5571,6 +5702,8 @@ export class ClineProvider
 					return false
 				}
 			})(),
+			openAiCodexRateLimits: this.cachedOpenAiCodexRateLimits,
+			cachedProviderPlanUsage: this.cachedProviderPlanUsage,
 			debug: vscode.workspace.getConfiguration(Package.name).get<boolean>("debug", false),
 			activeExecutionPlan: this.activeExecutionPlan,
 		}
@@ -5598,7 +5731,14 @@ export class ClineProvider
 				: "openrouter"
 
 		// Build the apiConfiguration object combining state values and secrets.
-		const providerSettings = this.contextProxy.getProviderSettings()
+		let providerSettings = this.contextProxy.getProviderSettings()
+
+		// Safety net: merge missing API key values from the active profile in the
+		// ProviderSettingsManager profiles blob. This handles cases where an API key
+		// was not loaded into ContextProxy's secret cache (e.g., keys that were added
+		// to SECRET_STATE_KEYS after the user had already saved them, or keys that were
+		// stored only in the profiles blob by saveConfig()).
+		providerSettings = await this.mergeProfileApiKeys(providerSettings)
 
 		// Ensure apiProvider is set properly if not already in state
 		if (!providerSettings.apiProvider) {
@@ -5775,6 +5915,8 @@ export class ClineProvider
 			lmStudioImageGenerationSelectedModel: stateValues.lmStudioImageGenerationSelectedModel,
 			lmStudioImageGenerationApiMethod: stateValues.lmStudioImageGenerationApiMethod,
 			openAiCodexFastStatus: stateValues.openAiCodexFastStatus,
+			providerPlanLimits: stateValues.providerPlanLimits ?? {},
+			providerPlanUsage: stateValues.providerPlanUsage ?? {},
 		}
 	}
 

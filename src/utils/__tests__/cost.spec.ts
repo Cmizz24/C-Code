@@ -303,4 +303,73 @@ describe("Cost Utility", () => {
 			expect(result.totalCost).toBeCloseTo(1.08, 6)
 		})
 	})
+
+	describe("subscriptionBased models", () => {
+		it("should return zero cost for subscription-based models in calculateApiCostAnthropic", () => {
+			const subscriptionModel: ModelInfo = {
+				maxTokens: 128000,
+				contextWindow: 400000,
+				supportsPromptCache: true,
+				inputPrice: 0,
+				outputPrice: 0,
+				subscriptionBased: true,
+			}
+
+			const result = calculateApiCostAnthropic(subscriptionModel, 10000, 5000, 2000, 3000)
+
+			expect(result.totalCost).toBe(0)
+			expect(result.totalInputTokens).toBe(15000) // 10000 + 2000 + 3000
+			expect(result.totalOutputTokens).toBe(5000)
+		})
+
+		it("should return zero cost for subscription-based models in calculateApiCostOpenAI", () => {
+			const subscriptionModel: ModelInfo = {
+				maxTokens: 128000,
+				contextWindow: 400000,
+				supportsPromptCache: true,
+				inputPrice: 0,
+				outputPrice: 0,
+				subscriptionBased: true,
+			}
+
+			const result = calculateApiCostOpenAI(subscriptionModel, 10000, 5000, 2000, 3000)
+
+			expect(result.totalCost).toBe(0)
+			expect(result.totalInputTokens).toBe(10000)
+			expect(result.totalOutputTokens).toBe(5000)
+		})
+
+		it("should return zero cost even when subscription-based model has non-zero prices", () => {
+			const subscriptionModel: ModelInfo = {
+				maxTokens: 128000,
+				contextWindow: 400000,
+				supportsPromptCache: true,
+				inputPrice: 3.0,
+				outputPrice: 15.0,
+				subscriptionBased: true,
+			}
+
+			const result = calculateApiCostOpenAI(subscriptionModel, 100000, 50000)
+
+			expect(result.totalCost).toBe(0)
+		})
+
+		it("should still calculate cost for non-subscription models", () => {
+			const payPerUseModel: ModelInfo = {
+				maxTokens: 8192,
+				contextWindow: 200_000,
+				supportsPromptCache: true,
+				inputPrice: 3.0,
+				outputPrice: 15.0,
+				subscriptionBased: false,
+			}
+
+			const result = calculateApiCostOpenAI(payPerUseModel, 1000, 500)
+
+			// Input cost: (3.0 / 1_000_000) * 1000 = 0.003
+			// Output cost: (15.0 / 1_000_000) * 500 = 0.0075
+			// Total: 0.0105
+			expect(result.totalCost).toBe(0.0105)
+		})
+	})
 })
