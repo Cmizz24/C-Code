@@ -6864,7 +6864,7 @@ describe("ClineProvider", () => {
 		// Should load the saved config for architect mode
 		expect(provider.providerSettingsManager.getModeConfigId).toHaveBeenCalledWith("architect")
 		expect(provider.providerSettingsManager.activateProfile).toHaveBeenCalledWith({ name: "test-config" })
-		expect(mockContext.globalState.update).toHaveBeenCalledWith("currentApiConfigName", "test-config")
+		expect(mockContext.workspaceState.update).toHaveBeenCalledWith("currentApiConfigName", "test-config")
 	})
 
 	it("saves current config when switching to mode without config", async () => {
@@ -7454,7 +7454,7 @@ describe("ClineProvider", () => {
 			// Verify saved config was loaded
 			expect(provider.providerSettingsManager.getModeConfigId).toHaveBeenCalledWith("architect")
 			expect(provider.providerSettingsManager.activateProfile).toHaveBeenCalledWith({ name: "saved-config" })
-			expect(mockContext.globalState.update).toHaveBeenCalledWith("currentApiConfigName", "saved-config")
+			expect(mockContext.workspaceState.update).toHaveBeenCalledWith("currentApiConfigName", "saved-config")
 
 			// Verify state was posted to webview
 			expect(mockPostMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "state" }))
@@ -7878,7 +7878,7 @@ describe("ClineProvider", () => {
 			expect(mockContext.globalState.update).toHaveBeenCalledWith("listApiConfigMeta", [
 				{ name: "test-config", id: "test-id", apiProvider: "anthropic" },
 			])
-			expect(mockContext.globalState.update).toHaveBeenCalledWith("currentApiConfigName", "test-config")
+			expect(mockContext.workspaceState.update).toHaveBeenCalledWith("currentApiConfigName", "test-config")
 
 			// Verify state was posted to webview
 			expect(mockPostMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "state" }))
@@ -7928,7 +7928,7 @@ describe("ClineProvider", () => {
 			expect(mockContext.globalState.update).toHaveBeenCalledWith("listApiConfigMeta", [
 				{ name: "test-config", id: "test-id", apiProvider: "anthropic" },
 			])
-			expect(mockContext.globalState.update).toHaveBeenCalledWith("currentApiConfigName", "test-config")
+			expect(mockContext.workspaceState.update).toHaveBeenCalledWith("currentApiConfigName", "test-config")
 		})
 
 		test("handles successful saveApiConfiguration", async () => {

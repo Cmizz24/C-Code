@@ -216,10 +216,10 @@ describe("DeepSeekHandler", () => {
 			expect(model.info.reasoningEffort).toBe("high")
 			expect(model.info.requiredReasoningEffort).toBe(true)
 			expect(model.info.preserveReasoning).toBe(true)
-			expect(model.info.inputPrice).toBe(0.435)
-			expect(model.info.outputPrice).toBe(0.87)
-			expect(model.info.cacheWritesPrice).toBe(0.435)
-			expect(model.info.cacheReadsPrice).toBe(0.003625)
+			expect(model.info.inputPrice).toBe(1.74)
+			expect(model.info.outputPrice).toBe(3.48)
+			expect(model.info.cacheWritesPrice).toBe(1.74)
+			expect(model.info.cacheReadsPrice).toBe(0.0145)
 		})
 
 		it("should return current V4 Flash model info", () => {

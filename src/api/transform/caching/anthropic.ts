@@ -1,10 +1,12 @@
 import OpenAI from "openai"
 
+const CACHE_CONTROL = { type: "ephemeral" }
+
 export function addCacheBreakpoints(systemPrompt: string, messages: OpenAI.Chat.ChatCompletionMessageParam[]) {
 	messages[0] = {
 		role: "system",
 		// @ts-ignore-next-line
-		content: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
+		content: [{ type: "text", text: systemPrompt, cache_control: CACHE_CONTROL }],
 	}
 
 	// Ensure all user messages have content in array format first
@@ -23,19 +25,19 @@ export function addCacheBreakpoints(systemPrompt: string, messages: OpenAI.Chat.
 		.slice(-2)
 		.forEach((msg) => {
 			if (Array.isArray(msg.content)) {
-				// NOTE: This is fine since env details will always be added
-				// at the end. But if it wasn't there, and the user added a
-				// image_url type message, it would pop a text part before
-				// it and then move it after to the end.
-				let lastTextPart = msg.content.filter((part) => part.type === "text").pop()
+				const lastTextPart = msg.content
+					.filter(
+						(part: { type: string; text?: unknown }) =>
+							part.type === "text" && typeof part.text === "string" && part.text.trim().length > 0,
+					)
+					.pop()
 
 				if (!lastTextPart) {
-					lastTextPart = { type: "text", text: "..." }
-					msg.content.push(lastTextPart)
+					return
 				}
 
 				// @ts-ignore-next-line
-				lastTextPart["cache_control"] = { type: "ephemeral" }
+				lastTextPart["cache_control"] = CACHE_CONTROL
 			}
 		})
 }

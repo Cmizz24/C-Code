@@ -187,13 +187,16 @@ export class ContextProxy {
 	 */
 	private async migrateSecretKeysFromGlobalState() {
 		try {
+			const stateCache = this.stateCache as Record<string, unknown>
+			const secretCache = this.secretCache as Record<string, string | undefined>
+
 			for (const key of SECRET_STATE_KEYS) {
-				if (this.secretCache[key] === undefined && this.stateCache[key] !== undefined) {
+				if (secretCache[key] === undefined && stateCache[key] !== undefined) {
 					logger.info(`[ContextProxy] Migrating secret key "${key}" from globalState to secrets`)
-					await this.originalContext.secrets.store(key, String(this.stateCache[key]))
-					this.secretCache[key] = String(this.stateCache[key])
+					await this.originalContext.secrets.store(key, String(stateCache[key]))
+					secretCache[key] = String(stateCache[key])
 					await this.originalContext.globalState.update(key, undefined)
-					delete (this.stateCache as Record<string, unknown>)[key]
+					delete stateCache[key]
 				}
 			}
 		} catch (error) {

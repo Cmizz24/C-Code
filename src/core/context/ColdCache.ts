@@ -61,6 +61,11 @@ export class ColdCache {
 		return existing
 	}
 
+	clear(): void {
+		this.chunks.clear()
+		this.byteCount = 0
+	}
+
 	get(id: string): ContextChunk | undefined {
 		const chunk = this.chunks.get(id)
 		if (!chunk) {

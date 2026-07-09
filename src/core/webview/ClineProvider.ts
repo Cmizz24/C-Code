@@ -1652,7 +1652,7 @@ export class ClineProvider
 
 	private async notifyTaskCompletion(task: Task, tokenUsage?: TokenUsage, toolUsage?: ToolUsage): Promise<void> {
 		this.rememberEmailNotificationTaskContext(task, "completed")
-		await this.updateTaskPlanUsage(task, tokenUsage).catch((error) => {
+		void this.updateTaskPlanUsage(task, tokenUsage).catch((error) => {
 			this.log(
 				`[provider-plan-usage] Failed to update plan usage for task ${task.taskId}: ${error instanceof Error ? error.message : String(error)}`,
 			)

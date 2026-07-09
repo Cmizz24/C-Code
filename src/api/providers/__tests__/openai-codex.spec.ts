@@ -1,5 +1,6 @@
 // npx vitest run api/providers/__tests__/openai-codex.spec.ts
 
+import type { Anthropic } from "@anthropic-ai/sdk"
 import {
 	type ModelInfo,
 	type OpenAiCodexModelId,
@@ -165,6 +166,37 @@ describe("OpenAiCodexHandler Fast mode request body", () => {
 
 		expect(body.instructions).toBe(SINGLE_COMPLETION_SYSTEM_PROMPT)
 		expect(body.instructions.trim().length).toBeGreaterThan(0)
+	})
+})
+
+describe("OpenAiCodexHandler Responses input formatting", () => {
+	it("drops orphan function_call_output items while preserving valid tool call pairs", () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+		const messages: Anthropic.Messages.MessageParam[] = [
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Before orphan" },
+					{ type: "tool_result", tool_use_id: "missing_call", content: "orphan result" },
+				],
+			},
+			{
+				role: "assistant",
+				content: [{ type: "tool_use", id: "call_valid", name: "read_file", input: { path: "test.txt" } }],
+			},
+			{
+				role: "user",
+				content: [{ type: "tool_result", tool_use_id: "call_valid", content: "valid result" }],
+			},
+		]
+
+		const result = (handler as any).formatFullConversation("system prompt", messages)
+
+		expect(result).toEqual([
+			{ role: "user", content: [{ type: "input_text", text: "Before orphan" }] },
+			{ type: "function_call", call_id: "call_valid", name: "read_file", arguments: '{"path":"test.txt"}' },
+			{ type: "function_call_output", call_id: "call_valid", output: "valid result" },
+		])
 	})
 })
 

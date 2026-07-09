@@ -112,6 +112,44 @@ describe("ContextWindowManager", () => {
 		])
 	})
 
+	it("provides cold-cache recall hints and invalidates them after retrieval promotion", () => {
+		const manager = new ContextWindowManager({ hotTokenBudget: 1000, coldCacheRamBudgetMb: 256 })
+
+		manager.registerChunk({
+			type: "file_content",
+			content: "Important alpha helper implementation details swapped out of hot context",
+			tokens: 20,
+			metadata: { filePath: "src/alpha.ts", title: "alpha helper" },
+		})
+		manager.updateOptions({ hotTokenBudget: 1 })
+
+		const hint = manager.getRecallHint()
+
+		expect(hint).toContain("Cold context cache hint")
+		expect(hint).toContain("file=src/alpha.ts")
+		expect(hint).toContain("Important alpha helper implementation")
+		expect(hint).toContain("ask_for_context")
+
+		const matches = manager.askForContext("alpha helper", { filePath: "src/alpha.ts" })
+
+		expect(matches).toHaveLength(1)
+		expect(manager.getRecallHint()).toBeUndefined()
+		expect(manager.getStats()).toMatchObject({ coldCacheChunks: 0, hotCacheChunks: 1 })
+	})
+
+	it("does not emit cold-cache recall hints when only hot chunks exist", () => {
+		const manager = new ContextWindowManager({ hotTokenBudget: 1000, coldCacheRamBudgetMb: 256 })
+
+		manager.registerChunk({
+			type: "file_content",
+			content: "Hot context should not tell the model to recall cold data",
+			tokens: 20,
+			metadata: { filePath: "src/hot.ts" },
+		})
+
+		expect(manager.getRecallHint()).toBeUndefined()
+	})
+
 	it("keeps context cache events bounded", () => {
 		const manager = new ContextWindowManager({ hotTokenBudget: 1 })
 

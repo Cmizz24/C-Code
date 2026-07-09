@@ -17,10 +17,12 @@ const glmThinkingV2 = {
 	preserveReasoning: true,
 } satisfies Pick<ModelInfo, "supportsReasoningEffort" | "reasoningEffort" | "preserveReasoning">
 
-// Older GLM models support basic thinking toggle only (no reasoning_effort)
+// Older GLM models support a basic on/off thinking toggle, but no granular reasoning_effort.
 const glmThinkingBasic = {
+	supportsReasoningEffort: ["disable", "medium"],
+	reasoningEffort: "medium",
 	preserveReasoning: true,
-} satisfies Pick<ModelInfo, "preserveReasoning">
+} satisfies Pick<ModelInfo, "supportsReasoningEffort" | "reasoningEffort" | "preserveReasoning">
 
 export type InternationalZAiModelId = keyof typeof internationalZAiModels
 export const internationalZAiDefaultModelId: InternationalZAiModelId = "glm-5.2"

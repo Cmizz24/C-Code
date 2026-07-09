@@ -114,5 +114,31 @@ export function convertToResponsesApiInput(messages: Anthropic.Messages.MessageP
 		}
 	}
 
-	return input
+	return sanitizeResponsesApiInput(input)
+}
+
+export function sanitizeResponsesApiInput(input: any[]): any[] {
+	const seenFunctionCallIds = new Set<string>()
+	const sanitized: any[] = []
+
+	for (const item of input) {
+		if (item?.type === "function_call") {
+			if (typeof item.call_id === "string" && item.call_id.length > 0) {
+				seenFunctionCallIds.add(item.call_id)
+			}
+			sanitized.push(item)
+			continue
+		}
+
+		if (item?.type === "function_call_output") {
+			if (typeof item.call_id === "string" && seenFunctionCallIds.has(item.call_id)) {
+				sanitized.push(item)
+			}
+			continue
+		}
+
+		sanitized.push(item)
+	}
+
+	return sanitized
 }

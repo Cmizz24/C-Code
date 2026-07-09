@@ -136,7 +136,7 @@ describe("addCacheBreakpoints (Anthropic)", () => {
 		])
 	})
 
-	it("should add a placeholder text part if the target message has no text parts", () => {
+	it("should not add cache_control if the target message has no text parts", () => {
 		const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			{ role: "user", content: "User message 1" },
@@ -152,9 +152,31 @@ describe("addCacheBreakpoints (Anthropic)", () => {
 			{ type: "text", text: "User message 1", cache_control: { type: "ephemeral" } },
 		])
 
+		expect(messages[2].content).toEqual([{ type: "image_url", image_url: { url: "data:image/png;base64,..." } }])
+	})
+
+	it("should not add cache_control to an empty text part", () => {
+		const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+			{ role: "system", content: systemPrompt },
+			{ role: "user", content: "User message 1" },
+			{
+				role: "user",
+				content: [
+					{ type: "image_url", image_url: { url: "data:image/png;base64,..." } },
+					{ type: "text", text: "   " },
+				],
+			},
+		]
+
+		addCacheBreakpoints(systemPrompt, messages)
+
+		expect(messages[1].content).toEqual([
+			{ type: "text", text: "User message 1", cache_control: { type: "ephemeral" } },
+		])
+
 		expect(messages[2].content).toEqual([
 			{ type: "image_url", image_url: { url: "data:image/png;base64,..." } },
-			{ type: "text", text: "...", cache_control: { type: "ephemeral" } }, // Placeholder added.
+			{ type: "text", text: "   " },
 		])
 	})
 

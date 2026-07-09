@@ -19,6 +19,12 @@ const CONTEXT_CACHE_MAX_RAM_RATIO = 0.25
 const CONTEXT_CACHE_RAM_HEADROOM_MB = 2 * 1024
 const MAX_COLD_CACHE_RAM_BUDGET_MB = 32 * 1024
 const CONTEXT_CACHE_EVENT_QUEUE_LIMIT = 20
+const DEFAULT_CONTEXT_CACHE_RECALL_HINT_MAX_CHUNKS = 5
+const DEFAULT_CONTEXT_CACHE_RECALL_HINT_MAX_CHARACTERS = 900
+const CONTEXT_CACHE_RECALL_HINT_HEADER =
+	"Cold context cache hint: some earlier task context has been swapped out of the active prompt to stay within the model window."
+const CONTEXT_CACHE_RECALL_HINT_FOOTER =
+	"Use ask_for_context with a focused query and optional filePath before relying on details that may have been swapped out."
 
 export interface ContextWindowManagerOptions {
 	hotTokenBudget: number
@@ -37,6 +43,16 @@ export interface ContextPressureResult {
 	movedChunks: number
 	movedTokens: number
 	warning?: string
+}
+
+export interface ContextCacheRecallHintOptions {
+	maxChunks?: number
+	maxCharacters?: number
+}
+
+export interface ContextChunkRegistrationOptions {
+	recordEvents?: boolean
+	countSwaps?: boolean
 }
 
 function getSafeContextCacheBudgetLimitMb(totalMemoryBytes: number): number {
@@ -174,15 +190,25 @@ export class ContextWindowManager {
 		}
 	}
 
-	registerChunk(input: RegisterContextChunkInput): ContextChunk | undefined {
+	registerChunk(
+		input: RegisterContextChunkInput,
+		options: ContextChunkRegistrationOptions = {},
+	): ContextChunk | undefined {
 		const chunk = createContextChunk(input)
 		if (!chunk) {
 			return undefined
 		}
 
 		const evicted = this.hotCache.add(chunk)
-		this.moveChunksToCold(evicted)
+		this.moveChunksToCold(evicted, options)
 		return chunk
+	}
+
+	clearCachedChunks(): void {
+		this.hotCache.clear()
+		this.coldCache.clear()
+		this.hiddenMessageTimestamps.clear()
+		this.warning = undefined
 	}
 
 	handlePressure(options: ContextPressureOptions): ContextPressureResult {
@@ -262,6 +288,47 @@ export class ContextWindowManager {
 		return results.map(toSearchResult)
 	}
 
+	getRecallHint(options: ContextCacheRecallHintOptions = {}): string | undefined {
+		const maxCharacters = Math.max(
+			0,
+			Math.floor(options.maxCharacters ?? DEFAULT_CONTEXT_CACHE_RECALL_HINT_MAX_CHARACTERS),
+		)
+		if (maxCharacters === 0) {
+			return undefined
+		}
+
+		const maxChunks = Math.max(1, Math.floor(options.maxChunks ?? DEFAULT_CONTEXT_CACHE_RECALL_HINT_MAX_CHUNKS))
+		const coldChunks = this.coldCache.values().sort((left, right) => {
+			if (left.priority !== right.priority) {
+				return right.priority - left.priority
+			}
+			return right.lastAccessedAt - left.lastAccessedAt
+		})
+
+		if (coldChunks.length === 0) {
+			return undefined
+		}
+
+		const lines: string[] = []
+		for (const chunk of coldChunks.slice(0, maxChunks)) {
+			const line = this.formatRecallHintChunk(chunk)
+			const candidate = [CONTEXT_CACHE_RECALL_HINT_HEADER, ...lines, line, CONTEXT_CACHE_RECALL_HINT_FOOTER].join(
+				"\n",
+			)
+			if (candidate.length > maxCharacters) {
+				break
+			}
+			lines.push(line)
+		}
+
+		if (lines.length === 0) {
+			const fallback = [CONTEXT_CACHE_RECALL_HINT_HEADER, CONTEXT_CACHE_RECALL_HINT_FOOTER].join("\n")
+			return fallback.length <= maxCharacters ? fallback : undefined
+		}
+
+		return [CONTEXT_CACHE_RECALL_HINT_HEADER, ...lines, CONTEXT_CACHE_RECALL_HINT_FOOTER].join("\n")
+	}
+
 	getStats(): ContextCacheStats {
 		const hotStats = this.hotCache.getStats()
 		const coldStats = this.coldCache.getStats()
@@ -311,7 +378,32 @@ export class ContextWindowManager {
 		)
 	}
 
-	private moveChunksToCold(chunks: ContextChunk[]): { accepted: boolean; movedChunks: number; movedTokens: number } {
+	private formatRecallHintChunk(chunk: ContextChunk): string {
+		const metadata = chunk.metadata
+		const labels: string[] = [chunk.type]
+		if (metadata?.filePath) {
+			labels.push(`file=${metadata.filePath}`)
+		}
+		if (metadata?.title) {
+			labels.push(`title=${metadata.title}`)
+		}
+		if (metadata?.toolName) {
+			labels.push(`tool=${metadata.toolName}`)
+		}
+
+		const normalizedContent = chunk.content.replace(/\s+/g, " ").trim()
+		const excerpt =
+			normalizedContent.length > 160 ? `${normalizedContent.slice(0, 157).trimEnd()}...` : normalizedContent
+
+		return `- ${labels.join(" ")} (${chunk.tokens} tokens): ${excerpt}`
+	}
+
+	private moveChunksToCold(
+		chunks: ContextChunk[],
+		options: ContextChunkRegistrationOptions = {},
+	): { accepted: boolean; movedChunks: number; movedTokens: number } {
+		const recordEvents = options.recordEvents ?? true
+		const countSwaps = options.countSwaps ?? true
 		let accepted = true
 		let movedChunks = 0
 		let movedTokens = 0
@@ -334,10 +426,12 @@ export class ContextWindowManager {
 			movedChunks++
 			movedTokens += chunk.tokens
 			this.hideMessageTimestamps(chunk)
-			this.swapsThisSession++
+			if (countSwaps) {
+				this.swapsThisSession++
+			}
 		}
 
-		if (movedChunks > 0) {
+		if (recordEvents && movedChunks > 0) {
 			this.recordContextCacheEvent({
 				type: "chunks_moved_to_cold",
 				chunkCount: movedChunks,
@@ -345,7 +439,7 @@ export class ContextWindowManager {
 			})
 		}
 
-		if (rejectedChunks > 0) {
+		if (recordEvents && rejectedChunks > 0) {
 			this.recordContextCacheEvent({
 				type: "cold_cache_full",
 				chunkCount: rejectedChunks,

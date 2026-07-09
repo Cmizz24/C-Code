@@ -764,4 +764,31 @@ describe("tool-error mistake memory queue", () => {
 		)
 		expect((task.say as any).mock.calls[0][6]).toEqual({ isNonInteractive: true })
 	})
+
+	it("does not queue mistake memories for predictable mode or file-restriction validation errors", async () => {
+		const task = createTaskWithRealMemoryQueue(tempDir)
+
+		task.recordToolError(
+			"edit_file",
+			'Tool "edit_file" is not allowed in architect mode. Use switch_mode to continue in a mode that allows this tool, or new_task to delegate the work to a capable mode.',
+			"validation_error",
+		)
+		task.recordToolError(
+			"apply_patch",
+			"Tool 'apply_patch' in mode 'Architect' can only edit files matching pattern: \\.md$. Got: src/app.ts",
+			"validation_error",
+		)
+
+		await task.drainQueuedMistakeMemories()
+
+		expect((task.providerRef.deref() as any).postMemoryStateToWebview).not.toHaveBeenCalled()
+		expect(task.ask).not.toHaveBeenCalled()
+
+		const store = await new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd }).readStore(
+			"workspace",
+			task.cwd,
+		)
+		expect(store.memories).toHaveLength(0)
+		expect(store.candidates).toHaveLength(0)
+	})
 })

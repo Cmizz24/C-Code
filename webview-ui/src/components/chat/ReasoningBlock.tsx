@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
+import { normalizeReasoningContent } from "@src/utils/reasoning"
 
 import MarkdownBlock from "../common/MarkdownBlock"
 import { Lightbulb, ChevronUp } from "lucide-react"
@@ -23,6 +24,7 @@ export const ReasoningBlock = ({ content, isStreaming, isLast }: ReasoningBlockP
 	const startTimeRef = useRef<number>(Date.now())
 	const [elapsed, setElapsed] = useState<number>(0)
 	const contentRef = useRef<HTMLDivElement>(null)
+	const normalizedContent = useMemo(() => normalizeReasoningContent(content), [content])
 
 	useEffect(() => {
 		setIsCollapsed(reasoningBlockCollapsed)
@@ -65,11 +67,11 @@ export const ReasoningBlock = ({ content, isStreaming, isLast }: ReasoningBlockP
 					/>
 				</div>
 			</div>
-			{(content?.trim()?.length ?? 0) > 0 && !isCollapsed && (
+			{(normalizedContent?.trim()?.length ?? 0) > 0 && !isCollapsed && (
 				<div
 					ref={contentRef}
 					className="border-l border-vscode-descriptionForeground/20 ml-2 pl-4 pb-1 text-vscode-descriptionForeground break-words">
-					<MarkdownBlock markdown={content} />
+					<MarkdownBlock markdown={normalizedContent} />
 				</div>
 			)}
 		</div>

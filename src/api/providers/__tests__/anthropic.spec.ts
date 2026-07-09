@@ -169,6 +169,9 @@ describe("AnthropicHandler", () => {
 			expect(usageChunk?.cacheWriteTokens).toBe(20)
 			expect(usageChunk?.cacheReadTokens).toBe(10)
 
+			const totalCostChunk = chunks.find((chunk) => chunk.type === "usage" && chunk.totalCost !== undefined)
+			expect(totalCostChunk?.totalCost).toBeCloseTo(0.001128)
+
 			// Verify text content
 			const textChunks = chunks.filter((chunk) => chunk.type === "text")
 			expect(textChunks).toHaveLength(2)
@@ -177,6 +180,117 @@ describe("AnthropicHandler", () => {
 
 			// Verify API
 			expect(mockCreate).toHaveBeenCalled()
+		})
+
+		it("should cache tools, system prompt, and the last two user messages for supported models", async () => {
+			const stream = handler.createMessage(
+				systemPrompt,
+				[
+					{
+						role: "user",
+						content: [{ type: "text" as const, text: "First message" }],
+					},
+					{
+						role: "assistant",
+						content: [{ type: "text" as const, text: "Response" }],
+					},
+					{
+						role: "user",
+						content: [{ type: "text" as const, text: "Second message" }],
+					},
+				],
+				{
+					taskId: "test-task",
+					tools: [
+						{
+							type: "function" as const,
+							function: {
+								name: "first_tool",
+								description: "First tool",
+								parameters: { type: "object", properties: {} },
+							},
+						},
+						{
+							type: "function" as const,
+							function: {
+								name: "second_tool",
+								description: "Second tool",
+								parameters: { type: "object", properties: {} },
+							},
+						},
+					],
+				},
+			)
+
+			for await (const _chunk of stream) {
+				// Consume stream
+			}
+
+			const request = mockCreate.mock.calls[mockCreate.mock.calls.length - 1]?.[0]
+			const requestOptions = mockCreate.mock.calls[mockCreate.mock.calls.length - 1]?.[1]
+
+			expect(request.system).toEqual([{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }])
+			expect(request.messages[0].content).toEqual([
+				{ type: "text", text: "First message", cache_control: { type: "ephemeral" } },
+			])
+			expect(request.messages[1].content).toEqual([{ type: "text", text: "Response" }])
+			expect(request.messages[2].content).toEqual([
+				{ type: "text", text: "Second message", cache_control: { type: "ephemeral" } },
+			])
+			expect(request.tools[0]).not.toHaveProperty("cache_control")
+			expect(request.tools[1]).toEqual(
+				expect.objectContaining({ name: "second_tool", cache_control: { type: "ephemeral" } }),
+			)
+			expect(requestOptions?.headers?.["anthropic-beta"].split(",")).toContain("prompt-caching-2024-07-31")
+		})
+
+		it("should add message cache_control only to cacheable content blocks", async () => {
+			const stream = handler.createMessage(systemPrompt, [
+				{
+					role: "user",
+					content: [{ type: "text" as const, text: "First message" }],
+				},
+				{
+					role: "assistant",
+					content: [{ type: "text" as const, text: "Response" }],
+				},
+				{
+					role: "user",
+					content: [
+						{
+							type: "image" as const,
+							source: { type: "base64" as const, media_type: "image/png" as const, data: "..." },
+						},
+						{
+							type: "thinking" as any,
+							thinking: "This block cannot be directly cached",
+							signature: "test-signature",
+						},
+					],
+				},
+				{
+					role: "assistant",
+					content: [{ type: "text" as const, text: "Response" }],
+				},
+				{
+					role: "user",
+					content: [{ type: "thinking" as any, thinking: "No cacheable block", signature: "test-signature" }],
+				},
+			])
+
+			for await (const _chunk of stream) {
+				// Consume stream
+			}
+
+			const request = mockCreate.mock.calls[mockCreate.mock.calls.length - 1]?.[0]
+			const secondLastUserContent = request.messages[2].content
+			const lastUserContent = request.messages[4].content
+
+			expect(secondLastUserContent[0]).toEqual(
+				expect.objectContaining({ type: "image", cache_control: { type: "ephemeral" } }),
+			)
+			expect(secondLastUserContent[1]).not.toHaveProperty("cache_control")
+			expect(lastUserContent[0]).not.toHaveProperty("cache_control")
 		})
 
 		it("should not include 1M context beta header for GA Claude Sonnet 4.6", async () => {
@@ -221,9 +335,96 @@ describe("AnthropicHandler", () => {
 			}
 
 			const request = mockCreate.mock.calls[mockCreate.mock.calls.length - 1]?.[0]
-			expect(request.thinking).toEqual({ type: "adaptive" })
+			expect(request.thinking).toEqual({ type: "adaptive", display: "summarized" })
 			expect(request.output_config).toEqual({ effort: "max" })
 			expect(request.temperature).toBeUndefined()
+		})
+
+		it("should preserve streamed Anthropic thinking signatures for tool continuations", async () => {
+			mockCreate.mockImplementationOnce(async () => ({
+				async *[Symbol.asyncIterator]() {
+					yield {
+						type: "content_block_start",
+						index: 0,
+						content_block: { type: "thinking", thinking: "" },
+					}
+					yield {
+						type: "content_block_delta",
+						index: 0,
+						delta: { type: "thinking_delta", thinking: "I should inspect " },
+					}
+					yield {
+						type: "content_block_delta",
+						index: 0,
+						delta: { type: "thinking_delta", thinking: "the requested file." },
+					}
+					yield {
+						type: "content_block_delta",
+						index: 0,
+						delta: { type: "signature_delta", signature: "sig_123" },
+					}
+					yield {
+						type: "content_block_start",
+						index: 1,
+						content_block: { type: "tool_use", id: "toolu_123", name: "read_file" },
+					}
+					yield {
+						type: "content_block_delta",
+						index: 1,
+						delta: { type: "input_json_delta", partial_json: '{"path":"README.md"}' },
+					}
+				},
+			}))
+
+			const stream = handler.createMessage(systemPrompt, [
+				{ role: "user", content: [{ type: "text" as const, text: "Read README.md" }] },
+			])
+			const chunks: any[] = []
+
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			expect(chunks.filter((chunk) => chunk.type === "reasoning").map((chunk) => chunk.text)).toEqual([
+				"I should inspect ",
+				"the requested file.",
+			])
+			expect(handler.getThoughtSignature()).toBe("sig_123")
+			expect(handler.getThinkingBlocks()).toEqual([
+				{ type: "thinking", thinking: "I should inspect the requested file.", signature: "sig_123" },
+			])
+		})
+
+		it("should preserve redacted Anthropic thinking blocks", async () => {
+			mockCreate.mockImplementationOnce(async () => ({
+				async *[Symbol.asyncIterator]() {
+					yield {
+						type: "content_block_start",
+						index: 0,
+						content_block: { type: "redacted_thinking", data: "opaque-" },
+					}
+					yield {
+						type: "content_block_delta",
+						index: 0,
+						delta: { type: "redacted_thinking_delta", data: "data" },
+					}
+					yield {
+						type: "content_block_start",
+						index: 1,
+						content_block: { type: "text", text: "Done" },
+					}
+				},
+			}))
+
+			const stream = handler.createMessage(systemPrompt, [
+				{ role: "user", content: [{ type: "text" as const, text: "Hello" }] },
+			])
+
+			for await (const _chunk of stream) {
+				// Consume stream
+			}
+
+			expect(handler.getThinkingBlocks()).toEqual([{ type: "redacted_thinking", data: "opaque-data" }])
 		})
 	})
 

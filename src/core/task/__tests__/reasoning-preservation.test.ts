@@ -533,6 +533,82 @@ describe("Task reasoning preservation", () => {
 		})
 	})
 
+	it("should store provider-supplied Anthropic thinking blocks even when display was omitted", async () => {
+		const task = new Task({
+			provider: mockProvider as ClineProvider,
+			apiConfiguration: {
+				apiProvider: "anthropic",
+				apiModelId: "claude-fable-5",
+			} as ProviderSettings,
+			task: "Test task",
+			startTask: false,
+		})
+
+		;(task as any).saveApiConversationHistory = vi.fn().mockResolvedValue(undefined)
+		task.apiConversationHistory = []
+		task.api = {
+			getModel: vi.fn().mockReturnValue({
+				id: "claude-fable-5",
+				info: {
+					contextWindow: 1_000_000,
+					supportsPromptCache: true,
+				},
+			}),
+			getThinkingBlocks: vi.fn().mockReturnValue([{ type: "thinking", thinking: "", signature: "sig_omitted" }]),
+		} as any
+
+		await (task as any).addToApiConversationHistory({
+			role: "assistant",
+			content: [
+				{
+					type: "tool_use",
+					id: "toolu_123",
+					name: "read_file",
+					input: { path: "README.md" },
+				},
+			],
+		})
+
+		expect(task.apiConversationHistory[0].content).toEqual([
+			{ type: "thinking", thinking: "", signature: "sig_omitted" },
+			{
+				type: "tool_use",
+				id: "toolu_123",
+				name: "read_file",
+				input: { path: "README.md" },
+			},
+		])
+	})
+
+	it("should preserve provider-supplied Anthropic redacted thinking blocks", async () => {
+		const task = new Task({
+			provider: mockProvider as ClineProvider,
+			apiConfiguration: {
+				apiProvider: "anthropic",
+				apiModelId: "claude-fable-5",
+			} as ProviderSettings,
+			task: "Test task",
+			startTask: false,
+		})
+
+		;(task as any).saveApiConversationHistory = vi.fn().mockResolvedValue(undefined)
+		task.apiConversationHistory = []
+		task.api = {
+			getModel: vi.fn().mockReturnValue({ id: "claude-fable-5", info: { contextWindow: 1_000_000 } }),
+			getThinkingBlocks: vi.fn().mockReturnValue([{ type: "redacted_thinking", data: "opaque-data" }]),
+		} as any
+
+		await (task as any).addToApiConversationHistory({
+			role: "assistant",
+			content: [{ type: "text", text: "Done" }],
+		})
+
+		expect(task.apiConversationHistory[0].content).toEqual([
+			{ type: "redacted_thinking", data: "opaque-data" },
+			{ type: "text", text: "Done" },
+		])
+	})
+
 	it("should store DeepSeek streaming reasoning as top-level reasoning_content", async () => {
 		const task = new Task({
 			provider: mockProvider as ClineProvider,

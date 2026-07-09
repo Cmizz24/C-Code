@@ -653,6 +653,8 @@ export interface WebviewMessage {
 		| "fetchMoonshotPlanUsage"
 		| "fetchMiniMaxPlanUsage"
 		| "fetchXiaomiMiMoPlanUsage"
+		| "fetchQwenCodePlanUsage"
+		| "fetchSambaNovaPlanUsage"
 		| "refreshCustomTools"
 		| "requestModes"
 		| "switchMode"

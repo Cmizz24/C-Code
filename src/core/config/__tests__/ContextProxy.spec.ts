@@ -1028,10 +1028,10 @@ Output only the summary of the conversation so far, without any additional comme
 				extensionMode: vscode.ExtensionMode.Development,
 			}
 
-			const proxy1 = new ContextProxy(context1)
+			const proxy1 = new ContextProxy(context1 as any)
 			await proxy1.initialize()
 
-			const proxy2 = new ContextProxy(context2)
+			const proxy2 = new ContextProxy(context2 as any)
 			await proxy2.initialize()
 
 			// Set different providers in each workspace
