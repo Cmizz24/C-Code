@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react"
-import type { AgentPlan, ExecutionPlan } from "@roo-code/types"
+import type { AgentPlan, ExecutionPlan, WorktreeSetupRequired } from "@roo-code/types"
 
 import { Button, Textarea } from "@/components/ui"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { vscode } from "@/utils/vscode"
 
 import { getAgentModeLabel } from "./agentDisplay"
 
 interface PlanPreviewModalProps {
 	plan: ExecutionPlan
+	setupRequired?: WorktreeSetupRequired
 	onClose: () => void
 }
 
@@ -24,10 +26,14 @@ const clonePlan = (plan: ExecutionPlan): ExecutionPlan => ({
 	fileOwnershipMap: { ...plan.fileOwnershipMap },
 })
 
-export const PlanPreviewModal = ({ plan, onClose }: PlanPreviewModalProps) => {
+const setupReasonKey = (reason: WorktreeSetupRequired["reason"]) => reason.replace(/_/g, "-")
+
+export const PlanPreviewModal = ({ plan, setupRequired, onClose }: PlanPreviewModalProps) => {
+	const { t } = useAppTranslation()
 	const { customModes } = useExtensionState()
 	const [editedPlan, setEditedPlan] = useState<ExecutionPlan>(() => clonePlan(plan))
 	const [isCollapsed, setIsCollapsed] = useState(false)
+	const isSetupRequired = Boolean(setupRequired)
 
 	useEffect(() => {
 		setEditedPlan(clonePlan(plan))
@@ -50,6 +56,10 @@ export const PlanPreviewModal = ({ plan, onClose }: PlanPreviewModalProps) => {
 		onClose()
 	}
 
+	const retryPlan = () => {
+		vscode.postMessage({ type: "retryPlan" })
+	}
+
 	const labelByAgentId = new Map(
 		editedPlan.agents.map((agent) => [agent.id, getAgentModeLabel(agent.mode, customModes)]),
 	)
@@ -60,21 +70,58 @@ export const PlanPreviewModal = ({ plan, onClose }: PlanPreviewModalProps) => {
 			className="fixed bottom-4 right-4 z-30 flex max-h-[min(76vh,720px)] w-[min(860px,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-vscode-panel-border bg-vscode-editor-background shadow-lg">
 			<header className="flex items-start justify-between gap-3 border-b border-vscode-panel-border p-4">
 				<div>
-					<h2 className="text-base font-semibold text-vscode-foreground">Review parallel execution plan</h2>
+					<h2 className="text-base font-semibold text-vscode-foreground">
+						{t(
+							isSetupRequired
+								? "chat:parallelAgents.planPreview.setupTitle"
+								: "chat:parallelAgents.planPreview.title",
+						)}
+					</h2>
 					<p className="mt-1 text-xs text-vscode-descriptionForeground">
-						Approve this plan before Roo creates agent worktrees and starts parallel tasks.
+						{t(
+							isSetupRequired
+								? "chat:parallelAgents.planPreview.setupDescription"
+								: "chat:parallelAgents.planPreview.description",
+						)}
 					</p>
 				</div>
 				<Button variant="secondary" size="sm" onClick={() => setIsCollapsed((collapsed) => !collapsed)}>
-					{isCollapsed ? "Expand" : "Collapse"}
+					{t(
+						isCollapsed
+							? "chat:parallelAgents.planPreview.expand"
+							: "chat:parallelAgents.planPreview.collapse",
+					)}
 				</Button>
 			</header>
 
 			{!isCollapsed && (
 				<div className="space-y-4 overflow-y-auto p-4">
+					{setupRequired && (
+						<section
+							data-testid="worktree-setup-required"
+							className="rounded-md border border-vscode-inputValidation-warningBorder bg-vscode-editor-background p-3">
+							<div className="mb-2 text-xs font-semibold uppercase tracking-wide text-vscode-descriptionForeground">
+								{t("chat:parallelAgents.planPreview.setupRequired", {
+									reason: t(
+										`chat:parallelAgents.planPreview.setupReasons.${setupReasonKey(setupRequired.reason)}`,
+									),
+								})}
+							</div>
+							<p className="whitespace-pre-wrap text-sm text-vscode-foreground">
+								{setupRequired.message}
+							</p>
+							<p className="mt-2 whitespace-pre-wrap text-sm text-vscode-descriptionForeground">
+								{setupRequired.guidance}
+							</p>
+							<p className="mt-2 text-xs text-vscode-descriptionForeground">
+								{t("chat:parallelAgents.planPreview.pathPrivacyNote")}
+							</p>
+						</section>
+					)}
+
 					<section className="rounded-md border border-vscode-panel-border bg-vscode-editor-background p-3">
 						<div className="mb-2 text-xs font-semibold uppercase tracking-wide text-vscode-descriptionForeground">
-							Shared context
+							{t("chat:parallelAgents.planPreview.sharedContext")}
 						</div>
 						<p className="whitespace-pre-wrap text-sm text-vscode-foreground">{editedPlan.sharedContext}</p>
 					</section>
@@ -101,9 +148,10 @@ export const PlanPreviewModal = ({ plan, onClose }: PlanPreviewModalProps) => {
 								</div>
 
 								<label className="mb-3 block text-xs font-medium text-vscode-descriptionForeground">
-									Task description
+									{t("chat:parallelAgents.planPreview.taskDescription")}
 									<Textarea
 										className="mt-1 min-h-20"
+										disabled={isSetupRequired}
 										value={agent.task}
 										onChange={(event) =>
 											updateAgent(agent.id, (current) => ({
@@ -116,12 +164,12 @@ export const PlanPreviewModal = ({ plan, onClose }: PlanPreviewModalProps) => {
 
 								<div className="mb-3">
 									<div className="mb-2 text-xs font-medium text-vscode-descriptionForeground">
-										Owned files
+										{t("chat:parallelAgents.planPreview.ownedFiles")}
 									</div>
 									<div className="flex flex-wrap gap-2">
 										{agent.owns.length === 0 ? (
 											<span className="text-xs text-vscode-descriptionForeground">
-												No owned files
+												{t("chat:parallelAgents.planPreview.noOwnedFiles")}
 											</span>
 										) : (
 											agent.owns.map((ownership) => (
@@ -135,7 +183,12 @@ export const PlanPreviewModal = ({ plan, onClose }: PlanPreviewModalProps) => {
 													<button
 														type="button"
 														className="codicon codicon-close cursor-pointer text-vscode-descriptionForeground hover:text-vscode-foreground"
-														aria-label={`Remove ${ownership.path}`}
+														aria-label={t(
+															"chat:parallelAgents.planPreview.removeOwnedFile",
+															{
+																path: ownership.path,
+															},
+														)}
 														onClick={() =>
 															updateAgent(agent.id, (current) => ({
 																...current,
@@ -153,12 +206,12 @@ export const PlanPreviewModal = ({ plan, onClose }: PlanPreviewModalProps) => {
 
 								<div>
 									<div className="mb-2 text-xs font-medium text-vscode-descriptionForeground">
-										Dependencies
+										{t("chat:parallelAgents.planPreview.dependencies")}
 									</div>
 									<div className="flex flex-wrap gap-2">
 										{agent.dependsOn.length === 0 ? (
 											<span className="rounded-full border border-vscode-panel-border px-2 py-1 text-xs text-vscode-descriptionForeground">
-												No dependencies
+												{t("chat:parallelAgents.planPreview.noDependencies")}
 											</span>
 										) : (
 											agent.dependsOn.map((dependency) => (
@@ -181,15 +234,25 @@ export const PlanPreviewModal = ({ plan, onClose }: PlanPreviewModalProps) => {
 
 			<footer className="flex flex-wrap items-center justify-between gap-3 border-t border-vscode-panel-border bg-vscode-sideBar-background p-4">
 				<p className="text-xs text-vscode-descriptionForeground">
-					Chat remains visible while this plan waits for your approval.
+					{t(
+						isSetupRequired
+							? "chat:parallelAgents.planPreview.setupFooter"
+							: "chat:parallelAgents.planPreview.footer",
+					)}
 				</p>
 				<div className="flex gap-2">
 					<Button variant="secondary" onClick={cancelPlan}>
-						Cancel
+						{t("chat:parallelAgents.planPreview.cancel")}
 					</Button>
-					<Button variant="primary" onClick={approvePlan}>
-						Approve plan
-					</Button>
+					{isSetupRequired ? (
+						<Button variant="primary" onClick={retryPlan}>
+							{t("chat:parallelAgents.planPreview.retry")}
+						</Button>
+					) : (
+						<Button variant="primary" onClick={approvePlan}>
+							{t("chat:parallelAgents.planPreview.approve")}
+						</Button>
+					)}
 				</div>
 			</footer>
 		</aside>

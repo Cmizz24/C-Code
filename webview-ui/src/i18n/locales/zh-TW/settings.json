@@ -865,6 +865,36 @@
 				"condensingAvoided": "避免 condensing 的次數",
 				"hotCacheChunks": "熱快取區塊",
 				"ramBudget": "RAM 預算"
+			},
+			"diagnostics": {
+				"title": "快取壓力診斷",
+				"description": "精簡顯示此視窗和其他作用中 C 視窗的 RAM 壓力。不包含任務 ID、prompts 或檔案路徑。",
+				"status": {
+					"label": "壓力狀態",
+					"automatic": "自動緩解已啟用",
+					"ready": "在預算內",
+					"help": "C 會先裁剪冷 chunks，這裡只保留彙總計數。"
+				},
+				"localUsage": "本機用量 / 預算",
+				"configuredEffective": "設定 / 有效預算",
+				"hotColdRam": "熱 / 冷 RAM",
+				"evictions": {
+					"label": "驅逐",
+					"value": "共 {{total}} · {{hot}} 熱 / {{cold}} 冷"
+				},
+				"contributors": {
+					"label": "貢獻項",
+					"usage": "{{ram}} · {{hot}} 熱 / {{cold}} 冷"
+				},
+				"crossWindow": {
+					"title": "跨視窗壓力",
+					"description": "此視窗和 peer 的彙總用量；workspace 路徑和 prompts 會保持隱藏。",
+					"liveWindows": "視窗 / peer",
+					"localPeerUsage": "本機 / peer 用量",
+					"globalLocalTarget": "全域 / 本機目標",
+					"cleanup": "清理過期 heartbeat",
+					"cleanupValue": "已清理 {{cleaned}} / 失敗 {{failed}}"
+				}
 			}
 		}
 	},
@@ -1177,6 +1207,43 @@
 			"freeRequests": "* 每分鐘可免費使用 {{count}} 次請求，超過後將依提示詞大小計費。",
 			"pricingDetails": "詳細資訊請參閱定價說明。",
 			"billingEstimate": "* 費用為估算值 - 實際費用取決於提示大小。"
+		},
+		"provenance": {
+			"title": "模型 metadata 來源",
+			"reviewStatus": "狀態：{{status}}",
+			"lastReviewed": "已審核：{{date}}",
+			"source": "來源：",
+			"endpoint": "（endpoint：{{endpoint}}）",
+			"capabilitySummary": "有來源的能力：{{capabilities}}",
+			"capabilitySummaryWithMore": "有來源的能力：{{capabilities}} + 另外 {{count}} 項",
+			"sourceTypes": {
+				"official-docs": "官方 docs",
+				"official-api": "官方 API",
+				"provider-announcement": "提供者公告",
+				"curated": "人工整理",
+				"unknown": "未知"
+			},
+			"reviewStatuses": {
+				"reviewed": "已審核",
+				"unreviewed": "未審核",
+				"unknown": "未知"
+			},
+			"capabilities": {
+				"contextWindow": "context window",
+				"maxTokens": "最大輸出",
+				"pricing": "價格",
+				"reasoning": "reasoning",
+				"promptCaching": "Prompt caching",
+				"images": "圖片",
+				"imageOutput": "圖片輸出",
+				"tools": "tools",
+				"computerUse": "computer use",
+				"webSearch": "web search",
+				"jsonSchema": "JSON schema",
+				"deprecation": "棄用",
+				"description": "描述",
+				"serviceTiers": "service tiers"
+			}
 		}
 	},
 	"modelPicker": {

@@ -12,6 +12,7 @@ import {
 	type ProviderName,
 	isProviderName,
 	isRetiredProvider,
+	SECRET_STATE_KEYS,
 } from "@roo-code/types"
 
 import { Mode, modes, normalizeModeSlug } from "../../shared/modes"
@@ -30,6 +31,7 @@ type ModelMigrations = {
 }
 
 const MODEL_MIGRATIONS: ModelMigrations = {} as const satisfies ModelMigrations
+const REDACTED_SECRET_VALUE_PATTERN = /^(?:[•*]+|\[?redacted\]?)$/i
 
 export const providerProfilesSchema = z.object({
 	currentApiConfigName: z.string(),
@@ -94,6 +96,71 @@ export class ProviderSettingsManager {
 		const next = this._lock.then(cb)
 		this._lock = next.catch(() => {}) as Promise<void>
 		return next
+	}
+
+	private isUnchangedSecretValue(value: unknown): boolean {
+		if (value === undefined || value === null) {
+			return true
+		}
+
+		if (typeof value !== "string") {
+			return false
+		}
+
+		const trimmedValue = value.trim()
+		return trimmedValue === "" || REDACTED_SECRET_VALUE_PATTERN.test(trimmedValue)
+	}
+
+	private shouldPreserveExistingSecretValue(incomingValue: unknown, existingValue: unknown): existingValue is string {
+		return typeof existingValue === "string" && existingValue !== "" && this.isUnchangedSecretValue(incomingValue)
+	}
+
+	private mergeExistingSecretValues(
+		config: ProviderSettingsWithId,
+		existingConfig?: ProviderSettingsWithId,
+	): ProviderSettingsWithId {
+		if (!existingConfig) {
+			return config
+		}
+
+		const mergedConfig = { ...config } as Record<string, unknown>
+		const incomingConfig = config as Record<string, unknown>
+		const existingConfigValues = existingConfig as Record<string, unknown>
+
+		for (const key of SECRET_STATE_KEYS) {
+			if (this.shouldPreserveExistingSecretValue(incomingConfig[key], existingConfigValues[key])) {
+				mergedConfig[key] = existingConfigValues[key]
+			}
+		}
+
+		return mergedConfig as ProviderSettingsWithId
+	}
+
+	private primeFakeAiProfileCache(config: ProviderSettingsWithId): void {
+		if (config.apiProvider !== "fake-ai") {
+			return
+		}
+
+		const fakeAi = config.fakeAi
+		const candidate =
+			typeof fakeAi === "object" && fakeAi !== null ? (fakeAi as Record<string, unknown>) : undefined
+
+		if (
+			!candidate ||
+			typeof candidate.id !== "string" ||
+			typeof candidate.createMessage !== "function" ||
+			typeof candidate.getModel !== "function" ||
+			typeof candidate.countTokens !== "function" ||
+			typeof candidate.completePrompt !== "function"
+		) {
+			return
+		}
+
+		try {
+			buildApiHandler(config)
+		} catch (error) {
+			console.warn(`Failed to prime fake-ai profile cache: ${error}`)
+		}
 	}
 
 	/**
@@ -373,17 +440,25 @@ export class ProviderSettingsManager {
 			return await this.lock(async () => {
 				const providerProfiles = await this.load()
 				// Preserve the existing ID if this is an update to an existing config.
-				const existingId = providerProfiles.apiConfigs[name]?.id
+				const existingConfig =
+					providerProfiles.apiConfigs[name] ??
+					(config.id
+						? Object.values(providerProfiles.apiConfigs).find((apiConfig) => apiConfig.id === config.id)
+						: undefined)
+				const existingId = existingConfig?.id
 				const id = config.id || existingId || this.generateId()
+				const configWithPreservedSecrets = this.mergeExistingSecretValues(config, existingConfig)
 
 				// For active providers, filter out settings from other providers.
 				// For retired providers, preserve full profile fields (including legacy
 				// provider-specific keys) to avoid data loss — passthrough() keeps
 				// unknown keys that strict parse() would strip.
 				const filteredConfig =
-					typeof config.apiProvider === "string" && isRetiredProvider(config.apiProvider)
-						? providerSettingsWithIdSchema.passthrough().parse(config)
-						: discriminatedProviderSettingsWithIdSchema.parse(config)
+					typeof configWithPreservedSecrets.apiProvider === "string" &&
+					isRetiredProvider(configWithPreservedSecrets.apiProvider)
+						? providerSettingsWithIdSchema.passthrough().parse(configWithPreservedSecrets)
+						: discriminatedProviderSettingsWithIdSchema.parse(configWithPreservedSecrets)
+				this.primeFakeAiProfileCache(filteredConfig)
 				providerProfiles.apiConfigs[name] = { ...filteredConfig, id }
 				await this.store(providerProfiles)
 				return id

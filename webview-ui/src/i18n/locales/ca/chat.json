@@ -28,7 +28,18 @@
 			"coldShort": "fred",
 			"swaps": "Intercanvis",
 			"condensingAvoided": "Condensacions evitades",
-			"warning": "Avís"
+			"warning": "Avís",
+			"diagnostics": {
+				"evictionsValue": "{{total}} en total · {{hot}} calents / {{cold}} freds",
+				"contributors_one": "{{count}} contribuïdor",
+				"contributors_other": "{{count}} contribuïdors",
+				"contributorUsage": "{{ram}} · {{hot}} calents / {{cold}} freds",
+				"combinedBudget": "Pressupost combinat",
+				"hotColdRam": "RAM calenta / freda",
+				"evictionsLabel": "Expulsions",
+				"combinedStatus": "Combinat: {{used}} / {{budget}}",
+				"evictionsStatus": "Expulsions: {{value}}"
+			}
 		}
 	},
 	"unpin": "Desfixar",
@@ -375,6 +386,33 @@
 				"binaryFiles_one": "{{count}} fitxer binari",
 				"binaryFiles_other": "{{count}} fitxers binaris"
 			}
+		},
+		"planPreview": {
+			"title": "Revisa el pla d'agents paral·lels",
+			"setupTitle": "Cal configurar Git per als agents paral·lels",
+			"description": "Revisa l'assignació de cada agent abans que C iniciï els worktrees.",
+			"setupDescription": "Corregeix el problema de Git i torna a provar el pla preservat sense reconstruir-lo.",
+			"expand": "Amplia el pla",
+			"collapse": "Redueix el pla",
+			"setupRequired": "Configuració necessària: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "no és un repositori Git",
+				"no-initial-commit": "no hi ha commit inicial",
+				"git-unavailable": "Git no està disponible"
+			},
+			"pathPrivacyNote": "Els camins del workspace i de Git s'oculten aquí per mantenir els diagnòstics segurs.",
+			"sharedContext": "Context compartit",
+			"taskDescription": "Descripció de la tasca",
+			"ownedFiles": "Fitxers assignats",
+			"noOwnedFiles": "No hi ha fitxers assignats",
+			"removeOwnedFile": "Elimina {{path}} dels fitxers assignats",
+			"dependencies": "Dependències",
+			"noDependencies": "Sense dependències",
+			"setupFooter": "El pla aprovat es conserva. Corregeix Git i torna-ho a provar.",
+			"footer": "Revisa els límits de propietat abans d'aprovar el pla.",
+			"cancel": "Cancel·la",
+			"retry": "Torna a provar el pla preservat",
+			"approve": "Aprova el pla"
 		}
 	},
 	"questions": {

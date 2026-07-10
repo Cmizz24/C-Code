@@ -974,6 +974,19 @@ describe("SettingsView - API Configuration", () => {
 
 		expect(screen.getByTestId("api-config-management")).toBeInTheDocument()
 	})
+
+	it("does not render deprecated manual plan usage tracking settings", () => {
+		const { getSettingsContent } = renderSettingsView({
+			providerPlanLimits: {
+				anthropic: { tokenLimit: 1000, costLimit: 10, resetPeriod: "monthly" },
+			},
+			providerPlanUsage: {
+				anthropic: { tokensUsed: 450, costUsed: 1.25, periodStart: 1_700_000_000 },
+			},
+		})
+
+		expect(within(getSettingsContent()).queryByText("Plan usage tracking")).not.toBeInTheDocument()
+	})
 })
 
 describe("SettingsView - Image Generation Settings", () => {

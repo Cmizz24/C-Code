@@ -11,7 +11,22 @@ import TaskHeader, { TaskHeaderProps } from "../TaskHeader"
 // Mock i18n
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
-		t: (key: string) => key, // Simple mock that returns the key
+		t: (key: string, options?: Record<string, any>) => {
+			switch (key) {
+				case "chat:task.contextCache.diagnostics.evictionsValue":
+					return `${options?.total} total · ${options?.hot} hot / ${options?.cold} cold`
+				case "chat:task.contextCache.diagnostics.contributors":
+					return `${options?.count} ${options?.count === 1 ? "contributor" : "contributors"}`
+				case "chat:task.contextCache.diagnostics.contributorUsage":
+					return `${options?.ram} · ${options?.hot} hot / ${options?.cold} cold`
+				case "chat:task.contextCache.diagnostics.combinedStatus":
+					return `Combined: ${options?.used} / ${options?.budget}`
+				case "chat:task.contextCache.diagnostics.evictionsStatus":
+					return `Evictions: ${options?.value}`
+				default:
+					return key
+			}
+		},
 	}),
 	// Mock initReactI18next to prevent initialization errors in tests
 	initReactI18next: {
@@ -46,6 +61,7 @@ const mockExtensionState: {
 	openAiCodexRateLimits?: any
 	providerPlanLimits?: any
 	providerPlanUsage?: any
+	cachedProviderPlanUsage?: any
 } = {
 	apiConfiguration: {
 		apiProvider: "anthropic",
@@ -67,6 +83,7 @@ const mockExtensionState: {
 	contextCacheWarning: undefined,
 	providerPlanLimits: {},
 	providerPlanUsage: {},
+	cachedProviderPlanUsage: {},
 }
 
 // Mock the ExtensionStateContext
@@ -142,6 +159,7 @@ describe("TaskHeader", () => {
 		mockExtensionState.contextCacheWarning = undefined
 		mockExtensionState.providerPlanLimits = {}
 		mockExtensionState.providerPlanUsage = {}
+		mockExtensionState.cachedProviderPlanUsage = {}
 		mockExtensionState.openAiCodexRateLimits = undefined
 		mockExtensionState.apiConfiguration = {
 			apiProvider: "anthropic",
@@ -173,6 +191,65 @@ describe("TaskHeader", () => {
 		expect(status).toHaveTextContent("chat:task.contextCache.condensingAvoided: 2")
 		expect(screen.getByTestId("context-cache-status-warning")).toHaveTextContent(
 			"Cold cache full — falling back to condensing",
+		)
+	})
+
+	it("should display combined context cache diagnostics in collapsed and expanded states", () => {
+		mockExtensionState.contextCacheStats = {
+			hotCacheTokens: 12345,
+			hotCacheChunks: 3,
+			coldCacheChunks: 7,
+			ramUsedMb: 128,
+			ramBudgetMb: 2048,
+			swapsThisSession: 5,
+			condensingAvoided: 2,
+			combinedBudget: {
+				ramUsedMb: 512,
+				ramBudgetMb: 2048,
+				hotCacheRamMb: 128,
+				coldCacheRamMb: 384,
+				hotCacheChunks: 4,
+				coldCacheChunks: 9,
+				managerCount: 2,
+				evictions: { hot: 1, cold: 2, total: 3 },
+				contributors: [
+					{
+						id: "manager-foreground",
+						label: "Foreground task task-1 (code)",
+						taskId: "task-1",
+						mode: "code",
+						isBackground: false,
+						isActive: true,
+						hotCacheChunks: 3,
+						coldCacheChunks: 4,
+						hotCacheRamMb: 64,
+						coldCacheRamMb: 192,
+						ramUsedMb: 256,
+						evictions: { hot: 1, cold: 1, total: 2 },
+					},
+				],
+			},
+		}
+
+		renderTaskHeader()
+
+		const collapsedStatus = screen.getByTestId("context-cache-collapsed-status")
+		expect(collapsedStatus).toHaveTextContent(
+			"4 chat:task.contextCache.hotShort / 9 chat:task.contextCache.coldShort",
+		)
+		expect(collapsedStatus).toHaveTextContent("512MB/2GB")
+		expect(collapsedStatus).toHaveTextContent("2 contributors")
+
+		fireEvent.click(screen.getByText("Test task"))
+
+		expect(screen.getByTestId("context-cache-combined-status")).toHaveTextContent(
+			"Combined: 512MB / 2GB · 2 contributors",
+		)
+		expect(screen.getByTestId("context-cache-eviction-status")).toHaveTextContent(
+			"Evictions: 3 total · 1 hot / 2 cold",
+		)
+		expect(screen.getByTestId("context-cache-contributor-status")).toHaveTextContent(
+			"Foreground task task-1 (code): 256MB · 3 hot / 4 cold",
 		)
 	})
 
@@ -398,7 +475,7 @@ describe("TaskHeader", () => {
 		})
 	})
 
-	describe("generic provider plan usage", () => {
+	describe("provider-reported plan usage", () => {
 		beforeEach(() => {
 			mockModelInfo = { contextWindow: 200000, maxTokens: 8192 }
 			mockMaxOutputTokens = 8192
@@ -409,7 +486,7 @@ describe("TaskHeader", () => {
 			mockMaxOutputTokens = 0
 		})
 
-		it("should display configured provider token plan usage and remaining tokens", () => {
+		it("should ignore deprecated locally tracked provider token plan usage", () => {
 			mockExtensionState.providerPlanLimits = {
 				anthropic: { tokenLimit: 1000, resetPeriod: "monthly" },
 			}
@@ -419,14 +496,12 @@ describe("TaskHeader", () => {
 
 			renderTaskHeader({ tokensIn: 300, tokensOut: 150, totalCost: 0.05 })
 
-			expect(screen.getByTestId("plan-usage-percent")).toHaveTextContent("45% plan used")
-			expect(screen.getByTestId("plan-usage-remaining")).toHaveTextContent("550 tokens left")
-			expect(screen.getByText(/↑/)).toBeInTheDocument()
-			expect(screen.getByText(/↓/)).toBeInTheDocument()
-			expect(screen.queryByText("$0.05")).not.toBeInTheDocument()
+			expect(screen.queryByTestId("plan-usage-percent")).not.toBeInTheDocument()
+			expect(screen.queryByTestId("plan-usage-remaining")).not.toBeInTheDocument()
+			expect(screen.getByText("$0.05")).toBeInTheDocument()
 		})
 
-		it("should use the higher cost percentage when cost is the limiting plan value", () => {
+		it("should ignore deprecated locally tracked provider cost plan usage", () => {
 			mockExtensionState.providerPlanLimits = {
 				anthropic: { tokenLimit: 1000, costLimit: 1, resetPeriod: "monthly" },
 			}
@@ -436,15 +511,51 @@ describe("TaskHeader", () => {
 
 			renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0.05 })
 
-			expect(screen.getByTestId("plan-usage-percent")).toHaveTextContent("80% plan used")
-			expect(screen.getByTestId("plan-usage-remaining")).toHaveTextContent("$0.20 left")
+			expect(screen.queryByTestId("plan-usage-percent")).not.toBeInTheDocument()
+			expect(screen.queryByTestId("plan-usage-remaining")).not.toBeInTheDocument()
+			expect(screen.getByText("$0.05")).toBeInTheDocument()
 		})
 
-		it("should not display generic plan usage for providers without configured plans", () => {
+		it("should not display provider plan usage without provider-reported usage", () => {
 			renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0.05 })
 
 			expect(screen.queryByTestId("plan-usage-percent")).not.toBeInTheDocument()
 			expect(screen.getByText("$0.05")).toBeInTheDocument()
+		})
+
+		it("should display live API-fetched plan usage for providers with automatic usage APIs", () => {
+			mockModelInfo = { contextWindow: 200000, maxTokens: 8192, subscriptionBased: true }
+			mockExtensionState.apiConfiguration = {
+				apiProvider: "minimax",
+				apiModelId: "minimax-m2",
+				minimaxApiKey: "test-minimax-key",
+			} as ProviderSettings
+			mockExtensionState.cachedProviderPlanUsage = {
+				minimax: { usedPercent: 61.4, tokensRemaining: 12345 },
+			}
+
+			renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0 })
+
+			expect(screen.getByTestId("plan-usage-percent")).toHaveTextContent("61% plan used")
+			expect(screen.getByTestId("plan-usage-remaining")).toHaveTextContent("12.3k tokens left")
+		})
+
+		it("should automatically fetch live plan usage for plan-based providers with usage APIs", () => {
+			mockModelInfo = { contextWindow: 200000, maxTokens: 8192, subscriptionBased: true }
+			mockExtensionState.apiConfiguration = {
+				apiProvider: "minimax",
+				apiModelId: "minimax-m2",
+				minimaxApiKey: "test-minimax-key",
+				minimaxBaseUrl: "https://api.minimax.io/v1",
+			} as ProviderSettings
+
+			renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0 })
+
+			expect(mockPostMessage).toHaveBeenCalledWith({
+				type: "fetchMiniMaxPlanUsage",
+				text: "test-minimax-key",
+				bool: false,
+			})
 		})
 
 		it("should prefer OpenAI Codex API rate limit usage over locally tracked plan usage", () => {

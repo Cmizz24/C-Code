@@ -6,11 +6,19 @@ import {
 	SECRET_STATE_KEYS,
 	MODELS_BY_PROVIDER,
 	type ModelInfo,
+	type ModelCapabilityProvenanceKey,
+	type ModelProvenance,
+	type ClineSayTool,
+	type MemoryRecallChatResult,
 	applyCloudflareWorkersAiImageUsageUpdate,
 	estimateCloudflareWorkersAiImageGenerationUsage,
 	getApiProtocol,
 	getCloudflareWorkersAiImageUsageSnapshot,
+	modelCapabilityProvenanceKeyValues,
 	modelIdKeysByProvider,
+	modelInfoSchema,
+	modelProvenanceReviewStatusValues,
+	modelProvenanceSourceTypeValues,
 	providerNames,
 	globalSettingsSchema,
 	providerSettingsSchemaDiscriminated,
@@ -44,6 +52,62 @@ import {
 	xiaomiMiMoModels,
 } from "../providers/index.js"
 
+describe("model provenance metadata", () => {
+	it("exports provenance types and parses optional freshness metadata", () => {
+		const capabilityKey: ModelCapabilityProvenanceKey = "contextWindow"
+		const provenance: ModelProvenance = {
+			sources: [
+				{
+					type: "official-api",
+					url: "https://example.com/v1/models",
+					endpoint: "/v1/models",
+					label: "Example model API",
+				},
+			],
+			sourceFields: ["context_window"],
+			reviewStatus: "reviewed",
+			lastReviewed: "2026-07-10",
+			reviewedBy: "unit-test",
+			reviewNote: "Schema export coverage.",
+		}
+
+		expect(modelProvenanceSourceTypeValues).toEqual([
+			"official-docs",
+			"official-api",
+			"provider-announcement",
+			"curated",
+			"unknown",
+		])
+		expect(modelProvenanceReviewStatusValues).toEqual(["reviewed", "unreviewed", "unknown"])
+		expect(modelCapabilityProvenanceKeyValues).toContain(capabilityKey)
+
+		expect(
+			modelInfoSchema.parse({
+				contextWindow: 8192,
+				supportsPromptCache: false,
+				provenance,
+				capabilityProvenance: {
+					[capabilityKey]: provenance,
+					pricing: {
+						...provenance,
+						sourceFields: ["input_price", "output_price"],
+					},
+				},
+			}),
+		).toMatchObject({
+			provenance: {
+				reviewStatus: "reviewed",
+				lastReviewed: "2026-07-10",
+				sources: [expect.objectContaining({ type: "official-api" })],
+			},
+			capabilityProvenance: {
+				contextWindow: expect.objectContaining({ sourceFields: ["context_window"] }),
+				pricing: expect.objectContaining({ sourceFields: ["input_price", "output_price"] }),
+			},
+		})
+	})
+})
+
 describe("GLOBAL_STATE_KEYS", () => {
 	it("should contain provider settings keys", () => {
 		expect(GLOBAL_STATE_KEYS).toContain("autoApprovalEnabled")
@@ -70,12 +134,12 @@ describe("GLOBAL_STATE_KEYS", () => {
 		expect(GLOBAL_STATE_KEYS).not.toContain("cloudflareImageApiKey")
 	})
 
-	it("should contain generic provider plan limit and usage state", () => {
+	it("should keep deprecated provider plan limit and usage state keys for compatibility", () => {
 		expect(GLOBAL_STATE_KEYS).toContain("providerPlanLimits")
 		expect(GLOBAL_STATE_KEYS).toContain("providerPlanUsage")
 	})
 
-	it("should accept generic provider plan limit and usage settings", () => {
+	it("should deserialize deprecated provider plan limit and usage settings", () => {
 		const parsed = globalSettingsSchema.safeParse({
 			providerPlanLimits: {
 				anthropic: {
@@ -102,6 +166,33 @@ describe("GLOBAL_STATE_KEYS", () => {
 	})
 })
 
+describe("memory recall chat payload types", () => {
+	it("supports safe recall metadata without a raw lesson field", () => {
+		const result: MemoryRecallChatResult = {
+			id: "mem_1",
+			scope: "global",
+			kind: "lesson",
+			status: "active",
+			title: "General retry lesson",
+			tags: ["retry"],
+			pathTags: ["src/core/task/Task.ts"],
+			mode: "code",
+			toolName: "execute_command",
+			confidence: 0.8,
+			score: 0.91,
+		}
+		const payload: ClineSayTool = {
+			tool: "memoryRecall",
+			scope: "global",
+			memoryRecallCount: 1,
+			memoryRecallResults: [result],
+			message: "Recalled 1 memory for this request.",
+		}
+
+		expect(payload.memoryRecallResults?.[0]).not.toHaveProperty("lesson")
+	})
+})
+
 describe("OpenAI Codex provider settings", () => {
 	it("should accept the persistent Fast mode setting", () => {
 		expect(
@@ -113,17 +204,25 @@ describe("OpenAI Codex provider settings", () => {
 		).toBe(true)
 	})
 
-	it("should only mark GPT-5.5 and GPT-5.4 as Fast mode supported", () => {
+	it("should only mark current priority-capable ChatGPT sign-in Codex models as Fast mode supported", () => {
 		const supportedFastModeModels = Object.entries(openAiCodexModels)
 			.filter(([, model]) => (model as ModelInfo).supportsFastMode === true)
 			.map(([modelId]) => modelId)
 
-		expect(supportedFastModeModels).toEqual(["gpt-5.5", "gpt-5.4"])
+		expect(supportedFastModeModels).toEqual(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4"])
 		expect((openAiCodexModels["gpt-5.3-codex-spark"] as ModelInfo).supportsFastMode).toBeUndefined()
 	})
 
 	it("should expose only current ChatGPT sign-in Codex models as selectable", () => {
-		expect(openAiCodexSelectableModelIds).toEqual(["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex-spark"])
+		expect(openAiCodexSelectableModelIds).toEqual([
+			"gpt-5.6-sol",
+			"gpt-5.6-terra",
+			"gpt-5.6-luna",
+			"gpt-5.5",
+			"gpt-5.4",
+			"gpt-5.4-mini",
+			"gpt-5.3-codex-spark",
+		])
 		expect(MODELS_BY_PROVIDER["openai-codex"].models).toEqual([...openAiCodexSelectableModelIds])
 
 		for (const modelId of openAiCodexSelectableModelIds) {
@@ -145,6 +244,21 @@ describe("OpenAI Codex provider settings", () => {
 	])("should mark unsupported ChatGPT sign-in Codex model %s as deprecated", (modelId) => {
 		expect((openAiCodexModels[modelId as keyof typeof openAiCodexModels] as ModelInfo).deprecated).toBe(true)
 		expect(MODELS_BY_PROVIDER["openai-codex"].models).not.toContain(modelId)
+	})
+})
+
+describe("Fake AI provider settings", () => {
+	it("should preserve apiModelId for saved profile metadata", () => {
+		const parsed = providerSettingsSchemaDiscriminated.parse({
+			apiProvider: "fake-ai",
+			apiModelId: "roo-e2e-profile-model",
+			fakeAi: { id: "fake-ai-profile" },
+		})
+
+		expect(parsed).toMatchObject({
+			apiProvider: "fake-ai",
+			apiModelId: "roo-e2e-profile-model",
+		})
 	})
 })
 

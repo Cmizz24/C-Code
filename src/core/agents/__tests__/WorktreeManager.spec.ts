@@ -2,7 +2,12 @@ import { exec } from "child_process"
 import fs from "fs/promises"
 import path from "path"
 
-import { WorktreeManager, WorktreeManagerGitUnavailableError } from "../WorktreeManager"
+import {
+	getWorktreeSetupRequired,
+	WorktreeManager,
+	WorktreeManagerGitUnavailableError,
+	WorktreeSetupRequiredError,
+} from "../WorktreeManager"
 
 vi.mock("child_process", () => ({
 	exec: vi.fn(),
@@ -337,8 +342,19 @@ describe("WorktreeManager", () => {
 			return { stdout: "" }
 		})
 
-		await expect(manager.createWorktree("ui", "plan-test")).rejects.toThrow(
-			"Parallel agents require a Git repository with at least one commit.",
+		const error = await manager.createWorktree("ui", "plan-test").catch((caught) => caught)
+
+		expect(error).toBeInstanceOf(WorktreeSetupRequiredError)
+		expect(error).toHaveProperty(
+			"message",
+			expect.stringContaining("Parallel agents require a Git repository with at least one commit."),
+		)
+		expect(getWorktreeSetupRequired(error)).toEqual(
+			expect.objectContaining({
+				reason: "no_initial_commit",
+				gitRoot: "C:/repo",
+				guidance: expect.stringContaining("No GitHub remote is required"),
+			}),
 		)
 		expect(execMock).not.toHaveBeenCalledWith(
 			expect.stringContaining("git worktree add"),
@@ -357,8 +373,16 @@ describe("WorktreeManager", () => {
 			throw new Error(`Unexpected command: ${command}`)
 		})
 
-		await expect(manager.createWorktree("ui-ux", "plan-test")).rejects.toThrow(
-			"Parallel worktrees require a Git repository",
+		const error = await manager.createWorktree("ui-ux", "plan-test").catch((caught) => caught)
+
+		expect(error).toBeInstanceOf(WorktreeSetupRequiredError)
+		expect(error).toHaveProperty("message", expect.stringContaining("Parallel worktrees require a Git repository"))
+		expect(getWorktreeSetupRequired(error)).toEqual(
+			expect.objectContaining({
+				reason: "not_git_repo",
+				workspacePath: "C:/Users/clayton/Desktop/test",
+				guidance: expect.stringContaining("A GitHub remote is not required"),
+			}),
 		)
 		expect(execMock).toHaveBeenCalledTimes(1)
 		expect(execMock.mock.calls[0][0]).toBe("git rev-parse --show-toplevel")
@@ -377,9 +401,19 @@ describe("WorktreeManager", () => {
 			throw new Error(`Unexpected command: ${command}`)
 		})
 
-		await expect(manager.validateGitRepository()).rejects.toThrow(WorktreeManagerGitUnavailableError)
-		await expect(manager.validateGitRepository()).rejects.toThrow("Git executable unavailable")
-		await expect(manager.validateGitRepository()).rejects.toThrow("Git: Path")
+		const error = await manager.validateGitRepository().catch((caught) => caught)
+
+		expect(error).toBeInstanceOf(WorktreeManagerGitUnavailableError)
+		expect(error).toBeInstanceOf(WorktreeSetupRequiredError)
+		expect(error).toHaveProperty("message", expect.stringContaining("Git executable unavailable"))
+		expect(error).toHaveProperty("message", expect.stringContaining("Git: Path"))
+		expect(getWorktreeSetupRequired(error)).toEqual(
+			expect.objectContaining({
+				reason: "git_unavailable",
+				workspacePath: "C:/repo",
+				guidance: expect.stringContaining("Install Git"),
+			}),
+		)
 		expect(execMock).toHaveBeenCalledWith(
 			"git rev-parse --show-toplevel",
 			expect.objectContaining({ cwd: "C:/repo" }),

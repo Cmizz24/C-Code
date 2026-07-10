@@ -28,7 +28,18 @@
 			"coldShort": "froid",
 			"swaps": "Échanges",
 			"condensingAvoided": "Condensations évitées",
-			"warning": "Avertissement"
+			"warning": "Avertissement",
+			"diagnostics": {
+				"evictionsValue": "{{total}} au total · {{hot}} chauds / {{cold}} froids",
+				"contributors_one": "{{count}} contributeur",
+				"contributors_other": "{{count}} contributeurs",
+				"contributorUsage": "{{ram}} · {{hot}} chauds / {{cold}} froids",
+				"combinedBudget": "Budget combiné",
+				"hotColdRam": "RAM chaude / froide",
+				"evictionsLabel": "Évictions",
+				"combinedStatus": "Combiné : {{used}} / {{budget}}",
+				"evictionsStatus": "Évictions : {{value}}"
+			}
 		}
 	},
 	"unpin": "Désépingler",
@@ -375,6 +386,33 @@
 				"binaryFiles_one": "{{count}} fichier binaire",
 				"binaryFiles_other": "{{count}} fichiers binaires"
 			}
+		},
+		"planPreview": {
+			"title": "Vérifier le plan d'agents parallèles",
+			"setupTitle": "Configuration Git requise pour les agents parallèles",
+			"description": "Vérifie l'affectation de chaque agent avant que C ne démarre les worktrees.",
+			"setupDescription": "Corrige le problème Git, puis réessaie le plan conservé sans le reconstruire.",
+			"expand": "Développer le plan",
+			"collapse": "Réduire le plan",
+			"setupRequired": "Configuration requise : {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "pas un dépôt Git",
+				"no-initial-commit": "aucun commit initial",
+				"git-unavailable": "Git indisponible"
+			},
+			"pathPrivacyNote": "Les chemins du workspace et de Git sont masqués ici pour garder les diagnostics sûrs.",
+			"sharedContext": "Contexte partagé",
+			"taskDescription": "Description de la tâche",
+			"ownedFiles": "Fichiers attribués",
+			"noOwnedFiles": "Aucun fichier attribué",
+			"removeOwnedFile": "Retirer {{path}} des fichiers attribués",
+			"dependencies": "Dépendances",
+			"noDependencies": "Aucune dépendance",
+			"setupFooter": "Ton plan approuvé est conservé. Corrige Git, puis réessaie.",
+			"footer": "Vérifie les limites de propriété avant d'approuver le plan.",
+			"cancel": "Annuler",
+			"retry": "Réessayer le plan conservé",
+			"approve": "Approuver le plan"
 		}
 	},
 	"questions": {

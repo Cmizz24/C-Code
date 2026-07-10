@@ -44,7 +44,7 @@ export async function estimateTokenCount(
  */
 export type TruncationResult = {
 	messages: ApiMessage[]
-	truncationId: string
+	truncationId?: string
 	messagesRemoved: number
 }
 
@@ -61,11 +61,9 @@ export type TruncationResult = {
  * @param {ApiMessage[]} messages - The conversation messages.
  * @param {number} fracToRemove - The fraction (between 0 and 1) of messages (excluding the first) to hide.
  * @param {string} taskId - The task ID for the conversation
- * @returns {TruncationResult} Object containing the tagged messages, truncation ID, and count of messages removed.
+ * @returns {TruncationResult} Object containing the tagged messages, truncation ID when truncation occurred, and count of messages removed.
  */
 export function truncateConversation(messages: ApiMessage[], fracToRemove: number, taskId: string): TruncationResult {
-	const truncationId = crypto.randomUUID()
-
 	// Filter to only visible messages (those not already truncated)
 	// We need to track original indices to correctly tag messages in the full array
 	const visibleIndices: number[] = []
@@ -84,10 +82,11 @@ export function truncateConversation(messages: ApiMessage[], fracToRemove: numbe
 		// Nothing to truncate
 		return {
 			messages,
-			truncationId,
 			messagesRemoved: 0,
 		}
 	}
+
+	const truncationId = crypto.randomUUID()
 
 	// Get the indices of visible messages to truncate (skip first visible, take next N)
 	const indicesToTruncate = new Set(visibleIndices.slice(1, messagesToRemove + 1))
@@ -348,6 +347,9 @@ export async function manageContext({
 	// Fall back to sliding window truncation if needed
 	if (prevContextTokens > allowedTokens) {
 		const truncationResult = truncateConversation(messages, 0.5, taskId)
+		if (truncationResult.messagesRemoved <= 0 || !truncationResult.truncationId) {
+			return { messages, summary: "", cost, prevContextTokens, error, errorDetails }
+		}
 
 		// Calculate new context tokens after truncation by counting non-truncated messages
 		// Messages with truncationParent are hidden, so we count only those without it
@@ -372,6 +374,10 @@ export async function manageContext({
 					apiHandler,
 				)
 			}
+		}
+
+		if (newContextTokensAfterTruncation >= prevContextTokens) {
+			return { messages, summary: "", cost, prevContextTokens, error, errorDetails }
 		}
 
 		return {

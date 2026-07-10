@@ -28,7 +28,18 @@
 			"coldShort": "冷",
 			"swaps": "交换",
 			"condensingAvoided": "已避免压缩",
-			"warning": "警告"
+			"warning": "警告",
+			"diagnostics": {
+				"evictionsValue": "共 {{total}} · {{hot}} 热 / {{cold}} 冷",
+				"contributors_one": "{{count}} 个贡献项",
+				"contributors_other": "{{count}} 个贡献项",
+				"contributorUsage": "{{ram}} · {{hot}} 热 / {{cold}} 冷",
+				"combinedBudget": "合并预算",
+				"hotColdRam": "热 / 冷 RAM",
+				"evictionsLabel": "驱逐",
+				"combinedStatus": "合并: {{used}} / {{budget}}",
+				"evictionsStatus": "驱逐: {{value}}"
+			}
 		}
 	},
 	"unpin": "取消置顶",
@@ -376,6 +387,33 @@
 				"binaryFiles_one": "{{count}} 个二进制文件",
 				"binaryFiles_other": "{{count}} 个二进制文件"
 			}
+		},
+		"planPreview": {
+			"title": "检查并行 agent 计划",
+			"setupTitle": "并行 agent 需要 Git 设置",
+			"description": "在 C 启动 worktree 前检查每个 agent 的分配。",
+			"setupDescription": "修复 Git 设置问题，然后重试保留的计划，无需重新生成。",
+			"expand": "展开计划",
+			"collapse": "折叠计划",
+			"setupRequired": "需要设置：{{reason}}",
+			"setupReasons": {
+				"not-git-repo": "不是 Git repository",
+				"no-initial-commit": "没有初始 commit",
+				"git-unavailable": "Git 不可用"
+			},
+			"pathPrivacyNote": "这里会隐藏 workspace 和 Git 路径，以确保诊断安全。",
+			"sharedContext": "共享上下文",
+			"taskDescription": "任务描述",
+			"ownedFiles": "负责文件",
+			"noOwnedFiles": "没有负责文件",
+			"removeOwnedFile": "从负责文件中移除 {{path}}",
+			"dependencies": "依赖",
+			"noDependencies": "没有依赖",
+			"setupFooter": "已批准的计划会保留。修复 Git 后重试。",
+			"footer": "批准计划前请检查所有权边界。",
+			"cancel": "取消",
+			"retry": "重试保留的计划",
+			"approve": "批准计划"
 		}
 	},
 	"questions": {

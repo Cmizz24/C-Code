@@ -28,7 +28,18 @@
 			"coldShort": "cold",
 			"swaps": "Wechsel",
 			"condensingAvoided": "Kondensieren vermieden",
-			"warning": "Warnung"
+			"warning": "Warnung",
+			"diagnostics": {
+				"evictionsValue": "{{total}} gesamt · {{hot}} heiß / {{cold}} kalt",
+				"contributors_one": "{{count}} Beitragender",
+				"contributors_other": "{{count}} Beitragende",
+				"contributorUsage": "{{ram}} · {{hot}} heiß / {{cold}} kalt",
+				"combinedBudget": "Kombiniertes Budget",
+				"hotColdRam": "Heißer / kalter RAM",
+				"evictionsLabel": "Verdrängungen",
+				"combinedStatus": "Kombiniert: {{used}} / {{budget}}",
+				"evictionsStatus": "Verdrängungen: {{value}}"
+			}
 		}
 	},
 	"unpin": "Lösen von oben",
@@ -375,6 +386,33 @@
 				"binaryFiles_one": "{{count}} Binärdatei",
 				"binaryFiles_other": "{{count}} Binärdateien"
 			}
+		},
+		"planPreview": {
+			"title": "Plan für parallele Agenten prüfen",
+			"setupTitle": "Git-Einrichtung für parallele Agenten erforderlich",
+			"description": "Prüfe die Zuweisung jedes Agenten, bevor C Worktrees startet.",
+			"setupDescription": "Behebe das Git-Problem und versuche den gespeicherten Plan erneut, ohne ihn neu zu erstellen.",
+			"expand": "Plan aufklappen",
+			"collapse": "Plan zuklappen",
+			"setupRequired": "Einrichtung erforderlich: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "kein Git-Repository",
+				"no-initial-commit": "kein initialer Commit",
+				"git-unavailable": "Git nicht verfügbar"
+			},
+			"pathPrivacyNote": "Workspace- und Git-Pfade werden hier ausgeblendet, damit Diagnosen sicher bleiben.",
+			"sharedContext": "Gemeinsamer Kontext",
+			"taskDescription": "Task-Beschreibung",
+			"ownedFiles": "Zugewiesene Dateien",
+			"noOwnedFiles": "Keine zugewiesenen Dateien",
+			"removeOwnedFile": "{{path}} aus zugewiesenen Dateien entfernen",
+			"dependencies": "Abhängigkeiten",
+			"noDependencies": "Keine Abhängigkeiten",
+			"setupFooter": "Dein genehmigter Plan bleibt erhalten. Behebe Git und versuche es erneut.",
+			"footer": "Prüfe die Zuständigkeitsgrenzen, bevor du den Plan genehmigst.",
+			"cancel": "Abbrechen",
+			"retry": "Gespeicherten Plan erneut versuchen",
+			"approve": "Plan genehmigen"
 		}
 	},
 	"questions": {

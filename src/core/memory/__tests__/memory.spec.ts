@@ -4,7 +4,7 @@ import path from "path"
 
 import type { MemoryEntry, ModelInfo } from "@roo-code/types"
 
-import { buildMemoryPromptForRequest } from "../inject"
+import { buildMemoryPromptForRequest, buildMemoryPromptForRequestWithMetadata } from "../inject"
 import { createMistakeMemoryCandidate } from "../mistakes"
 import { appendMemoryPromptToLastUserMessage, formatMemoryPrompt } from "../prompt"
 import { rankMemories } from "../ranking"
@@ -114,12 +114,39 @@ describe("memory storage", () => {
 		expect(stored.pathTags).toEqual(["src/core/task/Task.ts"])
 	})
 
+	it("defaults general mistake memories to global and path-tagged lessons to workspace", async () => {
+		const { memory: general } = await createMistakeMemoryCandidate({
+			storage,
+			lesson: "Read validation feedback before retrying a failed action.",
+			error: "Validation failed",
+			toolName: "execute_command",
+			workspacePath,
+		})
+
+		expect(general.scope).toBe("global")
+		expect((await storage.readStore("global")).candidates).toHaveLength(1)
+		expect((await storage.readStore("workspace", workspacePath)).candidates).toHaveLength(0)
+
+		const { memory: pathTagged } = await createMistakeMemoryCandidate({
+			storage,
+			lesson: "When editing Task.ts, preserve the memory injection path.",
+			error: "Task test failed",
+			toolName: "apply_patch",
+			filePaths: ["src/core/task/Task.ts"],
+			workspacePath,
+		})
+
+		expect(pathTagged.scope).toBe("workspace")
+		expect((await storage.readStore("workspace", workspacePath)).candidates).toHaveLength(1)
+	})
+
 	it("supports pending mistake-memory approval and archive lifecycle", async () => {
 		const { memory: pending } = await createMistakeMemoryCandidate({
 			storage,
 			lesson: "When a patch fails, re-read the target file before retrying.",
 			error: "Patch context not found",
 			toolName: "apply_patch",
+			scope: "workspace",
 			workspacePath,
 		})
 
@@ -141,6 +168,7 @@ describe("memory storage", () => {
 			lesson: "When validation output changes, re-check the failing assertion before editing again.",
 			error: "Assertion changed",
 			toolName: "execute_command",
+			scope: "workspace",
 			workspacePath,
 			approved: true,
 		})
@@ -158,6 +186,7 @@ describe("memory storage", () => {
 			lesson: "First lesson",
 			error: "first error",
 			toolName: "read_file",
+			scope: "workspace",
 			workspacePath,
 			pendingCandidateLimit: 1,
 		})
@@ -166,6 +195,7 @@ describe("memory storage", () => {
 			lesson: "Second lesson",
 			error: "second error",
 			toolName: "read_file",
+			scope: "workspace",
 			workspacePath,
 			pendingCandidateLimit: 1,
 		})
@@ -183,6 +213,7 @@ describe("memory storage", () => {
 			lesson: "Pending lesson to remove.",
 			error: "pending error",
 			toolName: "read_file",
+			scope: "workspace",
 			workspacePath,
 		})
 		const active = await storage.createMemory({
@@ -481,6 +512,58 @@ describe("memory prompt formatting and injection", () => {
 			expect(trimmedPrompt).toBeDefined()
 			expect(trimmedPrompt?.length).toBeLessThanOrEqual(800)
 			expect(await buildMemoryPromptForRequest({ ...common, contextTokens: 8_300 })).toBeUndefined()
+		} finally {
+			await fs.rm(tempDir, { recursive: true, force: true })
+		}
+	})
+
+	it("returns bounded safe recall metadata without raw memory lessons", async () => {
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "roo-memory-recall-metadata-"))
+		const workspacePath = path.join(tempDir, "workspace")
+		const storage = new MemoryStorage({ globalStoragePath: tempDir, workspacePath })
+
+		try {
+			for (let index = 0; index < 6; index++) {
+				await storage.createMemory({
+					scope: "global",
+					kind: "lesson",
+					status: "active",
+					source: "manual",
+					title: `Safe recall title ${index}`,
+					lesson: `bounded recall marker secret lesson ${index}`,
+					tags: ["recall"],
+				})
+			}
+
+			const result = await buildMemoryPromptForRequestWithMetadata({
+				globalStoragePath: tempDir,
+				workspacePath,
+				modelInfo: modelInfo(10_000, 1_000),
+				modelId: "test-model",
+				apiConfiguration: {},
+				settings: {
+					memoryEnabled: true,
+					memoryWorkspaceEnabled: false,
+					memoryGlobalEnabled: true,
+					memoryMaxCharacters: 2_400,
+					memoryMaxEntries: 10,
+				},
+				requestMessages: [{ role: "user", content: "bounded recall marker" }],
+				contextTokens: 100,
+			})
+
+			expect(result.prompt).toContain("bounded recall marker secret lesson")
+			expect(result.totalRecallCount).toBe(6)
+			expect(result.recalledMemories).toHaveLength(5)
+			expect(result.recalledMemories[0]).toEqual(
+				expect.objectContaining({
+					scope: "global",
+					kind: "lesson",
+					title: expect.stringMatching(/^Safe recall title/),
+					tags: ["recall"],
+				}),
+			)
+			expect(JSON.stringify(result.recalledMemories)).not.toContain("secret lesson")
 		} finally {
 			await fs.rm(tempDir, { recursive: true, force: true })
 		}

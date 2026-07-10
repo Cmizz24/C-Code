@@ -28,7 +28,18 @@
 			"coldShort": "fredda",
 			"swaps": "Scambi",
 			"condensingAvoided": "Condensazioni evitate",
-			"warning": "Avviso"
+			"warning": "Avviso",
+			"diagnostics": {
+				"evictionsValue": "{{total}} totali · {{hot}} hot / {{cold}} cold",
+				"contributors_one": "{{count}} contributore",
+				"contributors_other": "{{count}} contributori",
+				"contributorUsage": "{{ram}} · {{hot}} hot / {{cold}} cold",
+				"combinedBudget": "Budget combinato",
+				"hotColdRam": "RAM hot / cold",
+				"evictionsLabel": "Espulsioni",
+				"combinedStatus": "Combinato: {{used}} / {{budget}}",
+				"evictionsStatus": "Espulsioni: {{value}}"
+			}
 		}
 	},
 	"unpin": "Rilascia",
@@ -375,6 +386,33 @@
 				"binaryFiles_one": "{{count}} file binario",
 				"binaryFiles_other": "{{count}} file binari"
 			}
+		},
+		"planPreview": {
+			"title": "Rivedi il piano degli agenti paralleli",
+			"setupTitle": "Setup Git richiesto per gli agenti paralleli",
+			"description": "Rivedi l'assegnazione di ogni agente prima che C avvii i worktree.",
+			"setupDescription": "Correggi il problema di setup Git, poi riprova il piano conservato senza ricostruirlo.",
+			"expand": "Espandi piano",
+			"collapse": "Comprimi piano",
+			"setupRequired": "Setup richiesto: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "non è un repository Git",
+				"no-initial-commit": "nessun commit iniziale",
+				"git-unavailable": "Git non disponibile"
+			},
+			"pathPrivacyNote": "I percorsi workspace e Git sono nascosti qui per mantenere sicura la diagnostica.",
+			"sharedContext": "Contesto condiviso",
+			"taskDescription": "Descrizione attività",
+			"ownedFiles": "File assegnati",
+			"noOwnedFiles": "Nessun file assegnato",
+			"removeOwnedFile": "Rimuovi {{path}} dai file assegnati",
+			"dependencies": "Dipendenze",
+			"noDependencies": "Nessuna dipendenza",
+			"setupFooter": "Il piano approvato viene conservato. Correggi Git, poi riprova.",
+			"footer": "Rivedi i confini di proprietà prima di approvare il piano.",
+			"cancel": "Annulla",
+			"retry": "Riprova piano conservato",
+			"approve": "Approva piano"
 		}
 	},
 	"questions": {

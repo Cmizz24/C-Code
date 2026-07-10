@@ -855,6 +855,36 @@
 				"condensingAvoided": "Số lần tránh condensing",
 				"hotCacheChunks": "Chunk cache nóng",
 				"ramBudget": "Ngân sách RAM"
+			},
+			"diagnostics": {
+				"title": "Chẩn đoán áp lực cache",
+				"description": "Chế độ xem gọn áp lực RAM trong cửa sổ này và các cửa sổ C đang hoạt động khác. Không bao gồm ID tác vụ, prompts hay đường dẫn file.",
+				"status": {
+					"label": "Trạng thái áp lực",
+					"automatic": "Tự động giảm tải đang bật",
+					"ready": "Trong ngân sách",
+					"help": "C cắt các chunk lạnh trước và chỉ giữ số liệu tổng hợp ở đây."
+				},
+				"localUsage": "Mức dùng cục bộ / ngân sách",
+				"configuredEffective": "Ngân sách cấu hình / hiệu lực",
+				"hotColdRam": "RAM nóng / lạnh",
+				"evictions": {
+					"label": "Loại bỏ",
+					"value": "Tổng {{total}} · {{hot}} nóng / {{cold}} lạnh"
+				},
+				"contributors": {
+					"label": "Nguồn đóng góp",
+					"usage": "{{ram}} · {{hot}} nóng / {{cold}} lạnh"
+				},
+				"crossWindow": {
+					"title": "Áp lực giữa cửa sổ",
+					"description": "Mức dùng tổng hợp của cửa sổ này và các peer; đường dẫn workspace và prompts vẫn được ẩn.",
+					"liveWindows": "Cửa sổ / peer",
+					"localPeerUsage": "Mức dùng cục bộ / peer",
+					"globalLocalTarget": "Mục tiêu toàn cục / cục bộ",
+					"cleanup": "Dọn heartbeat cũ",
+					"cleanupValue": "{{cleaned}} đã dọn / {{failed}} thất bại"
+				}
 			}
 		}
 	},
@@ -1167,6 +1197,43 @@
 			"freeRequests": "* Miễn phí đến {{count}} yêu cầu mỗi phút. Sau đó, thanh toán phụ thuộc vào kích thước lời nhắc.",
 			"pricingDetails": "Để biết thêm thông tin, xem chi tiết giá.",
 			"billingEstimate": "* Thanh toán là ước tính - chi phí chính xác phụ thuộc vào kích thước lời nhắc."
+		},
+		"provenance": {
+			"title": "Nguồn metadata của model",
+			"reviewStatus": "Trạng thái: {{status}}",
+			"lastReviewed": "Đã xem lại: {{date}}",
+			"source": "Nguồn:",
+			"endpoint": "(endpoint: {{endpoint}})",
+			"capabilitySummary": "Capability có nguồn: {{capabilities}}",
+			"capabilitySummaryWithMore": "Capability có nguồn: {{capabilities}} + {{count}} nữa",
+			"sourceTypes": {
+				"official-docs": "docs chính thức",
+				"official-api": "API chính thức",
+				"provider-announcement": "thông báo của provider",
+				"curated": "được tuyển chọn",
+				"unknown": "không rõ"
+			},
+			"reviewStatuses": {
+				"reviewed": "đã xem lại",
+				"unreviewed": "chưa xem lại",
+				"unknown": "không rõ"
+			},
+			"capabilities": {
+				"contextWindow": "context window",
+				"maxTokens": "đầu ra tối đa",
+				"pricing": "giá",
+				"reasoning": "reasoning",
+				"promptCaching": "Prompt caching",
+				"images": "hình ảnh",
+				"imageOutput": "đầu ra hình ảnh",
+				"tools": "tools",
+				"computerUse": "dùng máy tính",
+				"webSearch": "web search",
+				"jsonSchema": "JSON schema",
+				"deprecation": "ngừng hỗ trợ",
+				"description": "mô tả",
+				"serviceTiers": "service tiers"
+			}
 		}
 	},
 	"modelPicker": {

@@ -35,6 +35,63 @@ export interface ContextCacheBudgetOption {
 	recommended?: boolean
 }
 
+export interface ContextCacheEvictionTotals {
+	hot: number
+	cold: number
+	total: number
+}
+
+export interface ContextCacheContributorStats {
+	id: string
+	label: string
+	taskId?: string
+	instanceId?: string
+	mode?: string
+	agentId?: string
+	isBackground?: boolean
+	isActive?: boolean
+	hotCacheChunks: number
+	coldCacheChunks: number
+	hotCacheRamMb: number
+	coldCacheRamMb: number
+	ramUsedMb: number
+	evictions?: ContextCacheEvictionTotals
+}
+
+export interface ContextCacheCrossWindowStats {
+	schemaVersion: number
+	livePeerCount: number
+	windowCount: number
+	localUsageRamMb: number
+	localBudgetRamMb: number
+	peerUsageRamMb: number
+	peerBudgetRamMb: number
+	globalBudgetRamMb: number
+	effectiveLocalBudgetRamMb: number
+	localActiveTaskCount?: number
+	localBackgroundTaskCount?: number
+	peerActiveTaskCount?: number
+	peerBackgroundTaskCount?: number
+	staleHeartbeatCount?: number
+	staleHeartbeatsCleaned?: number
+	staleHeartbeatCleanupFailures?: number
+	lastUpdatedAt?: number
+}
+
+export interface ContextCacheCombinedBudgetStats {
+	ramUsedMb: number
+	ramBudgetMb: number
+	configuredRamBudgetMb?: number
+	hotCacheRamMb: number
+	coldCacheRamMb: number
+	hotCacheChunks: number
+	coldCacheChunks: number
+	managerCount: number
+	evictions: ContextCacheEvictionTotals
+	contributors: ContextCacheContributorStats[]
+	crossWindow?: ContextCacheCrossWindowStats
+}
+
 export interface ContextCacheStats {
 	hotCacheTokens: number
 	hotCacheChunks: number
@@ -43,6 +100,10 @@ export interface ContextCacheStats {
 	ramBudgetMb: number
 	swapsThisSession: number
 	condensingAvoided: number
+	combinedBudget?: ContextCacheCombinedBudgetStats
+	evictions?: ContextCacheEvictionTotals
+	contributors?: ContextCacheContributorStats[]
+	crossWindow?: ContextCacheCrossWindowStats
 }
 
 export const CONTEXT_CACHE_EVENT_TYPES = [

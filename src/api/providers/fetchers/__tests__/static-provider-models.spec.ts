@@ -554,6 +554,16 @@ describe("static provider model fetchers", () => {
 				inputPrice: 0.435,
 				outputPrice: 0.87,
 				cacheReadsPrice: 0.0036,
+				provenance: {
+					reviewStatus: "unreviewed",
+					sources: [expect.objectContaining({ type: "official-docs" })],
+				},
+				capabilityProvenance: {
+					contextWindow: expect.objectContaining({ sourceFields: ["contextWindow"] }),
+					pricing: expect.objectContaining({
+						sourceFields: ["inputPrice", "outputPrice", "cacheReadsPrice"],
+					}),
+				},
 			})
 			expect(models["mimo-v2-pro"]).toMatchObject({
 				deprecated: true,
@@ -755,10 +765,10 @@ describe("static provider model fetchers", () => {
 				reasoningEffort: "high",
 				requiredReasoningEffort: true,
 				preserveReasoning: true,
-				inputPrice: 0.435,
-				outputPrice: 0.87,
-				cacheWritesPrice: 0.435,
-				cacheReadsPrice: 0.003625,
+				inputPrice: 1.74,
+				outputPrice: 3.48,
+				cacheWritesPrice: 1.74,
+				cacheReadsPrice: 0.0145,
 			})
 			expect(models["deepseek-v4-flash"]).toMatchObject({
 				contextWindow: 1_000_000,

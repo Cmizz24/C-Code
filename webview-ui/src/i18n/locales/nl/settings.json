@@ -855,6 +855,36 @@
 				"condensingAvoided": "Aantal keren condenseren vermeden",
 				"hotCacheChunks": "Hotcachechunks",
 				"ramBudget": "RAM-budget"
+			},
+			"diagnostics": {
+				"title": "Cache-drukdiagnose",
+				"description": "Compacte weergave van RAM-druk in dit venster en andere actieve C-vensters. Task-ID's, prompts en bestandspaden worden niet opgenomen.",
+				"status": {
+					"label": "Drukstatus",
+					"automatic": "Automatische verlichting actief",
+					"ready": "Binnen budget",
+					"help": "C snoeit eerst koude chunks en toont hier alleen geaggregeerde aantallen."
+				},
+				"localUsage": "Lokaal gebruik / budget",
+				"configuredEffective": "Ingesteld / effectief budget",
+				"hotColdRam": "Hete / koude RAM",
+				"evictions": {
+					"label": "Verwijderingen",
+					"value": "{{total}} totaal · {{hot}} heet / {{cold}} koud"
+				},
+				"contributors": {
+					"label": "Bijdragers",
+					"usage": "{{ram}} · {{hot}} heet / {{cold}} koud"
+				},
+				"crossWindow": {
+					"title": "Druk tussen vensters",
+					"description": "Geaggregeerd gebruik van dit venster en peers; workspace-paden en prompts blijven verborgen.",
+					"liveWindows": "Vensters / peers",
+					"localPeerUsage": "Lokaal / peer-gebruik",
+					"globalLocalTarget": "Globaal / lokaal doel",
+					"cleanup": "Oude heartbeats opruimen",
+					"cleanupValue": "{{cleaned}} opgeschoond / {{failed}} mislukt"
+				}
 			}
 		}
 	},
@@ -1167,6 +1197,43 @@
 			"freeRequests": "* Gratis tot {{count}} verzoeken per minuut. Daarna is de prijs afhankelijk van de promptgrootte.",
 			"pricingDetails": "Zie prijsdetails voor meer info.",
 			"billingEstimate": "* Facturering is een schatting - de exacte kosten hangen af van de promptgrootte."
+		},
+		"provenance": {
+			"title": "Bron van modelmetadata",
+			"reviewStatus": "Status: {{status}}",
+			"lastReviewed": "Beoordeeld: {{date}}",
+			"source": "Bron:",
+			"endpoint": "(endpoint: {{endpoint}})",
+			"capabilitySummary": "Capabilities met bron: {{capabilities}}",
+			"capabilitySummaryWithMore": "Capabilities met bron: {{capabilities}} + {{count}} meer",
+			"sourceTypes": {
+				"official-docs": "officiële docs",
+				"official-api": "officiële API",
+				"provider-announcement": "provider-aankondiging",
+				"curated": "gecurateerd",
+				"unknown": "onbekend"
+			},
+			"reviewStatuses": {
+				"reviewed": "beoordeeld",
+				"unreviewed": "niet beoordeeld",
+				"unknown": "onbekend"
+			},
+			"capabilities": {
+				"contextWindow": "context window",
+				"maxTokens": "max uitvoer",
+				"pricing": "prijzen",
+				"reasoning": "reasoning",
+				"promptCaching": "Prompt caching",
+				"images": "afbeeldingen",
+				"imageOutput": "afbeeldingsuitvoer",
+				"tools": "tools",
+				"computerUse": "computergebruik",
+				"webSearch": "web search",
+				"jsonSchema": "JSON schema",
+				"deprecation": "deprecation",
+				"description": "beschrijving",
+				"serviceTiers": "service tiers"
+			}
 		}
 	},
 	"modelPicker": {

@@ -1989,6 +1989,60 @@ describe("Cline", () => {
 				// Verify cancelCurrentRequest was called
 				expect(cancelSpy).toHaveBeenCalled()
 			})
+
+			it("unregisters context cache accounting during dispose", () => {
+				const task = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "test task",
+					startTask: false,
+				})
+				const coordinator = mockProvider.getContextCacheBudgetCoordinator()
+
+				;(task as any).configureContextWindowManager(
+					{ contextCacheEnabled: true, coldCacheRamBudgetMb: 1024 },
+					{ contextWindow: 1000 },
+				)
+				task.registerContextChunk({ type: "file_content", content: "cached context", tokens: 1 })
+
+				expect(coordinator.getUsage().managerCount).toBe(1)
+				expect(coordinator.getUsage().usedBytes).toBeGreaterThan(0)
+
+				task.dispose()
+
+				expect(coordinator.getUsage()).toMatchObject({ managerCount: 0, usedBytes: 0 })
+			})
+
+			it("propagates privacy-safe task metadata into combined cache diagnostics", () => {
+				const task = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "secret user prompt that must not appear in diagnostics",
+					mode: "code",
+					agentId: "agent-a",
+					background: true,
+					startTask: false,
+				})
+				const coordinator = mockProvider.getContextCacheBudgetCoordinator()
+
+				;(task as any).configureContextWindowManager(
+					{ contextCacheEnabled: true, coldCacheRamBudgetMb: 1024 },
+					{ contextWindow: 1000 },
+				)
+				task.registerContextChunk({ type: "file_content", content: "cached context", tokens: 1 })
+
+				const contributor = coordinator.getDiagnostics().contributors[0]
+
+				expect(contributor).toMatchObject({
+					label: "Background agent agent-a (code)",
+					taskId: task.taskId,
+					instanceId: task.instanceId,
+					mode: "code",
+					agentId: "agent-a",
+					isBackground: true,
+				})
+				expect(JSON.stringify(contributor)).not.toContain("secret user prompt")
+			})
 		})
 	})
 
@@ -2033,6 +2087,71 @@ describe("Cline", () => {
 
 			startTaskSpy.mockRestore()
 		})
+	})
+})
+
+describe("memory recall chat signaling", () => {
+	it("emits a noninteractive memory recall row once for unchanged recalls", async () => {
+		const task = {
+			say: vi.fn().mockResolvedValue(undefined),
+			lastMemoryRecallSignature: undefined,
+		}
+		Object.setPrototypeOf(task, Task.prototype)
+
+		const memoryContext = {
+			prompt: "<memory_context>Remember stable fixtures.</memory_context>",
+			totalRecallCount: 2,
+			recalledMemories: [
+				{
+					id: "mem_global",
+					scope: "global",
+					kind: "lesson",
+					status: "active",
+					title: "General retry lesson",
+					tags: ["retry"],
+					mode: "code",
+					toolName: "execute_command",
+					confidence: 0.8,
+					score: 0.91,
+				},
+				{
+					id: "mem_workspace",
+					scope: "workspace",
+					kind: "mistake",
+					status: "active",
+					title: "Workspace edit lesson",
+					pathTags: ["src/core/task/Task.ts"],
+					score: 0.72,
+				},
+			],
+		}
+		const requestMessages = [{ role: "user", content: "Fix the failing memory tests." }]
+
+		await (task as any).emitMemoryRecallIfChanged(memoryContext, requestMessages)
+		await (task as any).emitMemoryRecallIfChanged(memoryContext, requestMessages)
+
+		expect(task.say).toHaveBeenCalledTimes(1)
+		expect(task.say).toHaveBeenCalledWith("tool", expect.any(String), undefined, false, undefined, undefined, {
+			isNonInteractive: true,
+		})
+		const payload = JSON.parse(task.say.mock.calls[0][1])
+		expect(payload).toEqual(
+			expect.objectContaining({
+				tool: "memoryRecall",
+				scope: "all",
+				memoryRecallCount: 2,
+				message: "Recalled 2 memories for this request.",
+			}),
+		)
+		expect(payload.memoryRecallResults).toHaveLength(2)
+		expect(payload.memoryRecallResults[0]).toEqual(
+			expect.objectContaining({
+				id: "mem_global",
+				scope: "global",
+				title: "General retry lesson",
+			}),
+		)
+		expect(JSON.stringify(payload)).not.toContain("Remember stable fixtures")
 	})
 })
 

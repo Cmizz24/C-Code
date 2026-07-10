@@ -32,6 +32,7 @@ import { setTtsEnabled } from "../../../utils/tts"
 import { ContextProxy } from "../../config/ContextProxy"
 import { Task, TaskOptions } from "../../task/Task"
 import { safeWriteJson } from "../../../utils/safeWriteJson"
+import type { ContextCacheBudgetCrossWindowPressure } from "../../context/ContextCacheBudgetCoordinator"
 
 import { ClineProvider } from "../ClineProvider"
 import { MessageManager } from "../../message-manager"
@@ -51,6 +52,7 @@ vi.mock("fs/promises", () => ({
 	mkdir: vi.fn().mockResolvedValue(undefined),
 	writeFile: vi.fn().mockResolvedValue(undefined),
 	readFile: vi.fn().mockResolvedValue(""),
+	readdir: vi.fn().mockRejectedValue({ code: "ENOENT" }),
 	unlink: vi.fn().mockResolvedValue(undefined),
 	rmdir: vi.fn().mockResolvedValue(undefined),
 }))
@@ -1198,9 +1200,12 @@ describe("ClineProvider", () => {
 	})
 
 	describe("email notification lifecycle dispatch", () => {
-		test("tracks configured provider plan usage when a task completes", async () => {
+		test("does not update deprecated manual provider plan usage when a task completes", async () => {
 			await provider.contextProxy.updateGlobalState("providerPlanLimits", {
 				openrouter: { tokenLimit: 1_000, costLimit: 10, resetPeriod: "monthly" },
+			})
+			await provider.contextProxy.updateGlobalState("providerPlanUsage", {
+				openrouter: { tokensUsed: 10, costUsed: 0.1, periodStart: 1_700_000_000 },
 			})
 			const task = new Task({ ...defaultTaskOptions, taskId: "task-plan-usage" } as any)
 			;(provider as any).taskCreationCallback(task)
@@ -1212,35 +1217,11 @@ describe("ClineProvider", () => {
 				createToolUsage(),
 			)
 
-			await vi.waitFor(() => {
-				expect(provider.contextProxy.getGlobalState("providerPlanUsage")?.openrouter).toEqual(
-					expect.objectContaining({ tokensUsed: 150, costUsed: 0.25 }),
-				)
+			expect(provider.contextProxy.getGlobalState("providerPlanUsage")?.openrouter).toEqual({
+				tokensUsed: 10,
+				costUsed: 0.1,
+				periodStart: 1_700_000_000,
 			})
-		})
-
-		test("skips provider plan usage tracking when no plan is configured", async () => {
-			await (provider as any).updatePlanUsage("anthropic", 100, 50, 0.25)
-
-			expect(provider.contextProxy.getGlobalState("providerPlanUsage")?.anthropic).toBeUndefined()
-		})
-
-		test("resets provider plan usage when the configured period rolls over", async () => {
-			const oldPeriodStart = Date.now() - 604_800_000 - 1_000
-			await provider.contextProxy.updateGlobalState("providerPlanLimits", {
-				anthropic: { tokenLimit: 1_000, costLimit: 10, resetPeriod: "weekly" },
-			})
-			await provider.contextProxy.updateGlobalState("providerPlanUsage", {
-				anthropic: { tokensUsed: 900, costUsed: 9, periodStart: oldPeriodStart },
-			})
-
-			await (provider as any).updatePlanUsage("anthropic", 10, 15, 0.5)
-
-			const usage = provider.contextProxy.getGlobalState("providerPlanUsage")?.anthropic
-			const limit = provider.contextProxy.getGlobalState("providerPlanLimits")?.anthropic
-			expect(usage).toEqual(expect.objectContaining({ tokensUsed: 25, costUsed: 0.5 }))
-			expect(usage?.periodStart).toBeGreaterThan(oldPeriodStart)
-			expect(limit?.lastReset).toBeGreaterThan(oldPeriodStart)
 		})
 
 		test("sends success notifications for top-level task completion", async () => {
@@ -3132,8 +3113,104 @@ describe("ClineProvider", () => {
 		expect(getContextCacheWarning).toHaveBeenCalledTimes(1)
 	})
 
+	test("getStateToPostToWebview includes combined context cache diagnostics when contributors exist", async () => {
+		const oneMb = 1024 * 1024
+		const crossWindowPressure: ContextCacheBudgetCrossWindowPressure = {
+			schemaVersion: 1,
+			instanceId: "local-window",
+			namespaceId: "workspace-test",
+			localUsedBytes: 2 * oneMb,
+			localBudgetBytes: 1024 * oneMb,
+			peerUsedBytes: 256 * oneMb,
+			peerBudgetBytes: 1024 * oneMb,
+			globalBudgetBytes: 1024 * oneMb,
+			effectiveLocalBudgetBytes: 768 * oneMb,
+			livePeerCount: 1,
+			windowCount: 2,
+			localActiveTaskCount: 1,
+			peerBackgroundTaskCount: 1,
+			staleHeartbeatsCleaned: 1,
+			lastUpdatedAt: 1_000,
+		}
+		;(provider as any).crossWindowContextCacheCoordinator.updateLocalUsage = vi
+			.fn()
+			.mockResolvedValue(crossWindowPressure)
+		const manager = {
+			contextCacheBudgetManagerId: "manager-background",
+			getContextCacheBudgetSnapshot: vi.fn().mockReturnValue({
+				managerId: "manager-background",
+				hotBytes: 512,
+				coldBytes: 1024,
+				hotChunks: 1,
+				coldChunks: 2,
+				isBackground: true,
+				isActive: false,
+				taskId: "task-background",
+				instanceId: "instance-background",
+				mode: "code",
+				agentId: "agent-a",
+				hotEvictions: 1,
+				coldEvictions: 2,
+			}),
+			getColdCacheEvictionCandidates: vi.fn().mockReturnValue([]),
+			getHotCacheEvictionCandidates: vi.fn().mockReturnValue([]),
+			evictColdCacheChunk: vi.fn(),
+			evictHotCacheChunk: vi.fn(),
+		}
+		provider.getContextCacheBudgetCoordinator().register(manager)
+		;(provider as any).clineStack = [
+			{
+				taskId: "context-task-id",
+				clineMessages: [],
+				getContextCacheStats: vi.fn().mockReturnValue({
+					hotCacheTokens: 0,
+					hotCacheChunks: 0,
+					coldCacheChunks: 0,
+					ramUsedMb: 0,
+					ramBudgetMb: 1024,
+					swapsThisSession: 0,
+					condensingAvoided: 0,
+				}),
+			},
+		]
+
+		const state = await provider.getStateToPostToWebview()
+		const contextCacheStats = state.contextCacheStats
+
+		expect(contextCacheStats).toBeDefined()
+		expect(contextCacheStats!.combinedBudget).toMatchObject({
+			managerCount: 1,
+			hotCacheChunks: 1,
+			coldCacheChunks: 2,
+			evictions: { hot: 1, cold: 2, total: 3 },
+			crossWindow: expect.objectContaining({
+				livePeerCount: 1,
+				windowCount: 2,
+				localUsageRamMb: 2,
+				peerUsageRamMb: 256,
+				effectiveLocalBudgetRamMb: 768,
+				staleHeartbeatsCleaned: 1,
+			}),
+		})
+		expect(contextCacheStats!.crossWindow).toEqual(contextCacheStats!.combinedBudget?.crossWindow)
+		expect(contextCacheStats!.evictions).toEqual({ hot: 1, cold: 2, total: 3 })
+		expect(contextCacheStats!.contributors).toEqual([
+			expect.objectContaining({
+				id: "manager-background",
+				label: "Background agent agent-a (code)",
+				taskId: "task-background",
+				instanceId: "instance-background",
+				mode: "code",
+				agentId: "agent-a",
+			}),
+		])
+	})
+
 	test("dispose is idempotent — second call is a no-op", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
+		const disposeCrossWindow = vi
+			.spyOn((provider as any).crossWindowContextCacheCoordinator, "dispose")
+			.mockResolvedValue(undefined)
 
 		await provider.dispose()
 		await provider.dispose()
@@ -3143,6 +3220,7 @@ describe("ClineProvider", () => {
 			([msg]) => typeof msg === "string" && msg.includes("Disposing ClineProvider..."),
 		)
 		expect(disposeCalls).toHaveLength(1)
+		expect(disposeCrossWindow).toHaveBeenCalledTimes(1)
 	})
 
 	test("handles webviewDidLaunch message", async () => {
@@ -3580,6 +3658,79 @@ describe("ClineProvider", () => {
 		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
 			"Failed to create a checkpoint before starting parallel agents for plan plan-webview-provider: Save failed. Parallel agents were not started.",
 		)
+	})
+
+	test("approved execution plans preserve Git setup-required plans and retry the preserved plan", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const gitUnavailable = new WorktreeManagerGitUnavailableError(
+			"Git executable unavailable while preparing parallel worktrees.",
+			"/test/workspace",
+		)
+		const validateGitRepository = vi.fn().mockRejectedValueOnce(gitUnavailable).mockResolvedValue(undefined)
+		const worktreeManager = createWorktreeManagerMock({ validateGitRepository })
+		;(provider as any).worktreeManager = worktreeManager
+		const plan = createExecutionPlan()
+
+		const approvalPromise = provider.requestPlanApproval(plan)
+		await vi.waitFor(() =>
+			expect(mockPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({ type: "showPlanPreview", executionPlan: plan }),
+			),
+		)
+		await provider.approveExecutionPlan(plan)
+
+		await expect(approvalPromise).resolves.toEqual({
+			approved: true,
+			plan,
+			startResult: {
+				ok: false,
+				error: "Git executable unavailable while preparing parallel worktrees.",
+				setupRequired: expect.objectContaining({
+					reason: "git_unavailable",
+					workspacePath: "/test/workspace",
+					guidance: expect.stringContaining("Install Git"),
+				}),
+			},
+		})
+		expect((provider as any).pendingExecutionPlan).toBe(plan)
+		expect((provider as any).pendingWorktreeSetupRequired).toEqual(
+			expect.objectContaining({ reason: "git_unavailable", workspacePath: "/test/workspace" }),
+		)
+		expect(validateGitRepository).toHaveBeenCalledTimes(1)
+		expect(worktreeManager.captureWorkspaceBaseline).not.toHaveBeenCalled()
+		expect(worktreeManager.createWorktree).not.toHaveBeenCalled()
+		expect((provider as any).activeExecutionPlan).toBeUndefined()
+		expect(getParallelAgentToolMessages(parentTask)).toHaveLength(0)
+		const setupPreviewCall = mockPostMessage.mock.calls.find(
+			([message]: [ExtensionMessage]) =>
+				message.type === "showPlanPreview" && message.worktreeSetupRequired?.reason === "git_unavailable",
+		)
+		expect(setupPreviewCall?.[0]).toEqual(
+			expect.objectContaining({
+				type: "showPlanPreview",
+				executionPlan: plan,
+				worktreeSetupRequired: expect.objectContaining({ reason: "git_unavailable" }),
+			}),
+		)
+
+		mockPostMessage.mockClear()
+		await provider.retryExecutionPlan()
+
+		await vi.waitFor(() => expect(worktreeManager.createWorktree).toHaveBeenCalled())
+		expect(validateGitRepository).toHaveBeenCalledTimes(2)
+		expect(worktreeManager.captureWorkspaceBaseline).toHaveBeenCalledTimes(1)
+		expect(worktreeManager.captureWorkspaceBaseline).toHaveBeenCalledWith("plan-webview-provider")
+		expect((provider as any).pendingExecutionPlan).toBeUndefined()
+		expect((provider as any).pendingWorktreeSetupRequired).toBeUndefined()
+		expect((provider as any).activeExecutionPlan).toBe(plan)
+		expect(parentTask.parallelExecutionPaused).toBe(true)
+		expect(
+			mockPostMessage.mock.calls.some(
+				([message]: [ExtensionMessage]) => message.type === "showPlanPreview" && !message.executionPlan,
+			),
+		).toBe(true)
 	})
 
 	test("AgentBus updates coalesce into the persisted parallelAgents tool message", async () => {
@@ -7094,6 +7245,7 @@ describe("ClineProvider", () => {
 		;(provider as any).providerSettingsManager = {
 			listConfig: vi.fn().mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),
 			saveConfig: vi.fn().mockResolvedValue("test-id"),
+			getProfile: vi.fn().mockResolvedValue({ name: "test-config", id: "test-id", apiProvider: "anthropic" }),
 			setModeConfig: vi.fn(),
 		} as any
 
@@ -7853,7 +8005,13 @@ describe("ClineProvider", () => {
 
 			;(provider as any).providerSettingsManager = {
 				setModeConfig: vi.fn(),
-				saveConfig: vi.fn().mockResolvedValue(undefined),
+				saveConfig: vi.fn().mockResolvedValue("test-id"),
+				getProfile: vi.fn().mockResolvedValue({
+					name: "test-config",
+					id: "test-id",
+					apiProvider: "anthropic",
+					apiKey: "test-key",
+				}),
 				listConfig: vi
 					.fn()
 					.mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),
@@ -7884,6 +8042,40 @@ describe("ClineProvider", () => {
 			expect(mockPostMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "state" }))
 		})
 
+		test("applies saved provider profile settings after preserving an existing API key", async () => {
+			await provider.resolveWebviewView(mockWebviewView)
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as any).mock.calls[0][0]
+			const setProviderSettingsSpy = vi.spyOn((provider as any).contextProxy, "setProviderSettings")
+
+			const incomingApiConfig = {
+				apiProvider: "anthropic" as const,
+				apiKey: "",
+			}
+			const savedApiConfig = {
+				apiProvider: "anthropic" as const,
+				apiKey: "persisted-key",
+			}
+
+			;(provider as any).providerSettingsManager = {
+				setModeConfig: vi.fn().mockResolvedValue(undefined),
+				saveConfig: vi.fn().mockResolvedValue("test-id"),
+				getProfile: vi.fn().mockResolvedValue({ name: "test-config", id: "test-id", ...savedApiConfig }),
+				listConfig: vi
+					.fn()
+					.mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),
+			} as any
+
+			await messageHandler({
+				type: "upsertApiConfiguration",
+				text: "test-config",
+				apiConfiguration: incomingApiConfig,
+			})
+
+			expect(provider.providerSettingsManager.saveConfig).toHaveBeenCalledWith("test-config", incomingApiConfig)
+			expect(setProviderSettingsSpy).toHaveBeenCalledWith(savedApiConfig)
+			expect(mockContext.secrets.store).toHaveBeenCalledWith("apiKey", "persisted-key")
+		})
+
 		test("handles buildApiHandler error in updateApiConfiguration", async () => {
 			await provider.resolveWebviewView(mockWebviewView)
 			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as any).mock.calls[0][0]
@@ -7896,7 +8088,13 @@ describe("ClineProvider", () => {
 			})
 			;(provider as any).providerSettingsManager = {
 				setModeConfig: vi.fn(),
-				saveConfig: vi.fn().mockResolvedValue(undefined),
+				saveConfig: vi.fn().mockResolvedValue("test-id"),
+				getProfile: vi.fn().mockResolvedValue({
+					name: "test-config",
+					id: "test-id",
+					apiProvider: "anthropic",
+					apiKey: "test-key",
+				}),
 				listConfig: vi
 					.fn()
 					.mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),

@@ -28,7 +28,18 @@
 			"coldShort": "lạnh",
 			"swaps": "Lượt hoán đổi",
 			"condensingAvoided": "Đã tránh condensing",
-			"warning": "Cảnh báo"
+			"warning": "Cảnh báo",
+			"diagnostics": {
+				"evictionsValue": "Tổng {{total}} · {{hot}} nóng / {{cold}} lạnh",
+				"contributors_one": "{{count}} nguồn đóng góp",
+				"contributors_other": "{{count}} nguồn đóng góp",
+				"contributorUsage": "{{ram}} · {{hot}} nóng / {{cold}} lạnh",
+				"combinedBudget": "Ngân sách kết hợp",
+				"hotColdRam": "RAM nóng / lạnh",
+				"evictionsLabel": "Loại bỏ",
+				"combinedStatus": "Kết hợp: {{used}} / {{budget}}",
+				"evictionsStatus": "Loại bỏ: {{value}}"
+			}
 		}
 	},
 	"unpin": "Bỏ ghim khỏi đầu",
@@ -376,6 +387,33 @@
 				"binaryFiles_one": "{{count}} tệp nhị phân",
 				"binaryFiles_other": "{{count}} tệp nhị phân"
 			}
+		},
+		"planPreview": {
+			"title": "Xem lại kế hoạch agent song song",
+			"setupTitle": "Cần thiết lập Git cho agent song song",
+			"description": "Xem lại phân công của từng agent trước khi C khởi động worktree.",
+			"setupDescription": "Sửa vấn đề thiết lập Git, rồi thử lại kế hoạch đã giữ mà không dựng lại.",
+			"expand": "Mở rộng kế hoạch",
+			"collapse": "Thu gọn kế hoạch",
+			"setupRequired": "Cần thiết lập: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "không phải Git repository",
+				"no-initial-commit": "chưa có commit đầu tiên",
+				"git-unavailable": "Không dùng được Git"
+			},
+			"pathPrivacyNote": "Đường dẫn workspace và Git được ẩn ở đây để giữ chẩn đoán an toàn.",
+			"sharedContext": "Ngữ cảnh chung",
+			"taskDescription": "Mô tả tác vụ",
+			"ownedFiles": "File được giao",
+			"noOwnedFiles": "Không có file được giao",
+			"removeOwnedFile": "Xóa {{path}} khỏi file được giao",
+			"dependencies": "Phụ thuộc",
+			"noDependencies": "Không có phụ thuộc",
+			"setupFooter": "Kế hoạch đã duyệt của bạn được giữ lại. Sửa Git rồi thử lại.",
+			"footer": "Xem lại ranh giới sở hữu trước khi duyệt kế hoạch.",
+			"cancel": "Hủy",
+			"retry": "Thử lại kế hoạch đã giữ",
+			"approve": "Duyệt kế hoạch"
 		}
 	},
 	"questions": {

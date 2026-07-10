@@ -855,6 +855,36 @@
 				"condensingAvoided": "condensing を回避した回数",
 				"hotCacheChunks": "ホットキャッシュチャンク",
 				"ramBudget": "RAM 予算"
+			},
+			"diagnostics": {
+				"title": "キャッシュ圧迫診断",
+				"description": "このウィンドウと他のアクティブな C ウィンドウ全体の RAM 圧迫をコンパクトに表示します。Task ID、prompts、ファイルパスは含まれません。",
+				"status": {
+					"label": "圧迫状態",
+					"automatic": "自動緩和が有効",
+					"ready": "予算内",
+					"help": "C はまず cold chunk を削除し、ここには集計値だけを表示します。"
+				},
+				"localUsage": "ローカル使用量 / 予算",
+				"configuredEffective": "設定済み / 有効予算",
+				"hotColdRam": "Hot / cold RAM",
+				"evictions": {
+					"label": "退避",
+					"value": "合計 {{total}} · hot {{hot}} / cold {{cold}}"
+				},
+				"contributors": {
+					"label": "寄与元",
+					"usage": "{{ram}} · hot {{hot}} / cold {{cold}}"
+				},
+				"crossWindow": {
+					"title": "ウィンドウ間の圧迫",
+					"description": "このウィンドウと peer の集計使用量です。workspace パスと prompts は非表示のままです。",
+					"liveWindows": "ウィンドウ / peer",
+					"localPeerUsage": "ローカル / peer 使用量",
+					"globalLocalTarget": "グローバル / ローカル目標",
+					"cleanup": "古い heartbeat のクリーンアップ",
+					"cleanupValue": "{{cleaned}} 件クリーン / {{failed}} 件失敗"
+				}
 			}
 		}
 	},
@@ -1167,6 +1197,43 @@
 			"freeRequests": "* 1分間あたり{{count}}リクエストまで無料。それ以降は、プロンプトサイズに応じて課金されます。",
 			"pricingDetails": "詳細は価格情報をご覧ください。",
 			"billingEstimate": "* 課金は見積もりです - 正確な費用はプロンプトのサイズによって異なります。"
+		},
+		"provenance": {
+			"title": "モデルメタデータのソース",
+			"reviewStatus": "状態: {{status}}",
+			"lastReviewed": "レビュー日: {{date}}",
+			"source": "ソース:",
+			"endpoint": "(endpoint: {{endpoint}})",
+			"capabilitySummary": "ソース付き機能: {{capabilities}}",
+			"capabilitySummaryWithMore": "ソース付き機能: {{capabilities}} + 他 {{count}} 件",
+			"sourceTypes": {
+				"official-docs": "公式 docs",
+				"official-api": "公式 API",
+				"provider-announcement": "プロバイダー発表",
+				"curated": "キュレーション",
+				"unknown": "不明"
+			},
+			"reviewStatuses": {
+				"reviewed": "レビュー済み",
+				"unreviewed": "未レビュー",
+				"unknown": "不明"
+			},
+			"capabilities": {
+				"contextWindow": "context window",
+				"maxTokens": "最大出力",
+				"pricing": "価格",
+				"reasoning": "reasoning",
+				"promptCaching": "Prompt caching",
+				"images": "画像",
+				"imageOutput": "画像出力",
+				"tools": "tools",
+				"computerUse": "computer use",
+				"webSearch": "web search",
+				"jsonSchema": "JSON schema",
+				"deprecation": "非推奨",
+				"description": "説明",
+				"serviceTiers": "service tiers"
+			}
 		}
 	},
 	"modelPicker": {

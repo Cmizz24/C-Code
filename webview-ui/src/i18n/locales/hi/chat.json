@@ -28,7 +28,18 @@
 			"coldShort": "cold",
 			"swaps": "स्वैप",
 			"condensingAvoided": "Condensing टाली गई",
-			"warning": "चेतावनी"
+			"warning": "चेतावनी",
+			"diagnostics": {
+				"evictionsValue": "कुल {{total}} · {{hot}} हॉट / {{cold}} कोल्ड",
+				"contributors_one": "{{count}} योगदानकर्ता",
+				"contributors_other": "{{count}} योगदानकर्ता",
+				"contributorUsage": "{{ram}} · {{hot}} हॉट / {{cold}} कोल्ड",
+				"combinedBudget": "संयुक्त बजट",
+				"hotColdRam": "हॉट / कोल्ड RAM",
+				"evictionsLabel": "Evictions",
+				"combinedStatus": "संयुक्त: {{used}} / {{budget}}",
+				"evictionsStatus": "Evictions: {{value}}"
+			}
 		}
 	},
 	"unpin": "पिन करें",
@@ -375,6 +386,33 @@
 				"binaryFiles_one": "{{count}} बाइनरी फ़ाइल",
 				"binaryFiles_other": "{{count}} बाइनरी फ़ाइलें"
 			}
+		},
+		"planPreview": {
+			"title": "पैरेलल एजेंट प्लान की समीक्षा करो",
+			"setupTitle": "पैरेलल एजेंट के लिए Git सेटअप चाहिए",
+			"description": "C के worktrees शुरू करने से पहले हर एजेंट की assignment देखो।",
+			"setupDescription": "Git सेटअप समस्या ठीक करो, फिर संरक्षित प्लान को बिना दुबारा बनाए retry करो।",
+			"expand": "प्लान फैलाओ",
+			"collapse": "प्लान समेटो",
+			"setupRequired": "सेटअप ज़रूरी: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "Git repository नहीं है",
+				"no-initial-commit": "initial commit नहीं है",
+				"git-unavailable": "Git उपलब्ध नहीं"
+			},
+			"pathPrivacyNote": "डायग्नोस्टिक्स सुरक्षित रखने के लिए workspace और Git पाथ यहाँ छिपाए जाते हैं।",
+			"sharedContext": "साझा संदर्भ",
+			"taskDescription": "Task विवरण",
+			"ownedFiles": "Assigned files",
+			"noOwnedFiles": "कोई assigned file नहीं",
+			"removeOwnedFile": "Assigned files से {{path}} हटाओ",
+			"dependencies": "Dependencies",
+			"noDependencies": "कोई dependency नहीं",
+			"setupFooter": "तुम्हारा approved plan सुरक्षित है। Git ठीक करो, फिर retry करो।",
+			"footer": "Plan approve करने से पहले ownership boundaries देखो।",
+			"cancel": "रद्द करो",
+			"retry": "संरक्षित प्लान retry करो",
+			"approve": "प्लान approve करो"
 		}
 	},
 	"questions": {

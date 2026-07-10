@@ -106,6 +106,7 @@ const VISUAL_BROWSER_INSPECTOR_ONLY_BLOCKED_MESSAGE_TYPES = new Set<WebviewMessa
 	"acceptCompletion",
 	"approvePlan",
 	"cancelPlan",
+	"retryPlan",
 	"clearTask",
 	"deleteMultipleTasksWithIds",
 	"currentApiConfigName",
@@ -810,6 +811,10 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 
 		case "cancelPlan":
 			await provider.cancelExecutionPlan()
+			break
+
+		case "retryPlan":
+			await provider.retryExecutionPlan()
 			break
 
 		case "agentWaitOnConflict":
@@ -2834,6 +2839,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			try {
 				const { openAiCodexOAuthManager } = await import("../../integrations/openai-codex/oauth")
 				await openAiCodexOAuthManager.clearCredentials()
+				provider.cachedOpenAiCodexRateLimits = undefined
 				vscode.window.showInformationMessage("Signed out from OpenAI Codex")
 				await provider.postStateToWebview()
 			} catch (error) {
@@ -3525,10 +3531,12 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				const accessToken = await openAiCodexOAuthManager.getAccessToken()
 
 				if (!accessToken) {
+					provider.cachedOpenAiCodexRateLimits = undefined
 					provider.postMessageToWebview({
 						type: "openAiCodexRateLimits",
 						error: "Not authenticated with OpenAI Codex",
 					})
+					await provider.postStateToWebview()
 					break
 				}
 
@@ -3541,13 +3549,16 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					type: "openAiCodexRateLimits",
 					values: rateLimits,
 				})
+				await provider.postStateToWebview()
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				provider.log(`Error fetching OpenAI Codex rate limits: ${errorMessage}`)
+				provider.cachedOpenAiCodexRateLimits = undefined
 				provider.postMessageToWebview({
 					type: "openAiCodexRateLimits",
 					error: errorMessage,
 				})
+				await provider.postStateToWebview()
 			}
 			break
 		}

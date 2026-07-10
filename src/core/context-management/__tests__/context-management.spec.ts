@@ -840,6 +840,46 @@ describe("Context Management", () => {
 			summarizeSpy.mockRestore()
 		})
 
+		it("should not return truncation metadata when fallback truncation removes no messages", async () => {
+			vi.clearAllMocks()
+			const summarizeSpy = vi.spyOn(condenseModule, "summarizeConversation")
+			const modelInfo = createModelInfo(100000, 30000)
+			const shortMessages: ApiMessage[] = [
+				{ role: "user", content: "First message" },
+				{ role: "assistant", content: "Second message" },
+				{ role: "user", content: "" },
+			]
+
+			const result = await manageContext({
+				messages: shortMessages,
+				totalTokens: 70001,
+				contextWindow: modelInfo.contextWindow,
+				maxTokens: modelInfo.maxTokens,
+				apiHandler: mockApiHandler,
+				autoCondenseContext: false,
+				autoCondenseContextPercent: 50,
+				systemPrompt: "System prompt",
+				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
+			})
+
+			expect(summarizeSpy).not.toHaveBeenCalled()
+			expect(result).toEqual({
+				messages: shortMessages,
+				summary: "",
+				cost: 0,
+				prevContextTokens: 70001,
+				error: undefined,
+				errorDetails: undefined,
+			})
+			expect(result.truncationId).toBeUndefined()
+			expect(result.messagesRemoved).toBeUndefined()
+			expect(result.newContextTokensAfterTruncation).toBeUndefined()
+
+			summarizeSpy.mockRestore()
+		})
+
 		it("should use summarizeConversation when autoCondenseContext is true and context percent exceeds threshold", async () => {
 			// Mock the summarizeConversation function
 			const mockSummary = "This is a summary of the conversation"

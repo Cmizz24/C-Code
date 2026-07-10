@@ -855,6 +855,36 @@
 				"condensingAvoided": "避免 condensing 的次数",
 				"hotCacheChunks": "热缓存块",
 				"ramBudget": "RAM 预算"
+			},
+			"diagnostics": {
+				"title": "缓存压力诊断",
+				"description": "紧凑显示此窗口和其他活动 C 窗口的 RAM 压力。不包含任务 ID、prompts 或文件路径。",
+				"status": {
+					"label": "压力状态",
+					"automatic": "自动缓解已启用",
+					"ready": "在预算内",
+					"help": "C 会先裁剪冷 chunks，这里只保留聚合计数。"
+				},
+				"localUsage": "本地用量 / 预算",
+				"configuredEffective": "配置 / 有效预算",
+				"hotColdRam": "热 / 冷 RAM",
+				"evictions": {
+					"label": "驱逐",
+					"value": "共 {{total}} · {{hot}} 热 / {{cold}} 冷"
+				},
+				"contributors": {
+					"label": "贡献项",
+					"usage": "{{ram}} · {{hot}} 热 / {{cold}} 冷"
+				},
+				"crossWindow": {
+					"title": "跨窗口压力",
+					"description": "此窗口和 peer 的聚合用量；workspace 路径和 prompts 保持隐藏。",
+					"liveWindows": "窗口 / peer",
+					"localPeerUsage": "本地 / peer 用量",
+					"globalLocalTarget": "全局 / 本地目标",
+					"cleanup": "清理过期 heartbeat",
+					"cleanupValue": "已清理 {{cleaned}} / 失败 {{failed}}"
+				}
 			}
 		}
 	},
@@ -1167,6 +1197,43 @@
 			"freeRequests": "* 每分钟免费 {{count}} 个请求。之后，计费取决于提示大小。",
 			"pricingDetails": "有关更多信息，请参阅定价详情。",
 			"billingEstimate": "* 计费为估计值 - 具体费用取决于提示大小。"
+		},
+		"provenance": {
+			"title": "模型 metadata 来源",
+			"reviewStatus": "状态：{{status}}",
+			"lastReviewed": "已审核：{{date}}",
+			"source": "来源：",
+			"endpoint": "（endpoint：{{endpoint}}）",
+			"capabilitySummary": "有来源的能力：{{capabilities}}",
+			"capabilitySummaryWithMore": "有来源的能力：{{capabilities}} + 另外 {{count}} 项",
+			"sourceTypes": {
+				"official-docs": "官方 docs",
+				"official-api": "官方 API",
+				"provider-announcement": "提供商公告",
+				"curated": "人工整理",
+				"unknown": "未知"
+			},
+			"reviewStatuses": {
+				"reviewed": "已审核",
+				"unreviewed": "未审核",
+				"unknown": "未知"
+			},
+			"capabilities": {
+				"contextWindow": "context window",
+				"maxTokens": "最大输出",
+				"pricing": "价格",
+				"reasoning": "reasoning",
+				"promptCaching": "Prompt caching",
+				"images": "图片",
+				"imageOutput": "图片输出",
+				"tools": "tools",
+				"computerUse": "computer use",
+				"webSearch": "web search",
+				"jsonSchema": "JSON schema",
+				"deprecation": "弃用",
+				"description": "描述",
+				"serviceTiers": "service tiers"
+			}
 		}
 	},
 	"modelPicker": {

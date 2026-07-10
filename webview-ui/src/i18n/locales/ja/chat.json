@@ -28,7 +28,18 @@
 			"coldShort": "コールド",
 			"swaps": "スワップ",
 			"condensingAvoided": "凝縮回避",
-			"warning": "警告"
+			"warning": "警告",
+			"diagnostics": {
+				"evictionsValue": "合計 {{total}} · hot {{hot}} / cold {{cold}}",
+				"contributors_one": "{{count}} 件の寄与元",
+				"contributors_other": "{{count}} 件の寄与元",
+				"contributorUsage": "{{ram}} · hot {{hot}} / cold {{cold}}",
+				"combinedBudget": "合計予算",
+				"hotColdRam": "Hot / cold RAM",
+				"evictionsLabel": "退避",
+				"combinedStatus": "合計: {{used}} / {{budget}}",
+				"evictionsStatus": "退避: {{value}}"
+			}
 		}
 	},
 	"unpin": "ピン留めを解除",
@@ -375,6 +386,33 @@
 				"binaryFiles_one": "{{count}} バイナリファイル",
 				"binaryFiles_other": "{{count}} バイナリファイル"
 			}
+		},
+		"planPreview": {
+			"title": "並列エージェント計画を確認",
+			"setupTitle": "並列エージェントには Git セットアップが必要",
+			"description": "C が worktree を開始する前に、各エージェントの割り当てを確認してください。",
+			"setupDescription": "Git セットアップの問題を修正してから、保持された計画を再作成せずに再試行してください。",
+			"expand": "計画を展開",
+			"collapse": "計画を折りたたむ",
+			"setupRequired": "セットアップが必要: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "Git repository ではありません",
+				"no-initial-commit": "initial commit がありません",
+				"git-unavailable": "Git を利用できません"
+			},
+			"pathPrivacyNote": "診断を安全に保つため、workspace と Git のパスはここでは非表示です。",
+			"sharedContext": "共有コンテキスト",
+			"taskDescription": "Task の説明",
+			"ownedFiles": "担当ファイル",
+			"noOwnedFiles": "担当ファイルなし",
+			"removeOwnedFile": "担当ファイルから {{path}} を削除",
+			"dependencies": "依存関係",
+			"noDependencies": "依存関係なし",
+			"setupFooter": "承認済みの計画は保持されています。Git を修正してから再試行してください。",
+			"footer": "計画を承認する前に所有範囲を確認してください。",
+			"cancel": "キャンセル",
+			"retry": "保持された計画を再試行",
+			"approve": "計画を承認"
 		}
 	},
 	"questions": {

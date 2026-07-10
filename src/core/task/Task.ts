@@ -117,8 +117,10 @@ import {
 	ContextWindowManager,
 	type ContextChunkRegistrationOptions,
 	DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
+	coldCacheRamBudgetMbToBytes,
 	normalizeColdCacheRamBudgetMb,
 } from "../context/ContextWindowManager"
+import type { ContextCacheBudgetCoordinator } from "../context/ContextCacheBudgetCoordinator"
 import type { ContextChunk, RegisterContextChunkInput } from "../context/ContextChunk"
 import { ClineProvider } from "../webview/ClineProvider"
 import { MultiSearchReplaceDiffStrategy } from "../diff/strategies/multi-search-replace"
@@ -154,7 +156,8 @@ import { validateAndFixToolResultIds } from "./validateToolResultIds"
 import { mergeConsecutiveApiMessages } from "./mergeConsecutiveApiMessages"
 import {
 	appendMemoryPromptToLastUserMessage,
-	buildMemoryPromptForRequest,
+	type BuildMemoryPromptForRequestResult,
+	buildMemoryPromptForRequestWithMetadata,
 	buildToolErrorLesson,
 	createMistakeMemoryCandidate,
 	MemoryStorage,
@@ -326,6 +329,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	providerRef: WeakRef<ClineProvider>
 	private readonly globalStoragePath: string
+	private lastMemoryRecallSignature?: string
 	abort: boolean = false
 	currentRequestAbortController?: AbortController
 	skipPrevResponseIdOnce: boolean = false
@@ -959,6 +963,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		modelInfo: ModelInfo,
 	): void {
 		if ((settings?.contextCacheEnabled ?? true) === false) {
+			this.contextWindowManager?.dispose()
 			this.contextWindowManager = undefined
 			this.contextCacheRegisteredMessageKeys.clear()
 			this.contextCacheNeedsRebuild = true
@@ -966,13 +971,27 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		const coldCacheBudgetOptions = settings?.contextCacheBudgetOptions
+		const coldCacheRamBudgetMb = normalizeColdCacheRamBudgetMb(
+			settings?.coldCacheRamBudgetMb ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
+			coldCacheBudgetOptions,
+		)
+		const cacheBudgetCoordinator = this.getContextCacheBudgetCoordinator()
+		cacheBudgetCoordinator?.updateBudgetBytes(
+			coldCacheRamBudgetMbToBytes(coldCacheRamBudgetMb, coldCacheBudgetOptions),
+		)
 		const options = {
 			hotTokenBudget: modelInfo.contextWindow,
 			coldCacheBudgetOptions,
-			coldCacheRamBudgetMb: normalizeColdCacheRamBudgetMb(
-				settings?.coldCacheRamBudgetMb ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
-				coldCacheBudgetOptions,
-			),
+			coldCacheRamBudgetMb,
+			cacheBudgetCoordinator,
+			metadata: {
+				taskId: this.taskId,
+				instanceId: this.instanceId,
+				mode: this._taskMode ?? defaultModeSlug,
+				agentId: this.agentId,
+				isBackground: this.background,
+				isActive: () => this.providerRef.deref()?.getCurrentTask?.() === this,
+			},
 		}
 
 		if (!this.contextWindowManager) {
@@ -993,6 +1012,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	public getContextWindowManager(): ContextWindowManager | undefined {
 		return this.contextWindowManager
+	}
+
+	private getContextCacheBudgetCoordinator(): ContextCacheBudgetCoordinator | undefined {
+		const provider = this.providerRef.deref()
+		return typeof provider?.getContextCacheBudgetCoordinator === "function"
+			? provider.getContextCacheBudgetCoordinator()
+			: undefined
 	}
 
 	public registerContextChunk(
@@ -2103,7 +2129,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 	}
 
-	private async getFilesReadByRooSafely(context: string): Promise<string[] | undefined> {
+	public async getFilesReadByRooSafely(context: string): Promise<string[] | undefined> {
 		try {
 			return await this.fileContextTracker.getFilesReadByRoo()
 		} catch (error) {
@@ -2809,6 +2835,15 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	public dispose(): void {
 		console.log(`[Task#dispose] disposing task ${this.taskId}.${this.instanceId}`)
+
+		try {
+			this.contextWindowManager?.dispose()
+			this.contextWindowManager = undefined
+			this.contextCacheRegisteredMessageKeys.clear()
+			this.contextCacheNeedsRebuild = true
+		} catch (error) {
+			console.error("Error disposing context window manager:", error)
+		}
 
 		// Cancel any in-progress HTTP request
 		try {
@@ -4921,7 +4956,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			)
 		}
 		try {
-			const memoryPrompt = await buildMemoryPromptForRequest({
+			const memoryContext = await buildMemoryPromptForRequestWithMetadata({
 				globalStoragePath: this.globalStoragePath,
 				workspacePath: this.cwd,
 				modelInfo,
@@ -4933,7 +4968,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				rooIgnoreController: this.rooIgnoreController,
 				contextTokens,
 			})
-			requestConversationHistory = appendMemoryPromptToLastUserMessage(requestConversationHistory, memoryPrompt)
+			requestConversationHistory = appendMemoryPromptToLastUserMessage(
+				requestConversationHistory,
+				memoryContext.prompt,
+			)
+			await this.emitMemoryRecallIfChanged(memoryContext, cleanConversationHistory)
 		} catch (error) {
 			console.warn(
 				`[Task#${this.taskId}] Failed to build ephemeral memory context: ${
@@ -5477,6 +5516,63 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		)
 	}
 
+	private getMemoryRecallSignature(
+		memoryContext: BuildMemoryPromptForRequestResult,
+		requestMessages: readonly unknown[],
+	): string | undefined {
+		const recalledIds = memoryContext.recalledMemories.map((memory) => `${memory.scope}:${memory.id}`).sort()
+		if (!recalledIds.length) {
+			return undefined
+		}
+
+		const lastUserMessage = [...requestMessages]
+			.reverse()
+			.find((message) => (message as { role?: unknown })?.role === "user")
+		const requestHash = crypto
+			.createHash("sha256")
+			.update(JSON.stringify(lastUserMessage ?? requestMessages[requestMessages.length - 1] ?? ""))
+			.digest("hex")
+			.slice(0, 16)
+
+		return `${requestHash}:${recalledIds.join("|")}`
+	}
+
+	private async emitMemoryRecallIfChanged(
+		memoryContext: BuildMemoryPromptForRequestResult,
+		requestMessages: readonly unknown[],
+	): Promise<void> {
+		if (!memoryContext.prompt || memoryContext.totalRecallCount === 0) {
+			return
+		}
+
+		const signature = this.getMemoryRecallSignature(memoryContext, requestMessages)
+		if (!signature || signature === this.lastMemoryRecallSignature) {
+			return
+		}
+		this.lastMemoryRecallSignature = signature
+
+		const scopes = Array.from(new Set(memoryContext.recalledMemories.map((memory) => memory.scope)))
+		const shownCount = memoryContext.recalledMemories.length
+		const totalCount = memoryContext.totalRecallCount
+		const message =
+			totalCount === 1
+				? "Recalled 1 memory for this request."
+				: shownCount < totalCount
+					? `Recalled ${totalCount} memories for this request; showing ${shownCount}.`
+					: `Recalled ${totalCount} memories for this request.`
+		const toolPayload: ClineSayTool = {
+			tool: "memoryRecall",
+			scope: scopes.length === 1 ? scopes[0] : "all",
+			memoryRecallCount: totalCount,
+			memoryRecallResults: memoryContext.recalledMemories,
+			message,
+		}
+
+		await this.say("tool", JSON.stringify(toolPayload), undefined, false, undefined, undefined, {
+			isNonInteractive: true,
+		}).catch(() => {})
+	}
+
 	public async drainQueuedMistakeMemories(options: MistakeMemoryDrainOptions = {}): Promise<void> {
 		if (this.drainingMistakeMemoryApprovals) {
 			await this.drainingMistakeMemoryApprovals
@@ -5527,7 +5623,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			if (state?.memoryMistakeMemoryEnabled === false) {
 				return
 			}
-			if (state?.memoryWorkspaceEnabled === false) {
+			const scope = "global" as const
+			if (state?.memoryGlobalEnabled === false) {
 				return
 			}
 
@@ -5544,7 +5641,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				toolName,
 				filePaths: [],
 				tags: ["tool-error"],
-				scope: "workspace",
+				scope,
 				source,
 				approved: autoApproved,
 				pendingCandidateLimit: state?.memoryPendingCandidateLimit,

@@ -80,7 +80,6 @@ import { LanguageSettings } from "./LanguageSettings"
 import { About } from "./About"
 import { Section } from "./Section"
 import PromptsSettings from "./PromptsSettings"
-import { ProviderPlanSettings } from "./ProviderPlanSettings"
 import { SlashCommandsSettings } from "./SlashCommandsSettings"
 import { SkillsSettings } from "./SkillsSettings"
 import { UISettings } from "./UISettings"
@@ -290,8 +289,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		memoryPendingCandidateLimit,
 		memoryState,
 		memorySummary,
-		providerPlanLimits,
-		providerPlanUsage,
 	} = cachedState
 
 	const apiConfiguration = useMemo(() => cachedState.apiConfiguration ?? {}, [cachedState.apiConfiguration])
@@ -669,8 +666,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				lmStudioImageBaseUrl,
 				lmStudioImageGenerationSelectedModel,
 				lmStudioImageGenerationApiMethod,
-				providerPlanLimits: providerPlanLimits ?? {},
-				providerPlanUsage: providerPlanUsage ?? {},
 				experiments,
 				customSupportPrompts,
 			} as Partial<ExtensionStateContextType> & {
@@ -1061,12 +1056,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 										setApiConfigurationField={setApiConfigurationField}
 										errorMessage={errorMessage}
 										setErrorMessage={setErrorMessage}
-									/>
-									<ProviderPlanSettings
-										apiConfiguration={apiConfiguration}
-										providerPlanLimits={providerPlanLimits ?? {}}
-										providerPlanUsage={providerPlanUsage ?? {}}
-										setCachedStateField={setCachedStateField}
 									/>
 								</Section>
 							</div>

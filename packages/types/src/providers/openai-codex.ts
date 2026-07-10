@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { serviceTierSchema, type ModelInfo } from "../model.js"
+import { serviceTierSchema, type ModelInfo, type ModelProvenance } from "../model.js"
 
 /**
  * OpenAI Codex Provider
@@ -18,7 +18,7 @@ import { serviceTierSchema, type ModelInfo } from "../model.js"
 
 export type OpenAiCodexModelId = keyof typeof openAiCodexModels
 
-export const openAiCodexDefaultModelId: OpenAiCodexModelId = "gpt-5.5"
+export const openAiCodexDefaultModelId: OpenAiCodexModelId = "gpt-5.6-sol"
 
 export const openAiCodexFastStatusStates = ["off", "unsupported", "requested", "confirmed", "rejected"] as const
 
@@ -35,6 +35,35 @@ export const openAiCodexFastStatusSchema = z.object({
 
 export type OpenAiCodexFastStatus = z.infer<typeof openAiCodexFastStatusSchema>
 
+const openAiCodexStaticModelProvenance = {
+	sources: [
+		{
+			type: "curated",
+			url: "https://chatgpt.com",
+			label: "ChatGPT/Codex subscription provider integration",
+		},
+	],
+	reviewStatus: "unreviewed",
+	reviewNote:
+		"Seeded from existing static OpenAI Codex ChatGPT Plus/Pro metadata and runtime Codex backend integration; no stable public model-list endpoint or review date is recorded.",
+} satisfies ModelProvenance
+
+const openAiCodexStaticMetadata = {
+	provenance: openAiCodexStaticModelProvenance,
+	capabilityProvenance: {
+		contextWindow: openAiCodexStaticModelProvenance,
+		maxTokens: openAiCodexStaticModelProvenance,
+		pricing: openAiCodexStaticModelProvenance,
+		reasoning: openAiCodexStaticModelProvenance,
+		promptCaching: openAiCodexStaticModelProvenance,
+		images: openAiCodexStaticModelProvenance,
+		tools: openAiCodexStaticModelProvenance,
+		deprecation: openAiCodexStaticModelProvenance,
+		description: openAiCodexStaticModelProvenance,
+		serviceTiers: openAiCodexStaticModelProvenance,
+	},
+} satisfies Pick<ModelInfo, "provenance" | "capabilityProvenance">
+
 /**
  * Models available through the Codex OAuth flow.
  * These models are accessible to ChatGPT Plus/Pro subscribers.
@@ -45,7 +74,62 @@ export type OpenAiCodexFastStatus = z.infer<typeof openAiCodexFastStatusSchema>
  * and must not be offered as new ChatGPT sign-in selections.
  */
 export const openAiCodexModels = {
+	"gpt-5.6-sol": {
+		...openAiCodexStaticMetadata,
+		maxTokens: 128000,
+		contextWindow: 400000,
+		includedTools: ["apply_patch"],
+		excludedTools: ["apply_diff", "write_to_file"],
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoningEffort: ["low", "medium", "high", "xhigh", "max"],
+		reasoningEffort: "medium",
+		inputPrice: 0,
+		outputPrice: 0,
+		subscriptionBased: true,
+		supportsVerbosity: true,
+		supportsFastMode: true,
+		supportsTemperature: false,
+		description: "GPT-5.6 Sol: Flagship GPT-5.6 model for complex professional work via ChatGPT subscription",
+	},
+	"gpt-5.6-terra": {
+		...openAiCodexStaticMetadata,
+		maxTokens: 128000,
+		contextWindow: 400000,
+		includedTools: ["apply_patch"],
+		excludedTools: ["apply_diff", "write_to_file"],
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoningEffort: ["low", "medium", "high", "xhigh", "max"],
+		reasoningEffort: "medium",
+		inputPrice: 0,
+		outputPrice: 0,
+		subscriptionBased: true,
+		supportsVerbosity: true,
+		supportsFastMode: true,
+		supportsTemperature: false,
+		description: "GPT-5.6 Terra: Balanced GPT-5.6 model for everyday work via ChatGPT subscription",
+	},
+	"gpt-5.6-luna": {
+		...openAiCodexStaticMetadata,
+		maxTokens: 128000,
+		contextWindow: 400000,
+		includedTools: ["apply_patch"],
+		excludedTools: ["apply_diff", "write_to_file"],
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoningEffort: ["low", "medium", "high", "xhigh", "max"],
+		reasoningEffort: "medium",
+		inputPrice: 0,
+		outputPrice: 0,
+		subscriptionBased: true,
+		supportsVerbosity: true,
+		supportsFastMode: true,
+		supportsTemperature: false,
+		description: "GPT-5.6 Luna: Fast GPT-5.6 model for clear, repeatable work via ChatGPT subscription",
+	},
 	"gpt-5.1-codex-max": {
+		...openAiCodexStaticMetadata,
 		maxTokens: 128000,
 		contextWindow: 400000,
 		includedTools: ["apply_patch"],
@@ -63,6 +147,7 @@ export const openAiCodexModels = {
 		description: "GPT-5.1 Codex Max: Deprecated legacy Codex model ID via ChatGPT subscription",
 	},
 	"gpt-5.1-codex": {
+		...openAiCodexStaticMetadata,
 		maxTokens: 128000,
 		contextWindow: 400000,
 		includedTools: ["apply_patch"],
@@ -80,6 +165,7 @@ export const openAiCodexModels = {
 		description: "GPT-5.1 Codex: Deprecated legacy Codex model ID via ChatGPT subscription",
 	},
 	"gpt-5.3-codex": {
+		...openAiCodexStaticMetadata,
 		maxTokens: 128000,
 		contextWindow: 400000,
 		includedTools: ["apply_patch"],
@@ -96,6 +182,7 @@ export const openAiCodexModels = {
 		description: "GPT-5.3 Codex: Deprecated coding model via ChatGPT subscription",
 	},
 	"gpt-5.3-codex-spark": {
+		...openAiCodexStaticMetadata,
 		maxTokens: 8192,
 		contextWindow: 128000,
 		includedTools: ["apply_patch"],
@@ -111,6 +198,7 @@ export const openAiCodexModels = {
 		description: "GPT-5.3 Codex Spark: Pro-only research preview, text-only coding model via ChatGPT subscription",
 	},
 	"gpt-5.2-codex": {
+		...openAiCodexStaticMetadata,
 		maxTokens: 128000,
 		contextWindow: 400000,
 		includedTools: ["apply_patch"],
@@ -127,6 +215,7 @@ export const openAiCodexModels = {
 		description: "GPT-5.2 Codex: Deprecated legacy Codex model ID via ChatGPT subscription",
 	},
 	"gpt-5.1": {
+		...openAiCodexStaticMetadata,
 		maxTokens: 128000,
 		contextWindow: 400000,
 		includedTools: ["apply_patch"],
@@ -145,6 +234,7 @@ export const openAiCodexModels = {
 		description: "GPT-5.1: Deprecated legacy GPT model ID via ChatGPT subscription",
 	},
 	"gpt-5": {
+		...openAiCodexStaticMetadata,
 		maxTokens: 128000,
 		contextWindow: 400000,
 		includedTools: ["apply_patch"],
@@ -163,6 +253,7 @@ export const openAiCodexModels = {
 		description: "GPT-5: Deprecated legacy GPT model ID via ChatGPT subscription",
 	},
 	"gpt-5-codex": {
+		...openAiCodexStaticMetadata,
 		maxTokens: 128000,
 		contextWindow: 400000,
 		includedTools: ["apply_patch"],
@@ -180,6 +271,7 @@ export const openAiCodexModels = {
 		description: "GPT-5 Codex: Deprecated legacy Codex model ID via ChatGPT subscription",
 	},
 	"gpt-5-codex-mini": {
+		...openAiCodexStaticMetadata,
 		maxTokens: 128000,
 		contextWindow: 400000,
 		includedTools: ["apply_patch"],
@@ -197,6 +289,7 @@ export const openAiCodexModels = {
 		description: "GPT-5 Codex Mini: Deprecated legacy Codex model ID via ChatGPT subscription",
 	},
 	"gpt-5.1-codex-mini": {
+		...openAiCodexStaticMetadata,
 		maxTokens: 128000,
 		contextWindow: 400000,
 		includedTools: ["apply_patch"],
@@ -213,6 +306,7 @@ export const openAiCodexModels = {
 		description: "GPT-5.1 Codex Mini: Deprecated legacy Codex model ID via ChatGPT subscription",
 	},
 	"gpt-5.5": {
+		...openAiCodexStaticMetadata,
 		maxTokens: 128000,
 		contextWindow: 400000,
 		includedTools: ["apply_patch"],
@@ -230,6 +324,7 @@ export const openAiCodexModels = {
 		description: "GPT-5.5: Most capable model via ChatGPT subscription",
 	},
 	"gpt-5.4": {
+		...openAiCodexStaticMetadata,
 		maxTokens: 128000,
 		contextWindow: 200000,
 		includedTools: ["apply_patch"],
@@ -247,6 +342,7 @@ export const openAiCodexModels = {
 		description: "GPT-5.4: Formerly most capable model via ChatGPT subscription",
 	},
 	"gpt-5.4-mini": {
+		...openAiCodexStaticMetadata,
 		maxTokens: 128000,
 		contextWindow: 400000,
 		includedTools: ["apply_patch"],
@@ -263,6 +359,7 @@ export const openAiCodexModels = {
 		description: "GPT-5.4 Mini: Lower-cost GPT-5.4 model via ChatGPT subscription",
 	},
 	"gpt-5.2": {
+		...openAiCodexStaticMetadata,
 		maxTokens: 128000,
 		contextWindow: 400000,
 		includedTools: ["apply_patch"],
@@ -281,6 +378,9 @@ export const openAiCodexModels = {
 } as const satisfies Record<string, ModelInfo>
 
 export const openAiCodexSelectableModelIds = [
+	"gpt-5.6-sol",
+	"gpt-5.6-terra",
+	"gpt-5.6-luna",
 	"gpt-5.5",
 	"gpt-5.4",
 	"gpt-5.4-mini",

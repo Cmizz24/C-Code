@@ -13,6 +13,7 @@ import type {
 	ClineSayTool,
 	GeneratedImageMetadata,
 	ImageGenerationToolStatus,
+	MemoryRecallChatResult,
 	MemorySearchChatResult,
 	MemoryScope,
 } from "@roo-code/types"
@@ -481,7 +482,7 @@ export const ChatRowContent = ({
 
 	const renderMemoryBadges = (
 		memory: Pick<
-			ClineSayTool | MemorySearchChatResult,
+			ClineSayTool | MemorySearchChatResult | MemoryRecallChatResult,
 			"scope" | "status" | "tags" | "pathTags" | "mode" | "toolName"
 		> & {
 			autoApproved?: boolean
@@ -500,7 +501,14 @@ export const ChatRowContent = ({
 		</div>
 	)
 
-	const renderMemoryDetails = (memory: ClineSayTool | MemorySearchChatResult) => {
+	const renderMemoryDetails = (
+		memory: Pick<
+			ClineSayTool | MemorySearchChatResult | MemoryRecallChatResult,
+			"title" | "toolName" | "mode" | "tags" | "pathTags"
+		> & {
+			mistakeSignature?: string
+		},
+	) => {
 		const details = [
 			["chat:memory.fields.title", memory.title],
 			["chat:memory.fields.signature", memory.mistakeSignature],
@@ -572,6 +580,52 @@ export const ChatRowContent = ({
 							</div>
 							{results.length > 0 && (
 								<div className="flex w-full flex-col gap-2">{results.map(renderMemoryResultCard)}</div>
+							)}
+						</ToolUseBlockHeader>
+					</ToolUseBlock>
+				</div>
+			</>
+		)
+	}
+
+	const renderMemoryRecallTool = (memoryTool: ClineSayTool) => {
+		const results = memoryTool.memoryRecallResults ?? []
+		const totalCount = memoryTool.memoryRecallCount ?? results.length
+		const hiddenCount = Math.max(0, totalCount - results.length)
+
+		return (
+			<>
+				<div style={headerStyle}>
+					{codicon("database")}
+					<span style={{ fontWeight: "bold" }}>{memoryTool.message}</span>
+				</div>
+				<div className="pl-6">
+					<ToolUseBlock className="cursor-default border border-vscode-panel-border">
+						<ToolUseBlockHeader className="flex flex-col items-start gap-2 px-3 py-2">
+							{renderMemoryBadges(memoryTool)}
+							{results.length > 0 && (
+								<div className="flex w-full flex-col gap-2">
+									{results.map((result) => (
+										<ToolUseBlock
+											key={result.id}
+											className="cursor-default border border-vscode-panel-border">
+											<ToolUseBlockHeader className="flex flex-col items-start gap-2 px-3 py-2">
+												<div className="flex w-full flex-col gap-1">
+													{result.title && (
+														<div className="font-medium text-vscode-foreground break-words">
+															{result.title}
+														</div>
+													)}
+												</div>
+												{renderMemoryBadges(result)}
+												{renderMemoryDetails(result)}
+											</ToolUseBlockHeader>
+										</ToolUseBlock>
+									))}
+								</div>
+							)}
+							{hiddenCount > 0 && (
+								<div className="text-xs text-vscode-descriptionForeground">+{hiddenCount}</div>
 							)}
 						</ToolUseBlockHeader>
 					</ToolUseBlock>
@@ -2530,6 +2584,9 @@ export const ChatRowContent = ({
 						}
 						case "memorySearch": {
 							return renderMemorySearchTool(sayTool)
+						}
+						case "memoryRecall": {
+							return renderMemoryRecallTool(sayTool)
 						}
 						case "mistakeMemory": {
 							return renderMistakeMemoryTool(sayTool)

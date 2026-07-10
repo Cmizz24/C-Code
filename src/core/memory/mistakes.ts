@@ -49,7 +49,7 @@ export async function createMistakeMemoryCandidate(
 
 	const lesson = sanitizeMemoryText(lessonParts.join("\n"), 2_000)
 	const mistakeSignature = buildMistakeSignature({ toolName: options.toolName, error: options.error, lesson })
-	const scope = options.scope ?? "workspace"
+	const scope = options.scope ?? (options.filePaths?.length ? "workspace" : "global")
 	const existing = await options.storage.findByMistakeSignature(mistakeSignature, {
 		scope,
 		workspacePath: options.workspacePath,

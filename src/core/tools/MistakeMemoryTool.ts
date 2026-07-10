@@ -6,8 +6,45 @@ import type { ToolUse } from "../../shared/tools"
 
 import { BaseTool, ToolCallbacks } from "./BaseTool"
 
-function normalizeScope(scope: MistakeMemoryToolParams["scope"]): MemoryScope {
-	return scope === "global" ? "global" : "workspace"
+function toMemoryScope(scope: unknown): MemoryScope | undefined {
+	return scope === "workspace" || scope === "global" ? scope : undefined
+}
+
+function normalizeScope(scope: unknown, filePaths?: readonly string[]): MemoryScope {
+	const normalizedScope = toMemoryScope(scope)
+	if (normalizedScope) {
+		return normalizedScope
+	}
+
+	return filePaths?.length ? "workspace" : "global"
+}
+
+function normalizePartialFilePaths(filePaths: unknown): string[] | undefined {
+	if (Array.isArray(filePaths)) {
+		const normalized = filePaths.filter((filePath): filePath is string => typeof filePath === "string")
+		return normalized.length ? normalized : undefined
+	}
+
+	if (typeof filePaths !== "string") {
+		return undefined
+	}
+
+	const trimmed = filePaths.trim()
+	if (!trimmed) {
+		return undefined
+	}
+
+	try {
+		const parsed = JSON.parse(trimmed)
+		if (Array.isArray(parsed)) {
+			const normalized = parsed.filter((filePath): filePath is string => typeof filePath === "string")
+			return normalized.length ? normalized : undefined
+		}
+	} catch {
+		// Partial legacy params may contain a single in-progress path string instead of JSON.
+	}
+
+	return [trimmed]
 }
 
 function filterAllowedPathTags(task: Task, filePaths: string[] | undefined): string[] | undefined {
@@ -49,7 +86,8 @@ export class MistakeMemoryTool extends BaseTool<"mistake_memory"> {
 
 			const requestedActive = params.approve === true
 			const autoApproved = state?.autoApprovalEnabled === true && state?.memoryAutoApproveMistakeMemory === true
-			const scope = normalizeScope(params.scope)
+			const filePaths = filterAllowedPathTags(task, params.file_paths)
+			const scope = normalizeScope(params.scope, filePaths)
 			if (scope === "workspace" && state?.memoryWorkspaceEnabled === false) {
 				pushToolResult("Workspace memory is disabled in settings; no memory was saved.")
 				return
@@ -67,7 +105,7 @@ export class MistakeMemoryTool extends BaseTool<"mistake_memory"> {
 				correction: params.correction,
 				error: params.error,
 				toolName: params.tool_name,
-				filePaths: filterAllowedPathTags(task, params.file_paths),
+				filePaths,
 				tags: params.tags,
 				scope,
 				source: "mistake_tool",
@@ -167,13 +205,16 @@ export class MistakeMemoryTool extends BaseTool<"mistake_memory"> {
 	}
 
 	override async handlePartial(task: Task, block: ToolUse<"mistake_memory">): Promise<void> {
+		const partialArgs = block.nativeArgs as Partial<MistakeMemoryToolParams> | undefined
+		const partialFilePaths = normalizePartialFilePaths(partialArgs?.file_paths ?? block.params.file_paths)
+
 		await task
 			.say(
 				"tool",
 				JSON.stringify({
 					tool: "mistakeMemory",
-					content: block.params.lesson ?? "",
-					scope: block.params.scope ?? "workspace",
+					content: partialArgs?.lesson ?? block.params.lesson ?? "",
+					scope: normalizeScope(partialArgs?.scope ?? block.params.scope, partialFilePaths),
 				}),
 				undefined,
 				block.partial,

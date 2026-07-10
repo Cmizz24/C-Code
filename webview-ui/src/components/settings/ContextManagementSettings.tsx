@@ -45,17 +45,56 @@ const DEFAULT_CONTEXT_CACHE_STATS: ContextCacheStats = {
 const formatContextCacheNumber = (value: number | undefined) => (value ?? 0).toLocaleString()
 
 const formatContextCacheRamValue = (valueMb: number | undefined, t: ReturnType<typeof useAppTranslation>["t"]) => {
-	const safeValueMb = valueMb ?? 0
+	const safeValueMb = typeof valueMb === "number" && Number.isFinite(valueMb) && valueMb > 0 ? valueMb : 0
 
-	if (safeValueMb >= 1024 && safeValueMb % 1024 === 0) {
+	if (safeValueMb >= 1024) {
+		const valueGb = safeValueMb / 1024
+		const formattedGb = Number.isInteger(valueGb) ? valueGb.toString() : valueGb.toFixed(1)
+
 		return t("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.units.gb", {
-			value: safeValueMb / 1024,
+			value: formattedGb,
 		})
 	}
 
 	const formatted = Number.isInteger(safeValueMb) ? safeValueMb.toString() : safeValueMb.toFixed(1)
 	return t("settings:contextManagement.contextWindowManagement.coldCacheRamBudget.units.mb", { value: formatted })
 }
+
+const formatContextCacheEvictions = (
+	hot: number | undefined,
+	cold: number | undefined,
+	t: ReturnType<typeof useAppTranslation>["t"],
+) => {
+	const hotTotal = hot ?? 0
+	const coldTotal = cold ?? 0
+	return t("settings:contextManagement.contextWindowManagement.diagnostics.evictions.value", {
+		total: formatContextCacheNumber(hotTotal + coldTotal),
+		hot: formatContextCacheNumber(hotTotal),
+		cold: formatContextCacheNumber(coldTotal),
+	})
+}
+
+const formatContextCacheCleanup = (
+	cleaned: number | undefined,
+	failed: number | undefined,
+	t: ReturnType<typeof useAppTranslation>["t"],
+) =>
+	t("settings:contextManagement.contextWindowManagement.diagnostics.crossWindow.cleanupValue", {
+		cleaned: formatContextCacheNumber(cleaned),
+		failed: formatContextCacheNumber(failed),
+	})
+
+const formatContextCacheContributorUsage = (
+	ramUsedMb: number | undefined,
+	hotChunks: number | undefined,
+	coldChunks: number | undefined,
+	t: ReturnType<typeof useAppTranslation>["t"],
+) =>
+	t("settings:contextManagement.contextWindowManagement.diagnostics.contributors.usage", {
+		ram: formatContextCacheRamValue(ramUsedMb, t),
+		hot: formatContextCacheNumber(hotChunks),
+		cold: formatContextCacheNumber(coldChunks),
+	})
 
 type ContextManagementSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	autoCondenseContext: boolean
@@ -191,6 +230,34 @@ export const ContextManagementSettings = ({
 			value: formatContextCacheNumber(contextCacheStats.condensingAvoided),
 		},
 	]
+	const combinedDiagnostics = contextCacheStats.combinedBudget
+	const combinedContributors = contextCacheStats.contributors ?? combinedDiagnostics?.contributors ?? []
+	const combinedEvictions = contextCacheStats.evictions ?? combinedDiagnostics?.evictions
+	const combinedHotRamMb = combinedDiagnostics?.hotCacheRamMb ?? 0
+	const combinedColdRamMb = combinedDiagnostics?.coldCacheRamMb ?? contextCacheStats.ramUsedMb
+	const crossWindowDiagnostics = contextCacheStats.crossWindow ?? combinedDiagnostics?.crossWindow
+	const hasCrossWindowDiagnostics = Boolean(
+		crossWindowDiagnostics &&
+			(crossWindowDiagnostics.windowCount > 1 ||
+				crossWindowDiagnostics.peerUsageRamMb > 0 ||
+				(crossWindowDiagnostics.staleHeartbeatCount ?? 0) > 0 ||
+				(crossWindowDiagnostics.staleHeartbeatsCleaned ?? 0) > 0),
+	)
+	const hasCombinedDiagnostics = Boolean(
+		combinedDiagnostics ||
+			combinedContributors.length > 0 ||
+			(combinedEvictions?.total ?? 0) > 0 ||
+			hasCrossWindowDiagnostics,
+	)
+	const topCombinedContributors = combinedContributors.slice(0, 3)
+	const combinedRamUsedMb = combinedDiagnostics?.ramUsedMb ?? contextCacheStats.ramUsedMb
+	const combinedRamBudgetMb = combinedDiagnostics?.ramBudgetMb ?? contextCacheStats.ramBudgetMb
+	const hasAutomaticPressureRelief =
+		(combinedEvictions?.total ?? 0) > 0 ||
+		combinedRamUsedMb >= combinedRamBudgetMb ||
+		(combinedDiagnostics?.configuredRamBudgetMb !== undefined &&
+			combinedDiagnostics.configuredRamBudgetMb !== combinedDiagnostics.ramBudgetMb) ||
+		Boolean(crossWindowDiagnostics && crossWindowDiagnostics.peerUsageRamMb > 0)
 
 	// Helper function to get the CONDENSE prompt value
 	const getCondensePromptValue = (): string => {
@@ -327,6 +394,206 @@ export const ContextManagementSettings = ({
 								className="rounded border border-vscode-inputValidation-warningBorder bg-vscode-inputValidation-warningBackground text-vscode-inputValidation-warningForeground p-2 text-sm"
 								data-testid="context-cache-warning">
 								{contextCacheWarning}
+							</div>
+						)}
+						{hasCombinedDiagnostics && (
+							<div
+								className="rounded border border-vscode-input-border p-2 text-sm"
+								data-testid="context-cache-combined-diagnostics">
+								<div className="font-medium">
+									{t("settings:contextManagement.contextWindowManagement.diagnostics.title")}
+								</div>
+								<div className="text-vscode-descriptionForeground text-xs mt-1">
+									{t("settings:contextManagement.contextWindowManagement.diagnostics.description")}
+								</div>
+								<div
+									className="mt-2 rounded border border-vscode-input-border bg-vscode-sideBar-background p-2"
+									data-testid="context-cache-pressure-note">
+									<div className="text-vscode-descriptionForeground text-xs">
+										{t(
+											"settings:contextManagement.contextWindowManagement.diagnostics.status.label",
+										)}
+									</div>
+									<div className="font-medium">
+										{t(
+											hasAutomaticPressureRelief
+												? "settings:contextManagement.contextWindowManagement.diagnostics.status.automatic"
+												: "settings:contextManagement.contextWindowManagement.diagnostics.status.ready",
+										)}
+									</div>
+									<div className="text-vscode-descriptionForeground text-xs">
+										{t(
+											"settings:contextManagement.contextWindowManagement.diagnostics.status.help",
+										)}
+									</div>
+								</div>
+								<div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+									<div data-testid="context-cache-combined-usage">
+										<div className="text-vscode-descriptionForeground text-xs">
+											{t(
+												"settings:contextManagement.contextWindowManagement.diagnostics.localUsage",
+											)}
+										</div>
+										<div className="font-medium">
+											{formatContextCacheRamValue(combinedRamUsedMb, t)} /{" "}
+											{formatContextCacheRamValue(combinedRamBudgetMb, t)}
+										</div>
+									</div>
+									{combinedDiagnostics?.configuredRamBudgetMb !== undefined &&
+										combinedDiagnostics.configuredRamBudgetMb !==
+											combinedDiagnostics.ramBudgetMb && (
+											<div data-testid="context-cache-effective-budget">
+												<div className="text-vscode-descriptionForeground text-xs">
+													{t(
+														"settings:contextManagement.contextWindowManagement.diagnostics.configuredEffective",
+													)}
+												</div>
+												<div className="font-medium">
+													{formatContextCacheRamValue(
+														combinedDiagnostics.configuredRamBudgetMb,
+														t,
+													)}{" "}
+													/ {formatContextCacheRamValue(combinedDiagnostics.ramBudgetMb, t)}
+												</div>
+											</div>
+										)}
+									<div data-testid="context-cache-hot-cold-usage">
+										<div className="text-vscode-descriptionForeground text-xs">
+											{t(
+												"settings:contextManagement.contextWindowManagement.diagnostics.hotColdRam",
+											)}
+										</div>
+										<div className="font-medium">
+											{formatContextCacheRamValue(combinedHotRamMb, t)} /{" "}
+											{formatContextCacheRamValue(combinedColdRamMb, t)}
+										</div>
+									</div>
+									<div data-testid="context-cache-evictions">
+										<div className="text-vscode-descriptionForeground text-xs">
+											{t(
+												"settings:contextManagement.contextWindowManagement.diagnostics.evictions.label",
+											)}
+										</div>
+										<div className="font-medium">
+											{formatContextCacheEvictions(
+												combinedEvictions?.hot,
+												combinedEvictions?.cold,
+												t,
+											)}
+										</div>
+									</div>
+									<div>
+										<div className="text-vscode-descriptionForeground text-xs">
+											{t(
+												"settings:contextManagement.contextWindowManagement.diagnostics.contributors.label",
+											)}
+										</div>
+										<div className="font-medium">
+											{formatContextCacheNumber(
+												combinedDiagnostics?.managerCount ?? combinedContributors.length,
+											)}
+										</div>
+									</div>
+								</div>
+								{hasCrossWindowDiagnostics && crossWindowDiagnostics && (
+									<div
+										className="mt-2 rounded border border-vscode-input-border p-2"
+										data-testid="context-cache-cross-window-diagnostics">
+										<div className="font-medium">
+											{t(
+												"settings:contextManagement.contextWindowManagement.diagnostics.crossWindow.title",
+											)}
+										</div>
+										<div className="text-vscode-descriptionForeground text-xs mt-1">
+											{t(
+												"settings:contextManagement.contextWindowManagement.diagnostics.crossWindow.description",
+											)}
+										</div>
+										<div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+											<div data-testid="context-cache-cross-window-count">
+												<div className="text-vscode-descriptionForeground text-xs">
+													{t(
+														"settings:contextManagement.contextWindowManagement.diagnostics.crossWindow.liveWindows",
+													)}
+												</div>
+												<div className="font-medium">
+													{formatContextCacheNumber(crossWindowDiagnostics.windowCount)} /{" "}
+													{formatContextCacheNumber(crossWindowDiagnostics.livePeerCount)}
+												</div>
+											</div>
+											<div data-testid="context-cache-cross-window-usage">
+												<div className="text-vscode-descriptionForeground text-xs">
+													{t(
+														"settings:contextManagement.contextWindowManagement.diagnostics.crossWindow.localPeerUsage",
+													)}
+												</div>
+												<div className="font-medium">
+													{formatContextCacheRamValue(
+														crossWindowDiagnostics.localUsageRamMb,
+														t,
+													)}{" "}
+													/{" "}
+													{formatContextCacheRamValue(
+														crossWindowDiagnostics.peerUsageRamMb,
+														t,
+													)}
+												</div>
+											</div>
+											<div data-testid="context-cache-cross-window-budget">
+												<div className="text-vscode-descriptionForeground text-xs">
+													{t(
+														"settings:contextManagement.contextWindowManagement.diagnostics.crossWindow.globalLocalTarget",
+													)}
+												</div>
+												<div className="font-medium">
+													{formatContextCacheRamValue(
+														crossWindowDiagnostics.globalBudgetRamMb,
+														t,
+													)}{" "}
+													/{" "}
+													{formatContextCacheRamValue(
+														crossWindowDiagnostics.effectiveLocalBudgetRamMb,
+														t,
+													)}
+												</div>
+											</div>
+											<div data-testid="context-cache-cross-window-cleanup">
+												<div className="text-vscode-descriptionForeground text-xs">
+													{t(
+														"settings:contextManagement.contextWindowManagement.diagnostics.crossWindow.cleanup",
+													)}
+												</div>
+												<div className="font-medium">
+													{formatContextCacheCleanup(
+														crossWindowDiagnostics.staleHeartbeatsCleaned,
+														crossWindowDiagnostics.staleHeartbeatCleanupFailures,
+														t,
+													)}
+												</div>
+											</div>
+										</div>
+									</div>
+								)}
+								{topCombinedContributors.length > 0 && (
+									<div className="mt-2 flex flex-col gap-1" data-testid="context-cache-contributors">
+										{topCombinedContributors.map((contributor) => (
+											<div
+												key={contributor.id}
+												className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs"
+												data-testid="context-cache-contributor-row">
+												<span className="font-medium">{contributor.label}</span>
+												<span className="text-vscode-descriptionForeground">
+													{formatContextCacheContributorUsage(
+														contributor.ramUsedMb,
+														contributor.hotCacheChunks,
+														contributor.coldCacheChunks,
+														t,
+													)}
+												</span>
+											</div>
+										))}
+									</div>
+								)}
 							</div>
 						)}
 					</div>

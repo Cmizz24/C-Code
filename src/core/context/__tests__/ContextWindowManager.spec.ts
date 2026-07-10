@@ -6,6 +6,7 @@ import {
 	getContextCacheBudgetOptions,
 	normalizeColdCacheRamBudgetMb,
 } from "../ContextWindowManager"
+import { ContextCacheBudgetCoordinator } from "../ContextCacheBudgetCoordinator"
 
 describe("ContextWindowManager", () => {
 	beforeEach(() => {
@@ -82,7 +83,6 @@ describe("ContextWindowManager", () => {
 			condensingAvoided: 1,
 		})
 		expect(manager.drainEvents()).toEqual([
-			expect.objectContaining({ type: "chunks_moved_to_cold", chunkCount: 2, tokenCount: 400 }),
 			expect.objectContaining({ type: "condensing_avoided", chunkCount: 2, tokenCount: 400 }),
 		])
 		expect(manager.drainEvents()).toEqual([])
@@ -164,6 +164,69 @@ describe("ContextWindowManager", () => {
 		expect(new Set(events.map((event) => event.id)).size).toBe(20)
 	})
 
+	it("enforces the shared combined budget without duplicating cache events", () => {
+		const coordinator = new ContextCacheBudgetCoordinator({ budgetBytes: 70 })
+		const manager = new ContextWindowManager({
+			hotTokenBudget: 1,
+			coldCacheRamBudgetMb: 1,
+			coldCacheBudgetOptions: [{ valueMb: 1, recommended: true }],
+			cacheBudgetCoordinator: coordinator,
+			metadata: {
+				taskId: "task-1",
+				instanceId: "instance-1",
+				mode: "code",
+				agentId: "agent-1",
+				isBackground: true,
+				isActive: () => false,
+			},
+		})
+
+		registerConversationTurn(manager, "a".repeat(60), 101, 2)
+		registerConversationTurn(manager, "b".repeat(60), 102, 2)
+
+		const stats = manager.getStats()
+
+		expect(stats).toMatchObject({
+			hotCacheChunks: 1,
+			coldCacheChunks: 0,
+			combinedBudget: {
+				hotCacheChunks: 1,
+				coldCacheChunks: 0,
+				managerCount: 1,
+				evictions: { hot: 0, cold: 1, total: 1 },
+			},
+			evictions: { hot: 0, cold: 1, total: 1 },
+		})
+		expect(stats.contributors).toEqual([
+			expect.objectContaining({
+				id: expect.any(String),
+				label: "Background agent agent-1 (code)",
+				taskId: "task-1",
+				instanceId: "instance-1",
+				mode: "code",
+				agentId: "agent-1",
+				isBackground: true,
+				isActive: false,
+				evictions: { hot: 0, cold: 1, total: 1 },
+			}),
+		])
+		expect(manager.getContextCacheBudgetSnapshot()).toMatchObject({
+			taskId: "task-1",
+			instanceId: "instance-1",
+			mode: "code",
+			agentId: "agent-1",
+			isBackground: true,
+			isActive: false,
+			hotEvictions: 0,
+			coldEvictions: 1,
+		})
+		expect(coordinator.getUsage()).toMatchObject({ usedBytes: 60, hotBytes: 60, coldBytes: 0 })
+		expect(manager.drainEvents()).toEqual([
+			expect.objectContaining({ type: "chunks_moved_to_cold", chunkCount: 1, tokenCount: 2 }),
+		])
+		expect(manager.drainEvents()).toEqual([])
+	})
+
 	it("does not evict non-conversation chunks or protected conversation turns for request pressure", () => {
 		const manager = new ContextWindowManager({ hotTokenBudget: 1000, coldCacheRamBudgetMb: 256 })
 
@@ -184,6 +247,33 @@ describe("ContextWindowManager", () => {
 		expect(result).toEqual({ handled: false, movedChunks: 0, movedTokens: 0, warning: undefined })
 		expect(manager.getHiddenMessageTimestamps()).toEqual(new Set())
 		expect(manager.getStats()).toMatchObject({ hotCacheTokens: 600, coldCacheChunks: 0, condensingAvoided: 0 })
+	})
+
+	it("does not emit success-looking cache events when pressure movement still requires fallback", () => {
+		const manager = new ContextWindowManager({ hotTokenBudget: 1000, coldCacheRamBudgetMb: 256 })
+
+		registerConversationTurn(manager, "Only evictable conversation turn", 101, 200)
+		registerConversationTurn(manager, "Latest protected conversation turn", 999, 200)
+
+		const result = manager.handlePressure({
+			totalTokens: 1000,
+			allowedTokens: 700,
+			protectedMessageTimestamps: [999],
+		})
+
+		expect(result).toEqual({ handled: false, movedChunks: 1, movedTokens: 200, warning: undefined })
+		expect(manager.getHiddenMessageTimestamps()).toEqual(new Set([101]))
+		expect(manager.getStats()).toMatchObject({ hotCacheTokens: 200, coldCacheChunks: 1, condensingAvoided: 0 })
+		expect(manager.drainEvents()).toEqual([])
+
+		const repeatedResult = manager.handlePressure({
+			totalTokens: 1000,
+			allowedTokens: 700,
+			protectedMessageTimestamps: [999],
+		})
+
+		expect(repeatedResult).toEqual({ handled: false, movedChunks: 0, movedTokens: 0, warning: undefined })
+		expect(manager.drainEvents()).toEqual([])
 	})
 
 	it("surfaces the cold-cache-full warning when cold cache rejects pressure chunks", () => {

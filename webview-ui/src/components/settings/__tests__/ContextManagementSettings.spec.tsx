@@ -7,17 +7,36 @@ import { ContextManagementSettings } from "../ContextManagementSettings"
 vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string, options?: Record<string, any>) => {
-			// Return specific translations for our test cases
-			if (key === "settings:contextManagement.contextWindowManagement.coldCacheRamBudget.units.gb") {
-				return `${options?.value}GB`
+			switch (key) {
+				case "settings:contextManagement.contextWindowManagement.coldCacheRamBudget.units.gb":
+					return `${options?.value}GB`
+				case "settings:contextManagement.contextWindowManagement.coldCacheRamBudget.units.mb":
+					return `${options?.value}MB`
+				case "settings:contextManagement.contextWindowManagement.coldCacheRamBudget.recommendedOption":
+					return `${options?.value} (recommended)`
+				case "settings:contextManagement.contextWindowManagement.diagnostics.title":
+					return "Cache pressure diagnostics"
+				case "settings:contextManagement.contextWindowManagement.diagnostics.description":
+					return "Compact view of RAM pressure across active windows. Task IDs, prompts, and file paths are not included."
+				case "settings:contextManagement.contextWindowManagement.diagnostics.status.label":
+					return "Pressure status"
+				case "settings:contextManagement.contextWindowManagement.diagnostics.status.automatic":
+					return "Automatic relief active"
+				case "settings:contextManagement.contextWindowManagement.diagnostics.status.ready":
+					return "Within budget"
+				case "settings:contextManagement.contextWindowManagement.diagnostics.status.help":
+					return "C prunes cold chunks first and keeps only aggregate counts here."
+				case "settings:contextManagement.contextWindowManagement.diagnostics.evictions.value":
+					return `${options?.total} total · ${options?.hot} hot / ${options?.cold} cold`
+				case "settings:contextManagement.contextWindowManagement.diagnostics.contributors.usage":
+					return `${options?.ram} · ${options?.hot} hot / ${options?.cold} cold`
+				case "settings:contextManagement.contextWindowManagement.diagnostics.crossWindow.title":
+					return "Cross-window pressure"
+				case "settings:contextManagement.contextWindowManagement.diagnostics.crossWindow.cleanupValue":
+					return `${options?.cleaned} cleaned / ${options?.failed} failed`
+				default:
+					return key
 			}
-			if (key === "settings:contextManagement.contextWindowManagement.coldCacheRamBudget.units.mb") {
-				return `${options?.value}MB`
-			}
-			if (key === "settings:contextManagement.contextWindowManagement.coldCacheRamBudget.recommendedOption") {
-				return `${options?.value} (recommended)`
-			}
-			return key
 		},
 	}),
 }))
@@ -281,6 +300,105 @@ describe("ContextManagementSettings", () => {
 			expect(screen.getByTestId("context-cache-warning")).toHaveTextContent(
 				"Cold cache full — falling back to condensing",
 			)
+		})
+
+		it("renders combined context cache diagnostics", () => {
+			render(
+				<ContextManagementSettings
+					{...defaultProps}
+					contextCacheStats={{
+						hotCacheTokens: 12345,
+						hotCacheChunks: 4,
+						coldCacheChunks: 7,
+						ramUsedMb: 12.5,
+						ramBudgetMb: 2048,
+						swapsThisSession: 3,
+						condensingAvoided: 2,
+						combinedBudget: {
+							ramUsedMb: 256,
+							ramBudgetMb: 1536,
+							configuredRamBudgetMb: 2048,
+							hotCacheRamMb: 64,
+							coldCacheRamMb: 192,
+							hotCacheChunks: 5,
+							coldCacheChunks: 9,
+							managerCount: 2,
+							evictions: { hot: 1, cold: 2, total: 3 },
+							contributors: [
+								{
+									id: "manager-foreground",
+									label: "Foreground task task-1 (code)",
+									taskId: "task-1",
+									mode: "code",
+									isBackground: false,
+									isActive: true,
+									hotCacheChunks: 3,
+									coldCacheChunks: 4,
+									hotCacheRamMb: 40,
+									coldCacheRamMb: 80,
+									ramUsedMb: 120,
+									evictions: { hot: 1, cold: 1, total: 2 },
+								},
+							],
+							crossWindow: {
+								schemaVersion: 1,
+								livePeerCount: 2,
+								windowCount: 3,
+								localUsageRamMb: 256,
+								localBudgetRamMb: 2048,
+								peerUsageRamMb: 512,
+								peerBudgetRamMb: 2048,
+								globalBudgetRamMb: 2048,
+								effectiveLocalBudgetRamMb: 1536,
+								localActiveTaskCount: 1,
+								peerBackgroundTaskCount: 2,
+								staleHeartbeatCount: 1,
+								staleHeartbeatsCleaned: 1,
+							},
+						},
+						contributors: [
+							{
+								id: "manager-foreground",
+								label: "Foreground task task-1 (code)",
+								taskId: "task-1",
+								mode: "code",
+								isBackground: false,
+								isActive: true,
+								hotCacheChunks: 3,
+								coldCacheChunks: 4,
+								hotCacheRamMb: 40,
+								coldCacheRamMb: 80,
+								ramUsedMb: 120,
+								evictions: { hot: 1, cold: 1, total: 2 },
+							},
+						],
+						evictions: { hot: 1, cold: 2, total: 3 },
+					}}
+				/>,
+			)
+
+			expect(screen.getByTestId("context-cache-combined-diagnostics")).toHaveTextContent(
+				"Cache pressure diagnostics",
+			)
+			expect(screen.getByTestId("context-cache-combined-diagnostics")).toHaveTextContent(
+				"Task IDs, prompts, and file paths are not included.",
+			)
+			expect(screen.getByTestId("context-cache-pressure-note")).toHaveTextContent("Pressure status")
+			expect(screen.getByTestId("context-cache-pressure-note")).toHaveTextContent("Automatic relief active")
+			expect(screen.getByTestId("context-cache-pressure-note")).toHaveTextContent("aggregate counts")
+			expect(screen.getByTestId("context-cache-combined-usage")).toHaveTextContent("256MB / 1.5GB")
+			expect(screen.getByTestId("context-cache-effective-budget")).toHaveTextContent("2GB / 1.5GB")
+			expect(screen.getByTestId("context-cache-hot-cold-usage")).toHaveTextContent("64MB / 192MB")
+			expect(screen.getByTestId("context-cache-evictions")).toHaveTextContent("3 total · 1 hot / 2 cold")
+			expect(screen.getByTestId("context-cache-cross-window-diagnostics")).toHaveTextContent(
+				"Cross-window pressure",
+			)
+			expect(screen.getByTestId("context-cache-cross-window-count")).toHaveTextContent("3 / 2")
+			expect(screen.getByTestId("context-cache-cross-window-usage")).toHaveTextContent("256MB / 512MB")
+			expect(screen.getByTestId("context-cache-cross-window-budget")).toHaveTextContent("2GB / 1.5GB")
+			expect(screen.getByTestId("context-cache-cross-window-cleanup")).toHaveTextContent("1 cleaned / 0 failed")
+			expect(screen.getByTestId("context-cache-contributors")).toHaveTextContent("Foreground task task-1 (code)")
+			expect(screen.getByTestId("context-cache-contributor-row")).toHaveTextContent("120MB · 3 hot / 4 cold")
 		})
 
 		it("calls setCachedStateField when context cache toggle is changed", async () => {

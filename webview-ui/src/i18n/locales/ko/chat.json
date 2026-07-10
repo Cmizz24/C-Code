@@ -28,7 +28,18 @@
 			"coldShort": "콜드",
 			"swaps": "스왑",
 			"condensingAvoided": "압축 회피",
-			"warning": "경고"
+			"warning": "경고",
+			"diagnostics": {
+				"evictionsValue": "총 {{total}} · hot {{hot}} / cold {{cold}}",
+				"contributors_one": "기여 항목 {{count}}개",
+				"contributors_other": "기여 항목 {{count}}개",
+				"contributorUsage": "{{ram}} · hot {{hot}} / cold {{cold}}",
+				"combinedBudget": "결합 예산",
+				"hotColdRam": "Hot / cold RAM",
+				"evictionsLabel": "퇴거",
+				"combinedStatus": "결합: {{used}} / {{budget}}",
+				"evictionsStatus": "퇴거: {{value}}"
+			}
 		}
 	},
 	"unpin": "고정 해제하기",
@@ -375,6 +386,33 @@
 				"binaryFiles_one": "{{count}}개 바이너리 파일",
 				"binaryFiles_other": "{{count}}개 바이너리 파일"
 			}
+		},
+		"planPreview": {
+			"title": "병렬 에이전트 계획 검토",
+			"setupTitle": "병렬 에이전트에 Git 설정 필요",
+			"description": "C가 worktree를 시작하기 전에 각 에이전트의 할당을 검토하세요.",
+			"setupDescription": "Git 설정 문제를 고친 뒤 보존된 계획을 다시 만들지 말고 재시도하세요.",
+			"expand": "계획 펼치기",
+			"collapse": "계획 접기",
+			"setupRequired": "설정 필요: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "Git repository가 아님",
+				"no-initial-commit": "initial commit 없음",
+				"git-unavailable": "Git 사용 불가"
+			},
+			"pathPrivacyNote": "진단을 안전하게 유지하기 위해 workspace 및 Git 경로는 여기서 숨겨집니다.",
+			"sharedContext": "공유 컨텍스트",
+			"taskDescription": "Task 설명",
+			"ownedFiles": "소유 파일",
+			"noOwnedFiles": "소유 파일 없음",
+			"removeOwnedFile": "소유 파일에서 {{path}} 제거",
+			"dependencies": "의존성",
+			"noDependencies": "의존성 없음",
+			"setupFooter": "승인한 계획은 보존됩니다. Git을 고친 뒤 재시도하세요.",
+			"footer": "계획을 승인하기 전에 소유권 경계를 검토하세요.",
+			"cancel": "취소",
+			"retry": "보존된 계획 재시도",
+			"approve": "계획 승인"
 		}
 	},
 	"questions": {

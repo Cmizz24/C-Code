@@ -28,7 +28,18 @@
 			"coldShort": "frio",
 			"swaps": "Trocas",
 			"condensingAvoided": "Condensações evitadas",
-			"warning": "Aviso"
+			"warning": "Aviso",
+			"diagnostics": {
+				"evictionsValue": "{{total}} no total · {{hot}} quentes / {{cold}} frios",
+				"contributors_one": "{{count}} contribuidor",
+				"contributors_other": "{{count}} contribuidores",
+				"contributorUsage": "{{ram}} · {{hot}} quentes / {{cold}} frios",
+				"combinedBudget": "Orçamento combinado",
+				"hotColdRam": "RAM quente / fria",
+				"evictionsLabel": "Evictions",
+				"combinedStatus": "Combinado: {{used}} / {{budget}}",
+				"evictionsStatus": "Evictions: {{value}}"
+			}
 		}
 	},
 	"unpin": "Desfixar",
@@ -375,6 +386,33 @@
 				"binaryFiles_one": "{{count}} arquivo binário",
 				"binaryFiles_other": "{{count}} arquivos binários"
 			}
+		},
+		"planPreview": {
+			"title": "Revisar plano de agentes paralelos",
+			"setupTitle": "Configuração do Git necessária para agentes paralelos",
+			"description": "Revise a atribuição de cada agente antes que C inicie worktrees.",
+			"setupDescription": "Corrija o problema de configuração do Git e tente novamente o plano preservado sem reconstruí-lo.",
+			"expand": "Expandir plano",
+			"collapse": "Recolher plano",
+			"setupRequired": "Configuração necessária: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "não é um repositório Git",
+				"no-initial-commit": "sem commit inicial",
+				"git-unavailable": "Git indisponível"
+			},
+			"pathPrivacyNote": "Caminhos do workspace e do Git ficam ocultos aqui para manter os diagnósticos seguros.",
+			"sharedContext": "Contexto compartilhado",
+			"taskDescription": "Descrição da tarefa",
+			"ownedFiles": "Arquivos atribuídos",
+			"noOwnedFiles": "Nenhum arquivo atribuído",
+			"removeOwnedFile": "Remover {{path}} dos arquivos atribuídos",
+			"dependencies": "Dependências",
+			"noDependencies": "Sem dependências",
+			"setupFooter": "Seu plano aprovado foi preservado. Corrija o Git e tente novamente.",
+			"footer": "Revise os limites de propriedade antes de aprovar o plano.",
+			"cancel": "Cancelar",
+			"retry": "Tentar plano preservado novamente",
+			"approve": "Aprovar plano"
 		}
 	},
 	"questions": {

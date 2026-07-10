@@ -127,6 +127,14 @@ describe("importExport", () => {
 				get: vi.fn().mockImplementation((key: string) => map.get(key)),
 				store: vi.fn().mockImplementation((key: string, value: string) => map.set(key, value)),
 			},
+			globalState: {
+				get: vi.fn(),
+				update: vi.fn().mockResolvedValue(undefined),
+			},
+			workspaceState: {
+				get: vi.fn(),
+				update: vi.fn().mockResolvedValue(undefined),
+			},
 		} as unknown as ReturnType<typeof vi.mocked<vscode.ExtensionContext>>
 	})
 

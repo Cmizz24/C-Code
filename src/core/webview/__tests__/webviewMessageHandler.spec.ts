@@ -9,6 +9,7 @@ vi.mock("../../../integrations/openai-codex/oauth", () => ({
 	openAiCodexOAuthManager: {
 		getAccessToken: vi.fn(),
 		getAccountId: vi.fn(),
+		clearCredentials: vi.fn(),
 	},
 }))
 
@@ -74,6 +75,7 @@ const mockRecommendLocalAiModel = vi.mocked(recommendLocalAiModel)
 const mockLocalAiSetupManager = vi.mocked(localAiSetupManager)
 const mockGetAccessToken = vi.mocked(openAiCodexOAuthManager.getAccessToken)
 const mockGetAccountId = vi.mocked(openAiCodexOAuthManager.getAccountId)
+const mockClearCredentials = vi.mocked(openAiCodexOAuthManager.clearCredentials)
 const mockFetchOpenAiCodexRateLimitInfo = vi.mocked(fetchOpenAiCodexRateLimitInfo)
 
 // Mock ClineProvider
@@ -1158,18 +1160,26 @@ describe("webviewMessageHandler - requestOpenAiCodexRateLimits", () => {
 		vi.clearAllMocks()
 		mockGetAccessToken.mockResolvedValue(null)
 		mockGetAccountId.mockResolvedValue(null)
+		;(mockClineProvider as any).cachedOpenAiCodexRateLimits = undefined
 	})
 
-	it("posts error when not authenticated", async () => {
+	it("posts error and clears cached usage when not authenticated", async () => {
+		;(mockClineProvider as any).cachedOpenAiCodexRateLimits = {
+			primary: { usedPercent: 90 },
+			fetchedAt: 1700000000000,
+		}
+
 		await webviewMessageHandler(mockClineProvider, { type: "requestOpenAiCodexRateLimits" } as any)
 
+		expect((mockClineProvider as any).cachedOpenAiCodexRateLimits).toBeUndefined()
 		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
 			type: "openAiCodexRateLimits",
 			error: "Not authenticated with OpenAI Codex",
 		})
+		expect(mockClineProvider.postStateToWebview).toHaveBeenCalled()
 	})
 
-	it("posts values when authenticated", async () => {
+	it("posts values, caches them for extension state, and refreshes state when authenticated", async () => {
 		mockGetAccessToken.mockResolvedValue("token")
 		mockGetAccountId.mockResolvedValue("acct_123")
 		mockFetchOpenAiCodexRateLimitInfo.mockResolvedValue({
@@ -1180,6 +1190,10 @@ describe("webviewMessageHandler - requestOpenAiCodexRateLimits", () => {
 		await webviewMessageHandler(mockClineProvider, { type: "requestOpenAiCodexRateLimits" } as any)
 
 		expect(mockFetchOpenAiCodexRateLimitInfo).toHaveBeenCalledWith("token", { accountId: "acct_123" })
+		expect((mockClineProvider as any).cachedOpenAiCodexRateLimits).toEqual({
+			primary: { usedPercent: 10, resetsAt: 1700000000000 },
+			fetchedAt: 1700000000000,
+		})
 		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
 			type: "openAiCodexRateLimits",
 			values: {
@@ -1187,6 +1201,44 @@ describe("webviewMessageHandler - requestOpenAiCodexRateLimits", () => {
 				fetchedAt: 1700000000000,
 			},
 		})
+		expect(mockClineProvider.postStateToWebview).toHaveBeenCalled()
+	})
+
+	it("clears cached usage and refreshes state when the usage fetch fails", async () => {
+		;(mockClineProvider as any).cachedOpenAiCodexRateLimits = {
+			primary: { usedPercent: 90 },
+			fetchedAt: 1700000000000,
+		}
+		mockGetAccessToken.mockResolvedValue("token")
+		mockFetchOpenAiCodexRateLimitInfo.mockRejectedValue(new Error("token_invalidated"))
+
+		await webviewMessageHandler(mockClineProvider, { type: "requestOpenAiCodexRateLimits" } as any)
+
+		expect((mockClineProvider as any).cachedOpenAiCodexRateLimits).toBeUndefined()
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "openAiCodexRateLimits",
+			error: "token_invalidated",
+		})
+		expect(mockClineProvider.postStateToWebview).toHaveBeenCalled()
+	})
+})
+
+describe("webviewMessageHandler - openAiCodexSignOut", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		mockClearCredentials.mockResolvedValue(undefined)
+		;(mockClineProvider as any).cachedOpenAiCodexRateLimits = {
+			primary: { usedPercent: 42 },
+			fetchedAt: 1700000000000,
+		}
+	})
+
+	it("clears credentials, cached usage, and refreshes extension state", async () => {
+		await webviewMessageHandler(mockClineProvider, { type: "openAiCodexSignOut" } as any)
+
+		expect(mockClearCredentials).toHaveBeenCalled()
+		expect((mockClineProvider as any).cachedOpenAiCodexRateLimits).toBeUndefined()
+		expect(mockClineProvider.postStateToWebview).toHaveBeenCalled()
 	})
 })
 

@@ -77,7 +77,22 @@ describe("OpenAiCodexHandler.getModel", () => {
 		expect(model.info).toBeDefined()
 	})
 
+	it("should use GPT-5.6 Sol as the default ChatGPT subscription Codex model", () => {
+		const handler = new OpenAiCodexHandler({})
+		const model = handler.getModel()
+
+		expect(model.id).toBe("gpt-5.6-sol")
+		expect(model.id).toBe(openAiCodexDefaultModelId)
+		expect(model.info.contextWindow).toBe(400_000)
+		expect(model.info.reasoningEffort).toBe("medium")
+		expect(model.info.supportsFastMode).toBe(true)
+		expect(model.info.supportsReasoningEffort).toContain("max")
+	})
+
 	it.each([
+		["gpt-5.6-sol", 400_000],
+		["gpt-5.6-terra", 400_000],
+		["gpt-5.6-luna", 400_000],
 		["gpt-5.5", 400_000],
 		["gpt-5.4", 200_000],
 	])("should use ChatGPT subscription model context window: %s", (apiModelId, contextWindow) => {
@@ -120,7 +135,7 @@ describe("OpenAiCodexHandler Fast mode request body", () => {
 		return (handler as any).buildRequestBody(handler.getModel(), formattedInput, systemPrompt, undefined, metadata)
 	}
 
-	it.each(["gpt-5.5", "gpt-5.4"])(
+	it.each(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4"])(
 		"should request priority service tier when persistent Fast mode is enabled for supported model %s",
 		(apiModelId) => {
 			const body = buildRequestBody(apiModelId, { openAiCodexFastMode: true })

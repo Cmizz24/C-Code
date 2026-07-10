@@ -306,6 +306,47 @@ describe("mistake_memory tool", () => {
 		expect(store.candidates[0].status).toBe("approved")
 	})
 
+	it("preserves explicit workspace scope for general mistake memories", async () => {
+		const task = createTask(tempDir, { autoApprovalEnabled: true, memoryAutoApproveMistakeMemory: true })
+		const callbacks = {
+			askApproval: vi.fn(),
+			handleError: vi.fn(),
+			pushToolResult: vi.fn(),
+		}
+		const block: ToolUse<"mistake_memory"> = {
+			type: "tool_use",
+			name: "mistake_memory",
+			params: {},
+			partial: false,
+			nativeArgs: {
+				lesson: "This repository needs workspace-specific validation before committing.",
+				scope: "workspace",
+			},
+		}
+
+		await mistakeMemoryTool.handle(task, block, callbacks)
+
+		const output = JSON.parse(callbacks.pushToolResult.mock.calls[0][0])
+		expect(output.scope).toBe("workspace")
+		const sayPayload = JSON.parse((task.say as any).mock.calls[0][1])
+		expect(sayPayload.scope).toBe("workspace")
+
+		const workspaceStore = await new MemoryStorage({
+			globalStoragePath: tempDir,
+			workspacePath: task.cwd,
+		}).readStore("workspace", task.cwd)
+		expect(workspaceStore.memories[0]).toEqual(
+			expect.objectContaining({
+				scope: "workspace",
+				status: "active",
+			}),
+		)
+		expect(
+			(await new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd }).readStore("global"))
+				.memories,
+		).toHaveLength(0)
+	})
+
 	it("auto-approves mistake memories when global auto-approval and the setting are enabled", async () => {
 		const task = createTask(tempDir, { autoApprovalEnabled: true, memoryAutoApproveMistakeMemory: true })
 		const callbacks = {
@@ -335,6 +376,7 @@ describe("mistake_memory tool", () => {
 			expect.objectContaining({
 				tool: "mistakeMemory",
 				memoryId: output.id,
+				scope: "global",
 				status: "active",
 				autoApproved: true,
 				message: "Saved auto-approved active mistake memory.",
@@ -343,10 +385,10 @@ describe("mistake_memory tool", () => {
 		expect(sayPayload).not.toHaveProperty("candidateId")
 
 		const store = await new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd }).readStore(
-			"workspace",
-			task.cwd,
+			"global",
 		)
 		expect(store.memories[0].status).toBe("active")
+		expect(store.memories[0].scope).toBe("global")
 		expect(store.candidates).toHaveLength(0)
 	})
 
@@ -382,6 +424,7 @@ describe("mistake_memory tool", () => {
 			expect.objectContaining({
 				tool: "mistakeMemory",
 				memoryId: output.id,
+				scope: "global",
 				status: "pending",
 				autoApproved: false,
 				candidateId: output.candidateId,
@@ -389,18 +432,18 @@ describe("mistake_memory tool", () => {
 		)
 
 		const store = await new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd }).readStore(
-			"workspace",
-			task.cwd,
+			"global",
 		)
 		expect(store.memories[0].status).toBe("archived")
+		expect(store.memories[0].scope).toBe("global")
 		expect(store.candidates[0].status).toBe("rejected")
 	})
 
 	it("does not save when mistake memory or selected scope is disabled", async () => {
 		for (const state of [
 			{ memoryMistakeMemoryEnabled: false },
-			{ memoryWorkspaceEnabled: false },
-			{ memoryGlobalEnabled: false, scope: "global" },
+			{ memoryWorkspaceEnabled: false, scope: "workspace" },
+			{ memoryGlobalEnabled: false },
 		]) {
 			const task = createTask(tempDir, state)
 			const callbacks = { askApproval: vi.fn(), handleError: vi.fn(), pushToolResult: vi.fn() }
@@ -635,16 +678,16 @@ describe("tool-error mistake memory queue", () => {
 		expect(task.ask).toHaveBeenCalledWith("tool", expect.stringContaining("mistakeMemory"), false, undefined, true)
 		expect((task.providerRef.deref() as any).handleMemoryAction).toHaveBeenCalledWith("approveMemory", {
 			memoryId: expect.stringMatching(/^mem_/),
-			memoryScope: "workspace",
+			memoryScope: "global",
 		})
 		expect((task.providerRef.deref() as any).postMemoryStateToWebview).toHaveBeenCalledTimes(3)
 
 		const store = await new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd }).readStore(
-			"workspace",
-			task.cwd,
+			"global",
 		)
 		expect(store.memories[0]).toEqual(
 			expect.objectContaining({
+				scope: "global",
 				status: "active",
 				source: "tool_error",
 				toolName: "execute_command",
@@ -672,14 +715,14 @@ describe("tool-error mistake memory queue", () => {
 
 		expect((task.providerRef.deref() as any).handleMemoryAction).toHaveBeenCalledWith("archiveMemory", {
 			memoryId: expect.stringMatching(/^mem_/),
-			memoryScope: "workspace",
+			memoryScope: "global",
 		})
 
 		const store = await new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd }).readStore(
-			"workspace",
-			task.cwd,
+			"global",
 		)
 		expect(store.memories[0].status).toBe("archived")
+		expect(store.memories[0].scope).toBe("global")
 		expect(store.candidates[0].status).toBe("rejected")
 
 		const finalPayload = JSON.parse((task.say as any).mock.calls[0][1])
@@ -706,11 +749,11 @@ describe("tool-error mistake memory queue", () => {
 		expect((task.providerRef.deref() as any).postMemoryStateToWebview).toHaveBeenCalledTimes(1)
 
 		const store = await new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd }).readStore(
-			"workspace",
-			task.cwd,
+			"global",
 		)
 		expect(store.memories[0]).toEqual(
 			expect.objectContaining({
+				scope: "global",
 				status: "active",
 				source: "tool_error",
 				toolName: "read_file",
@@ -740,11 +783,11 @@ describe("tool-error mistake memory queue", () => {
 		expect((task.providerRef.deref() as any).postMemoryStateToWebview).toHaveBeenCalledTimes(1)
 
 		const store = await new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd }).readStore(
-			"workspace",
-			task.cwd,
+			"global",
 		)
 		expect(store.memories[0]).toEqual(
 			expect.objectContaining({
+				scope: "global",
 				status: "pending",
 				source: "tool_error",
 				toolName: "apply_diff",
@@ -784,11 +827,10 @@ describe("tool-error mistake memory queue", () => {
 		expect((task.providerRef.deref() as any).postMemoryStateToWebview).not.toHaveBeenCalled()
 		expect(task.ask).not.toHaveBeenCalled()
 
-		const store = await new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd }).readStore(
-			"workspace",
-			task.cwd,
-		)
+		const storage = new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd })
+		const store = await storage.readStore("global")
 		expect(store.memories).toHaveLength(0)
 		expect(store.candidates).toHaveLength(0)
+		expect((await storage.readStore("workspace", task.cwd)).memories).toHaveLength(0)
 	})
 })

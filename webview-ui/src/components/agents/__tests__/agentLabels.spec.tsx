@@ -1,3 +1,13 @@
+const { mockPostMessage } = vi.hoisted(() => ({
+	mockPostMessage: vi.fn(),
+}))
+
+vi.mock("@/utils/vscode", () => ({
+	vscode: {
+		postMessage: mockPostMessage,
+	},
+}))
+
 import type { ClineSayTool, ExecutionPlan, MergeReviewEntry } from "@roo-code/types"
 
 import { fireEvent, render, screen } from "@/utils/test-utils"
@@ -15,6 +25,52 @@ const t = (key: string, options?: Record<string, unknown>) => {
 	const count = Number(options?.count)
 
 	switch (key) {
+		case "chat:parallelAgents.planPreview.title":
+			return "Review parallel agent plan"
+		case "chat:parallelAgents.planPreview.setupTitle":
+			return "Git setup required for parallel agents"
+		case "chat:parallelAgents.planPreview.description":
+			return "Review each agent's assignment before C starts worktrees."
+		case "chat:parallelAgents.planPreview.setupDescription":
+			return "Fix the Git setup issue, then retry the preserved plan without rebuilding it."
+		case "chat:parallelAgents.planPreview.expand":
+			return "Expand"
+		case "chat:parallelAgents.planPreview.collapse":
+			return "Collapse"
+		case "chat:parallelAgents.planPreview.setupRequired":
+			return `Setup required: ${options?.reason}`
+		case "chat:parallelAgents.planPreview.setupReasons.not-git-repo":
+			return "not a Git repository"
+		case "chat:parallelAgents.planPreview.setupReasons.no-initial-commit":
+			return "no initial commit"
+		case "chat:parallelAgents.planPreview.setupReasons.git-unavailable":
+			return "Git unavailable"
+		case "chat:parallelAgents.planPreview.pathPrivacyNote":
+			return "Workspace and Git paths are hidden here to keep diagnostics safe."
+		case "chat:parallelAgents.planPreview.sharedContext":
+			return "Shared context"
+		case "chat:parallelAgents.planPreview.taskDescription":
+			return "Task description"
+		case "chat:parallelAgents.planPreview.ownedFiles":
+			return "Owned files"
+		case "chat:parallelAgents.planPreview.noOwnedFiles":
+			return "No owned files"
+		case "chat:parallelAgents.planPreview.removeOwnedFile":
+			return `Remove ${options?.path} from owned files`
+		case "chat:parallelAgents.planPreview.dependencies":
+			return "Dependencies"
+		case "chat:parallelAgents.planPreview.noDependencies":
+			return "No dependencies"
+		case "chat:parallelAgents.planPreview.setupFooter":
+			return "Your approved plan is preserved. Fix Git setup, then retry it."
+		case "chat:parallelAgents.planPreview.footer":
+			return "Review ownership boundaries before approving the plan."
+		case "chat:parallelAgents.planPreview.cancel":
+			return "Cancel"
+		case "chat:parallelAgents.planPreview.retry":
+			return "Retry preserved plan"
+		case "chat:parallelAgents.planPreview.approve":
+			return "Approve plan"
 		case "chat:parallelAgents.mergeReview.stats.files":
 			return `${count} ${count === 1 ? "file" : "files"}`
 		case "chat:parallelAgents.mergeReview.stats.lines":
@@ -74,6 +130,10 @@ function createPlan(): ExecutionPlan {
 }
 
 describe("parallel agent labels", () => {
+	beforeEach(() => {
+		mockPostMessage.mockClear()
+	})
+
 	it("shows assigned mode labels instead of generic agent numbers in the plan preview", () => {
 		renderWithExtensionState(<PlanPreviewModal plan={createPlan()} onClose={vi.fn()} />)
 
@@ -95,6 +155,37 @@ describe("parallel agent labels", () => {
 		expect(screen.getByRole("button", { name: "Expand" })).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Approve plan" })).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument()
+	})
+
+	it("shows Git setup guidance and retries the preserved plan", () => {
+		const onClose = vi.fn()
+		renderWithExtensionState(
+			<PlanPreviewModal
+				plan={createPlan()}
+				setupRequired={{
+					reason: "no_initial_commit",
+					message: "Parallel agents require a Git repository with at least one commit.",
+					guidance: "Create the repository's first commit. No GitHub remote is required for local worktrees.",
+					gitRoot: "C:/repo",
+				}}
+				onClose={onClose}
+			/>,
+		)
+
+		expect(screen.getByText("Git setup required for parallel agents")).toBeInTheDocument()
+		expect(screen.getByTestId("worktree-setup-required")).toHaveTextContent("no initial commit")
+		expect(screen.getByTestId("worktree-setup-required")).toHaveTextContent("No GitHub remote is required")
+		expect(screen.getByTestId("worktree-setup-required")).toHaveTextContent(
+			"Workspace and Git paths are hidden here to keep diagnostics safe.",
+		)
+		expect(screen.queryByText(/C:\/repo/)).not.toBeInTheDocument()
+		expect(screen.getByDisplayValue("Review the dashboard flow")).toBeDisabled()
+		expect(screen.queryByRole("button", { name: "Approve plan" })).not.toBeInTheDocument()
+
+		fireEvent.click(screen.getByRole("button", { name: "Retry preserved plan" }))
+
+		expect(mockPostMessage).toHaveBeenCalledWith({ type: "retryPlan" })
+		expect(onClose).not.toHaveBeenCalled()
 	})
 
 	it("shows assigned mode labels in saved merge review entries", () => {

@@ -1,12 +1,19 @@
 import type { EventEmitter } from "events"
 import type { Socket } from "net"
 
+import type { ExecutionPlan, WorktreeSetupRequired } from "./agents.js"
+import type { ContextCacheStats } from "./context-management.js"
 import type { RooCodeEvents } from "./events.js"
 import type { RooCodeSettings } from "./global-settings.js"
 import type { ProviderSettingsEntry, ProviderSettings } from "./provider-settings.js"
 import type { IpcMessage, IpcServerEvents } from "./ipc.js"
 
 export type RooCodeAPIEvents = RooCodeEvents
+
+export interface PendingParallelPlanSetupState {
+	plan?: ExecutionPlan
+	setupRequired?: WorktreeSetupRequired
+}
 
 export interface RooCodeAPI extends EventEmitter<RooCodeAPIEvents> {
 	/**
@@ -133,6 +140,18 @@ export interface RooCodeAPI extends EventEmitter<RooCodeAPIEvents> {
 	 * @throws Error if the profile does not exist
 	 */
 	setActiveProfile(name: string): Promise<string | undefined>
+	/**
+	 * Returns read-only context cache diagnostics for the active task/window.
+	 */
+	getContextCacheDiagnostics(): Promise<ContextCacheStats>
+	/**
+	 * Returns the pending parallel execution plan and setup requirement, if a plan is blocked on workspace setup.
+	 */
+	getPendingParallelPlanSetup(): PendingParallelPlanSetupState
+	/**
+	 * Retries the pending parallel execution plan after workspace setup has been completed.
+	 */
+	retryPendingParallelPlan(): Promise<void>
 }
 
 export interface RooCodeIpcServer extends EventEmitter<IpcServerEvents> {

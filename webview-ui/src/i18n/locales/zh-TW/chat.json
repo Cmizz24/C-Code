@@ -28,7 +28,18 @@
 			"coldShort": "冷",
 			"swaps": "交換",
 			"condensingAvoided": "已避免壓縮",
-			"warning": "警告"
+			"warning": "警告",
+			"diagnostics": {
+				"evictionsValue": "共 {{total}} · {{hot}} 熱 / {{cold}} 冷",
+				"contributors_one": "{{count}} 個貢獻項",
+				"contributors_other": "{{count}} 個貢獻項",
+				"contributorUsage": "{{ram}} · {{hot}} 熱 / {{cold}} 冷",
+				"combinedBudget": "合併預算",
+				"hotColdRam": "熱 / 冷 RAM",
+				"evictionsLabel": "驅逐",
+				"combinedStatus": "合併：{{used}} / {{budget}}",
+				"evictionsStatus": "驅逐：{{value}}"
+			}
 		}
 	},
 	"unpin": "取消釘選",
@@ -486,6 +497,33 @@
 				"binaryFiles_one": "{{count}} 個二進位檔案",
 				"binaryFiles_other": "{{count}} 個二進位檔案"
 			}
+		},
+		"planPreview": {
+			"title": "檢查平行 agent 計畫",
+			"setupTitle": "平行 agent 需要 Git 設定",
+			"description": "在 C 啟動 worktree 前檢查每個 agent 的分配。",
+			"setupDescription": "修正 Git 設定問題，然後重試保留的計畫，不必重新建立。",
+			"expand": "展開計畫",
+			"collapse": "收合計畫",
+			"setupRequired": "需要設定：{{reason}}",
+			"setupReasons": {
+				"not-git-repo": "不是 Git repository",
+				"no-initial-commit": "沒有初始 commit",
+				"git-unavailable": "Git 無法使用"
+			},
+			"pathPrivacyNote": "這裡會隱藏 workspace 和 Git 路徑，以確保診斷安全。",
+			"sharedContext": "共享上下文",
+			"taskDescription": "任務描述",
+			"ownedFiles": "負責檔案",
+			"noOwnedFiles": "沒有負責檔案",
+			"removeOwnedFile": "從負責檔案中移除 {{path}}",
+			"dependencies": "依賴",
+			"noDependencies": "沒有依賴",
+			"setupFooter": "已核准的計畫會保留。修正 Git 後重試。",
+			"footer": "核准計畫前請檢查所有權邊界。",
+			"cancel": "取消",
+			"retry": "重試保留的計畫",
+			"approve": "核准計畫"
 		}
 	},
 	"questions": {

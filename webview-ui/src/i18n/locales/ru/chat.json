@@ -28,7 +28,18 @@
 			"coldShort": "холодный",
 			"swaps": "Обмены",
 			"condensingAvoided": "Конденсаций избегнуто",
-			"warning": "Предупреждение"
+			"warning": "Предупреждение",
+			"diagnostics": {
+				"evictionsValue": "{{total}} всего · {{hot}} горячих / {{cold}} холодных",
+				"contributors_one": "{{count}} участник",
+				"contributors_other": "{{count}} участников",
+				"contributorUsage": "{{ram}} · {{hot}} горячих / {{cold}} холодных",
+				"combinedBudget": "Общий бюджет",
+				"hotColdRam": "Горячая / холодная RAM",
+				"evictionsLabel": "Вытеснения",
+				"combinedStatus": "Общее: {{used}} / {{budget}}",
+				"evictionsStatus": "Вытеснения: {{value}}"
+			}
 		}
 	},
 	"unpin": "Открепить",
@@ -371,6 +382,33 @@
 				"binaryFiles_one": "{{count}} бинарный файл",
 				"binaryFiles_other": "{{count}} бинарных файлов"
 			}
+		},
+		"planPreview": {
+			"title": "Проверь план параллельных агентов",
+			"setupTitle": "Для параллельных агентов нужна настройка Git",
+			"description": "Проверь назначение каждого агента, прежде чем C запустит worktree.",
+			"setupDescription": "Исправь проблему настройки Git, затем повтори сохранённый план без пересборки.",
+			"expand": "Развернуть план",
+			"collapse": "Свернуть план",
+			"setupRequired": "Требуется настройка: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "это не Git-репозиторий",
+				"no-initial-commit": "нет начального commit",
+				"git-unavailable": "Git недоступен"
+			},
+			"pathPrivacyNote": "Пути workspace и Git здесь скрыты, чтобы диагностика оставалась безопасной.",
+			"sharedContext": "Общий контекст",
+			"taskDescription": "Описание задачи",
+			"ownedFiles": "Назначенные файлы",
+			"noOwnedFiles": "Нет назначенных файлов",
+			"removeOwnedFile": "Удалить {{path}} из назначенных файлов",
+			"dependencies": "Зависимости",
+			"noDependencies": "Нет зависимостей",
+			"setupFooter": "Твой одобренный план сохранён. Исправь Git, затем повтори.",
+			"footer": "Проверь границы ответственности перед одобрением плана.",
+			"cancel": "Отмена",
+			"retry": "Повторить сохранённый план",
+			"approve": "Одобрить план"
 		}
 	},
 	"questions": {

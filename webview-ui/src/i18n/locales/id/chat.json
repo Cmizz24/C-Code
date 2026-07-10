@@ -28,7 +28,18 @@
 			"coldShort": "dingin",
 			"swaps": "Pertukaran",
 			"condensingAvoided": "Condensing dihindari",
-			"warning": "Peringatan"
+			"warning": "Peringatan",
+			"diagnostics": {
+				"evictionsValue": "{{total}} total · {{hot}} hot / {{cold}} cold",
+				"contributors_one": "{{count}} kontributor",
+				"contributors_other": "{{count}} kontributor",
+				"contributorUsage": "{{ram}} · {{hot}} hot / {{cold}} cold",
+				"combinedBudget": "Anggaran gabungan",
+				"hotColdRam": "RAM hot / cold",
+				"evictionsLabel": "Eviction",
+				"combinedStatus": "Gabungan: {{used}} / {{budget}}",
+				"evictionsStatus": "Eviction: {{value}}"
+			}
 		}
 	},
 	"history": {
@@ -492,6 +503,33 @@
 				"binaryFiles_one": "{{count}} file biner",
 				"binaryFiles_other": "{{count}} file biner"
 			}
+		},
+		"planPreview": {
+			"title": "Tinjau rencana agen paralel",
+			"setupTitle": "Setup Git diperlukan untuk agen paralel",
+			"description": "Tinjau penugasan tiap agen sebelum C memulai worktree.",
+			"setupDescription": "Perbaiki masalah setup Git, lalu coba lagi rencana yang disimpan tanpa membuat ulang.",
+			"expand": "Buka rencana",
+			"collapse": "Tutup rencana",
+			"setupRequired": "Setup diperlukan: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "bukan repositori Git",
+				"no-initial-commit": "belum ada commit awal",
+				"git-unavailable": "Git tidak tersedia"
+			},
+			"pathPrivacyNote": "Path workspace dan Git disembunyikan di sini agar diagnostik tetap aman.",
+			"sharedContext": "Konteks bersama",
+			"taskDescription": "Deskripsi tugas",
+			"ownedFiles": "File yang dimiliki",
+			"noOwnedFiles": "Tidak ada file yang dimiliki",
+			"removeOwnedFile": "Hapus {{path}} dari file yang dimiliki",
+			"dependencies": "Dependensi",
+			"noDependencies": "Tidak ada dependensi",
+			"setupFooter": "Rencana yang kamu setujui disimpan. Perbaiki Git, lalu coba lagi.",
+			"footer": "Tinjau batas kepemilikan sebelum menyetujui rencana.",
+			"cancel": "Batal",
+			"retry": "Coba lagi rencana tersimpan",
+			"approve": "Setujui rencana"
 		}
 	},
 	"questions": {

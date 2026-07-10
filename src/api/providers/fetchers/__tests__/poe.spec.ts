@@ -52,6 +52,7 @@ describe("getPoeModels", () => {
 			maxTokens: 8192,
 			supportsImages: true,
 			supportsPromptCache: true,
+			subscriptionBased: true,
 			supportsReasoningBudget: true,
 			inputPrice: 3,
 			outputPrice: 15,
@@ -64,6 +65,7 @@ describe("getPoeModels", () => {
 			maxTokens: 16_384,
 			supportsImages: true,
 			supportsPromptCache: false,
+			subscriptionBased: true,
 			inputPrice: 2.5,
 			outputPrice: 10,
 		})
@@ -107,6 +109,7 @@ describe("getPoeModels", () => {
 			maxTokens: 1024,
 			supportsImages: false,
 			supportsPromptCache: false,
+			subscriptionBased: true,
 		})
 	})
 

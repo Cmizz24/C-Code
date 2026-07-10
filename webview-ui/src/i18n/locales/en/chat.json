@@ -28,7 +28,18 @@
 			"coldShort": "cold",
 			"swaps": "Swaps",
 			"condensingAvoided": "Condensing avoided",
-			"warning": "Warning"
+			"warning": "Warning",
+			"diagnostics": {
+				"evictionsValue": "{{total}} total · {{hot}} hot / {{cold}} cold",
+				"contributors_one": "{{count}} contributor",
+				"contributors_other": "{{count}} contributors",
+				"contributorUsage": "{{ram}} · {{hot}} hot / {{cold}} cold",
+				"combinedBudget": "Combined budget",
+				"hotColdRam": "Hot / cold RAM",
+				"evictionsLabel": "Evictions",
+				"combinedStatus": "Combined: {{used}} / {{budget}}",
+				"evictionsStatus": "Evictions: {{value}}"
+			}
 		}
 	},
 	"unpin": "Unpin",
@@ -500,6 +511,33 @@
 				"binaryFiles_one": "{{count}} binary file",
 				"binaryFiles_other": "{{count}} binary files"
 			}
+		},
+		"planPreview": {
+			"title": "Review parallel agent plan",
+			"setupTitle": "Git setup required for parallel agents",
+			"description": "Review each agent's assignment before C starts worktrees.",
+			"setupDescription": "Fix the Git setup issue, then retry the preserved plan without rebuilding it.",
+			"expand": "Expand plan",
+			"collapse": "Collapse plan",
+			"setupRequired": "Setup required: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "not a Git repository",
+				"no-initial-commit": "no initial commit",
+				"git-unavailable": "Git unavailable"
+			},
+			"pathPrivacyNote": "Workspace and Git paths are hidden here to keep diagnostics safe.",
+			"sharedContext": "Shared context",
+			"taskDescription": "Task description",
+			"ownedFiles": "Owned files",
+			"noOwnedFiles": "No owned files",
+			"removeOwnedFile": "Remove {{path}} from owned files",
+			"dependencies": "Dependencies",
+			"noDependencies": "No dependencies",
+			"setupFooter": "Your approved plan is preserved. Fix Git setup, then retry it.",
+			"footer": "Review ownership boundaries before approving the plan.",
+			"cancel": "Cancel",
+			"retry": "Retry preserved plan",
+			"approve": "Approve plan"
 		}
 	},
 	"questions": {

@@ -4,6 +4,7 @@ import { ExtensionContext } from "vscode"
 
 import type { ProviderSettings } from "@roo-code/types"
 
+import { buildApiHandler } from "../../../api"
 import { ProviderSettingsManager, ProviderProfiles, WORKSPACE_ACTIVE_PROFILE_KEY } from "../ProviderSettingsManager"
 
 // Mock VSCode ExtensionContext
@@ -298,6 +299,37 @@ describe("ProviderSettingsManager", () => {
 				"Failed to list configs: Error: Failed to read provider profiles from secrets: Error: Read failed",
 			)
 		})
+
+		it("should include fake-ai model metadata", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "default",
+				apiConfigs: {
+					default: {
+						id: "default",
+					},
+					fake: {
+						apiProvider: "fake-ai",
+						apiModelId: "roo-e2e-profile-model",
+						id: "fake-id",
+					},
+				},
+				modeApiConfigs: {
+					code: "default",
+					architect: "default",
+					ask: "default",
+				},
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			const configs = await providerSettingsManager.listConfig()
+			expect(configs).toContainEqual({
+				name: "fake",
+				id: "fake-id",
+				apiProvider: "fake-ai",
+				modelId: "roo-e2e-profile-model",
+			})
+		})
 	})
 
 	describe("SaveConfig", () => {
@@ -346,6 +378,66 @@ describe("ProviderSettingsManager", () => {
 
 			expect(mockSecrets.store.mock.calls[0][0]).toEqual("roo_cline_config_api_config")
 			expect(storedConfig).toEqual(expectedConfig)
+		})
+
+		it("should preserve fake-ai model metadata and runtime cache", async () => {
+			let storedContent = JSON.stringify({
+				currentApiConfigName: "default",
+				apiConfigs: {
+					default: {},
+				},
+				modeApiConfigs: {
+					code: "default",
+					architect: "default",
+					ask: "default",
+				},
+			})
+
+			mockSecrets.get.mockImplementation(async () => storedContent)
+			mockSecrets.store.mockImplementation(async (_key, value) => {
+				storedContent = value
+			})
+
+			const fakeAi = {
+				id: `fake-ai-profile-cache-test-${Date.now()}`,
+				async *createMessage() {},
+				getModel() {
+					return {
+						id: "roo-e2e-profile-model",
+						info: {
+							contextWindow: 1,
+							supportsImages: false,
+							supportsPromptCache: false,
+						},
+					}
+				},
+				async countTokens() {
+					return 1
+				},
+				async completePrompt() {
+					return ""
+				},
+			}
+
+			await providerSettingsManager.saveConfig("fake", {
+				apiProvider: "fake-ai",
+				apiModelId: "roo-e2e-profile-model",
+				fakeAi,
+			} as ProviderSettings)
+
+			const configs = await providerSettingsManager.listConfig()
+			expect(configs).toContainEqual(
+				expect.objectContaining({
+					name: "fake",
+					apiProvider: "fake-ai",
+					modelId: "roo-e2e-profile-model",
+				}),
+			)
+
+			const savedProfile = await providerSettingsManager.getProfile({ name: "fake" })
+			const handler = buildApiHandler(savedProfile)
+
+			expect(handler.getModel().id).toBe("roo-e2e-profile-model")
 		})
 
 		it("should only save provider relevant settings", async () => {
@@ -441,6 +533,137 @@ describe("ProviderSettingsManager", () => {
 				"roo_cline_config_api_config",
 			)
 			expect(storedConfig).toEqual(expectedConfig)
+		})
+
+		it("should reload a saved API key from stored provider profiles", async () => {
+			let storedProviderProfiles = JSON.stringify({
+				currentApiConfigName: "default",
+				apiConfigs: {
+					default: {},
+				},
+				modeApiConfigs: {
+					code: "default",
+					architect: "default",
+					ask: "default",
+				},
+			})
+
+			mockSecrets.get.mockImplementation(async () => storedProviderProfiles)
+			mockSecrets.store.mockImplementation(async (_key: string, value: string) => {
+				storedProviderProfiles = value
+			})
+
+			await providerSettingsManager.saveConfig("test", {
+				apiProvider: "anthropic",
+				apiKey: "saved-key",
+			})
+
+			const reloadedProfile = await providerSettingsManager.getProfile({ name: "test" })
+
+			expect(reloadedProfile.apiProvider).toBe("anthropic")
+			expect(reloadedProfile.apiKey).toBe("saved-key")
+			expect(reloadedProfile.id).toBeTruthy()
+		})
+
+		it("should preserve an existing API key when the incoming config omits it", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "default",
+				apiConfigs: {
+					test: {
+						apiProvider: "anthropic",
+						apiKey: "persisted-key",
+						id: "test-id",
+					},
+				},
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			await providerSettingsManager.saveConfig("test", {
+				apiProvider: "anthropic",
+			})
+
+			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[mockSecrets.store.mock.calls.length - 1][1])
+			expect(storedConfig.apiConfigs.test).toEqual({
+				apiProvider: "anthropic",
+				apiKey: "persisted-key",
+				id: "test-id",
+			})
+		})
+
+		it("should preserve an existing API key when the incoming config sends an empty value", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "default",
+				apiConfigs: {
+					test: {
+						apiProvider: "openrouter",
+						openRouterApiKey: "persisted-openrouter-key",
+						id: "test-id",
+					},
+				},
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			await providerSettingsManager.saveConfig("test", {
+				apiProvider: "openrouter",
+				openRouterApiKey: "",
+			})
+
+			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[mockSecrets.store.mock.calls.length - 1][1])
+			expect(storedConfig.apiConfigs.test.openRouterApiKey).toBe("persisted-openrouter-key")
+		})
+
+		it("should preserve an existing API key when the incoming config sends a redacted value", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "default",
+				apiConfigs: {
+					test: {
+						apiProvider: "poe",
+						poeApiKey: "persisted-poe-key",
+						id: "test-id",
+					},
+				},
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			await providerSettingsManager.saveConfig("test", {
+				apiProvider: "poe",
+				poeApiKey: "••••••••",
+			})
+
+			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[mockSecrets.store.mock.calls.length - 1][1])
+			expect(storedConfig.apiConfigs.test.poeApiKey).toBe("persisted-poe-key")
+		})
+
+		it("should preserve an existing API key by profile ID when saving under a new name", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "old-name",
+				apiConfigs: {
+					"old-name": {
+						apiProvider: "anthropic",
+						apiKey: "persisted-key",
+						id: "profile-id",
+					},
+				},
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			await providerSettingsManager.saveConfig("new-name", {
+				apiProvider: "anthropic",
+				apiKey: "[redacted]",
+				id: "profile-id",
+			})
+
+			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[mockSecrets.store.mock.calls.length - 1][1])
+			expect(storedConfig.apiConfigs["new-name"]).toEqual({
+				apiProvider: "anthropic",
+				apiKey: "persisted-key",
+				id: "profile-id",
+			})
+			expect(storedConfig.apiConfigs["old-name"].apiKey).toBe("persisted-key")
 		})
 
 		it("should throw error if secrets storage fails", async () => {

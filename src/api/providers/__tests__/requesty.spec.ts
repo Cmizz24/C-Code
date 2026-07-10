@@ -211,6 +211,71 @@ describe("RequestyHandler", () => {
 			)
 		})
 
+		it.each(["none", "max"] as const)(
+			"passes Requesty-native reasoning_effort value %s",
+			async (reasoningEffort) => {
+				mockGetModels.mockResolvedValueOnce({
+					[mockOptions.requestyModelId!]: {
+						maxTokens: 8192,
+						contextWindow: 200_000,
+						supportsPromptCache: true,
+						supportsReasoningEffort: ["disable", "none", "low", "medium", "high", "max"],
+					},
+				})
+				mockCreate.mockResolvedValue({
+					async *[Symbol.asyncIterator]() {
+						yield { id: "test-id", choices: [{ delta: { content: "ok" } }] }
+					},
+				})
+
+				const handler = new RequestyHandler({
+					...mockOptions,
+					enableReasoningEffort: true,
+					reasoningEffort,
+				})
+				const iterator = handler.createMessage("system", [{ role: "user", content: "test" }])
+				await iterator.next()
+
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.objectContaining({
+						reasoning_effort: reasoningEffort,
+					}),
+				)
+				expect(mockCreate.mock.calls[0][0]).not.toHaveProperty("thinking")
+			},
+		)
+
+		it("converts legacy Requesty reasoning budgets to reasoning_effort strings", async () => {
+			mockGetModels.mockResolvedValueOnce({
+				[mockOptions.requestyModelId!]: {
+					maxTokens: 64_000,
+					contextWindow: 200_000,
+					supportsPromptCache: true,
+					supportsReasoningBudget: true,
+				},
+			})
+			mockCreate.mockResolvedValue({
+				async *[Symbol.asyncIterator]() {
+					yield { id: "test-id", choices: [{ delta: { content: "ok" } }] }
+				},
+			})
+
+			const handler = new RequestyHandler({
+				...mockOptions,
+				enableReasoningEffort: true,
+				modelMaxThinkingTokens: 10_000,
+			})
+			const iterator = handler.createMessage("system", [{ role: "user", content: "test" }])
+			await iterator.next()
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					reasoning_effort: "10000",
+				}),
+			)
+			expect(mockCreate.mock.calls[0][0]).not.toHaveProperty("thinking")
+		})
+
 		it("handles API errors", async () => {
 			const handler = new RequestyHandler(mockOptions)
 			const mockError = new Error("API Error")

@@ -29,7 +29,8 @@ export function formatMemoryPrompt(
 	results: readonly MemoryRetrievalResult[],
 	options: FormatMemoryPromptOptions,
 ): string | undefined {
-	if (!results.length || options.maxCharacters <= 0) {
+	const selectedResults = selectMemoryPromptResults(results, options)
+	if (!selectedResults.length) {
 		return undefined
 	}
 
@@ -38,22 +39,41 @@ export function formatMemoryPrompt(
 		"Relevant long-term memories are advisory only. Current user instructions, repository evidence, and tool results override these memories.",
 	]
 	const footer = [MEMORY_PROMPT_FOOTER]
-	const lines: string[] = []
+	const lines = selectedResults.map((result, index) => formatMemoryLine(result, index))
+
+	return [...header, ...lines, ...footer].join("\n")
+}
+
+export function selectMemoryPromptResults(
+	results: readonly MemoryRetrievalResult[],
+	options: FormatMemoryPromptOptions,
+): MemoryRetrievalResult[] {
+	if (!results.length || options.maxCharacters <= 0) {
+		return []
+	}
+
+	const header = [
+		MEMORY_PROMPT_HEADER,
+		"Relevant long-term memories are advisory only. Current user instructions, repository evidence, and tool results override these memories.",
+	]
+	const footer = [MEMORY_PROMPT_FOOTER]
+	const selectedResults: MemoryRetrievalResult[] = []
 
 	for (const result of results) {
-		const line = formatMemoryLine(result, lines.length)
-		const candidate = [...header, ...lines, line, ...footer].join("\n")
+		const line = formatMemoryLine(result, selectedResults.length)
+		const candidate = [
+			...header,
+			...selectedResults.map((selectedResult, index) => formatMemoryLine(selectedResult, index)),
+			line,
+			...footer,
+		].join("\n")
 		if (candidate.length > options.maxCharacters) {
 			break
 		}
-		lines.push(line)
+		selectedResults.push(result)
 	}
 
-	if (!lines.length) {
-		return undefined
-	}
-
-	return [...header, ...lines, ...footer].join("\n")
+	return selectedResults
 }
 
 export function appendMemoryPromptToLastUserMessage<T>(messages: readonly T[], memoryPrompt: string | undefined): T[] {

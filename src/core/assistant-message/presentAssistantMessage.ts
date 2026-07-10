@@ -7,6 +7,7 @@ import {
 	type ClineAsk,
 	type ToolProgressStatus,
 	type TodoItem,
+	type WorktreeSetupRequired,
 } from "@roo-code/types"
 import { customToolRegistry } from "@roo-code/core"
 
@@ -104,6 +105,31 @@ async function completeCurrentParallelPlanningTodo(cline: Task): Promise<boolean
 	// "User Edit/User Edits" chat row before the parallel agents card.
 	await (cline.providerRef.deref()?.postStateToWebviewWithoutTaskHistory?.() ?? Promise.resolve()).catch(() => {})
 	return true
+}
+
+function formatParallelPlanSetupRequiredResult(options: {
+	planId: string
+	agentCount: number
+	setupRequired: WorktreeSetupRequired
+	warnings: string[]
+}): string {
+	const { planId, agentCount, setupRequired, warnings } = options
+	const locationLines = [
+		setupRequired.workspacePath ? `Workspace: ${setupRequired.workspacePath}` : undefined,
+		setupRequired.gitRoot ? `Git root: ${setupRequired.gitRoot}` : undefined,
+	].filter(Boolean)
+
+	return [
+		`Approved execution plan ${planId} with ${agentCount} agents, but Roo cannot start parallel worktrees until Git setup is fixed. The approved plan has been preserved and should not be recreated.`,
+		`Reason: ${setupRequired.reason}`,
+		`Details: ${setupRequired.message}`,
+		`Setup guidance: ${setupRequired.guidance}`,
+		locationLines.length > 0 ? locationLines.join("\n") : undefined,
+		'After fixing Git setup, use the "Retry preserved plan" action in the plan setup panel. Roo will reuse the preserved plan; do not call new_task for these parallel agents.',
+		warnings.length > 0 ? `Warnings:\n- ${warnings.join("\n- ")}` : "No warnings.",
+	]
+		.filter(Boolean)
+		.join("\n\n")
 }
 
 async function sayToolError(cline: Task, action: string, error: Error): Promise<void> {
@@ -996,7 +1022,18 @@ export async function presentAssistantMessage(cline: Task) {
 									`Parallel execution plan ${result.plan.planId} was canceled before Roo created worktrees or started agent tasks.`,
 								)
 							} else if (approvalResult.startResult.ok === false) {
-								pushToolResult(formatResponse.toolError(approvalResult.startResult.error))
+								if (approvalResult.startResult.setupRequired) {
+									pushToolResult(
+										formatParallelPlanSetupRequiredResult({
+											planId: approvalResult.plan.planId,
+											agentCount: approvalResult.plan.agents.length,
+											setupRequired: approvalResult.startResult.setupRequired,
+											warnings: result.warnings,
+										}),
+									)
+								} else {
+									pushToolResult(formatResponse.toolError(approvalResult.startResult.error))
+								}
 							} else {
 								cline.parallelExecutionPaused = true
 								pushToolResult(

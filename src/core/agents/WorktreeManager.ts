@@ -5,6 +5,7 @@ import fs from "fs/promises"
 import os from "os"
 import { promisify } from "util"
 import ignore, { type Ignore } from "ignore"
+import type { WorktreeSetupRequired, WorktreeSetupRequiredReason } from "@roo-code/types"
 
 const execAsync = promisify(exec)
 
@@ -85,9 +86,26 @@ export class WorktreeManagerError extends Error {
 	}
 }
 
-export class WorktreeManagerGitUnavailableError extends WorktreeManagerError {
-	constructor(message: string) {
-		super(message)
+export class WorktreeSetupRequiredError extends WorktreeManagerError {
+	constructor(readonly setup: WorktreeSetupRequired) {
+		super(setup.message)
+		this.name = "WorktreeSetupRequiredError"
+	}
+}
+
+export class WorktreeManagerGitUnavailableError extends WorktreeSetupRequiredError {
+	constructor(messageOrSetup: string | WorktreeSetupRequired, cwd?: string) {
+		super(
+			typeof messageOrSetup === "string"
+				? createWorktreeSetupRequired({
+						reason: "git_unavailable",
+						message: messageOrSetup,
+						guidance:
+							"Install Git and ensure it is available on PATH, or update VS Code's Git: Path setting to an existing git executable. Then retry the preserved parallel plan.",
+						workspacePath: cwd,
+					})
+				: messageOrSetup,
+		)
 		this.name = "WorktreeManagerGitUnavailableError"
 	}
 }
@@ -124,6 +142,51 @@ export function isWorktreeManagerGitUnavailableError(error: unknown): boolean {
 	return error instanceof WorktreeManagerGitUnavailableError || isGitExecutableUnavailableError(error)
 }
 
+export function getWorktreeSetupRequired(error: unknown): WorktreeSetupRequired | undefined {
+	if (error instanceof WorktreeSetupRequiredError) {
+		return error.setup
+	}
+
+	return undefined
+}
+
+function createWorktreeSetupRequired(setup: {
+	reason: WorktreeSetupRequiredReason
+	message: string
+	guidance: string
+	workspacePath?: string
+	gitRoot?: string
+}): WorktreeSetupRequired {
+	return {
+		reason: setup.reason,
+		message: setup.message,
+		guidance: setup.guidance,
+		workspacePath: setup.workspacePath,
+		gitRoot: setup.gitRoot,
+	}
+}
+
+function createNotGitRepositorySetup(repoRoot: string, message: string): WorktreeSetupRequired {
+	return createWorktreeSetupRequired({
+		reason: "not_git_repo",
+		message,
+		guidance:
+			"Open a workspace folder inside a local Git repository, or initialize Git in this folder and create an initial commit. A GitHub remote is not required for local worktrees. After setup, retry the preserved parallel plan.",
+		workspacePath: repoRoot,
+	})
+}
+
+function createNoInitialCommitSetup(gitRoot: string): WorktreeSetupRequired {
+	return createWorktreeSetupRequired({
+		reason: "no_initial_commit",
+		message:
+			"Parallel agents require a Git repository with at least one commit. Commit your current project first, then approve the plan again.",
+		guidance:
+			"Create the repository's first commit, for example by staging the current project and running an initial commit. No GitHub remote is required for local worktrees. After the commit exists, retry the preserved parallel plan.",
+		gitRoot,
+	})
+}
+
 function getErrorCode(error: unknown): string | number | undefined {
 	if (!error || typeof error !== "object") {
 		return undefined
@@ -153,6 +216,16 @@ function isGitExecutableUnavailableMessage(message: string): boolean {
 function formatGitUnavailableMessage(error: unknown, cwd: string): string {
 	const details = formatGitFailure(error).trim()
 	return `Git executable unavailable while preparing parallel worktrees from ${cwd}. Ensure Git is installed and available on PATH, or update VS Code's Git: Path setting to an existing git executable.${details ? `\n${details}` : ""}`
+}
+
+function createGitUnavailableSetup(error: unknown, cwd: string): WorktreeSetupRequired {
+	return createWorktreeSetupRequired({
+		reason: "git_unavailable",
+		message: formatGitUnavailableMessage(error, cwd),
+		guidance:
+			"Install Git and ensure it is available on PATH, or update VS Code's Git: Path setting to an existing git executable. Then retry the preserved parallel plan.",
+		workspacePath: cwd,
+	})
 }
 
 function shellQuote(value: string): string {
@@ -1250,8 +1323,11 @@ export class WorktreeManager {
 			const gitRoot = stdout.trim()
 
 			if (!gitRoot) {
-				throw new WorktreeManagerError(
-					`Parallel worktrees require a Git repository. The active workspace (${this.repoRoot}) did not report a Git repository root. Open a Git-backed workspace or initialize Git before approving a parallel plan.`,
+				throw new WorktreeSetupRequiredError(
+					createNotGitRepositorySetup(
+						this.repoRoot,
+						`Parallel worktrees require a Git repository. The active workspace (${this.repoRoot}) did not report a Git repository root. Open a Git-backed workspace or initialize Git before approving a parallel plan.`,
+					),
 				)
 			}
 
@@ -1263,11 +1339,14 @@ export class WorktreeManager {
 			}
 
 			if (isGitExecutableUnavailableError(error)) {
-				throw new WorktreeManagerGitUnavailableError(formatGitUnavailableMessage(error, this.repoRoot))
+				throw new WorktreeManagerGitUnavailableError(createGitUnavailableSetup(error, this.repoRoot))
 			}
 
-			throw new WorktreeManagerError(
-				`Parallel worktrees require a Git repository. The active workspace (${this.repoRoot}) is not inside a Git repository. Open a Git-backed workspace or initialize Git before approving a parallel plan.`,
+			throw new WorktreeSetupRequiredError(
+				createNotGitRepositorySetup(
+					this.repoRoot,
+					`Parallel worktrees require a Git repository. The active workspace (${this.repoRoot}) is not inside a Git repository. Open a Git-backed workspace or initialize Git before approving a parallel plan.`,
+				),
 			)
 		}
 	}
@@ -1282,12 +1361,10 @@ export class WorktreeManager {
 			this.hasValidatedHead = true
 		} catch (error) {
 			if (isGitExecutableUnavailableError(error)) {
-				throw new WorktreeManagerGitUnavailableError(formatGitUnavailableMessage(error, gitRoot))
+				throw new WorktreeManagerGitUnavailableError(createGitUnavailableSetup(error, gitRoot))
 			}
 
-			throw new WorktreeManagerError(
-				"Parallel agents require a Git repository with at least one commit. Commit your current project first, then approve the plan again.",
-			)
+			throw new WorktreeSetupRequiredError(createNoInitialCommitSetup(gitRoot))
 		}
 	}
 }

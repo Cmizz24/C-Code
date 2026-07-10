@@ -505,7 +505,7 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 				.get<boolean>("enableCompletionVerification", true)
 
 			if (enableCompletionVerification) {
-				const originalTask = task.metadata.task ?? ""
+				const originalTask = task.metadata?.task ?? ""
 				const verificationFailures = this.completionVerificationFailureCount.get(task.taskId) ?? 0
 
 				// Bypass verification after 3 consecutive failures (user keeps accepting).

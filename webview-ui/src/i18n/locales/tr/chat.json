@@ -28,7 +28,18 @@
 			"coldShort": "soğuk",
 			"swaps": "Takaslar",
 			"condensingAvoided": "Condensing önlendi",
-			"warning": "Uyarı"
+			"warning": "Uyarı",
+			"diagnostics": {
+				"evictionsValue": "Toplam {{total}} · {{hot}} sıcak / {{cold}} soğuk",
+				"contributors_one": "{{count}} katkı veren",
+				"contributors_other": "{{count}} katkı veren",
+				"contributorUsage": "{{ram}} · {{hot}} sıcak / {{cold}} soğuk",
+				"combinedBudget": "Birleşik bütçe",
+				"hotColdRam": "Sıcak / soğuk RAM",
+				"evictionsLabel": "Çıkarmalar",
+				"combinedStatus": "Birleşik: {{used}} / {{budget}}",
+				"evictionsStatus": "Çıkarmalar: {{value}}"
+			}
 		}
 	},
 	"unpin": "Sabitlemeyi iptal et",
@@ -376,6 +387,33 @@
 				"binaryFiles_one": "{{count}} binary dosya",
 				"binaryFiles_other": "{{count}} binary dosya"
 			}
+		},
+		"planPreview": {
+			"title": "Paralel ajan planını incele",
+			"setupTitle": "Paralel ajanlar için Git kurulumu gerekli",
+			"description": "C worktree'leri başlatmadan önce her ajanın atamasını incele.",
+			"setupDescription": "Git kurulum sorununu düzelt, sonra korunan planı yeniden oluşturmadan tekrar dene.",
+			"expand": "Planı genişlet",
+			"collapse": "Planı daralt",
+			"setupRequired": "Kurulum gerekli: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "Git repository değil",
+				"no-initial-commit": "initial commit yok",
+				"git-unavailable": "Git kullanılamıyor"
+			},
+			"pathPrivacyNote": "Tanılamaları güvenli tutmak için workspace ve Git yolları burada gizlenir.",
+			"sharedContext": "Paylaşılan bağlam",
+			"taskDescription": "Task açıklaması",
+			"ownedFiles": "Sahip olunan dosyalar",
+			"noOwnedFiles": "Sahip olunan dosya yok",
+			"removeOwnedFile": "{{path}} dosyasını sahip olunanlardan kaldır",
+			"dependencies": "Bağımlılıklar",
+			"noDependencies": "Bağımlılık yok",
+			"setupFooter": "Onayladığın plan korunur. Git'i düzelt, sonra tekrar dene.",
+			"footer": "Planı onaylamadan önce sahiplik sınırlarını incele.",
+			"cancel": "İptal",
+			"retry": "Korunan planı tekrar dene",
+			"approve": "Planı onayla"
 		}
 	},
 	"questions": {
