@@ -266,7 +266,7 @@ describe("presentAssistantMessage - plan_parallel_tasks", () => {
 		expect(task.parallelExecutionPaused).toBe(false)
 	})
 
-	it("returns setup guidance without marking parallel execution paused when Git setup is required", async () => {
+	it("returns setup guidance and pauses parent execution when Git setup is required", async () => {
 		const setupRequired: WorktreeSetupRequired = {
 			reason: "not_git_repo",
 			message: "Parallel worktrees require a Git repository before agents can start.",
@@ -289,7 +289,7 @@ describe("presentAssistantMessage - plan_parallel_tasks", () => {
 		await presentAssistantMessage(task)
 
 		expect(requestPlanApproval).toHaveBeenCalledTimes(1)
-		expect(task.parallelExecutionPaused).toBe(false)
+		expect(task.parallelExecutionPaused).toBe(true)
 		expect(task.pushToolResultToUserContent).toHaveBeenCalledTimes(1)
 		const toolResult = task.pushToolResultToUserContent.mock.calls[0][0] as { content: string }
 		expect(toolResult.content).toContain("cannot start parallel worktrees until Git setup is fixed")

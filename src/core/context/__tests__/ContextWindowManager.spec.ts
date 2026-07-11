@@ -199,17 +199,17 @@ describe("ContextWindowManager", () => {
 		})
 		expect(stats.contributors).toEqual([
 			expect.objectContaining({
-				id: expect.any(String),
-				label: "Background agent agent-1 (code)",
-				taskId: "task-1",
-				instanceId: "instance-1",
+				id: "context-cache-contributor-1",
+				label: "Background agent 1 (code)",
 				mode: "code",
-				agentId: "agent-1",
 				isBackground: true,
 				isActive: false,
 				evictions: { hot: 0, cold: 1, total: 1 },
 			}),
 		])
+		expect(JSON.stringify(stats.contributors)).not.toContain("task-1")
+		expect(JSON.stringify(stats.contributors)).not.toContain("instance-1")
+		expect(JSON.stringify(stats.contributors)).not.toContain("agent-1")
 		expect(manager.getContextCacheBudgetSnapshot()).toMatchObject({
 			taskId: "task-1",
 			instanceId: "instance-1",

@@ -103,7 +103,8 @@ export const ModelInfoView = ({
 	const primaryProvenanceSource = getPrimaryProvenanceSource(primaryProvenance)
 	const primaryProvenanceSourceLabel = getProvenanceSourceLabel(primaryProvenanceSource, t)
 	const capabilityProvenanceSummary = formatCapabilityProvenanceSummary(capabilityProvenanceEntries, t)
-	const shouldShowProvenance = Boolean(primaryProvenance || capabilityProvenanceSummary)
+	const shouldHideProvenance = apiProvider === "openai-codex"
+	const shouldShowProvenance = !shouldHideProvenance && Boolean(primaryProvenance || capabilityProvenanceSummary)
 
 	const baseInfoItems = [
 		typeof modelInfo?.contextWindow === "number" && modelInfo.contextWindow > 0 && (

@@ -1,5 +1,5 @@
 import type { NativeToolArgs } from "../../shared/tools"
-import { isGenericOwnershipCoordinationMessage } from "../agents/AgentBus"
+import { isGenericOwnershipCoordinationMessage, type AgentCoordinationWaitResult } from "../agents/AgentBus"
 import { formatResponse } from "../prompts/responses"
 import { Task } from "../task/Task"
 
@@ -89,6 +89,34 @@ function formatContractAcknowledgementResult(
 	]
 		.filter(Boolean)
 		.join("\n")
+}
+
+function formatCoordinationWaitResult(result: AgentCoordinationWaitResult): string[] {
+	if (result.status === "answered") {
+		return ["Coordination wait result: answered.", `Answer: ${formatCoordinationEvent(result.answer)}`]
+	}
+
+	if (result.status === "unanswerable") {
+		return [
+			"Coordination wait result: unanswerable.",
+			`Reason: ${result.reason}`,
+			`Question: ${formatCoordinationEvent(result.question)}`,
+		]
+	}
+
+	if (result.status === "timeout") {
+		return [
+			`Coordination wait result: timed out after ${result.timeoutMs}ms.`,
+			"Proceed with the safest local assumption or read team chat later; do not assume an answer arrived.",
+			`Question: ${formatCoordinationEvent(result.question)}`,
+		]
+	}
+
+	return [
+		"Coordination wait result: cancelled.",
+		`Reason: ${result.reason}`,
+		`Question: ${formatCoordinationEvent(result.question)}`,
+	]
 }
 
 export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
@@ -203,6 +231,24 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 			}
 
 			task.consecutiveMistakeCount = 0
+			const shouldWaitForAnswer =
+				params.kind === "question" && (params.waitForAnswer ?? Boolean(normalizedTargetAgentId))
+
+			if (shouldWaitForAnswer) {
+				const waitResult = await task.waitForAgentCoordinationAnswer(event, { timeoutMs: params.timeoutMs })
+				const openQuestions = task.getOpenAgentCoordinationQuestions({ limit: params.limit })
+				pushToolResult(
+					[
+						`Published team chat question ${event.id ?? event.ts}.`,
+						...formatCoordinationWaitResult(waitResult),
+						...formatOpenQuestions(openQuestions),
+					]
+						.filter(Boolean)
+						.join("\n"),
+				)
+				return
+			}
+
 			const recent = task.getAgentCoordinationEvents({ limit: params.limit })
 			const openQuestions = task.getOpenAgentCoordinationQuestions({ limit: params.limit })
 			pushToolResult(

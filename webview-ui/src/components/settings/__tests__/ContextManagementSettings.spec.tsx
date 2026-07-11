@@ -326,9 +326,8 @@ describe("ContextManagementSettings", () => {
 							evictions: { hot: 1, cold: 2, total: 3 },
 							contributors: [
 								{
-									id: "manager-foreground",
-									label: "Foreground task task-1 (code)",
-									taskId: "task-1",
+									id: "context-cache-contributor-1",
+									label: "Foreground task 1 (code)",
 									mode: "code",
 									isBackground: false,
 									isActive: true,
@@ -358,9 +357,8 @@ describe("ContextManagementSettings", () => {
 						},
 						contributors: [
 							{
-								id: "manager-foreground",
-								label: "Foreground task task-1 (code)",
-								taskId: "task-1",
+								id: "context-cache-contributor-1",
+								label: "Foreground task 1 (code)",
 								mode: "code",
 								isBackground: false,
 								isActive: true,
@@ -397,7 +395,7 @@ describe("ContextManagementSettings", () => {
 			expect(screen.getByTestId("context-cache-cross-window-usage")).toHaveTextContent("256MB / 512MB")
 			expect(screen.getByTestId("context-cache-cross-window-budget")).toHaveTextContent("2GB / 1.5GB")
 			expect(screen.getByTestId("context-cache-cross-window-cleanup")).toHaveTextContent("1 cleaned / 0 failed")
-			expect(screen.getByTestId("context-cache-contributors")).toHaveTextContent("Foreground task task-1 (code)")
+			expect(screen.getByTestId("context-cache-contributors")).toHaveTextContent("Foreground task 1 (code)")
 			expect(screen.getByTestId("context-cache-contributor-row")).toHaveTextContent("120MB · 3 hot / 4 cold")
 		})
 

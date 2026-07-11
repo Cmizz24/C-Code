@@ -192,22 +192,24 @@ function getSnapshotEvictions(snapshot: ContextCacheBudgetManagerSnapshot): Cont
 	return { hot, cold, total: hot + cold }
 }
 
-function getContributorLabel(snapshot: ContextCacheBudgetManagerSnapshot): string {
-	const agentId = normalizeDiagnosticText(snapshot.agentId)
-	const taskId = normalizeDiagnosticText(snapshot.taskId)
-	const instanceId = normalizeDiagnosticText(snapshot.instanceId)
+function getContributorRole(snapshot: ContextCacheBudgetManagerSnapshot): string {
+	if (snapshot.isBackground) {
+		return snapshot.agentId ? "Background agent" : "Background task"
+	}
+
+	return snapshot.isActive ? "Foreground task" : "Task"
+}
+
+function getContributorSortLabel(snapshot: ContextCacheBudgetManagerSnapshot): string {
+	const mode = normalizeDiagnosticText(snapshot.mode) ?? ""
+	return `${getContributorRole(snapshot)}:${mode}`
+}
+
+function getContributorLabel(snapshot: ContextCacheBudgetManagerSnapshot, displayIndex: number): string {
 	const mode = normalizeDiagnosticText(snapshot.mode)
-	const identifier = agentId ?? taskId ?? instanceId ?? normalizeDiagnosticText(snapshot.managerId) ?? "unknown"
-	const role = snapshot.isBackground
-		? agentId
-			? "Background agent"
-			: "Background task"
-		: snapshot.isActive
-			? "Foreground task"
-			: "Task"
 	const suffix = mode ? ` (${mode})` : ""
 
-	return `${role} ${identifier}${suffix}`
+	return `${getContributorRole(snapshot)} ${displayIndex + 1}${suffix}`
 }
 
 function compareContributorSnapshots(
@@ -227,18 +229,20 @@ function compareContributorSnapshots(
 		return left.isBackground ? 1 : -1
 	}
 
-	const labelDiff = getContributorLabel(left).localeCompare(getContributorLabel(right))
+	const labelDiff = getContributorSortLabel(left).localeCompare(getContributorSortLabel(right))
 	return labelDiff !== 0 ? labelDiff : left.managerId.localeCompare(right.managerId)
 }
 
-function toContributorStats(snapshot: ContextCacheBudgetManagerSnapshot): ContextCacheContributorStats {
+function toContributorStats(
+	snapshot: ContextCacheBudgetManagerSnapshot,
+	displayIndex: number,
+): ContextCacheContributorStats {
+	const mode = normalizeDiagnosticText(snapshot.mode)
+
 	return {
-		id: snapshot.managerId,
-		label: getContributorLabel(snapshot),
-		taskId: normalizeDiagnosticText(snapshot.taskId),
-		instanceId: normalizeDiagnosticText(snapshot.instanceId),
-		mode: normalizeDiagnosticText(snapshot.mode),
-		agentId: normalizeDiagnosticText(snapshot.agentId),
+		id: `context-cache-contributor-${displayIndex + 1}`,
+		label: getContributorLabel(snapshot, displayIndex),
+		...(mode ? { mode } : {}),
 		isBackground: snapshot.isBackground,
 		isActive: snapshot.isActive,
 		hotCacheChunks: snapshot.hotChunks,

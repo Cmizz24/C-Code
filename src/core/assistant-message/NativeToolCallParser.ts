@@ -15,6 +15,8 @@ import {
 	AGENT_COORDINATION_PATH_MAX_LENGTH,
 	AGENT_COORDINATION_READ_LIMIT_MAX,
 	AGENT_COORDINATION_RELATED_FILES_LIMIT,
+	AGENT_COORDINATION_WAIT_TIMEOUT_MS_MAX,
+	AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
 } from "../agents/AgentBus"
 import { resolveToolAlias } from "../prompts/tools/filter-tools-for-mode"
 import type {
@@ -642,6 +644,8 @@ export class NativeToolCallParser {
 		"relatedFiles",
 		"replyToId",
 		"limit",
+		"waitForAnswer",
+		"timeoutMs",
 	])
 
 	private static buildCoordinateAgentsNativeArgs(
@@ -663,6 +667,8 @@ export class NativeToolCallParser {
 		}
 
 		const limit = this.normalizeCoordinateAgentsLimit(args.limit)
+		const waitForAnswer = this.normalizeCoordinateAgentsWaitForAnswer(args.waitForAnswer)
+		const timeoutMs = this.normalizeCoordinateAgentsTimeoutMs(args.timeoutMs)
 
 		if (action === "read" || action === "acknowledge_contract") {
 			this.normalizeCoordinateAgentsKind(args.kind)
@@ -670,6 +676,8 @@ export class NativeToolCallParser {
 			this.normalizeCoordinateAgentsTargetAgentId(args.targetAgentId)
 			this.normalizeCoordinateAgentsReplyToId(args.replyToId)
 			this.normalizeCoordinateAgentsRelatedFiles(args.relatedFiles)
+			this.normalizeCoordinateAgentsWaitForAnswer(args.waitForAnswer)
+			this.normalizeCoordinateAgentsTimeoutMs(args.timeoutMs)
 
 			const nativeArgs: NativeToolArgs["coordinate_agents"] = { action }
 			if (limit !== undefined) {
@@ -703,6 +711,12 @@ export class NativeToolCallParser {
 		}
 		if (limit !== undefined) {
 			nativeArgs.limit = limit
+		}
+		if (waitForAnswer !== undefined) {
+			nativeArgs.waitForAnswer = waitForAnswer
+		}
+		if (timeoutMs !== undefined) {
+			nativeArgs.timeoutMs = timeoutMs
 		}
 
 		return nativeArgs
@@ -876,6 +890,43 @@ export class NativeToolCallParser {
 
 		if (numericValue < 1 || numericValue > AGENT_COORDINATION_READ_LIMIT_MAX) {
 			throw new Error(`coordinate_agents limit must be between 1 and ${AGENT_COORDINATION_READ_LIMIT_MAX}.`)
+		}
+
+		return numericValue
+	}
+
+	private static normalizeCoordinateAgentsWaitForAnswer(value: unknown): boolean | undefined {
+		if (value === undefined) {
+			return undefined
+		}
+
+		const booleanValue = this.coerceOptionalBoolean(value)
+		if (booleanValue === undefined) {
+			throw new Error("coordinate_agents waitForAnswer must be a boolean when provided.")
+		}
+
+		return booleanValue
+	}
+
+	private static normalizeCoordinateAgentsTimeoutMs(value: unknown): number | undefined {
+		if (value === undefined) {
+			return undefined
+		}
+
+		const numericValue =
+			typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN
+
+		if (!Number.isInteger(numericValue)) {
+			throw new Error("coordinate_agents timeoutMs must be an integer when provided.")
+		}
+
+		if (
+			numericValue < AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN ||
+			numericValue > AGENT_COORDINATION_WAIT_TIMEOUT_MS_MAX
+		) {
+			throw new Error(
+				`coordinate_agents timeoutMs must be between ${AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN} and ${AGENT_COORDINATION_WAIT_TIMEOUT_MS_MAX}.`,
+			)
 		}
 
 		return numericValue

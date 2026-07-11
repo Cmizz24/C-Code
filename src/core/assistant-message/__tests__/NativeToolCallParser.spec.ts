@@ -469,6 +469,8 @@ describe("NativeToolCallParser", () => {
 						relatedFiles: [],
 						replyToId: "",
 						limit: 8,
+						waitForAnswer: false,
+						timeoutMs: 1_500,
 					},
 					{
 						action: "read",
@@ -478,6 +480,8 @@ describe("NativeToolCallParser", () => {
 						relatedFiles: ["index.html"],
 						replyToId: "",
 						limit: 8,
+						waitForAnswer: "true",
+						timeoutMs: "2000",
 					},
 				]
 
@@ -530,6 +534,8 @@ describe("NativeToolCallParser", () => {
 						relatedFiles: ["styles.css"],
 						replyToId: "",
 						limit: 8,
+						waitForAnswer: "true",
+						timeoutMs: "1500",
 					}),
 				})
 
@@ -542,6 +548,8 @@ describe("NativeToolCallParser", () => {
 						message: "Use styles.css for shared layout classes.",
 						relatedFiles: ["styles.css"],
 						limit: 8,
+						waitForAnswer: true,
+						timeoutMs: 1_500,
 					})
 				}
 			})
@@ -564,9 +572,21 @@ describe("NativeToolCallParser", () => {
 					name: "coordinate_agents" as const,
 					arguments: JSON.stringify({ action: "subscribe", limit: 8 }),
 				})
+				const invalidWaitForAnswer = NativeToolCallParser.parseToolCall({
+					id: "toolu_coordinate_invalid_wait_for_answer",
+					name: "coordinate_agents" as const,
+					arguments: JSON.stringify({ action: "publish", kind: "question", waitForAnswer: "later" }),
+				})
+				const invalidTimeout = NativeToolCallParser.parseToolCall({
+					id: "toolu_coordinate_invalid_timeout",
+					name: "coordinate_agents" as const,
+					arguments: JSON.stringify({ action: "publish", kind: "question", timeoutMs: 999 }),
+				})
 				expect(invalidKind).toBeNull()
 				expect(invalidLimit).toBeNull()
 				expect(invalidAction).toBeNull()
+				expect(invalidWaitForAnswer).toBeNull()
+				expect(invalidTimeout).toBeNull()
 				expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("coordinate_agents kind must be one of"))
 				expect(errorSpy).toHaveBeenCalledWith(
 					expect.stringContaining("coordinate_agents limit must be between"),
@@ -575,6 +595,12 @@ describe("NativeToolCallParser", () => {
 					expect.stringContaining(
 						"coordinate_agents action must be 'publish', 'read', or 'acknowledge_contract'",
 					),
+				)
+				expect(errorSpy).toHaveBeenCalledWith(
+					expect.stringContaining("coordinate_agents waitForAnswer must be a boolean"),
+				)
+				expect(errorSpy).toHaveBeenCalledWith(
+					expect.stringContaining("coordinate_agents timeoutMs must be between 1000 and 120000"),
 				)
 
 				errorSpy.mockRestore()

@@ -204,22 +204,17 @@ describe("ContextCacheBudgetCoordinator", () => {
 		expect(diagnostics.evictions).toEqual({ hot: 1, cold: 5, total: 6 })
 		expect(diagnostics.contributors).toEqual([
 			expect.objectContaining({
-				id: "manager-background",
-				label: "Background agent agent-a (ask)",
-				taskId: "task-background",
-				instanceId: "instance-background",
+				id: "context-cache-contributor-1",
+				label: "Background agent 1 (ask)",
 				mode: "ask",
-				agentId: "agent-a",
 				isBackground: true,
 				isActive: false,
 				coldCacheChunks: 1,
 				evictions: { hot: 0, cold: 3, total: 3 },
 			}),
 			expect.objectContaining({
-				id: "manager-foreground",
-				label: "Foreground task task-foreground with hidden prompt text (code)",
-				taskId: "task-foreground with hidden prompt text",
-				instanceId: "instance-foreground",
+				id: "context-cache-contributor-2",
+				label: "Foreground task 2 (code)",
 				mode: "code",
 				isBackground: false,
 				isActive: true,
@@ -227,6 +222,17 @@ describe("ContextCacheBudgetCoordinator", () => {
 				evictions: { hot: 1, cold: 2, total: 3 },
 			}),
 		])
+		expect(diagnostics.contributors[0]).not.toHaveProperty("taskId")
+		expect(diagnostics.contributors[0]).not.toHaveProperty("instanceId")
+		expect(diagnostics.contributors[0]).not.toHaveProperty("agentId")
+		expect(JSON.stringify(diagnostics.contributors)).not.toContain("manager-background")
+		expect(JSON.stringify(diagnostics.contributors)).not.toContain("manager-foreground")
+		expect(JSON.stringify(diagnostics.contributors)).not.toContain("task-background")
+		expect(JSON.stringify(diagnostics.contributors)).not.toContain("task-foreground")
+		expect(JSON.stringify(diagnostics.contributors)).not.toContain("instance-background")
+		expect(JSON.stringify(diagnostics.contributors)).not.toContain("instance-foreground")
+		expect(JSON.stringify(diagnostics.contributors)).not.toContain("agent-a")
+		expect(JSON.stringify(diagnostics.contributors)).not.toContain("hidden prompt text")
 		expect(JSON.stringify(diagnostics.contributors)).not.toContain("foreground-hot")
 		expect(JSON.stringify(diagnostics.contributors)).not.toContain("background-cold")
 	})
@@ -263,13 +269,23 @@ describe("ContextCacheBudgetCoordinator", () => {
 
 		expect(first.coldChunks.has("newer")).toBe(true)
 		expect(second.coldChunks.has("older")).toBe(false)
-		expect(
-			coordinator.getDiagnostics().contributors.find((contributor) => contributor.id === "second")?.evictions,
-		).toEqual({
-			hot: 0,
-			cold: 1,
-			total: 1,
-		})
+
+		const contributors = coordinator.getDiagnostics().contributors
+
+		expect(contributors).toEqual([
+			expect.objectContaining({
+				id: "context-cache-contributor-1",
+				coldCacheChunks: 1,
+				evictions: { hot: 0, cold: 0, total: 0 },
+			}),
+			expect.objectContaining({
+				id: "context-cache-contributor-2",
+				coldCacheChunks: 0,
+				evictions: { hot: 0, cold: 1, total: 1 },
+			}),
+		])
+		expect(JSON.stringify(contributors)).not.toContain("first")
+		expect(JSON.stringify(contributors)).not.toContain("second")
 	})
 
 	it("prefers background-agent chunks over the active foreground task when candidates are otherwise equivalent", () => {

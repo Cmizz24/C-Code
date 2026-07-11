@@ -6691,6 +6691,23 @@ export class ClineProvider
 		return { ok: false, error: setupRequired.message, setupRequired }
 	}
 
+	private getParallelPlanSetupCancelledResumeMessage(
+		plan: ExecutionPlan,
+		setupRequired: WorktreeSetupRequired,
+	): string {
+		return [
+			"[PARALLEL PLAN CANCELED]",
+			`The preserved parallel execution plan ${plan.planId} with ${plan.agents.length} agents was canceled before Git/worktree setup was fixed.`,
+			`Reason: ${setupRequired.reason}`,
+			`Setup message: ${setupRequired.message}`,
+			setupRequired.guidance ? `Setup guidance: ${setupRequired.guidance}` : undefined,
+			"Do not retry this preserved plan, do not recreate it automatically, and do not call new_task for its agents.",
+			"Continue the parent task normally. If parallel agents are still needed, create a fresh plan from the current workspace state.",
+		]
+			.filter((line): line is string => Boolean(line))
+			.join("\n")
+	}
+
 	private async createParallelAgentStartCheckpoint(plan: ExecutionPlan): Promise<PlanStartResult> {
 		const visibleTask = this.getCurrentTask()
 
@@ -7499,6 +7516,14 @@ export class ClineProvider
 	}
 
 	public async cancelExecutionPlan(): Promise<void> {
+		const setupPlan = this.pendingExecutionPlan
+		const setupRequired = this.pendingWorktreeSetupRequired
+		const currentTask = this.getCurrentTask()
+		const setupCancelResumeMessage =
+			setupPlan && setupRequired && currentTask && !currentTask.background && currentTask.parallelExecutionPaused
+				? this.getParallelPlanSetupCancelledResumeMessage(setupPlan, setupRequired)
+				: undefined
+
 		await this.teardownParallelExecution({ markCancelled: true, resetBus: true, cleanupWorktrees: true })
 		const resolve = this.pendingPlanApproval
 		this.pendingPlanApproval = undefined
@@ -7506,6 +7531,9 @@ export class ClineProvider
 		this.pendingWorktreeSetupRequired = undefined
 		resolve?.({ approved: false })
 		this.postMessageToWebview({ type: "showPlanPreview" }).catch(() => {})
+		if (setupCancelResumeMessage && currentTask) {
+			await currentTask.resumeAfterParallelExecution(setupCancelResumeMessage)
+		}
 		this.postStateToWebviewWithoutClineMessages().catch(() => {})
 	}
 

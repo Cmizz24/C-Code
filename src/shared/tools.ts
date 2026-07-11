@@ -131,6 +131,8 @@ export const toolParamNames = [
 	"search", // read_command_output parameter for grep-like search
 	"offset", // read_command_output and read_file parameter
 	"limit", // read_command_output and read_file parameter
+	"waitForAnswer", // coordinate_agents parameter
+	"timeoutMs", // coordinate_agents parameter
 	// read_file indentation mode parameters
 	"indentation",
 	"anchor_line",
@@ -198,6 +200,8 @@ export type NativeToolArgs = {
 		relatedFiles?: string[]
 		replyToId?: string
 		limit?: number
+		waitForAnswer?: boolean
+		timeoutMs?: number
 	}
 	ask_followup_question: {
 		question: string

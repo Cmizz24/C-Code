@@ -214,9 +214,8 @@ describe("TaskHeader", () => {
 				evictions: { hot: 1, cold: 2, total: 3 },
 				contributors: [
 					{
-						id: "manager-foreground",
-						label: "Foreground task task-1 (code)",
-						taskId: "task-1",
+						id: "context-cache-contributor-1",
+						label: "Foreground task 1 (code)",
 						mode: "code",
 						isBackground: false,
 						isActive: true,
@@ -245,11 +244,15 @@ describe("TaskHeader", () => {
 		expect(screen.getByTestId("context-cache-combined-status")).toHaveTextContent(
 			"Combined: 512MB / 2GB · 2 contributors",
 		)
+		expect(screen.getByTestId("context-cache-cold-status")).toHaveTextContent(
+			"chat:task.contextCache.coldCache: 9 / 384MB",
+		)
+		expect(screen.getByTestId("context-cache-cold-status")).not.toHaveTextContent("512MB")
 		expect(screen.getByTestId("context-cache-eviction-status")).toHaveTextContent(
 			"Evictions: 3 total · 1 hot / 2 cold",
 		)
 		expect(screen.getByTestId("context-cache-contributor-status")).toHaveTextContent(
-			"Foreground task task-1 (code): 256MB · 3 hot / 4 cold",
+			"Foreground task 1 (code): 256MB · 3 hot / 4 cold",
 		)
 	})
 

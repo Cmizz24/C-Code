@@ -48,11 +48,11 @@ const t = (key: string, options?: Record<string, unknown>) => {
 	}
 }
 
-const renderModelInfoView = (modelInfo: ModelInfo) =>
+const renderModelInfoView = (modelInfo: ModelInfo, apiProvider = "requesty") =>
 	render(
 		<TranslationContext.Provider value={{ t, i18n: {} as any }}>
 			<ModelInfoView
-				apiProvider="requesty"
+				apiProvider={apiProvider}
 				selectedModelId="router-2"
 				modelInfo={modelInfo}
 				isDescriptionExpanded={false}
@@ -102,5 +102,39 @@ describe("ModelInfoView", () => {
 			"href",
 			"https://provider.example/models",
 		)
+	})
+
+	it("hides provenance metadata for the OpenAI Codex ChatGPT Plus/Pro provider", () => {
+		renderModelInfoView(
+			{
+				contextWindow: 200_000,
+				maxTokens: 8192,
+				supportsPromptCache: false,
+				inputPrice: 3,
+				outputPrice: 15,
+				provenance: {
+					sources: [
+						{
+							type: "official-docs",
+							label: "Provider model docs",
+							url: "https://provider.example/models",
+							endpoint: "/v1/models",
+						},
+					],
+					reviewStatus: "reviewed",
+					lastReviewed: "2026-07-01",
+				},
+				capabilityProvenance: {
+					contextWindow: { sources: [{ type: "official-api" }], reviewStatus: "reviewed" },
+					pricing: { sources: [{ type: "curated" }], reviewStatus: "unreviewed" },
+				},
+			},
+			"openai-codex",
+		)
+
+		expect(screen.queryByTestId("model-info-provenance")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("model-info-capability-provenance")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("model-info-provenance-source")).not.toBeInTheDocument()
+		expect(screen.queryByText("Model metadata source")).not.toBeInTheDocument()
 	})
 })

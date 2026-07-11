@@ -4,6 +4,7 @@ import {
 	AGENT_COORDINATION_COMPLETION_RETRY_LIMIT,
 	AGENT_COORDINATION_EVENT_LIMIT,
 	AGENT_COORDINATION_MESSAGE_MAX_LENGTH,
+	AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
 	AgentBus,
 } from "../AgentBus"
 
@@ -633,7 +634,7 @@ describe("AgentBus", () => {
 		expect(bus.hasAgentReadCoordination("agent-a")).toBe(true)
 	})
 
-	it("allows complete agents to answer targeted questions from unfinished agents", () => {
+	it("treats targeted questions to complete agents as unanswerable", () => {
 		bus.markRunning("agent-b")
 		bus.markComplete("agent-a", "A done")
 
@@ -644,7 +645,16 @@ describe("AgentBus", () => {
 			relatedFiles: ["src/a.ts"],
 		})
 		expect(question).toBeDefined()
-		expect(bus.getAgentCompletionCoordinationGate("agent-b", { recordAttempt: true }).approved).toBe(false)
+		expect(bus.getAgentCompletionCoordinationGate("agent-b", { recordAttempt: true }).approved).toBe(true)
+		expect(bus.getCoordinationEvents("agent-b", { includeSelf: true, limit: 20 })).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: question?.id,
+					answerState: "unanswerable",
+					unanswerableReason: "Target agent-a is already complete.",
+				}),
+			]),
+		)
 
 		const answer = bus.publishCoordination("agent-a", {
 			kind: "answer",
@@ -653,21 +663,150 @@ describe("AgentBus", () => {
 			replyToId: question?.id,
 		})
 
-		expect(answer).toEqual(
-			expect.objectContaining({
-				agentId: "agent-a",
+		expect(answer).toBeUndefined()
+	})
+
+	it("waits for targeted coordination answers and resolves promptly when answered", async () => {
+		bus.markRunning("agent-a")
+		bus.markRunning("agent-b")
+		const question = bus.publishCoordination("agent-a", {
+			kind: "question",
+			message: "Which selector should src/a.ts use from src/b.ts?",
+			targetAgentId: "agent-b",
+			relatedFiles: ["src/b.ts"],
+		})
+		expect(question).toBeDefined()
+		if (!question) {
+			throw new Error("Expected coordination question to be created.")
+		}
+
+		const waitPromise = bus.waitForCoordinationAnswer("agent-a", question, {
+			timeoutMs: AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
+		})
+		const answer = bus.publishCoordination("agent-b", {
+			kind: "answer",
+			message: "Use data-testid=save-button.",
+			targetAgentId: "agent-a",
+			replyToId: question.id,
+		})
+
+		await expect(waitPromise).resolves.toEqual({
+			status: "answered",
+			question: expect.objectContaining({ id: question.id, answerState: "answered", answerEventId: answer?.id }),
+			answer: expect.objectContaining({ id: answer?.id, message: "Use data-testid=save-button." }),
+		})
+	})
+
+	it("returns immediately when a coordination question is already answered", async () => {
+		bus.markRunning("agent-a")
+		bus.markRunning("agent-b")
+		const question = bus.publishCoordination("agent-a", {
+			kind: "question",
+			message: "Which selector should src/a.ts use from src/b.ts?",
+			targetAgentId: "agent-b",
+			relatedFiles: ["src/b.ts"],
+		})
+		expect(question).toBeDefined()
+		if (!question) {
+			throw new Error("Expected coordination question to be created.")
+		}
+		const answer = bus.publishCoordination("agent-b", {
+			kind: "answer",
+			message: "Use data-testid=save-button.",
+			targetAgentId: "agent-a",
+			replyToId: question.id,
+		})
+
+		await expect(bus.waitForCoordinationAnswer("agent-a", question)).resolves.toEqual({
+			status: "answered",
+			question: expect.objectContaining({ id: question.id, answerState: "answered", answerEventId: answer?.id }),
+			answer: expect.objectContaining({ id: answer?.id }),
+		})
+	})
+
+	it("returns unanswerable when a coordination question target becomes terminal", async () => {
+		bus.markRunning("agent-a")
+		bus.markRunning("agent-b")
+		const question = bus.publishCoordination("agent-a", {
+			kind: "question",
+			message: "Which selector should src/a.ts use from src/b.ts?",
+			targetAgentId: "agent-b",
+			relatedFiles: ["src/b.ts"],
+		})
+		expect(question).toBeDefined()
+		if (!question) {
+			throw new Error("Expected coordination question to be created.")
+		}
+
+		const waitPromise = bus.waitForCoordinationAnswer("agent-a", question, {
+			timeoutMs: AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
+		})
+		bus.markFailed("agent-b", "Agent failed")
+
+		await expect(waitPromise).resolves.toEqual({
+			status: "unanswerable",
+			question: expect.objectContaining({ id: question.id, answerState: "unanswerable" }),
+			reason: "Target agent-b is already failed.",
+		})
+	})
+
+	it("times out bounded coordination answer waits", async () => {
+		vi.useFakeTimers()
+		try {
+			bus.markRunning("agent-a")
+			bus.markRunning("agent-b")
+			const question = bus.publishCoordination("agent-a", {
+				kind: "question",
+				message: "Which selector should src/a.ts use from src/b.ts?",
 				targetAgentId: "agent-b",
-				kind: "answer",
-				replyToId: question?.id,
-				message: "Import useDashboardState from src/a.ts.",
-			}),
-		)
-		expect(bus.getCoordinationEvents("agent-b", { includeSelf: true, limit: 20 })).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ id: question?.id, answerState: "answered", answerEventId: answer?.id }),
-				expect.objectContaining({ id: answer?.id, message: "Import useDashboardState from src/a.ts." }),
-			]),
-		)
+				relatedFiles: ["src/b.ts"],
+			})
+			expect(question).toBeDefined()
+			if (!question) {
+				throw new Error("Expected coordination question to be created.")
+			}
+
+			const waitPromise = bus.waitForCoordinationAnswer("agent-a", question, {
+				timeoutMs: AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
+			})
+			await vi.advanceTimersByTimeAsync(AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN)
+
+			await expect(waitPromise).resolves.toEqual({
+				status: "timeout",
+				question: expect.objectContaining({ id: question.id, answerState: "open" }),
+				timeoutMs: AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
+			})
+		} finally {
+			vi.useRealTimers()
+		}
+	})
+
+	it("cancels bounded coordination answer waits", async () => {
+		bus.markRunning("agent-a")
+		bus.markRunning("agent-b")
+		const question = bus.publishCoordination("agent-a", {
+			kind: "question",
+			message: "Which selector should src/a.ts use from src/b.ts?",
+			targetAgentId: "agent-b",
+			relatedFiles: ["src/b.ts"],
+		})
+		expect(question).toBeDefined()
+		if (!question) {
+			throw new Error("Expected coordination question to be created.")
+		}
+
+		const controller = new AbortController()
+		const waitPromise = bus.waitForCoordinationAnswer("agent-a", question, {
+			timeoutMs: AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
+			signal: controller.signal,
+		})
+		controller.abort("Task disposed.")
+
+		await expect(waitPromise).resolves.toEqual({
+			status: "cancelled",
+			question: expect.objectContaining({ id: question.id, answerState: "open" }),
+			reason: "Task disposed.",
+		})
 	})
 
 	it("suppresses failed-agent coordination publishes without changing existing chat", () => {

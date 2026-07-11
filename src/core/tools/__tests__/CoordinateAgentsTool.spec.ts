@@ -19,6 +19,20 @@ describe("CoordinateAgentsTool", () => {
 					relatedFiles: ["src/a.ts"],
 					ts: 1,
 				})),
+				waitForAgentCoordinationAnswer: vi.fn(async (question) => ({
+					status: "answered" as const,
+					question,
+					answer: {
+						id: "coord-answer",
+						agentId: "agent-b",
+						kind: "answer" as const,
+						source: "agent" as const,
+						message: "Use data-testid=save-button.",
+						targetAgentId: "agent-a",
+						replyToId: "coord-1",
+						ts: 2,
+					},
+				})),
 				getAgentCoordinationEvents: vi.fn(() => [
 					{
 						id: "coord-2",
@@ -61,7 +75,7 @@ describe("CoordinateAgentsTool", () => {
 		}
 	}
 
-	it("publishes a coordination message and returns recent relevant messages", async () => {
+	it("publishes targeted questions and waits for an answer by default", async () => {
 		const tool = new CoordinateAgentsTool()
 		const { task, callbacks } = createCallbacks()
 
@@ -89,19 +103,135 @@ describe("CoordinateAgentsTool", () => {
 			relatedFiles: ["src/a.ts"],
 			replyToId: undefined,
 		})
-		expect(task.getAgentCoordinationEvents).toHaveBeenCalledWith({ limit: undefined })
+		expect(task.waitForAgentCoordinationAnswer).toHaveBeenCalledWith(expect.objectContaining({ id: "coord-1" }), {
+			timeoutMs: undefined,
+		})
+		expect(task.getAgentCoordinationEvents).not.toHaveBeenCalled()
 		expect(task.getOpenAgentCoordinationQuestions).toHaveBeenCalledWith({ limit: undefined })
 		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
-			expect.stringContaining("Published team chat message coord-1."),
+			expect.stringContaining("Published team chat question coord-1."),
 		)
 		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
-			expect.stringContaining("answer agent-b to agent-a [coord-2]: Use data-testid=save-button. (src/b.ts)"),
+			expect.stringContaining("Coordination wait result: answered."),
+		)
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
+			expect.stringContaining("answer agent-b to agent-a [coord-answer] replyTo coord-1"),
 		)
 		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
 			expect.stringContaining("Reply with kind='answer' and replyToId='coord-open'"),
 		)
+		expect(callbacks.pushToolResult).not.toHaveBeenCalledWith(expect.stringContaining("Recent team chat:"))
 		expect(callbacks.pushToolResult).not.toHaveBeenCalledWith(expect.stringContaining("answer -> agent-a"))
 		expect(task.consecutiveMistakeCount).toBe(0)
+	})
+
+	it.each([
+		{
+			name: "timeout",
+			waitResult: {
+				status: "timeout" as const,
+				question: {
+					id: "coord-1",
+					agentId: "agent-a",
+					kind: "question" as const,
+					source: "agent" as const,
+					message: "Which selector should src/a.ts use?",
+					targetAgentId: "agent-b",
+					ts: 1,
+				},
+				timeoutMs: 1_500,
+			},
+			expected: "Coordination wait result: timed out after 1500ms.",
+		},
+		{
+			name: "unanswerable",
+			waitResult: {
+				status: "unanswerable" as const,
+				question: {
+					id: "coord-1",
+					agentId: "agent-a",
+					kind: "question" as const,
+					source: "agent" as const,
+					message: "Which selector should src/a.ts use?",
+					targetAgentId: "agent-b",
+					ts: 1,
+				},
+				reason: "Target agent-b is already complete.",
+			},
+			expected: "Coordination wait result: unanswerable.",
+		},
+		{
+			name: "cancelled",
+			waitResult: {
+				status: "cancelled" as const,
+				question: {
+					id: "coord-1",
+					agentId: "agent-a",
+					kind: "question" as const,
+					source: "agent" as const,
+					message: "Which selector should src/a.ts use?",
+					targetAgentId: "agent-b",
+					ts: 1,
+				},
+				reason: "Task cancelled.",
+			},
+			expected: "Coordination wait result: cancelled.",
+		},
+	])("reports $name wait results without dumping recent team chat", async ({ waitResult, expected }) => {
+		const tool = new CoordinateAgentsTool()
+		const { task, callbacks } = createCallbacks()
+		;(task.waitForAgentCoordinationAnswer as any).mockResolvedValue(waitResult)
+
+		await tool.handle(
+			task as any,
+			{
+				type: "tool_use",
+				name: "coordinate_agents",
+				params: {},
+				nativeArgs: {
+					action: "publish",
+					kind: "question",
+					message: "Which selector should src/a.ts use?",
+					targetAgentId: "agent-b",
+					timeoutMs: 1_500,
+				},
+			} as ToolUse<"coordinate_agents">,
+			callbacks as any,
+		)
+
+		expect(task.waitForAgentCoordinationAnswer).toHaveBeenCalledWith(expect.objectContaining({ id: "coord-1" }), {
+			timeoutMs: 1_500,
+		})
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining(expected))
+		expect(callbacks.pushToolResult).not.toHaveBeenCalledWith(expect.stringContaining("Recent team chat:"))
+	})
+
+	it("does not wait when targeted questions explicitly opt out", async () => {
+		const tool = new CoordinateAgentsTool()
+		const { task, callbacks } = createCallbacks()
+
+		await tool.handle(
+			task as any,
+			{
+				type: "tool_use",
+				name: "coordinate_agents",
+				params: {},
+				nativeArgs: {
+					action: "publish",
+					kind: "question",
+					message: "Do you need a class in src/a.ts for the save button?",
+					targetAgentId: "agent-b",
+					waitForAnswer: false,
+				},
+			} as ToolUse<"coordinate_agents">,
+			callbacks as any,
+		)
+
+		expect(task.waitForAgentCoordinationAnswer).not.toHaveBeenCalled()
+		expect(task.getAgentCoordinationEvents).toHaveBeenCalledWith({ limit: undefined })
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(
+			expect.stringContaining("Published team chat message coord-1."),
+		)
 	})
 
 	it.each(["decision", "note", "blocker"] as const)(
@@ -147,6 +277,7 @@ describe("CoordinateAgentsTool", () => {
 			expect(callbacks.pushToolResult).toHaveBeenCalledWith(
 				expect.stringContaining(`Published team chat message coord-${kind}.`),
 			)
+			expect(task.waitForAgentCoordinationAnswer).not.toHaveBeenCalled()
 			expect(task.recordToolError).not.toHaveBeenCalled()
 			expect(task.consecutiveMistakeCount).toBe(0)
 		},
@@ -376,6 +507,7 @@ describe("CoordinateAgentsTool", () => {
 			relatedFiles: ["styles.css"],
 			replyToId: undefined,
 		})
+		expect(task.waitForAgentCoordinationAnswer).not.toHaveBeenCalled()
 		expect(task.getAgentCoordinationEvents).toHaveBeenCalledWith({ limit: 8 })
 	})
 

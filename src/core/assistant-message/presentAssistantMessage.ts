@@ -1023,6 +1023,7 @@ export async function presentAssistantMessage(cline: Task) {
 								)
 							} else if (approvalResult.startResult.ok === false) {
 								if (approvalResult.startResult.setupRequired) {
+									cline.parallelExecutionPaused = true
 									pushToolResult(
 										formatParallelPlanSetupRequiredResult({
 											planId: approvalResult.plan.planId,

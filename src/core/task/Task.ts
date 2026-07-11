@@ -164,9 +164,11 @@ import {
 } from "../memory"
 import {
 	AgentBus,
+	type AgentCoordinationWaitResult,
 	type AgentCompletionCoordinationGate,
 	type GetAgentCoordinationOptions,
 	type PublishAgentCoordinationInput,
+	type WaitForAgentCoordinationAnswerOptions,
 } from "../agents/AgentBus"
 import { isBackgroundAgentToolRestrictedTask, withBackgroundAgentDisabledTools } from "../agents/backgroundAgentTools"
 
@@ -174,6 +176,7 @@ const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
 const DEFAULT_USAGE_COLLECTION_TIMEOUT_MS = 5000 // 5 seconds
 const FORCED_CONTEXT_REDUCTION_PERCENT = 75 // Keep 75% of context (remove 25%) on context window errors
 const MAX_CONTEXT_WINDOW_RETRIES = 3 // Maximum retries for context window errors
+const MAX_API_REQUEST_AUTO_RETRIES = 3 // Maximum automatic retries for first-chunk, mid-stream, and empty-response failures
 const CONDENSE_FAILURE_COOLDOWN_MS = 5 * 60 * 1000 // 5 minutes
 
 export interface TaskOptions extends CreateTaskOptions {
@@ -208,6 +211,13 @@ interface RecentCondenseFailure {
 	failedAt: number
 	signature: string
 	message: string
+}
+
+class AutoRetryLimitError extends Error {
+	constructor(message: string) {
+		super(message)
+		this.name = "AutoRetryLimitError"
+	}
 }
 
 export class Task extends EventEmitter<TaskEvents> implements TaskLike {
@@ -332,6 +342,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private lastMemoryRecallSignature?: string
 	abort: boolean = false
 	currentRequestAbortController?: AbortController
+	private readonly agentCoordinationWaitAbortControllers = new Set<AbortController>()
 	skipPrevResponseIdOnce: boolean = false
 
 	// TaskStatus
@@ -2767,6 +2778,15 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 	}
 
+	private abortAgentCoordinationWaits(reason = "Task cancelled."): void {
+		for (const waitAbortController of this.agentCoordinationWaitAbortControllers) {
+			if (!waitAbortController.signal.aborted) {
+				waitAbortController.abort(reason)
+			}
+		}
+		this.agentCoordinationWaitAbortControllers.clear()
+	}
+
 	/**
 	 * Force emit a final token usage update, ignoring throttle.
 	 * Called before task completion or abort to ensure final stats are captured.
@@ -2787,6 +2807,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		this.abort = true
+		this.abortAgentCoordinationWaits("Task cancelled.")
 
 		// Reset consecutive error counters on abort (manual intervention)
 		this.consecutiveNoToolUseCount = 0
@@ -2850,6 +2871,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			this.cancelCurrentRequest()
 		} catch (error) {
 			console.error("Error cancelling current request:", error)
+		}
+
+		try {
+			this.abortAgentCoordinationWaits("Task disposed.")
+		} catch (error) {
+			console.error("Error cancelling agent coordination waits:", error)
 		}
 
 		void this.cleanupControlledBrowserSessions("task dispose").catch((error) => {
@@ -2967,9 +2994,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		await this.resumeAfterPausedToolFlow()
 	}
 
-	public async resumeAfterParallelExecution(): Promise<void> {
+	public async resumeAfterParallelExecution(resumeMessage?: string): Promise<void> {
 		this.parallelExecutionPaused = false
-		await this.resumeAfterPausedToolFlow()
+		const additionalUserContent: Anthropic.Messages.ContentBlockParam[] =
+			typeof resumeMessage === "string" && resumeMessage.trim().length > 0
+				? [{ type: "text" as const, text: resumeMessage }]
+				: []
+		await this.resumeAfterPausedToolFlow(additionalUserContent)
 	}
 
 	public async restoreClineMessagesFromHistory(): Promise<void> {
@@ -2994,7 +3025,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.emit(RooCodeEventName.TaskActive, this.taskId)
 	}
 
-	private async resumeAfterPausedToolFlow(): Promise<void> {
+	private async resumeAfterPausedToolFlow(
+		additionalUserContent: Anthropic.Messages.ContentBlockParam[] = [],
+	): Promise<void> {
 		// Clear any ask states that might have been set during history load
 		this.idleAsk = undefined
 		this.resumableAsk = undefined
@@ -3045,8 +3078,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						return true
 					},
 				)
-				// Add fresh environment details
-				lastUserMsg.content = [...contentWithoutEnvDetails, { type: "text" as const, text: environmentDetails }]
+				// Add optional resume context followed by fresh environment details
+				lastUserMsg.content = [
+					...contentWithoutEnvDetails,
+					...additionalUserContent,
+					{ type: "text" as const, text: environmentDetails },
+				]
 			}
 		}
 
@@ -3851,6 +3888,20 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							this.abortReason = cancelReason
 							await this.abortTask()
 						} else {
+							if (error instanceof AutoRetryLimitError) {
+								console.error(`[Task#${this.taskId}.${this.instanceId}] ${error.message}`)
+								await this.say("error", error.message)
+								throw error
+							}
+
+							const retryAttempt = currentItem.retryAttempt ?? 0
+							if (this.shouldStopAutomaticApiRetry(retryAttempt)) {
+								const limitError = this.createAutoRetryLimitError("streaming failure", error)
+								console.error(`[Task#${this.taskId}.${this.instanceId}] ${limitError.message}`)
+								await this.say("error", limitError.message)
+								throw limitError
+							}
+
 							// Stream failed - log the error and retry with the same content
 							// The existing rate limiting will prevent rapid retries
 							console.error(
@@ -3860,7 +3911,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							// Apply exponential backoff similar to first-chunk errors when auto-resubmit is enabled
 							const stateForBackoff = await this.providerRef.deref()?.getState()
 							if (stateForBackoff?.autoApprovalEnabled) {
-								await this.backoffAndAnnounce(currentItem.retryAttempt ?? 0, error)
+								await this.backoffAndAnnounce(retryAttempt, error)
 
 								// Check if task was aborted during the backoff
 								if (this.abort) {
@@ -3878,7 +3929,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							stack.push({
 								userContent: currentUserContent,
 								includeFileDetails: false,
-								retryAttempt: (currentItem.retryAttempt ?? 0) + 1,
+								retryAttempt: retryAttempt + 1,
 								openAiCodexFastMode,
 							})
 
@@ -4251,13 +4302,30 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					// Check if we should auto-retry or prompt the user
 					// Reuse the state variable from above
 					if (state?.autoApprovalEnabled) {
-						// Auto-retry with backoff - don't persist failure message when retrying
-						await this.backoffAndAnnounce(
-							currentItem.retryAttempt ?? 0,
-							new Error(
-								"Unexpected API Response: The language model did not provide any assistant messages. This may indicate an issue with the API or the model's output.",
-							),
+						const retryAttempt = currentItem.retryAttempt ?? 0
+						const emptyAssistantError = new Error(
+							"Unexpected API Response: The language model did not provide any assistant messages. This may indicate an issue with the API or the model's output.",
 						)
+
+						if (this.shouldStopAutomaticApiRetry(retryAttempt)) {
+							const limitError = this.createAutoRetryLimitError(
+								"empty assistant response",
+								emptyAssistantError,
+							)
+							await this.addToApiConversationHistory({
+								role: "user",
+								content: currentUserContent,
+							})
+							await this.say("error", limitError.message)
+							await this.addToApiConversationHistory({
+								role: "assistant",
+								content: [{ type: "text", text: `Failure: ${limitError.message}` }],
+							})
+							throw limitError
+						}
+
+						// Auto-retry with backoff - don't persist failure message when retrying
+						await this.backoffAndAnnounce(retryAttempt, emptyAssistantError)
 
 						// Check if task was aborted during the backoff
 						if (this.abort) {
@@ -4272,7 +4340,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						stack.push({
 							userContent: currentUserContent,
 							includeFileDetails: false,
-							retryAttempt: (currentItem.retryAttempt ?? 0) + 1,
+							retryAttempt: retryAttempt + 1,
 							userMessageWasRemoved: true,
 							openAiCodexFastMode,
 						})
@@ -4495,6 +4563,49 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		return this.agentBus.getOpenCoordinationQuestions(this.agentId, options)
 	}
 
+	public async waitForAgentCoordinationAnswer(
+		question: AgentCoordinationEvent,
+		options: WaitForAgentCoordinationAnswerOptions = {},
+	): Promise<AgentCoordinationWaitResult> {
+		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
+			return {
+				status: "unanswerable",
+				question,
+				reason: "Agent coordination is unavailable.",
+			}
+		}
+
+		const waitAbortController = new AbortController()
+		let externalAbortListener: (() => void) | undefined
+
+		if (options.signal) {
+			externalAbortListener = () => waitAbortController.abort(options.signal?.reason ?? "Task cancelled.")
+
+			if (options.signal.aborted) {
+				externalAbortListener()
+			} else {
+				options.signal.addEventListener("abort", externalAbortListener, { once: true })
+			}
+		}
+
+		this.agentCoordinationWaitAbortControllers.add(waitAbortController)
+		if (this.abort) {
+			waitAbortController.abort("Task cancelled.")
+		}
+
+		try {
+			return await this.agentBus.waitForCoordinationAnswer(this.agentId, question, {
+				...options,
+				signal: waitAbortController.signal,
+			})
+		} finally {
+			if (externalAbortListener) {
+				options.signal?.removeEventListener("abort", externalAbortListener)
+			}
+			this.agentCoordinationWaitAbortControllers.delete(waitAbortController)
+		}
+	}
+
 	public acknowledgeAgentSharedContract(): AgentCoordinationEvent | undefined {
 		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
 			return undefined
@@ -4715,6 +4826,18 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// Finalize the partial message so the UI doesn't keep rendering an in-progress spinner.
 			await this.say("api_req_rate_limit_wait", undefined, undefined, false)
 		}
+	}
+
+	private shouldStopAutomaticApiRetry(retryAttempt: number): boolean {
+		return retryAttempt >= MAX_API_REQUEST_AUTO_RETRIES
+	}
+
+	private createAutoRetryLimitError(context: string, error: unknown): AutoRetryLimitError {
+		const errorMessage = error instanceof Error ? error.message : JSON.stringify(serializeError(error), null, 2)
+
+		return new AutoRetryLimitError(
+			`Automatic ${context} retry limit reached after ${MAX_API_REQUEST_AUTO_RETRIES} retries. Last error: ${errorMessage}`,
+		)
 	}
 
 	public async *attemptApiRequest(
@@ -5112,6 +5235,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
 			if (autoApprovalEnabled) {
+				if (this.shouldStopAutomaticApiRetry(retryAttempt)) {
+					throw this.createAutoRetryLimitError("first-chunk provider failure", error)
+				}
+
 				// Apply shared exponential backoff and countdown UX
 				await this.backoffAndAnnounce(retryAttempt, error)
 

@@ -239,6 +239,7 @@ export const ChatRowContent = ({
 	const [editedContent, setEditedContent] = useState("")
 	const [editMode, setEditMode] = useState<Mode>(mode || "code")
 	const [editImages, setEditImages] = useState<string[]>([])
+	const [expandedMemoryRecallIds, setExpandedMemoryRecallIds] = useState<Set<string>>(() => new Set())
 
 	// Handle message events for image selection during edit mode
 	useEffect(() => {
@@ -292,6 +293,20 @@ export const ChatRowContent = ({
 	const handleSelectImages = useCallback(() => {
 		vscode.postMessage({ type: "selectImages", context: "edit", messageTs: message.ts })
 	}, [message.ts])
+
+	const toggleMemoryRecallDetails = useCallback((memoryId: string) => {
+		setExpandedMemoryRecallIds((previous) => {
+			const next = new Set(previous)
+
+			if (next.has(memoryId)) {
+				next.delete(memoryId)
+			} else {
+				next.add(memoryId)
+			}
+
+			return next
+		})
+	}, [])
 
 	const isPlanBased = model?.subscriptionBased === true
 
@@ -588,6 +603,66 @@ export const ChatRowContent = ({
 		)
 	}
 
+	const renderMemoryRecallResultChip = (result: MemoryRecallChatResult) => {
+		const isExpanded = expandedMemoryRecallIds.has(result.id)
+		const hasScore = typeof result.score === "number"
+		const hasDetails = Boolean(
+			result.title ||
+				result.toolName ||
+				result.mode ||
+				result.tags?.length ||
+				result.pathTags?.length ||
+				hasScore,
+		)
+		const detailsId = `memory-recall-details-${result.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`
+
+		return (
+			<div
+				key={result.id}
+				className="flex max-w-full flex-col gap-1 rounded border border-vscode-panel-border bg-vscode-sideBar-background px-2 py-1 text-xs"
+				data-testid="memory-recall-result-chip">
+				<div className="flex max-w-full flex-wrap items-center gap-1">
+					<span className="min-w-0 max-w-full truncate font-medium text-vscode-foreground">
+						{result.title || t("chat:memorySearch.untitledResult")}
+					</span>
+					{renderMemoryBadges(result)}
+					{hasDetails && (
+						<button
+							type="button"
+							className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs text-vscode-descriptionForeground hover:bg-vscode-toolbar-hoverBackground hover:text-vscode-foreground"
+							aria-expanded={isExpanded}
+							aria-controls={detailsId}
+							data-testid="memory-recall-details-toggle"
+							onClick={() => toggleMemoryRecallDetails(result.id)}>
+							<span
+								className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}
+								aria-hidden="true"
+							/>
+							{t(
+								isExpanded
+									? "chat:imageGeneration.metadata.hideDetails"
+									: "chat:imageGeneration.metadata.showDetails",
+							)}
+						</button>
+					)}
+				</div>
+				{isExpanded && hasDetails && (
+					<div
+						id={detailsId}
+						className="w-full border-t border-vscode-panel-border pt-1"
+						data-testid="memory-recall-result-details">
+						{renderMemoryDetails(result)}
+						{hasScore && (
+							<div className="mt-1 text-xs text-vscode-descriptionForeground">
+								{t("chat:memory.fields.score")}: {result.score!.toFixed(4)}
+							</div>
+						)}
+					</div>
+				)}
+			</div>
+		)
+	}
+
 	const renderMemoryRecallTool = (memoryTool: ClineSayTool) => {
 		const results = memoryTool.memoryRecallResults ?? []
 		const totalCount = memoryTool.memoryRecallCount ?? results.length
@@ -602,30 +677,22 @@ export const ChatRowContent = ({
 				<div className="pl-6">
 					<ToolUseBlock className="cursor-default border border-vscode-panel-border">
 						<ToolUseBlockHeader className="flex flex-col items-start gap-2 px-3 py-2">
-							{renderMemoryBadges(memoryTool)}
+							<div
+								className="flex w-full flex-wrap items-center gap-2"
+								data-testid="memory-recall-compact-summary">
+								{renderMemoryBadges(memoryTool)}
+								{hiddenCount > 0 && (
+									<span
+										className="rounded border border-vscode-panel-border px-2 py-0.5 text-xs text-vscode-descriptionForeground"
+										data-testid="memory-recall-hidden-count">
+										+{hiddenCount}
+									</span>
+								)}
+							</div>
 							{results.length > 0 && (
-								<div className="flex w-full flex-col gap-2">
-									{results.map((result) => (
-										<ToolUseBlock
-											key={result.id}
-											className="cursor-default border border-vscode-panel-border">
-											<ToolUseBlockHeader className="flex flex-col items-start gap-2 px-3 py-2">
-												<div className="flex w-full flex-col gap-1">
-													{result.title && (
-														<div className="font-medium text-vscode-foreground break-words">
-															{result.title}
-														</div>
-													)}
-												</div>
-												{renderMemoryBadges(result)}
-												{renderMemoryDetails(result)}
-											</ToolUseBlockHeader>
-										</ToolUseBlock>
-									))}
+								<div className="flex w-full flex-wrap gap-1.5">
+									{results.map(renderMemoryRecallResultChip)}
 								</div>
-							)}
-							{hiddenCount > 0 && (
-								<div className="text-xs text-vscode-descriptionForeground">+{hiddenCount}</div>
 							)}
 						</ToolUseBlockHeader>
 					</ToolUseBlock>

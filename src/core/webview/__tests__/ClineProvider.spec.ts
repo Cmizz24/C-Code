@@ -466,7 +466,9 @@ describe("ClineProvider", () => {
 					task.clineMessages = messages
 				}),
 				overwriteApiConversationHistory: vi.fn(),
-				resumeAfterParallelExecution: vi.fn(),
+				resumeAfterParallelExecution: vi.fn(async () => {
+					task.parallelExecutionPaused = false
+				}),
 				resumeAfterDelegation: vi.fn(),
 				restoreClineMessagesFromHistory: vi.fn(async () => {
 					await loadSavedMessages()
@@ -3196,14 +3198,15 @@ describe("ClineProvider", () => {
 		expect(contextCacheStats!.evictions).toEqual({ hot: 1, cold: 2, total: 3 })
 		expect(contextCacheStats!.contributors).toEqual([
 			expect.objectContaining({
-				id: "manager-background",
-				label: "Background agent agent-a (code)",
-				taskId: "task-background",
-				instanceId: "instance-background",
+				id: "context-cache-contributor-1",
+				label: "Background agent 1 (code)",
 				mode: "code",
-				agentId: "agent-a",
 			}),
 		])
+		expect(JSON.stringify(contextCacheStats!.contributors)).not.toContain("manager-background")
+		expect(JSON.stringify(contextCacheStats!.contributors)).not.toContain("task-background")
+		expect(JSON.stringify(contextCacheStats!.contributors)).not.toContain("instance-background")
+		expect(JSON.stringify(contextCacheStats!.contributors)).not.toContain("agent-a")
 	})
 
 	test("dispose is idempotent — second call is a no-op", async () => {
@@ -3731,6 +3734,55 @@ describe("ClineProvider", () => {
 				([message]: [ExtensionMessage]) => message.type === "showPlanPreview" && !message.executionPlan,
 			),
 		).toBe(true)
+	})
+
+	test("canceling a setup-required preserved plan resumes the paused parent with cancellation context", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const parentTask = new Task(defaultTaskOptions)
+		await provider.addClineToStack(parentTask)
+		const gitUnavailable = new WorktreeManagerGitUnavailableError(
+			"Git executable unavailable while preparing parallel worktrees.",
+			"/test/workspace",
+		)
+		const validateGitRepository = vi.fn().mockRejectedValueOnce(gitUnavailable)
+		const worktreeManager = createWorktreeManagerMock({ validateGitRepository })
+		;(provider as any).worktreeManager = worktreeManager
+		const plan = createExecutionPlan()
+
+		const approvalPromise = provider.requestPlanApproval(plan)
+		await vi.waitFor(() =>
+			expect(mockPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({ type: "showPlanPreview", executionPlan: plan }),
+			),
+		)
+		await provider.approveExecutionPlan(plan)
+		await expect(approvalPromise).resolves.toEqual(
+			expect.objectContaining({
+				approved: true,
+				plan,
+				startResult: expect.objectContaining({
+					ok: false,
+					setupRequired: expect.objectContaining({ reason: "git_unavailable" }),
+				}),
+			}),
+		)
+		parentTask.parallelExecutionPaused = true
+
+		await provider.cancelExecutionPlan()
+
+		expect((provider as any).pendingExecutionPlan).toBeUndefined()
+		expect((provider as any).pendingWorktreeSetupRequired).toBeUndefined()
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledTimes(1)
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledWith(
+			expect.stringContaining("[PARALLEL PLAN CANCELED]"),
+		)
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledWith(
+			expect.stringContaining("Do not retry this preserved plan"),
+		)
+		expect(parentTask.resumeAfterParallelExecution).toHaveBeenCalledWith(
+			expect.stringContaining("do not call new_task"),
+		)
+		expect(parentTask.parallelExecutionPaused).toBe(false)
 	})
 
 	test("AgentBus updates coalesce into the persisted parallelAgents tool message", async () => {

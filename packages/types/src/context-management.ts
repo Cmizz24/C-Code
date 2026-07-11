@@ -44,10 +44,7 @@ export interface ContextCacheEvictionTotals {
 export interface ContextCacheContributorStats {
 	id: string
 	label: string
-	taskId?: string
-	instanceId?: string
 	mode?: string
-	agentId?: string
 	isBackground?: boolean
 	isActive?: boolean
 	hotCacheChunks: number

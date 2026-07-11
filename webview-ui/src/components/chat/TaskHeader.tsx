@@ -444,6 +444,10 @@ const TaskHeader = ({
 	const shouldShowContextCacheStatus = contextCacheEnabled !== false
 	const contextCacheSummary = formatContextCacheSummary(safeContextCacheStats, t)
 	const combinedContextCache = safeContextCacheStats.combinedBudget
+	const contextCacheColdChunks = combinedContextCache?.coldCacheChunks ?? safeContextCacheStats.coldCacheChunks
+	const contextCacheColdRamDisplay = combinedContextCache
+		? formatContextCacheRamValue(combinedContextCache.coldCacheRamMb)
+		: `${formatContextCacheRamValue(safeContextCacheStats.ramUsedMb)} / ${formatContextCacheRamValue(safeContextCacheStats.ramBudgetMb)}`
 	const contextCacheContributors = safeContextCacheStats.contributors ?? combinedContextCache?.contributors ?? []
 	const contextCacheEvictions = safeContextCacheStats.evictions ?? combinedContextCache?.evictions
 	const topContextCacheContributors = contextCacheContributors.slice(0, 3)
@@ -467,9 +471,7 @@ const TaskHeader = ({
 						{t("chat:task.contextCache.coldCache")}
 					</TableCell>
 					<TableCell className="text-right text-[0.9em] font-mono">
-						{formatLargeNumber(safeContextCacheStats.coldCacheChunks)} ·{" "}
-						{formatContextCacheRamValue(safeContextCacheStats.ramUsedMb)} /{" "}
-						{formatContextCacheRamValue(safeContextCacheStats.ramBudgetMb)}
+						{formatLargeNumber(contextCacheColdChunks)} · {contextCacheColdRamDisplay}
 					</TableCell>
 				</TableRow>
 				<TableRow>
@@ -843,22 +845,10 @@ const TaskHeader = ({
 															{formatLargeNumber(safeContextCacheStats.hotCacheTokens)}{" "}
 															{t("chat:contextManagement.tokens")}
 														</span>
-														<span>
+														<span data-testid="context-cache-cold-status">
 															{t("chat:task.contextCache.coldCache")}:{" "}
-															{formatLargeNumber(
-																combinedContextCache?.coldCacheChunks ??
-																	safeContextCacheStats.coldCacheChunks,
-															)}{" "}
-															/{" "}
-															{formatContextCacheRamValue(
-																combinedContextCache?.ramUsedMb ??
-																	safeContextCacheStats.ramUsedMb,
-															)}{" "}
-															/{" "}
-															{formatContextCacheRamValue(
-																combinedContextCache?.ramBudgetMb ??
-																	safeContextCacheStats.ramBudgetMb,
-															)}
+															{formatLargeNumber(contextCacheColdChunks)} /{" "}
+															{contextCacheColdRamDisplay}
 														</span>
 														<span>
 															{t("chat:task.contextCache.swaps")}:{" "}

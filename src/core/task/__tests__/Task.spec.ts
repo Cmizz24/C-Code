@@ -8,6 +8,22 @@ import { Anthropic } from "@anthropic-ai/sdk"
 
 import type { GlobalState, ProviderSettings, ModelInfo } from "@roo-code/types"
 
+const memoryMocks = vi.hoisted(() => ({
+	buildMemoryPromptForRequestWithMetadata: vi.fn(),
+}))
+
+vi.mock("../../memory", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../memory")>()
+	memoryMocks.buildMemoryPromptForRequestWithMetadata.mockImplementation(
+		actual.buildMemoryPromptForRequestWithMetadata,
+	)
+
+	return {
+		...actual,
+		buildMemoryPromptForRequestWithMetadata: memoryMocks.buildMemoryPromptForRequestWithMetadata,
+	}
+})
+
 import { Task } from "../Task"
 import { ClineProvider } from "../../webview/ClineProvider"
 import { ApiStreamChunk } from "../../../api/transform/stream"
@@ -1495,6 +1511,125 @@ describe("Cline", () => {
 				expect(toolNames).toEqual(expect.arrayContaining(["switch_mode"]))
 				expect(toolNames).not.toEqual(expect.arrayContaining(["plan_parallel_tasks", "new_task"]))
 			})
+
+			it("appends cache recall and memory prompts for background agents without mutating stored history", async () => {
+				mockProvider.getState.mockResolvedValue({
+					mode: "orchestrator",
+					apiConfiguration: mockApiConfig,
+					mcpEnabled: false,
+					contextCacheEnabled: true,
+					memoryEnabled: true,
+					memoryWorkspaceEnabled: true,
+					memoryGlobalEnabled: false,
+					memoryMaxCharacters: 2_400,
+					memoryMaxEntries: 5,
+				})
+
+				const child = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "parallel child task",
+					mode: "code",
+					background: true,
+					agentId: "agent-a",
+					startTask: false,
+				})
+				vi.spyOn(child as any, "getSystemPrompt").mockResolvedValue("mock system prompt")
+				vi.spyOn(child.api, "getModel").mockReturnValue({
+					id: "test-model",
+					info: {
+						contextWindow: 12,
+						maxTokens: 1,
+						supportsImages: false,
+						supportsPromptCache: false,
+					} as ModelInfo,
+				})
+				const saySpy = vi.spyOn(child, "say").mockResolvedValue(undefined)
+				const createMessageSpy = vi
+					.spyOn(child.api, "createMessage")
+					.mockImplementation(() => createMockApiStream("child response"))
+
+				child.apiConversationHistory = [
+					{
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: "old cold context marker ".repeat(12),
+							},
+						],
+						ts: 100,
+					},
+					{
+						role: "user",
+						content: [{ type: "text", text: "Continue visible request" }],
+						ts: 200,
+					},
+				]
+				const persistedHistorySnapshot = JSON.parse(JSON.stringify(child.apiConversationHistory))
+
+				memoryMocks.buildMemoryPromptForRequestWithMetadata.mockResolvedValueOnce({
+					prompt: "<memory_context>Remember background-agent setup.</memory_context>",
+					recalledMemories: [
+						{
+							id: "mem-background-1",
+							scope: "workspace",
+							kind: "lesson",
+							status: "active",
+							title: "Background setup lesson",
+							tags: ["background"],
+							score: 0.9,
+						},
+					],
+					totalRecallCount: 1,
+				})
+
+				const iterator = child.attemptApiRequest(0)
+				await iterator.next()
+
+				expect(child.getContextCacheStats().coldCacheChunks).toBeGreaterThan(0)
+				expect(memoryMocks.buildMemoryPromptForRequestWithMetadata).toHaveBeenCalledTimes(1)
+				const memoryOptions = memoryMocks.buildMemoryPromptForRequestWithMetadata.mock.calls[0]?.[0]
+				expect(memoryOptions).toEqual(
+					expect.objectContaining({
+						workspacePath: (child as any).cwd,
+						mode: "code",
+						contextTokens: 0,
+					}),
+				)
+				const memoryRequestJson = JSON.stringify(memoryOptions?.requestMessages)
+				expect(memoryRequestJson).toContain("Continue visible request")
+				expect(memoryRequestJson).not.toContain("Cold context cache hint")
+				expect(memoryRequestJson).not.toContain("old cold context marker")
+
+				const requestMessages = createMessageSpy.mock.calls[0]?.[1] as Array<{
+					role: string
+					content: Array<{ type: string; text: string }>
+				}>
+				expect(requestMessages).toHaveLength(1)
+				const requestBlocks = requestMessages[0].content
+				expect(requestBlocks.map((block) => block.text)).toEqual([
+					"Continue visible request",
+					expect.stringContaining("Cold context cache hint"),
+					"<memory_context>Remember background-agent setup.</memory_context>",
+				])
+				expect(requestBlocks[1].text).toContain("old cold context marker")
+				expect(requestBlocks[1].text.length).toBeLessThanOrEqual(900)
+				expect(child.apiConversationHistory).toEqual(persistedHistorySnapshot)
+				expect(JSON.stringify(child.apiConversationHistory)).not.toContain("Cold context cache hint")
+				expect(JSON.stringify(child.apiConversationHistory)).not.toContain("Remember background-agent setup")
+				expect(saySpy).toHaveBeenCalledWith(
+					"tool",
+					expect.any(String),
+					undefined,
+					false,
+					undefined,
+					undefined,
+					{
+						isNonInteractive: true,
+					},
+				)
+			})
 		})
 
 		describe("Dynamic Strategy Selection", () => {
@@ -1915,6 +2050,29 @@ describe("Cline", () => {
 				// Restore mocks
 				consoleErrorSpy.mockRestore()
 			})
+
+			it("bounds automatic retry attempts before scheduling another provider request", async () => {
+				const task = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "test task",
+					startTask: false,
+				})
+
+				expect((task as any).shouldStopAutomaticApiRetry(0)).toBe(false)
+				expect((task as any).shouldStopAutomaticApiRetry(2)).toBe(false)
+				expect((task as any).shouldStopAutomaticApiRetry(3)).toBe(true)
+
+				const limitError = (task as any).createAutoRetryLimitError(
+					"streaming failure",
+					new Error("provider disconnected"),
+				)
+
+				expect(limitError.name).toBe("AutoRetryLimitError")
+				expect(limitError.message).toContain("Automatic streaming failure retry limit reached")
+				expect(limitError.message).toContain("after 3 retries")
+				expect(limitError.message).toContain("provider disconnected")
+			})
 		})
 
 		describe("cancelCurrentRequest", () => {
@@ -2032,16 +2190,18 @@ describe("Cline", () => {
 				task.registerContextChunk({ type: "file_content", content: "cached context", tokens: 1 })
 
 				const contributor = coordinator.getDiagnostics().contributors[0]
+				const contributorJson = JSON.stringify(contributor)
 
 				expect(contributor).toMatchObject({
-					label: "Background agent agent-a (code)",
-					taskId: task.taskId,
-					instanceId: task.instanceId,
+					id: "context-cache-contributor-1",
+					label: "Background agent 1 (code)",
 					mode: "code",
-					agentId: "agent-a",
 					isBackground: true,
 				})
-				expect(JSON.stringify(contributor)).not.toContain("secret user prompt")
+				expect(contributorJson).not.toContain("secret user prompt")
+				expect(contributorJson).not.toContain(task.taskId)
+				expect(contributorJson).not.toContain(task.instanceId)
+				expect(contributorJson).not.toContain("agent-a")
 			})
 		})
 	})
