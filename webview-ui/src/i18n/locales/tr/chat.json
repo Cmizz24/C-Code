@@ -469,6 +469,11 @@
 			"inProgress": "Bağlam yönetiliyor...",
 			"errorHeader": "Bağlam yoğunlaştırılamadı"
 		},
+		"blocked": {
+			"title": "Bağlam kurtarma duraklatıldı",
+			"description": "Sağlayıcı şu anda devam edemiyor, bu yüzden bağlam toplama duraklatıldı.",
+			"descriptionWithRetry": "Sağlayıcı şu anda devam edemiyor, bu yüzden bağlam toplama {{retryTime}} saatine kadar duraklatıldı."
+		},
 		"truncation": {
 			"title": "Bağlam Kısaltıldı",
 			"inProgress": "Bağlam kısaltılıyor...",

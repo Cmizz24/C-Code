@@ -468,6 +468,11 @@
 			"inProgress": "Gestionando contexto...",
 			"errorHeader": "Error al condensar el contexto"
 		},
+		"blocked": {
+			"title": "Recuperación de contexto pausada",
+			"description": "El proveedor no puede continuar ahora mismo, así que la recopilación de contexto está pausada.",
+			"descriptionWithRetry": "El proveedor no puede continuar ahora mismo, así que la recopilación de contexto está pausada hasta las {{retryTime}}."
+		},
 		"truncation": {
 			"title": "Contexto truncado",
 			"inProgress": "Truncando contexto...",

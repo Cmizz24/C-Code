@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { contextCacheEventSchema } from "./context-management.js"
+import { contextCacheEventSchema, contextManagementBlockedSchema } from "./context-management.js"
 
 /**
  * ClineAsk
@@ -140,6 +140,7 @@ export function isNonBlockingAsk(ask: ClineAsk): ask is NonBlockingAsk {
  * - `diff_error`: Error occurred while applying a diff/patch
  * - `condense_context`: Context condensation/summarization has started
  * - `condense_context_error`: Error occurred during context condensation
+ * - `context_management_blocked`: Context management is blocked by provider capacity/auth limits
  * - `codebase_search_result`: Results from searching the codebase
  * - `too_many_tools_warning`: Warning that too many MCP tools are enabled, which may confuse the LLM
  */
@@ -169,6 +170,7 @@ export const clineSays = [
 	"condense_context_error",
 	"sliding_window_truncation",
 	"context_cache_event",
+	"context_management_blocked",
 	"codebase_search_result",
 	"user_edit_todos",
 	"too_many_tools_warning",
@@ -247,6 +249,7 @@ export type ContextTruncation = z.infer<typeof contextTruncationSchema>
  * - `contextCondense`: Present when `say: "condense_context"` and condensation succeeded
  * - `contextTruncation`: Present when `say: "sliding_window_truncation"` and truncation occurred
  * - `contextCacheEvent`: Present when `say: "context_cache_event"` and cache activity occurred
+ * - `contextManagementBlocked`: Present when `say: "context_management_blocked"` and task is blocked
  *
  * Note: These fields are mutually exclusive - a message will have at most one of them.
  */
@@ -277,6 +280,11 @@ export const clineMessageSchema = z.object({
 	 * Present when `say: "context_cache_event"`.
 	 */
 	contextCacheEvent: contextCacheEventSchema.optional(),
+	/**
+	 * Data for provider-capacity/context-management blocks.
+	 * Present when `say: "context_management_blocked"`.
+	 */
+	contextManagementBlocked: contextManagementBlockedSchema.optional(),
 	isProtected: z.boolean().optional(),
 	apiProtocol: z.union([z.literal("openai"), z.literal("anthropic")]).optional(),
 	isAnswered: z.boolean().optional(),

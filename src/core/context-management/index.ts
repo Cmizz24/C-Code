@@ -4,7 +4,11 @@ import crypto from "crypto"
 import { ApiHandler, ApiHandlerCreateMessageMetadata } from "../../api"
 import { MAX_CONDENSE_THRESHOLD, MIN_CONDENSE_THRESHOLD, summarizeConversation, SummarizeResponse } from "../condense"
 import { ApiMessage } from "../task-persistence/apiMessages"
-import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "@roo-code/types"
+import {
+	ANTHROPIC_DEFAULT_MAX_TOKENS,
+	type ContextManagementBlocked,
+	type ProviderCapacityMetadata,
+} from "@roo-code/types"
 import { RooIgnoreController } from "../ignore/RooIgnoreController"
 import type { ContextWindowManager } from "../context/ContextWindowManager"
 
@@ -235,6 +239,23 @@ export type ContextManagementResult = SummarizeResponse & {
 	messagesRemoved?: number
 	newContextTokensAfterTruncation?: number
 	contextCacheHandled?: boolean
+	blocked?: ContextManagementBlocked
+}
+
+function createContextManagementBlocked(
+	source: ContextManagementBlocked["source"],
+	reason: string,
+	providerCapacity: ProviderCapacityMetadata,
+): ContextManagementBlocked {
+	return {
+		id: crypto.randomUUID(),
+		createdAt: Date.now(),
+		source,
+		reason,
+		retryAfterMs: providerCapacity.retryAfterMs,
+		retryAt: providerCapacity.retryAt,
+		providerCapacity,
+	}
 }
 
 /**
@@ -338,6 +359,13 @@ export async function manageContext({
 				error = result.error
 				errorDetails = result.errorDetails
 				cost = result.cost
+				if (result.providerCapacity) {
+					return {
+						...result,
+						prevContextTokens,
+						blocked: createContextManagementBlocked("condense", result.error, result.providerCapacity),
+					}
+				}
 			} else {
 				return { ...result, prevContextTokens }
 			}

@@ -67,6 +67,17 @@ function isTaskAbortError(cline: Task, error: unknown): boolean {
 	)
 }
 
+const CONTEXT_GATHERING_TOOL_NAMES = new Set<string>([
+	"read_file",
+	"list_files",
+	"search_files",
+	"codebase_search",
+	"ask_for_context",
+	"memory_search",
+	"read_command_output",
+	"access_mcp_resource",
+])
+
 function findCurrentParallelPlanningTodo(todos: TodoItem[] | undefined): TodoItem | undefined {
 	if (!todos?.length) {
 		return undefined
@@ -827,6 +838,15 @@ export async function presentAssistantMessage(cline: Task) {
 
 					// Return tool result message about the repetition
 					pushToolResult(formatResponse.toolError(repetitionError))
+					break
+				}
+			}
+
+			if (!block.partial && CONTEXT_GATHERING_TOOL_NAMES.has(block.name)) {
+				const blockedResult = cline.getContextManagementBlockedToolResult(block.name)
+				if (blockedResult) {
+					pushToolResult(formatResponse.toolError(blockedResult))
+					cline.didAlreadyUseTool = true
 					break
 				}
 			}

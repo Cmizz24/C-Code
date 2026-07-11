@@ -468,6 +468,11 @@
 			"inProgress": "Gestione del contesto...",
 			"errorHeader": "Impossibile condensare il contesto"
 		},
+		"blocked": {
+			"title": "Ripristino del contesto in pausa",
+			"description": "Il provider non può continuare al momento, quindi la raccolta del contesto è in pausa.",
+			"descriptionWithRetry": "Il provider non può continuare al momento, quindi la raccolta del contesto è in pausa fino alle {{retryTime}}."
+		},
 		"truncation": {
 			"title": "Contesto troncato",
 			"inProgress": "Troncamento del contesto...",

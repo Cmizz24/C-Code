@@ -227,6 +227,11 @@
 			"inProgress": "Managing context...",
 			"errorHeader": "Failed to condense context"
 		},
+		"blocked": {
+			"title": "Context recovery paused",
+			"description": "The provider can't continue right now, so context gathering is paused.",
+			"descriptionWithRetry": "The provider can't continue right now, so context gathering is paused until {{retryTime}}."
+		},
 		"truncation": {
 			"title": "Context Truncated",
 			"inProgress": "Truncating context...",

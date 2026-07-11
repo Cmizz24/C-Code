@@ -29,6 +29,7 @@ import { sanitizeOpenAiCallId } from "../../utils/tool-id"
 import { openAiCodexOAuthManager } from "../../integrations/openai-codex/oauth"
 import { t } from "../../i18n"
 import { SINGLE_COMPLETION_SYSTEM_PROMPT } from "../../shared/single-completion"
+import { attachProviderCapacityMetadata, extractProviderCapacityMetadata } from "../../shared/provider-capacity"
 
 export type OpenAiCodexModel = ReturnType<OpenAiCodexHandler["getModel"]>
 
@@ -569,6 +570,107 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		return message.replace(/\s+/g, " ").trim().slice(0, 500)
 	}
 
+	private createManualSseFallbackError(message: string): Error {
+		const error = new Error(message)
+		;(error as any).allowOpenAiCodexManualSseFallback = true
+		return error
+	}
+
+	private shouldFallbackToManualSse(error: unknown): boolean {
+		return Boolean((error as any)?.allowOpenAiCodexManualSseFallback)
+	}
+
+	private createCodexApiError(
+		message: string,
+		options: {
+			status?: number
+			code?: string
+			details?: string
+			body?: string
+			responseBody?: string
+			retryAfter?: string | number | null
+		} = {},
+	): Error {
+		const error = new Error(message)
+		;(error as any).isOpenAiCodexApiError = true
+		if (options.status !== undefined) {
+			;(error as any).status = options.status
+		}
+		if (options.code !== undefined) {
+			;(error as any).code = options.code
+		}
+		if (options.details !== undefined) {
+			;(error as any).errorDetails = options.details
+			;(error as any).details = options.details
+		}
+		if (options.body !== undefined) {
+			;(error as any).body = options.body
+		}
+		if (options.responseBody !== undefined) {
+			;(error as any).responseBody = options.responseBody
+		}
+		if (options.retryAfter !== undefined && options.retryAfter !== null) {
+			;(error as any).headers = { "retry-after": options.retryAfter }
+		}
+
+		const metadata = extractProviderCapacityMetadata(error, { provider: this.providerName })
+		return metadata ? attachProviderCapacityMetadata(error, metadata) : error
+	}
+
+	private wrapCodexError(error: Error, message: string): Error {
+		const wrapped = new Error(message)
+		const metadata = extractProviderCapacityMetadata(error, { provider: this.providerName })
+		if (metadata) {
+			attachProviderCapacityMetadata(wrapped, metadata)
+		}
+		return wrapped
+	}
+
+	private getCodexStreamErrorMessage(parsed: any, fallback: string): string {
+		return (
+			parsed?.error?.message ??
+			parsed?.error?.detail ??
+			parsed?.error?.code ??
+			parsed?.message ??
+			parsed?.detail ??
+			fallback
+		)
+	}
+
+	private getCodexStreamErrorStatus(parsed: any): number | undefined {
+		const status = parsed?.error?.status ?? parsed?.error?.statusCode ?? parsed?.status ?? parsed?.statusCode
+		const numericStatus = typeof status === "number" ? status : Number(status)
+		return Number.isInteger(numericStatus) && numericStatus >= 100 && numericStatus <= 599
+			? numericStatus
+			: undefined
+	}
+
+	private getCodexStreamErrorCode(parsed: any): string | undefined {
+		const code = parsed?.error?.code ?? parsed?.error?.type ?? parsed?.code ?? parsed?.type
+		return code === undefined || code === null ? undefined : String(code)
+	}
+
+	private createCodexStreamApiError(parsed: any, wrapper: "apiError" | "responseFailed"): Error {
+		const rawMessage = this.getCodexStreamErrorMessage(
+			parsed,
+			wrapper === "apiError" ? "Unknown error" : "Unknown failure",
+		)
+		const message = t(
+			wrapper === "apiError" ? "common:errors.openAiCodex.apiError" : "common:errors.openAiCodex.responseFailed",
+			{ message: rawMessage },
+		)
+
+		return this.createCodexApiError(message, {
+			status: this.getCodexStreamErrorStatus(parsed),
+			code: this.getCodexStreamErrorCode(parsed),
+			details: rawMessage,
+			body: JSON.stringify(parsed),
+			responseBody: JSON.stringify(parsed),
+			retryAfter:
+				parsed?.error?.retry_after ?? parsed?.error?.retryAfter ?? parsed?.retry_after ?? parsed?.retryAfter,
+		})
+	}
+
 	private async *executeRequest(
 		requestBody: any,
 		model: OpenAiCodexModel,
@@ -609,7 +711,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 				})) as AsyncIterable<any>
 
 				if (typeof (stream as any)?.[Symbol.asyncIterator] !== "function") {
-					throw new Error(
+					throw this.createManualSseFallbackError(
 						"OpenAI SDK did not return an AsyncIterable for Responses API streaming. Falling back to SSE.",
 					)
 				}
@@ -626,8 +728,16 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 						yield outChunk
 					}
 				}
-			} catch (_sdkErr) {
-				// Fallback to manual SSE via fetch (Codex backend).
+			} catch (sdkErr) {
+				if (!this.shouldFallbackToManualSse(sdkErr)) {
+					const metadata = extractProviderCapacityMetadata(sdkErr, { provider: this.providerName })
+					if (metadata && sdkErr instanceof Error) {
+						throw attachProviderCapacityMetadata(sdkErr, metadata)
+					}
+					throw sdkErr
+				}
+
+				// Fallback to manual SSE only for SDK stream-shape incompatibility.
 				yield* this.makeCodexRequest(requestBody, model, accessToken, taskId)
 			}
 		} finally {
@@ -755,9 +865,11 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 
 				let errorMessage = t("common:errors.api.apiRequestFailed", { status: response.status })
 				let errorDetails = ""
+				let errorCode: string | undefined
 
 				try {
 					const errorJson = JSON.parse(errorText)
+					errorCode = errorJson.error?.code ?? errorJson.code ?? errorJson.type
 					if (errorJson.error?.message) {
 						errorDetails = errorJson.error.message
 					} else if (errorJson.message) {
@@ -800,7 +912,14 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 					errorMessage += ` - ${errorDetails}`
 				}
 
-				const error = new Error(errorMessage)
+				const error = this.createCodexApiError(errorMessage, {
+					status: response.status,
+					code: errorCode,
+					details: errorDetails,
+					body: errorText,
+					responseBody: errorText,
+					retryAfter: response.headers.get("retry-after"),
+				})
 				this.markOpenAiCodexFastStatusRejected(error)
 				throw error
 			}
@@ -813,14 +932,19 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 
 			yield* this.handleStreamResponse(response.body, model)
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : String(error)
 			this.markOpenAiCodexFastStatusRejected(error)
 
 			if (error instanceof Error) {
-				if (error.message.includes("Codex API")) {
+				if (
+					(error as any).isOpenAiCodexApiError ||
+					extractProviderCapacityMetadata(error, { provider: this.providerName })
+				) {
 					throw error
 				}
-				throw new Error(t("common:errors.openAiCodex.connectionFailed", { message: error.message }))
+				throw this.wrapCodexError(
+					error,
+					t("common:errors.openAiCodex.connectionFailed", { message: error.message }),
+				)
 			}
 			throw new Error(t("common:errors.openAiCodex.unexpectedConnectionError"))
 		}
@@ -1001,21 +1125,13 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 								}
 							} else if (parsed.type === "response.error" || parsed.type === "error") {
 								if (parsed.error || parsed.message) {
-									const error = new Error(
-										t("common:errors.openAiCodex.apiError", {
-											message: parsed.error?.message || parsed.message || "Unknown error",
-										}),
-									)
+									const error = this.createCodexStreamApiError(parsed, "apiError")
 									this.markOpenAiCodexFastStatusRejected(error)
 									throw error
 								}
 							} else if (parsed.type === "response.failed") {
 								if (parsed.error || parsed.message) {
-									const error = new Error(
-										t("common:errors.openAiCodex.responseFailed", {
-											message: parsed.error?.message || parsed.message || "Unknown failure",
-										}),
-									)
+									const error = this.createCodexStreamApiError(parsed, "responseFailed")
 									this.markOpenAiCodexFastStatusRejected(error)
 									throw error
 								}
@@ -1094,11 +1210,19 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 				}
 			}
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : String(error)
 			this.markOpenAiCodexFastStatusRejected(error)
 
 			if (error instanceof Error) {
-				throw new Error(t("common:errors.openAiCodex.streamProcessingError", { message: error.message }))
+				if (
+					(error as any).isOpenAiCodexApiError ||
+					extractProviderCapacityMetadata(error, { provider: this.providerName })
+				) {
+					throw error
+				}
+				throw this.wrapCodexError(
+					error,
+					t("common:errors.openAiCodex.streamProcessingError", { message: error.message }),
+				)
 			}
 			throw new Error(t("common:errors.openAiCodex.unexpectedStreamError"))
 		} finally {
@@ -1108,6 +1232,18 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 
 	private async *processEvent(event: any, model: OpenAiCodexModel): ApiStream {
 		this.captureOpenAiCodexFastStatusFromEvent(event)
+
+		if (event?.type === "response.error" || event?.type === "error") {
+			const error = this.createCodexStreamApiError(event, "apiError")
+			this.markOpenAiCodexFastStatusRejected(error)
+			throw error
+		}
+
+		if (event?.type === "response.failed") {
+			const error = this.createCodexStreamApiError(event, "responseFailed")
+			this.markOpenAiCodexFastStatusRejected(error)
+			throw error
+		}
 
 		if (event?.response?.output && Array.isArray(event.response.output)) {
 			this.lastResponseOutput = event.response.output

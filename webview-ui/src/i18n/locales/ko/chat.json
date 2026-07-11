@@ -468,6 +468,11 @@
 			"inProgress": "컨텍스트 관리 중...",
 			"errorHeader": "컨텍스트 압축 실패"
 		},
+		"blocked": {
+			"title": "컨텍스트 복구 일시 중지됨",
+			"description": "공급자가 지금 계속할 수 없어 컨텍스트 수집이 일시 중지되었습니다.",
+			"descriptionWithRetry": "공급자가 지금 계속할 수 없어 {{retryTime}}까지 컨텍스트 수집이 일시 중지되었습니다."
+		},
 		"truncation": {
 			"title": "컨텍스트 잘림",
 			"inProgress": "컨텍스트 자르는 중...",

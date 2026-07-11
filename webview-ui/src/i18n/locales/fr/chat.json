@@ -468,6 +468,11 @@
 			"inProgress": "Gestion du contexte...",
 			"errorHeader": "Échec de la condensation du contexte"
 		},
+		"blocked": {
+			"title": "Récupération du contexte en pause",
+			"description": "Le fournisseur ne peut pas continuer pour le moment, donc la collecte de contexte est en pause.",
+			"descriptionWithRetry": "Le fournisseur ne peut pas continuer pour le moment, donc la collecte de contexte est en pause jusqu’à {{retryTime}}."
+		},
 		"truncation": {
 			"title": "Contexte tronqué",
 			"inProgress": "Troncature du contexte...",

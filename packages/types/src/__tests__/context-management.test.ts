@@ -6,6 +6,7 @@ const expectedContextManagementEvents = [
 	"condense_context_error",
 	"sliding_window_truncation",
 	"context_cache_event",
+	"context_management_blocked",
 ] as const
 
 describe("context-management", () => {

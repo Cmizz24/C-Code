@@ -12,6 +12,7 @@ import { z } from "zod"
  * - `condense_context_error`: An error occurred during context condensation
  * - `sliding_window_truncation`: Context was truncated using sliding window strategy
  * - `context_cache_event`: Hot/cold context cache activity occurred
+ * - `context_management_blocked`: Context management is blocked by provider capacity/auth limits
  */
 
 /**
@@ -23,12 +24,66 @@ export const CONTEXT_MANAGEMENT_EVENTS = [
 	"condense_context_error",
 	"sliding_window_truncation",
 	"context_cache_event",
+	"context_management_blocked",
 ] as const
 
 /**
  * Union type representing all possible context management event types.
  */
 export type ContextManagementEvent = (typeof CONTEXT_MANAGEMENT_EVENTS)[number]
+
+export const PROVIDER_CAPACITY_ERROR_KINDS = [
+	"rate_limit",
+	"quota_exceeded",
+	"usage_limit",
+	"auth",
+	"capacity",
+	"provider_error",
+	"unknown",
+] as const
+
+export const providerCapacityErrorKindSchema = z.enum(PROVIDER_CAPACITY_ERROR_KINDS)
+
+export type ProviderCapacityErrorKind = (typeof PROVIDER_CAPACITY_ERROR_KINDS)[number]
+
+export const providerCapacityMetadataSchema = z.object({
+	kind: providerCapacityErrorKindSchema,
+	message: z.string(),
+	provider: z.string().optional(),
+	status: z.number().optional(),
+	code: z.string().optional(),
+	retryAfterMs: z.number().optional(),
+	retryAfter: z.string().optional(),
+	retryAt: z.number().optional(),
+	details: z.string().optional(),
+	body: z.string().optional(),
+	responseBody: z.string().optional(),
+	isRetryable: z.boolean().optional(),
+})
+
+export type ProviderCapacityMetadata = z.infer<typeof providerCapacityMetadataSchema>
+
+export const contextManagementBlockedSourceSchema = z.enum([
+	"condense",
+	"context_window_recovery",
+	"api_request",
+	"stream",
+	"tool",
+])
+
+export type ContextManagementBlockedSource = z.infer<typeof contextManagementBlockedSourceSchema>
+
+export const contextManagementBlockedSchema = z.object({
+	id: z.string(),
+	createdAt: z.number(),
+	source: contextManagementBlockedSourceSchema,
+	reason: z.string(),
+	retryAfterMs: z.number().optional(),
+	retryAt: z.number().optional(),
+	providerCapacity: providerCapacityMetadataSchema.optional(),
+})
+
+export type ContextManagementBlocked = z.infer<typeof contextManagementBlockedSchema>
 
 export interface ContextCacheBudgetOption {
 	valueMb: number

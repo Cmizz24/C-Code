@@ -779,6 +779,7 @@ describe("Context Management", () => {
 
 			// Verify it fell back to truncation (non-destructive)
 			expect(result.truncationId).toBeDefined()
+			expect(result.blocked).toBeUndefined()
 			expect(result.messagesRemoved).toBe(2)
 			expect(result.summary).toBe("")
 			expect(result.prevContextTokens).toBe(totalTokens)
@@ -787,6 +788,68 @@ describe("Context Management", () => {
 			// The cost might be different than expected, so we don't check it
 
 			// Clean up
+			summarizeSpy.mockRestore()
+		})
+
+		it("should return blocked context management instead of truncating when summarization fails due to provider capacity", async () => {
+			const retryAt = Date.now() + 120_000
+			const providerCapacity = {
+				kind: "rate_limit" as const,
+				message: "Rate limit exceeded",
+				provider: "test-provider",
+				status: 429,
+				retryAfterMs: 120_000,
+				retryAt,
+				isRetryable: true,
+			}
+			const mockSummarizeResponse: condenseModule.SummarizeResponse = {
+				messages,
+				summary: "",
+				cost: 0.01,
+				error: "Provider rate limit exceeded",
+				providerCapacity,
+			}
+
+			const summarizeSpy = vi
+				.spyOn(condenseModule, "summarizeConversation")
+				.mockResolvedValue(mockSummarizeResponse)
+
+			const modelInfo = createModelInfo(100000, 30000)
+			const totalTokens = 70001 // Above threshold
+			const messagesWithSmallContent = [
+				...messages.slice(0, -1),
+				{ ...messages[messages.length - 1], content: "" },
+			]
+
+			const result = await manageContext({
+				messages: messagesWithSmallContent,
+				totalTokens,
+				contextWindow: modelInfo.contextWindow,
+				maxTokens: modelInfo.maxTokens,
+				apiHandler: mockApiHandler,
+				autoCondenseContext: true,
+				autoCondenseContextPercent: 100,
+				systemPrompt: "System prompt",
+				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
+			})
+
+			expect(summarizeSpy).toHaveBeenCalled()
+			expect(result.truncationId).toBeUndefined()
+			expect(result.messagesRemoved).toBeUndefined()
+			expect(result.newContextTokensAfterTruncation).toBeUndefined()
+			expect(result.prevContextTokens).toBe(totalTokens)
+			expect(result.blocked).toEqual(
+				expect.objectContaining({
+					source: "condense",
+					reason: "Provider rate limit exceeded",
+					retryAfterMs: 120_000,
+					retryAt,
+					providerCapacity,
+				}),
+			)
+
 			summarizeSpy.mockRestore()
 		})
 

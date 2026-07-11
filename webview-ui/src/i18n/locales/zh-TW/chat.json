@@ -227,6 +227,11 @@
 			"inProgress": "正在管理上下文...",
 			"errorHeader": "壓縮上下文失敗"
 		},
+		"blocked": {
+			"title": "上下文復原已暫停",
+			"description": "供應商目前無法繼續，因此上下文收集已暫停。",
+			"descriptionWithRetry": "供應商目前無法繼續，因此上下文收集已暫停到 {{retryTime}}。"
+		},
 		"truncation": {
 			"title": "上下文已截斷",
 			"inProgress": "正在截斷上下文...",

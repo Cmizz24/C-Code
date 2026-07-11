@@ -3,6 +3,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import { presentAssistantMessage } from "../presentAssistantMessage"
 import { isValidToolName, validateToolUse } from "../../tools/validateToolUse"
+import { listFilesTool } from "../../tools/ListFilesTool"
 
 // Mock dependencies
 vi.mock("../../task/Task")
@@ -23,6 +24,7 @@ describe("presentAssistantMessage - Unknown Tool Handling", () => {
 	let mockTask: any
 
 	beforeEach(() => {
+		vi.clearAllMocks()
 		vi.mocked(isValidToolName).mockReturnValue(false)
 		vi.mocked(validateToolUse).mockImplementation(() => undefined)
 
@@ -47,6 +49,7 @@ describe("presentAssistantMessage - Unknown Tool Handling", () => {
 			recordToolUsage: vi.fn(),
 			recordToolError: vi.fn(),
 			drainQueuedMistakeMemories: vi.fn().mockResolvedValue(undefined),
+			getContextManagementBlockedToolResult: vi.fn().mockReturnValue(undefined),
 			diffViewProvider: {
 				isEditing: false,
 				revertChanges: vi.fn().mockResolvedValue(undefined),
@@ -395,5 +398,41 @@ describe("presentAssistantMessage - Unknown Tool Handling", () => {
 			debugSpy.mockRestore()
 			warnSpy.mockRestore()
 		}
+	})
+
+	it("should block context-gathering tools while context management is blocked and emit one native tool_result", async () => {
+		const toolCallId = "tool_call_blocked_context_gathering"
+		const blockedMessage =
+			"The list_files tool was not run because context management is waiting for the provider before more context can be gathered."
+
+		vi.mocked(isValidToolName).mockReturnValue(true)
+		mockTask.getContextManagementBlockedToolResult = vi.fn().mockReturnValue(blockedMessage)
+		mockTask.assistantMessageContent = [
+			{
+				type: "tool_use",
+				id: toolCallId,
+				name: "list_files",
+				params: { path: "." },
+				nativeArgs: { path: ".", recursive: false },
+				partial: false,
+			},
+		]
+
+		await presentAssistantMessage(mockTask)
+
+		const toolResults = mockTask.userMessageContent.filter(
+			(item: any) => item.type === "tool_result" && item.tool_use_id === toolCallId,
+		)
+
+		expect(toolResults).toHaveLength(1)
+		expect(toolResults[0]).toEqual(
+			expect.objectContaining({
+				tool_use_id: toolCallId,
+				content: expect.stringContaining(blockedMessage),
+			}),
+		)
+		expect(mockTask.getContextManagementBlockedToolResult).toHaveBeenCalledWith("list_files")
+		expect(listFilesTool.handle).not.toHaveBeenCalled()
+		expect(mockTask.didAlreadyUseTool).toBe(true)
 	})
 })

@@ -468,6 +468,11 @@
 			"inProgress": "Kontext wird verwaltet...",
 			"errorHeader": "Kontext konnte nicht komprimiert werden"
 		},
+		"blocked": {
+			"title": "Kontextwiederherstellung pausiert",
+			"description": "Der Anbieter kann gerade nicht fortfahren, daher ist das Sammeln von Kontext pausiert.",
+			"descriptionWithRetry": "Der Anbieter kann gerade nicht fortfahren, daher ist das Sammeln von Kontext bis {{retryTime}} pausiert."
+		},
 		"truncation": {
 			"title": "Kontext gekürzt",
 			"inProgress": "Kontext wird gekürzt...",

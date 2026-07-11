@@ -59,6 +59,7 @@ import {
 	CondensationErrorRow,
 	TruncationResultRow,
 	ContextCacheEventRow,
+	ContextManagementBlockedRow,
 } from "./context-management"
 import CodebaseSearchResultsDisplay from "./CodebaseSearchResultsDisplay"
 import { appendImages } from "@src/utils/imageUtils"
@@ -2473,6 +2474,13 @@ export const ChatRowContent = ({
 					return null
 				case "condense_context_error":
 					return <CondensationErrorRow errorText={message.text} />
+				case "context_management_blocked":
+					return (
+						<ContextManagementBlockedRow
+							data={message.contextManagementBlocked}
+							fallbackReason={message.text}
+						/>
+					)
 				case "sliding_window_truncation":
 					// In-progress state
 					if (message.partial) {

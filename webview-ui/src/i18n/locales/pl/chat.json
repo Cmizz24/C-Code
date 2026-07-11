@@ -468,6 +468,11 @@
 			"inProgress": "Zarządzanie kontekstem...",
 			"errorHeader": "Nie udało się skondensować kontekstu"
 		},
+		"blocked": {
+			"title": "Odzyskiwanie kontekstu wstrzymane",
+			"description": "Dostawca nie może teraz kontynuować, więc zbieranie kontekstu jest wstrzymane.",
+			"descriptionWithRetry": "Dostawca nie może teraz kontynuować, więc zbieranie kontekstu jest wstrzymane do {{retryTime}}."
+		},
 		"truncation": {
 			"title": "Kontekst obcięty",
 			"inProgress": "Obcinanie kontekstu...",

@@ -469,6 +469,11 @@
 			"inProgress": "Đang quản lý ngữ cảnh...",
 			"errorHeader": "Không thể cô đọng ngữ cảnh"
 		},
+		"blocked": {
+			"title": "Đã tạm dừng khôi phục ngữ cảnh",
+			"description": "Nhà cung cấp hiện chưa thể tiếp tục, nên việc thu thập ngữ cảnh đang tạm dừng.",
+			"descriptionWithRetry": "Nhà cung cấp hiện chưa thể tiếp tục, nên việc thu thập ngữ cảnh đang tạm dừng đến {{retryTime}}."
+		},
 		"truncation": {
 			"title": "Ngữ cảnh đã cắt bớt",
 			"inProgress": "Đang cắt bớt ngữ cảnh...",

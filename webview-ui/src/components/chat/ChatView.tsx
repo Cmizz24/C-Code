@@ -84,6 +84,7 @@ const mergeReviewSupersedingSayTypes = new Set<ClineSay>([
 	"diff_error",
 	"condense_context",
 	"condense_context_error",
+	"context_management_blocked",
 	"sliding_window_truncation",
 	"codebase_search_result",
 	"user_edit_todos",

@@ -468,6 +468,11 @@
 			"inProgress": "コンテキストを管理中...",
 			"errorHeader": "コンテキストの圧縮に失敗しました"
 		},
+		"blocked": {
+			"title": "コンテキスト復旧を一時停止中",
+			"description": "プロバイダーが現在続行できないため、コンテキスト収集を一時停止しています。",
+			"descriptionWithRetry": "プロバイダーが現在続行できないため、{{retryTime}}までコンテキスト収集を一時停止しています。"
+		},
 		"truncation": {
 			"title": "コンテキスト切り詰め",
 			"inProgress": "コンテキストを切り詰め中...",

@@ -468,6 +468,11 @@
 			"inProgress": "Gestionant el context...",
 			"errorHeader": "Error en condensar el context"
 		},
+		"blocked": {
+			"title": "Recuperació del context en pausa",
+			"description": "El proveïdor no pot continuar ara mateix, així que la recopilació de context està en pausa.",
+			"descriptionWithRetry": "El proveïdor no pot continuar ara mateix, així que la recopilació de context està en pausa fins a les {{retryTime}}."
+		},
 		"truncation": {
 			"title": "Context truncat",
 			"inProgress": "Truncant context...",

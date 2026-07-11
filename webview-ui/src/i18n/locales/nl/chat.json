@@ -500,6 +500,11 @@
 			"inProgress": "Context beheren...",
 			"errorHeader": "Context samenvatten mislukt"
 		},
+		"blocked": {
+			"title": "Contextherstel gepauzeerd",
+			"description": "De provider kan nu niet verdergaan, dus context verzamelen is gepauzeerd.",
+			"descriptionWithRetry": "De provider kan nu niet verdergaan, dus context verzamelen is gepauzeerd tot {{retryTime}}."
+		},
 		"truncation": {
 			"title": "Context ingekort",
 			"inProgress": "Context aan het inkorten...",

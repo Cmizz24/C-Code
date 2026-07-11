@@ -469,6 +469,11 @@
 			"inProgress": "正在管理上下文...",
 			"errorHeader": "上下文压缩失败"
 		},
+		"blocked": {
+			"title": "上下文恢复已暂停",
+			"description": "提供商目前无法继续，因此上下文收集已暂停。",
+			"descriptionWithRetry": "提供商目前无法继续，因此上下文收集已暂停到 {{retryTime}}。"
+		},
 		"truncation": {
 			"title": "上下文已截断",
 			"inProgress": "正在截断上下文...",

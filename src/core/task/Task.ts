@@ -31,6 +31,7 @@ import {
 	type AgentStatus,
 	type ContextCondense,
 	type ContextTruncation,
+	type ContextManagementBlocked,
 	type ContextCacheBudgetOption,
 	type ContextCacheEvent,
 	type ContextCacheStats,
@@ -509,6 +510,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private contextWindowManager?: ContextWindowManager
 	private readonly contextCacheRegisteredMessageKeys = new Set<string>()
 	private contextCacheNeedsRebuild = true
+	private contextManagementBlocked?: ContextManagementBlocked
 	private recentCondenseFailure?: RecentCondenseFailure
 
 	// Tool Usage Cache
@@ -2135,6 +2137,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		// Update the configuration and rebuild the API handler
 		this.apiConfiguration = newApiConfiguration
 		this.api = buildApiHandler(this.apiConfiguration)
+		this.clearContextManagementBlocked()
 	}
 
 	public async submitUserMessage(
@@ -2150,6 +2153,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			if (text.length === 0 && images.length === 0) {
 				return
 			}
+
+			// A user message is an explicit attempt to continue/retry. Let the next
+			// request re-run context recovery instead of staying blocked forever.
+			this.clearContextManagementBlocked()
 
 			const provider = this.providerRef.deref()
 
@@ -2339,6 +2346,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		contextCondense?: ContextCondense,
 		contextTruncation?: ContextTruncation,
 		contextCacheEvent?: ContextCacheEvent,
+		contextManagementBlocked?: ContextManagementBlocked,
 	): Promise<undefined> {
 		if (this.abort) {
 			throw new Error(`[RooCode#say] task ${this.taskId}.${this.instanceId} aborted`)
@@ -2358,6 +2366,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					lastMessage.partial = partial
 					lastMessage.progressStatus = progressStatus
 					lastMessage.contextCacheEvent = contextCacheEvent
+					lastMessage.contextManagementBlocked = contextManagementBlocked
 					this.updateClineMessage(lastMessage)
 				} else {
 					// This is a new partial message, so add it with partial state.
@@ -2377,6 +2386,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						contextCondense,
 						contextTruncation,
 						contextCacheEvent,
+						contextManagementBlocked,
 					})
 				}
 			} else {
@@ -2393,6 +2403,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					lastMessage.partial = false
 					lastMessage.progressStatus = progressStatus
 					lastMessage.contextCacheEvent = contextCacheEvent
+					lastMessage.contextManagementBlocked = contextManagementBlocked
 
 					// Instead of streaming partialMessage events, we do a save
 					// and post like normal to persist to disk.
@@ -2417,6 +2428,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						contextCondense,
 						contextTruncation,
 						contextCacheEvent,
+						contextManagementBlocked,
 					})
 				}
 			}
@@ -2442,8 +2454,45 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				contextCondense,
 				contextTruncation,
 				contextCacheEvent,
+				contextManagementBlocked,
 			})
 		}
+	}
+
+	public getContextManagementBlocked(): ContextManagementBlocked | undefined {
+		return this.contextManagementBlocked
+	}
+
+	public getContextManagementBlockedToolResult(toolName: string): string | undefined {
+		if (!this.contextManagementBlocked) {
+			return undefined
+		}
+
+		const retryAt = this.contextManagementBlocked.retryAt
+		const retryAtText = retryAt ? ` Retry after ${new Date(retryAt).toISOString()}.` : ""
+		return `The ${toolName} tool was not run because context management is waiting for the provider before more context can be gathered. ${this.contextManagementBlocked.reason}${retryAtText}`
+	}
+
+	private clearContextManagementBlocked(): void {
+		this.contextManagementBlocked = undefined
+		this.clearCondenseFailure()
+	}
+
+	private async setContextManagementBlocked(blocked: ContextManagementBlocked): Promise<void> {
+		this.contextManagementBlocked = blocked
+		await this.say(
+			"context_management_blocked",
+			blocked.reason,
+			undefined /* images */,
+			false /* partial */,
+			undefined /* checkpoint */,
+			undefined /* progressStatus */,
+			{ isNonInteractive: true } /* options */,
+			undefined /* contextCondense */,
+			undefined /* contextTruncation */,
+			undefined /* contextCacheEvent */,
+			blocked,
+		)
 	}
 
 	async sayAndCreateMissingParamError(toolName: ToolName, paramName: string, relPath?: string) {
@@ -3217,6 +3266,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			if (this.parallelExecutionPaused) {
 				await this.flushPendingToolResultsToHistory()
+				return true
+			}
+
+			if (this.contextManagementBlocked) {
+				this.userMessageContentReady = true
 				return true
 			}
 
@@ -4114,6 +4168,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					(block) => block.type === "tool_use" || block.type === "mcp_tool_use",
 				)
 
+				if (this.contextManagementBlocked) {
+					this.userMessageContentReady = true
+					return true
+				}
+
 				if (hasTextContent || hasToolUses) {
 					// Reset counter when we get a successful response with content
 					this.consecutiveNoAssistantMessagesCount = 0
@@ -4797,6 +4856,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				await this.overwriteApiConversationHistory(truncateResult.messages)
 			}
 
+			if (truncateResult.blocked) {
+				this.recordCondenseFailure(truncateResult.blocked.reason)
+				await this.setContextManagementBlocked(truncateResult.blocked)
+				return
+			}
+
 			if (truncateResult.error) {
 				this.recordCondenseFailure(truncateResult.error, truncateResult.errorDetails)
 			}
@@ -5054,6 +5119,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				})
 				if (truncateResult.messages !== this.apiConversationHistory) {
 					await this.overwriteApiConversationHistory(truncateResult.messages)
+				}
+				if (truncateResult.blocked) {
+					this.recordCondenseFailure(truncateResult.blocked.reason)
+					await this.setContextManagementBlocked(truncateResult.blocked)
+					return
 				}
 				if (truncateResult.error) {
 					this.recordCondenseFailure(truncateResult.error, truncateResult.errorDetails)

@@ -230,6 +230,11 @@
 			"inProgress": "Mengelola konteks...",
 			"errorHeader": "Gagal mengondensasi konteks"
 		},
+		"blocked": {
+			"title": "Pemulihan konteks dijeda",
+			"description": "Penyedia tidak bisa melanjutkan saat ini, jadi pengumpulan konteks dijeda.",
+			"descriptionWithRetry": "Penyedia tidak bisa melanjutkan saat ini, jadi pengumpulan konteks dijeda hingga {{retryTime}}."
+		},
 		"truncation": {
 			"title": "Konteks Dipotong",
 			"inProgress": "Memotong konteks...",
