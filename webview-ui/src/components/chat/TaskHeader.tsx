@@ -242,6 +242,12 @@ const TaskHeader = ({
 		qwenCodeOauthPath,
 	])
 
+	useEffect(() => {
+		if (!isPlanBased || providerName !== "openai-codex") return
+
+		vscode.postMessage({ type: "requestOpenAiCodexRateLimits" })
+	}, [isPlanBased, providerName])
+
 	const textContainerRef = useRef<HTMLDivElement>(null)
 	const textRef = useRef<HTMLDivElement>(null)
 	const contextWindow = model?.contextWindow || 1

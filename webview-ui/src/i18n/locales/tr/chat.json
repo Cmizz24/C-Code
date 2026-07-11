@@ -356,6 +356,7 @@
 			"waiting": "Bekliyor",
 			"lastTouched": "Son dokunulan",
 			"usage": "Kullanım",
+			"contextUsage": "Bağlam kullanımı",
 			"worktree": "Worktree",
 			"activity": "Etkinlik",
 			"conflicts": "Çakışmalar",
@@ -364,6 +365,7 @@
 			"waitingOn": "{{agents}} bekleniyor",
 			"noFileWrites": "Henüz dosya yazımı yok",
 			"noUsage": "Henüz kullanım bildirilmedi",
+			"noContextUsage": "Henüz bağlam kullanımı bildirilmedi",
 			"noActivity": "Henüz etkinlik bildirilmedi",
 			"noConflicts": "Çakışma yok"
 		},
@@ -464,7 +466,7 @@
 		"tokens": "token",
 		"condensation": {
 			"title": "Bağlam Özetlendi",
-			"inProgress": "Bağlam yoğunlaştırılıyor...",
+			"inProgress": "Bağlam yönetiliyor...",
 			"errorHeader": "Bağlam yoğunlaştırılamadı"
 		},
 		"truncation": {

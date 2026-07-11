@@ -13,7 +13,7 @@ import {
 	type ContextCacheBudgetManagerSnapshot,
 	estimateHotContextChunkBytes,
 } from "./ContextCacheBudgetCoordinator"
-import { ContextChunk, ContextChunkSearchResult, RegisterContextChunkInput, createContextChunk } from "./ContextChunk"
+import { ContextChunk, ContextChunkSearchResult, RegisterContextChunkInput, createContextChunks } from "./ContextChunk"
 import { HotCache } from "./HotCache"
 
 export const DEFAULT_COLD_CACHE_RAM_BUDGET_MB = 1024
@@ -32,6 +32,8 @@ const CONTEXT_CACHE_RECALL_HINT_HEADER =
 	"Cold context cache hint: some earlier task context has been swapped out of the active prompt to stay within the model window."
 const CONTEXT_CACHE_RECALL_HINT_FOOTER =
 	"Use ask_for_context with a focused query and optional filePath before relying on details that may have been swapped out."
+const DEFAULT_CONTEXT_CACHE_RETRIEVAL_TOKEN_BUDGET = 8_000
+const SKIPPED_CONTEXT_CACHE_RESULT_CONTENT = ""
 
 export interface ContextWindowManagerOptions {
 	hotTokenBudget: number
@@ -66,6 +68,14 @@ export interface ContextPressureResult {
 export interface ContextCacheRecallHintOptions {
 	maxChunks?: number
 	maxCharacters?: number
+}
+
+export interface ContextCacheAskOptions {
+	filePath?: string
+	limit?: number
+	maxTokens?: number
+	currentContextTokens?: number
+	availableInputTokens?: number
 }
 
 export interface ContextChunkRegistrationOptions {
@@ -157,14 +167,22 @@ export function coldCacheRamBudgetMbToBytes(
 	return normalizeColdCacheRamBudgetMb(value, budgetOptions) * BYTES_PER_MB
 }
 
-function toSearchResult(result: ContextChunkSearchResult): ContextCacheSearchResult {
+function toSearchResult(
+	result: ContextChunkSearchResult,
+	status: ContextCacheSearchResult["status"] = "included",
+	skippedReason?: string,
+): ContextCacheSearchResult {
+	const isSkipped = status === "skipped_over_budget"
+
 	return {
 		id: result.chunk.id,
 		type: result.chunk.type,
-		content: result.chunk.content,
+		content: isSkipped ? SKIPPED_CONTEXT_CACHE_RESULT_CONTENT : result.chunk.content,
 		filePath: result.chunk.metadata?.filePath,
 		tokens: result.chunk.tokens,
 		score: Number(result.score.toFixed(4)),
+		status,
+		skippedReason,
 		breakdown: result.breakdown,
 	}
 }
@@ -242,16 +260,18 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 		input: RegisterContextChunkInput,
 		options: ContextChunkRegistrationOptions = {},
 	): ContextChunk | undefined {
-		const chunk = createContextChunk(input)
-		if (!chunk) {
+		const chunks = createContextChunks(input)
+		if (chunks.length === 0) {
 			return undefined
 		}
 
-		const protectedChunkIds = new Set([chunk.id])
-		const evicted = this.hotCache.add(chunk)
-		this.moveChunksToCold(evicted, { ...options, protectedChunkIds })
+		const protectedChunkIds = new Set(chunks.map((chunk) => chunk.id))
+		for (const chunk of chunks) {
+			const evicted = this.hotCache.add(chunk, { protectedIds: protectedChunkIds })
+			this.moveChunksToCold(evicted, { ...options, protectedChunkIds })
+		}
 		this.enforceCombinedBudget({ protectedChunkIds })
-		return chunk
+		return chunks[0]
 	}
 
 	clearCachedChunks(): void {
@@ -312,21 +332,35 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 		}
 	}
 
-	askForContext(query: string, options: { filePath?: string; limit?: number } = {}): ContextCacheSearchResult[] {
+	askForContext(query: string, options: ContextCacheAskOptions = {}): ContextCacheSearchResult[] {
 		const results = this.coldCache.search(query, { filePath: options.filePath, limit: options.limit ?? 3 })
 		let pulledChunks = 0
 		let pulledTokens = 0
 		const protectedChunkIds = new Set<string>()
+		const budget = this.getAskForContextTokenBudget(options)
+		const returnedResults: ContextCacheSearchResult[] = []
 
 		for (const result of results) {
+			if (pulledTokens + result.chunk.tokens > budget) {
+				returnedResults.push(
+					toSearchResult(
+						result,
+						"skipped_over_budget",
+						`Skipping ${result.chunk.tokens} token chunk because it would exceed the ${budget} token retrieval budget.`,
+					),
+				)
+				continue
+			}
+
 			const chunk = this.coldCache.remove(result.chunk.id)
 			if (!chunk) {
 				continue
 			}
 
+			returnedResults.push(toSearchResult(result))
 			this.unhideMessageTimestamps(chunk)
 			protectedChunkIds.add(chunk.id)
-			const evicted = this.hotCache.add(chunk, { protectedIds: new Set([chunk.id]) })
+			const evicted = this.hotCache.add(chunk, { protectedIds: protectedChunkIds })
 			this.moveChunksToCold(evicted, { protectedChunkIds })
 			this.swapsThisSession++
 			pulledChunks++
@@ -344,7 +378,22 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 			})
 		}
 
-		return results.map(toSearchResult)
+		return returnedResults
+	}
+
+	private getAskForContextTokenBudget(options: ContextCacheAskOptions): number {
+		const explicitMaxTokens = Math.floor(options.maxTokens ?? Number.NaN)
+		if (Number.isFinite(explicitMaxTokens) && explicitMaxTokens >= 0) {
+			return explicitMaxTokens
+		}
+
+		const availableInputTokens = Math.floor(options.availableInputTokens ?? Number.NaN)
+		if (Number.isFinite(availableInputTokens) && availableInputTokens > 0) {
+			const currentContextTokens = Math.max(0, Math.floor(options.currentContextTokens ?? 0))
+			return Math.max(0, availableInputTokens - currentContextTokens)
+		}
+
+		return DEFAULT_CONTEXT_CACHE_RETRIEVAL_TOKEN_BUDGET
 	}
 
 	getRecallHint(options: ContextCacheRecallHintOptions = {}): string | undefined {

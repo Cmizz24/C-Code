@@ -355,6 +355,7 @@
 			"waiting": "प्रतीक्षा",
 			"lastTouched": "आखिरी बार छुआ गया",
 			"usage": "उपयोग",
+			"contextUsage": "संदर्भ का उपयोग",
 			"worktree": "Worktree",
 			"activity": "गतिविधि",
 			"conflicts": "टकराव",
@@ -363,6 +364,7 @@
 			"waitingOn": "{{agents}} की प्रतीक्षा में",
 			"noFileWrites": "अभी तक कोई फ़ाइल लिखी नहीं गई",
 			"noUsage": "अभी तक कोई उपयोग रिपोर्ट नहीं हुआ",
+			"noContextUsage": "अभी तक कोई संदर्भ उपयोग रिपोर्ट नहीं हुआ",
 			"noActivity": "अभी तक कोई गतिविधि रिपोर्ट नहीं हुई",
 			"noConflicts": "कोई टकराव नहीं"
 		},
@@ -463,7 +465,7 @@
 		"tokens": "टोकन",
 		"condensation": {
 			"title": "संदर्भ संक्षिप्त किया गया",
-			"inProgress": "संदर्भ संघनित कर रहा है...",
+			"inProgress": "संदर्भ प्रबंधित किया जा रहा है...",
 			"errorHeader": "संदर्भ संघनित करने में विफल"
 		},
 		"truncation": {

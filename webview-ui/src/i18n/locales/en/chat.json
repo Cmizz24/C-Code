@@ -224,7 +224,7 @@
 		"tokens": "tokens",
 		"condensation": {
 			"title": "Context Condensed",
-			"inProgress": "Condensing context...",
+			"inProgress": "Managing context...",
 			"errorHeader": "Failed to condense context"
 		},
 		"truncation": {
@@ -480,6 +480,7 @@
 			"waiting": "Waiting",
 			"lastTouched": "Last touched",
 			"usage": "Usage",
+			"contextUsage": "Context usage",
 			"worktree": "Worktree",
 			"activity": "Activity",
 			"conflicts": "Conflicts",
@@ -488,6 +489,7 @@
 			"waitingOn": "Waiting on {{agents}}",
 			"noFileWrites": "No file writes yet",
 			"noUsage": "No usage reported yet",
+			"noContextUsage": "No context usage reported yet",
 			"noActivity": "No activity reported yet",
 			"noConflicts": "No conflicts"
 		},

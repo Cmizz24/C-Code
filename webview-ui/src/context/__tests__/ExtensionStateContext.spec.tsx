@@ -72,6 +72,17 @@ const RouterModelsTestComponent = () => {
 	return <div data-testid="router-models">{JSON.stringify(routerModels)}</div>
 }
 
+const ProviderUsageTestComponent = () => {
+	const { openAiCodexRateLimits, cachedProviderPlanUsage } = useExtensionState()
+
+	return (
+		<div>
+			<div data-testid="openai-codex-rate-limits">{JSON.stringify(openAiCodexRateLimits)}</div>
+			<div data-testid="cached-provider-plan-usage">{JSON.stringify(cachedProviderPlanUsage)}</div>
+		</div>
+	)
+}
+
 describe("ExtensionStateContext", () => {
 	it("initializes with empty allowedCommands array", () => {
 		render(
@@ -276,6 +287,78 @@ describe("ExtensionStateContext", () => {
 				"claude-model": { contextWindow: 200_000, supportsPromptCache: true },
 			},
 		})
+	})
+
+	it("stores direct OpenAI Codex rate-limit and provider plan usage messages", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ProviderUsageTestComponent />
+			</ExtensionStateContextProvider>,
+		)
+
+		act(() => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "openAiCodexRateLimits",
+						values: {
+							primary: { usedPercent: 42.4, resetsAt: 1_700_000_000 },
+							fetchedAt: 1_699_999_000,
+						},
+					},
+				}),
+			)
+
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "providerPlanUsage",
+						providerName: "openai-codex",
+						values: { usedPercent: 42.4, tokensRemaining: 57_600 },
+					},
+				}),
+			)
+		})
+
+		expect(JSON.parse(screen.getByTestId("openai-codex-rate-limits").textContent || "{}")).toEqual({
+			primary: { usedPercent: 42.4, resetsAt: 1_700_000_000 },
+			fetchedAt: 1_699_999_000,
+		})
+		expect(JSON.parse(screen.getByTestId("cached-provider-plan-usage").textContent || "{}")).toEqual({
+			"openai-codex": { usedPercent: 42.4, tokensRemaining: 57_600 },
+		})
+	})
+
+	it("ignores malformed direct OpenAI Codex rate-limit and provider plan usage messages", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ProviderUsageTestComponent />
+			</ExtensionStateContextProvider>,
+		)
+
+		act(() => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "openAiCodexRateLimits",
+						values: { primary: { usedPercent: 42.4 } },
+					},
+				}),
+			)
+
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "providerPlanUsage",
+						providerName: "openai-codex",
+						values: undefined,
+					},
+				}),
+			)
+		})
+
+		expect(screen.getByTestId("openai-codex-rate-limits").textContent).toBe("")
+		expect(screen.getByTestId("cached-provider-plan-usage").textContent).toBe("")
 	})
 })
 

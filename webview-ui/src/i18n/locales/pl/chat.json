@@ -355,6 +355,7 @@
 			"waiting": "Oczekiwanie",
 			"lastTouched": "Ostatnio dotknięte",
 			"usage": "Użycie",
+			"contextUsage": "Użycie kontekstu",
 			"worktree": "Worktree",
 			"activity": "Aktywność",
 			"conflicts": "Konflikty",
@@ -363,6 +364,7 @@
 			"waitingOn": "Oczekiwanie na {{agents}}",
 			"noFileWrites": "Brak zapisów plików",
 			"noUsage": "Nie zgłoszono jeszcze użycia",
+			"noContextUsage": "Nie zgłoszono jeszcze użycia kontekstu",
 			"noActivity": "Nie zgłoszono jeszcze aktywności",
 			"noConflicts": "Brak konfliktów"
 		},
@@ -463,7 +465,7 @@
 		"tokens": "tokeny",
 		"condensation": {
 			"title": "Kontekst skondensowany",
-			"inProgress": "Kondensowanie kontekstu...",
+			"inProgress": "Zarządzanie kontekstem...",
 			"errorHeader": "Nie udało się skondensować kontekstu"
 		},
 		"truncation": {

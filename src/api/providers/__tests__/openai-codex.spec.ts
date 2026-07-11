@@ -215,6 +215,62 @@ describe("OpenAiCodexHandler Responses input formatting", () => {
 	})
 })
 
+describe("OpenAiCodexHandler reasoning extraction", () => {
+	const collectProcessEventChunks = async (handler: OpenAiCodexHandler, event: any) => {
+		const chunks: any[] = []
+		for await (const chunk of (handler as any).processEvent(event, handler.getModel())) {
+			chunks.push(chunk)
+		}
+		return chunks
+	}
+
+	it("extracts final reasoning summaries from Responses output items", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const chunks = await collectProcessEventChunks(handler, {
+			type: "response.completed",
+			response: {
+				output: [
+					{
+						type: "reasoning",
+						summary: [{ type: "summary_text", text: "Reviewed the request and selected a focused fix." }],
+					},
+				],
+			},
+		})
+
+		expect(chunks).toEqual([{ type: "reasoning", text: "Reviewed the request and selected a focused fix." }])
+	})
+
+	it("deduplicates final reasoning summaries already streamed as reasoning deltas", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const firstDelta = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary.delta",
+			delta: "Reviewed the request ",
+		})
+		const secondDelta = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary.delta",
+			delta: "and selected a focused fix.",
+		})
+		const finalSummary = await collectProcessEventChunks(handler, {
+			type: "response.completed",
+			response: {
+				output: [
+					{
+						type: "reasoning",
+						summary: [{ type: "summary_text", text: "Reviewed the request and selected a focused fix." }],
+					},
+				],
+			},
+		})
+
+		expect(firstDelta).toEqual([{ type: "reasoning", text: "Reviewed the request" }])
+		expect(secondDelta).toEqual([{ type: "reasoning", text: "and selected a focused fix." }])
+		expect(finalSummary).toEqual([])
+	})
+})
+
 describe("OpenAiCodexHandler.completePrompt", () => {
 	let fetchMock: ReturnType<typeof vi.fn>
 

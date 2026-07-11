@@ -227,7 +227,7 @@
 		"tokens": "token",
 		"condensation": {
 			"title": "Konteks Dikondensasi",
-			"inProgress": "Mengondensasi konteks...",
+			"inProgress": "Mengelola konteks...",
 			"errorHeader": "Gagal mengondensasi konteks"
 		},
 		"truncation": {
@@ -472,6 +472,7 @@
 			"waiting": "Menunggu",
 			"lastTouched": "Terakhir disentuh",
 			"usage": "Penggunaan",
+			"contextUsage": "Penggunaan konteks",
 			"worktree": "Worktree",
 			"activity": "Aktivitas",
 			"conflicts": "Konflik",
@@ -480,6 +481,7 @@
 			"waitingOn": "Menunggu {{agents}}",
 			"noFileWrites": "Belum ada penulisan file",
 			"noUsage": "Belum ada penggunaan yang dilaporkan",
+			"noContextUsage": "Belum ada penggunaan konteks yang dilaporkan",
 			"noActivity": "Belum ada aktivitas yang dilaporkan",
 			"noConflicts": "Tidak ada konflik"
 		},

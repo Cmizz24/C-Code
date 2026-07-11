@@ -355,6 +355,7 @@
 			"waiting": "En attente",
 			"lastTouched": "Dernier fichier touché",
 			"usage": "Utilisation",
+			"contextUsage": "Utilisation du contexte",
 			"worktree": "Worktree",
 			"activity": "Activité",
 			"conflicts": "Conflits",
@@ -363,6 +364,7 @@
 			"waitingOn": "En attente de {{agents}}",
 			"noFileWrites": "Aucune écriture de fichier pour l'instant",
 			"noUsage": "Aucune utilisation signalée pour l'instant",
+			"noContextUsage": "Aucune utilisation du contexte signalée pour l'instant",
 			"noActivity": "Aucune activité signalée pour l'instant",
 			"noConflicts": "Aucun conflit"
 		},
@@ -463,7 +465,7 @@
 		"tokens": "tokens",
 		"condensation": {
 			"title": "Contexte condensé",
-			"inProgress": "Condensation du contexte...",
+			"inProgress": "Gestion du contexte...",
 			"errorHeader": "Échec de la condensation du contexte"
 		},
 		"truncation": {

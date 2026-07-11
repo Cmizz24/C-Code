@@ -350,6 +350,7 @@
 			"waiting": "Wachten",
 			"lastTouched": "Laatst aangeraakt",
 			"usage": "Gebruik",
+			"contextUsage": "Contextgebruik",
 			"worktree": "Worktree",
 			"activity": "Activiteit",
 			"conflicts": "Conflicten",
@@ -358,6 +359,7 @@
 			"waitingOn": "Wachten op {{agents}}",
 			"noFileWrites": "Nog geen bestandsschrijfacties",
 			"noUsage": "Nog geen gebruik gemeld",
+			"noContextUsage": "Nog geen contextgebruik gemeld",
 			"noActivity": "Nog geen activiteit gemeld",
 			"noConflicts": "Geen conflicten"
 		},
@@ -495,7 +497,7 @@
 		"tokens": "tokens",
 		"condensation": {
 			"title": "Context samengevat",
-			"inProgress": "Context aan het samenvatten...",
+			"inProgress": "Context beheren...",
 			"errorHeader": "Context samenvatten mislukt"
 		},
 		"truncation": {

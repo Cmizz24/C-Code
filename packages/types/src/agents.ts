@@ -390,7 +390,16 @@ export interface AgentStatusUpdate {
 	reason?: string
 	blockedOn?: AgentDependency[]
 	usage?: TokenUsage
+	contextUsage?: AgentContextUsage
 	activities?: AgentActivityEvent[]
+}
+
+export interface AgentContextUsage {
+	contextTokens: number
+	contextWindow: number
+	reservedOutputTokens: number
+	availableInputTokens: number
+	percent: number
 }
 
 export interface WriteIntentConflict {

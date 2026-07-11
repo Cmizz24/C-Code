@@ -356,6 +356,7 @@
 			"waiting": "Đang chờ",
 			"lastTouched": "Chạm lần cuối",
 			"usage": "Mức dùng",
+			"contextUsage": "Mức dùng ngữ cảnh",
 			"worktree": "Worktree",
 			"activity": "Hoạt động",
 			"conflicts": "Xung đột",
@@ -364,6 +365,7 @@
 			"waitingOn": "Đang chờ {{agents}}",
 			"noFileWrites": "Chưa có lần ghi tệp nào",
 			"noUsage": "Chưa có mức dùng nào được báo cáo",
+			"noContextUsage": "Chưa có mức dùng ngữ cảnh nào được báo cáo",
 			"noActivity": "Chưa có hoạt động nào được báo cáo",
 			"noConflicts": "Không có xung đột"
 		},
@@ -464,7 +466,7 @@
 		"tokens": "token",
 		"condensation": {
 			"title": "Ngữ cảnh đã tóm tắt",
-			"inProgress": "Đang cô đọng ngữ cảnh...",
+			"inProgress": "Đang quản lý ngữ cảnh...",
 			"errorHeader": "Không thể cô đọng ngữ cảnh"
 		},
 		"truncation": {

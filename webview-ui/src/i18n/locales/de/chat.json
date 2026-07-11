@@ -355,6 +355,7 @@
 			"waiting": "Wartet",
 			"lastTouched": "Zuletzt berührt",
 			"usage": "Nutzung",
+			"contextUsage": "Kontextnutzung",
 			"worktree": "Worktree",
 			"activity": "Aktivität",
 			"conflicts": "Konflikte",
@@ -363,6 +364,7 @@
 			"waitingOn": "Wartet auf {{agents}}",
 			"noFileWrites": "Noch keine Dateiänderungen",
 			"noUsage": "Noch keine Nutzung gemeldet",
+			"noContextUsage": "Noch keine Kontextnutzung gemeldet",
 			"noActivity": "Noch keine Aktivität gemeldet",
 			"noConflicts": "Keine Konflikte"
 		},
@@ -463,7 +465,7 @@
 		"tokens": "Tokens",
 		"condensation": {
 			"title": "Kontext komprimiert",
-			"inProgress": "Kontext wird komprimiert...",
+			"inProgress": "Kontext wird verwaltet...",
 			"errorHeader": "Kontext konnte nicht komprimiert werden"
 		},
 		"truncation": {

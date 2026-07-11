@@ -355,6 +355,7 @@
 			"waiting": "待機中",
 			"lastTouched": "最後に触ったもの",
 			"usage": "使用量",
+			"contextUsage": "コンテキスト使用量",
 			"worktree": "Worktree",
 			"activity": "アクティビティ",
 			"conflicts": "競合",
@@ -363,6 +364,7 @@
 			"waitingOn": "{{agents}} を待機中",
 			"noFileWrites": "まだファイル書き込みはありません",
 			"noUsage": "まだ使用量は報告されていません",
+			"noContextUsage": "まだコンテキスト使用量は報告されていません",
 			"noActivity": "まだアクティビティは報告されていません",
 			"noConflicts": "競合なし"
 		},
@@ -463,7 +465,7 @@
 		"tokens": "トークン",
 		"condensation": {
 			"title": "コンテキスト要約",
-			"inProgress": "コンテキストを圧縮中...",
+			"inProgress": "コンテキストを管理中...",
 			"errorHeader": "コンテキストの圧縮に失敗しました"
 		},
 		"truncation": {

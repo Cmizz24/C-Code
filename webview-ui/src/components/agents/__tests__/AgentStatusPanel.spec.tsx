@@ -24,6 +24,7 @@ const translations: Record<string, string> = {
 	"chat:parallelAgents.details.waiting": "Waiting",
 	"chat:parallelAgents.details.lastTouched": "Last touched",
 	"chat:parallelAgents.details.usage": "Usage",
+	"chat:parallelAgents.details.contextUsage": "Context usage",
 	"chat:parallelAgents.details.worktree": "Worktree",
 	"chat:parallelAgents.details.activity": "Activity",
 	"chat:parallelAgents.details.conflicts": "Conflicts",
@@ -32,6 +33,7 @@ const translations: Record<string, string> = {
 	"chat:parallelAgents.details.waitingOn": "Waiting on {{agents}}",
 	"chat:parallelAgents.details.noFileWrites": "No file writes yet",
 	"chat:parallelAgents.details.noUsage": "No usage reported yet",
+	"chat:parallelAgents.details.noContextUsage": "No context usage reported yet",
 	"chat:parallelAgents.details.noActivity": "No activity reported yet",
 	"chat:parallelAgents.details.noConflicts": "No conflicts",
 	"chat:parallelAgents.mergeReview.approved": "Approved",
@@ -225,6 +227,7 @@ describe("AgentStatusPanel", () => {
 
 		expect(screen.getByTestId("agent-status-summary")).toHaveTextContent("0/2 complete")
 		expect(screen.queryByTestId("agent-usage")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("agent-context-usage")).not.toBeInTheDocument()
 
 		const update: ExtensionMessage = {
 			type: "agentStatusUpdate",
@@ -240,6 +243,13 @@ describe("AgentStatusPanel", () => {
 					totalCost: 0.02,
 					contextTokens: 1540,
 				},
+				contextUsage: {
+					contextTokens: 1540,
+					contextWindow: 8192,
+					reservedOutputTokens: 1024,
+					availableInputTokens: 7168,
+					percent: 21,
+				},
 			},
 		}
 
@@ -249,6 +259,10 @@ describe("AgentStatusPanel", () => {
 
 		expect(screen.getByTestId("agent-usage-summary")).toHaveTextContent("1/2 reporting usage")
 		expect(screen.getByTestId("agent-usage")).toHaveTextContent("↑ 1.2K · ↓ 340 · $0.02")
+		expect(screen.getByTestId("agent-context-usage")).toHaveTextContent("21% context")
+
+		fireEvent.click(screen.getAllByTestId("agent-status-toggle")[0])
+		expect(screen.getByTestId("agent-details-context-usage")).toHaveTextContent("1.5K / 7.2K tokens (21%)")
 	})
 
 	it("renders a completed plan as a concise completed tool-style summary", () => {

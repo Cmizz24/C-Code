@@ -355,6 +355,7 @@
 			"waiting": "En espera",
 			"lastTouched": "Últim fitxer tocat",
 			"usage": "Ús",
+			"contextUsage": "Ús del context",
 			"worktree": "Worktree",
 			"activity": "Activitat",
 			"conflicts": "Conflictes",
@@ -363,6 +364,7 @@
 			"waitingOn": "Esperant {{agents}}",
 			"noFileWrites": "Encara no hi ha escriptures de fitxers",
 			"noUsage": "Encara no s'ha informat d'ús",
+			"noContextUsage": "Encara no s'ha informat d'ús del context",
 			"noActivity": "Encara no s'ha informat d'activitat",
 			"noConflicts": "Sense conflictes"
 		},
@@ -463,7 +465,7 @@
 		"tokens": "tokens",
 		"condensation": {
 			"title": "Context condensat",
-			"inProgress": "Condensant context...",
+			"inProgress": "Gestionant el context...",
 			"errorHeader": "Error en condensar el context"
 		},
 		"truncation": {

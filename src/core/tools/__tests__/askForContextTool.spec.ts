@@ -18,6 +18,7 @@ describe("askForContextTool", () => {
 			sayAndCreateMissingParamError: vi.fn().mockResolvedValue("Missing query parameter"),
 			say: vi.fn().mockResolvedValue(undefined),
 			getContextWindowManager: vi.fn(),
+			getContextCacheAskOptions: vi.fn(() => ({ currentContextTokens: 1200, availableInputTokens: 6000 })),
 		}
 
 		mockCallbacks = {
@@ -80,7 +81,13 @@ describe("askForContextTool", () => {
 
 		await askForContextTool.handle(mockTask as Task, block, mockCallbacks)
 
-		expect(askForContext).toHaveBeenCalledWith("cached helper", { filePath: "src/helpers.ts", limit: 3 })
+		expect(mockTask.getContextCacheAskOptions).toHaveBeenCalledOnce()
+		expect(askForContext).toHaveBeenCalledWith("cached helper", {
+			currentContextTokens: 1200,
+			availableInputTokens: 6000,
+			filePath: "src/helpers.ts",
+			limit: 3,
+		})
 		expect(mockTask.consecutiveMistakeCount).toBe(0)
 		expect(mockTask.say).toHaveBeenCalledWith("tool", expect.any(String), undefined, false, undefined, undefined, {
 			isNonInteractive: true,

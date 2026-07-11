@@ -440,6 +440,30 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 					}))
 					break
 				}
+				case "openAiCodexRateLimits": {
+					const rateLimits = message.values as ExtensionState["openAiCodexRateLimits"]
+					if (rateLimits && typeof rateLimits.fetchedAt === "number") {
+						setState((prevState) => ({
+							...prevState,
+							openAiCodexRateLimits: rateLimits,
+						}))
+					}
+					break
+				}
+				case "providerPlanUsage": {
+					const providerName = (message as any).providerName
+					const values = (message as any).values
+					if (typeof providerName === "string" && values && typeof values === "object") {
+						setState((prevState) => ({
+							...prevState,
+							cachedProviderPlanUsage: {
+								...(prevState.cachedProviderPlanUsage ?? {}),
+								[providerName]: values,
+							},
+						}))
+					}
+					break
+				}
 				case "messageUpdated": {
 					const clineMessage = message.clineMessage!
 					setState((prevState) => {

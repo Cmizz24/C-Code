@@ -8441,6 +8441,7 @@ export class ClineProvider
 			agentId: task.agentId,
 			status: this.getAgentStatus(task.agentId) ?? "running",
 			usage,
+			contextUsage: task.getAgentContextUsage?.(),
 		} satisfies AgentStatusUpdate
 
 		this.postAgentStatusUpdate(update)

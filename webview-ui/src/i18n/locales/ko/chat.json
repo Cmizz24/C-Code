@@ -355,6 +355,7 @@
 			"waiting": "대기 중",
 			"lastTouched": "마지막으로 건드림",
 			"usage": "사용량",
+			"contextUsage": "컨텍스트 사용량",
 			"worktree": "Worktree",
 			"activity": "활동",
 			"conflicts": "충돌",
@@ -363,6 +364,7 @@
 			"waitingOn": "{{agents}} 대기 중",
 			"noFileWrites": "아직 파일 쓰기 없음",
 			"noUsage": "아직 보고된 사용량 없음",
+			"noContextUsage": "아직 보고된 컨텍스트 사용량 없음",
 			"noActivity": "아직 보고된 활동 없음",
 			"noConflicts": "충돌 없음"
 		},
@@ -463,7 +465,7 @@
 		"tokens": "토큰",
 		"condensation": {
 			"title": "컨텍스트 요약됨",
-			"inProgress": "컨텍스트 압축 중...",
+			"inProgress": "컨텍스트 관리 중...",
 			"errorHeader": "컨텍스트 압축 실패"
 		},
 		"truncation": {

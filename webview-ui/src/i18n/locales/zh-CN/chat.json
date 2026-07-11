@@ -356,6 +356,7 @@
 			"waiting": "等待",
 			"lastTouched": "最后触碰",
 			"usage": "用量",
+			"contextUsage": "上下文用量",
 			"worktree": "Worktree",
 			"activity": "活动",
 			"conflicts": "冲突",
@@ -364,6 +365,7 @@
 			"waitingOn": "正在等待 {{agents}}",
 			"noFileWrites": "尚无文件写入",
 			"noUsage": "尚未报告用量",
+			"noContextUsage": "尚未报告上下文用量",
 			"noActivity": "尚未报告活动",
 			"noConflicts": "无冲突"
 		},
@@ -464,7 +466,7 @@
 		"tokens": "Token",
 		"condensation": {
 			"title": "上下文已压缩",
-			"inProgress": "正在压缩上下文...",
+			"inProgress": "正在管理上下文...",
 			"errorHeader": "上下文压缩失败"
 		},
 		"truncation": {

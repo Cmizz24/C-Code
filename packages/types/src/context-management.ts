@@ -136,6 +136,9 @@ export interface ContextCacheSearchResult {
 	filePath?: string
 	tokens: number
 	score: number
+	/** Whether the chunk was returned to active context or reported as an over-budget skipped match. */
+	status?: "included" | "skipped_over_budget"
+	skippedReason?: string
 	breakdown?: {
 		queryMatches: number
 		filePathMatch: boolean

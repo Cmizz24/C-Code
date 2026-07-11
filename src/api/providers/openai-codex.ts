@@ -18,7 +18,7 @@ import {
 import { Package } from "../../shared/package"
 import type { ApiHandlerOptions } from "../../shared/api"
 
-import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+import { ApiStream, ApiStreamReasoningChunk, ApiStreamUsageChunk } from "../transform/stream"
 import { getModelParams } from "../transform/model-params"
 import { sanitizeResponsesApiInput } from "../transform/responses-api-input"
 
@@ -71,6 +71,9 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 	private sawTextOutputInCurrentResponse = false
 	// Tracks whether text arrived through delta events so content_part events can be treated as fallback-only.
 	private sawTextDeltaInCurrentResponse = false
+	// Tracks emitted reasoning so final response summaries do not duplicate streamed reasoning.
+	private streamedReasoningText = ""
+	private emittedReasoningTextKeys = new Set<string>()
 	// Tracks tool call IDs emitted via streaming partial events to prevent done-event duplicates.
 	private streamedToolCallIds = new Set<string>()
 	private lastOpenAiCodexFastStatus: OpenAiCodexFastStatus | undefined
@@ -112,7 +115,113 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		this.pendingToolCallName = undefined
 		this.sawTextOutputInCurrentResponse = false
 		this.sawTextDeltaInCurrentResponse = false
+		this.streamedReasoningText = ""
+		this.emittedReasoningTextKeys.clear()
 		this.streamedToolCallIds.clear()
+	}
+
+	private getReasoningTextKey(text: string): string {
+		return text.replace(/\s+/g, " ").trim()
+	}
+
+	private normalizeReasoningText(value: unknown): string | undefined {
+		if (typeof value !== "string") {
+			return undefined
+		}
+
+		const text = value.trim()
+		return text.length > 0 ? text : undefined
+	}
+
+	private recordReasoningText(text: string): string | undefined {
+		const normalizedText = this.normalizeReasoningText(text)
+		if (!normalizedText) {
+			return undefined
+		}
+
+		const key = this.getReasoningTextKey(normalizedText)
+		if (this.emittedReasoningTextKeys.has(key)) {
+			return undefined
+		}
+
+		const streamedKey = this.getReasoningTextKey(this.streamedReasoningText)
+		if (streamedKey && streamedKey === key) {
+			this.emittedReasoningTextKeys.add(key)
+			return undefined
+		}
+
+		this.emittedReasoningTextKeys.add(key)
+		this.streamedReasoningText += text
+		return normalizedText
+	}
+
+	private collectReasoningTextsFromContent(content: any): string[] {
+		if (!content) {
+			return []
+		}
+
+		if (typeof content === "string") {
+			return [content]
+		}
+
+		if (Array.isArray(content)) {
+			return content.flatMap((item) => this.collectReasoningTextsFromContent(item))
+		}
+
+		const texts: string[] = []
+		for (const key of ["text", "delta", "summary", "content"] as const) {
+			const value = content[key]
+			if (typeof value === "string") {
+				texts.push(value)
+			} else if (Array.isArray(value)) {
+				texts.push(...value.flatMap((item) => this.collectReasoningTextsFromContent(item)))
+			} else if (value && typeof value === "object") {
+				texts.push(...this.collectReasoningTextsFromContent(value))
+			}
+		}
+
+		return texts
+	}
+
+	private collectReasoningTextsFromOutputItem(item: any): string[] {
+		if (!item || typeof item !== "object") {
+			return []
+		}
+
+		const texts: string[] = []
+		if (item.type === "reasoning" || item.type === "reasoning_summary" || item.type === "reasoning_text") {
+			texts.push(...this.collectReasoningTextsFromContent(item))
+		}
+
+		if (Array.isArray(item.summary)) {
+			texts.push(
+				...item.summary.flatMap((summaryItem: any) => this.collectReasoningTextsFromContent(summaryItem)),
+			)
+		}
+
+		if (Array.isArray(item.content)) {
+			for (const content of item.content) {
+				if (
+					content?.type === "reasoning" ||
+					content?.type === "reasoning_text" ||
+					content?.type === "reasoning_summary" ||
+					content?.type === "summary_text"
+				) {
+					texts.push(...this.collectReasoningTextsFromContent(content))
+				}
+			}
+		}
+
+		return texts
+	}
+
+	private *yieldReasoningTexts(texts: string[]): Generator<ApiStreamReasoningChunk> {
+		for (const text of texts) {
+			const reasoningText = this.recordReasoningText(text)
+			if (reasoningText) {
+				yield { type: "reasoning", text: reasoningText }
+			}
+		}
 	}
 
 	private normalizeUsage(usage: any, model: OpenAiCodexModel): ApiStreamUsageChunk | undefined {
@@ -1056,9 +1165,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 			event?.type === "response.reasoning_summary.delta" ||
 			event?.type === "response.reasoning_summary_text.delta"
 		) {
-			if (event?.delta) {
-				yield { type: "reasoning", text: event.delta }
-			}
+			yield* this.yieldReasoningTexts([event?.delta, event?.text, event?.summary])
 			return
 		}
 
@@ -1128,8 +1235,12 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 					} else if (item.type === "output_text" && item.text) {
 						this.sawTextOutputInCurrentResponse = true
 						yield { type: "text", text: item.text }
-					} else if (item.type === "reasoning" && item.text) {
-						yield { type: "reasoning", text: item.text }
+					} else if (
+						item.type === "reasoning" ||
+						item.type === "reasoning_summary" ||
+						item.type === "reasoning_text"
+					) {
+						yield* this.yieldReasoningTexts(this.collectReasoningTextsFromOutputItem(item))
 					} else if (item.type === "message" && Array.isArray(item.content)) {
 						for (const content of item.content) {
 							if ((content?.type === "text" || content?.type === "output_text") && content?.text) {
@@ -1138,6 +1249,8 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 							}
 						}
 					}
+
+					yield* this.yieldReasoningTexts(this.collectReasoningTextsFromOutputItem(item))
 				} else if (
 					event.type === "response.output_item.done" &&
 					(item.type === "function_call" || item.type === "tool_call")
@@ -1194,6 +1307,12 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 
 		// Handle completion events
 		if (event?.type === "response.done" || event?.type === "response.completed") {
+			if (Array.isArray(event?.response?.output)) {
+				for (const outputItem of event.response.output) {
+					yield* this.yieldReasoningTexts(this.collectReasoningTextsFromOutputItem(outputItem))
+				}
+			}
+
 			// Some Codex variants only provide assistant text in the final completed payload.
 			if (!this.sawTextOutputInCurrentResponse && Array.isArray(event?.response?.output)) {
 				for (const outputItem of event.response.output) {

@@ -42,6 +42,7 @@ import {
 	type HistoryItem,
 	type CreateTaskOptions,
 	type ModelInfo,
+	type AgentContextUsage,
 	type OpenAiCodexFastStatus,
 	type ClineApiReqCancelReason,
 	type ClineApiReqInfo,
@@ -115,6 +116,7 @@ import { NativeToolCallParser } from "../assistant-message/NativeToolCallParser"
 import { manageContext, willManageContext } from "../context-management"
 import {
 	ContextWindowManager,
+	type ContextCacheAskOptions,
 	type ContextChunkRegistrationOptions,
 	DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
 	coldCacheRamBudgetMbToBytes,
@@ -972,6 +974,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			  }
 			| undefined,
 		modelInfo: ModelInfo,
+		modelId?: string,
 	): void {
 		if ((settings?.contextCacheEnabled ?? true) === false) {
 			this.contextWindowManager?.dispose()
@@ -991,7 +994,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			coldCacheRamBudgetMbToBytes(coldCacheRamBudgetMb, coldCacheBudgetOptions),
 		)
 		const options = {
-			hotTokenBudget: modelInfo.contextWindow,
+			hotTokenBudget: this.getAvailableInputTokensForModel(modelInfo, modelId),
 			coldCacheBudgetOptions,
 			coldCacheRamBudgetMb,
 			cacheBudgetCoordinator,
@@ -1023,6 +1026,54 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	public getContextWindowManager(): ContextWindowManager | undefined {
 		return this.contextWindowManager
+	}
+
+	public getContextCacheAskOptions(): ContextCacheAskOptions {
+		const contextUsage = this.getContextUsageDiagnostics()
+		return {
+			currentContextTokens: contextUsage?.contextTokens ?? this.getTokenUsage().contextTokens,
+			availableInputTokens: contextUsage?.availableInputTokens,
+		}
+	}
+
+	public getAgentContextUsage(): AgentContextUsage | undefined {
+		return this.getContextUsageDiagnostics()
+	}
+
+	private getContextUsageDiagnostics(modelOverride?: { id: string; info: ModelInfo }): AgentContextUsage | undefined {
+		const model = modelOverride ?? this.cachedStreamingModel ?? this.api.getModel()
+		const contextWindow = Math.floor(model.info.contextWindow)
+		if (!Number.isFinite(contextWindow) || contextWindow <= 0) {
+			return undefined
+		}
+
+		const reservedOutputTokens = this.getReservedOutputTokensForModel(model.info, model.id)
+		const availableInputTokens = Math.max(1, contextWindow - reservedOutputTokens)
+		const contextTokens = Math.max(0, Math.floor(this.getTokenUsage().contextTokens ?? 0))
+
+		return {
+			contextTokens,
+			contextWindow,
+			reservedOutputTokens,
+			availableInputTokens,
+			percent: Math.round((contextTokens / availableInputTokens) * 100),
+		}
+	}
+
+	private getReservedOutputTokensForModel(modelInfo: ModelInfo, modelId?: string): number {
+		const resolvedModelId = modelId ?? this.cachedStreamingModel?.id ?? this.api.getModel().id
+		const maxTokens = getModelMaxOutputTokens({
+			modelId: resolvedModelId,
+			model: modelInfo,
+			settings: this.apiConfiguration,
+		})
+
+		return Math.max(0, Math.floor(maxTokens ?? 0))
+	}
+
+	private getAvailableInputTokensForModel(modelInfo: ModelInfo, modelId?: string): number {
+		const contextWindow = Math.max(1, Math.floor(modelInfo.contextWindow))
+		return Math.max(1, contextWindow - this.getReservedOutputTokensForModel(modelInfo, modelId))
 	}
 
 	private getContextCacheBudgetCoordinator(): ContextCacheBudgetCoordinator | undefined {
@@ -4662,8 +4713,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const taskMode = await this.getTaskMode()
 
 		const { contextTokens } = this.getTokenUsage()
-		const modelInfo = this.api.getModel().info
-		this.configureContextWindowManager(state, modelInfo)
+		const model = this.api.getModel()
+		const modelInfo = model.info
+		this.configureContextWindowManager(state, modelInfo, model.id)
 
 		const maxTokens = getModelMaxOutputTokens({
 			modelId: this.api.getModel().id,
@@ -4877,8 +4929,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		const systemPrompt = await this.getSystemPrompt()
 		const { contextTokens } = this.getTokenUsage()
-		const modelInfo = this.api.getModel().info
-		this.configureContextWindowManager(state, modelInfo)
+		const model = this.api.getModel()
+		const modelInfo = model.info
+		this.configureContextWindowManager(state, modelInfo, model.id)
 
 		if (contextTokens) {
 			const maxTokens = getModelMaxOutputTokens({

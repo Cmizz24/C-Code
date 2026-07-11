@@ -224,7 +224,7 @@
 		"tokens": "Token",
 		"condensation": {
 			"title": "上下文已壓縮",
-			"inProgress": "正在壓縮上下文...",
+			"inProgress": "正在管理上下文...",
 			"errorHeader": "壓縮上下文失敗"
 		},
 		"truncation": {
@@ -466,6 +466,7 @@
 			"waiting": "等待",
 			"lastTouched": "最後碰觸",
 			"usage": "用量",
+			"contextUsage": "上下文用量",
 			"worktree": "Worktree",
 			"activity": "活動",
 			"conflicts": "衝突",
@@ -474,6 +475,7 @@
 			"waitingOn": "正在等待 {{agents}}",
 			"noFileWrites": "尚無檔案寫入",
 			"noUsage": "尚未回報用量",
+			"noContextUsage": "尚未回報上下文用量",
 			"noActivity": "尚未回報活動",
 			"noConflicts": "無衝突"
 		},
