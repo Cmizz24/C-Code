@@ -19,7 +19,7 @@ const coordinateAgentsTool: OpenAI.Chat.ChatCompletionTool = {
 	type: "function",
 	function: {
 		name: "coordinate_agents",
-		description: `${COORDINATE_AGENTS_DESCRIPTION} Targeted questions default to waiting until answered, timed out, unanswerable, or cancelled; on timeout, do not assume an answer arrived.`,
+		description: `${COORDINATE_AGENTS_DESCRIPTION} Targeted questions default to waiting until answered, cancelled, or timed out; a timeout leaves the question pending and completion-blocking until answered or explicitly escalated. Do not replace a missing answer with a local assumption.`,
 		strict: true,
 		parameters: {
 			type: "object",
@@ -66,7 +66,7 @@ const coordinateAgentsTool: OpenAI.Chat.ChatCompletionTool = {
 				waitForAnswer: {
 					type: "boolean",
 					description:
-						"Publish-question option only. Targeted questions default to waiting until answered, timed out, unanswerable, or cancelled; broadcast questions only wait when this is true. Set false only when continuing immediately is safer. Omit on read and acknowledgement.",
+						"Publish-question option only. Targeted questions default to waiting until answered, cancelled, or timed out; broadcast questions only wait when this is true. A timeout or wait opt-out leaves a targeted question pending and completion-blocking until answered or explicitly escalated. Do not proceed with a local assumption for a missing answer. Omit on read and acknowledgement.",
 				},
 				timeoutMs: {
 					type: "integer",

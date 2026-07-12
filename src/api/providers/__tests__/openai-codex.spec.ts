@@ -281,18 +281,63 @@ describe("OpenAiCodexHandler reasoning extraction", () => {
 		])
 	})
 
+	it("filters fused GPT-5.6 response-summary title fragments", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.6-sol" })
+
+		const chunks = await collectProcessEventChunks(handler, {
+			type: "response.completed",
+			response: {
+				output: [
+					{
+						type: "reasoning",
+						summary: [
+							{
+								type: "summary_text",
+								text: "Rewriting 3D scene to native canvasDefining kinetic manifesto band and hero art enhancementsDefining animation attribute strategy",
+							},
+						],
+					},
+				],
+			},
+		})
+
+		expect(chunks).toEqual([])
+	})
+
+	it("separates preserved summary chunks when a title-cased fragment boundary would otherwise fuse", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.6-sol" })
+
+		const firstDelta = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary.delta",
+			delta: "I kept the native canvas",
+		})
+		const secondDelta = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary.delta",
+			delta: "Defining the animation contract is necessary because the renderer needs stable keys.",
+		})
+
+		expect(firstDelta).toEqual([{ type: "reasoning", text: "I kept the native canvas" }])
+		expect(secondDelta).toEqual([
+			{
+				type: "reasoning",
+				text: "\n\nDefining the animation contract is necessary because the renderer needs stable keys.",
+			},
+		])
+		expect(`${firstDelta[0].text}${secondDelta[0].text}`).not.toContain("canvasDefining")
+	})
+
 	it("preserves real raw reasoning deltas that look like useful thinking content", async () => {
 		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
 
 		const chunks = await collectProcessEventChunks(handler, {
 			type: "response.reasoning_text.delta",
-			delta: "Planning CSS consolidation is risky, so I need to inspect the current selectors before editing.",
+			delta: "Rewriting the canvas code is risky, so I need to inspect the current selectors before defining the animation attributes.",
 		})
 
 		expect(chunks).toEqual([
 			{
 				type: "reasoning",
-				text: "Planning CSS consolidation is risky, so I need to inspect the current selectors before editing.",
+				text: "Rewriting the canvas code is risky, so I need to inspect the current selectors before defining the animation attributes.",
 			},
 		])
 	})

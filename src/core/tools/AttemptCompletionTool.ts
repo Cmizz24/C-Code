@@ -18,6 +18,7 @@ interface AttemptCompletionParams {
 export interface AttemptCompletionCallbacks extends ToolCallbacks {
 	askFinishSubTaskApproval: () => Promise<boolean>
 	toolDescription: () => string
+	onAccepted?: () => void
 }
 
 /**
@@ -398,10 +399,14 @@ function isParallelAgentTask(task: Task): boolean {
 }
 
 function formatQuestionReference(question: AgentCoordinationEvent): string {
-	const from = question.agentId ? ` from ${question.agentId}` : ""
-	const to = question.targetAgentId ? ` to ${question.targetAgentId}` : ""
-	const files = question.relatedFiles?.length ? ` (${question.relatedFiles.join(", ")})` : ""
-	return `${question.id ?? "unknown"}${from}${to}: ${question.message}${files}`
+	const parties = [
+		question.agentId ? `from ${question.agentId}` : undefined,
+		question.targetAgentId ? `to ${question.targetAgentId}` : undefined,
+	]
+		.filter(Boolean)
+		.join(", ")
+	const files = question.relatedFiles?.length ? ` [${question.relatedFiles.join(", ")}]` : ""
+	return `${question.id ?? "unknown"}${parties ? ` (${parties})` : ""}${files}: ${question.message}`
 }
 
 function formatCompletionCoordinationGate(task: Task): string | undefined {
@@ -415,24 +420,24 @@ function formatCompletionCoordinationGate(task: Task): string | undefined {
 	const unreadAnswers = gate.blockers.filter((blocker) => blocker.type === "unread-answer")
 	const sharedContractBlockers = gate.blockers.filter((blocker) => blocker.type === "shared-contract-unacknowledged")
 	const lines = [
-		"Cannot complete yet because live parallel-agent coordination is unresolved.",
-		sharedContractBlockers.length ? "Shared contract acknowledgement is required before completion:" : undefined,
+		"Cannot complete: unresolved parallel-agent coordination.",
+		sharedContractBlockers.length ? "Acknowledge shared contract before retrying:" : undefined,
 		...sharedContractBlockers.map(
-			(blocker) => `- Apply and acknowledge shared contract: ${blocker.sharedContract}`,
+			(blocker) => `- coordinate_agents action='acknowledge_contract': ${blocker.sharedContract}`,
 		),
-		incoming.length ? "Open questions for you to answer before completion:" : undefined,
+		incoming.length ? "Answer incoming questions:" : undefined,
 		...incoming.map(
 			(blocker) =>
-				`- Reply with kind='answer' and replyToId='${blocker.question.id ?? ""}': ${formatQuestionReference(blocker.question)}`,
+				`- coordinate_agents action='publish' kind='answer' replyToId='${blocker.question.id ?? ""}': ${formatQuestionReference(blocker.question)}`,
 		),
-		outgoing.length ? "Targeted questions you asked that are still waiting on running agents:" : undefined,
-		...outgoing.map((blocker) => `- ${formatQuestionReference(blocker.question)}`),
-		unreadAnswers.length ? "Answers to your questions arrived after your last team-chat read:" : undefined,
+		outgoing.length ? "Wait or escalate targeted questions:" : undefined,
+		...outgoing.map((blocker) => `- waiting for answer to ${formatQuestionReference(blocker.question)}`),
+		unreadAnswers.length ? "Read new answers:" : undefined,
 		...unreadAnswers.map(
 			(blocker) =>
-				`- Read and adapt to answer ${blocker.answer?.id ?? "unknown"} for question ${blocker.question.id ?? "unknown"}: ${blocker.answer?.message ?? ""}`,
+				`- ${blocker.answer?.id ?? "unknown"} for ${blocker.question.id ?? "unknown"}: ${blocker.answer?.message ?? ""}`,
 		),
-		"Call coordinate_agents with action='read', answer relevant open questions, incorporate any answers into your files or final result, call coordinate_agents with action='acknowledge_contract' when a shared contract is listed, then attempt completion again.",
+		"Next: coordinate_agents action='read'; answer incoming; acknowledge contracts; wait for targeted replies or escalate; then retry attempt_completion.",
 	]
 
 	return lines.filter(Boolean).join("\n")
@@ -547,6 +552,7 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 
 			if (isParallelAgentTask(task)) {
 				await this.completeParallelAgentTask(task)
+				callbacks.onAccepted?.()
 				return
 			}
 
@@ -576,6 +582,7 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 							)
 							if (delegation === "delegated") {
 								await this.emitTaskCompleted(task)
+								callbacks.onAccepted?.()
 							}
 							if (delegation !== "continue") return
 						} else {
@@ -603,6 +610,7 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 
 			if (response === "yesButtonClicked") {
 				await this.emitTaskCompleted(task)
+				callbacks.onAccepted?.()
 				return
 			}
 

@@ -947,22 +947,6 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		)
 	}
 
-	private markQuestionUnanswerable(questionId: string, reason: string): void {
-		const state = this.coordinationQuestions.get(questionId)
-		if (!state || state.question.answerState === "answered" || state.question.answerState === "unanswerable") {
-			return
-		}
-
-		this.updateQuestionState(
-			questionId,
-			{
-				answerState: "unanswerable",
-				unanswerableReason: reason,
-			},
-			{ emit: true },
-		)
-	}
-
 	private getOpenQuestionsForAgent(agentId: string): AgentCoordinationEvent[] {
 		this.refreshUnanswerableQuestions()
 		return this.getQuestionStates()
@@ -981,6 +965,10 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 
 	private isQuestionOpen(question: AgentCoordinationEvent): boolean {
 		return question.kind === "question" && (question.answerState ?? "open") === "open"
+	}
+
+	private isQuestionUnresolved(question: AgentCoordinationEvent): boolean {
+		return question.kind === "question" && (question.answerState !== "answered" || !question.answerEventId)
 	}
 
 	private findQuestionAnsweredBy(answer: AgentCoordinationEvent): AgentCoordinationEvent | undefined {
@@ -1108,51 +1096,9 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	}
 
 	private refreshUnanswerableQuestions(): void {
-		for (const state of this.getQuestionStates()) {
-			const question = state.question
-			if (!question.id || !this.isQuestionOpen(question)) {
-				continue
-			}
-
-			const reason = this.getUnanswerableQuestionReason(question)
-			if (reason) {
-				this.markQuestionUnanswerable(question.id, reason)
-			}
-		}
-	}
-
-	private getUnanswerableQuestionReason(question: AgentCoordinationEvent): string | undefined {
-		if (question.agentId && this.isAgentTerminal(question.agentId)) {
-			return `Asker ${question.agentId} is already ${this.getAgentStatus(question.agentId) ?? "terminal"}.`
-		}
-
-		if (!question.targetAgentId) {
-			return undefined
-		}
-
-		const target = this.getAgent(question.targetAgentId)
-		if (!target) {
-			return `Target ${question.targetAgentId} is unavailable.`
-		}
-
-		const retryCount = question.agentId ? this.getCompletionGateRetryCount(question.agentId, question.id) : 0
-		if (target.status === "complete") {
-			return `Target ${question.targetAgentId} is already complete.`
-		}
-
-		if (this.isTerminalStatus(target.status)) {
-			return `Target ${question.targetAgentId} is already ${target.status}.`
-		}
-
-		if (retryCount >= AGENT_COORDINATION_COMPLETION_RETRY_LIMIT && target.status !== "running") {
-			return `Target ${question.targetAgentId} is not currently running after bounded completion retries.`
-		}
-
-		if (retryCount >= AGENT_COORDINATION_COMPLETION_RETRY_LIMIT && target.status === "running") {
-			return `Target ${question.targetAgentId} did not answer after bounded completion retries.`
-		}
-
-		return undefined
+		// Targeted questions must remain visibly pending/blocking until an answer or explicit cancellation/failure
+		// is represented in coordination state. Bounded waits may time out, but timeouts/retries must not resolve
+		// or downgrade the underlying question to a non-blocking local assumption.
 	}
 
 	private getBlockingIncomingQuestions(agentId: string): AgentCoordinationEvent[] {
@@ -1161,10 +1107,9 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			.map((state) => state.question)
 			.filter(
 				(question) =>
-					this.isQuestionOpen(question) &&
+					this.isQuestionUnresolved(question) &&
 					question.agentId !== agentId &&
-					question.targetAgentId === agentId &&
-					(!question.agentId || !this.isAgentTerminal(question.agentId)),
+					question.targetAgentId === agentId,
 			)
 	}
 
@@ -1174,7 +1119,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			.map((state) => state.question)
 			.filter((question) => {
 				if (
-					!this.isQuestionOpen(question) ||
+					!this.isQuestionUnresolved(question) ||
 					question.agentId !== agentId ||
 					!question.targetAgentId ||
 					question.targetAgentId === agentId
@@ -1182,8 +1127,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 					return false
 				}
 
-				const targetStatus = this.getAgentStatus(question.targetAgentId)
-				return targetStatus === "complete" || !this.isTerminalStatus(targetStatus)
+				return true
 			})
 	}
 

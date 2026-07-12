@@ -245,7 +245,7 @@ describe("AgentBus", () => {
 		expect(bus.acknowledgeSharedContract("agent-a")).toBeUndefined()
 	})
 
-	it("uses bounded completion retries before converting unavailable outgoing answers to unanswerable", () => {
+	it("keeps bounded completion retries blocking without converting targeted questions to unanswerable", () => {
 		const question = bus.publishCoordination("agent-a", {
 			kind: "question",
 			message: "Which selector should src/a.ts use from src/b.ts?",
@@ -257,7 +257,7 @@ describe("AgentBus", () => {
 			throw new Error("Expected model-published coordination question to be created.")
 		}
 
-		for (let attempt = 1; attempt < AGENT_COORDINATION_COMPLETION_RETRY_LIMIT; attempt++) {
+		for (let attempt = 1; attempt <= AGENT_COORDINATION_COMPLETION_RETRY_LIMIT + 1; attempt++) {
 			const gate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
 			expect(gate.approved).toBe(false)
 			expect(gate.blockers).toEqual(
@@ -268,22 +268,14 @@ describe("AgentBus", () => {
 					}),
 				]),
 			)
+			expect(gate.unanswerableQuestions).toEqual([])
+			expect(bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })).toEqual(
+				expect.arrayContaining([expect.objectContaining({ id: question.id, answerState: "open" })]),
+			)
 		}
-
-		const allowedGate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
-		expect(allowedGate.approved).toBe(true)
-		expect(allowedGate.unanswerableQuestions).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					id: question.id,
-					answerState: "unanswerable",
-					unanswerableReason: expect.stringContaining("not currently running"),
-				}),
-			]),
-		)
 	})
 
-	it("allows completion when a targeted question becomes unanswerable because the target is terminal", () => {
+	it("blocks completion when a targeted question target fails instead of making it unanswerable", () => {
 		const question = bus.publishCoordination("agent-a", {
 			kind: "question",
 			message: "Which selector should src/a.ts use from src/b.ts?",
@@ -298,16 +290,16 @@ describe("AgentBus", () => {
 		bus.markFailed("agent-b", "Agent failed")
 
 		const gate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
-		expect(gate.approved).toBe(true)
-		expect(gate.unanswerableQuestions).toEqual(
+		expect(gate.approved).toBe(false)
+		expect(gate.blockers).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					id: question.id,
-					answerState: "unanswerable",
-					unanswerableReason: expect.stringContaining("already failed"),
+					type: "outgoing-question",
+					question: expect.objectContaining({ id: question.id, answerState: "open" }),
 				}),
 			]),
 		)
+		expect(gate.unanswerableQuestions).toEqual([])
 	})
 
 	it("denies a write while another agent holds the active write lock", () => {
@@ -634,7 +626,7 @@ describe("AgentBus", () => {
 		expect(bus.hasAgentReadCoordination("agent-a")).toBe(true)
 	})
 
-	it("treats targeted questions to complete agents as unanswerable", () => {
+	it("keeps targeted questions to complete agents pending and blocking until answered", () => {
 		bus.markRunning("agent-b")
 		bus.markComplete("agent-a", "A done")
 
@@ -645,13 +637,23 @@ describe("AgentBus", () => {
 			relatedFiles: ["src/a.ts"],
 		})
 		expect(question).toBeDefined()
-		expect(bus.getAgentCompletionCoordinationGate("agent-b", { recordAttempt: true }).approved).toBe(true)
+		expect(bus.getAgentCompletionCoordinationGate("agent-b", { recordAttempt: true })).toEqual(
+			expect.objectContaining({
+				approved: false,
+				blockers: expect.arrayContaining([
+					expect.objectContaining({
+						type: "outgoing-question",
+						question: expect.objectContaining({ id: question?.id, answerState: "open" }),
+					}),
+				]),
+				unanswerableQuestions: [],
+			}),
+		)
 		expect(bus.getCoordinationEvents("agent-b", { includeSelf: true, limit: 20 })).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
 					id: question?.id,
-					answerState: "unanswerable",
-					unanswerableReason: "Target agent-a is already complete.",
+					answerState: "open",
 				}),
 			]),
 		)
@@ -663,7 +665,9 @@ describe("AgentBus", () => {
 			replyToId: question?.id,
 		})
 
-		expect(answer).toBeUndefined()
+		expect(answer).toBeDefined()
+		bus.getCoordinationEvents("agent-b", { includeSelf: true, limit: 20 })
+		expect(bus.getAgentCompletionCoordinationGate("agent-b").approved).toBe(true)
 	})
 
 	it("waits for targeted coordination answers and resolves promptly when answered", async () => {
@@ -724,30 +728,47 @@ describe("AgentBus", () => {
 		})
 	})
 
-	it("returns unanswerable when a coordination question target becomes terminal", async () => {
-		bus.markRunning("agent-a")
-		bus.markRunning("agent-b")
-		const question = bus.publishCoordination("agent-a", {
-			kind: "question",
-			message: "Which selector should src/a.ts use from src/b.ts?",
-			targetAgentId: "agent-b",
-			relatedFiles: ["src/b.ts"],
-		})
-		expect(question).toBeDefined()
-		if (!question) {
-			throw new Error("Expected coordination question to be created.")
+	it("times out rather than resolving when a coordination question target becomes terminal", async () => {
+		vi.useFakeTimers()
+		try {
+			bus.markRunning("agent-a")
+			bus.markRunning("agent-b")
+			const question = bus.publishCoordination("agent-a", {
+				kind: "question",
+				message: "Which selector should src/a.ts use from src/b.ts?",
+				targetAgentId: "agent-b",
+				relatedFiles: ["src/b.ts"],
+			})
+			expect(question).toBeDefined()
+			if (!question) {
+				throw new Error("Expected coordination question to be created.")
+			}
+
+			const waitPromise = bus.waitForCoordinationAnswer("agent-a", question, {
+				timeoutMs: AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
+			})
+			bus.markFailed("agent-b", "Agent failed")
+			await vi.advanceTimersByTimeAsync(AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN)
+
+			await expect(waitPromise).resolves.toEqual({
+				status: "timeout",
+				question: expect.objectContaining({ id: question.id, answerState: "open" }),
+				timeoutMs: AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
+			})
+			const gate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
+			expect(gate.approved).toBe(false)
+			expect(gate.blockers).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						type: "outgoing-question",
+						question: expect.objectContaining({ id: question.id, answerState: "open" }),
+					}),
+				]),
+			)
+			expect(gate.unanswerableQuestions).toEqual([])
+		} finally {
+			vi.useRealTimers()
 		}
-
-		const waitPromise = bus.waitForCoordinationAnswer("agent-a", question, {
-			timeoutMs: AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
-		})
-		bus.markFailed("agent-b", "Agent failed")
-
-		await expect(waitPromise).resolves.toEqual({
-			status: "unanswerable",
-			question: expect.objectContaining({ id: question.id, answerState: "unanswerable" }),
-			reason: "Target agent-b is already failed.",
-		})
 	})
 
 	it("times out bounded coordination answer waits", async () => {
@@ -776,6 +797,17 @@ describe("AgentBus", () => {
 				question: expect.objectContaining({ id: question.id, answerState: "open" }),
 				timeoutMs: AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
 			})
+			const gate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
+			expect(gate.approved).toBe(false)
+			expect(gate.blockers).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						type: "outgoing-question",
+						question: expect.objectContaining({ id: question.id, answerState: "open" }),
+					}),
+				]),
+			)
+			expect(gate.unanswerableQuestions).toEqual([])
 		} finally {
 			vi.useRealTimers()
 		}

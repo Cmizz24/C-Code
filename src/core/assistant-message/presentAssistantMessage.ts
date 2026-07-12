@@ -174,6 +174,72 @@ async function cleanupActiveDiffPreview(cline: Task, context: string): Promise<v
 	}
 }
 
+async function pruneSavedAssistantHistoryAfterAcceptedCompletion(cline: Task, prunedBlocks: unknown[]): Promise<void> {
+	if (!cline.assistantMessageSavedToHistory) {
+		return
+	}
+
+	const prunedToolUseIds = new Set<string>()
+	for (const prunedBlock of prunedBlocks) {
+		if (!prunedBlock || typeof prunedBlock !== "object") {
+			continue
+		}
+
+		const toolBlock = prunedBlock as { type?: string; id?: string }
+		if ((toolBlock.type === "tool_use" || toolBlock.type === "mcp_tool_use") && toolBlock.id) {
+			prunedToolUseIds.add(sanitizeToolUseId(toolBlock.id))
+		}
+	}
+
+	if (prunedToolUseIds.size === 0) {
+		return
+	}
+
+	let assistantMessageIndex = -1
+	for (let index = cline.apiConversationHistory.length - 1; index >= 0; index--) {
+		const message = cline.apiConversationHistory[index]
+		if (message.role === "assistant" && Array.isArray(message.content)) {
+			assistantMessageIndex = index
+			break
+		}
+	}
+	if (assistantMessageIndex === -1) {
+		return
+	}
+
+	const assistantMessage = cline.apiConversationHistory[assistantMessageIndex]
+	const assistantContent = Array.isArray(assistantMessage.content) ? assistantMessage.content : []
+	const nextAssistantContent = assistantContent.filter(
+		(contentBlock) => !(contentBlock.type === "tool_use" && prunedToolUseIds.has(contentBlock.id)),
+	)
+
+	if (nextAssistantContent.length === assistantContent.length) {
+		return
+	}
+
+	const nextHistory = [...cline.apiConversationHistory]
+	nextHistory[assistantMessageIndex] = {
+		...assistantMessage,
+		content: nextAssistantContent,
+	}
+	await cline.overwriteApiConversationHistory(nextHistory)
+}
+
+async function pruneSameMessageBlocksAfterAcceptedCompletion(cline: Task): Promise<void> {
+	const firstPrunedIndex = cline.currentStreamingContentIndex + 1
+	if (firstPrunedIndex >= cline.assistantMessageContent.length) {
+		return
+	}
+
+	const prunedBlocks = cline.assistantMessageContent.slice(firstPrunedIndex)
+	cline.assistantMessageContent.length = firstPrunedIndex
+
+	// If the assistant turn has already been persisted with native tool_use blocks,
+	// remove pruned late tools from saved history instead of executing them or
+	// adding extra tool_results after an accepted terminal completion.
+	await pruneSavedAssistantHistoryAfterAcceptedCompletion(cline, prunedBlocks)
+}
+
 /**
  * Processes and presents assistant message content to the user interface.
  *
@@ -1094,18 +1160,25 @@ export async function presentAssistantMessage(cline: Task) {
 					})
 					break
 				case "attempt_completion": {
+					let didAcceptCompletion = false
 					const completionCallbacks: AttemptCompletionCallbacks = {
 						askApproval,
 						handleError,
 						pushToolResult,
 						askFinishSubTaskApproval,
 						toolDescription,
+						onAccepted: () => {
+							didAcceptCompletion = true
+						},
 					}
 					await attemptCompletionTool.handle(
 						cline,
 						block as ToolUse<"attempt_completion">,
 						completionCallbacks,
 					)
+					if (!block.partial && (didAcceptCompletion || cline.isAgentTerminal?.())) {
+						await pruneSameMessageBlocksAfterAcceptedCompletion(cline)
+					}
 					break
 				}
 				case "run_slash_command":

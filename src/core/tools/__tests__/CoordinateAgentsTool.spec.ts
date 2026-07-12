@@ -177,7 +177,7 @@ describe("CoordinateAgentsTool", () => {
 			},
 			expected: "Coordination wait result: cancelled.",
 		},
-	])("reports $name wait results without dumping recent team chat", async ({ waitResult, expected }) => {
+	])("reports $name wait results without dumping recent team chat", async ({ name, waitResult, expected }) => {
 		const tool = new CoordinateAgentsTool()
 		const { task, callbacks } = createCallbacks()
 		;(task.waitForAgentCoordinationAnswer as any).mockResolvedValue(waitResult)
@@ -204,6 +204,14 @@ describe("CoordinateAgentsTool", () => {
 		})
 		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining(expected))
 		expect(callbacks.pushToolResult).not.toHaveBeenCalledWith(expect.stringContaining("Recent team chat:"))
+		if (name === "timeout") {
+			expect(callbacks.pushToolResult).toHaveBeenCalledWith(
+				expect.stringContaining("Question remains pending and completion-blocking"),
+			)
+			expect(callbacks.pushToolResult).not.toHaveBeenCalledWith(
+				expect.stringContaining("Proceed with the safest local assumption"),
+			)
+		}
 	})
 
 	it("does not wait when targeted questions explicitly opt out", async () => {

@@ -621,11 +621,79 @@ describe("attemptCompletionTool", () => {
 					"attempt_completion",
 					"Open parallel-agent coordination questions are unresolved.",
 				)
-				expect(mockPushToolResult).toHaveBeenCalledWith(
-					expect.stringContaining(
-						"Cannot complete yet because live parallel-agent coordination is unresolved.",
-					),
+				const toolResult = mockPushToolResult.mock.calls[0][0] as string
+				expect(toolResult).toContain("Cannot complete: unresolved parallel-agent coordination.")
+				expect(toolResult).toContain("Answer incoming questions:")
+				expect(toolResult).toContain("coordinate_agents action='publish' kind='answer' replyToId='coord-open'")
+				expect(toolResult).toContain("Next: coordinate_agents action='read'")
+				expect(toolResult).not.toContain(
+					"Cannot complete yet because live parallel-agent coordination is unresolved.",
 				)
+				expect(toolResult.length).toBeLessThan(600)
+			})
+
+			it("blocks parallel agent completion while targeted outgoing questions are unresolved", async () => {
+				const block: AttemptCompletionToolUse = {
+					type: "tool_use",
+					name: "attempt_completion",
+					params: { result: "Agent finished" },
+					nativeArgs: { result: "Agent finished" },
+					partial: false,
+				}
+				const parallelTask = mockTask as any
+				parallelTask.parentTaskId = "parent-task"
+				parallelTask.agentId = "ui-agent"
+				parallelTask.agentBus = {} as any
+				parallelTask.getAgentCompletionCoordinationGate = vi.fn(() => ({
+					approved: false,
+					blockers: [
+						{
+							type: "outgoing-question",
+							question: {
+								id: "coord-out",
+								agentId: "ui-agent",
+								targetAgentId: "styles-agent",
+								kind: "question",
+								message: "Can I change the dashboard selector?",
+								relatedFiles: ["src/App.tsx"],
+								ts: 1,
+							},
+						},
+					],
+					unanswerableQuestions: [],
+				}))
+
+				const callbacks: AttemptCompletionCallbacks = {
+					askApproval: mockAskApproval,
+					handleError: mockHandleError,
+					pushToolResult: mockPushToolResult,
+					askFinishSubTaskApproval: mockAskFinishSubTaskApproval,
+					toolDescription: mockToolDescription,
+				}
+
+				await attemptCompletionTool.handle(mockTask as Task, block, callbacks)
+
+				expect(parallelTask.getAgentCompletionCoordinationGate).toHaveBeenCalledWith({ recordAttempt: true })
+				expect(mockTask.say).not.toHaveBeenCalledWith("completion_result", expect.anything(), undefined, false)
+				expect(mockTask.emit).not.toHaveBeenCalledWith(
+					RooCodeEventName.TaskCompleted,
+					expect.anything(),
+					expect.anything(),
+					expect.anything(),
+				)
+				expect(mockTask.recordToolError).toHaveBeenCalledWith(
+					"attempt_completion",
+					"Open parallel-agent coordination questions are unresolved.",
+				)
+				const toolResult = mockPushToolResult.mock.calls[0][0] as string
+				expect(toolResult).toContain("Cannot complete: unresolved parallel-agent coordination.")
+				expect(toolResult).toContain("Wait or escalate targeted questions:")
+				expect(toolResult).toContain(
+					"waiting for answer to coord-out (from ui-agent, to styles-agent) [src/App.tsx]: Can I change the dashboard selector?",
+				)
+				expect(toolResult).toContain("wait for targeted replies or escalate")
+				expect(toolResult).not.toContain("local assumption")
+				expect(toolResult.length).toBeLessThan(450)
 			})
 
 			it("blocks parallel agent completion until a shared contract is acknowledged", async () => {
@@ -674,17 +742,15 @@ describe("attemptCompletionTool", () => {
 					"attempt_completion",
 					"Open parallel-agent coordination questions are unresolved.",
 				)
-				expect(mockPushToolResult).toHaveBeenCalledWith(
-					expect.stringContaining("Shared contract acknowledgement is required before completion:"),
+				const toolResult = mockPushToolResult.mock.calls[0][0] as string
+				expect(toolResult).toContain("Cannot complete: unresolved parallel-agent coordination.")
+				expect(toolResult).toContain("Acknowledge shared contract before retrying:")
+				expect(toolResult).toContain(
+					"coordinate_agents action='acknowledge_contract': Use #dashboard-root, data-testid=dashboard-root, and .dashboard-card for cards.",
 				)
-				expect(mockPushToolResult).toHaveBeenCalledWith(
-					expect.stringContaining(
-						"Apply and acknowledge shared contract: Use #dashboard-root, data-testid=dashboard-root, and .dashboard-card for cards.",
-					),
-				)
-				expect(mockPushToolResult).toHaveBeenCalledWith(
-					expect.stringContaining("coordinate_agents with action='acknowledge_contract'"),
-				)
+				expect(toolResult).not.toContain("Shared contract acknowledgement is required before completion:")
+				expect(toolResult).not.toContain("Apply and acknowledge shared contract:")
+				expect(toolResult.length).toBeLessThan(500)
 			})
 
 			it("lets parallel agent children complete without visible approval or Boomerang delegation", async () => {

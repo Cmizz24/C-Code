@@ -54,6 +54,7 @@ const CODEX_REASONING_SUMMARY_HEADING_PREFIXES = new Set([
 	"considering",
 	"creating",
 	"debugging",
+	"defining",
 	"designing",
 	"drafting",
 	"evaluating",
@@ -70,6 +71,7 @@ const CODEX_REASONING_SUMMARY_HEADING_PREFIXES = new Set([
 	"preparing",
 	"refining",
 	"reviewing",
+	"rewriting",
 	"scoping",
 	"selecting",
 	"summarising",
@@ -80,6 +82,15 @@ const CODEX_REASONING_SUMMARY_HEADING_PREFIXES = new Set([
 	"validating",
 	"verifying",
 ])
+
+const CODEX_REASONING_SUMMARY_HEADING_TITLE_PREFIX_PATTERN = Array.from(CODEX_REASONING_SUMMARY_HEADING_PREFIXES)
+	.map((prefix) => `${prefix.charAt(0).toUpperCase()}${prefix.slice(1)}`)
+	.join("|")
+
+const CODEX_REASONING_ADJACENT_SUMMARY_HEADING_PREFIX = new RegExp(
+	`(?:\\s|[a-z0-9)])(?:${CODEX_REASONING_SUMMARY_HEADING_TITLE_PREFIX_PATTERN})\\b`,
+	"g",
+)
 
 /**
  * OpenAiCodexHandler - Uses OpenAI Responses API with OAuth authentication
@@ -179,13 +190,25 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 			.trim()
 	}
 
+	private startsWithCodexReasoningSummaryHeadingPrefix(text: string): boolean {
+		const firstWord = text.match(/^[A-Za-z]+/)?.[0]?.toLowerCase()
+		return !!firstWord && CODEX_REASONING_SUMMARY_HEADING_PREFIXES.has(firstWord)
+	}
+
+	private countCodexReasoningSummaryHeadingStarts(text: string): number {
+		const initialHeadingStart = this.startsWithCodexReasoningSummaryHeadingPrefix(text) ? 1 : 0
+		const textAfterFirstWord = text.replace(/^[A-Za-z]+/, "")
+		const adjacentHeadingStarts = textAfterFirstWord.match(CODEX_REASONING_ADJACENT_SUMMARY_HEADING_PREFIX)
+		return initialHeadingStart + (adjacentHeadingStarts?.length ?? 0)
+	}
+
 	private isLikelyCodexReasoningSummaryHeading(text: string): boolean {
 		const plainText = this.getPlainReasoningSummaryText(text)
 		if (!plainText) {
 			return true
 		}
 
-		if (plainText.length > 120 || /[.!?;:]/.test(plainText)) {
+		if (/[.!?;:]/.test(plainText)) {
 			return false
 		}
 
@@ -197,8 +220,15 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 			return false
 		}
 
-		const firstWord = plainText.match(/^[A-Za-z]+/)?.[0]?.toLowerCase()
-		return !!firstWord && CODEX_REASONING_SUMMARY_HEADING_PREFIXES.has(firstWord)
+		if (!this.startsWithCodexReasoningSummaryHeadingPrefix(plainText)) {
+			return false
+		}
+
+		if (plainText.length <= 120) {
+			return true
+		}
+
+		return plainText.length <= 240 && this.countCodexReasoningSummaryHeadingStarts(plainText) > 1
 	}
 
 	private normalizeReasoningHtmlCommentFragments(text: string): string | undefined {
@@ -249,6 +279,24 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		return normalizedText
 	}
 
+	private shouldInsertReasoningChunkSeparator(text: string, source: CodexReasoningTextSource): boolean {
+		if (source !== "summary" || this.streamedReasoningText.length === 0) {
+			return false
+		}
+
+		const previousLastCharacter = this.streamedReasoningText.match(/\S(?=\s*$)/)?.[0]
+		const nextFirstCharacter = text.match(/^\s*(\S)/)?.[1]
+		if (!previousLastCharacter || !nextFirstCharacter) {
+			return false
+		}
+
+		return (
+			/[a-z0-9)]/.test(previousLastCharacter) &&
+			/[A-Z]/.test(nextFirstCharacter) &&
+			this.startsWithCodexReasoningSummaryHeadingPrefix(text)
+		)
+	}
+
 	private recordReasoningText(text: string, source: CodexReasoningTextSource = "raw"): string | undefined {
 		const normalizedText = this.normalizeReasoningText(text, source)
 		if (!normalizedText) {
@@ -267,8 +315,12 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		}
 
 		this.emittedReasoningTextKeys.add(key)
-		this.streamedReasoningText += normalizedText === text.trim() ? text : normalizedText
-		return normalizedText
+		const displayText = this.shouldInsertReasoningChunkSeparator(normalizedText, source)
+			? `\n\n${normalizedText}`
+			: normalizedText
+		this.streamedReasoningText +=
+			displayText === normalizedText && normalizedText === text.trim() ? text : displayText
+		return displayText
 	}
 
 	private getReasoningTextSourceForContent(

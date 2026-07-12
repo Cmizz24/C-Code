@@ -287,11 +287,21 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		memoryMaxCharacters,
 		memoryMaxEntries,
 		memoryPendingCandidateLimit,
-		memoryState,
-		memorySummary,
 	} = cachedState
 
 	const apiConfiguration = useMemo(() => cachedState.apiConfiguration ?? {}, [cachedState.apiConfiguration])
+	const memoryDisplaySummary = extensionState.memorySummary
+	const memoryDisplayState = useMemo(() => {
+		if (!extensionState.memoryState || !memoryDisplaySummary) {
+			return extensionState.memoryState
+		}
+
+		if (extensionState.memoryState.summary === memoryDisplaySummary) {
+			return extensionState.memoryState
+		}
+
+		return { ...extensionState.memoryState, summary: memoryDisplaySummary }
+	}, [extensionState.memoryState, memoryDisplaySummary])
 
 	useEffect(() => {
 		// Update only when currentApiConfigName is changed.
@@ -1181,8 +1191,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								memoryMaxCharacters={memoryMaxCharacters}
 								memoryMaxEntries={memoryMaxEntries}
 								memoryPendingCandidateLimit={memoryPendingCandidateLimit}
-								memoryState={memoryState}
-								memorySummary={memorySummary}
+								memoryState={memoryDisplayState}
+								memorySummary={memoryDisplaySummary}
 								setCachedStateField={setCachedStateField}
 							/>
 						)}

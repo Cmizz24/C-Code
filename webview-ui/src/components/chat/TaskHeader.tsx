@@ -479,7 +479,7 @@ const TaskHeader = ({
 		: `${formatContextCacheRamValue(safeContextCacheStats.ramUsedMb)} / ${formatContextCacheRamValue(safeContextCacheStats.ramBudgetMb)}`
 	const contextCacheContributors = safeContextCacheStats.contributors ?? combinedContextCache?.contributors ?? []
 	const contextCacheEvictions = safeContextCacheStats.evictions ?? combinedContextCache?.evictions
-	const topContextCacheContributors = contextCacheContributors.slice(0, 3)
+	const displayedContextCacheContributors = contextCacheContributors
 	const shouldShowCombinedContextCacheDiagnostics = Boolean(
 		combinedContextCache || contextCacheContributors.length > 0 || (contextCacheEvictions?.total ?? 0) > 0,
 	)
@@ -556,7 +556,7 @@ const TaskHeader = ({
 								)}
 							</TableCell>
 						</TableRow>
-						{topContextCacheContributors.map((contributor) => (
+						{displayedContextCacheContributors.map((contributor) => (
 							<TableRow key={contributor.id}>
 								<TableCell className="font-medium whitespace-nowrap">{contributor.label}</TableCell>
 								<TableCell className="text-right text-[0.9em] font-mono">
@@ -923,11 +923,11 @@ const TaskHeader = ({
 															</>
 														)}
 													</div>
-													{topContextCacheContributors.length > 0 && (
+													{displayedContextCacheContributors.length > 0 && (
 														<div
 															className="flex flex-wrap gap-x-3 gap-y-1 text-xs"
 															data-testid="context-cache-contributor-status">
-															{topContextCacheContributors.map((contributor) => (
+															{displayedContextCacheContributors.map((contributor) => (
 																<span key={contributor.id}>
 																	{contributor.label}:{" "}
 																	{formatContextCacheContributorUsage(

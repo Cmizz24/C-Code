@@ -107,7 +107,7 @@ function formatCoordinationWaitResult(result: AgentCoordinationWaitResult): stri
 	if (result.status === "timeout") {
 		return [
 			`Coordination wait result: timed out after ${result.timeoutMs}ms.`,
-			"Proceed with the safest local assumption or read team chat later; do not assume an answer arrived.",
+			"Question remains pending and completion-blocking; wait, retry team-chat read, or escalate with a blocker instead of proceeding with a local assumption.",
 			`Question: ${formatCoordinationEvent(result.question)}`,
 		]
 	}

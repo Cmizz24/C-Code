@@ -1,9 +1,18 @@
 import { presentAssistantMessage } from "../presentAssistantMessage"
 
-const { writeToFileHandle } = vi.hoisted(() => ({
+const { coordinateAgentsHandle, writeToFileHandle } = vi.hoisted(() => ({
+	coordinateAgentsHandle: vi.fn(async (_task: any, _block: any, callbacks: any) => {
+		callbacks.pushToolResult("coordination published")
+	}),
 	writeToFileHandle: vi.fn(async (_task: any, _block: any, callbacks: any) => {
 		callbacks.pushToolResult("wrote README")
 	}),
+}))
+
+vi.mock("../../tools/CoordinateAgentsTool", () => ({
+	coordinateAgentsTool: {
+		handle: coordinateAgentsHandle,
+	},
 }))
 
 vi.mock("../../tools/WriteToFileTool", () => ({
@@ -19,7 +28,7 @@ vi.mock("../../../../integrations/checkpoints/CheckpointTracker", () => ({
 }))
 
 function createBackgroundAgentTask(
-	toolName: "new_task" | "plan_parallel_tasks" | "write_to_file" | "attempt_completion",
+	toolName: "new_task" | "plan_parallel_tasks" | "write_to_file" | "attempt_completion" | "coordinate_agents",
 	options: { taskMode?: string; providerMode?: string; assistantMessageContent?: any[] } = {},
 ) {
 	const taskMode = options.taskMode ?? "code"
@@ -36,7 +45,9 @@ function createBackgroundAgentTask(
 						? { path: "README.md", content: "# Project\n" }
 						: toolName === "attempt_completion"
 							? { result: "Agent finished" }
-							: { goal: "Split this work" },
+							: toolName === "coordinate_agents"
+								? { action: "publish", kind: "question", message: "Late coordination?" }
+								: { goal: "Split this work" },
 			nativeArgs:
 				toolName === "new_task"
 					? { mode: "code", message: "Delegate this work" }
@@ -44,7 +55,9 @@ function createBackgroundAgentTask(
 						? { path: "README.md", content: "# Project\n" }
 						: toolName === "attempt_completion"
 							? { result: "Agent finished" }
-							: { goal: "Split this work", sharedContext: "", expectedFiles: [], agents: [] },
+							: toolName === "coordinate_agents"
+								? { action: "publish", kind: "question", message: "Late coordination?" }
+								: { goal: "Split this work", sharedContext: "", expectedFiles: [], agents: [] },
 			partial: false,
 		},
 	]
@@ -78,6 +91,11 @@ function createBackgroundAgentTask(
 		emit: vi.fn(),
 		getTokenUsage: vi.fn().mockReturnValue({}),
 		toolUsage: {},
+		assistantMessageSavedToHistory: false,
+		apiConversationHistory: [],
+		overwriteApiConversationHistory: vi.fn(async (nextHistory) => {
+			task.apiConversationHistory = nextHistory
+		}),
 		getAgentCompletionCoordinationGate: vi.fn(() => ({
 			approved: true,
 			blockers: [],
@@ -103,6 +121,7 @@ function createBackgroundAgentTask(
 
 describe("presentAssistantMessage - background agents", () => {
 	beforeEach(() => {
+		coordinateAgentsHandle.mockClear()
 		writeToFileHandle.mockClear()
 	})
 
@@ -184,5 +203,112 @@ describe("presentAssistantMessage - background agents", () => {
 		expect(task.cancelCurrentRequest).toHaveBeenCalledTimes(1)
 		expect(writeToFileHandle).not.toHaveBeenCalled()
 		expect(task.userMessageContentReady).toBe(true)
+	})
+
+	it("prunes later same-message coordination after accepted background-agent completion", async () => {
+		let terminal = false
+		const task = createBackgroundAgentTask("attempt_completion", {
+			assistantMessageContent: [
+				{
+					type: "tool_use",
+					id: "tool-complete",
+					name: "attempt_completion",
+					params: { result: "Agent finished" },
+					nativeArgs: { result: "Agent finished" },
+					partial: false,
+				},
+				{
+					type: "tool_use",
+					id: "tool-coordinate-after-complete",
+					name: "coordinate_agents",
+					params: { action: "publish", kind: "question", message: "Can I still change the selector?" },
+					nativeArgs: { action: "publish", kind: "question", message: "Can I still change the selector?" },
+					partial: false,
+				},
+			],
+		})
+		task.markAgentTerminal = vi.fn(() => {
+			terminal = true
+		})
+		task.isAgentTerminal = vi.fn(() => terminal)
+
+		await presentAssistantMessage(task)
+
+		expect(task.markAgentTerminal).toHaveBeenCalledTimes(1)
+		expect(task.cancelCurrentRequest).toHaveBeenCalledTimes(1)
+		expect(coordinateAgentsHandle).not.toHaveBeenCalled()
+		expect(task.assistantMessageContent).toHaveLength(1)
+		expect(task.assistantMessageContent[0]).toEqual(expect.objectContaining({ name: "attempt_completion" }))
+		expect(task.userMessageContentReady).toBe(true)
+	})
+
+	it("removes pruned late coordination tool uses from saved assistant history", async () => {
+		let terminal = false
+		const task = createBackgroundAgentTask("attempt_completion", {
+			assistantMessageContent: [
+				{
+					type: "tool_use",
+					id: "tool-complete",
+					name: "attempt_completion",
+					params: { result: "Agent finished" },
+					nativeArgs: { result: "Agent finished" },
+					partial: false,
+				},
+				{
+					type: "tool_use",
+					id: "tool-coordinate-after-complete",
+					name: "coordinate_agents",
+					params: { action: "publish", kind: "question", message: "Can I still change the selector?" },
+					nativeArgs: { action: "publish", kind: "question", message: "Can I still change the selector?" },
+					partial: false,
+				},
+			],
+		})
+		task.assistantMessageSavedToHistory = true
+		task.apiConversationHistory = [
+			{ role: "user", content: "Start" },
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool-complete",
+						name: "attempt_completion",
+						input: { result: "Agent finished" },
+					},
+					{
+						type: "tool_use",
+						id: "tool-coordinate-after-complete",
+						name: "coordinate_agents",
+						input: { action: "publish", kind: "question", message: "Can I still change the selector?" },
+					},
+				],
+			},
+		]
+		task.markAgentTerminal = vi.fn(() => {
+			terminal = true
+		})
+		task.isAgentTerminal = vi.fn(() => terminal)
+
+		await presentAssistantMessage(task)
+
+		expect(coordinateAgentsHandle).not.toHaveBeenCalled()
+		expect(task.overwriteApiConversationHistory).toHaveBeenCalledWith([
+			{ role: "user", content: "Start" },
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool-complete",
+						name: "attempt_completion",
+						input: { result: "Agent finished" },
+					},
+				],
+			},
+		])
+		expect(task.userMessageContent).not.toContainEqual(
+			expect.objectContaining({ tool_use_id: "tool-coordinate-after-complete" }),
+		)
 	})
 })

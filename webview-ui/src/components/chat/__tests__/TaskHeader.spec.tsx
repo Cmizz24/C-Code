@@ -256,6 +256,99 @@ describe("TaskHeader", () => {
 		)
 	})
 
+	it("should display all context cache contributors when four contributors are reported", () => {
+		mockExtensionState.contextCacheStats = {
+			hotCacheTokens: 12345,
+			hotCacheChunks: 6,
+			coldCacheChunks: 10,
+			ramUsedMb: 128,
+			ramBudgetMb: 2048,
+			swapsThisSession: 5,
+			condensingAvoided: 2,
+			combinedBudget: {
+				ramUsedMb: 1024,
+				ramBudgetMb: 2048,
+				hotCacheRamMb: 256,
+				coldCacheRamMb: 768,
+				hotCacheChunks: 6,
+				coldCacheChunks: 10,
+				managerCount: 4,
+				evictions: { hot: 1, cold: 2, total: 3 },
+				contributors: [
+					{
+						id: "foreground-task",
+						label: "Foreground task (code)",
+						mode: "code",
+						isBackground: false,
+						isActive: true,
+						hotCacheChunks: 3,
+						coldCacheChunks: 4,
+						hotCacheRamMb: 64,
+						coldCacheRamMb: 192,
+						ramUsedMb: 256,
+						evictions: { hot: 1, cold: 1, total: 2 },
+					},
+					{
+						id: "background-agent-1",
+						label: "Background agent 1 (debug)",
+						mode: "debug",
+						isBackground: true,
+						isActive: true,
+						hotCacheChunks: 1,
+						coldCacheChunks: 2,
+						hotCacheRamMb: 32,
+						coldCacheRamMb: 96,
+						ramUsedMb: 128,
+						evictions: { hot: 0, cold: 1, total: 1 },
+					},
+					{
+						id: "background-agent-2",
+						label: "Background agent 2 (code)",
+						mode: "code",
+						isBackground: true,
+						isActive: true,
+						hotCacheChunks: 1,
+						coldCacheChunks: 2,
+						hotCacheRamMb: 32,
+						coldCacheRamMb: 96,
+						ramUsedMb: 128,
+						evictions: { hot: 0, cold: 0, total: 0 },
+					},
+					{
+						id: "background-agent-3",
+						label: "Background agent 3 (architect)",
+						mode: "architect",
+						isBackground: true,
+						isActive: true,
+						hotCacheChunks: 1,
+						coldCacheChunks: 2,
+						hotCacheRamMb: 32,
+						coldCacheRamMb: 96,
+						ramUsedMb: 128,
+						evictions: { hot: 0, cold: 0, total: 0 },
+					},
+				],
+			},
+		}
+
+		renderTaskHeader()
+
+		expect(screen.getByTestId("context-cache-collapsed-status")).toHaveTextContent("4 contributors")
+
+		fireEvent.click(screen.getByText("Test task"))
+
+		expect(screen.getByTestId("context-cache-combined-status")).toHaveTextContent(
+			"Combined: 1GB / 2GB · 4 contributors",
+		)
+
+		const contributorStatus = screen.getByTestId("context-cache-contributor-status")
+		expect(contributorStatus.querySelectorAll("span")).toHaveLength(4)
+		expect(contributorStatus).toHaveTextContent("Foreground task (code): 256MB · 3 hot / 4 cold")
+		expect(contributorStatus).toHaveTextContent("Background agent 1 (debug): 128MB · 1 hot / 2 cold")
+		expect(contributorStatus).toHaveTextContent("Background agent 2 (code): 128MB · 1 hot / 2 cold")
+		expect(contributorStatus).toHaveTextContent("Background agent 3 (architect): 128MB · 1 hot / 2 cold")
+	})
+
 	it("should hide context cache status when the context cache is disabled", () => {
 		mockExtensionState.contextCacheEnabled = false
 
