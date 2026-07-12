@@ -490,13 +490,15 @@
 				"chunks_moved_to_cold": "Bağlam soğuk önbelleğe taşındı",
 				"chunks_pulled_from_cold": "Bağlam soğuk önbellekten çekildi",
 				"condensing_avoided": "Bağlam condensing önlendi",
-				"cold_cache_full": "Soğuk önbellek dolu"
+				"cold_cache_full": "Soğuk önbellek dolu",
+				"chunks_evicted_from_cache": "Bağlam önbellekten çıkarıldı"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "Eski bağlam chunk'ları sıcak pencereden çıkarıldı ve sonra alınmak üzere RAM'de tutuldu.",
 				"chunks_pulled_from_cold": "ask_for_context daha fazla bağlam istediğinde ilgili soğuk önbellek chunk'ları geri yüklendi.",
 				"condensing_avoided": "Sıcak/soğuk önbellek yeterli alan açtı, bu yüzden C otomatik condensing'i atladı.",
-				"cold_cache_full": "RAM bütçesi dolu, bu yüzden C normal bağlam condensing'e geri döndü."
+				"cold_cache_full": "RAM bütçesi dolu, bu yüzden C normal bağlam condensing'e geri döndü.",
+				"chunks_evicted_from_cache": "Paylaşılan önbellek bütçesi daha fazla alana ihtiyaç duyduğu için bağlam chunk'ları çıkarıldı."
 			},
 			"details": {
 				"chunks": "Chunk'lar",
@@ -504,7 +506,32 @@
 				"ram": "RAM",
 				"query": "Sorgu",
 				"file": "Dosya",
-				"warning": "Uyarı"
+				"warning": "Uyarı",
+				"duplicateChunks": "Yinelenen chunk'lar birleştirildi",
+				"duplicateTokens": "Yinelenen token'lar birleştirildi",
+				"reason": "Neden",
+				"source": "Kaynak",
+				"outcome": "Sonuç"
+			},
+			"reasons": {
+				"hot_budget_trim": "Sıcak önbellek bütçesi kırpıldı",
+				"request_pressure": "İstek alan gerektirdi",
+				"rebuild": "Önbellek yeniden oluşturma",
+				"combined_budget_eviction": "Paylaşılan önbellek bütçesi çıkarımı",
+				"ask_for_context": "ask_for_context alma"
+			},
+			"sources": {
+				"active_task": "Aktif görev",
+				"foreground_task": "Ön plan görevi",
+				"background_agent": "Arka plan agent'ı"
+			},
+			"outcomes": {
+				"moved": "Taşındı",
+				"merged_duplicate": "Yinelenen birleştirildi",
+				"partially_merged": "Yinelenenler kısmen birleştirildi",
+				"rejected": "Reddedildi",
+				"evicted": "Çıkarıldı",
+				"retrieved": "Alındı"
 			}
 		}
 	},

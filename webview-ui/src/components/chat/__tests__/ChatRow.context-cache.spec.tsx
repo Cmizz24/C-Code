@@ -81,27 +81,30 @@ describe("ChatRow - context cache events", () => {
 		setStateMock.mockClear()
 	})
 
-	it.each(["chunks_moved_to_cold", "chunks_pulled_from_cold", "condensing_avoided", "cold_cache_full"] as const)(
-		"renders %s context cache event rows",
-		(type) => {
-			renderChatRow(
-				contextCacheMessage({
-					id: `${type}-event`,
-					createdAt: 123,
-					type,
-					chunkCount: 2,
-					tokenCount: 400,
-					ramUsedMb: 1024,
-					ramBudgetMb: 2048,
-				}),
-			)
+	it.each([
+		"chunks_moved_to_cold",
+		"chunks_pulled_from_cold",
+		"chunks_evicted_from_cache",
+		"condensing_avoided",
+		"cold_cache_full",
+	] as const)("renders %s context cache event rows", (type) => {
+		renderChatRow(
+			contextCacheMessage({
+				id: `${type}-event`,
+				createdAt: 123,
+				type,
+				chunkCount: 2,
+				tokenCount: 400,
+				ramUsedMb: 1024,
+				ramBudgetMb: 2048,
+			}),
+		)
 
-			const row = screen.getByTestId("context-cache-event-row")
-			expect(row).toBeInTheDocument()
-			expect(screen.getByText(`chat:contextManagement.contextCache.titles.${type}`)).toBeInTheDocument()
-			expect(row).toHaveTextContent("2 chunks · 400 tokens")
-		},
-	)
+		const row = screen.getByTestId("context-cache-event-row")
+		expect(row).toBeInTheDocument()
+		expect(screen.getByText(`chat:contextManagement.contextCache.titles.${type}`)).toBeInTheDocument()
+		expect(row).toHaveTextContent("2 chunks · 400 tokens")
+	})
 
 	it("expands context cache event details", () => {
 		renderChatRow(
@@ -111,8 +114,13 @@ describe("ChatRow - context cache events", () => {
 				type: "chunks_pulled_from_cold",
 				chunkCount: 1,
 				tokenCount: 200,
+				duplicateChunkCount: 2,
+				duplicateTokenCount: 400,
 				ramUsedMb: 512,
 				ramBudgetMb: 2048,
+				reason: "ask_for_context",
+				source: "background_agent",
+				outcome: "retrieved",
 				query: "beta feature",
 				filePath: "src/example.ts",
 				warning: "Cold cache full — falling back to condensing",
@@ -126,8 +134,18 @@ describe("ChatRow - context cache events", () => {
 		).toBeInTheDocument()
 		expect(screen.getByText("chat:contextManagement.contextCache.details.chunks")).toBeInTheDocument()
 		expect(screen.getByText("chat:contextManagement.contextCache.details.tokens")).toBeInTheDocument()
+		expect(screen.getByText("chat:contextManagement.contextCache.details.duplicateChunks")).toBeInTheDocument()
+		expect(screen.getByText("chat:contextManagement.contextCache.details.duplicateTokens")).toBeInTheDocument()
+		expect(screen.getByText("chat:contextManagement.contextCache.details.reason")).toBeInTheDocument()
+		expect(screen.getByText("chat:contextManagement.contextCache.reasons.ask_for_context")).toBeInTheDocument()
+		expect(screen.getByText("chat:contextManagement.contextCache.details.source")).toBeInTheDocument()
+		expect(screen.getByText("chat:contextManagement.contextCache.sources.background_agent")).toBeInTheDocument()
+		expect(screen.getByText("chat:contextManagement.contextCache.details.outcome")).toBeInTheDocument()
+		expect(screen.getByText("chat:contextManagement.contextCache.outcomes.retrieved")).toBeInTheDocument()
 		expect(screen.getByText("chat:contextManagement.contextCache.details.ram")).toBeInTheDocument()
 		expect(screen.getByText("512MB / 2GB")).toBeInTheDocument()
+		expect(screen.getByText("2")).toBeInTheDocument()
+		expect(screen.getByText("400")).toBeInTheDocument()
 		expect(screen.getByText("beta feature")).toBeInTheDocument()
 		expect(screen.getByText("src/example.ts")).toBeInTheDocument()
 		expect(screen.getByText("Cold cache full — falling back to condensing")).toBeInTheDocument()

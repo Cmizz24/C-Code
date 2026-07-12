@@ -19,6 +19,8 @@ import type { GeneratedImageMetadata } from "./image-generation.js"
 import type { ContextCacheBudgetOption, ContextCacheSearchResult, ContextCacheStats } from "./context-management.js"
 import type {
 	MemoryKind,
+	MemoryMistakeCategory,
+	MemoryMistakeCause,
 	MemoryRankBreakdown,
 	MemoryScope,
 	MemoryState,
@@ -886,6 +888,8 @@ export interface MemorySearchChatResult {
 	mode?: string
 	toolName?: string
 	mistakeSignature?: string
+	mistakeCause?: MemoryMistakeCause
+	mistakeCategory?: MemoryMistakeCategory
 	confidence?: number
 	score?: number
 	breakdown?: MemoryRankBreakdown
@@ -901,6 +905,8 @@ export interface MemoryRecallChatResult {
 	pathTags?: string[]
 	mode?: string
 	toolName?: string
+	mistakeCause?: MemoryMistakeCause
+	mistakeCategory?: MemoryMistakeCategory
 	confidence?: number
 	score?: number
 }
@@ -992,6 +998,8 @@ export interface ClineSayTool {
 	pathTags?: string[]
 	toolName?: string
 	mistakeSignature?: string
+	mistakeCause?: MemoryMistakeCause
+	mistakeCategory?: MemoryMistakeCategory
 	memoryResults?: MemorySearchChatResult[]
 	memoryRecallCount?: number
 	memoryRecallResults?: MemoryRecallChatResult[]

@@ -42,6 +42,8 @@ function toMemoryRecallChatResult(result: MemoryRetrievalResult): MemoryRecallCh
 		pathTags: memory.pathTags,
 		mode: memory.mode,
 		toolName: memory.toolName,
+		mistakeCause: memory.mistakeCause,
+		mistakeCategory: memory.mistakeCategory,
 		confidence: memory.confidence,
 		score: result.score,
 	}

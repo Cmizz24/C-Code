@@ -20,6 +20,9 @@ function formatMemoryLine(result: MemoryRetrievalResult, index: number): string 
 	if (memory.toolName) {
 		parts.push(`tool=${memory.toolName}`)
 	}
+	if (memory.mistakeCategory) {
+		parts.push(`category=${memory.mistakeCategory}`)
+	}
 	parts.push(`confidence=${memory.confidence.toFixed(2)}`)
 
 	return `${parts.join(" ")} — ${sanitizeMemoryText(memory.lesson, 500)}`

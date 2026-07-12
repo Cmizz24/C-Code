@@ -488,22 +488,49 @@
 			"titles": {
 				"chunks_moved_to_cold": "Kontext in den Cold Cache verschoben",
 				"chunks_pulled_from_cold": "Kontext aus dem Cold Cache geholt",
+				"chunks_evicted_from_cache": "Kontext aus dem Cache entfernt",
 				"condensing_avoided": "Kontext-Kondensierung vermieden",
 				"cold_cache_full": "Cold Cache voll"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "Ältere Kontext-Chunks wurden aus dem Hot Window entfernt und für spätere Abfragen im RAM gehalten.",
 				"chunks_pulled_from_cold": "Relevante Cold-Cache-Chunks wurden wiederhergestellt, nachdem ask_for_context mehr Kontext angefordert hat.",
+				"chunks_evicted_from_cache": "Kontext-Chunks wurden entfernt, weil das gemeinsame Cache-Budget mehr Platz brauchte.",
 				"condensing_avoided": "Der Hot/Cold Cache hat genug Platz freigegeben, daher hat C das automatische Kondensieren übersprungen.",
 				"cold_cache_full": "Das RAM-Budget ist voll, daher ist C auf die reguläre Kontext-Kondensierung zurückgefallen."
 			},
 			"details": {
 				"chunks": "Chunks",
 				"tokens": "Tokens",
+				"duplicateChunks": "Doppelte Chunks zusammengeführt",
+				"duplicateTokens": "Doppelte Tokens zusammengeführt",
+				"reason": "Grund",
+				"source": "Quelle",
+				"outcome": "Ergebnis",
 				"ram": "RAM",
 				"query": "Abfrage",
 				"file": "Datei",
 				"warning": "Warnung"
+			},
+			"reasons": {
+				"hot_budget_trim": "Hot-Cache-Budget gekürzt",
+				"request_pressure": "Anfrage brauchte Platz",
+				"rebuild": "Cache-Neuaufbau",
+				"combined_budget_eviction": "Entfernung durch gemeinsames Cache-Budget",
+				"ask_for_context": "ask_for_context-Abruf"
+			},
+			"sources": {
+				"active_task": "Aktive Aufgabe",
+				"foreground_task": "Vordergrundaufgabe",
+				"background_agent": "Hintergrund-Agent"
+			},
+			"outcomes": {
+				"moved": "Verschoben",
+				"merged_duplicate": "Duplikat zusammengeführt",
+				"partially_merged": "Duplikate teilweise zusammengeführt",
+				"rejected": "Abgelehnt",
+				"evicted": "Entfernt",
+				"retrieved": "Abgerufen"
 			}
 		}
 	},

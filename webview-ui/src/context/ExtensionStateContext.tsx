@@ -447,6 +447,11 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 							...prevState,
 							openAiCodexRateLimits: rateLimits,
 						}))
+					} else {
+						setState((prevState) => ({
+							...prevState,
+							openAiCodexRateLimits: undefined,
+						}))
 					}
 					break
 				}
@@ -461,6 +466,16 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 								[providerName]: values,
 							},
 						}))
+					} else if (typeof providerName === "string") {
+						setState((prevState) => {
+							const cachedProviderPlanUsage = { ...(prevState.cachedProviderPlanUsage ?? {}) }
+							delete cachedProviderPlanUsage[providerName]
+
+							return {
+								...prevState,
+								cachedProviderPlanUsage,
+							}
+						})
 					}
 					break
 				}

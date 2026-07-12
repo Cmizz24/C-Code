@@ -161,6 +161,7 @@ export interface ContextCacheStats {
 export const CONTEXT_CACHE_EVENT_TYPES = [
 	"chunks_moved_to_cold",
 	"chunks_pulled_from_cold",
+	"chunks_evicted_from_cache",
 	"condensing_avoided",
 	"cold_cache_full",
 ] as const
@@ -169,14 +170,50 @@ export const contextCacheEventTypeSchema = z.enum(CONTEXT_CACHE_EVENT_TYPES)
 
 export type ContextCacheEventType = (typeof CONTEXT_CACHE_EVENT_TYPES)[number]
 
+export const CONTEXT_CACHE_EVENT_REASONS = [
+	"hot_budget_trim",
+	"request_pressure",
+	"rebuild",
+	"combined_budget_eviction",
+	"ask_for_context",
+] as const
+
+export const contextCacheEventReasonSchema = z.enum(CONTEXT_CACHE_EVENT_REASONS)
+
+export type ContextCacheEventReason = (typeof CONTEXT_CACHE_EVENT_REASONS)[number]
+
+export const CONTEXT_CACHE_EVENT_SOURCES = ["active_task", "foreground_task", "background_agent"] as const
+
+export const contextCacheEventSourceSchema = z.enum(CONTEXT_CACHE_EVENT_SOURCES)
+
+export type ContextCacheEventSource = (typeof CONTEXT_CACHE_EVENT_SOURCES)[number]
+
+export const CONTEXT_CACHE_EVENT_OUTCOMES = [
+	"moved",
+	"merged_duplicate",
+	"partially_merged",
+	"rejected",
+	"evicted",
+	"retrieved",
+] as const
+
+export const contextCacheEventOutcomeSchema = z.enum(CONTEXT_CACHE_EVENT_OUTCOMES)
+
+export type ContextCacheEventOutcome = (typeof CONTEXT_CACHE_EVENT_OUTCOMES)[number]
+
 export const contextCacheEventSchema = z.object({
 	id: z.string(),
 	type: contextCacheEventTypeSchema,
 	createdAt: z.number(),
 	chunkCount: z.number().optional(),
 	tokenCount: z.number().optional(),
+	duplicateChunkCount: z.number().optional(),
+	duplicateTokenCount: z.number().optional(),
 	ramUsedMb: z.number().optional(),
 	ramBudgetMb: z.number().optional(),
+	reason: contextCacheEventReasonSchema.optional(),
+	source: contextCacheEventSourceSchema.optional(),
+	outcome: contextCacheEventOutcomeSchema.optional(),
 	query: z.string().optional(),
 	filePath: z.string().optional(),
 	warning: z.string().optional(),

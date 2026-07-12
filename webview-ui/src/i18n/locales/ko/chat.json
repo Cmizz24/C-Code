@@ -489,13 +489,15 @@
 				"chunks_moved_to_cold": "컨텍스트를 콜드 캐시로 이동",
 				"chunks_pulled_from_cold": "콜드 캐시에서 컨텍스트 가져옴",
 				"condensing_avoided": "컨텍스트 압축 회피",
-				"cold_cache_full": "콜드 캐시가 가득 참"
+				"cold_cache_full": "콜드 캐시가 가득 참",
+				"chunks_evicted_from_cache": "캐시에서 컨텍스트 제거"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "오래된 컨텍스트 청크를 핫 윈도우에서 빼내 나중에 가져올 수 있도록 RAM에 보관했습니다.",
 				"chunks_pulled_from_cold": "ask_for_context가 더 많은 컨텍스트를 요청해 관련 콜드 캐시 청크를 복원했습니다.",
 				"condensing_avoided": "핫/콜드 캐시가 충분한 공간을 확보해 C가 자동 압축을 건너뛰었습니다.",
-				"cold_cache_full": "RAM 예산이 가득 차서 C가 일반 컨텍스트 압축으로 돌아갔습니다."
+				"cold_cache_full": "RAM 예산이 가득 차서 C가 일반 컨텍스트 압축으로 돌아갔습니다.",
+				"chunks_evicted_from_cache": "공유 캐시 예산에 더 많은 공간이 필요해 컨텍스트 청크를 제거했습니다."
 			},
 			"details": {
 				"chunks": "청크",
@@ -503,7 +505,32 @@
 				"ram": "RAM",
 				"query": "쿼리",
 				"file": "파일",
-				"warning": "경고"
+				"warning": "경고",
+				"duplicateChunks": "중복 청크 병합됨",
+				"duplicateTokens": "중복 Token 병합됨",
+				"reason": "이유",
+				"source": "소스",
+				"outcome": "결과"
+			},
+			"reasons": {
+				"hot_budget_trim": "핫 캐시 예산 조정",
+				"request_pressure": "요청에 공간 필요",
+				"rebuild": "캐시 재구성",
+				"combined_budget_eviction": "공유 캐시 예산 제거",
+				"ask_for_context": "ask_for_context 검색"
+			},
+			"sources": {
+				"active_task": "활성 작업",
+				"foreground_task": "포그라운드 작업",
+				"background_agent": "백그라운드 Agent"
+			},
+			"outcomes": {
+				"moved": "이동됨",
+				"merged_duplicate": "중복 병합됨",
+				"partially_merged": "중복 일부 병합됨",
+				"rejected": "거부됨",
+				"evicted": "제거됨",
+				"retrieved": "검색됨"
 			}
 		}
 	},

@@ -521,13 +521,15 @@
 				"chunks_moved_to_cold": "Context naar coldcache verplaatst",
 				"chunks_pulled_from_cold": "Context uit coldcache opgehaald",
 				"condensing_avoided": "Contextcondensing vermeden",
-				"cold_cache_full": "Coldcache vol"
+				"cold_cache_full": "Coldcache vol",
+				"chunks_evicted_from_cache": "Context uit cache verwijderd"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "Oudere contextchunks zijn uit het hot venster gehaald en in RAM bewaard om later op te halen.",
 				"chunks_pulled_from_cold": "Relevante coldcachechunks zijn hersteld nadat ask_for_context om meer context vroeg.",
 				"condensing_avoided": "De hot/cold cache maakte genoeg ruimte vrij, dus C sloeg automatisch condenseren over.",
-				"cold_cache_full": "Het RAM-budget is vol, dus C viel terug op gewone contextcondensing."
+				"cold_cache_full": "Het RAM-budget is vol, dus C viel terug op gewone contextcondensing.",
+				"chunks_evicted_from_cache": "Contextchunks zijn verwijderd omdat het gedeelde cachebudget meer ruimte nodig had."
 			},
 			"details": {
 				"chunks": "Chunks",
@@ -535,7 +537,32 @@
 				"ram": "RAM",
 				"query": "Query",
 				"file": "Bestand",
-				"warning": "Waarschuwing"
+				"warning": "Waarschuwing",
+				"duplicateChunks": "Dubbele chunks samengevoegd",
+				"duplicateTokens": "Dubbele tokens samengevoegd",
+				"reason": "Reden",
+				"source": "Bron",
+				"outcome": "Resultaat"
+			},
+			"reasons": {
+				"hot_budget_trim": "Hot-cachebudget opgeschoond",
+				"request_pressure": "Aanvraag had ruimte nodig",
+				"rebuild": "Cache opnieuw opgebouwd",
+				"combined_budget_eviction": "Verwijdering door gedeeld cachebudget",
+				"ask_for_context": "ask_for_context ophalen"
+			},
+			"sources": {
+				"active_task": "Actieve taak",
+				"foreground_task": "Voorgrondtaak",
+				"background_agent": "Achtergrondagent"
+			},
+			"outcomes": {
+				"moved": "Verplaatst",
+				"merged_duplicate": "Duplicaat samengevoegd",
+				"partially_merged": "Duplicaten deels samengevoegd",
+				"rejected": "Geweigerd",
+				"evicted": "Verwijderd",
+				"retrieved": "Opgehaald"
 			}
 		}
 	},

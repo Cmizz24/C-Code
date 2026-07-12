@@ -489,13 +489,15 @@
 				"chunks_moved_to_cold": "Context को cold cache में ले जाया गया",
 				"chunks_pulled_from_cold": "Context को cold cache से निकाला गया",
 				"condensing_avoided": "Context condensing टाली गई",
-				"cold_cache_full": "Cold cache भर गया"
+				"cold_cache_full": "Cold cache भर गया",
+				"chunks_evicted_from_cache": "Context को cache से हटाया गया"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "पुराने context chunks को hot window से हटाकर बाद में वापस लाने के लिए RAM में रखा गया।",
 				"chunks_pulled_from_cold": "ask_for_context ने अधिक context मांगा, इसलिए संबंधित cold-cache chunks बहाल किए गए।",
 				"condensing_avoided": "Hot/cold cache ने पर्याप्त जगह खाली कर दी, इसलिए C ने automatic condensing छोड़ दी।",
-				"cold_cache_full": "RAM budget भर गया है, इसलिए C regular context condensing पर लौट गया।"
+				"cold_cache_full": "RAM budget भर गया है, इसलिए C regular context condensing पर लौट गया।",
+				"chunks_evicted_from_cache": "Shared cache budget को और जगह चाहिए थी, इसलिए context chunks हटाए गए।"
 			},
 			"details": {
 				"chunks": "Chunks",
@@ -503,7 +505,32 @@
 				"ram": "RAM",
 				"query": "क्वेरी",
 				"file": "फ़ाइल",
-				"warning": "चेतावनी"
+				"warning": "चेतावनी",
+				"duplicateChunks": "Duplicate chunks merge किए गए",
+				"duplicateTokens": "Duplicate tokens merge किए गए",
+				"reason": "कारण",
+				"source": "स्रोत",
+				"outcome": "नतीजा"
+			},
+			"reasons": {
+				"hot_budget_trim": "Hot-cache budget trim",
+				"request_pressure": "Request को जगह चाहिए थी",
+				"rebuild": "Cache rebuild",
+				"combined_budget_eviction": "Shared cache budget eviction",
+				"ask_for_context": "ask_for_context retrieval"
+			},
+			"sources": {
+				"active_task": "Active task",
+				"foreground_task": "Foreground task",
+				"background_agent": "Background agent"
+			},
+			"outcomes": {
+				"moved": "Moved",
+				"merged_duplicate": "Duplicate merge किया गया",
+				"partially_merged": "Duplicates आंशिक रूप से merge किए गए",
+				"rejected": "Rejected",
+				"evicted": "Evicted",
+				"retrieved": "Retrieved"
 			}
 		}
 	},

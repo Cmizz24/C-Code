@@ -489,13 +489,15 @@
 				"chunks_moved_to_cold": "コンテキストをコールドキャッシュへ移動",
 				"chunks_pulled_from_cold": "コールドキャッシュからコンテキストを取得",
 				"condensing_avoided": "コンテキスト凝縮を回避",
-				"cold_cache_full": "コールドキャッシュが満杯"
+				"cold_cache_full": "コールドキャッシュが満杯",
+				"chunks_evicted_from_cache": "コンテキストをキャッシュから削除"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "古いコンテキストチャンクをホットウィンドウから外し、後で取得できるよう RAM に保持しました。",
 				"chunks_pulled_from_cold": "ask_for_context が追加コンテキストを要求したため、関連するコールドキャッシュチャンクを復元しました。",
 				"condensing_avoided": "ホット/コールドキャッシュが十分な空きを作ったため、C は自動凝縮をスキップしました。",
-				"cold_cache_full": "RAM 予算が満杯のため、C は通常のコンテキスト凝縮に戻りました。"
+				"cold_cache_full": "RAM 予算が満杯のため、C は通常のコンテキスト凝縮に戻りました。",
+				"chunks_evicted_from_cache": "共有キャッシュ予算に空きが必要だったため、コンテキストチャンクを削除しました。"
 			},
 			"details": {
 				"chunks": "チャンク",
@@ -503,7 +505,32 @@
 				"ram": "RAM",
 				"query": "クエリ",
 				"file": "ファイル",
-				"warning": "警告"
+				"warning": "警告",
+				"duplicateChunks": "重複チャンクをマージ",
+				"duplicateTokens": "重複Tokenをマージ",
+				"reason": "理由",
+				"source": "ソース",
+				"outcome": "結果"
+			},
+			"reasons": {
+				"hot_budget_trim": "ホットキャッシュ予算の調整",
+				"request_pressure": "リクエストに空きが必要",
+				"rebuild": "キャッシュ再構築",
+				"combined_budget_eviction": "共有キャッシュ予算による削除",
+				"ask_for_context": "ask_for_context 取得"
+			},
+			"sources": {
+				"active_task": "アクティブタスク",
+				"foreground_task": "フォアグラウンドタスク",
+				"background_agent": "バックグラウンドAgent"
+			},
+			"outcomes": {
+				"moved": "移動済み",
+				"merged_duplicate": "重複をマージ済み",
+				"partially_merged": "重複を一部マージ済み",
+				"rejected": "拒否済み",
+				"evicted": "削除済み",
+				"retrieved": "取得済み"
 			}
 		}
 	},

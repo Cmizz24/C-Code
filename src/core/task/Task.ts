@@ -1399,11 +1399,28 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.contextWindowManager.clearCachedChunks()
 		this.contextCacheRegisteredMessageKeys.clear()
 
-		for (const message of this.apiConversationHistory) {
-			this.registerConversationTurnChunk(message, { recordEvents: false, countSwaps: false })
+		for (const message of getEffectiveApiHistory(this.apiConversationHistory)) {
+			if (!this.shouldRegisterMessageForContextCache(message)) {
+				continue
+			}
+
+			this.registerConversationTurnChunk(message, {
+				recordEvents: false,
+				countSwaps: false,
+				movementReason: "rebuild",
+			})
 		}
 
 		this.contextCacheNeedsRebuild = false
+	}
+
+	private shouldRegisterMessageForContextCache(message: ApiMessage): boolean {
+		if (message.isTruncationMarker) {
+			return false
+		}
+
+		const messageMetadata = message as ApiMessage & { isSynthetic?: boolean; synthetic?: boolean }
+		return messageMetadata.isSynthetic !== true && messageMetadata.synthetic !== true
 	}
 
 	private stringifyApiMessageForContextCache(message: ApiMessage): string {
@@ -5933,6 +5950,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				mode: memory.mode,
 				toolName: memory.toolName,
 				mistakeSignature: memory.mistakeSignature,
+				mistakeCause: memory.mistakeCause,
+				mistakeCategory: memory.mistakeCategory,
 				autoApproved,
 				reusedExisting: result.reusedExisting,
 				message,

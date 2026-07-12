@@ -48,6 +48,8 @@ function toChatMemorySearchResult(result: MemorySearchResult) {
 		mode: result.memory.mode,
 		toolName: result.memory.toolName,
 		mistakeSignature: result.memory.mistakeSignature,
+		mistakeCause: result.memory.mistakeCause,
+		mistakeCategory: result.memory.mistakeCategory,
 		confidence: result.memory.confidence,
 		score: Number(result.score.toFixed(4)),
 		breakdown: result.breakdown,

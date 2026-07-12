@@ -490,13 +490,15 @@
 				"chunks_moved_to_cold": "Ngữ cảnh đã chuyển vào cache lạnh",
 				"chunks_pulled_from_cold": "Ngữ cảnh đã kéo từ cache lạnh",
 				"condensing_avoided": "Đã tránh condensing ngữ cảnh",
-				"cold_cache_full": "Cache lạnh đã đầy"
+				"cold_cache_full": "Cache lạnh đã đầy",
+				"chunks_evicted_from_cache": "Ngữ cảnh đã bị loại khỏi cache"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "Các chunk ngữ cảnh cũ đã được đưa khỏi cửa sổ nóng và giữ trong RAM để truy xuất sau.",
 				"chunks_pulled_from_cold": "Các chunk cache lạnh liên quan đã được khôi phục sau khi ask_for_context yêu cầu thêm ngữ cảnh.",
 				"condensing_avoided": "Cache nóng/lạnh đã giải phóng đủ chỗ, nên C bỏ qua condensing tự động.",
-				"cold_cache_full": "Ngân sách RAM đã đầy, nên C quay lại condensing ngữ cảnh thông thường."
+				"cold_cache_full": "Ngân sách RAM đã đầy, nên C quay lại condensing ngữ cảnh thông thường.",
+				"chunks_evicted_from_cache": "Các chunk ngữ cảnh đã bị loại vì ngân sách cache dùng chung cần thêm chỗ trống."
 			},
 			"details": {
 				"chunks": "Chunk",
@@ -504,7 +506,32 @@
 				"ram": "RAM",
 				"query": "Truy vấn",
 				"file": "Tệp",
-				"warning": "Cảnh báo"
+				"warning": "Cảnh báo",
+				"duplicateChunks": "Chunk trùng lặp đã gộp",
+				"duplicateTokens": "Token trùng lặp đã gộp",
+				"reason": "Lý do",
+				"source": "Nguồn",
+				"outcome": "Kết quả"
+			},
+			"reasons": {
+				"hot_budget_trim": "Cắt bớt ngân sách hot-cache",
+				"request_pressure": "Request cần thêm chỗ trống",
+				"rebuild": "Rebuild cache",
+				"combined_budget_eviction": "Loại bỏ do ngân sách cache dùng chung",
+				"ask_for_context": "Truy xuất ask_for_context"
+			},
+			"sources": {
+				"active_task": "Tác vụ đang hoạt động",
+				"foreground_task": "Tác vụ foreground",
+				"background_agent": "Agent nền"
+			},
+			"outcomes": {
+				"moved": "Đã chuyển",
+				"merged_duplicate": "Đã gộp bản trùng",
+				"partially_merged": "Đã gộp một phần bản trùng",
+				"rejected": "Đã từ chối",
+				"evicted": "Đã loại bỏ",
+				"retrieved": "Đã truy xuất"
 			}
 		}
 	},

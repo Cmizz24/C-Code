@@ -242,15 +242,86 @@ describe("OpenAiCodexHandler reasoning extraction", () => {
 		expect(chunks).toEqual([{ type: "reasoning", text: "Reviewed the request and selected a focused fix." }])
 	})
 
+	it("does not emit response-summary title-only objects as displayable reasoning", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const chunks = await collectProcessEventChunks(handler, {
+			type: "response.completed",
+			response: {
+				output: [
+					{
+						type: "reasoning",
+						summary: [{ type: "summary_text", text: "Planning CSS consolidation and redesign" }],
+					},
+				],
+			},
+		})
+
+		expect(chunks).toEqual([])
+	})
+
+	it("filters streamed summary title deltas without suppressing real summary sentences", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const titleDelta = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary.delta",
+			delta: "Outlining editorial design and typography options",
+		})
+		const summaryDelta = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary.delta",
+			delta: "I compared the typography options and selected the least disruptive cleanup.",
+		})
+
+		expect(titleDelta).toEqual([])
+		expect(summaryDelta).toEqual([
+			{
+				type: "reasoning",
+				text: "I compared the typography options and selected the least disruptive cleanup.",
+			},
+		])
+	})
+
+	it("preserves real raw reasoning deltas that look like useful thinking content", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const chunks = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_text.delta",
+			delta: "Planning CSS consolidation is risky, so I need to inspect the current selectors before editing.",
+		})
+
+		expect(chunks).toEqual([
+			{
+				type: "reasoning",
+				text: "Planning CSS consolidation is risky, so I need to inspect the current selectors before editing.",
+			},
+		])
+	})
+
+	it("filters malformed HTML-comment-wrapped summary-heading fragments", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const closedComment = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary.delta",
+			delta: "<!--**Planning CSS consolidation and redesign**-->",
+		})
+		const openComment = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary.delta",
+			delta: "<!--**Outlining editorial design and typography options**",
+		})
+
+		expect(closedComment).toEqual([])
+		expect(openComment).toEqual([])
+	})
+
 	it("deduplicates final reasoning summaries already streamed as reasoning deltas", async () => {
 		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
 
 		const firstDelta = await collectProcessEventChunks(handler, {
-			type: "response.reasoning_summary.delta",
+			type: "response.reasoning_text.delta",
 			delta: "Reviewed the request ",
 		})
 		const secondDelta = await collectProcessEventChunks(handler, {
-			type: "response.reasoning_summary.delta",
+			type: "response.reasoning_text.delta",
 			delta: "and selected a focused fix.",
 		})
 		const finalSummary = await collectProcessEventChunks(handler, {

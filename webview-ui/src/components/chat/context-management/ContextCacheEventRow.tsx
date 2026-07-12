@@ -26,6 +26,8 @@ export function ContextCacheEventRow({ event }: ContextCacheEventRowProps) {
 	const [isExpanded, setIsExpanded] = useState(false)
 	const chunkCount = event.chunkCount ?? 0
 	const tokenCount = event.tokenCount ?? 0
+	const duplicateChunkCount = event.duplicateChunkCount ?? 0
+	const duplicateTokenCount = event.duplicateTokenCount ?? 0
 	const summaryParts = [
 		chunkCount > 0 ? t("chat:contextManagement.contextCache.summary.chunks", { count: chunkCount }) : undefined,
 		tokenCount > 0 ? `${formatContextCacheNumber(tokenCount)} ${t("chat:contextManagement.tokens")}` : undefined,
@@ -41,6 +43,36 @@ export function ContextCacheEventRow({ event }: ContextCacheEventRowProps) {
 			: undefined,
 		tokenCount > 0
 			? [t("chat:contextManagement.contextCache.details.tokens"), formatContextCacheNumber(tokenCount)]
+			: undefined,
+		duplicateChunkCount > 0
+			? [
+					t("chat:contextManagement.contextCache.details.duplicateChunks"),
+					formatContextCacheNumber(duplicateChunkCount),
+				]
+			: undefined,
+		duplicateTokenCount > 0
+			? [
+					t("chat:contextManagement.contextCache.details.duplicateTokens"),
+					formatContextCacheNumber(duplicateTokenCount),
+				]
+			: undefined,
+		event.reason
+			? [
+					t("chat:contextManagement.contextCache.details.reason"),
+					t(`chat:contextManagement.contextCache.reasons.${event.reason}`),
+				]
+			: undefined,
+		event.source
+			? [
+					t("chat:contextManagement.contextCache.details.source"),
+					t(`chat:contextManagement.contextCache.sources.${event.source}`),
+				]
+			: undefined,
+		event.outcome
+			? [
+					t("chat:contextManagement.contextCache.details.outcome"),
+					t(`chat:contextManagement.contextCache.outcomes.${event.outcome}`),
+				]
 			: undefined,
 		event.ramBudgetMb !== undefined
 			? [

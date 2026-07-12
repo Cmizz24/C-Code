@@ -83,7 +83,14 @@ describe("ContextWindowManager", () => {
 			condensingAvoided: 1,
 		})
 		expect(manager.drainEvents()).toEqual([
-			expect.objectContaining({ type: "condensing_avoided", chunkCount: 2, tokenCount: 400 }),
+			expect.objectContaining({
+				type: "condensing_avoided",
+				chunkCount: 2,
+				tokenCount: 400,
+				reason: "request_pressure",
+				source: "foreground_task",
+				outcome: "moved",
+			}),
 		])
 		expect(manager.drainEvents()).toEqual([])
 
@@ -107,6 +114,8 @@ describe("ContextWindowManager", () => {
 				type: "chunks_pulled_from_cold",
 				chunkCount: 1,
 				tokenCount: 200,
+				reason: "ask_for_context",
+				outcome: "retrieved",
 				query: "beta",
 			}),
 		])
@@ -222,9 +231,45 @@ describe("ContextWindowManager", () => {
 		})
 		expect(coordinator.getUsage()).toMatchObject({ usedBytes: 60, hotBytes: 60, coldBytes: 0 })
 		expect(manager.drainEvents()).toEqual([
-			expect.objectContaining({ type: "chunks_moved_to_cold", chunkCount: 1, tokenCount: 2 }),
+			expect.objectContaining({
+				type: "chunks_moved_to_cold",
+				chunkCount: 1,
+				tokenCount: 2,
+				reason: "hot_budget_trim",
+				source: "background_agent",
+				outcome: "moved",
+			}),
+			expect.objectContaining({
+				type: "chunks_evicted_from_cache",
+				chunkCount: 1,
+				tokenCount: 2,
+				reason: "combined_budget_eviction",
+				source: "background_agent",
+				outcome: "evicted",
+			}),
 		])
 		expect(manager.drainEvents()).toEqual([])
+	})
+
+	it("merges duplicate cold-cache chunks without emitting repeated movement rows", () => {
+		const manager = new ContextWindowManager({ hotTokenBudget: 1, coldCacheRamBudgetMb: 256 })
+
+		registerConversationTurn(manager, "Repeated cache content", 101, 2)
+		registerConversationTurn(manager, "Repeated cache content", 102, 2)
+		registerConversationTurn(manager, "Repeated cache content", 103, 2)
+
+		expect(manager.getStats()).toMatchObject({ coldCacheChunks: 1, swapsThisSession: 1 })
+		expect(manager.getHiddenMessageTimestamps()).toEqual(new Set([101, 102]))
+
+		const events = manager.drainEvents()
+		expect(events).toHaveLength(1)
+		expect(events[0]).toMatchObject({
+			type: "chunks_moved_to_cold",
+			chunkCount: 1,
+			tokenCount: 2,
+			reason: "hot_budget_trim",
+			outcome: "moved",
+		})
 	})
 
 	it("does not evict non-conversation chunks or protected conversation turns for request pressure", () => {
@@ -296,6 +341,8 @@ describe("ContextWindowManager", () => {
 				type: "cold_cache_full",
 				chunkCount: 1,
 				tokenCount: 200,
+				reason: "request_pressure",
+				outcome: "rejected",
 				warning: CONTEXT_CACHE_FULL_WARNING,
 			}),
 		])

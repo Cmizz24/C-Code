@@ -488,22 +488,49 @@
 			"titles": {
 				"chunks_moved_to_cold": "Contexto movido a la caché fría",
 				"chunks_pulled_from_cold": "Contexto recuperado de la caché fría",
+				"chunks_evicted_from_cache": "Contexto expulsado de la caché",
 				"condensing_avoided": "Condensación de contexto evitada",
 				"cold_cache_full": "Caché fría llena"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "Los fragmentos de contexto antiguos se sacaron de la ventana caliente y se mantuvieron en RAM para recuperarlos más tarde.",
 				"chunks_pulled_from_cold": "Se restauraron fragmentos relevantes de la caché fría después de que ask_for_context solicitara más contexto.",
+				"chunks_evicted_from_cache": "Se expulsaron fragmentos de contexto porque el presupuesto compartido de caché necesitaba más espacio.",
 				"condensing_avoided": "La caché caliente/fría liberó espacio suficiente, así que C omitió la condensación automática.",
 				"cold_cache_full": "El presupuesto de RAM está lleno, así que C volvió a la condensación de contexto normal."
 			},
 			"details": {
 				"chunks": "Fragmentos",
 				"tokens": "Tokens",
+				"duplicateChunks": "Fragmentos duplicados fusionados",
+				"duplicateTokens": "Tokens duplicados fusionados",
+				"reason": "Motivo",
+				"source": "Origen",
+				"outcome": "Resultado",
 				"ram": "RAM",
 				"query": "Consulta",
 				"file": "Archivo",
 				"warning": "Advertencia"
+			},
+			"reasons": {
+				"hot_budget_trim": "Recorte del presupuesto de caché caliente",
+				"request_pressure": "La solicitud necesitaba espacio",
+				"rebuild": "Reconstrucción de caché",
+				"combined_budget_eviction": "Expulsión por presupuesto compartido de caché",
+				"ask_for_context": "Recuperación ask_for_context"
+			},
+			"sources": {
+				"active_task": "Tarea activa",
+				"foreground_task": "Tarea en primer plano",
+				"background_agent": "Agente en segundo plano"
+			},
+			"outcomes": {
+				"moved": "Movido",
+				"merged_duplicate": "Duplicado fusionado",
+				"partially_merged": "Duplicados fusionados parcialmente",
+				"rejected": "Rechazado",
+				"evicted": "Expulsado",
+				"retrieved": "Recuperado"
 			}
 		}
 	},

@@ -1,7 +1,7 @@
 // npx vitest src/components/chat/__tests__/TaskHeader.spec.tsx
 
 import React from "react"
-import { render, screen, fireEvent } from "@/utils/test-utils"
+import { render, screen, fireEvent, act } from "@/utils/test-utils"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import type { ContextCacheStats, ProviderSettings } from "@roo-code/types"
@@ -582,6 +582,97 @@ describe("TaskHeader", () => {
 
 			expect(screen.getByTestId("plan-usage-percent")).toHaveTextContent("12% plan used")
 			expect(screen.queryByText("90% plan used")).not.toBeInTheDocument()
+		})
+
+		it("should update the OpenAI Codex reset countdown every minute", () => {
+			vi.useFakeTimers({ now: 1_700_000_000_000 })
+
+			try {
+				mockModelInfo = { contextWindow: 400000, maxTokens: 128000, subscriptionBased: true }
+				mockExtensionState.apiConfiguration = {
+					apiProvider: "openai-codex",
+					apiModelId: "gpt-5.5",
+				} as ProviderSettings
+				mockExtensionState.openAiCodexRateLimits = {
+					primary: { usedPercent: 12.2, resetsAt: Date.now() + 125_000 },
+					fetchedAt: Date.now(),
+				}
+
+				renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0 })
+
+				expect(screen.getByTestId("plan-usage-reset")).toHaveTextContent("resets in 3m")
+
+				act(() => {
+					vi.advanceTimersByTime(60_000)
+				})
+
+				expect(screen.getByTestId("plan-usage-reset")).toHaveTextContent("resets in 2m")
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it("should poll for missing OpenAI Codex rate limits while mounted and clean up on unmount", () => {
+			vi.useFakeTimers({ now: 1_700_000_000_000 })
+
+			try {
+				mockModelInfo = { contextWindow: 400000, maxTokens: 128000, subscriptionBased: true }
+				mockExtensionState.apiConfiguration = {
+					apiProvider: "openai-codex",
+					apiModelId: "gpt-5.5",
+				} as ProviderSettings
+				mockExtensionState.openAiCodexRateLimits = undefined
+
+				const { unmount } = renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0 })
+
+				expect(mockPostMessage).toHaveBeenCalledTimes(1)
+				expect(mockPostMessage).toHaveBeenCalledWith({ type: "requestOpenAiCodexRateLimits" })
+
+				act(() => {
+					vi.advanceTimersByTime(5 * 60_000)
+				})
+
+				expect(mockPostMessage).toHaveBeenCalledTimes(2)
+
+				unmount()
+
+				act(() => {
+					vi.advanceTimersByTime(5 * 60_000)
+				})
+
+				expect(mockPostMessage).toHaveBeenCalledTimes(2)
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it("should avoid an immediate OpenAI Codex refresh when usage is fresh and poll once stale", () => {
+			vi.useFakeTimers({ now: 1_700_000_000_000 })
+
+			try {
+				mockModelInfo = { contextWindow: 400000, maxTokens: 128000, subscriptionBased: true }
+				mockExtensionState.apiConfiguration = {
+					apiProvider: "openai-codex",
+					apiModelId: "gpt-5.5",
+				} as ProviderSettings
+				mockExtensionState.openAiCodexRateLimits = {
+					primary: { usedPercent: 12.2, resetsAt: Date.now() + 3_600_000 },
+					fetchedAt: Date.now(),
+				}
+
+				renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0 })
+
+				expect(mockPostMessage).not.toHaveBeenCalledWith({ type: "requestOpenAiCodexRateLimits" })
+
+				act(() => {
+					vi.advanceTimersByTime(5 * 60_000)
+				})
+
+				expect(mockPostMessage).toHaveBeenCalledTimes(1)
+				expect(mockPostMessage).toHaveBeenCalledWith({ type: "requestOpenAiCodexRateLimits" })
+			} finally {
+				vi.useRealTimers()
+			}
 		})
 	})
 })

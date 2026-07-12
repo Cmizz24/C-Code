@@ -16,6 +16,7 @@ export const DEFAULT_CONTEXT_CHUNK_MAX_TOKENS = 2_000
 
 const ESTIMATED_CHARS_PER_TOKEN = 4
 const MIN_CONTEXT_CHUNK_BREAK_RATIO = 0.5
+const CONTEXT_CHUNK_HASH_VERSION = "context-chunk:v1"
 
 export interface ContextChunkMetadata {
 	filePath?: string
@@ -32,6 +33,7 @@ export interface ContextChunkMetadata {
 
 export interface ContextChunk {
 	id: string
+	contentHash: string
 	type: ContextChunkType
 	content: string
 	tokens: number
@@ -72,6 +74,20 @@ export function estimateContextChunkTokens(content: string): number {
 
 export function estimateContextChunkBytes(content: string): number {
 	return Buffer.byteLength(content, "utf8")
+}
+
+export function getContextChunkContentHash(content: string): string {
+	return crypto
+		.createHash("sha256")
+		.update(CONTEXT_CHUNK_HASH_VERSION)
+		.update("\0")
+		.update(content.trim())
+		.digest("hex")
+}
+
+export function getContextChunkDedupeKey(chunk: Pick<ContextChunk, "type" | "content" | "contentHash">): string {
+	const contentHash = chunk.contentHash ?? getContextChunkContentHash(chunk.content)
+	return `${chunk.type}:${contentHash}`
 }
 
 export function getDefaultContextChunkPriority(type: ContextChunkType): number {
@@ -133,6 +149,7 @@ function createSingleContextChunk(input: RegisterContextChunkInput, content: str
 	const now = Date.now()
 	return {
 		id: crypto.randomUUID(),
+		contentHash: getContextChunkContentHash(content),
 		type: input.type,
 		content,
 		tokens,
@@ -208,5 +225,52 @@ export function createContextChunk(input: RegisterContextChunkInput): ContextChu
 }
 
 export function touchContextChunk(chunk: ContextChunk, now = Date.now()): ContextChunk {
-	return { ...chunk, lastAccessedAt: now }
+	return {
+		...chunk,
+		contentHash: chunk.contentHash ?? getContextChunkContentHash(chunk.content),
+		lastAccessedAt: now,
+	}
+}
+
+function mergeMetadataValue<T>(existing: T | undefined, incoming: T | undefined): T | undefined {
+	return existing ?? incoming
+}
+
+function mergeContextChunkMetadata(
+	existing: ContextChunkMetadata | undefined,
+	incoming: ContextChunkMetadata | undefined,
+): ContextChunkMetadata | undefined {
+	if (!existing && !incoming) {
+		return undefined
+	}
+
+	const messageTimestamps = [
+		...new Set([...(existing?.messageTimestamps ?? []), ...(incoming?.messageTimestamps ?? [])]),
+	].sort((left, right) => left - right)
+
+	return {
+		filePath: mergeMetadataValue(existing?.filePath, incoming?.filePath),
+		taskId: mergeMetadataValue(existing?.taskId, incoming?.taskId),
+		role: mergeMetadataValue(existing?.role, incoming?.role),
+		source: mergeMetadataValue(existing?.source, incoming?.source),
+		title: mergeMetadataValue(existing?.title, incoming?.title),
+		toolName: mergeMetadataValue(existing?.toolName, incoming?.toolName),
+		createdBy: mergeMetadataValue(existing?.createdBy, incoming?.createdBy),
+		messageTimestamps: messageTimestamps.length > 0 ? messageTimestamps : undefined,
+		subchunkIndex: mergeMetadataValue(existing?.subchunkIndex, incoming?.subchunkIndex),
+		subchunkCount: mergeMetadataValue(existing?.subchunkCount, incoming?.subchunkCount),
+	}
+}
+
+export function mergeContextChunks(existing: ContextChunk, incoming: ContextChunk, now = Date.now()): ContextChunk {
+	return {
+		...existing,
+		contentHash: existing.contentHash ?? getContextChunkContentHash(existing.content),
+		tokens: Math.max(existing.tokens, incoming.tokens),
+		bytes: Math.max(existing.bytes, incoming.bytes),
+		priority: Math.max(existing.priority, incoming.priority),
+		createdAt: Math.min(existing.createdAt, incoming.createdAt),
+		lastAccessedAt: now,
+		metadata: mergeContextChunkMetadata(existing.metadata, incoming.metadata),
+	}
 }

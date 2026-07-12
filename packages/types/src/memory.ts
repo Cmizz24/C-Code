@@ -24,6 +24,30 @@ export const memorySourceSchema = z.enum([
 ])
 export type MemorySource = z.infer<typeof memorySourceSchema>
 
+export const memoryMistakeCauseSchema = z.enum([
+	"model",
+	"tool",
+	"extension",
+	"environment",
+	"validation",
+	"parallel_agents",
+	"provider",
+	"unknown",
+])
+export type MemoryMistakeCause = z.infer<typeof memoryMistakeCauseSchema>
+
+export const memoryMistakeCategorySchema = z.enum([
+	"model_actionable",
+	"tool_constraint",
+	"extension_bug",
+	"environment_setup",
+	"validation_infrastructure",
+	"parallel_agent_cleanup",
+	"provider_infrastructure",
+	"unknown_legacy",
+])
+export type MemoryMistakeCategory = z.infer<typeof memoryMistakeCategorySchema>
+
 export const memoryGlobalSettingsSchema = z.object({
 	/** Undefined means automatic model-gated behavior based on context window metadata. */
 	memoryEnabled: z.boolean().optional(),
@@ -66,6 +90,8 @@ export const memoryEntrySchema = z.object({
 	mode: z.string().max(80).optional(),
 	toolName: z.string().max(120).optional(),
 	mistakeSignature: z.string().max(160).optional(),
+	mistakeCause: memoryMistakeCauseSchema.optional(),
+	mistakeCategory: memoryMistakeCategorySchema.optional(),
 	confidence: z.number().min(0).max(1).default(0.7),
 	reuseCount: z.number().int().min(0).default(0),
 	successCount: z.number().int().min(0).default(0),

@@ -489,13 +489,15 @@
 				"chunks_moved_to_cold": "Contexte déplacé vers le cache froid",
 				"chunks_pulled_from_cold": "Contexte récupéré depuis le cache froid",
 				"condensing_avoided": "Condensation du contexte évitée",
-				"cold_cache_full": "Cache froid plein"
+				"cold_cache_full": "Cache froid plein",
+				"chunks_evicted_from_cache": "Contexte évincé du cache"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "Les anciens fragments de contexte ont été retirés de la fenêtre chaude et conservés en RAM pour une récupération ultérieure.",
 				"chunks_pulled_from_cold": "Les fragments pertinents du cache froid ont été restaurés après une demande ask_for_context.",
 				"condensing_avoided": "Le cache chaud/froid a libéré assez d'espace, donc C a ignoré la condensation automatique.",
-				"cold_cache_full": "Le budget RAM est plein, donc C est revenu à la condensation de contexte classique."
+				"cold_cache_full": "Le budget RAM est plein, donc C est revenu à la condensation de contexte classique.",
+				"chunks_evicted_from_cache": "Des fragments de contexte ont été évincés parce que le budget de cache partagé avait besoin de plus de place."
 			},
 			"details": {
 				"chunks": "Fragments",
@@ -503,7 +505,32 @@
 				"ram": "RAM",
 				"query": "Requête",
 				"file": "Fichier",
-				"warning": "Avertissement"
+				"warning": "Avertissement",
+				"duplicateChunks": "Fragments dupliqués fusionnés",
+				"duplicateTokens": "Tokens dupliqués fusionnés",
+				"reason": "Raison",
+				"source": "Source",
+				"outcome": "Résultat"
+			},
+			"reasons": {
+				"hot_budget_trim": "Réduction du budget du cache chaud",
+				"request_pressure": "La requête avait besoin de place",
+				"rebuild": "Reconstruction du cache",
+				"combined_budget_eviction": "Éviction par le budget de cache partagé",
+				"ask_for_context": "Récupération ask_for_context"
+			},
+			"sources": {
+				"active_task": "Tâche active",
+				"foreground_task": "Tâche au premier plan",
+				"background_agent": "Agent en arrière-plan"
+			},
+			"outcomes": {
+				"moved": "Déplacé",
+				"merged_duplicate": "Doublon fusionné",
+				"partially_merged": "Doublons partiellement fusionnés",
+				"rejected": "Rejeté",
+				"evicted": "Évincé",
+				"retrieved": "Récupéré"
 			}
 		}
 	},

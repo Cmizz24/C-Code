@@ -39,6 +39,8 @@ function memory(overrides: Partial<MemoryEntry>): MemoryEntry {
 		mode: overrides.mode,
 		toolName: overrides.toolName,
 		mistakeSignature: overrides.mistakeSignature,
+		mistakeCause: overrides.mistakeCause,
+		mistakeCategory: overrides.mistakeCategory,
 		confidence: overrides.confidence ?? 0.7,
 		reuseCount: overrides.reuseCount ?? 0,
 		successCount: overrides.successCount ?? 0,
@@ -344,6 +346,88 @@ describe("memory retrieval and ranking", () => {
 		expect(results[0].breakdown.mistakeSignature).toBeGreaterThan(0)
 	})
 
+	it("gates unrelated global mistake memories before recency, reuse, confidence, or mode can rank them", async () => {
+		const unrelated = await storage.createMemory({
+			scope: "global",
+			kind: "mistake",
+			status: "active",
+			source: "tool_error",
+			lesson: "Playwright browser installation failed because system dependencies were missing.",
+			tags: ["playwright", "tool-error"],
+			mode: "code",
+			confidence: 1,
+			mistakeCause: "validation",
+			mistakeCategory: "validation_infrastructure",
+		})
+		await storage.upsertMemory({
+			...unrelated,
+			reuseCount: 50,
+			successCount: 20,
+			lastUsedAt: Date.now(),
+			updatedAt: Date.now(),
+		})
+		const relevant = await storage.createMemory({
+			scope: "global",
+			kind: "mistake",
+			status: "active",
+			source: "tool_error",
+			lesson: "Stylelint mobile CSS overlay failures require checking the matching Stylelint rule and overlay selector.",
+			tags: ["stylelint", "css", "mobile"],
+			mode: "ask",
+			confidence: 0.2,
+			mistakeCause: "validation",
+			mistakeCategory: "validation_infrastructure",
+		})
+
+		const results = await retrieveMemories({
+			storage,
+			query: "Fix the Stylelint mobile CSS overlay failure",
+			workspacePath,
+			includeWorkspace: false,
+			includeGlobal: true,
+			mode: "code",
+			maxEntries: 5,
+		})
+
+		expect(results.map((result) => result.memory.id)).toEqual([relevant.id])
+	})
+
+	it("keeps relevant global operational mistake memories recallable for matching topics", async () => {
+		const gitMemory = await storage.createMemory({
+			scope: "global",
+			kind: "mistake",
+			status: "active",
+			source: "tool_error",
+			lesson: "Git dubious ownership errors require safe.directory configuration before rerunning git commands.",
+			tags: ["git", "safe-directory"],
+			toolName: "execute_command",
+			mistakeCause: "environment",
+			mistakeCategory: "environment_setup",
+		})
+		await storage.createMemory({
+			scope: "global",
+			kind: "mistake",
+			status: "active",
+			source: "tool_error",
+			lesson: "Exact-match edit failures require refreshing file context before applying another diff.",
+			tags: ["apply-diff", "exact-match"],
+			toolName: "apply_diff",
+			mistakeCause: "tool",
+			mistakeCategory: "tool_constraint",
+		})
+
+		const results = await retrieveMemories({
+			storage,
+			query: "Resolve Git dubious ownership safe.directory before running git status",
+			workspacePath,
+			includeWorkspace: false,
+			includeGlobal: true,
+			maxEntries: 5,
+		})
+
+		expect(results.map((result) => result.memory.id)).toEqual([gitMemory.id])
+	})
+
 	it("filters ignored path-tagged memories before ranking", async () => {
 		await storage.createMemory({
 			scope: "workspace",
@@ -489,6 +573,7 @@ describe("memory prompt formatting and injection", () => {
 				kind: "lesson",
 				status: "active",
 				source: "manual",
+				title: "Pressure marker memory",
 				lesson: "A".repeat(1_500),
 				workspacePath,
 			})
@@ -505,13 +590,82 @@ describe("memory prompt formatting and injection", () => {
 					memoryGlobalEnabled: false,
 					memoryMaxCharacters: 2_400,
 				},
-				requestMessages: [{ role: "user", content: "Remember the A lesson" }],
+				requestMessages: [{ role: "user", content: "Remember the pressure marker lesson" }],
 			}
 
 			const trimmedPrompt = await buildMemoryPromptForRequest({ ...common, contextTokens: 7_700 })
 			expect(trimmedPrompt).toBeDefined()
 			expect(trimmedPrompt?.length).toBeLessThanOrEqual(800)
 			expect(await buildMemoryPromptForRequest({ ...common, contextTokens: 8_300 })).toBeUndefined()
+		} finally {
+			await fs.rm(tempDir, { recursive: true, force: true })
+		}
+	})
+
+	it("filters operational mistake lessons from unrelated prompts but recalls them for matching operational topics", async () => {
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "roo-memory-operational-filter-"))
+		const workspacePath = path.join(tempDir, "workspace")
+		const storage = new MemoryStorage({ globalStoragePath: tempDir, workspacePath })
+
+		try {
+			await storage.createMemory({
+				scope: "global",
+				kind: "mistake",
+				status: "active",
+				source: "tool_error",
+				lesson: "Git dubious ownership errors require configuring safe.directory before rerunning commands.",
+				tags: ["git", "environment"],
+				toolName: "execute_command",
+				mistakeCause: "environment",
+				mistakeCategory: "environment_setup",
+			})
+			await storage.createMemory({
+				scope: "global",
+				kind: "mistake",
+				status: "active",
+				source: "tool_error",
+				lesson: "Provider context cache failures are infrastructure issues, not model-actionable coding mistakes.",
+				tags: ["provider", "context-cache"],
+				mistakeCause: "provider",
+				mistakeCategory: "provider_infrastructure",
+			})
+
+			const common = {
+				globalStoragePath: tempDir,
+				workspacePath,
+				modelInfo: modelInfo(10_000, 1_000),
+				modelId: "test-model",
+				apiConfiguration: {},
+				settings: {
+					memoryEnabled: true,
+					memoryWorkspaceEnabled: false,
+					memoryGlobalEnabled: true,
+					memoryMaxCharacters: 2_400,
+					memoryMaxEntries: 5,
+				},
+				contextTokens: 100,
+			}
+
+			const unrelated = await buildMemoryPromptForRequestWithMetadata({
+				...common,
+				requestMessages: [{ role: "user", content: "Implement a user profile form" }],
+			})
+			expect(unrelated.prompt).toBeUndefined()
+			expect(unrelated.totalRecallCount).toBe(0)
+
+			const matching = await buildMemoryPromptForRequestWithMetadata({
+				...common,
+				requestMessages: [{ role: "user", content: "Resolve Git dubious ownership safe.directory error" }],
+			})
+			expect(matching.prompt).toContain("Git dubious ownership errors")
+			expect(matching.prompt).toContain("category=environment_setup")
+			expect(matching.prompt).not.toContain("Provider context cache failures")
+			expect(matching.recalledMemories[0]).toEqual(
+				expect.objectContaining({
+					mistakeCause: "environment",
+					mistakeCategory: "environment_setup",
+				}),
+			)
 		} finally {
 			await fs.rm(tempDir, { recursive: true, force: true })
 		}

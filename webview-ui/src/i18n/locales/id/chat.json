@@ -251,13 +251,15 @@
 				"chunks_moved_to_cold": "Konteks dipindah ke cache dingin",
 				"chunks_pulled_from_cold": "Konteks ditarik dari cache dingin",
 				"condensing_avoided": "Condensing konteks dihindari",
-				"cold_cache_full": "Cache dingin penuh"
+				"cold_cache_full": "Cache dingin penuh",
+				"chunks_evicted_from_cache": "Konteks dikeluarkan dari cache"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "Chunk konteks lama dipindahkan dari jendela panas dan disimpan di RAM untuk diambil nanti.",
 				"chunks_pulled_from_cold": "Chunk cache dingin yang relevan dipulihkan setelah ask_for_context meminta konteks tambahan.",
 				"condensing_avoided": "Cache panas/dingin mengosongkan cukup ruang, jadi C melewati condensing otomatis.",
-				"cold_cache_full": "Budget RAM penuh, jadi C kembali ke condensing konteks biasa."
+				"cold_cache_full": "Budget RAM penuh, jadi C kembali ke condensing konteks biasa.",
+				"chunks_evicted_from_cache": "Chunk konteks dikeluarkan karena budget cache bersama membutuhkan lebih banyak ruang."
 			},
 			"details": {
 				"chunks": "Chunk",
@@ -265,7 +267,32 @@
 				"ram": "RAM",
 				"query": "Kueri",
 				"file": "File",
-				"warning": "Peringatan"
+				"warning": "Peringatan",
+				"duplicateChunks": "Chunk duplikat digabungkan",
+				"duplicateTokens": "Token duplikat digabungkan",
+				"reason": "Alasan",
+				"source": "Sumber",
+				"outcome": "Hasil"
+			},
+			"reasons": {
+				"hot_budget_trim": "Pemangkasan budget hot-cache",
+				"request_pressure": "Request membutuhkan ruang",
+				"rebuild": "Cache rebuild",
+				"combined_budget_eviction": "Eviction budget cache bersama",
+				"ask_for_context": "Pengambilan ask_for_context"
+			},
+			"sources": {
+				"active_task": "Task aktif",
+				"foreground_task": "Task foreground",
+				"background_agent": "Agent background"
+			},
+			"outcomes": {
+				"moved": "Dipindahkan",
+				"merged_duplicate": "Duplikat digabungkan",
+				"partially_merged": "Duplikat digabungkan sebagian",
+				"rejected": "Ditolak",
+				"evicted": "Dikeluarkan",
+				"retrieved": "Diambil"
 			}
 		}
 	},

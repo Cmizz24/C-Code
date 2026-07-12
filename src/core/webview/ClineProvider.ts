@@ -30,6 +30,7 @@ import {
 	type ExtensionMessage,
 	type ExtensionState,
 	type OpenAiCodexFastStatus,
+	type OpenAiCodexRateLimitInfo,
 	type CloudflareWorkersAiImageUsageUpdate,
 	type AgentEvent,
 	type AgentCompletionPacket,
@@ -899,7 +900,12 @@ export class ClineProvider
 	private readonly remoteDebugSessionId = randomUUID()
 	private readonly remoteDebugUsageEventTimestamps = new Map<string, number>()
 	private readonly remoteDebugApiRequestStartedKeys = new Set<string>()
-	public cachedOpenAiCodexRateLimits: import("@roo-code/types").OpenAiCodexRateLimitInfo | undefined
+	private static readonly OPENAI_CODEX_RATE_LIMIT_REFRESH_THROTTLE_MS = 60_000
+	private static readonly OPENAI_CODEX_RATE_LIMIT_REFRESH_ERROR_BACKOFF_MS = 120_000
+	private openAiCodexRateLimitRefreshInFlight?: Promise<OpenAiCodexRateLimitInfo | undefined>
+	private lastOpenAiCodexRateLimitRefreshStartedAt = 0
+	private openAiCodexRateLimitRefreshBackoffUntil = 0
+	public cachedOpenAiCodexRateLimits: OpenAiCodexRateLimitInfo | undefined
 
 	/**
 	 * Cached live plan usage fetched from provider APIs.
@@ -1190,6 +1196,8 @@ export class ClineProvider
 					)
 				})
 
+				this.refreshOpenAiCodexRateLimitsAfterUsage(instance, "task.completed")
+
 				this.emit(RooCodeEventName.TaskCompleted, taskId, tokenUsage, toolUsage)
 			}
 			const onTaskAborted = async () => {
@@ -1297,6 +1305,7 @@ export class ClineProvider
 				)
 				this.postBackgroundAgentUsage(instance, tokenUsage)
 				this.recordRemoteDebugTaskUsageUpdate(instance, taskId, tokenUsage, toolUsage)
+				this.refreshOpenAiCodexRateLimitsAfterUsage(instance, "task.token-usage-updated")
 				this.emit(RooCodeEventName.TaskTokenUsageUpdated, taskId, tokenUsage, toolUsage)
 			}
 			const onTaskToolFailed = (taskId: string, tool: string, error: string) => {
@@ -4447,6 +4456,136 @@ export class ClineProvider
 		} catch {
 			// View disposed, drop message silently
 		}
+	}
+
+	public async refreshOpenAiCodexRateLimits(
+		options: {
+			force?: boolean
+			source?: string
+			postState?: boolean
+			silent?: boolean
+		} = {},
+	): Promise<OpenAiCodexRateLimitInfo | undefined> {
+		const now = Date.now()
+		const force = options.force === true
+		const silent = options.silent === true
+
+		if (this.openAiCodexRateLimitRefreshInFlight) {
+			return this.openAiCodexRateLimitRefreshInFlight
+		}
+
+		if (!force) {
+			const msSinceLastRefreshStarted = now - this.lastOpenAiCodexRateLimitRefreshStartedAt
+			if (msSinceLastRefreshStarted < ClineProvider.OPENAI_CODEX_RATE_LIMIT_REFRESH_THROTTLE_MS) {
+				return this.cachedOpenAiCodexRateLimits
+			}
+
+			if (now < this.openAiCodexRateLimitRefreshBackoffUntil) {
+				return this.cachedOpenAiCodexRateLimits
+			}
+		}
+
+		this.lastOpenAiCodexRateLimitRefreshStartedAt = now
+
+		const refresh = (async () => {
+			const postStateIfRequested = async () => {
+				if (options.postState === true) {
+					await this.postStateToWebview()
+				}
+			}
+
+			try {
+				const { openAiCodexOAuthManager } = await import("../../integrations/openai-codex/oauth")
+				const accessToken = await openAiCodexOAuthManager.getAccessToken()
+
+				if (!accessToken) {
+					this.cachedOpenAiCodexRateLimits = undefined
+					this.openAiCodexRateLimitRefreshBackoffUntil =
+						Date.now() + ClineProvider.OPENAI_CODEX_RATE_LIMIT_REFRESH_ERROR_BACKOFF_MS
+
+					if (!silent) {
+						await this.postMessageToWebview({
+							type: "openAiCodexRateLimits",
+							error: "Not authenticated with OpenAI Codex",
+						})
+					}
+
+					await postStateIfRequested()
+					return undefined
+				}
+
+				const accountId = await openAiCodexOAuthManager.getAccountId()
+				const { fetchOpenAiCodexRateLimitInfo } = await import("../../integrations/openai-codex/rate-limits")
+				const rateLimits = await fetchOpenAiCodexRateLimitInfo(accessToken, { accountId })
+
+				if (!rateLimits || typeof rateLimits.fetchedAt !== "number") {
+					this.cachedOpenAiCodexRateLimits = undefined
+					this.openAiCodexRateLimitRefreshBackoffUntil =
+						Date.now() + ClineProvider.OPENAI_CODEX_RATE_LIMIT_REFRESH_ERROR_BACKOFF_MS
+
+					if (!silent) {
+						await this.postMessageToWebview({
+							type: "openAiCodexRateLimits",
+							error: "OpenAI Codex rate-limit response was empty",
+						})
+					}
+
+					await postStateIfRequested()
+					return undefined
+				}
+
+				this.cachedOpenAiCodexRateLimits = rateLimits
+				this.openAiCodexRateLimitRefreshBackoffUntil = 0
+
+				if (!silent) {
+					await this.postMessageToWebview({
+						type: "openAiCodexRateLimits",
+						values: rateLimits,
+					})
+				}
+
+				await postStateIfRequested()
+				return rateLimits
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				this.log(`Error fetching OpenAI Codex rate limits: ${errorMessage}`)
+				this.cachedOpenAiCodexRateLimits = undefined
+				this.openAiCodexRateLimitRefreshBackoffUntil =
+					Date.now() + ClineProvider.OPENAI_CODEX_RATE_LIMIT_REFRESH_ERROR_BACKOFF_MS
+
+				if (!silent) {
+					await this.postMessageToWebview({
+						type: "openAiCodexRateLimits",
+						error: errorMessage,
+					})
+				}
+
+				await postStateIfRequested()
+				return undefined
+			}
+		})()
+
+		this.openAiCodexRateLimitRefreshInFlight = refresh
+
+		try {
+			return await refresh
+		} finally {
+			if (this.openAiCodexRateLimitRefreshInFlight === refresh) {
+				this.openAiCodexRateLimitRefreshInFlight = undefined
+			}
+		}
+	}
+
+	private refreshOpenAiCodexRateLimitsAfterUsage(task: Task, source: string): void {
+		if (task.apiConfiguration?.apiProvider !== "openai-codex") {
+			return
+		}
+
+		void this.refreshOpenAiCodexRateLimits({ source }).catch((error) => {
+			this.log(
+				`Error refreshing OpenAI Codex rate limits after ${source}: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		})
 	}
 
 	public static async postMessageToVisualBrowserInspectorPanels(message: ExtensionMessage): Promise<void> {

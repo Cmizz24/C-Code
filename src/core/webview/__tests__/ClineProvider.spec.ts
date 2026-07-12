@@ -24,6 +24,7 @@ import {
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 	RooCodeEventName,
+	type OpenAiCodexRateLimitInfo,
 } from "@roo-code/types"
 
 import { defaultModeSlug } from "../../../shared/modes"
@@ -67,6 +68,24 @@ vi.mock("axios", () => ({
 }))
 
 vi.mock("../../../utils/safeWriteJson")
+
+vi.mock("../../../integrations/openai-codex/oauth", () => ({
+	openAiCodexOAuthManager: {
+		getAccessToken: vi.fn(),
+		getAccountId: vi.fn(),
+	},
+}))
+
+vi.mock("../../../integrations/openai-codex/rate-limits", () => ({
+	fetchOpenAiCodexRateLimitInfo: vi.fn(),
+}))
+
+const { openAiCodexOAuthManager } = await import("../../../integrations/openai-codex/oauth")
+const { fetchOpenAiCodexRateLimitInfo } = await import("../../../integrations/openai-codex/rate-limits")
+
+const mockOpenAiCodexGetAccessToken = vi.mocked(openAiCodexOAuthManager.getAccessToken)
+const mockOpenAiCodexGetAccountId = vi.mocked(openAiCodexOAuthManager.getAccountId)
+const mockFetchOpenAiCodexRateLimitInfo = vi.mocked(fetchOpenAiCodexRateLimitInfo)
 
 vi.mock("../../../utils/storage", () => ({
 	getSettingsDirectoryPath: vi.fn().mockResolvedValue("/test/settings/path"),
@@ -551,6 +570,9 @@ describe("ClineProvider", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		AgentBus.reset()
+		mockOpenAiCodexGetAccessToken.mockResolvedValue(null)
+		mockOpenAiCodexGetAccountId.mockResolvedValue(null)
+		mockFetchOpenAiCodexRateLimitInfo.mockResolvedValue({ fetchedAt: 0 } as OpenAiCodexRateLimitInfo)
 		;(vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: "/test/workspace" } }]
 		;(vscode.workspace as any).textDocuments = []
 		;(vscode.workspace.getConfiguration as any).mockReturnValue({
@@ -3059,6 +3081,156 @@ describe("ClineProvider", () => {
 		await provider.postMessageToWebview(message)
 
 		expect(mockPostMessage).not.toHaveBeenCalled()
+	})
+
+	describe("OpenAI Codex rate-limit refresh", () => {
+		const rateLimits: OpenAiCodexRateLimitInfo = {
+			primary: { usedPercent: 42.4, resetsAt: 1_700_003_600_000 },
+			fetchedAt: 1_700_000_000_000,
+		}
+
+		const spyOnRefreshPosts = () => {
+			const postMessageSpy = vi.spyOn(provider, "postMessageToWebview").mockResolvedValue(undefined)
+			const postStateSpy = vi.spyOn(provider, "postStateToWebview").mockResolvedValue(undefined)
+
+			return { postMessageSpy, postStateSpy }
+		}
+
+		test("forced authenticated refresh caches and posts fresh usage", async () => {
+			const { postMessageSpy, postStateSpy } = spyOnRefreshPosts()
+
+			try {
+				mockOpenAiCodexGetAccessToken.mockResolvedValue("codex-token")
+				mockOpenAiCodexGetAccountId.mockResolvedValue("acct_123")
+				mockFetchOpenAiCodexRateLimitInfo.mockResolvedValue(rateLimits)
+
+				await expect(
+					provider.refreshOpenAiCodexRateLimits({ force: true, source: "test", postState: true }),
+				).resolves.toEqual(rateLimits)
+
+				expect(mockFetchOpenAiCodexRateLimitInfo).toHaveBeenCalledWith("codex-token", { accountId: "acct_123" })
+				expect(provider.cachedOpenAiCodexRateLimits).toEqual(rateLimits)
+				expect(postMessageSpy).toHaveBeenCalledWith({ type: "openAiCodexRateLimits", values: rateLimits })
+				expect(postStateSpy).toHaveBeenCalledTimes(1)
+			} finally {
+				postMessageSpy.mockRestore()
+				postStateSpy.mockRestore()
+			}
+		})
+
+		test("unauthenticated refresh clears stale cached usage and posts an error", async () => {
+			const { postMessageSpy, postStateSpy } = spyOnRefreshPosts()
+
+			try {
+				provider.cachedOpenAiCodexRateLimits = rateLimits
+				mockOpenAiCodexGetAccessToken.mockResolvedValue(null)
+
+				await expect(
+					provider.refreshOpenAiCodexRateLimits({ force: true, postState: true }),
+				).resolves.toBeUndefined()
+
+				expect(provider.cachedOpenAiCodexRateLimits).toBeUndefined()
+				expect(mockFetchOpenAiCodexRateLimitInfo).not.toHaveBeenCalled()
+				expect(postMessageSpy).toHaveBeenCalledWith({
+					type: "openAiCodexRateLimits",
+					error: "Not authenticated with OpenAI Codex",
+				})
+				expect(postStateSpy).toHaveBeenCalledTimes(1)
+			} finally {
+				postMessageSpy.mockRestore()
+				postStateSpy.mockRestore()
+			}
+		})
+
+		test("non-forced refresh returns cached usage inside the throttle window", async () => {
+			const { postMessageSpy, postStateSpy } = spyOnRefreshPosts()
+
+			try {
+				vi.useFakeTimers({ now: 1_700_000_000_000 })
+				mockOpenAiCodexGetAccessToken.mockResolvedValue("codex-token")
+				mockOpenAiCodexGetAccountId.mockResolvedValue("acct_123")
+				mockFetchOpenAiCodexRateLimitInfo.mockResolvedValue(rateLimits)
+
+				await provider.refreshOpenAiCodexRateLimits({ force: true, silent: true })
+				mockOpenAiCodexGetAccessToken.mockClear()
+				mockFetchOpenAiCodexRateLimitInfo.mockClear()
+
+				vi.setSystemTime(1_700_000_030_000)
+
+				await expect(provider.refreshOpenAiCodexRateLimits()).resolves.toEqual(rateLimits)
+
+				expect(mockOpenAiCodexGetAccessToken).not.toHaveBeenCalled()
+				expect(mockFetchOpenAiCodexRateLimitInfo).not.toHaveBeenCalled()
+				expect(postMessageSpy).not.toHaveBeenCalled()
+				expect(postStateSpy).not.toHaveBeenCalled()
+			} finally {
+				vi.useRealTimers()
+				postMessageSpy.mockRestore()
+				postStateSpy.mockRestore()
+			}
+		})
+
+		test("deduplicates concurrent in-flight refreshes", async () => {
+			const { postMessageSpy, postStateSpy } = spyOnRefreshPosts()
+
+			try {
+				mockOpenAiCodexGetAccessToken.mockResolvedValue("codex-token")
+				mockOpenAiCodexGetAccountId.mockResolvedValue("acct_123")
+				mockFetchOpenAiCodexRateLimitInfo.mockResolvedValue(rateLimits)
+
+				const firstRefresh = provider.refreshOpenAiCodexRateLimits({ force: true })
+				const secondRefresh = provider.refreshOpenAiCodexRateLimits({ force: true })
+
+				await expect(Promise.all([firstRefresh, secondRefresh])).resolves.toEqual([rateLimits, rateLimits])
+
+				expect(mockOpenAiCodexGetAccessToken).toHaveBeenCalledTimes(1)
+				expect(mockFetchOpenAiCodexRateLimitInfo).toHaveBeenCalledTimes(1)
+				expect(postMessageSpy).toHaveBeenCalledTimes(1)
+				expect(postStateSpy).not.toHaveBeenCalled()
+			} finally {
+				postMessageSpy.mockRestore()
+				postStateSpy.mockRestore()
+			}
+		})
+
+		test("task lifecycle refreshes OpenAI Codex usage only for Codex tasks", async () => {
+			const refreshSpy = vi.spyOn(provider, "refreshOpenAiCodexRateLimits").mockResolvedValue(undefined)
+
+			try {
+				const codexTask = new Task({
+					...defaultTaskOptions,
+					taskId: "codex-task",
+					apiConfiguration: { apiProvider: "openai-codex" },
+				} as any)
+				;(provider as any).taskCreationCallback(codexTask)
+
+				codexTask.emit(
+					RooCodeEventName.TaskTokenUsageUpdated,
+					codexTask.taskId,
+					createTokenUsage(),
+					createToolUsage(),
+				)
+				expect(refreshSpy).toHaveBeenCalledWith({ source: "task.token-usage-updated" })
+
+				refreshSpy.mockClear()
+				codexTask.emit(RooCodeEventName.TaskCompleted, codexTask.taskId, createTokenUsage(), createToolUsage())
+				expect(refreshSpy).toHaveBeenCalledWith({ source: "task.completed" })
+
+				refreshSpy.mockClear()
+				const nonCodexTask = new Task({ ...defaultTaskOptions, taskId: "non-codex-task" } as any)
+				;(provider as any).taskCreationCallback(nonCodexTask)
+				nonCodexTask.emit(
+					RooCodeEventName.TaskCompleted,
+					nonCodexTask.taskId,
+					createTokenUsage(),
+					createToolUsage(),
+				)
+
+				expect(refreshSpy).not.toHaveBeenCalled()
+			} finally {
+				refreshSpy.mockRestore()
+			}
+		})
 	})
 
 	test("getStateToPostToWebview uses default context cache fields for partial task doubles", async () => {

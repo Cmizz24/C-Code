@@ -1,4 +1,5 @@
 export * from "./constants"
+export * from "./classification"
 export * from "./inject"
 export * from "./mistakes"
 export * from "./prompt"

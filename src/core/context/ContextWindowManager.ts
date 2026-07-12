@@ -1,6 +1,9 @@
 import type {
 	ContextCacheBudgetOption,
 	ContextCacheEvent,
+	ContextCacheEventOutcome,
+	ContextCacheEventReason,
+	ContextCacheEventSource,
 	ContextCacheSearchResult,
 	ContextCacheStats,
 } from "@roo-code/types"
@@ -83,6 +86,8 @@ export interface ContextChunkRegistrationOptions {
 	recordMoveEvents?: boolean
 	recordRejectedEvents?: boolean
 	countSwaps?: boolean
+	movementReason?: ContextCacheEventReason
+	movementSource?: ContextCacheEventSource
 }
 
 interface MoveChunksToColdOptions extends ContextChunkRegistrationOptions {
@@ -91,6 +96,16 @@ interface MoveChunksToColdOptions extends ContextChunkRegistrationOptions {
 
 interface EnforceCombinedBudgetOptions {
 	protectedChunkIds?: ReadonlySet<string>
+}
+
+interface MoveChunksToColdResult {
+	accepted: boolean
+	movedChunks: number
+	movedTokens: number
+	storedChunks: number
+	storedTokens: number
+	duplicateChunks: number
+	duplicateTokens: number
 }
 
 let contextWindowManagerSequence = 0
@@ -230,7 +245,7 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 
 		if (options.hotTokenBudget !== undefined) {
 			const evicted = this.hotCache.updateBudget(options.hotTokenBudget)
-			this.moveChunksToCold(evicted)
+			this.moveChunksToCold(evicted, { movementReason: "hot_budget_trim" })
 		}
 
 		if (options.coldCacheBudgetOptions !== undefined) {
@@ -298,6 +313,7 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 			recordMoveEvents: false,
 			recordRejectedEvents: true,
 			protectedChunkIds,
+			movementReason: "request_pressure",
 		})
 		if (!moved.accepted) {
 			this.warning = CONTEXT_CACHE_FULL_WARNING
@@ -323,6 +339,10 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 			type: "condensing_avoided",
 			chunkCount: moved.movedChunks,
 			tokenCount: moved.movedTokens,
+			duplicateChunkCount: moved.duplicateChunks || undefined,
+			duplicateTokenCount: moved.duplicateTokens || undefined,
+			reason: "request_pressure",
+			outcome: this.getMoveOutcome(moved.storedChunks, moved.duplicateChunks),
 		})
 		return {
 			handled: true,
@@ -361,7 +381,7 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 			this.unhideMessageTimestamps(chunk)
 			protectedChunkIds.add(chunk.id)
 			const evicted = this.hotCache.add(chunk, { protectedIds: protectedChunkIds })
-			this.moveChunksToCold(evicted, { protectedChunkIds })
+			this.moveChunksToCold(evicted, { protectedChunkIds, movementReason: "ask_for_context" })
 			this.swapsThisSession++
 			pulledChunks++
 			pulledTokens += chunk.tokens
@@ -373,6 +393,8 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 				type: "chunks_pulled_from_cold",
 				chunkCount: pulledChunks,
 				tokenCount: pulledTokens,
+				reason: "ask_for_context",
+				outcome: "retrieved",
 				query,
 				filePath: options.filePath,
 			})
@@ -535,6 +557,13 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 		if (removed) {
 			this.budgetColdEvictions++
 			this.unhideMessageTimestamps(removed)
+			this.recordContextCacheEvent({
+				type: "chunks_evicted_from_cache",
+				chunkCount: 1,
+				tokenCount: removed.tokens,
+				reason: "combined_budget_eviction",
+				outcome: "evicted",
+			})
 		}
 		return removed
 	}
@@ -543,6 +572,13 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 		const removed = this.hotCache.remove(chunkId)
 		if (removed) {
 			this.budgetHotEvictions++
+			this.recordContextCacheEvent({
+				type: "chunks_evicted_from_cache",
+				chunkCount: 1,
+				tokenCount: removed.tokens,
+				reason: "combined_budget_eviction",
+				outcome: "evicted",
+			})
 		}
 		return removed
 	}
@@ -579,17 +615,17 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 		return `- ${labels.join(" ")} (${chunk.tokens} tokens): ${excerpt}`
 	}
 
-	private moveChunksToCold(
-		chunks: ContextChunk[],
-		options: MoveChunksToColdOptions = {},
-	): { accepted: boolean; movedChunks: number; movedTokens: number } {
+	private moveChunksToCold(chunks: ContextChunk[], options: MoveChunksToColdOptions = {}): MoveChunksToColdResult {
 		const recordEvents = options.recordEvents ?? true
 		const recordMoveEvents = options.recordMoveEvents ?? recordEvents
 		const recordRejectedEvents = options.recordRejectedEvents ?? recordEvents
 		const countSwaps = options.countSwaps ?? true
+		const movementReason = options.movementReason ?? "hot_budget_trim"
 		let accepted = true
-		let movedChunks = 0
-		let movedTokens = 0
+		let storedChunks = 0
+		let storedTokens = 0
+		let duplicateChunks = 0
+		let duplicateTokens = 0
 		let rejectedChunks = 0
 		let rejectedTokens = 0
 
@@ -606,19 +642,30 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 				continue
 			}
 
-			movedChunks++
-			movedTokens += chunk.tokens
 			this.hideMessageTimestamps(chunk)
+			if (result.merged) {
+				duplicateChunks++
+				duplicateTokens += chunk.tokens
+				continue
+			}
+
+			storedChunks++
+			storedTokens += chunk.tokens
 			if (countSwaps) {
 				this.swapsThisSession++
 			}
 		}
 
-		if (recordMoveEvents && movedChunks > 0) {
+		if (recordMoveEvents && storedChunks > 0) {
 			this.recordContextCacheEvent({
 				type: "chunks_moved_to_cold",
-				chunkCount: movedChunks,
-				tokenCount: movedTokens,
+				chunkCount: storedChunks,
+				tokenCount: storedTokens,
+				duplicateChunkCount: duplicateChunks || undefined,
+				duplicateTokenCount: duplicateTokens || undefined,
+				reason: movementReason,
+				source: options.movementSource,
+				outcome: this.getMoveOutcome(storedChunks, duplicateChunks),
 			})
 		}
 
@@ -627,13 +674,24 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 				type: "cold_cache_full",
 				chunkCount: rejectedChunks,
 				tokenCount: rejectedTokens,
+				reason: movementReason,
+				source: options.movementSource,
+				outcome: "rejected",
 				warning: CONTEXT_CACHE_FULL_WARNING,
 			})
 		}
 
 		this.enforceCombinedBudget({ protectedChunkIds: options.protectedChunkIds })
 
-		return { accepted, movedChunks, movedTokens }
+		return {
+			accepted,
+			movedChunks: storedChunks + duplicateChunks,
+			movedTokens: storedTokens + duplicateTokens,
+			storedChunks,
+			storedTokens,
+			duplicateChunks,
+			duplicateTokens,
+		}
 	}
 
 	private recordContextCacheEvent(event: Omit<ContextCacheEvent, "id" | "createdAt">): void {
@@ -645,6 +703,7 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 			ramUsedMb: ramStats.ramUsedMb,
 			ramBudgetMb: ramStats.ramBudgetMb,
 			...event,
+			source: event.source ?? this.getContextCacheEventSource(),
 		})
 
 		if (this.contextCacheEvents.length > CONTEXT_CACHE_EVENT_QUEUE_LIMIT) {
@@ -662,6 +721,30 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 		for (const timestamp of chunk.metadata?.messageTimestamps ?? []) {
 			this.hiddenMessageTimestamps.delete(timestamp)
 		}
+	}
+
+	private getMoveOutcome(storedChunks: number, duplicateChunks: number): ContextCacheEventOutcome {
+		if (storedChunks > 0 && duplicateChunks > 0) {
+			return "partially_merged"
+		}
+
+		if (duplicateChunks > 0) {
+			return "merged_duplicate"
+		}
+
+		return "moved"
+	}
+
+	private getContextCacheEventSource(): ContextCacheEventSource {
+		if (this.metadata.isBackground) {
+			return "background_agent"
+		}
+
+		if (this.metadata.isActive?.()) {
+			return "active_task"
+		}
+
+		return "foreground_task"
 	}
 
 	private updateCacheBudgetCoordinator(coordinator: ContextCacheBudgetCoordinator | undefined): void {

@@ -254,6 +254,8 @@ describe("mistake_memory tool", () => {
 				mode: "code",
 				toolName: "execute_command",
 				mistakeSignature: expect.stringMatching(/^mistake:/),
+				mistakeCause: "tool",
+				mistakeCategory: "tool_constraint",
 				autoApproved: false,
 				message: "Pending mistake memory requires your approval before Roo continues.",
 			}),
@@ -268,9 +270,58 @@ describe("mistake_memory tool", () => {
 				status: "active",
 				source: "mistake_tool",
 				pathTags: ["src/core/task/Task.ts"],
+				mistakeCause: "tool",
+				mistakeCategory: "tool_constraint",
 			}),
 		)
 		expect(store.candidates[0].status).toBe("approved")
+	})
+
+	it("classifies model-actionable manual lessons separately from tool or system constraints", async () => {
+		const task = createTask(tempDir, { autoApprovalEnabled: true, memoryAutoApproveMistakeMemory: true })
+		const callbacks = {
+			askApproval: vi.fn(),
+			handleError: vi.fn(),
+			pushToolResult: vi.fn(),
+		}
+		const block: ToolUse<"mistake_memory"> = {
+			type: "tool_use",
+			name: "mistake_memory",
+			params: {},
+			partial: false,
+			nativeArgs: {
+				lesson: "The model ignored user instructions and repeated a bad plan despite the available context.",
+				scope: "global",
+			},
+		}
+
+		await mistakeMemoryTool.handle(task, block, callbacks)
+
+		const output = JSON.parse(callbacks.pushToolResult.mock.calls[0][0])
+		expect(output).toEqual(
+			expect.objectContaining({
+				mistakeCause: "model",
+				mistakeCategory: "model_actionable",
+			}),
+		)
+
+		const sayPayload = JSON.parse((task.say as any).mock.calls[0][1])
+		expect(sayPayload).toEqual(
+			expect.objectContaining({
+				mistakeCause: "model",
+				mistakeCategory: "model_actionable",
+			}),
+		)
+
+		const store = await new MemoryStorage({ globalStoragePath: tempDir, workspacePath: task.cwd }).readStore(
+			"global",
+		)
+		expect(store.memories[0]).toEqual(
+			expect.objectContaining({
+				mistakeCause: "model",
+				mistakeCategory: "model_actionable",
+			}),
+		)
 	})
 
 	it("requires approval before saving an explicitly active mistake memory", async () => {
@@ -692,6 +743,8 @@ describe("tool-error mistake memory queue", () => {
 				source: "tool_error",
 				toolName: "execute_command",
 				tags: ["tool-error", "mistake"],
+				mistakeCause: "tool",
+				mistakeCategory: "tool_constraint",
 			}),
 		)
 		expect(store.candidates[0].status).toBe("approved")
@@ -701,6 +754,8 @@ describe("tool-error mistake memory queue", () => {
 			expect.objectContaining({
 				tool: "mistakeMemory",
 				status: "active",
+				mistakeCause: "tool",
+				mistakeCategory: "tool_constraint",
 				autoApproved: false,
 				message: "Saved approved active mistake memory from a tool error.",
 			}),
@@ -792,6 +847,8 @@ describe("tool-error mistake memory queue", () => {
 				source: "tool_error",
 				toolName: "apply_diff",
 				tags: ["tool-error", "mistake"],
+				mistakeCause: "tool",
+				mistakeCategory: "tool_constraint",
 			}),
 		)
 		expect(store.candidates[0].status).toBe("pending")
@@ -801,6 +858,8 @@ describe("tool-error mistake memory queue", () => {
 			expect.objectContaining({
 				tool: "mistakeMemory",
 				status: "pending",
+				mistakeCause: "tool",
+				mistakeCategory: "tool_constraint",
 				autoApproved: false,
 				message: "Pending mistake memory from a tool error requires your approval before Roo continues.",
 			}),

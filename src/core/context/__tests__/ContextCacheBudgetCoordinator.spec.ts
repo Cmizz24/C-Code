@@ -19,6 +19,7 @@ function createChunk(input: Partial<ContextChunk> & Pick<ContextChunk, "id" | "b
 		priority: input.priority ?? 1,
 		createdAt: input.createdAt ?? 1,
 		lastAccessedAt: input.lastAccessedAt ?? 1,
+		contentHash: input.contentHash ?? input.id,
 		metadata: input.metadata,
 	}
 }

@@ -104,9 +104,9 @@ const formatContextCacheContributorUsage = (
  * Format a reset timestamp into a human-readable "resets in Xh Ym" string.
  * Returns undefined if no reset time is available or if it's in the past.
  */
-function formatResetTime(resetsAt: number | undefined): string | undefined {
+function formatResetTime(resetsAt: number | undefined, now = Date.now()): string | undefined {
 	if (!resetsAt) return undefined
-	const diffMs = resetsAt - Date.now()
+	const diffMs = resetsAt - now
 	if (diffMs <= 0) return undefined
 	const totalMinutes = Math.ceil(diffMs / 60000)
 	const hours = Math.floor(totalMinutes / 60)
@@ -124,6 +124,10 @@ function getPlanUsageColorClass(usedPercent: number): string {
 	if (usedPercent >= 50) return "text-vscode-editorWarning-foreground"
 	return "text-vscode-charts-green"
 }
+
+const OPENAI_CODEX_RATE_LIMIT_STALE_MS = 5 * 60_000
+const OPENAI_CODEX_RATE_LIMIT_POLL_MS = 5 * 60_000
+const PLAN_USAGE_RESET_TICK_MS = 60_000
 
 const formatPlanUsageCost = (value: number) => `$${Math.max(0, value).toFixed(2)}`
 
@@ -164,6 +168,7 @@ const TaskHeader = ({
 	const isPlanBased = model?.subscriptionBased === true
 	const providerName = apiConfiguration.apiProvider
 	const [isTaskExpanded, setIsTaskExpanded] = useState(false)
+	const [planUsageResetTick, setPlanUsageResetTick] = useState(() => Date.now())
 
 	// Auto-fetch live plan usage when switching to a plan-based provider with a live API.
 	// Extract individual apiConfiguration values so the useEffect dependency array
@@ -243,10 +248,28 @@ const TaskHeader = ({
 	])
 
 	useEffect(() => {
+		const interval = window.setInterval(() => {
+			setPlanUsageResetTick(Date.now())
+		}, PLAN_USAGE_RESET_TICK_MS)
+
+		return () => window.clearInterval(interval)
+	}, [])
+
+	useEffect(() => {
 		if (!isPlanBased || providerName !== "openai-codex") return
 
-		vscode.postMessage({ type: "requestOpenAiCodexRateLimits" })
-	}, [isPlanBased, providerName])
+		const requestIfStale = () => {
+			const fetchedAt = openAiCodexRateLimits?.fetchedAt
+			if (typeof fetchedAt !== "number" || Date.now() - fetchedAt >= OPENAI_CODEX_RATE_LIMIT_STALE_MS) {
+				vscode.postMessage({ type: "requestOpenAiCodexRateLimits" })
+			}
+		}
+
+		requestIfStale()
+		const interval = window.setInterval(requestIfStale, OPENAI_CODEX_RATE_LIMIT_POLL_MS)
+
+		return () => window.clearInterval(interval)
+	}, [isPlanBased, openAiCodexRateLimits?.fetchedAt, providerName])
 
 	const textContainerRef = useRef<HTMLDivElement>(null)
 	const textRef = useRef<HTMLDivElement>(null)
@@ -283,10 +306,10 @@ const TaskHeader = ({
 		const { usedPercent, resetsAt } = openAiCodexRateLimits.primary
 		return {
 			percent: Math.round(usedPercent),
-			resetTime: formatResetTime(resetsAt),
+			resetTime: formatResetTime(resetsAt, planUsageResetTick),
 			colorClass: getPlanUsageColorClass(usedPercent),
 		}
-	}, [openAiCodexRateLimits, providerName])
+	}, [openAiCodexRateLimits, planUsageResetTick, providerName])
 
 	// Live API-fetched plan usage for providers with usable public APIs.
 	const liveProviderPlanUsage = useMemo<PlanUsageDisplay | undefined>(() => {

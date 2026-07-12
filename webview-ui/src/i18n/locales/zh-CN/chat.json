@@ -490,13 +490,15 @@
 				"chunks_moved_to_cold": "上下文已移入冷缓存",
 				"chunks_pulled_from_cold": "上下文已从冷缓存取回",
 				"condensing_avoided": "已避免上下文压缩",
-				"cold_cache_full": "冷缓存已满"
+				"cold_cache_full": "冷缓存已满",
+				"chunks_evicted_from_cache": "上下文已从缓存中移除"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "较旧的上下文块已移出热窗口，并保留在 RAM 中以便稍后检索。",
 				"chunks_pulled_from_cold": "ask_for_context 请求更多上下文后，相关冷缓存块已恢复。",
 				"condensing_avoided": "热/冷缓存释放了足够空间，因此 C 跳过了自动压缩。",
-				"cold_cache_full": "RAM 预算已满，因此 C 回退到常规上下文压缩。"
+				"cold_cache_full": "RAM 预算已满，因此 C 回退到常规上下文压缩。",
+				"chunks_evicted_from_cache": "由于共享缓存预算需要更多空间，已移除上下文块。"
 			},
 			"details": {
 				"chunks": "块",
@@ -504,7 +506,32 @@
 				"ram": "RAM",
 				"query": "查询",
 				"file": "文件",
-				"warning": "警告"
+				"warning": "警告",
+				"duplicateChunks": "已合并重复块",
+				"duplicateTokens": "已合并重复 Token",
+				"reason": "原因",
+				"source": "来源",
+				"outcome": "结果"
+			},
+			"reasons": {
+				"hot_budget_trim": "热缓存预算裁剪",
+				"request_pressure": "请求需要空间",
+				"rebuild": "缓存重建",
+				"combined_budget_eviction": "共享缓存预算驱逐",
+				"ask_for_context": "ask_for_context 检索"
+			},
+			"sources": {
+				"active_task": "活动任务",
+				"foreground_task": "前台任务",
+				"background_agent": "后台 agent"
+			},
+			"outcomes": {
+				"moved": "已移动",
+				"merged_duplicate": "已合并重复项",
+				"partially_merged": "已部分合并重复项",
+				"rejected": "已拒绝",
+				"evicted": "已驱逐",
+				"retrieved": "已检索"
 			}
 		}
 	},

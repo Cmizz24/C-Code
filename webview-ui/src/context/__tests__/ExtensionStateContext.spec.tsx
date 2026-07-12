@@ -329,7 +329,7 @@ describe("ExtensionStateContext", () => {
 		})
 	})
 
-	it("ignores malformed direct OpenAI Codex rate-limit and provider plan usage messages", () => {
+	it("clears stale direct OpenAI Codex rate-limit and provider plan usage on empty or error messages", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<ProviderUsageTestComponent />
@@ -341,7 +341,10 @@ describe("ExtensionStateContext", () => {
 				new MessageEvent("message", {
 					data: {
 						type: "openAiCodexRateLimits",
-						values: { primary: { usedPercent: 42.4 } },
+						values: {
+							primary: { usedPercent: 90, resetsAt: 1_700_000_000 },
+							fetchedAt: 1_699_999_000,
+						},
 					},
 				}),
 			)
@@ -351,14 +354,43 @@ describe("ExtensionStateContext", () => {
 					data: {
 						type: "providerPlanUsage",
 						providerName: "openai-codex",
-						values: undefined,
+						values: { usedPercent: 90, tokensRemaining: 10_000 },
+					},
+				}),
+			)
+		})
+
+		expect(JSON.parse(screen.getByTestId("openai-codex-rate-limits").textContent || "{}")).toEqual({
+			primary: { usedPercent: 90, resetsAt: 1_700_000_000 },
+			fetchedAt: 1_699_999_000,
+		})
+		expect(JSON.parse(screen.getByTestId("cached-provider-plan-usage").textContent || "{}")).toEqual({
+			"openai-codex": { usedPercent: 90, tokensRemaining: 10_000 },
+		})
+
+		act(() => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "openAiCodexRateLimits",
+						error: "token_invalidated",
+					},
+				}),
+			)
+
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "providerPlanUsage",
+						providerName: "openai-codex",
+						error: "No API key provided",
 					},
 				}),
 			)
 		})
 
 		expect(screen.getByTestId("openai-codex-rate-limits").textContent).toBe("")
-		expect(screen.getByTestId("cached-provider-plan-usage").textContent).toBe("")
+		expect(JSON.parse(screen.getByTestId("cached-provider-plan-usage").textContent || "{}")).toEqual({})
 	})
 })
 

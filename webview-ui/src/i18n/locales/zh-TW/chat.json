@@ -248,13 +248,15 @@
 				"chunks_moved_to_cold": "上下文已移至冷快取",
 				"chunks_pulled_from_cold": "上下文已從冷快取取回",
 				"condensing_avoided": "已避免上下文壓縮",
-				"cold_cache_full": "冷快取已滿"
+				"cold_cache_full": "冷快取已滿",
+				"chunks_evicted_from_cache": "上下文已從快取中移除"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "較舊的上下文區塊已移出熱視窗，並保留在 RAM 中以便稍後擷取。",
 				"chunks_pulled_from_cold": "ask_for_context 要求更多上下文後，相關冷快取區塊已還原。",
 				"condensing_avoided": "熱/冷快取釋放了足夠空間，因此 C 略過自動壓縮。",
-				"cold_cache_full": "RAM 預算已滿，因此 C 回退到一般上下文壓縮。"
+				"cold_cache_full": "RAM 預算已滿，因此 C 回退到一般上下文壓縮。",
+				"chunks_evicted_from_cache": "由於共用快取預算需要更多空間，已移除上下文區塊。"
 			},
 			"details": {
 				"chunks": "區塊",
@@ -262,7 +264,32 @@
 				"ram": "RAM",
 				"query": "查詢",
 				"file": "檔案",
-				"warning": "警告"
+				"warning": "警告",
+				"duplicateChunks": "已合併重複區塊",
+				"duplicateTokens": "已合併重複 Token",
+				"reason": "原因",
+				"source": "來源",
+				"outcome": "結果"
+			},
+			"reasons": {
+				"hot_budget_trim": "熱快取預算裁剪",
+				"request_pressure": "請求需要空間",
+				"rebuild": "快取重建",
+				"combined_budget_eviction": "共用快取預算驅逐",
+				"ask_for_context": "ask_for_context 擷取"
+			},
+			"sources": {
+				"active_task": "作用中任務",
+				"foreground_task": "前景任務",
+				"background_agent": "背景 agent"
+			},
+			"outcomes": {
+				"moved": "已移動",
+				"merged_duplicate": "已合併重複項",
+				"partially_merged": "已部分合併重複項",
+				"rejected": "已拒絕",
+				"evicted": "已驅逐",
+				"retrieved": "已擷取"
 			}
 		}
 	},

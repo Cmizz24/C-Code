@@ -489,13 +489,15 @@
 				"chunks_moved_to_cold": "Kontekst przeniesiony do cold cache",
 				"chunks_pulled_from_cold": "Kontekst pobrany z cold cache",
 				"condensing_avoided": "Uniknięto kondensacji kontekstu",
-				"cold_cache_full": "Cold cache pełny"
+				"cold_cache_full": "Cold cache pełny",
+				"chunks_evicted_from_cache": "Kontekst usunięty z cache"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "Starsze chunki kontekstu zostały usunięte z hot window i zachowane w RAM do późniejszego pobrania.",
 				"chunks_pulled_from_cold": "Odpowiednie chunki cold cache zostały przywrócone po tym, jak ask_for_context poprosiło o więcej kontekstu.",
 				"condensing_avoided": "Hot/cold cache zwolnił wystarczająco dużo miejsca, więc C pominął automatyczną kondensację.",
-				"cold_cache_full": "Budżet RAM jest pełny, więc C wrócił do zwykłej kondensacji kontekstu."
+				"cold_cache_full": "Budżet RAM jest pełny, więc C wrócił do zwykłej kondensacji kontekstu.",
+				"chunks_evicted_from_cache": "Chunki kontekstu zostały usunięte, bo współdzielony budżet cache potrzebował więcej miejsca."
 			},
 			"details": {
 				"chunks": "Chunki",
@@ -503,7 +505,32 @@
 				"ram": "RAM",
 				"query": "Zapytanie",
 				"file": "Plik",
-				"warning": "Ostrzeżenie"
+				"warning": "Ostrzeżenie",
+				"duplicateChunks": "Zduplikowane chunki scalone",
+				"duplicateTokens": "Zduplikowane tokeny scalone",
+				"reason": "Powód",
+				"source": "Źródło",
+				"outcome": "Wynik"
+			},
+			"reasons": {
+				"hot_budget_trim": "Przycięcie budżetu hot cache",
+				"request_pressure": "Żądanie potrzebowało miejsca",
+				"rebuild": "Odbudowa cache",
+				"combined_budget_eviction": "Usunięcie przez współdzielony budżet cache",
+				"ask_for_context": "Pobranie ask_for_context"
+			},
+			"sources": {
+				"active_task": "Aktywne zadanie",
+				"foreground_task": "Zadanie na pierwszym planie",
+				"background_agent": "Agent w tle"
+			},
+			"outcomes": {
+				"moved": "Przeniesiono",
+				"merged_duplicate": "Duplikat scalony",
+				"partially_merged": "Duplikaty częściowo scalone",
+				"rejected": "Odrzucono",
+				"evicted": "Usunięto",
+				"retrieved": "Pobrano"
 			}
 		}
 	},

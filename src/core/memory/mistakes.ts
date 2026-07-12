@@ -1,9 +1,17 @@
 import crypto from "crypto"
 
-import type { MemoryEntry, MemoryScope, MistakeMemoryCandidate, ToolName } from "@roo-code/types"
+import type {
+	MemoryEntry,
+	MemoryMistakeCategory,
+	MemoryMistakeCause,
+	MemoryScope,
+	MistakeMemoryCandidate,
+	ToolName,
+} from "@roo-code/types"
 
 import { DEFAULT_MEMORY_PENDING_CANDIDATE_LIMIT } from "./constants"
 
+import { classifyMistakeMemory } from "./classification"
 import { sanitizeMemoryTags, sanitizeMemoryText } from "./redaction"
 import { MemoryStorage } from "./storage"
 
@@ -23,6 +31,8 @@ export interface CreateMistakeMemoryCandidateOptions {
 	mode?: string
 	originTaskId?: string
 	confidence?: number
+	mistakeCause?: MemoryMistakeCause
+	mistakeCategory?: MemoryMistakeCategory
 }
 
 export function buildMistakeSignature(input: { toolName?: string; error?: string; lesson?: string }): string {
@@ -50,6 +60,16 @@ export async function createMistakeMemoryCandidate(
 	const lesson = sanitizeMemoryText(lessonParts.join("\n"), 2_000)
 	const mistakeSignature = buildMistakeSignature({ toolName: options.toolName, error: options.error, lesson })
 	const scope = options.scope ?? (options.filePaths?.length ? "workspace" : "global")
+	const source = options.source ?? "mistake_tool"
+	const inferredClassification = classifyMistakeMemory({
+		source,
+		lesson,
+		error: options.error,
+		toolName: options.toolName,
+		tags: options.tags,
+	})
+	const mistakeCause = options.mistakeCause ?? inferredClassification.mistakeCause
+	const mistakeCategory = options.mistakeCategory ?? inferredClassification.mistakeCategory
 	const existing = await options.storage.findByMistakeSignature(mistakeSignature, {
 		scope,
 		workspacePath: options.workspacePath,
@@ -61,6 +81,8 @@ export async function createMistakeMemoryCandidate(
 			{
 				...existing,
 				lesson: existing.lesson.length >= lesson.length ? existing.lesson : lesson,
+				mistakeCause: existing.mistakeCause ?? mistakeCause,
+				mistakeCategory: existing.mistakeCategory ?? mistakeCategory,
 				updatedAt: Date.now(),
 			},
 			options.workspacePath,
@@ -72,7 +94,7 @@ export async function createMistakeMemoryCandidate(
 		scope,
 		kind: "mistake",
 		status: options.approved ? "active" : "pending",
-		source: options.source ?? "mistake_tool",
+		source,
 		lesson,
 		title: options.toolName ? `Mistake lesson for ${options.toolName}` : "Mistake lesson",
 		tags: sanitizeMemoryTags([...(options.tags ?? []), "mistake"]),
@@ -80,6 +102,8 @@ export async function createMistakeMemoryCandidate(
 		mode: options.mode,
 		toolName: options.toolName,
 		mistakeSignature,
+		mistakeCause,
+		mistakeCategory,
 		confidence: options.confidence ?? 0.75,
 		originTaskId: options.originTaskId,
 		workspacePath: options.workspacePath,

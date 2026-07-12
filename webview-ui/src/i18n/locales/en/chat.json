@@ -247,22 +247,49 @@
 			"titles": {
 				"chunks_moved_to_cold": "Moved context to cold cache",
 				"chunks_pulled_from_cold": "Pulled context from cold cache",
+				"chunks_evicted_from_cache": "Evicted context from cache",
 				"condensing_avoided": "Avoided context condensing",
 				"cold_cache_full": "Cold cache full"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "Older context chunks were moved out of the hot window and kept in RAM for later retrieval.",
 				"chunks_pulled_from_cold": "Relevant cold-cache chunks were restored after ask_for_context requested more context.",
+				"chunks_evicted_from_cache": "Context chunks were evicted because the shared cache budget needed more room.",
 				"condensing_avoided": "The hot/cold cache freed enough room, so C skipped automatic condensing.",
 				"cold_cache_full": "The RAM budget is full, so C fell back to regular context condensing."
 			},
 			"details": {
 				"chunks": "Chunks",
 				"tokens": "Tokens",
+				"duplicateChunks": "Duplicate chunks merged",
+				"duplicateTokens": "Duplicate tokens merged",
+				"reason": "Reason",
+				"source": "Source",
+				"outcome": "Outcome",
 				"ram": "RAM",
 				"query": "Query",
 				"file": "File",
 				"warning": "Warning"
+			},
+			"reasons": {
+				"hot_budget_trim": "Hot-cache budget trim",
+				"request_pressure": "Request needed space",
+				"rebuild": "Cache rebuild",
+				"combined_budget_eviction": "Shared cache budget eviction",
+				"ask_for_context": "ask_for_context retrieval"
+			},
+			"sources": {
+				"active_task": "Active task",
+				"foreground_task": "Foreground task",
+				"background_agent": "Background agent"
+			},
+			"outcomes": {
+				"moved": "Moved",
+				"merged_duplicate": "Merged duplicate",
+				"partially_merged": "Partially merged duplicates",
+				"rejected": "Rejected",
+				"evicted": "Evicted",
+				"retrieved": "Retrieved"
 			}
 		}
 	},

@@ -489,13 +489,15 @@
 				"chunks_moved_to_cold": "Contesto spostato nella cache fredda",
 				"chunks_pulled_from_cold": "Contesto recuperato dalla cache fredda",
 				"condensing_avoided": "Condensazione del contesto evitata",
-				"cold_cache_full": "Cache fredda piena"
+				"cold_cache_full": "Cache fredda piena",
+				"chunks_evicted_from_cache": "Contesto espulso dalla cache"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "I vecchi frammenti di contesto sono stati spostati fuori dalla finestra calda e mantenuti in RAM per recuperarli più tardi.",
 				"chunks_pulled_from_cold": "I frammenti rilevanti della cache fredda sono stati ripristinati dopo che ask_for_context ha richiesto più contesto.",
 				"condensing_avoided": "La cache calda/fredda ha liberato abbastanza spazio, quindi C ha saltato la condensazione automatica.",
-				"cold_cache_full": "Il budget RAM è pieno, quindi C è tornato alla normale condensazione del contesto."
+				"cold_cache_full": "Il budget RAM è pieno, quindi C è tornato alla normale condensazione del contesto.",
+				"chunks_evicted_from_cache": "I frammenti di contesto sono stati espulsi perché il budget condiviso della cache aveva bisogno di più spazio."
 			},
 			"details": {
 				"chunks": "Frammenti",
@@ -503,7 +505,32 @@
 				"ram": "RAM",
 				"query": "Query",
 				"file": "File",
-				"warning": "Avviso"
+				"warning": "Avviso",
+				"duplicateChunks": "Frammenti duplicati uniti",
+				"duplicateTokens": "Token duplicati uniti",
+				"reason": "Motivo",
+				"source": "Origine",
+				"outcome": "Risultato"
+			},
+			"reasons": {
+				"hot_budget_trim": "Riduzione del budget della cache calda",
+				"request_pressure": "La richiesta aveva bisogno di spazio",
+				"rebuild": "Ricostruzione della cache",
+				"combined_budget_eviction": "Espulsione per budget cache condiviso",
+				"ask_for_context": "Recupero ask_for_context"
+			},
+			"sources": {
+				"active_task": "Attività attiva",
+				"foreground_task": "Attività in primo piano",
+				"background_agent": "Agent in background"
+			},
+			"outcomes": {
+				"moved": "Spostato",
+				"merged_duplicate": "Duplicato unito",
+				"partially_merged": "Duplicati uniti parzialmente",
+				"rejected": "Rifiutato",
+				"evicted": "Espulso",
+				"retrieved": "Recuperato"
 			}
 		}
 	},

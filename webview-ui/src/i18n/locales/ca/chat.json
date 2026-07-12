@@ -488,22 +488,49 @@
 			"titles": {
 				"chunks_moved_to_cold": "Context mogut a la memòria cau freda",
 				"chunks_pulled_from_cold": "Context recuperat de la memòria cau freda",
+				"chunks_evicted_from_cache": "Context expulsat de la memòria cau",
 				"condensing_avoided": "Condensació de context evitada",
 				"cold_cache_full": "Memòria cau freda plena"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "Els fragments de context antics s'han tret de la finestra calenta i s'han mantingut en RAM per recuperar-los més tard.",
 				"chunks_pulled_from_cold": "S'han restaurat fragments rellevants de la memòria cau freda després que ask_for_context demanés més context.",
+				"chunks_evicted_from_cache": "S'han expulsat fragments de context perquè el pressupost compartit de memòria cau necessitava més espai.",
 				"condensing_avoided": "La memòria cau calenta/freda ha alliberat prou espai, així que C ha omès la condensació automàtica.",
 				"cold_cache_full": "El pressupost de RAM és ple, així que C ha tornat a la condensació de context normal."
 			},
 			"details": {
 				"chunks": "Fragments",
 				"tokens": "Tokens",
+				"duplicateChunks": "Fragments duplicats fusionats",
+				"duplicateTokens": "Tokens duplicats fusionats",
+				"reason": "Motiu",
+				"source": "Origen",
+				"outcome": "Resultat",
 				"ram": "RAM",
 				"query": "Consulta",
 				"file": "Fitxer",
 				"warning": "Avís"
+			},
+			"reasons": {
+				"hot_budget_trim": "Retall del pressupost de la memòria cau calenta",
+				"request_pressure": "La sol·licitud necessitava espai",
+				"rebuild": "Reconstrucció de la memòria cau",
+				"combined_budget_eviction": "Expulsió pel pressupost compartit de memòria cau",
+				"ask_for_context": "Recuperació ask_for_context"
+			},
+			"sources": {
+				"active_task": "Tasca activa",
+				"foreground_task": "Tasca en primer pla",
+				"background_agent": "Agent en segon pla"
+			},
+			"outcomes": {
+				"moved": "Mogut",
+				"merged_duplicate": "Duplicat fusionat",
+				"partially_merged": "Duplicats fusionats parcialment",
+				"rejected": "Rebutjat",
+				"evicted": "Expulsat",
+				"retrieved": "Recuperat"
 			}
 		}
 	},

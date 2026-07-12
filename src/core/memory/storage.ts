@@ -4,6 +4,8 @@ import path from "path"
 
 import type {
 	MemoryEntry,
+	MemoryMistakeCategory,
+	MemoryMistakeCause,
 	MemoryScope,
 	MemoryStatus,
 	MemoryStore,
@@ -41,6 +43,8 @@ export interface CreateMemoryInput {
 	mode?: string
 	toolName?: string
 	mistakeSignature?: string
+	mistakeCause?: MemoryMistakeCause
+	mistakeCategory?: MemoryMistakeCategory
 	confidence?: number
 	originTaskId?: string
 	workspacePath?: string
@@ -180,6 +184,8 @@ export class MemoryStorage {
 			mode: input.mode?.slice(0, 80),
 			toolName: input.toolName?.slice(0, 120),
 			mistakeSignature: input.mistakeSignature?.slice(0, 160),
+			mistakeCause: input.mistakeCause,
+			mistakeCategory: input.mistakeCategory,
 			confidence: Math.min(1, Math.max(0, input.confidence ?? 0.7)),
 			reuseCount: 0,
 			successCount: 0,
