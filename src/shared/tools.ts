@@ -487,6 +487,9 @@ export const TOOL_GROUPS: Record<ToolGroup, ToolGroupConfig> = {
 	},
 }
 
+// Read-only workspace inspection tools that are safe for every mode unless explicitly disabled.
+export const SAFE_WORKSPACE_INSPECTION_TOOLS: ToolName[] = ["read_file", "search_files", "list_files"] as const
+
 // Tools that are always available to all modes.
 export const ALWAYS_AVAILABLE_TOOLS: ToolName[] = [
 	"ask_followup_question",

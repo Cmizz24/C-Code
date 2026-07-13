@@ -20,7 +20,11 @@ describe("filterNativeToolsForMode - disabledTools", () => {
 	const nativeTools: OpenAI.Chat.ChatCompletionTool[] = [
 		makeTool("execute_command"),
 		makeTool("read_file"),
+		makeTool("search_files"),
+		makeTool("list_files"),
 		makeTool("ask_for_context"),
+		makeTool("use_mcp_tool"),
+		makeTool("access_mcp_resource"),
 		makeTool("write_to_file"),
 		makeTool("apply_diff"),
 		makeTool("edit"),
@@ -29,6 +33,7 @@ describe("filterNativeToolsForMode - disabledTools", () => {
 		makeTool("apply_patch"),
 		makeTool("visual_browser_inspector"),
 		makeTool("generate_image"),
+		makeTool("plan_parallel_tasks"),
 		makeTool("switch_mode"),
 		makeTool("new_task"),
 	]
@@ -97,6 +102,8 @@ describe("filterNativeToolsForMode - disabledTools", () => {
 
 		const resultNames = result.map((t) => (t as any).function.name)
 		expect(resultNames).toContain("read_file")
+		expect(resultNames).toContain("search_files")
+		expect(resultNames).toContain("list_files")
 		expect(resultNames).toContain("ask_for_context")
 		expect(resultNames).toContain("switch_mode")
 		expect(resultNames).toContain("new_task")
@@ -104,6 +111,54 @@ describe("filterNativeToolsForMode - disabledTools", () => {
 		expect(resultNames).not.toContain("write_to_file")
 		expect(resultNames).not.toContain("visual_browser_inspector")
 		expect(resultNames).not.toContain("generate_image")
+	})
+
+	it("exposes the safe read-only baseline for modes with no tool groups", () => {
+		const customModes: ModeConfig[] = [
+			{
+				slug: "minimal-mode",
+				name: "Minimal Mode",
+				roleDefinition: "A mode with no configured groups.",
+				groups: [] as const,
+			},
+		]
+
+		const result = filterNativeToolsForMode(nativeTools, "minimal-mode", customModes, {
+			imageGeneration: true,
+		})
+
+		const resultNames = result.map((t) => (t as any).function.name)
+		expect(resultNames).toContain("read_file")
+		expect(resultNames).toContain("search_files")
+		expect(resultNames).toContain("list_files")
+		expect(resultNames).toContain("switch_mode")
+		expect(resultNames).toContain("new_task")
+		expect(resultNames).not.toContain("execute_command")
+		expect(resultNames).not.toContain("write_to_file")
+		expect(resultNames).not.toContain("use_mcp_tool")
+		expect(resultNames).not.toContain("visual_browser_inspector")
+		expect(resultNames).not.toContain("generate_image")
+		expect(resultNames).not.toContain("plan_parallel_tasks")
+	})
+
+	it("honors disabledTools for safe read-only baseline tools", () => {
+		const customModes: ModeConfig[] = [
+			{
+				slug: "minimal-mode",
+				name: "Minimal Mode",
+				roleDefinition: "A mode with no configured groups.",
+				groups: [] as const,
+			},
+		]
+
+		const result = filterNativeToolsForMode(nativeTools, "minimal-mode", customModes, undefined, undefined, {
+			disabledTools: ["search_files"],
+		})
+
+		const resultNames = result.map((t) => (t as any).function.name)
+		expect(resultNames).toContain("read_file")
+		expect(resultNames).toContain("list_files")
+		expect(resultNames).not.toContain("search_files")
 	})
 
 	it("exposes ask_for_context as always available but honors disabledTools", () => {

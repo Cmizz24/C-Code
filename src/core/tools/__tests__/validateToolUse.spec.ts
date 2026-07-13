@@ -3,7 +3,7 @@
 import type { ModeConfig } from "@roo-code/types"
 
 import { FileRestrictionError, modes } from "../../../shared/modes"
-import { TOOL_GROUPS } from "../../../shared/tools"
+import { SAFE_WORKSPACE_INSPECTION_TOOLS, TOOL_GROUPS } from "../../../shared/tools"
 
 import { validateToolUse, isToolAllowedForMode } from "../validateToolUse"
 
@@ -98,6 +98,30 @@ describe("mode-validator", () => {
 		})
 
 		describe("custom modes", () => {
+			it("allows safe read-only workspace inspection for every mode without granting side-effect tools", () => {
+				const customModes: ModeConfig[] = [
+					{
+						slug: "minimal-mode",
+						name: "Minimal Mode",
+						roleDefinition: "Custom role",
+						groups: [] as const,
+					},
+				]
+
+				SAFE_WORKSPACE_INSPECTION_TOOLS.forEach((tool) => {
+					expect(isToolAllowedForMode(tool, "minimal-mode", customModes)).toBe(true)
+				})
+
+				expect(isToolAllowedForMode("codebase_search", "minimal-mode", customModes)).toBe(false)
+				expect(isToolAllowedForMode("write_to_file", "minimal-mode", customModes)).toBe(false)
+				expect(isToolAllowedForMode("execute_command", "minimal-mode", customModes)).toBe(false)
+				expect(isToolAllowedForMode("use_mcp_tool", "minimal-mode", customModes)).toBe(false)
+				expect(isToolAllowedForMode("mcp_serverName_toolName", "minimal-mode", customModes)).toBe(false)
+				expect(isToolAllowedForMode("visual_browser_inspector", "minimal-mode", customModes)).toBe(false)
+				expect(isToolAllowedForMode("generate_image", "minimal-mode", customModes)).toBe(false)
+				expect(isToolAllowedForMode("plan_parallel_tasks", "minimal-mode", customModes)).toBe(false)
+			})
+
 			it("allows tools from custom mode configuration", () => {
 				const customModes: ModeConfig[] = [
 					{
@@ -323,6 +347,13 @@ describe("mode-validator", () => {
 				expect(isToolAllowedForMode("new_task", codeMode, [], requirements)).toBe(false)
 				expect(isToolAllowedForMode("attempt_completion", codeMode, [], requirements)).toBe(false)
 			})
+
+			it("prioritizes requirements over SAFE_WORKSPACE_INSPECTION_TOOLS", () => {
+				const requirements = { read_file: false, search_files: false, list_files: false }
+				expect(isToolAllowedForMode("read_file", codeMode, [], requirements)).toBe(false)
+				expect(isToolAllowedForMode("search_files", codeMode, [], requirements)).toBe(false)
+				expect(isToolAllowedForMode("list_files", codeMode, [], requirements)).toBe(false)
+			})
 		})
 	})
 
@@ -337,7 +368,16 @@ describe("mode-validator", () => {
 		it("throws error for disallowed tools in architect mode", () => {
 			// execute_command is a valid tool but not allowed in architect mode
 			expect(() => validateToolUse("execute_command", "architect", [])).toThrow(
-				'Tool "execute_command" is not allowed in architect mode. Use switch_mode to continue in a mode that allows this tool, or new_task to delegate the work to a capable mode.',
+				'Tool "execute_command" is not allowed in mode "architect".',
+			)
+			expect(() => validateToolUse("execute_command", "architect", [])).toThrow(
+				'The current mode "architect" does not include the required "command" tool group.',
+			)
+			expect(() => validateToolUse("execute_command", "architect", [])).toThrow(
+				"Read-only workspace inspection alternatives available in all modes unless disabled: read_file, search_files, list_files.",
+			)
+			expect(() => validateToolUse("execute_command", "architect", [])).toThrow(
+				"For side-effectful work, use switch_mode",
 			)
 		})
 
@@ -348,7 +388,10 @@ describe("mode-validator", () => {
 		it("throws error when tool requirement is not met", () => {
 			const requirements = { apply_diff: false }
 			expect(() => validateToolUse("apply_diff", codeMode, [], requirements)).toThrow(
-				'Tool "apply_diff" is not allowed in code mode. Use switch_mode to continue in a mode that allows this tool, or new_task to delegate the work to a capable mode.',
+				`Tool "apply_diff" is disabled by current settings or runtime requirements in mode "${codeMode}".`,
+			)
+			expect(() => validateToolUse("apply_diff", codeMode, [], requirements)).toThrow(
+				"Remove the disabled-tool setting or satisfy the runtime requirement before retrying this tool.",
 			)
 		})
 
@@ -359,7 +402,7 @@ describe("mode-validator", () => {
 
 		it("denies background-only coordination tool unless the runtime requirement is met", () => {
 			expect(() => validateToolUse("coordinate_agents", codeMode, [], { coordinate_agents: false })).toThrow(
-				'Tool "coordinate_agents" is not allowed in code mode. Use switch_mode to continue in a mode that allows this tool, or new_task to delegate the work to a capable mode.',
+				`Tool "coordinate_agents" is disabled by current settings or runtime requirements in mode "${codeMode}".`,
 			)
 			expect(() => validateToolUse("coordinate_agents", codeMode, [], { coordinate_agents: true })).not.toThrow()
 		})
@@ -379,10 +422,13 @@ describe("mode-validator", () => {
 			)
 
 			expect(() => validateToolUse("execute_command", codeMode, [], toolRequirements)).toThrow(
-				'Tool "execute_command" is not allowed in code mode. Use switch_mode to continue in a mode that allows this tool, or new_task to delegate the work to a capable mode.',
+				`Tool "execute_command" is disabled by current settings or runtime requirements in mode "${codeMode}".`,
 			)
 			expect(() => validateToolUse("search_files", codeMode, [], toolRequirements)).toThrow(
-				'Tool "search_files" is not allowed in code mode. Use switch_mode to continue in a mode that allows this tool, or new_task to delegate the work to a capable mode.',
+				`Tool "search_files" is disabled by current settings or runtime requirements in mode "${codeMode}".`,
+			)
+			expect(() => validateToolUse("search_files", codeMode, [], toolRequirements)).toThrow(
+				"This read-only workspace inspection tool is normally part of the universal safe baseline",
 			)
 		})
 

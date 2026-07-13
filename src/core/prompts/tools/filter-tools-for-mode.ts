@@ -1,7 +1,12 @@
 import type OpenAI from "openai"
 import type { ModeConfig, ToolName, ToolGroup, ModelInfo } from "@roo-code/types"
 import { getModeBySlug, getToolsForMode } from "../../../shared/modes"
-import { TOOL_GROUPS, ALWAYS_AVAILABLE_TOOLS, TOOL_ALIASES } from "../../../shared/tools"
+import {
+	TOOL_GROUPS,
+	ALWAYS_AVAILABLE_TOOLS,
+	SAFE_WORKSPACE_INSPECTION_TOOLS,
+	TOOL_ALIASES,
+} from "../../../shared/tools"
 import { defaultModeSlug } from "../../../shared/modes"
 import type { CodeIndexManager } from "../../../services/code-index/manager"
 import type { McpHub } from "../../../services/mcp/McpHub"
@@ -242,7 +247,7 @@ export function filterNativeToolsForMode(
 		modeConfig = getModeBySlug(defaultModeSlug, customModes)!
 	}
 
-	// Get all tools for this mode (including always-available tools)
+	// Get all tools for this mode, including the safe read-only baseline and always-available flow tools.
 	const allToolsForMode = getToolsForMode(modeConfig.groups)
 
 	// Filter to only tools that pass permission checks
@@ -358,33 +363,52 @@ export function isToolAllowedInMode(
 	settings?: Record<string, any>,
 ): boolean {
 	const modeSlug = mode ?? defaultModeSlug
+	const canonicalTool = resolveToolAlias(toolName) as ToolName
+
+	if (settings?.disabledTools?.length) {
+		const isDisabled = settings.disabledTools.some(
+			(disabledTool: string) => resolveToolAlias(disabledTool) === canonicalTool,
+		)
+		if (isDisabled) {
+			return false
+		}
+	}
+
+	if (
+		canonicalTool === "codebase_search" &&
+		!(
+			codeIndexManager &&
+			codeIndexManager.isFeatureEnabled &&
+			codeIndexManager.isFeatureConfigured &&
+			codeIndexManager.isInitialized
+		)
+	) {
+		return false
+	}
+
+	if (canonicalTool === "update_todo_list") {
+		return settings?.todoListEnabled !== false
+	}
+
+	if (canonicalTool === "generate_image" && experiments?.imageGeneration !== true) {
+		return false
+	}
+
+	if (canonicalTool === "run_slash_command") {
+		return experiments?.runSlashCommand === true
+	}
+
+	if (SAFE_WORKSPACE_INSPECTION_TOOLS.includes(canonicalTool)) {
+		return true
+	}
 
 	// Check if it's an always-available tool
-	if (ALWAYS_AVAILABLE_TOOLS.includes(toolName)) {
-		// But still check for conditional exclusions
-		if (toolName === "codebase_search") {
-			return !!(
-				codeIndexManager &&
-				codeIndexManager.isFeatureEnabled &&
-				codeIndexManager.isFeatureConfigured &&
-				codeIndexManager.isInitialized
-			)
-		}
-		if (toolName === "update_todo_list") {
-			return settings?.todoListEnabled !== false
-		}
-		if (toolName === "generate_image") {
-			return experiments?.imageGeneration === true
-		}
-		if (toolName === "run_slash_command") {
-			return experiments?.runSlashCommand === true
-		}
+	if (ALWAYS_AVAILABLE_TOOLS.includes(canonicalTool)) {
 		return true
 	}
 
 	// Check if the tool is allowed by the mode's groups
 	// Resolve to canonical name and check that single value
-	const canonicalTool = resolveToolAlias(toolName)
 	return isToolAllowedForMode(
 		canonicalTool as ToolName,
 		modeSlug,

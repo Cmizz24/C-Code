@@ -14,7 +14,7 @@ import {
 
 import { addCustomInstructions } from "../core/prompts/sections/custom-instructions"
 
-import { TOOL_GROUPS, ALWAYS_AVAILABLE_TOOLS } from "./tools"
+import { TOOL_GROUPS, ALWAYS_AVAILABLE_TOOLS, SAFE_WORKSPACE_INSPECTION_TOOLS } from "./tools"
 
 export type Mode = string
 
@@ -38,7 +38,10 @@ export function getToolsForMode(groups: readonly GroupEntry[]): string[] {
 		groupConfig.tools.forEach((tool: string) => tools.add(tool))
 	})
 
-	// Always add required tools
+	// Add safe read-only workspace inspection tools to every mode.
+	SAFE_WORKSPACE_INSPECTION_TOOLS.forEach((tool) => tools.add(tool))
+
+	// Always add required flow tools.
 	ALWAYS_AVAILABLE_TOOLS.forEach((tool) => tools.add(tool))
 
 	return Array.from(tools)

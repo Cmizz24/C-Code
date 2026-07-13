@@ -4,7 +4,7 @@ import { customToolRegistry } from "@roo-code/core"
 
 import { type Mode, FileRestrictionError, getModeBySlug, getGroupName } from "../../shared/modes"
 import { EXPERIMENT_IDS } from "../../shared/experiments"
-import { TOOL_GROUPS, ALWAYS_AVAILABLE_TOOLS, TOOL_ALIASES } from "../../shared/tools"
+import { TOOL_GROUPS, ALWAYS_AVAILABLE_TOOLS, SAFE_WORKSPACE_INSPECTION_TOOLS, TOOL_ALIASES } from "../../shared/tools"
 
 /**
  * Checks if a tool name is a valid, known tool.
@@ -33,7 +33,7 @@ export function validateToolUse(
 	toolName: ToolName,
 	mode: Mode,
 	customModes?: ModeConfig[],
-	toolRequirements?: Record<string, boolean>,
+	toolRequirements?: Record<string, boolean> | false,
 	toolParams?: Record<string, unknown>,
 	experiments?: Record<string, boolean>,
 	includedTools?: string[],
@@ -58,10 +58,94 @@ export function validateToolUse(
 			includedTools,
 		)
 	) {
-		throw new Error(
-			`Tool "${toolName}" is not allowed in ${mode} mode. Use switch_mode to continue in a mode that allows this tool, or new_task to delegate the work to a capable mode.`,
+		throw new Error(buildToolDeniedMessage(toolName, mode, customModes ?? [], toolRequirements))
+	}
+}
+
+function isToolDisabledByRequirements(
+	tool: string,
+	resolvedTool: string,
+	toolRequirements?: Record<string, boolean> | false,
+): boolean {
+	if (toolRequirements && typeof toolRequirements === "object") {
+		return (
+			(tool in toolRequirements && !toolRequirements[tool]) ||
+			(resolvedTool in toolRequirements && !toolRequirements[resolvedTool])
 		)
 	}
+
+	return toolRequirements === false
+}
+
+function getRequiredToolGroup(resolvedTool: string): string | undefined {
+	if (resolvedTool.startsWith("mcp_")) {
+		return "mcp"
+	}
+
+	for (const [groupName, groupConfig] of Object.entries(TOOL_GROUPS)) {
+		if (groupConfig.tools.includes(resolvedTool)) {
+			return groupName
+		}
+	}
+
+	return undefined
+}
+
+function isSideEffectfulToolGroup(groupName: string | undefined): boolean {
+	return (
+		!!groupName &&
+		["edit", "command", "mcp", "visual_browser_inspector", "image_generation", "orchestrator"].includes(groupName)
+	)
+}
+
+function buildToolDeniedMessage(
+	toolName: string,
+	modeSlug: Mode,
+	customModes: ModeConfig[],
+	toolRequirements?: Record<string, boolean> | false,
+): string {
+	const resolvedTool = TOOL_ALIASES[toolName] ?? toolName
+	const mode = getModeBySlug(modeSlug, customModes)
+	const isDisabled = isToolDisabledByRequirements(toolName, resolvedTool, toolRequirements)
+	const requiredGroup = getRequiredToolGroup(resolvedTool)
+	const safeInspectionTools = SAFE_WORKSPACE_INSPECTION_TOOLS.join(", ")
+	const parts = [
+		isDisabled
+			? `Tool "${toolName}" is disabled by current settings or runtime requirements in mode "${modeSlug}".`
+			: `Tool "${toolName}" is not allowed in mode "${modeSlug}".`,
+	]
+
+	if (resolvedTool !== toolName) {
+		parts.push(`It resolves to canonical tool "${resolvedTool}".`)
+	}
+
+	if (!mode) {
+		parts.push("The current mode configuration could not be found.")
+	} else if (!isDisabled && requiredGroup) {
+		parts.push(`The current mode "${modeSlug}" does not include the required "${requiredGroup}" tool group.`)
+	}
+
+	if (SAFE_WORKSPACE_INSPECTION_TOOLS.includes(resolvedTool as ToolName)) {
+		parts.push(
+			"This read-only workspace inspection tool is normally part of the universal safe baseline, so check disabled tools and runtime requirements if this denial is unexpected.",
+		)
+	} else {
+		parts.push(
+			`Read-only workspace inspection alternatives available in all modes unless disabled: ${safeInspectionTools}.`,
+		)
+	}
+
+	if (isDisabled) {
+		parts.push("Remove the disabled-tool setting or satisfy the runtime requirement before retrying this tool.")
+	} else if (isSideEffectfulToolGroup(requiredGroup)) {
+		parts.push(
+			"For side-effectful work, use switch_mode to continue in a mode that allows this tool, or new_task to delegate the work to a capable mode.",
+		)
+	} else {
+		parts.push("Use switch_mode or new_task if the task truly requires this capability.")
+	}
+
+	return parts.join(" ")
 }
 
 const EDIT_OPERATION_PARAMS = [
@@ -139,7 +223,7 @@ export function isToolAllowedForMode(
 	tool: string,
 	modeSlug: string,
 	customModes: ModeConfig[],
-	toolRequirements?: Record<string, boolean>,
+	toolRequirements?: Record<string, boolean> | false,
 	toolParams?: Record<string, any>, // All tool parameters
 	experiments?: Record<string, boolean>,
 	includedTools?: string[], // Opt-in tools explicitly included (e.g., from modelInfo)
@@ -151,19 +235,16 @@ export function isToolAllowedForMode(
 	// Check tool requirements first — explicit disabling takes priority over everything,
 	// including ALWAYS_AVAILABLE_TOOLS. This ensures disabledTools works consistently
 	// at both the filtering layer and the execution-time validation layer.
-	if (toolRequirements && typeof toolRequirements === "object") {
-		if (
-			(tool in toolRequirements && !toolRequirements[tool]) ||
-			(resolvedTool in toolRequirements && !toolRequirements[resolvedTool])
-		) {
-			return false
-		}
-	} else if (toolRequirements === false) {
-		// If toolRequirements is a boolean false, all tools are disabled
+	if (isToolDisabledByRequirements(tool, resolvedTool, toolRequirements)) {
 		return false
 	}
 
-	// Always allow these tools (unless explicitly disabled above)
+	// Always allow safe read-only workspace inspection tools (unless explicitly disabled above).
+	if (SAFE_WORKSPACE_INSPECTION_TOOLS.includes(resolvedTool as ToolName)) {
+		return true
+	}
+
+	// Always allow these tools (unless explicitly disabled above).
 	if (ALWAYS_AVAILABLE_TOOLS.includes(tool as any)) {
 		return true
 	}

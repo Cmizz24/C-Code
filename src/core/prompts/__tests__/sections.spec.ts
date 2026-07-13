@@ -39,6 +39,8 @@ describe("getCapabilitiesSection", () => {
 
 		expect(result).toContain("CAPABILITIES")
 		expect(result).toContain("available tools depend on the active mode")
+		expect(result).toContain("Every mode has a safe read-only workspace inspection baseline")
+		expect(result).toContain("read_file, search_files, and list_files")
 		expect(result).toContain("Use only tools that are currently available")
 		expect(result).toContain("execute CLI commands")
 		expect(result).toContain("list files")
@@ -53,6 +55,9 @@ describe("getCapabilitiesSection", () => {
 		expect(result).toContain("do that work directly in the current mode")
 		expect(result).toContain("instead of reflexively delegating to Code or another mode")
 		expect(result).toContain("current mode's tools cannot perform")
+		expect(result).toContain("Read-only workspace inspection does not require switching modes")
+		expect(result).toContain("side-effectful work")
+		expect(result).toContain("MCP actions/resources")
 		expect(result).toContain("use switch_mode or new_task")
 		expect(result).toContain("route to a capable mode")
 		expect(result).toContain("instead of refusing or asking the user to do it manually")
