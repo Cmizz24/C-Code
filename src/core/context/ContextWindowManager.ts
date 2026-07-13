@@ -37,6 +37,46 @@ const CONTEXT_CACHE_RECALL_HINT_FOOTER =
 	"Use ask_for_context with a focused query and optional filePath before relying on details that may have been swapped out."
 const DEFAULT_CONTEXT_CACHE_RETRIEVAL_TOKEN_BUDGET = 8_000
 const SKIPPED_CONTEXT_CACHE_RESULT_CONTENT = ""
+const MIN_COLD_STORE_CHUNK_AGE_MS = 60_000
+const RECENTLY_ACCESSED_HOT_CHUNK_PROTECTION_MS = 60_000
+const RECALLED_CHUNK_REDEMOTION_PROTECTION_MS = 5 * 60_000
+const LOW_RELEVANCE_COLD_STORE_PRIORITY_MAX = 55
+const MIN_ACTIVE_REQUEST_TERM_MATCHES = 2
+const CONTEXT_RELEVANCE_STOP_WORDS = new Set([
+	"about",
+	"after",
+	"again",
+	"also",
+	"because",
+	"before",
+	"being",
+	"context",
+	"could",
+	"from",
+	"have",
+	"into",
+	"just",
+	"make",
+	"need",
+	"needed",
+	"next",
+	"only",
+	"that",
+	"the",
+	"then",
+	"this",
+	"turn",
+	"use",
+	"used",
+	"using",
+	"was",
+	"were",
+	"what",
+	"when",
+	"with",
+	"would",
+])
+const LOW_RELEVANCE_COLD_STORE_TYPES: ReadonlySet<ContextChunk["type"]> = new Set(["conversation_turn", "task_output"])
 
 export interface ContextWindowManagerOptions {
 	hotTokenBudget: number
@@ -59,6 +99,7 @@ export interface ContextPressureOptions {
 	totalTokens: number
 	allowedTokens: number
 	protectedMessageTimestamps?: number[]
+	protectedQuery?: string
 }
 
 export interface ContextPressureResult {
@@ -202,6 +243,31 @@ function toSearchResult(
 	}
 }
 
+function tokenizeContextRelevanceText(value: string): string[] {
+	const normalized = value.toLowerCase()
+	const pathTerms = normalized.match(/[a-z0-9_.-]+(?:[\\/][a-z0-9_.-]+)+(?:\.[a-z0-9_.-]+)?/g) ?? []
+	const wordTerms = normalized.match(/[a-z0-9_.-]{3,}/g) ?? []
+
+	return [...new Set([...pathTerms, ...wordTerms])].filter((term) => !CONTEXT_RELEVANCE_STOP_WORDS.has(term))
+}
+
+function getContextChunkRelevanceText(chunk: ContextChunk): string {
+	const metadata = chunk.metadata
+	return [
+		chunk.type,
+		chunk.content,
+		metadata?.filePath,
+		metadata?.title,
+		metadata?.toolName,
+		metadata?.source,
+		metadata?.taskId,
+		metadata?.role,
+	]
+		.filter((value): value is string => typeof value === "string" && value.length > 0)
+		.join("\n")
+		.toLowerCase()
+}
+
 export class ContextWindowManager implements ContextCacheBudgetCoordinatorManager {
 	readonly contextCacheBudgetManagerId = `context-window-manager-${++contextWindowManagerSequence}`
 	private readonly hotCache: HotCache
@@ -219,6 +285,7 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 	private budgetHotEvictions = 0
 	private budgetColdEvictions = 0
 	private contextCacheEventSequence = 0
+	private readonly recentlyRecalledChunkIds = new Map<string, number>()
 
 	constructor(options: ContextWindowManagerOptions) {
 		this.coldCacheBudgetOptions = options.coldCacheBudgetOptions ?? getContextCacheBudgetOptions()
@@ -244,7 +311,9 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 		}
 
 		if (options.hotTokenBudget !== undefined) {
-			const evicted = this.hotCache.updateBudget(options.hotTokenBudget)
+			const evicted = this.hotCache.updateBudget(options.hotTokenBudget, {
+				canEvict: (chunk) => this.canMoveChunkToColdCache(chunk),
+			})
 			this.moveChunksToCold(evicted, { movementReason: "hot_budget_trim" })
 		}
 
@@ -282,7 +351,10 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 
 		const protectedChunkIds = new Set(chunks.map((chunk) => chunk.id))
 		for (const chunk of chunks) {
-			const evicted = this.hotCache.add(chunk, { protectedIds: protectedChunkIds })
+			const evicted = this.hotCache.add(chunk, {
+				protectedIds: protectedChunkIds,
+				canEvict: (candidate) => this.canMoveChunkToColdCache(candidate),
+			})
 			this.moveChunksToCold(evicted, { ...options, protectedChunkIds })
 		}
 		this.enforceCombinedBudget({ protectedChunkIds })
@@ -293,6 +365,7 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 		this.hotCache.clear()
 		this.coldCache.clear()
 		this.hiddenMessageTimestamps.clear()
+		this.recentlyRecalledChunkIds.clear()
 		this.warning = undefined
 		this.enforceCombinedBudget()
 	}
@@ -300,8 +373,10 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 	handlePressure(options: ContextPressureOptions): ContextPressureResult {
 		const targetReduction = Math.max(1, Math.ceil(options.totalTokens - options.allowedTokens))
 		const protectedMessageTimestamps = new Set(options.protectedMessageTimestamps ?? [])
+		const protectedQueryTerms = tokenizeContextRelevanceText(options.protectedQuery ?? "")
 		const evicted = this.hotCache.evictForPressure(targetReduction, {
-			canEvict: (chunk) => this.canEvictForRequestPressure(chunk, protectedMessageTimestamps),
+			canEvict: (chunk) =>
+				this.canEvictForRequestPressure(chunk, protectedMessageTimestamps, protectedQueryTerms),
 		})
 
 		if (evicted.length === 0) {
@@ -379,8 +454,12 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 
 			returnedResults.push(toSearchResult(result))
 			this.unhideMessageTimestamps(chunk)
+			this.markChunkRecalled(chunk)
 			protectedChunkIds.add(chunk.id)
-			const evicted = this.hotCache.add(chunk, { protectedIds: protectedChunkIds })
+			const evicted = this.hotCache.add(chunk, {
+				protectedIds: protectedChunkIds,
+				canEvict: (candidate) => this.canMoveChunkToColdCache(candidate),
+			})
 			this.moveChunksToCold(evicted, { protectedChunkIds, movementReason: "ask_for_context" })
 			this.swapsThisSession++
 			pulledChunks++
@@ -583,8 +662,18 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 		return removed
 	}
 
-	private canEvictForRequestPressure(chunk: ContextChunk, protectedMessageTimestamps: Set<number>): boolean {
+	private canEvictForRequestPressure(
+		chunk: ContextChunk,
+		protectedMessageTimestamps: Set<number>,
+		protectedQueryTerms: readonly string[] = [],
+	): boolean {
 		if (chunk.type !== "conversation_turn") {
+			return false
+		}
+		if (!this.canMoveChunkToColdCache(chunk)) {
+			return false
+		}
+		if (this.matchesActiveRequest(chunk, protectedQueryTerms)) {
 			return false
 		}
 
@@ -593,6 +682,60 @@ export class ContextWindowManager implements ContextCacheBudgetCoordinatorManage
 			messageTimestamps.length > 0 &&
 			messageTimestamps.every((timestamp) => !protectedMessageTimestamps.has(timestamp))
 		)
+	}
+
+	private canMoveChunkToColdCache(chunk: ContextChunk, now = Date.now()): boolean {
+		if (!LOW_RELEVANCE_COLD_STORE_TYPES.has(chunk.type)) {
+			return false
+		}
+		if (chunk.priority > LOW_RELEVANCE_COLD_STORE_PRIORITY_MAX) {
+			return false
+		}
+		if (now - chunk.createdAt < MIN_COLD_STORE_CHUNK_AGE_MS) {
+			return false
+		}
+		if (now - chunk.lastAccessedAt < RECENTLY_ACCESSED_HOT_CHUNK_PROTECTION_MS) {
+			return false
+		}
+
+		return !this.wasRecentlyRecalled(chunk, now)
+	}
+
+	private markChunkRecalled(chunk: ContextChunk, now = Date.now()): void {
+		this.pruneRecentlyRecalledChunks(now)
+		this.recentlyRecalledChunkIds.set(chunk.id, now)
+	}
+
+	private wasRecentlyRecalled(chunk: ContextChunk, now = Date.now()): boolean {
+		this.pruneRecentlyRecalledChunks(now)
+		const recalledAt = this.recentlyRecalledChunkIds.get(chunk.id)
+		return recalledAt !== undefined && now - recalledAt < RECALLED_CHUNK_REDEMOTION_PROTECTION_MS
+	}
+
+	private pruneRecentlyRecalledChunks(now = Date.now()): void {
+		for (const [chunkId, recalledAt] of this.recentlyRecalledChunkIds) {
+			if (now - recalledAt >= RECALLED_CHUNK_REDEMOTION_PROTECTION_MS) {
+				this.recentlyRecalledChunkIds.delete(chunkId)
+			}
+		}
+	}
+
+	private matchesActiveRequest(chunk: ContextChunk, queryTerms: readonly string[]): boolean {
+		if (queryTerms.length === 0) {
+			return false
+		}
+
+		const haystack = getContextChunkRelevanceText(chunk)
+		const filePath = chunk.metadata?.filePath?.toLowerCase()
+		if (filePath && haystack.includes(filePath)) {
+			const fileName = filePath.split(/[\\/]/).at(-1)
+			if (queryTerms.includes(filePath) || (fileName !== undefined && queryTerms.includes(fileName))) {
+				return true
+			}
+		}
+
+		const matches = queryTerms.reduce((count, term) => count + (haystack.includes(term) ? 1 : 0), 0)
+		return matches >= Math.min(MIN_ACTIVE_REQUEST_TERM_MATCHES, queryTerms.length)
 	}
 
 	private formatRecallHintChunk(chunk: ContextChunk): string {

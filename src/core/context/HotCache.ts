@@ -5,18 +5,23 @@ export interface HotCacheStats {
 	chunks: number
 }
 
+export interface HotCacheTrimOptions {
+	protectedIds?: Set<string>
+	canEvict?: (chunk: ContextChunk) => boolean
+}
+
 export class HotCache {
 	private readonly chunks = new Map<string, ContextChunk>()
 	private tokenCount = 0
 
 	constructor(private maxTokens: number) {}
 
-	updateBudget(maxTokens: number): ContextChunk[] {
+	updateBudget(maxTokens: number, options: HotCacheTrimOptions = {}): ContextChunk[] {
 		this.maxTokens = Math.max(1, Math.floor(maxTokens))
-		return this.trimToBudget()
+		return this.trimToBudget(options.protectedIds, options.canEvict)
 	}
 
-	add(chunk: ContextChunk, options: { protectedIds?: Set<string> } = {}): ContextChunk[] {
+	add(chunk: ContextChunk, options: HotCacheTrimOptions = {}): ContextChunk[] {
 		const existing = this.chunks.get(chunk.id)
 		if (existing) {
 			this.tokenCount -= existing.tokens
@@ -26,7 +31,7 @@ export class HotCache {
 		this.chunks.set(touched.id, touched)
 		this.tokenCount += touched.tokens
 
-		return this.trimToBudget(options.protectedIds ?? new Set([touched.id]))
+		return this.trimToBudget(options.protectedIds ?? new Set([touched.id]), options.canEvict)
 	}
 
 	remove(id: string): ContextChunk | undefined {
@@ -100,11 +105,14 @@ export class HotCache {
 		return evicted
 	}
 
-	private trimToBudget(protectedIds: Set<string> = new Set()): ContextChunk[] {
+	private trimToBudget(
+		protectedIds: Set<string> = new Set(),
+		canEvict?: (chunk: ContextChunk) => boolean,
+	): ContextChunk[] {
 		const evicted: ContextChunk[] = []
 
 		while (this.tokenCount > this.maxTokens && this.chunks.size > protectedIds.size) {
-			const candidate = this.getEvictionCandidate(protectedIds)
+			const candidate = this.getEvictionCandidate(protectedIds, canEvict)
 			if (!candidate) {
 				break
 			}

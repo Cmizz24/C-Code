@@ -65,7 +65,7 @@ describe("ContextWindowManager", () => {
 		vi.setSystemTime(2_000)
 		registerConversationTurn(manager, "Second conversation turn about beta cache lookup", 102)
 
-		vi.setSystemTime(3_000)
+		vi.setSystemTime(125_000)
 		registerConversationTurn(manager, "Current protected conversation turn", 999)
 
 		const result = manager.handlePressure({
@@ -124,12 +124,14 @@ describe("ContextWindowManager", () => {
 	it("provides cold-cache recall hints and invalidates them after retrieval promotion", () => {
 		const manager = new ContextWindowManager({ hotTokenBudget: 1000, coldCacheRamBudgetMb: 256 })
 
+		vi.setSystemTime(1_000)
 		manager.registerChunk({
-			type: "file_content",
+			type: "conversation_turn",
 			content: "Important alpha helper implementation details swapped out of hot context",
 			tokens: 20,
-			metadata: { filePath: "src/alpha.ts", title: "alpha helper" },
+			metadata: { filePath: "src/alpha.ts", title: "alpha helper", messageTimestamps: [101] },
 		})
+		vi.setSystemTime(125_000)
 		manager.updateOptions({ hotTokenBudget: 1 })
 
 		const hint = manager.getRecallHint()
@@ -163,6 +165,7 @@ describe("ContextWindowManager", () => {
 		const manager = new ContextWindowManager({ hotTokenBudget: 1 })
 
 		for (let index = 0; index < 25; index++) {
+			vi.setSystemTime(index * 61_000)
 			registerConversationTurn(manager, `Conversation turn ${index}`, index, 2)
 		}
 
@@ -190,7 +193,9 @@ describe("ContextWindowManager", () => {
 			},
 		})
 
+		vi.setSystemTime(1_000)
 		registerConversationTurn(manager, "a".repeat(60), 101, 2)
+		vi.setSystemTime(62_000)
 		registerConversationTurn(manager, "b".repeat(60), 102, 2)
 
 		const stats = manager.getStats()
@@ -254,8 +259,11 @@ describe("ContextWindowManager", () => {
 	it("merges duplicate cold-cache chunks without emitting repeated movement rows", () => {
 		const manager = new ContextWindowManager({ hotTokenBudget: 1, coldCacheRamBudgetMb: 256 })
 
+		vi.setSystemTime(1_000)
 		registerConversationTurn(manager, "Repeated cache content", 101, 2)
+		vi.setSystemTime(62_000)
 		registerConversationTurn(manager, "Repeated cache content", 102, 2)
+		vi.setSystemTime(123_000)
 		registerConversationTurn(manager, "Repeated cache content", 103, 2)
 
 		expect(manager.getStats()).toMatchObject({ coldCacheChunks: 1, swapsThisSession: 1 })
@@ -294,11 +302,89 @@ describe("ContextWindowManager", () => {
 		expect(manager.getStats()).toMatchObject({ hotCacheTokens: 600, coldCacheChunks: 0, condensingAvoided: 0 })
 	})
 
+	it("keeps active-request-relevant hot context out of cold cache during pressure", () => {
+		const manager = new ContextWindowManager({ hotTokenBudget: 1000, coldCacheRamBudgetMb: 256 })
+
+		vi.setSystemTime(1_000)
+		registerConversationTurn(
+			manager,
+			"Payment cache fix details for src/payments/cache.ts and retry key handling",
+			101,
+		)
+		vi.setSystemTime(2_000)
+		registerConversationTurn(manager, "Stale unrelated notes about archived terminal output", 102)
+		vi.setSystemTime(125_000)
+		registerConversationTurn(manager, "Current protected conversation turn", 999)
+
+		const result = manager.handlePressure({
+			totalTokens: 1000,
+			allowedTokens: 800,
+			protectedMessageTimestamps: [999],
+			protectedQuery: "Please fix the payment cache retry key in src/payments/cache.ts",
+		})
+
+		expect(result).toEqual({ handled: true, movedChunks: 1, movedTokens: 200, warning: undefined })
+		expect(manager.getHiddenMessageTimestamps()).toEqual(new Set([102]))
+		expect(manager.getStats()).toMatchObject({ hotCacheTokens: 400, coldCacheChunks: 1 })
+	})
+
+	it("preserves recently added hot context instead of demoting it to satisfy pressure", () => {
+		const manager = new ContextWindowManager({ hotTokenBudget: 1000, coldCacheRamBudgetMb: 256 })
+
+		vi.setSystemTime(1_000)
+		registerConversationTurn(manager, "Old stale conversation turn with no active request overlap", 101)
+		vi.setSystemTime(125_000)
+		registerConversationTurn(manager, "Recent useful hot context that should stay active", 102)
+
+		const result = manager.handlePressure({
+			totalTokens: 800,
+			allowedTokens: 400,
+		})
+
+		expect(result).toEqual({ handled: false, movedChunks: 1, movedTokens: 200, warning: undefined })
+		expect(manager.getHiddenMessageTimestamps()).toEqual(new Set([101]))
+		expect(manager.getStats()).toMatchObject({ hotCacheTokens: 200, coldCacheChunks: 1, condensingAvoided: 0 })
+	})
+
+	it("protects recalled cold chunks from immediate re-demotion churn", () => {
+		const manager = new ContextWindowManager({ hotTokenBudget: 600, coldCacheRamBudgetMb: 256 })
+
+		vi.setSystemTime(1_000)
+		registerConversationTurn(manager, "Alpha token details needed again after recall", 101)
+		vi.setSystemTime(2_000)
+		registerConversationTurn(manager, "Old filler context safe to demote after recall", 102)
+		vi.setSystemTime(125_000)
+
+		expect(manager.handlePressure({ totalTokens: 600, allowedTokens: 400 })).toEqual({
+			handled: true,
+			movedChunks: 1,
+			movedTokens: 200,
+			warning: undefined,
+		})
+		expect(manager.getHiddenMessageTimestamps()).toEqual(new Set([101]))
+
+		vi.setSystemTime(126_000)
+		const matches = manager.askForContext("alpha token", { limit: 3 })
+
+		expect(matches).toHaveLength(1)
+		expect(manager.getHiddenMessageTimestamps()).toEqual(new Set())
+
+		vi.setSystemTime(127_000)
+		manager.updateOptions({ hotTokenBudget: 199 })
+
+		expect(manager.getHiddenMessageTimestamps()).toEqual(new Set([102]))
+		expect(manager.getStats()).toMatchObject({ hotCacheChunks: 1, coldCacheChunks: 1 })
+		expect(manager.askForContext("alpha token", { limit: 3 })).toEqual([])
+	})
+
 	it("does not emit success-looking cache events when pressure movement still requires fallback", () => {
 		const manager = new ContextWindowManager({ hotTokenBudget: 1000, coldCacheRamBudgetMb: 256 })
 
+		vi.setSystemTime(1_000)
 		registerConversationTurn(manager, "Only evictable conversation turn", 101, 200)
+		vi.setSystemTime(62_000)
 		registerConversationTurn(manager, "Latest protected conversation turn", 999, 200)
+		vi.setSystemTime(123_000)
 
 		const result = manager.handlePressure({
 			totalTokens: 1000,
@@ -323,7 +409,9 @@ describe("ContextWindowManager", () => {
 
 	it("surfaces the cold-cache-full warning when cold cache rejects pressure chunks", () => {
 		const manager = new ContextWindowManager({ hotTokenBudget: 1000, coldCacheRamBudgetMb: 256 })
+		vi.setSystemTime(1_000)
 		registerConversationTurn(manager, "Conversation turn that cannot be accepted by cold cache", 700, 200)
+		vi.setSystemTime(62_000)
 
 		vi.spyOn((manager as any).coldCache, "add").mockReturnValue({ accepted: false, evicted: [] })
 

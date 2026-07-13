@@ -633,10 +633,13 @@ describe("Context Management", () => {
 			const summarizeSpy = vi.spyOn(condenseModule, "summarizeConversation")
 			const modelInfo = createModelInfo(100000, 30000)
 			const totalTokens = 70001
+			const protectedQuery = "Fix payment cache churn"
 			const messagesWithTimestamp: ApiMessage[] = [
 				...messages.slice(0, -1),
-				{ ...messages[messages.length - 1], content: "", ts: 500 },
+				{ ...messages[messages.length - 1], content: protectedQuery, ts: 500 },
 			]
+			const lastMessageTokens = await estimateTokenCount([{ type: "text", text: protectedQuery }], mockApiHandler)
+			const expectedPrevContextTokens = totalTokens + lastMessageTokens
 			const allowedTokens = modelInfo.contextWindow * (1 - TOKEN_BUFFER_PERCENTAGE) - modelInfo.maxTokens!
 			const contextWindowManager = {
 				handlePressure: vi.fn().mockReturnValue({ handled: true, movedChunks: 2, movedTokens: 1000 }),
@@ -658,16 +661,17 @@ describe("Context Management", () => {
 			})
 
 			expect(contextWindowManager.handlePressure).toHaveBeenCalledWith({
-				totalTokens,
+				totalTokens: expectedPrevContextTokens,
 				allowedTokens,
 				protectedMessageTimestamps: [500],
+				protectedQuery,
 			})
 			expect(summarizeSpy).not.toHaveBeenCalled()
 			expect(result).toEqual({
 				messages: messagesWithTimestamp,
 				summary: "",
 				cost: 0,
-				prevContextTokens: totalTokens,
+				prevContextTokens: expectedPrevContextTokens,
 				contextCacheHandled: true,
 			})
 

@@ -258,6 +258,32 @@ function createContextManagementBlocked(
 	}
 }
 
+function getApiMessageTextContent(content: ApiMessage["content"]): string | undefined {
+	const text = (() => {
+		if (typeof content === "string") {
+			return content
+		}
+		if (!Array.isArray(content)) {
+			return ""
+		}
+
+		return content
+			.map((block) => {
+				const textBlock = block as { type?: string; text?: unknown }
+				return textBlock.type === "text" && typeof textBlock.text === "string" ? textBlock.text : ""
+			})
+			.filter(Boolean)
+			.join("\n")
+	})()
+
+	const cleaned = text
+		.replace(/<environment_details>[\s\S]*?<\/environment_details>/gi, " ")
+		.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, " ")
+		.trim()
+
+	return cleaned.length > 0 ? cleaned : undefined
+}
+
 /**
  * Conditionally manages conversation context (condense and fallback truncation).
  *
@@ -325,6 +351,7 @@ export async function manageContext({
 	// If no specific threshold is found for the profile, fall back to global setting
 
 	const contextPercent = (100 * prevContextTokens) / contextWindow
+	const protectedQuery = getApiMessageTextContent(lastMessageContent)
 	const cacheCanAttemptPressure =
 		(autoCondenseContext && contextPercent >= effectiveThreshold) || prevContextTokens > allowedTokens
 	if (cacheCanAttemptPressure) {
@@ -332,6 +359,7 @@ export async function manageContext({
 			totalTokens: prevContextTokens,
 			allowedTokens,
 			protectedMessageTimestamps: typeof lastMessage.ts === "number" ? [lastMessage.ts] : undefined,
+			...(protectedQuery ? { protectedQuery } : {}),
 		})
 
 		if (cachePressureResult?.handled) {
