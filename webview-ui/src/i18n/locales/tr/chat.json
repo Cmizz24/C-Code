@@ -28,7 +28,18 @@
 			"coldShort": "soğuk",
 			"swaps": "Takaslar",
 			"condensingAvoided": "Condensing önlendi",
-			"warning": "Uyarı"
+			"warning": "Uyarı",
+			"diagnostics": {
+				"evictionsValue": "Toplam {{total}} · {{hot}} sıcak / {{cold}} soğuk",
+				"contributors_one": "{{count}} katkı veren",
+				"contributors_other": "{{count}} katkı veren",
+				"contributorUsage": "{{ram}} · {{hot}} sıcak / {{cold}} soğuk",
+				"combinedBudget": "Birleşik bütçe",
+				"hotColdRam": "Sıcak / soğuk RAM",
+				"evictionsLabel": "Çıkarmalar",
+				"combinedStatus": "Birleşik: {{used}} / {{budget}}",
+				"evictionsStatus": "Çıkarmalar: {{value}}"
+			}
 		}
 	},
 	"unpin": "Sabitlemeyi iptal et",
@@ -345,6 +356,7 @@
 			"waiting": "Bekliyor",
 			"lastTouched": "Son dokunulan",
 			"usage": "Kullanım",
+			"contextUsage": "Bağlam kullanımı",
 			"worktree": "Worktree",
 			"activity": "Etkinlik",
 			"conflicts": "Çakışmalar",
@@ -353,6 +365,7 @@
 			"waitingOn": "{{agents}} bekleniyor",
 			"noFileWrites": "Henüz dosya yazımı yok",
 			"noUsage": "Henüz kullanım bildirilmedi",
+			"noContextUsage": "Henüz bağlam kullanımı bildirilmedi",
 			"noActivity": "Henüz etkinlik bildirilmedi",
 			"noConflicts": "Çakışma yok"
 		},
@@ -376,6 +389,33 @@
 				"binaryFiles_one": "{{count}} binary dosya",
 				"binaryFiles_other": "{{count}} binary dosya"
 			}
+		},
+		"planPreview": {
+			"title": "Paralel ajan planını incele",
+			"setupTitle": "Paralel ajanlar için Git kurulumu gerekli",
+			"description": "C worktree'leri başlatmadan önce her ajanın atamasını incele.",
+			"setupDescription": "Git kurulum sorununu düzelt, sonra korunan planı yeniden oluşturmadan tekrar dene.",
+			"expand": "Planı genişlet",
+			"collapse": "Planı daralt",
+			"setupRequired": "Kurulum gerekli: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "Git repository değil",
+				"no-initial-commit": "initial commit yok",
+				"git-unavailable": "Git kullanılamıyor"
+			},
+			"pathPrivacyNote": "Tanılamaları güvenli tutmak için workspace ve Git yolları burada gizlenir.",
+			"sharedContext": "Paylaşılan bağlam",
+			"taskDescription": "Task açıklaması",
+			"ownedFiles": "Sahip olunan dosyalar",
+			"noOwnedFiles": "Sahip olunan dosya yok",
+			"removeOwnedFile": "{{path}} dosyasını sahip olunanlardan kaldır",
+			"dependencies": "Bağımlılıklar",
+			"noDependencies": "Bağımlılık yok",
+			"setupFooter": "Onayladığın plan korunur. Git'i düzelt, sonra tekrar dene.",
+			"footer": "Planı onaylamadan önce sahiplik sınırlarını incele.",
+			"cancel": "İptal",
+			"retry": "Korunan planı tekrar dene",
+			"approve": "Planı onayla"
 		}
 	},
 	"questions": {
@@ -426,8 +466,13 @@
 		"tokens": "token",
 		"condensation": {
 			"title": "Bağlam Özetlendi",
-			"inProgress": "Bağlam yoğunlaştırılıyor...",
+			"inProgress": "Bağlam yönetiliyor...",
 			"errorHeader": "Bağlam yoğunlaştırılamadı"
+		},
+		"blocked": {
+			"title": "Bağlam kurtarma duraklatıldı",
+			"description": "Sağlayıcı şu anda devam edemiyor, bu yüzden bağlam toplama duraklatıldı.",
+			"descriptionWithRetry": "Sağlayıcı şu anda devam edemiyor, bu yüzden bağlam toplama {{retryTime}} saatine kadar duraklatıldı."
 		},
 		"truncation": {
 			"title": "Bağlam Kısaltıldı",
@@ -445,13 +490,15 @@
 				"chunks_moved_to_cold": "Bağlam soğuk önbelleğe taşındı",
 				"chunks_pulled_from_cold": "Bağlam soğuk önbellekten çekildi",
 				"condensing_avoided": "Bağlam condensing önlendi",
-				"cold_cache_full": "Soğuk önbellek dolu"
+				"cold_cache_full": "Soğuk önbellek dolu",
+				"chunks_evicted_from_cache": "Bağlam önbellekten çıkarıldı"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "Eski bağlam chunk'ları sıcak pencereden çıkarıldı ve sonra alınmak üzere RAM'de tutuldu.",
 				"chunks_pulled_from_cold": "ask_for_context daha fazla bağlam istediğinde ilgili soğuk önbellek chunk'ları geri yüklendi.",
 				"condensing_avoided": "Sıcak/soğuk önbellek yeterli alan açtı, bu yüzden C otomatik condensing'i atladı.",
-				"cold_cache_full": "RAM bütçesi dolu, bu yüzden C normal bağlam condensing'e geri döndü."
+				"cold_cache_full": "RAM bütçesi dolu, bu yüzden C normal bağlam condensing'e geri döndü.",
+				"chunks_evicted_from_cache": "Paylaşılan önbellek bütçesi daha fazla alana ihtiyaç duyduğu için bağlam chunk'ları çıkarıldı."
 			},
 			"details": {
 				"chunks": "Chunk'lar",
@@ -459,7 +506,32 @@
 				"ram": "RAM",
 				"query": "Sorgu",
 				"file": "Dosya",
-				"warning": "Uyarı"
+				"warning": "Uyarı",
+				"duplicateChunks": "Yinelenen chunk'lar birleştirildi",
+				"duplicateTokens": "Yinelenen token'lar birleştirildi",
+				"reason": "Neden",
+				"source": "Kaynak",
+				"outcome": "Sonuç"
+			},
+			"reasons": {
+				"hot_budget_trim": "Sıcak önbellek bütçesi kırpıldı",
+				"request_pressure": "İstek alan gerektirdi",
+				"rebuild": "Önbellek yeniden oluşturma",
+				"combined_budget_eviction": "Paylaşılan önbellek bütçesi çıkarımı",
+				"ask_for_context": "ask_for_context alma"
+			},
+			"sources": {
+				"active_task": "Aktif görev",
+				"foreground_task": "Ön plan görevi",
+				"background_agent": "Arka plan agent'ı"
+			},
+			"outcomes": {
+				"moved": "Taşındı",
+				"merged_duplicate": "Yinelenen birleştirildi",
+				"partially_merged": "Yinelenenler kısmen birleştirildi",
+				"rejected": "Reddedildi",
+				"evicted": "Çıkarıldı",
+				"retrieved": "Alındı"
 			}
 		}
 	},

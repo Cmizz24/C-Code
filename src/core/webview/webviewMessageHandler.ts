@@ -106,6 +106,7 @@ const VISUAL_BROWSER_INSPECTOR_ONLY_BLOCKED_MESSAGE_TYPES = new Set<WebviewMessa
 	"acceptCompletion",
 	"approvePlan",
 	"cancelPlan",
+	"retryPlan",
 	"clearTask",
 	"deleteMultipleTasksWithIds",
 	"currentApiConfigName",
@@ -810,6 +811,10 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 
 		case "cancelPlan":
 			await provider.cancelExecutionPlan()
+			break
+
+		case "retryPlan":
+			await provider.retryExecutionPlan()
 			break
 
 		case "agentWaitOnConflict":
@@ -2834,6 +2839,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			try {
 				const { openAiCodexOAuthManager } = await import("../../integrations/openai-codex/oauth")
 				await openAiCodexOAuthManager.clearCredentials()
+				provider.cachedOpenAiCodexRateLimits = undefined
 				vscode.window.showInformationMessage("Signed out from OpenAI Codex")
 				await provider.postStateToWebview()
 			} catch (error) {
@@ -3520,35 +3526,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 		}
 
 		case "requestOpenAiCodexRateLimits": {
-			try {
-				const { openAiCodexOAuthManager } = await import("../../integrations/openai-codex/oauth")
-				const accessToken = await openAiCodexOAuthManager.getAccessToken()
-
-				if (!accessToken) {
-					provider.postMessageToWebview({
-						type: "openAiCodexRateLimits",
-						error: "Not authenticated with OpenAI Codex",
-					})
-					break
-				}
-
-				const accountId = await openAiCodexOAuthManager.getAccountId()
-				const { fetchOpenAiCodexRateLimitInfo } = await import("../../integrations/openai-codex/rate-limits")
-				const rateLimits = await fetchOpenAiCodexRateLimitInfo(accessToken, { accountId })
-
-				provider.cachedOpenAiCodexRateLimits = rateLimits
-				provider.postMessageToWebview({
-					type: "openAiCodexRateLimits",
-					values: rateLimits,
-				})
-			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : String(error)
-				provider.log(`Error fetching OpenAI Codex rate limits: ${errorMessage}`)
-				provider.postMessageToWebview({
-					type: "openAiCodexRateLimits",
-					error: errorMessage,
-				})
-			}
+			await provider.refreshOpenAiCodexRateLimits({ force: true, source: "webview.request", postState: true })
 			break
 		}
 
@@ -3556,6 +3534,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			try {
 				const apiKey = message.text
 				if (!apiKey) {
+					delete provider.cachedProviderPlanUsage["poe"]
 					provider.postMessageToWebview({
 						type: "providerPlanUsage",
 						providerName: "poe",
@@ -3576,6 +3555,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				provider.log(`Error fetching Poe plan usage: ${errorMessage}`)
+				delete provider.cachedProviderPlanUsage["poe"]
 				provider.postMessageToWebview({
 					type: "providerPlanUsage",
 					providerName: "poe",
@@ -3590,6 +3570,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				const apiKey = message.text
 				const isChina = message.bool ?? false
 				if (!apiKey) {
+					delete provider.cachedProviderPlanUsage["zai"]
 					provider.postMessageToWebview({
 						type: "providerPlanUsage",
 						providerName: "zai",
@@ -3610,6 +3591,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				provider.log(`Error fetching Z.AI plan usage: ${errorMessage}`)
+				delete provider.cachedProviderPlanUsage["zai"]
 				provider.postMessageToWebview({
 					type: "providerPlanUsage",
 					providerName: "zai",
@@ -3623,6 +3605,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			try {
 				const apiKey = message.text
 				if (!apiKey) {
+					delete provider.cachedProviderPlanUsage["moonshot"]
 					provider.postMessageToWebview({
 						type: "providerPlanUsage",
 						providerName: "moonshot",
@@ -3643,6 +3626,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				provider.log(`Error fetching Moonshot/Kimi plan usage: ${errorMessage}`)
+				delete provider.cachedProviderPlanUsage["moonshot"]
 				provider.postMessageToWebview({
 					type: "providerPlanUsage",
 					providerName: "moonshot",
@@ -3656,6 +3640,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			try {
 				const apiKey = message.text
 				if (!apiKey) {
+					delete provider.cachedProviderPlanUsage["minimax"]
 					provider.postMessageToWebview({
 						type: "providerPlanUsage",
 						providerName: "minimax",
@@ -3677,6 +3662,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				provider.log(`Error fetching MiniMax plan usage: ${errorMessage}`)
+				delete provider.cachedProviderPlanUsage["minimax"]
 				provider.postMessageToWebview({
 					type: "providerPlanUsage",
 					providerName: "minimax",
@@ -3690,6 +3676,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			try {
 				const cookie = message.text
 				if (!cookie) {
+					delete provider.cachedProviderPlanUsage["xiaomi-mimo"]
 					provider.postMessageToWebview({
 						type: "providerPlanUsage",
 						providerName: "xiaomi-mimo",
@@ -3710,6 +3697,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				provider.log(`Error fetching Xiaomi MiMo plan usage: ${errorMessage}`)
+				delete provider.cachedProviderPlanUsage["xiaomi-mimo"]
 				provider.postMessageToWebview({
 					type: "providerPlanUsage",
 					providerName: "xiaomi-mimo",
@@ -3734,6 +3722,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				provider.log(`Error fetching Qwen Code plan usage: ${errorMessage}`)
+				delete provider.cachedProviderPlanUsage["qwen-code"]
 				provider.postMessageToWebview({
 					type: "providerPlanUsage",
 					providerName: "qwen-code",
@@ -3747,6 +3736,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			try {
 				const apiKey = message.text
 				if (!apiKey) {
+					delete provider.cachedProviderPlanUsage["sambanova"]
 					provider.postMessageToWebview({
 						type: "providerPlanUsage",
 						providerName: "sambanova",
@@ -3767,6 +3757,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				provider.log(`Error fetching SambaNova plan usage: ${errorMessage}`)
+				delete provider.cachedProviderPlanUsage["sambanova"]
 				provider.postMessageToWebview({
 					type: "providerPlanUsage",
 					providerName: "sambanova",

@@ -19,6 +19,8 @@ import type { GeneratedImageMetadata } from "./image-generation.js"
 import type { ContextCacheBudgetOption, ContextCacheSearchResult, ContextCacheStats } from "./context-management.js"
 import type {
 	MemoryKind,
+	MemoryMistakeCategory,
+	MemoryMistakeCause,
 	MemoryRankBreakdown,
 	MemoryScope,
 	MemoryState,
@@ -61,6 +63,7 @@ import type {
 	ParallelPlanContinuationMetadata,
 	ParallelAgentReviewSummary,
 	ParallelPlanCompletionPacket,
+	WorktreeSetupRequired,
 	WriteIntentConflict,
 } from "./agents.js"
 
@@ -240,6 +243,7 @@ export interface ExtensionMessage {
 	taskHistoryItem?: HistoryItem
 	// Parallel agent system messages
 	executionPlan?: ExecutionPlan
+	worktreeSetupRequired?: WorktreeSetupRequired
 	agentStatusUpdate?: AgentStatusUpdate
 	agentCoordinationEvent?: AgentCoordinationEvent
 	writeIntentConflict?: WriteIntentConflict
@@ -661,6 +665,7 @@ export interface WebviewMessage {
 		| "debugSetting"
 		| "approvePlan"
 		| "cancelPlan"
+		| "retryPlan"
 		| "agentWaitOnConflict"
 		| "agentEscalateConflict"
 		| "mergeApprovedAgents"
@@ -883,9 +888,27 @@ export interface MemorySearchChatResult {
 	mode?: string
 	toolName?: string
 	mistakeSignature?: string
+	mistakeCause?: MemoryMistakeCause
+	mistakeCategory?: MemoryMistakeCategory
 	confidence?: number
 	score?: number
 	breakdown?: MemoryRankBreakdown
+}
+
+export interface MemoryRecallChatResult {
+	id: string
+	scope: MemoryScope
+	kind: MemoryKind
+	status?: MemoryStatus
+	title?: string
+	tags?: string[]
+	pathTags?: string[]
+	mode?: string
+	toolName?: string
+	mistakeCause?: MemoryMistakeCause
+	mistakeCategory?: MemoryMistakeCategory
+	confidence?: number
+	score?: number
 }
 
 export interface LanguageModelChatSelector {
@@ -903,6 +926,7 @@ export interface ClineSayTool {
 		| "codebaseSearch"
 		| "askForContext"
 		| "memorySearch"
+		| "memoryRecall"
 		| "mistakeMemory"
 		| "memoryWipe"
 		| "readFile"
@@ -974,7 +998,11 @@ export interface ClineSayTool {
 	pathTags?: string[]
 	toolName?: string
 	mistakeSignature?: string
+	mistakeCause?: MemoryMistakeCause
+	mistakeCategory?: MemoryMistakeCategory
 	memoryResults?: MemorySearchChatResult[]
+	memoryRecallCount?: number
+	memoryRecallResults?: MemoryRecallChatResult[]
 	contextResults?: ContextCacheSearchResult[]
 	filePath?: string
 	autoApproved?: boolean

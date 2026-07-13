@@ -353,7 +353,7 @@ const unboundSchema = baseProviderSettingsSchema.extend({
 	unboundModelId: z.string().optional(),
 })
 
-const fakeAiSchema = baseProviderSettingsSchema.extend({
+const fakeAiSchema = apiModelIdProviderModelSchema.extend({
 	fakeAi: z.unknown().optional(),
 })
 

@@ -31,6 +31,7 @@ import {
 	type AgentStatus,
 	type ContextCondense,
 	type ContextTruncation,
+	type ContextManagementBlocked,
 	type ContextCacheBudgetOption,
 	type ContextCacheEvent,
 	type ContextCacheStats,
@@ -42,6 +43,7 @@ import {
 	type HistoryItem,
 	type CreateTaskOptions,
 	type ModelInfo,
+	type AgentContextUsage,
 	type OpenAiCodexFastStatus,
 	type ClineApiReqCancelReason,
 	type ClineApiReqInfo,
@@ -115,10 +117,13 @@ import { NativeToolCallParser } from "../assistant-message/NativeToolCallParser"
 import { manageContext, willManageContext } from "../context-management"
 import {
 	ContextWindowManager,
+	type ContextCacheAskOptions,
 	type ContextChunkRegistrationOptions,
 	DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
+	coldCacheRamBudgetMbToBytes,
 	normalizeColdCacheRamBudgetMb,
 } from "../context/ContextWindowManager"
+import type { ContextCacheBudgetCoordinator } from "../context/ContextCacheBudgetCoordinator"
 import type { ContextChunk, RegisterContextChunkInput } from "../context/ContextChunk"
 import { ClineProvider } from "../webview/ClineProvider"
 import { MultiSearchReplaceDiffStrategy } from "../diff/strategies/multi-search-replace"
@@ -154,16 +159,19 @@ import { validateAndFixToolResultIds } from "./validateToolResultIds"
 import { mergeConsecutiveApiMessages } from "./mergeConsecutiveApiMessages"
 import {
 	appendMemoryPromptToLastUserMessage,
-	buildMemoryPromptForRequest,
+	type BuildMemoryPromptForRequestResult,
+	buildMemoryPromptForRequestWithMetadata,
 	buildToolErrorLesson,
 	createMistakeMemoryCandidate,
 	MemoryStorage,
 } from "../memory"
 import {
 	AgentBus,
+	type AgentCoordinationWaitResult,
 	type AgentCompletionCoordinationGate,
 	type GetAgentCoordinationOptions,
 	type PublishAgentCoordinationInput,
+	type WaitForAgentCoordinationAnswerOptions,
 } from "../agents/AgentBus"
 import { isBackgroundAgentToolRestrictedTask, withBackgroundAgentDisabledTools } from "../agents/backgroundAgentTools"
 
@@ -171,6 +179,7 @@ const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
 const DEFAULT_USAGE_COLLECTION_TIMEOUT_MS = 5000 // 5 seconds
 const FORCED_CONTEXT_REDUCTION_PERCENT = 75 // Keep 75% of context (remove 25%) on context window errors
 const MAX_CONTEXT_WINDOW_RETRIES = 3 // Maximum retries for context window errors
+const MAX_API_REQUEST_AUTO_RETRIES = 3 // Maximum automatic retries for first-chunk, mid-stream, and empty-response failures
 const CONDENSE_FAILURE_COOLDOWN_MS = 5 * 60 * 1000 // 5 minutes
 
 export interface TaskOptions extends CreateTaskOptions {
@@ -205,6 +214,13 @@ interface RecentCondenseFailure {
 	failedAt: number
 	signature: string
 	message: string
+}
+
+class AutoRetryLimitError extends Error {
+	constructor(message: string) {
+		super(message)
+		this.name = "AutoRetryLimitError"
+	}
 }
 
 export class Task extends EventEmitter<TaskEvents> implements TaskLike {
@@ -326,8 +342,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	providerRef: WeakRef<ClineProvider>
 	private readonly globalStoragePath: string
+	private lastMemoryRecallSignature?: string
 	abort: boolean = false
 	currentRequestAbortController?: AbortController
+	private readonly agentCoordinationWaitAbortControllers = new Set<AbortController>()
 	skipPrevResponseIdOnce: boolean = false
 
 	// TaskStatus
@@ -492,6 +510,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private contextWindowManager?: ContextWindowManager
 	private readonly contextCacheRegisteredMessageKeys = new Set<string>()
 	private contextCacheNeedsRebuild = true
+	private contextManagementBlocked?: ContextManagementBlocked
 	private recentCondenseFailure?: RecentCondenseFailure
 
 	// Tool Usage Cache
@@ -957,8 +976,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			  }
 			| undefined,
 		modelInfo: ModelInfo,
+		modelId?: string,
 	): void {
 		if ((settings?.contextCacheEnabled ?? true) === false) {
+			this.contextWindowManager?.dispose()
 			this.contextWindowManager = undefined
 			this.contextCacheRegisteredMessageKeys.clear()
 			this.contextCacheNeedsRebuild = true
@@ -966,13 +987,27 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		const coldCacheBudgetOptions = settings?.contextCacheBudgetOptions
-		const options = {
-			hotTokenBudget: modelInfo.contextWindow,
+		const coldCacheRamBudgetMb = normalizeColdCacheRamBudgetMb(
+			settings?.coldCacheRamBudgetMb ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
 			coldCacheBudgetOptions,
-			coldCacheRamBudgetMb: normalizeColdCacheRamBudgetMb(
-				settings?.coldCacheRamBudgetMb ?? DEFAULT_COLD_CACHE_RAM_BUDGET_MB,
-				coldCacheBudgetOptions,
-			),
+		)
+		const cacheBudgetCoordinator = this.getContextCacheBudgetCoordinator()
+		cacheBudgetCoordinator?.updateBudgetBytes(
+			coldCacheRamBudgetMbToBytes(coldCacheRamBudgetMb, coldCacheBudgetOptions),
+		)
+		const options = {
+			hotTokenBudget: this.getAvailableInputTokensForModel(modelInfo, modelId),
+			coldCacheBudgetOptions,
+			coldCacheRamBudgetMb,
+			cacheBudgetCoordinator,
+			metadata: {
+				taskId: this.taskId,
+				instanceId: this.instanceId,
+				mode: this._taskMode ?? defaultModeSlug,
+				agentId: this.agentId,
+				isBackground: this.background,
+				isActive: () => this.providerRef.deref()?.getCurrentTask?.() === this,
+			},
 		}
 
 		if (!this.contextWindowManager) {
@@ -993,6 +1028,61 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	public getContextWindowManager(): ContextWindowManager | undefined {
 		return this.contextWindowManager
+	}
+
+	public getContextCacheAskOptions(): ContextCacheAskOptions {
+		const contextUsage = this.getContextUsageDiagnostics()
+		return {
+			currentContextTokens: contextUsage?.contextTokens ?? this.getTokenUsage().contextTokens,
+			availableInputTokens: contextUsage?.availableInputTokens,
+		}
+	}
+
+	public getAgentContextUsage(): AgentContextUsage | undefined {
+		return this.getContextUsageDiagnostics()
+	}
+
+	private getContextUsageDiagnostics(modelOverride?: { id: string; info: ModelInfo }): AgentContextUsage | undefined {
+		const model = modelOverride ?? this.cachedStreamingModel ?? this.api.getModel()
+		const contextWindow = Math.floor(model.info.contextWindow)
+		if (!Number.isFinite(contextWindow) || contextWindow <= 0) {
+			return undefined
+		}
+
+		const reservedOutputTokens = this.getReservedOutputTokensForModel(model.info, model.id)
+		const availableInputTokens = Math.max(1, contextWindow - reservedOutputTokens)
+		const contextTokens = Math.max(0, Math.floor(this.getTokenUsage().contextTokens ?? 0))
+
+		return {
+			contextTokens,
+			contextWindow,
+			reservedOutputTokens,
+			availableInputTokens,
+			percent: Math.round((contextTokens / availableInputTokens) * 100),
+		}
+	}
+
+	private getReservedOutputTokensForModel(modelInfo: ModelInfo, modelId?: string): number {
+		const resolvedModelId = modelId ?? this.cachedStreamingModel?.id ?? this.api.getModel().id
+		const maxTokens = getModelMaxOutputTokens({
+			modelId: resolvedModelId,
+			model: modelInfo,
+			settings: this.apiConfiguration,
+		})
+
+		return Math.max(0, Math.floor(maxTokens ?? 0))
+	}
+
+	private getAvailableInputTokensForModel(modelInfo: ModelInfo, modelId?: string): number {
+		const contextWindow = Math.max(1, Math.floor(modelInfo.contextWindow))
+		return Math.max(1, contextWindow - this.getReservedOutputTokensForModel(modelInfo, modelId))
+	}
+
+	private getContextCacheBudgetCoordinator(): ContextCacheBudgetCoordinator | undefined {
+		const provider = this.providerRef.deref()
+		return typeof provider?.getContextCacheBudgetCoordinator === "function"
+			? provider.getContextCacheBudgetCoordinator()
+			: undefined
 	}
 
 	public registerContextChunk(
@@ -1309,11 +1399,28 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.contextWindowManager.clearCachedChunks()
 		this.contextCacheRegisteredMessageKeys.clear()
 
-		for (const message of this.apiConversationHistory) {
-			this.registerConversationTurnChunk(message, { recordEvents: false, countSwaps: false })
+		for (const message of getEffectiveApiHistory(this.apiConversationHistory)) {
+			if (!this.shouldRegisterMessageForContextCache(message)) {
+				continue
+			}
+
+			this.registerConversationTurnChunk(message, {
+				recordEvents: false,
+				countSwaps: false,
+				movementReason: "rebuild",
+			})
 		}
 
 		this.contextCacheNeedsRebuild = false
+	}
+
+	private shouldRegisterMessageForContextCache(message: ApiMessage): boolean {
+		if (message.isTruncationMarker) {
+			return false
+		}
+
+		const messageMetadata = message as ApiMessage & { isSynthetic?: boolean; synthetic?: boolean }
+		return messageMetadata.isSynthetic !== true && messageMetadata.synthetic !== true
 	}
 
 	private stringifyApiMessageForContextCache(message: ApiMessage): string {
@@ -2047,6 +2154,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		// Update the configuration and rebuild the API handler
 		this.apiConfiguration = newApiConfiguration
 		this.api = buildApiHandler(this.apiConfiguration)
+		this.clearContextManagementBlocked()
 	}
 
 	public async submitUserMessage(
@@ -2062,6 +2170,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			if (text.length === 0 && images.length === 0) {
 				return
 			}
+
+			// A user message is an explicit attempt to continue/retry. Let the next
+			// request re-run context recovery instead of staying blocked forever.
+			this.clearContextManagementBlocked()
 
 			const provider = this.providerRef.deref()
 
@@ -2103,7 +2215,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 	}
 
-	private async getFilesReadByRooSafely(context: string): Promise<string[] | undefined> {
+	public async getFilesReadByRooSafely(context: string): Promise<string[] | undefined> {
 		try {
 			return await this.fileContextTracker.getFilesReadByRoo()
 		} catch (error) {
@@ -2251,6 +2363,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		contextCondense?: ContextCondense,
 		contextTruncation?: ContextTruncation,
 		contextCacheEvent?: ContextCacheEvent,
+		contextManagementBlocked?: ContextManagementBlocked,
 	): Promise<undefined> {
 		if (this.abort) {
 			throw new Error(`[RooCode#say] task ${this.taskId}.${this.instanceId} aborted`)
@@ -2270,6 +2383,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					lastMessage.partial = partial
 					lastMessage.progressStatus = progressStatus
 					lastMessage.contextCacheEvent = contextCacheEvent
+					lastMessage.contextManagementBlocked = contextManagementBlocked
 					this.updateClineMessage(lastMessage)
 				} else {
 					// This is a new partial message, so add it with partial state.
@@ -2289,6 +2403,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						contextCondense,
 						contextTruncation,
 						contextCacheEvent,
+						contextManagementBlocked,
 					})
 				}
 			} else {
@@ -2305,6 +2420,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					lastMessage.partial = false
 					lastMessage.progressStatus = progressStatus
 					lastMessage.contextCacheEvent = contextCacheEvent
+					lastMessage.contextManagementBlocked = contextManagementBlocked
 
 					// Instead of streaming partialMessage events, we do a save
 					// and post like normal to persist to disk.
@@ -2329,6 +2445,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						contextCondense,
 						contextTruncation,
 						contextCacheEvent,
+						contextManagementBlocked,
 					})
 				}
 			}
@@ -2354,8 +2471,45 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				contextCondense,
 				contextTruncation,
 				contextCacheEvent,
+				contextManagementBlocked,
 			})
 		}
+	}
+
+	public getContextManagementBlocked(): ContextManagementBlocked | undefined {
+		return this.contextManagementBlocked
+	}
+
+	public getContextManagementBlockedToolResult(toolName: string): string | undefined {
+		if (!this.contextManagementBlocked) {
+			return undefined
+		}
+
+		const retryAt = this.contextManagementBlocked.retryAt
+		const retryAtText = retryAt ? ` Retry after ${new Date(retryAt).toISOString()}.` : ""
+		return `The ${toolName} tool was not run because context management is waiting for the provider before more context can be gathered. ${this.contextManagementBlocked.reason}${retryAtText}`
+	}
+
+	private clearContextManagementBlocked(): void {
+		this.contextManagementBlocked = undefined
+		this.clearCondenseFailure()
+	}
+
+	private async setContextManagementBlocked(blocked: ContextManagementBlocked): Promise<void> {
+		this.contextManagementBlocked = blocked
+		await this.say(
+			"context_management_blocked",
+			blocked.reason,
+			undefined /* images */,
+			false /* partial */,
+			undefined /* checkpoint */,
+			undefined /* progressStatus */,
+			{ isNonInteractive: true } /* options */,
+			undefined /* contextCondense */,
+			undefined /* contextTruncation */,
+			undefined /* contextCacheEvent */,
+			blocked,
+		)
 	}
 
 	async sayAndCreateMissingParamError(toolName: ToolName, paramName: string, relPath?: string) {
@@ -2741,6 +2895,15 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 	}
 
+	private abortAgentCoordinationWaits(reason = "Task cancelled."): void {
+		for (const waitAbortController of this.agentCoordinationWaitAbortControllers) {
+			if (!waitAbortController.signal.aborted) {
+				waitAbortController.abort(reason)
+			}
+		}
+		this.agentCoordinationWaitAbortControllers.clear()
+	}
+
 	/**
 	 * Force emit a final token usage update, ignoring throttle.
 	 * Called before task completion or abort to ensure final stats are captured.
@@ -2761,6 +2924,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		this.abort = true
+		this.abortAgentCoordinationWaits("Task cancelled.")
 
 		// Reset consecutive error counters on abort (manual intervention)
 		this.consecutiveNoToolUseCount = 0
@@ -2810,11 +2974,26 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	public dispose(): void {
 		console.log(`[Task#dispose] disposing task ${this.taskId}.${this.instanceId}`)
 
+		try {
+			this.contextWindowManager?.dispose()
+			this.contextWindowManager = undefined
+			this.contextCacheRegisteredMessageKeys.clear()
+			this.contextCacheNeedsRebuild = true
+		} catch (error) {
+			console.error("Error disposing context window manager:", error)
+		}
+
 		// Cancel any in-progress HTTP request
 		try {
 			this.cancelCurrentRequest()
 		} catch (error) {
 			console.error("Error cancelling current request:", error)
+		}
+
+		try {
+			this.abortAgentCoordinationWaits("Task disposed.")
+		} catch (error) {
+			console.error("Error cancelling agent coordination waits:", error)
 		}
 
 		void this.cleanupControlledBrowserSessions("task dispose").catch((error) => {
@@ -2932,9 +3111,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		await this.resumeAfterPausedToolFlow()
 	}
 
-	public async resumeAfterParallelExecution(): Promise<void> {
+	public async resumeAfterParallelExecution(resumeMessage?: string): Promise<void> {
 		this.parallelExecutionPaused = false
-		await this.resumeAfterPausedToolFlow()
+		const additionalUserContent: Anthropic.Messages.ContentBlockParam[] =
+			typeof resumeMessage === "string" && resumeMessage.trim().length > 0
+				? [{ type: "text" as const, text: resumeMessage }]
+				: []
+		await this.resumeAfterPausedToolFlow(additionalUserContent)
 	}
 
 	public async restoreClineMessagesFromHistory(): Promise<void> {
@@ -2959,7 +3142,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.emit(RooCodeEventName.TaskActive, this.taskId)
 	}
 
-	private async resumeAfterPausedToolFlow(): Promise<void> {
+	private async resumeAfterPausedToolFlow(
+		additionalUserContent: Anthropic.Messages.ContentBlockParam[] = [],
+	): Promise<void> {
 		// Clear any ask states that might have been set during history load
 		this.idleAsk = undefined
 		this.resumableAsk = undefined
@@ -3010,8 +3195,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						return true
 					},
 				)
-				// Add fresh environment details
-				lastUserMsg.content = [...contentWithoutEnvDetails, { type: "text" as const, text: environmentDetails }]
+				// Add optional resume context followed by fresh environment details
+				lastUserMsg.content = [
+					...contentWithoutEnvDetails,
+					...additionalUserContent,
+					{ type: "text" as const, text: environmentDetails },
+				]
 			}
 		}
 
@@ -3094,6 +3283,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			if (this.parallelExecutionPaused) {
 				await this.flushPendingToolResultsToHistory()
+				return true
+			}
+
+			if (this.contextManagementBlocked) {
+				this.userMessageContentReady = true
 				return true
 			}
 
@@ -3816,6 +4010,20 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							this.abortReason = cancelReason
 							await this.abortTask()
 						} else {
+							if (error instanceof AutoRetryLimitError) {
+								console.error(`[Task#${this.taskId}.${this.instanceId}] ${error.message}`)
+								await this.say("error", error.message)
+								throw error
+							}
+
+							const retryAttempt = currentItem.retryAttempt ?? 0
+							if (this.shouldStopAutomaticApiRetry(retryAttempt)) {
+								const limitError = this.createAutoRetryLimitError("streaming failure", error)
+								console.error(`[Task#${this.taskId}.${this.instanceId}] ${limitError.message}`)
+								await this.say("error", limitError.message)
+								throw limitError
+							}
+
 							// Stream failed - log the error and retry with the same content
 							// The existing rate limiting will prevent rapid retries
 							console.error(
@@ -3825,7 +4033,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							// Apply exponential backoff similar to first-chunk errors when auto-resubmit is enabled
 							const stateForBackoff = await this.providerRef.deref()?.getState()
 							if (stateForBackoff?.autoApprovalEnabled) {
-								await this.backoffAndAnnounce(currentItem.retryAttempt ?? 0, error)
+								await this.backoffAndAnnounce(retryAttempt, error)
 
 								// Check if task was aborted during the backoff
 								if (this.abort) {
@@ -3843,7 +4051,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							stack.push({
 								userContent: currentUserContent,
 								includeFileDetails: false,
-								retryAttempt: (currentItem.retryAttempt ?? 0) + 1,
+								retryAttempt: retryAttempt + 1,
 								openAiCodexFastMode,
 							})
 
@@ -3976,6 +4184,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				const hasToolUses = this.assistantMessageContent.some(
 					(block) => block.type === "tool_use" || block.type === "mcp_tool_use",
 				)
+
+				if (this.contextManagementBlocked) {
+					this.userMessageContentReady = true
+					return true
+				}
 
 				if (hasTextContent || hasToolUses) {
 					// Reset counter when we get a successful response with content
@@ -4216,13 +4429,30 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					// Check if we should auto-retry or prompt the user
 					// Reuse the state variable from above
 					if (state?.autoApprovalEnabled) {
-						// Auto-retry with backoff - don't persist failure message when retrying
-						await this.backoffAndAnnounce(
-							currentItem.retryAttempt ?? 0,
-							new Error(
-								"Unexpected API Response: The language model did not provide any assistant messages. This may indicate an issue with the API or the model's output.",
-							),
+						const retryAttempt = currentItem.retryAttempt ?? 0
+						const emptyAssistantError = new Error(
+							"Unexpected API Response: The language model did not provide any assistant messages. This may indicate an issue with the API or the model's output.",
 						)
+
+						if (this.shouldStopAutomaticApiRetry(retryAttempt)) {
+							const limitError = this.createAutoRetryLimitError(
+								"empty assistant response",
+								emptyAssistantError,
+							)
+							await this.addToApiConversationHistory({
+								role: "user",
+								content: currentUserContent,
+							})
+							await this.say("error", limitError.message)
+							await this.addToApiConversationHistory({
+								role: "assistant",
+								content: [{ type: "text", text: `Failure: ${limitError.message}` }],
+							})
+							throw limitError
+						}
+
+						// Auto-retry with backoff - don't persist failure message when retrying
+						await this.backoffAndAnnounce(retryAttempt, emptyAssistantError)
 
 						// Check if task was aborted during the backoff
 						if (this.abort) {
@@ -4237,7 +4467,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						stack.push({
 							userContent: currentUserContent,
 							includeFileDetails: false,
-							retryAttempt: (currentItem.retryAttempt ?? 0) + 1,
+							retryAttempt: retryAttempt + 1,
 							userMessageWasRemoved: true,
 							openAiCodexFastMode,
 						})
@@ -4431,6 +4661,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		return this.agentBus.isAgentTerminal(this.agentId)
 	}
 
+	public getActiveParallelAgentIds(): string[] {
+		if (!this.canCoordinateWithAgents() || !this.agentBus) {
+			return []
+		}
+
+		return this.agentBus.getActiveAgentIds()
+	}
+
 	public markAgentTerminal(): void {
 		this.agentTerminal = true
 		this.userMessageContentReady = true
@@ -4458,6 +4696,49 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		return this.agentBus.getOpenCoordinationQuestions(this.agentId, options)
+	}
+
+	public async waitForAgentCoordinationAnswer(
+		question: AgentCoordinationEvent,
+		options: WaitForAgentCoordinationAnswerOptions = {},
+	): Promise<AgentCoordinationWaitResult> {
+		if (!this.canCoordinateWithAgents() || !this.agentId || !this.agentBus) {
+			return {
+				status: "unanswerable",
+				question,
+				reason: "Agent coordination is unavailable.",
+			}
+		}
+
+		const waitAbortController = new AbortController()
+		let externalAbortListener: (() => void) | undefined
+
+		if (options.signal) {
+			externalAbortListener = () => waitAbortController.abort(options.signal?.reason ?? "Task cancelled.")
+
+			if (options.signal.aborted) {
+				externalAbortListener()
+			} else {
+				options.signal.addEventListener("abort", externalAbortListener, { once: true })
+			}
+		}
+
+		this.agentCoordinationWaitAbortControllers.add(waitAbortController)
+		if (this.abort) {
+			waitAbortController.abort("Task cancelled.")
+		}
+
+		try {
+			return await this.agentBus.waitForCoordinationAnswer(this.agentId, question, {
+				...options,
+				signal: waitAbortController.signal,
+			})
+		} finally {
+			if (externalAbortListener) {
+				options.signal?.removeEventListener("abort", externalAbortListener)
+			}
+			this.agentCoordinationWaitAbortControllers.delete(waitAbortController)
+		}
 	}
 
 	public acknowledgeAgentSharedContract(): AgentCoordinationEvent | undefined {
@@ -4516,8 +4797,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const taskMode = await this.getTaskMode()
 
 		const { contextTokens } = this.getTokenUsage()
-		const modelInfo = this.api.getModel().info
-		this.configureContextWindowManager(state, modelInfo)
+		const model = this.api.getModel()
+		const modelInfo = model.info
+		this.configureContextWindowManager(state, modelInfo, model.id)
 
 		const maxTokens = getModelMaxOutputTokens({
 			modelId: this.api.getModel().id,
@@ -4597,6 +4879,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			if (truncateResult.messages !== this.apiConversationHistory) {
 				await this.overwriteApiConversationHistory(truncateResult.messages)
+			}
+
+			if (truncateResult.blocked) {
+				this.recordCondenseFailure(truncateResult.blocked.reason)
+				await this.setContextManagementBlocked(truncateResult.blocked)
+				return
 			}
 
 			if (truncateResult.error) {
@@ -4682,6 +4970,18 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 	}
 
+	private shouldStopAutomaticApiRetry(retryAttempt: number): boolean {
+		return retryAttempt >= MAX_API_REQUEST_AUTO_RETRIES
+	}
+
+	private createAutoRetryLimitError(context: string, error: unknown): AutoRetryLimitError {
+		const errorMessage = error instanceof Error ? error.message : JSON.stringify(serializeError(error), null, 2)
+
+		return new AutoRetryLimitError(
+			`Automatic ${context} retry limit reached after ${MAX_API_REQUEST_AUTO_RETRIES} retries. Last error: ${errorMessage}`,
+		)
+	}
+
 	public async *attemptApiRequest(
 		retryAttempt: number = 0,
 		options: { skipProviderRateLimit?: boolean; openAiCodexFastMode?: boolean } = {},
@@ -4719,8 +5019,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		const systemPrompt = await this.getSystemPrompt()
 		const { contextTokens } = this.getTokenUsage()
-		const modelInfo = this.api.getModel().info
-		this.configureContextWindowManager(state, modelInfo)
+		const model = this.api.getModel()
+		const modelInfo = model.info
+		this.configureContextWindowManager(state, modelInfo, model.id)
 
 		if (contextTokens) {
 			const maxTokens = getModelMaxOutputTokens({
@@ -4844,6 +5145,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				if (truncateResult.messages !== this.apiConversationHistory) {
 					await this.overwriteApiConversationHistory(truncateResult.messages)
 				}
+				if (truncateResult.blocked) {
+					this.recordCondenseFailure(truncateResult.blocked.reason)
+					await this.setContextManagementBlocked(truncateResult.blocked)
+					return
+				}
 				if (truncateResult.error) {
 					this.recordCondenseFailure(truncateResult.error, truncateResult.errorDetails)
 					await this.say("condense_context_error", truncateResult.error)
@@ -4921,7 +5227,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			)
 		}
 		try {
-			const memoryPrompt = await buildMemoryPromptForRequest({
+			const memoryContext = await buildMemoryPromptForRequestWithMetadata({
 				globalStoragePath: this.globalStoragePath,
 				workspacePath: this.cwd,
 				modelInfo,
@@ -4933,7 +5239,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				rooIgnoreController: this.rooIgnoreController,
 				contextTokens,
 			})
-			requestConversationHistory = appendMemoryPromptToLastUserMessage(requestConversationHistory, memoryPrompt)
+			requestConversationHistory = appendMemoryPromptToLastUserMessage(
+				requestConversationHistory,
+				memoryContext.prompt,
+			)
+			await this.emitMemoryRecallIfChanged(memoryContext, cleanConversationHistory)
 		} catch (error) {
 			console.warn(
 				`[Task#${this.taskId}] Failed to build ephemeral memory context: ${
@@ -5073,6 +5383,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
 			if (autoApprovalEnabled) {
+				if (this.shouldStopAutomaticApiRetry(retryAttempt)) {
+					throw this.createAutoRetryLimitError("first-chunk provider failure", error)
+				}
+
 				// Apply shared exponential backoff and countdown UX
 				await this.backoffAndAnnounce(retryAttempt, error)
 
@@ -5477,6 +5791,63 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		)
 	}
 
+	private getMemoryRecallSignature(
+		memoryContext: BuildMemoryPromptForRequestResult,
+		requestMessages: readonly unknown[],
+	): string | undefined {
+		const recalledIds = memoryContext.recalledMemories.map((memory) => `${memory.scope}:${memory.id}`).sort()
+		if (!recalledIds.length) {
+			return undefined
+		}
+
+		const lastUserMessage = [...requestMessages]
+			.reverse()
+			.find((message) => (message as { role?: unknown })?.role === "user")
+		const requestHash = crypto
+			.createHash("sha256")
+			.update(JSON.stringify(lastUserMessage ?? requestMessages[requestMessages.length - 1] ?? ""))
+			.digest("hex")
+			.slice(0, 16)
+
+		return `${requestHash}:${recalledIds.join("|")}`
+	}
+
+	private async emitMemoryRecallIfChanged(
+		memoryContext: BuildMemoryPromptForRequestResult,
+		requestMessages: readonly unknown[],
+	): Promise<void> {
+		if (!memoryContext.prompt || memoryContext.totalRecallCount === 0) {
+			return
+		}
+
+		const signature = this.getMemoryRecallSignature(memoryContext, requestMessages)
+		if (!signature || signature === this.lastMemoryRecallSignature) {
+			return
+		}
+		this.lastMemoryRecallSignature = signature
+
+		const scopes = Array.from(new Set(memoryContext.recalledMemories.map((memory) => memory.scope)))
+		const shownCount = memoryContext.recalledMemories.length
+		const totalCount = memoryContext.totalRecallCount
+		const message =
+			totalCount === 1
+				? "Recalled 1 memory for this request."
+				: shownCount < totalCount
+					? `Recalled ${totalCount} memories for this request; showing ${shownCount}.`
+					: `Recalled ${totalCount} memories for this request.`
+		const toolPayload: ClineSayTool = {
+			tool: "memoryRecall",
+			scope: scopes.length === 1 ? scopes[0] : "all",
+			memoryRecallCount: totalCount,
+			memoryRecallResults: memoryContext.recalledMemories,
+			message,
+		}
+
+		await this.say("tool", JSON.stringify(toolPayload), undefined, false, undefined, undefined, {
+			isNonInteractive: true,
+		}).catch(() => {})
+	}
+
 	public async drainQueuedMistakeMemories(options: MistakeMemoryDrainOptions = {}): Promise<void> {
 		if (this.drainingMistakeMemoryApprovals) {
 			await this.drainingMistakeMemoryApprovals
@@ -5527,7 +5898,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			if (state?.memoryMistakeMemoryEnabled === false) {
 				return
 			}
-			if (state?.memoryWorkspaceEnabled === false) {
+			const scope = "global" as const
+			if (state?.memoryGlobalEnabled === false) {
 				return
 			}
 
@@ -5544,7 +5916,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				toolName,
 				filePaths: [],
 				tags: ["tool-error"],
-				scope: "workspace",
+				scope,
 				source,
 				approved: autoApproved,
 				pendingCandidateLimit: state?.memoryPendingCandidateLimit,
@@ -5586,6 +5958,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				mode: memory.mode,
 				toolName: memory.toolName,
 				mistakeSignature: memory.mistakeSignature,
+				mistakeCause: memory.mistakeCause,
+				mistakeCategory: memory.mistakeCategory,
 				autoApproved,
 				reusedExisting: result.reusedExisting,
 				message,

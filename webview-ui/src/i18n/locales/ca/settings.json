@@ -855,6 +855,36 @@
 				"condensingAvoided": "Vegades que s'ha evitat la condensació",
 				"hotCacheChunks": "Fragments de memòria cau calenta",
 				"ramBudget": "Pressupost de RAM"
+			},
+			"diagnostics": {
+				"title": "Diagnòstic de pressió de la memòria cau",
+				"description": "Vista compacta de la pressió de RAM en aquesta finestra i altres finestres C actives. No s'inclouen ID de tasques, prompts ni camins de fitxers.",
+				"status": {
+					"label": "Estat de pressió",
+					"automatic": "Alleujament automàtic actiu",
+					"ready": "Dins del pressupost",
+					"help": "C poda primer els fragments freds i aquí només mostra recomptes agregats."
+				},
+				"localUsage": "Ús local / pressupost",
+				"configuredEffective": "Pressupost configurat / efectiu",
+				"hotColdRam": "RAM calenta / freda",
+				"evictions": {
+					"label": "Expulsions",
+					"value": "{{total}} en total · {{hot}} calents / {{cold}} freds"
+				},
+				"contributors": {
+					"label": "Contribuïdors",
+					"usage": "{{ram}} · {{hot}} calents / {{cold}} freds"
+				},
+				"crossWindow": {
+					"title": "Pressió entre finestres",
+					"description": "Ús agregat d'aquesta finestra i de les iguals; els camins de workspace i els prompts queden ocults.",
+					"liveWindows": "Finestres / iguals",
+					"localPeerUsage": "Ús local / iguals",
+					"globalLocalTarget": "Objectiu global / local",
+					"cleanup": "Neteja de heartbeats caducats",
+					"cleanupValue": "{{cleaned}} netejats / {{failed}} fallits"
+				}
 			}
 		}
 	},
@@ -1167,6 +1197,43 @@
 			"freeRequests": "* Gratuït fins a {{count}} sol·licituds per minut. Després d'això, la facturació depèn de la mida del prompt.",
 			"pricingDetails": "Per a més informació, consulteu els detalls de preus.",
 			"billingEstimate": "* La facturació és una estimació - el cost exacte depèn de la mida del prompt."
+		},
+		"provenance": {
+			"title": "Origen de les metadades del model",
+			"reviewStatus": "Estat: {{status}}",
+			"lastReviewed": "Revisat: {{date}}",
+			"source": "Font:",
+			"endpoint": "(endpoint: {{endpoint}})",
+			"capabilitySummary": "Capacitats amb origen: {{capabilities}}",
+			"capabilitySummaryWithMore": "Capacitats amb origen: {{capabilities}} + {{count}} més",
+			"sourceTypes": {
+				"official-docs": "docs oficials",
+				"official-api": "API oficial",
+				"provider-announcement": "anunci del proveïdor",
+				"curated": "curat",
+				"unknown": "desconegut"
+			},
+			"reviewStatuses": {
+				"reviewed": "revisat",
+				"unreviewed": "sense revisar",
+				"unknown": "desconegut"
+			},
+			"capabilities": {
+				"contextWindow": "finestra de context",
+				"maxTokens": "sortida màxima",
+				"pricing": "preus",
+				"reasoning": "reasoning",
+				"promptCaching": "memòria cau de Prompt",
+				"images": "imatges",
+				"imageOutput": "sortida d'imatge",
+				"tools": "tools",
+				"computerUse": "ús de l'ordinador",
+				"webSearch": "cerca web",
+				"jsonSchema": "esquema JSON",
+				"deprecation": "obsolescència",
+				"description": "descripció",
+				"serviceTiers": "nivells de servei"
+			}
 		}
 	},
 	"modelPicker": {

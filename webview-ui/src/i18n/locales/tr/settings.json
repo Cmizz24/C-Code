@@ -855,6 +855,36 @@
 				"condensingAvoided": "Condensing'den kaçınılan kez",
 				"hotCacheChunks": "Sıcak önbellek chunk'ları",
 				"ramBudget": "RAM bütçesi"
+			},
+			"diagnostics": {
+				"title": "Cache baskısı tanılama",
+				"description": "Bu pencere ve diğer aktif C pencerelerindeki RAM baskısının kompakt görünümü. Task ID'leri, prompts ve dosya yolları dahil edilmez.",
+				"status": {
+					"label": "Baskı durumu",
+					"automatic": "Otomatik rahatlatma aktif",
+					"ready": "Bütçe içinde",
+					"help": "C önce soğuk chunk'ları budar ve burada yalnızca toplu sayıları tutar."
+				},
+				"localUsage": "Yerel kullanım / bütçe",
+				"configuredEffective": "Ayarlı / etkili bütçe",
+				"hotColdRam": "Sıcak / soğuk RAM",
+				"evictions": {
+					"label": "Çıkarmalar",
+					"value": "Toplam {{total}} · {{hot}} sıcak / {{cold}} soğuk"
+				},
+				"contributors": {
+					"label": "Katkı verenler",
+					"usage": "{{ram}} · {{hot}} sıcak / {{cold}} soğuk"
+				},
+				"crossWindow": {
+					"title": "Pencereler arası baskı",
+					"description": "Bu pencere ve peer'ların toplu kullanımı; workspace yolları ve prompts gizli kalır.",
+					"liveWindows": "Pencereler / peer'lar",
+					"localPeerUsage": "Yerel / peer kullanımı",
+					"globalLocalTarget": "Global / yerel hedef",
+					"cleanup": "Eski heartbeat temizliği",
+					"cleanupValue": "{{cleaned}} temizlendi / {{failed}} başarısız"
+				}
 			}
 		}
 	},
@@ -1167,6 +1197,43 @@
 			"freeRequests": "* Dakikada {{count}} isteğe kadar ücretsiz. Bundan sonra, ücretlendirme istem boyutuna bağlıdır.",
 			"pricingDetails": "Daha fazla bilgi için fiyatlandırma ayrıntılarına bakın.",
 			"billingEstimate": "* Ücretlendirme bir tahmindir - kesin maliyet istem boyutuna bağlıdır."
+		},
+		"provenance": {
+			"title": "Model metadata kaynağı",
+			"reviewStatus": "Durum: {{status}}",
+			"lastReviewed": "İncelendi: {{date}}",
+			"source": "Kaynak:",
+			"endpoint": "(endpoint: {{endpoint}})",
+			"capabilitySummary": "Kaynaklı yetenekler: {{capabilities}}",
+			"capabilitySummaryWithMore": "Kaynaklı yetenekler: {{capabilities}} + {{count}} daha",
+			"sourceTypes": {
+				"official-docs": "resmi docs",
+				"official-api": "resmi API",
+				"provider-announcement": "sağlayıcı duyurusu",
+				"curated": "derlenmiş",
+				"unknown": "bilinmiyor"
+			},
+			"reviewStatuses": {
+				"reviewed": "incelenmiş",
+				"unreviewed": "incelenmemiş",
+				"unknown": "bilinmiyor"
+			},
+			"capabilities": {
+				"contextWindow": "context window",
+				"maxTokens": "maks. çıktı",
+				"pricing": "fiyatlandırma",
+				"reasoning": "reasoning",
+				"promptCaching": "Prompt caching",
+				"images": "görseller",
+				"imageOutput": "görsel çıktısı",
+				"tools": "tools",
+				"computerUse": "bilgisayar kullanımı",
+				"webSearch": "web search",
+				"jsonSchema": "JSON schema",
+				"deprecation": "kullanımdan kaldırma",
+				"description": "açıklama",
+				"serviceTiers": "service tiers"
+			}
 		}
 	},
 	"modelPicker": {

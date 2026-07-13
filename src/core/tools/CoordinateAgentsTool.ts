@@ -1,5 +1,5 @@
 import type { NativeToolArgs } from "../../shared/tools"
-import { isGenericOwnershipCoordinationMessage } from "../agents/AgentBus"
+import { isGenericOwnershipCoordinationMessage, type AgentCoordinationWaitResult } from "../agents/AgentBus"
 import { formatResponse } from "../prompts/responses"
 import { Task } from "../task/Task"
 
@@ -10,6 +10,18 @@ type CoordinateAgentsParams = NativeToolArgs["coordinate_agents"]
 const BROADCAST_TARGET_SENTINELS = new Set(["all", "none"])
 const NO_REPLY_SENTINELS = new Set(["none"])
 const PUBLISHABLE_COORDINATION_KINDS = new Set(["question", "answer", "decision", "note", "blocker"])
+
+function formatValidTargetAgentIds(activeAgentIds: string[]): string {
+	return activeAgentIds.length > 0 ? activeAgentIds.map((agentId) => `'${agentId}'`).join(", ") : "(none available)"
+}
+
+function formatInvalidTargetAgentIdError(targetAgentId: string, activeAgentIds: string[]): string {
+	return `Invalid targetAgentId '${targetAgentId}'. targetAgentId must exactly match one active parallel-agent ID. Valid exact agent IDs: ${formatValidTargetAgentIds(activeAgentIds)}. Role/display labels such as 'integration' or 'security' are invalid unless they exactly match an agent ID. Omit targetAgentId to broadcast without waiting.`
+}
+
+function formatMissingTargetForWaitError(activeAgentIds: string[]): string {
+	return `waitForAnswer=true requires targetAgentId to be one concrete exact active parallel-agent ID. Broadcast/no-target values cannot wait for an answer. Valid exact agent IDs: ${formatValidTargetAgentIds(activeAgentIds)}.`
+}
 
 function normalizeOptionalCoordinationString(
 	value: string | undefined,
@@ -91,6 +103,34 @@ function formatContractAcknowledgementResult(
 		.join("\n")
 }
 
+function formatCoordinationWaitResult(result: AgentCoordinationWaitResult): string[] {
+	if (result.status === "answered") {
+		return ["Coordination wait result: answered.", `Answer: ${formatCoordinationEvent(result.answer)}`]
+	}
+
+	if (result.status === "unanswerable") {
+		return [
+			"Coordination wait result: unanswerable.",
+			`Reason: ${result.reason}`,
+			`Question: ${formatCoordinationEvent(result.question)}`,
+		]
+	}
+
+	if (result.status === "timeout") {
+		return [
+			`Coordination wait result: timed out after ${result.timeoutMs}ms.`,
+			"Question remains pending and completion-blocking; wait, retry team-chat read, or escalate with a blocker instead of proceeding with a local assumption.",
+			`Question: ${formatCoordinationEvent(result.question)}`,
+		]
+	}
+
+	return [
+		"Coordination wait result: cancelled.",
+		`Reason: ${result.reason}`,
+		`Question: ${formatCoordinationEvent(result.question)}`,
+	]
+}
+
 export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 	readonly name = "coordinate_agents" as const
 
@@ -130,6 +170,7 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 				params.targetAgentId,
 				BROADCAST_TARGET_SENTINELS,
 			)
+			const activeAgentIds = task.getActiveParallelAgentIds()
 			const isPotentialTargetedAnswer = Boolean(
 				params.kind === "answer" &&
 					(normalizedReplyToId || normalizedTargetAgentId || params.relatedFiles?.length),
@@ -139,6 +180,22 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 				task.consecutiveMistakeCount = 0
 				const recent = task.getAgentCoordinationEvents({ limit: params.limit })
 				pushToolResult(formatTerminalPublishSuppression(task.getAgentStatus(), recent))
+				return
+			}
+
+			if (normalizedTargetAgentId && !activeAgentIds.includes(normalizedTargetAgentId)) {
+				task.consecutiveMistakeCount++
+				const message = formatInvalidTargetAgentIdError(normalizedTargetAgentId, activeAgentIds)
+				task.recordToolError("coordinate_agents", message)
+				pushToolResult(formatResponse.toolError(message))
+				return
+			}
+
+			if (params.waitForAnswer === true && !normalizedTargetAgentId) {
+				task.consecutiveMistakeCount++
+				const message = formatMissingTargetForWaitError(activeAgentIds)
+				task.recordToolError("coordinate_agents", message)
+				pushToolResult(formatResponse.toolError(message))
 				return
 			}
 
@@ -203,6 +260,24 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 			}
 
 			task.consecutiveMistakeCount = 0
+			const shouldWaitForAnswer =
+				params.kind === "question" && (params.waitForAnswer ?? Boolean(normalizedTargetAgentId))
+
+			if (shouldWaitForAnswer) {
+				const waitResult = await task.waitForAgentCoordinationAnswer(event, { timeoutMs: params.timeoutMs })
+				const openQuestions = task.getOpenAgentCoordinationQuestions({ limit: params.limit })
+				pushToolResult(
+					[
+						`Published team chat question ${event.id ?? event.ts}.`,
+						...formatCoordinationWaitResult(waitResult),
+						...formatOpenQuestions(openQuestions),
+					]
+						.filter(Boolean)
+						.join("\n"),
+				)
+				return
+			}
+
 			const recent = task.getAgentCoordinationEvents({ limit: params.limit })
 			const openQuestions = task.getOpenAgentCoordinationQuestions({ limit: params.limit })
 			pushToolResult(

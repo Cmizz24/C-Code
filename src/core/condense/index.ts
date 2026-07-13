@@ -7,8 +7,10 @@ import { ApiMessage } from "../task-persistence/apiMessages"
 import { maybeRemoveImageBlocks } from "../../api/transform/image-cleaning"
 import { findLast } from "../../shared/array"
 import { supportPrompt } from "../../shared/support-prompt"
+import { extractProviderCapacityMetadata } from "../../shared/provider-capacity"
 import { RooIgnoreController } from "../ignore/RooIgnoreController"
 import { generateFoldedFileContext } from "./foldedFileContext"
+import type { ProviderCapacityMetadata } from "@roo-code/types"
 
 export type { FoldedFileContextResult, FoldedFileContextOptions } from "./foldedFileContext"
 
@@ -216,6 +218,7 @@ export type SummarizeResponse = {
 	newContextTokens?: number // The number of tokens in the context for the next API request
 	error?: string // Populated iff the operation fails: error message shown to the user on failure (see Task.ts)
 	errorDetails?: string // Detailed error information including stack trace and API error info
+	providerCapacity?: ProviderCapacityMetadata // Structured provider-capacity metadata when summarization fails due to provider limits/capacity
 	condenseId?: string // The unique ID of the created Summary message, for linking to condense_context clineMessage
 }
 
@@ -339,6 +342,7 @@ export async function summarizeConversation(options: SummarizeConversationOption
 	} catch (error) {
 		console.error("Error during condensing API call:", error)
 		const errorMessage = error instanceof Error ? error.message : String(error)
+		const providerCapacity = extractProviderCapacityMetadata(error)
 
 		// Capture detailed error information for debugging
 		let errorDetails = ""
@@ -375,6 +379,7 @@ export async function summarizeConversation(options: SummarizeConversationOption
 			cost,
 			error: t("common:errors.condense_api_failed", { message: errorMessage }),
 			errorDetails,
+			providerCapacity,
 		}
 	}
 

@@ -27,6 +27,10 @@ export const cloudflareWorkersAiImageUsageStateSchema = z.object({
 	updatedAt: z.string(),
 })
 
+/**
+ * @deprecated Manual provider plan-limit tracking is no longer exposed or used.
+ * Retained only so older persisted settings can still be deserialized.
+ */
 export const providerPlanLimitSchema = z.object({
 	tokenLimit: z.number().nonnegative().optional(),
 	costLimit: z.number().nonnegative().optional(),
@@ -34,6 +38,10 @@ export const providerPlanLimitSchema = z.object({
 	lastReset: z.number().optional(),
 })
 
+/**
+ * @deprecated Manual cumulative provider plan usage is no longer exposed or used.
+ * Automatic provider-reported usage is cached in extension state instead.
+ */
 export const providerPlanUsageSchema = z.object({
 	tokensUsed: z.number().nonnegative().default(0),
 	costUsed: z.number().nonnegative().default(0),
@@ -175,7 +183,9 @@ export const globalSettingsSchema = z
 		lmStudioImageGenerationSelectedModel: z.string().optional(),
 		lmStudioImageGenerationApiMethod: z.enum(IMAGE_GENERATION_API_METHODS).optional(),
 		openAiCodexFastStatus: openAiCodexFastStatusSchema.optional(),
+		/** @deprecated Retained only for backwards-compatible deserialization. */
 		providerPlanLimits: z.record(z.string(), providerPlanLimitSchema).optional(),
+		/** @deprecated Retained only for backwards-compatible deserialization. */
 		providerPlanUsage: z.record(z.string(), providerPlanUsageSchema).optional(),
 
 		customCondensingPrompt: z.string().optional(),

@@ -855,6 +855,36 @@
 				"condensingAvoided": "Berapa kali condensing dihindari",
 				"hotCacheChunks": "Chunk cache panas",
 				"ramBudget": "Budget RAM"
+			},
+			"diagnostics": {
+				"title": "Diagnostik tekanan cache",
+				"description": "Tampilan ringkas tekanan RAM di jendela ini dan jendela C aktif lainnya. ID tugas, prompt, dan path file tidak disertakan.",
+				"status": {
+					"label": "Status tekanan",
+					"automatic": "Peredaan otomatis aktif",
+					"ready": "Dalam anggaran",
+					"help": "C memangkas chunk dingin lebih dulu dan hanya menyimpan hitungan agregat di sini."
+				},
+				"localUsage": "Penggunaan lokal / anggaran",
+				"configuredEffective": "Anggaran dikonfigurasi / efektif",
+				"hotColdRam": "RAM hot / cold",
+				"evictions": {
+					"label": "Eviction",
+					"value": "{{total}} total · {{hot}} hot / {{cold}} cold"
+				},
+				"contributors": {
+					"label": "Kontributor",
+					"usage": "{{ram}} · {{hot}} hot / {{cold}} cold"
+				},
+				"crossWindow": {
+					"title": "Tekanan lintas jendela",
+					"description": "Penggunaan agregat dari jendela ini dan peer; path workspace dan prompt tetap disembunyikan.",
+					"liveWindows": "Jendela / peer",
+					"localPeerUsage": "Penggunaan lokal / peer",
+					"globalLocalTarget": "Target global / lokal",
+					"cleanup": "Pembersihan heartbeat kedaluwarsa",
+					"cleanupValue": "{{cleaned}} dibersihkan / {{failed}} gagal"
+				}
 			}
 		}
 	},
@@ -1167,6 +1197,43 @@
 			"freeRequests": "* Gratis hingga {{count}} permintaan per menit. Setelah itu, penagihan tergantung pada ukuran prompt.",
 			"pricingDetails": "Untuk info lebih lanjut, lihat detail harga.",
 			"billingEstimate": "* Penagihan adalah estimasi - biaya sebenarnya tergantung pada ukuran prompt."
+		},
+		"provenance": {
+			"title": "Sumber metadata model",
+			"reviewStatus": "Status: {{status}}",
+			"lastReviewed": "Ditinjau: {{date}}",
+			"source": "Sumber:",
+			"endpoint": "(endpoint: {{endpoint}})",
+			"capabilitySummary": "Kapabilitas bersumber: {{capabilities}}",
+			"capabilitySummaryWithMore": "Kapabilitas bersumber: {{capabilities}} + {{count}} lagi",
+			"sourceTypes": {
+				"official-docs": "docs resmi",
+				"official-api": "API resmi",
+				"provider-announcement": "pengumuman provider",
+				"curated": "dikurasi",
+				"unknown": "tidak diketahui"
+			},
+			"reviewStatuses": {
+				"reviewed": "ditinjau",
+				"unreviewed": "belum ditinjau",
+				"unknown": "tidak diketahui"
+			},
+			"capabilities": {
+				"contextWindow": "context window",
+				"maxTokens": "output maks",
+				"pricing": "harga",
+				"reasoning": "reasoning",
+				"promptCaching": "Prompt caching",
+				"images": "gambar",
+				"imageOutput": "output gambar",
+				"tools": "tools",
+				"computerUse": "penggunaan komputer",
+				"webSearch": "pencarian web",
+				"jsonSchema": "skema JSON",
+				"deprecation": "deprecation",
+				"description": "deskripsi",
+				"serviceTiers": "tingkat layanan"
+			}
 		}
 	},
 	"modelPicker": {

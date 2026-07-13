@@ -9,6 +9,7 @@ vi.mock("../../../integrations/openai-codex/oauth", () => ({
 	openAiCodexOAuthManager: {
 		getAccessToken: vi.fn(),
 		getAccountId: vi.fn(),
+		clearCredentials: vi.fn(),
 	},
 }))
 
@@ -74,6 +75,7 @@ const mockRecommendLocalAiModel = vi.mocked(recommendLocalAiModel)
 const mockLocalAiSetupManager = vi.mocked(localAiSetupManager)
 const mockGetAccessToken = vi.mocked(openAiCodexOAuthManager.getAccessToken)
 const mockGetAccountId = vi.mocked(openAiCodexOAuthManager.getAccountId)
+const mockClearCredentials = vi.mocked(openAiCodexOAuthManager.clearCredentials)
 const mockFetchOpenAiCodexRateLimitInfo = vi.mocked(fetchOpenAiCodexRateLimitInfo)
 
 // Mock ClineProvider
@@ -106,6 +108,7 @@ const mockClineProvider = {
 	upsertProviderProfile: vi.fn(),
 	createTaskWithHistoryItem: vi.fn(),
 	clearTask: vi.fn(),
+	refreshOpenAiCodexRateLimits: vi.fn(),
 	notifyAcceptedFinalParentCompletion: vi.fn(),
 	notifyFinalParentCompletionUiVisible: vi.fn(),
 	testSmtpSettings: vi.fn(),
@@ -1156,37 +1159,42 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 describe("webviewMessageHandler - requestOpenAiCodexRateLimits", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
-		mockGetAccessToken.mockResolvedValue(null)
-		mockGetAccountId.mockResolvedValue(null)
+		;(mockClineProvider as any).refreshOpenAiCodexRateLimits.mockResolvedValue(undefined)
+		;(mockClineProvider as any).cachedOpenAiCodexRateLimits = undefined
 	})
 
-	it("posts error when not authenticated", async () => {
+	it("delegates explicit WebView refresh requests to the provider refresh helper", async () => {
 		await webviewMessageHandler(mockClineProvider, { type: "requestOpenAiCodexRateLimits" } as any)
 
-		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
-			type: "openAiCodexRateLimits",
-			error: "Not authenticated with OpenAI Codex",
+		expect((mockClineProvider as any).refreshOpenAiCodexRateLimits).toHaveBeenCalledWith({
+			force: true,
+			source: "webview.request",
+			postState: true,
 		})
+		expect(mockGetAccessToken).not.toHaveBeenCalled()
+		expect(mockGetAccountId).not.toHaveBeenCalled()
+		expect(mockFetchOpenAiCodexRateLimitInfo).not.toHaveBeenCalled()
+		expect(mockClineProvider.postMessageToWebview).not.toHaveBeenCalled()
+		expect(mockClineProvider.postStateToWebview).not.toHaveBeenCalled()
 	})
+})
 
-	it("posts values when authenticated", async () => {
-		mockGetAccessToken.mockResolvedValue("token")
-		mockGetAccountId.mockResolvedValue("acct_123")
-		mockFetchOpenAiCodexRateLimitInfo.mockResolvedValue({
-			primary: { usedPercent: 10, resetsAt: 1700000000000 },
+describe("webviewMessageHandler - openAiCodexSignOut", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		mockClearCredentials.mockResolvedValue(undefined)
+		;(mockClineProvider as any).cachedOpenAiCodexRateLimits = {
+			primary: { usedPercent: 42 },
 			fetchedAt: 1700000000000,
-		})
+		}
+	})
 
-		await webviewMessageHandler(mockClineProvider, { type: "requestOpenAiCodexRateLimits" } as any)
+	it("clears credentials, cached usage, and refreshes extension state", async () => {
+		await webviewMessageHandler(mockClineProvider, { type: "openAiCodexSignOut" } as any)
 
-		expect(mockFetchOpenAiCodexRateLimitInfo).toHaveBeenCalledWith("token", { accountId: "acct_123" })
-		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
-			type: "openAiCodexRateLimits",
-			values: {
-				primary: { usedPercent: 10, resetsAt: 1700000000000 },
-				fetchedAt: 1700000000000,
-			},
-		})
+		expect(mockClearCredentials).toHaveBeenCalled()
+		expect((mockClineProvider as any).cachedOpenAiCodexRateLimits).toBeUndefined()
+		expect(mockClineProvider.postStateToWebview).toHaveBeenCalled()
 	})
 })
 

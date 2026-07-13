@@ -22,7 +22,31 @@ export class AskForContextTool extends BaseTool<"ask_for_context"> {
 		}
 
 		try {
-			const contextResults = task.getContextWindowManager()?.askForContext(query, { filePath, limit: 3 }) ?? []
+			const contextResults =
+				task.getContextWindowManager()?.askForContext(query, {
+					...task.getContextCacheAskOptions(),
+					filePath,
+					limit: 3,
+				}) ?? []
+			const includedResults = contextResults.filter((result) => result.status !== "skipped_over_budget")
+			const skippedResults = contextResults.filter((result) => result.status === "skipped_over_budget")
+			const includedCount = includedResults.length
+			const skippedCount = skippedResults.length
+			const message = (() => {
+				if (includedCount > 0 && skippedCount > 0) {
+					return `Found ${includedCount} matching context ${includedCount === 1 ? "chunk" : "chunks"}; skipped ${skippedCount} over the active context budget.`
+				}
+
+				if (includedCount > 0) {
+					return `Found ${includedCount} matching context ${includedCount === 1 ? "chunk" : "chunks"}.`
+				}
+
+				if (skippedCount > 0) {
+					return `Found ${skippedCount} matching context ${skippedCount === 1 ? "chunk" : "chunks"}, but skipped ${skippedCount === 1 ? "it" : "them"} because the active context budget is full.`
+				}
+
+				return "No matching cold context chunks found."
+			})()
 
 			task.consecutiveMistakeCount = 0
 			await task
@@ -32,10 +56,7 @@ export class AskForContextTool extends BaseTool<"ask_for_context"> {
 						tool: "askForContext",
 						query,
 						filePath,
-						message:
-							contextResults.length > 0
-								? `Found ${contextResults.length} matching context ${contextResults.length === 1 ? "chunk" : "chunks"}.`
-								: "No matching cold context chunks found.",
+						message,
 						contextResults,
 					} satisfies ClineSayTool),
 					undefined,

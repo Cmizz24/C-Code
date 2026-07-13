@@ -7,6 +7,7 @@ import {
 	type ClineAsk,
 	type ToolProgressStatus,
 	type TodoItem,
+	type WorktreeSetupRequired,
 } from "@roo-code/types"
 import { customToolRegistry } from "@roo-code/core"
 
@@ -66,6 +67,17 @@ function isTaskAbortError(cline: Task, error: unknown): boolean {
 	)
 }
 
+const CONTEXT_GATHERING_TOOL_NAMES = new Set<string>([
+	"read_file",
+	"list_files",
+	"search_files",
+	"codebase_search",
+	"ask_for_context",
+	"memory_search",
+	"read_command_output",
+	"access_mcp_resource",
+])
+
 function findCurrentParallelPlanningTodo(todos: TodoItem[] | undefined): TodoItem | undefined {
 	if (!todos?.length) {
 		return undefined
@@ -106,6 +118,31 @@ async function completeCurrentParallelPlanningTodo(cline: Task): Promise<boolean
 	return true
 }
 
+function formatParallelPlanSetupRequiredResult(options: {
+	planId: string
+	agentCount: number
+	setupRequired: WorktreeSetupRequired
+	warnings: string[]
+}): string {
+	const { planId, agentCount, setupRequired, warnings } = options
+	const locationLines = [
+		setupRequired.workspacePath ? `Workspace: ${setupRequired.workspacePath}` : undefined,
+		setupRequired.gitRoot ? `Git root: ${setupRequired.gitRoot}` : undefined,
+	].filter(Boolean)
+
+	return [
+		`Approved execution plan ${planId} with ${agentCount} agents, but Roo cannot start parallel worktrees until Git setup is fixed. The approved plan has been preserved and should not be recreated.`,
+		`Reason: ${setupRequired.reason}`,
+		`Details: ${setupRequired.message}`,
+		`Setup guidance: ${setupRequired.guidance}`,
+		locationLines.length > 0 ? locationLines.join("\n") : undefined,
+		'After fixing Git setup, use the "Retry preserved plan" action in the plan setup panel. Roo will reuse the preserved plan; do not call new_task for these parallel agents.',
+		warnings.length > 0 ? `Warnings:\n- ${warnings.join("\n- ")}` : "No warnings.",
+	]
+		.filter(Boolean)
+		.join("\n\n")
+}
+
 async function sayToolError(cline: Task, action: string, error: Error): Promise<void> {
 	try {
 		await cline.say("error", `Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`)
@@ -135,6 +172,72 @@ async function cleanupActiveDiffPreview(cline: Task, context: string): Promise<v
 			}`,
 		)
 	}
+}
+
+async function pruneSavedAssistantHistoryAfterAcceptedCompletion(cline: Task, prunedBlocks: unknown[]): Promise<void> {
+	if (!cline.assistantMessageSavedToHistory) {
+		return
+	}
+
+	const prunedToolUseIds = new Set<string>()
+	for (const prunedBlock of prunedBlocks) {
+		if (!prunedBlock || typeof prunedBlock !== "object") {
+			continue
+		}
+
+		const toolBlock = prunedBlock as { type?: string; id?: string }
+		if ((toolBlock.type === "tool_use" || toolBlock.type === "mcp_tool_use") && toolBlock.id) {
+			prunedToolUseIds.add(sanitizeToolUseId(toolBlock.id))
+		}
+	}
+
+	if (prunedToolUseIds.size === 0) {
+		return
+	}
+
+	let assistantMessageIndex = -1
+	for (let index = cline.apiConversationHistory.length - 1; index >= 0; index--) {
+		const message = cline.apiConversationHistory[index]
+		if (message.role === "assistant" && Array.isArray(message.content)) {
+			assistantMessageIndex = index
+			break
+		}
+	}
+	if (assistantMessageIndex === -1) {
+		return
+	}
+
+	const assistantMessage = cline.apiConversationHistory[assistantMessageIndex]
+	const assistantContent = Array.isArray(assistantMessage.content) ? assistantMessage.content : []
+	const nextAssistantContent = assistantContent.filter(
+		(contentBlock) => !(contentBlock.type === "tool_use" && prunedToolUseIds.has(contentBlock.id)),
+	)
+
+	if (nextAssistantContent.length === assistantContent.length) {
+		return
+	}
+
+	const nextHistory = [...cline.apiConversationHistory]
+	nextHistory[assistantMessageIndex] = {
+		...assistantMessage,
+		content: nextAssistantContent,
+	}
+	await cline.overwriteApiConversationHistory(nextHistory)
+}
+
+async function pruneSameMessageBlocksAfterAcceptedCompletion(cline: Task): Promise<void> {
+	const firstPrunedIndex = cline.currentStreamingContentIndex + 1
+	if (firstPrunedIndex >= cline.assistantMessageContent.length) {
+		return
+	}
+
+	const prunedBlocks = cline.assistantMessageContent.slice(firstPrunedIndex)
+	cline.assistantMessageContent.length = firstPrunedIndex
+
+	// If the assistant turn has already been persisted with native tool_use blocks,
+	// remove pruned late tools from saved history instead of executing them or
+	// adding extra tool_results after an accepted terminal completion.
+	await pruneSavedAssistantHistoryAfterAcceptedCompletion(cline, prunedBlocks)
 }
 
 /**
@@ -805,6 +908,15 @@ export async function presentAssistantMessage(cline: Task) {
 				}
 			}
 
+			if (!block.partial && CONTEXT_GATHERING_TOOL_NAMES.has(block.name)) {
+				const blockedResult = cline.getContextManagementBlockedToolResult(block.name)
+				if (blockedResult) {
+					pushToolResult(formatResponse.toolError(blockedResult))
+					cline.didAlreadyUseTool = true
+					break
+				}
+			}
+
 			switch (block.name) {
 				case "write_to_file":
 					await checkpointSaveAndMark(cline)
@@ -996,7 +1108,19 @@ export async function presentAssistantMessage(cline: Task) {
 									`Parallel execution plan ${result.plan.planId} was canceled before Roo created worktrees or started agent tasks.`,
 								)
 							} else if (approvalResult.startResult.ok === false) {
-								pushToolResult(formatResponse.toolError(approvalResult.startResult.error))
+								if (approvalResult.startResult.setupRequired) {
+									cline.parallelExecutionPaused = true
+									pushToolResult(
+										formatParallelPlanSetupRequiredResult({
+											planId: approvalResult.plan.planId,
+											agentCount: approvalResult.plan.agents.length,
+											setupRequired: approvalResult.startResult.setupRequired,
+											warnings: result.warnings,
+										}),
+									)
+								} else {
+									pushToolResult(formatResponse.toolError(approvalResult.startResult.error))
+								}
 							} else {
 								cline.parallelExecutionPaused = true
 								pushToolResult(
@@ -1036,18 +1160,25 @@ export async function presentAssistantMessage(cline: Task) {
 					})
 					break
 				case "attempt_completion": {
+					let didAcceptCompletion = false
 					const completionCallbacks: AttemptCompletionCallbacks = {
 						askApproval,
 						handleError,
 						pushToolResult,
 						askFinishSubTaskApproval,
 						toolDescription,
+						onAccepted: () => {
+							didAcceptCompletion = true
+						},
 					}
 					await attemptCompletionTool.handle(
 						cline,
 						block as ToolUse<"attempt_completion">,
 						completionCallbacks,
 					)
+					if (!block.partial && (didAcceptCompletion || cline.isAgentTerminal?.())) {
+						await pruneSameMessageBlocksAfterAcceptedCompletion(cline)
+					}
 					break
 				}
 				case "run_slash_command":

@@ -28,7 +28,18 @@
 			"coldShort": "cold",
 			"swaps": "स्वैप",
 			"condensingAvoided": "Condensing टाली गई",
-			"warning": "चेतावनी"
+			"warning": "चेतावनी",
+			"diagnostics": {
+				"evictionsValue": "कुल {{total}} · {{hot}} हॉट / {{cold}} कोल्ड",
+				"contributors_one": "{{count}} योगदानकर्ता",
+				"contributors_other": "{{count}} योगदानकर्ता",
+				"contributorUsage": "{{ram}} · {{hot}} हॉट / {{cold}} कोल्ड",
+				"combinedBudget": "संयुक्त बजट",
+				"hotColdRam": "हॉट / कोल्ड RAM",
+				"evictionsLabel": "Evictions",
+				"combinedStatus": "संयुक्त: {{used}} / {{budget}}",
+				"evictionsStatus": "Evictions: {{value}}"
+			}
 		}
 	},
 	"unpin": "पिन करें",
@@ -344,6 +355,7 @@
 			"waiting": "प्रतीक्षा",
 			"lastTouched": "आखिरी बार छुआ गया",
 			"usage": "उपयोग",
+			"contextUsage": "संदर्भ का उपयोग",
 			"worktree": "Worktree",
 			"activity": "गतिविधि",
 			"conflicts": "टकराव",
@@ -352,6 +364,7 @@
 			"waitingOn": "{{agents}} की प्रतीक्षा में",
 			"noFileWrites": "अभी तक कोई फ़ाइल लिखी नहीं गई",
 			"noUsage": "अभी तक कोई उपयोग रिपोर्ट नहीं हुआ",
+			"noContextUsage": "अभी तक कोई संदर्भ उपयोग रिपोर्ट नहीं हुआ",
 			"noActivity": "अभी तक कोई गतिविधि रिपोर्ट नहीं हुई",
 			"noConflicts": "कोई टकराव नहीं"
 		},
@@ -375,6 +388,33 @@
 				"binaryFiles_one": "{{count}} बाइनरी फ़ाइल",
 				"binaryFiles_other": "{{count}} बाइनरी फ़ाइलें"
 			}
+		},
+		"planPreview": {
+			"title": "पैरेलल एजेंट प्लान की समीक्षा करो",
+			"setupTitle": "पैरेलल एजेंट के लिए Git सेटअप चाहिए",
+			"description": "C के worktrees शुरू करने से पहले हर एजेंट की assignment देखो।",
+			"setupDescription": "Git सेटअप समस्या ठीक करो, फिर संरक्षित प्लान को बिना दुबारा बनाए retry करो।",
+			"expand": "प्लान फैलाओ",
+			"collapse": "प्लान समेटो",
+			"setupRequired": "सेटअप ज़रूरी: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "Git repository नहीं है",
+				"no-initial-commit": "initial commit नहीं है",
+				"git-unavailable": "Git उपलब्ध नहीं"
+			},
+			"pathPrivacyNote": "डायग्नोस्टिक्स सुरक्षित रखने के लिए workspace और Git पाथ यहाँ छिपाए जाते हैं।",
+			"sharedContext": "साझा संदर्भ",
+			"taskDescription": "Task विवरण",
+			"ownedFiles": "Assigned files",
+			"noOwnedFiles": "कोई assigned file नहीं",
+			"removeOwnedFile": "Assigned files से {{path}} हटाओ",
+			"dependencies": "Dependencies",
+			"noDependencies": "कोई dependency नहीं",
+			"setupFooter": "तुम्हारा approved plan सुरक्षित है। Git ठीक करो, फिर retry करो।",
+			"footer": "Plan approve करने से पहले ownership boundaries देखो।",
+			"cancel": "रद्द करो",
+			"retry": "संरक्षित प्लान retry करो",
+			"approve": "प्लान approve करो"
 		}
 	},
 	"questions": {
@@ -425,8 +465,13 @@
 		"tokens": "टोकन",
 		"condensation": {
 			"title": "संदर्भ संक्षिप्त किया गया",
-			"inProgress": "संदर्भ संघनित कर रहा है...",
+			"inProgress": "संदर्भ प्रबंधित किया जा रहा है...",
 			"errorHeader": "संदर्भ संघनित करने में विफल"
+		},
+		"blocked": {
+			"title": "संदर्भ पुनर्प्राप्ति रुकी हुई है",
+			"description": "प्रोवाइडर अभी आगे नहीं बढ़ सकता, इसलिए संदर्भ जुटाना रुका हुआ है.",
+			"descriptionWithRetry": "प्रोवाइडर अभी आगे नहीं बढ़ सकता, इसलिए संदर्भ जुटाना {{retryTime}} तक रुका हुआ है."
 		},
 		"truncation": {
 			"title": "संदर्भ छोटा किया गया",
@@ -444,13 +489,15 @@
 				"chunks_moved_to_cold": "Context को cold cache में ले जाया गया",
 				"chunks_pulled_from_cold": "Context को cold cache से निकाला गया",
 				"condensing_avoided": "Context condensing टाली गई",
-				"cold_cache_full": "Cold cache भर गया"
+				"cold_cache_full": "Cold cache भर गया",
+				"chunks_evicted_from_cache": "Context को cache से हटाया गया"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "पुराने context chunks को hot window से हटाकर बाद में वापस लाने के लिए RAM में रखा गया।",
 				"chunks_pulled_from_cold": "ask_for_context ने अधिक context मांगा, इसलिए संबंधित cold-cache chunks बहाल किए गए।",
 				"condensing_avoided": "Hot/cold cache ने पर्याप्त जगह खाली कर दी, इसलिए C ने automatic condensing छोड़ दी।",
-				"cold_cache_full": "RAM budget भर गया है, इसलिए C regular context condensing पर लौट गया।"
+				"cold_cache_full": "RAM budget भर गया है, इसलिए C regular context condensing पर लौट गया।",
+				"chunks_evicted_from_cache": "Shared cache budget को और जगह चाहिए थी, इसलिए context chunks हटाए गए।"
 			},
 			"details": {
 				"chunks": "Chunks",
@@ -458,7 +505,32 @@
 				"ram": "RAM",
 				"query": "क्वेरी",
 				"file": "फ़ाइल",
-				"warning": "चेतावनी"
+				"warning": "चेतावनी",
+				"duplicateChunks": "Duplicate chunks merge किए गए",
+				"duplicateTokens": "Duplicate tokens merge किए गए",
+				"reason": "कारण",
+				"source": "स्रोत",
+				"outcome": "नतीजा"
+			},
+			"reasons": {
+				"hot_budget_trim": "Hot-cache budget trim",
+				"request_pressure": "Request को जगह चाहिए थी",
+				"rebuild": "Cache rebuild",
+				"combined_budget_eviction": "Shared cache budget eviction",
+				"ask_for_context": "ask_for_context retrieval"
+			},
+			"sources": {
+				"active_task": "Active task",
+				"foreground_task": "Foreground task",
+				"background_agent": "Background agent"
+			},
+			"outcomes": {
+				"moved": "Moved",
+				"merged_duplicate": "Duplicate merge किया गया",
+				"partially_merged": "Duplicates आंशिक रूप से merge किए गए",
+				"rejected": "Rejected",
+				"evicted": "Evicted",
+				"retrieved": "Retrieved"
 			}
 		}
 	},

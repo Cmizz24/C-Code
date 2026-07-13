@@ -1,12 +1,14 @@
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
-import type { ModelInfo } from "@roo-code/types"
+import type { ModelCapabilityProvenanceKey, ModelInfo, ModelProvenance, ModelProvenanceSource } from "@roo-code/types"
 
 import { formatPrice } from "@src/utils/formatPrice"
 import { cn } from "@src/lib/utils"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 
 import { ModelDescriptionMarkdown } from "./ModelDescriptionMarkdown"
+
+type AppTranslationT = ReturnType<typeof useAppTranslation>["t"]
 
 type ModelInfoViewProps = {
 	apiProvider?: string
@@ -15,6 +17,70 @@ type ModelInfoViewProps = {
 	isDescriptionExpanded: boolean
 	setIsDescriptionExpanded: (isExpanded: boolean) => void
 	hidePricing?: boolean
+}
+
+const capabilityProvenanceDisplayOrder = [
+	"contextWindow",
+	"maxTokens",
+	"pricing",
+	"reasoning",
+	"promptCaching",
+	"images",
+	"imageOutput",
+	"tools",
+	"computerUse",
+	"webSearch",
+	"jsonSchema",
+	"deprecation",
+	"description",
+	"serviceTiers",
+] satisfies ModelCapabilityProvenanceKey[]
+
+const getCapabilityProvenanceEntries = (modelInfo?: ModelInfo) =>
+	(Object.entries(modelInfo?.capabilityProvenance ?? {}) as [ModelCapabilityProvenanceKey, ModelProvenance][]).sort(
+		([left], [right]) =>
+			capabilityProvenanceDisplayOrder.indexOf(left) - capabilityProvenanceDisplayOrder.indexOf(right),
+	)
+
+const getPrimaryProvenance = (
+	modelInfo: ModelInfo | undefined,
+	capabilityEntries: [ModelCapabilityProvenanceKey, ModelProvenance][],
+) => modelInfo?.provenance ?? capabilityEntries[0]?.[1]
+
+const getPrimaryProvenanceSource = (provenance?: ModelProvenance) =>
+	provenance?.sources?.find((source) => source.label || source.url || source.endpoint || source.type)
+
+const getProvenanceSourceLabel = (source: ModelProvenanceSource | undefined, t: AppTranslationT) => {
+	if (!source) {
+		return undefined
+	}
+
+	return source.label || t(`settings:modelInfo.provenance.sourceTypes.${source.type}`)
+}
+
+const formatCapabilityProvenanceSummary = (
+	capabilityEntries: [ModelCapabilityProvenanceKey, ModelProvenance][],
+	t: AppTranslationT,
+) => {
+	if (capabilityEntries.length === 0) {
+		return undefined
+	}
+
+	const visibleCapabilities = capabilityEntries
+		.slice(0, 4)
+		.map(([capability]) => t(`settings:modelInfo.provenance.capabilities.${capability}`))
+	const remainingCount = capabilityEntries.length - visibleCapabilities.length
+
+	if (remainingCount > 0) {
+		return t("settings:modelInfo.provenance.capabilitySummaryWithMore", {
+			capabilities: visibleCapabilities.join(", "),
+			count: remainingCount,
+		})
+	}
+
+	return t("settings:modelInfo.provenance.capabilitySummary", {
+		capabilities: visibleCapabilities.join(", "),
+	})
 }
 
 export const ModelInfoView = ({
@@ -32,6 +98,13 @@ export const ModelInfoView = ({
 		modelInfo?.tiers?.filter((t) => t.name === "flex" || t.name === "priority")?.map((t) => t.name) ?? []
 	const shouldShowTierPricingTable = apiProvider === "openai-native" && allowedTierNames.length > 0
 	const fmt = (n?: number) => (typeof n === "number" ? `${formatPrice(n)}` : "—")
+	const capabilityProvenanceEntries = getCapabilityProvenanceEntries(modelInfo)
+	const primaryProvenance = getPrimaryProvenance(modelInfo, capabilityProvenanceEntries)
+	const primaryProvenanceSource = getPrimaryProvenanceSource(primaryProvenance)
+	const primaryProvenanceSourceLabel = getProvenanceSourceLabel(primaryProvenanceSource, t)
+	const capabilityProvenanceSummary = formatCapabilityProvenanceSummary(capabilityProvenanceEntries, t)
+	const shouldHideProvenance = apiProvider === "openai-codex"
+	const shouldShowProvenance = !shouldHideProvenance && Boolean(primaryProvenance || capabilityProvenanceSummary)
 
 	const baseInfoItems = [
 		typeof modelInfo?.contextWindow === "number" && modelInfo.contextWindow > 0 && (
@@ -115,6 +188,56 @@ export const ModelInfoView = ({
 					<div key={index}>{item}</div>
 				))}
 			</div>
+
+			{shouldShowProvenance && (
+				<div
+					className="mt-2 rounded border border-vscode-dropdown-border bg-vscode-sideBar-background/40 px-2 py-1.5 text-xs text-vscode-descriptionForeground"
+					data-testid="model-info-provenance">
+					<div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+						<span className="font-medium text-vscode-foreground">
+							{t("settings:modelInfo.provenance.title")}
+						</span>
+						{primaryProvenance?.reviewStatus && (
+							<span data-testid="model-info-provenance-review-status">
+								{t("settings:modelInfo.provenance.reviewStatus", {
+									status: t(
+										`settings:modelInfo.provenance.reviewStatuses.${primaryProvenance.reviewStatus}`,
+									),
+								})}
+							</span>
+						)}
+						{primaryProvenance?.lastReviewed && (
+							<span>
+								{t("settings:modelInfo.provenance.lastReviewed", {
+									date: primaryProvenance.lastReviewed,
+								})}
+							</span>
+						)}
+					</div>
+					{capabilityProvenanceSummary && (
+						<div data-testid="model-info-capability-provenance">{capabilityProvenanceSummary}</div>
+					)}
+					{primaryProvenanceSource && primaryProvenanceSourceLabel && (
+						<div className="flex flex-wrap items-center gap-x-1" data-testid="model-info-provenance-source">
+							<span>{t("settings:modelInfo.provenance.source")}</span>
+							{primaryProvenanceSource.url ? (
+								<VSCodeLink href={primaryProvenanceSource.url} className="text-xs">
+									{primaryProvenanceSourceLabel}
+								</VSCodeLink>
+							) : (
+								<span>{primaryProvenanceSourceLabel}</span>
+							)}
+							{primaryProvenanceSource.endpoint && (
+								<span>
+									{t("settings:modelInfo.provenance.endpoint", {
+										endpoint: primaryProvenanceSource.endpoint,
+									})}
+								</span>
+							)}
+						</div>
+					)}
+				</div>
+			)}
 
 			{shouldShowTierPricingTable && !hidePricing && (
 				<div className="mt-2">

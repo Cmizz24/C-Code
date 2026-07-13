@@ -80,7 +80,6 @@ import { LanguageSettings } from "./LanguageSettings"
 import { About } from "./About"
 import { Section } from "./Section"
 import PromptsSettings from "./PromptsSettings"
-import { ProviderPlanSettings } from "./ProviderPlanSettings"
 import { SlashCommandsSettings } from "./SlashCommandsSettings"
 import { SkillsSettings } from "./SkillsSettings"
 import { UISettings } from "./UISettings"
@@ -288,13 +287,21 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		memoryMaxCharacters,
 		memoryMaxEntries,
 		memoryPendingCandidateLimit,
-		memoryState,
-		memorySummary,
-		providerPlanLimits,
-		providerPlanUsage,
 	} = cachedState
 
 	const apiConfiguration = useMemo(() => cachedState.apiConfiguration ?? {}, [cachedState.apiConfiguration])
+	const memoryDisplaySummary = extensionState.memorySummary
+	const memoryDisplayState = useMemo(() => {
+		if (!extensionState.memoryState || !memoryDisplaySummary) {
+			return extensionState.memoryState
+		}
+
+		if (extensionState.memoryState.summary === memoryDisplaySummary) {
+			return extensionState.memoryState
+		}
+
+		return { ...extensionState.memoryState, summary: memoryDisplaySummary }
+	}, [extensionState.memoryState, memoryDisplaySummary])
 
 	useEffect(() => {
 		// Update only when currentApiConfigName is changed.
@@ -669,8 +676,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				lmStudioImageBaseUrl,
 				lmStudioImageGenerationSelectedModel,
 				lmStudioImageGenerationApiMethod,
-				providerPlanLimits: providerPlanLimits ?? {},
-				providerPlanUsage: providerPlanUsage ?? {},
 				experiments,
 				customSupportPrompts,
 			} as Partial<ExtensionStateContextType> & {
@@ -1062,12 +1067,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 										errorMessage={errorMessage}
 										setErrorMessage={setErrorMessage}
 									/>
-									<ProviderPlanSettings
-										apiConfiguration={apiConfiguration}
-										providerPlanLimits={providerPlanLimits ?? {}}
-										providerPlanUsage={providerPlanUsage ?? {}}
-										setCachedStateField={setCachedStateField}
-									/>
 								</Section>
 							</div>
 						)}
@@ -1192,8 +1191,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								memoryMaxCharacters={memoryMaxCharacters}
 								memoryMaxEntries={memoryMaxEntries}
 								memoryPendingCandidateLimit={memoryPendingCandidateLimit}
-								memoryState={memoryState}
-								memorySummary={memorySummary}
+								memoryState={memoryDisplayState}
+								memorySummary={memoryDisplaySummary}
 								setCachedStateField={setCachedStateField}
 							/>
 						)}

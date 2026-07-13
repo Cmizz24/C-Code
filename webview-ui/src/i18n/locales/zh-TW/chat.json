@@ -28,7 +28,18 @@
 			"coldShort": "冷",
 			"swaps": "交換",
 			"condensingAvoided": "已避免壓縮",
-			"warning": "警告"
+			"warning": "警告",
+			"diagnostics": {
+				"evictionsValue": "共 {{total}} · {{hot}} 熱 / {{cold}} 冷",
+				"contributors_one": "{{count}} 個貢獻項",
+				"contributors_other": "{{count}} 個貢獻項",
+				"contributorUsage": "{{ram}} · {{hot}} 熱 / {{cold}} 冷",
+				"combinedBudget": "合併預算",
+				"hotColdRam": "熱 / 冷 RAM",
+				"evictionsLabel": "驅逐",
+				"combinedStatus": "合併：{{used}} / {{budget}}",
+				"evictionsStatus": "驅逐：{{value}}"
+			}
 		}
 	},
 	"unpin": "取消釘選",
@@ -213,8 +224,13 @@
 		"tokens": "Token",
 		"condensation": {
 			"title": "上下文已壓縮",
-			"inProgress": "正在壓縮上下文...",
+			"inProgress": "正在管理上下文...",
 			"errorHeader": "壓縮上下文失敗"
+		},
+		"blocked": {
+			"title": "上下文復原已暫停",
+			"description": "供應商目前無法繼續，因此上下文收集已暫停。",
+			"descriptionWithRetry": "供應商目前無法繼續，因此上下文收集已暫停到 {{retryTime}}。"
 		},
 		"truncation": {
 			"title": "上下文已截斷",
@@ -232,13 +248,15 @@
 				"chunks_moved_to_cold": "上下文已移至冷快取",
 				"chunks_pulled_from_cold": "上下文已從冷快取取回",
 				"condensing_avoided": "已避免上下文壓縮",
-				"cold_cache_full": "冷快取已滿"
+				"cold_cache_full": "冷快取已滿",
+				"chunks_evicted_from_cache": "上下文已從快取中移除"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "較舊的上下文區塊已移出熱視窗，並保留在 RAM 中以便稍後擷取。",
 				"chunks_pulled_from_cold": "ask_for_context 要求更多上下文後，相關冷快取區塊已還原。",
 				"condensing_avoided": "熱/冷快取釋放了足夠空間，因此 C 略過自動壓縮。",
-				"cold_cache_full": "RAM 預算已滿，因此 C 回退到一般上下文壓縮。"
+				"cold_cache_full": "RAM 預算已滿，因此 C 回退到一般上下文壓縮。",
+				"chunks_evicted_from_cache": "由於共用快取預算需要更多空間，已移除上下文區塊。"
 			},
 			"details": {
 				"chunks": "區塊",
@@ -246,7 +264,32 @@
 				"ram": "RAM",
 				"query": "查詢",
 				"file": "檔案",
-				"warning": "警告"
+				"warning": "警告",
+				"duplicateChunks": "已合併重複區塊",
+				"duplicateTokens": "已合併重複 Token",
+				"reason": "原因",
+				"source": "來源",
+				"outcome": "結果"
+			},
+			"reasons": {
+				"hot_budget_trim": "熱快取預算裁剪",
+				"request_pressure": "請求需要空間",
+				"rebuild": "快取重建",
+				"combined_budget_eviction": "共用快取預算驅逐",
+				"ask_for_context": "ask_for_context 擷取"
+			},
+			"sources": {
+				"active_task": "作用中任務",
+				"foreground_task": "前景任務",
+				"background_agent": "背景 agent"
+			},
+			"outcomes": {
+				"moved": "已移動",
+				"merged_duplicate": "已合併重複項",
+				"partially_merged": "已部分合併重複項",
+				"rejected": "已拒絕",
+				"evicted": "已驅逐",
+				"retrieved": "已擷取"
 			}
 		}
 	},
@@ -455,6 +498,7 @@
 			"waiting": "等待",
 			"lastTouched": "最後碰觸",
 			"usage": "用量",
+			"contextUsage": "上下文用量",
 			"worktree": "Worktree",
 			"activity": "活動",
 			"conflicts": "衝突",
@@ -463,6 +507,7 @@
 			"waitingOn": "正在等待 {{agents}}",
 			"noFileWrites": "尚無檔案寫入",
 			"noUsage": "尚未回報用量",
+			"noContextUsage": "尚未回報上下文用量",
 			"noActivity": "尚未回報活動",
 			"noConflicts": "無衝突"
 		},
@@ -486,6 +531,33 @@
 				"binaryFiles_one": "{{count}} 個二進位檔案",
 				"binaryFiles_other": "{{count}} 個二進位檔案"
 			}
+		},
+		"planPreview": {
+			"title": "檢查平行 agent 計畫",
+			"setupTitle": "平行 agent 需要 Git 設定",
+			"description": "在 C 啟動 worktree 前檢查每個 agent 的分配。",
+			"setupDescription": "修正 Git 設定問題，然後重試保留的計畫，不必重新建立。",
+			"expand": "展開計畫",
+			"collapse": "收合計畫",
+			"setupRequired": "需要設定：{{reason}}",
+			"setupReasons": {
+				"not-git-repo": "不是 Git repository",
+				"no-initial-commit": "沒有初始 commit",
+				"git-unavailable": "Git 無法使用"
+			},
+			"pathPrivacyNote": "這裡會隱藏 workspace 和 Git 路徑，以確保診斷安全。",
+			"sharedContext": "共享上下文",
+			"taskDescription": "任務描述",
+			"ownedFiles": "負責檔案",
+			"noOwnedFiles": "沒有負責檔案",
+			"removeOwnedFile": "從負責檔案中移除 {{path}}",
+			"dependencies": "依賴",
+			"noDependencies": "沒有依賴",
+			"setupFooter": "已核准的計畫會保留。修正 Git 後重試。",
+			"footer": "核准計畫前請檢查所有權邊界。",
+			"cancel": "取消",
+			"retry": "重試保留的計畫",
+			"approve": "核准計畫"
 		}
 	},
 	"questions": {

@@ -28,7 +28,18 @@
 			"coldShort": "コールド",
 			"swaps": "スワップ",
 			"condensingAvoided": "凝縮回避",
-			"warning": "警告"
+			"warning": "警告",
+			"diagnostics": {
+				"evictionsValue": "合計 {{total}} · hot {{hot}} / cold {{cold}}",
+				"contributors_one": "{{count}} 件の寄与元",
+				"contributors_other": "{{count}} 件の寄与元",
+				"contributorUsage": "{{ram}} · hot {{hot}} / cold {{cold}}",
+				"combinedBudget": "合計予算",
+				"hotColdRam": "Hot / cold RAM",
+				"evictionsLabel": "退避",
+				"combinedStatus": "合計: {{used}} / {{budget}}",
+				"evictionsStatus": "退避: {{value}}"
+			}
 		}
 	},
 	"unpin": "ピン留めを解除",
@@ -344,6 +355,7 @@
 			"waiting": "待機中",
 			"lastTouched": "最後に触ったもの",
 			"usage": "使用量",
+			"contextUsage": "コンテキスト使用量",
 			"worktree": "Worktree",
 			"activity": "アクティビティ",
 			"conflicts": "競合",
@@ -352,6 +364,7 @@
 			"waitingOn": "{{agents}} を待機中",
 			"noFileWrites": "まだファイル書き込みはありません",
 			"noUsage": "まだ使用量は報告されていません",
+			"noContextUsage": "まだコンテキスト使用量は報告されていません",
 			"noActivity": "まだアクティビティは報告されていません",
 			"noConflicts": "競合なし"
 		},
@@ -375,6 +388,33 @@
 				"binaryFiles_one": "{{count}} バイナリファイル",
 				"binaryFiles_other": "{{count}} バイナリファイル"
 			}
+		},
+		"planPreview": {
+			"title": "並列エージェント計画を確認",
+			"setupTitle": "並列エージェントには Git セットアップが必要",
+			"description": "C が worktree を開始する前に、各エージェントの割り当てを確認してください。",
+			"setupDescription": "Git セットアップの問題を修正してから、保持された計画を再作成せずに再試行してください。",
+			"expand": "計画を展開",
+			"collapse": "計画を折りたたむ",
+			"setupRequired": "セットアップが必要: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "Git repository ではありません",
+				"no-initial-commit": "initial commit がありません",
+				"git-unavailable": "Git を利用できません"
+			},
+			"pathPrivacyNote": "診断を安全に保つため、workspace と Git のパスはここでは非表示です。",
+			"sharedContext": "共有コンテキスト",
+			"taskDescription": "Task の説明",
+			"ownedFiles": "担当ファイル",
+			"noOwnedFiles": "担当ファイルなし",
+			"removeOwnedFile": "担当ファイルから {{path}} を削除",
+			"dependencies": "依存関係",
+			"noDependencies": "依存関係なし",
+			"setupFooter": "承認済みの計画は保持されています。Git を修正してから再試行してください。",
+			"footer": "計画を承認する前に所有範囲を確認してください。",
+			"cancel": "キャンセル",
+			"retry": "保持された計画を再試行",
+			"approve": "計画を承認"
 		}
 	},
 	"questions": {
@@ -425,8 +465,13 @@
 		"tokens": "トークン",
 		"condensation": {
 			"title": "コンテキスト要約",
-			"inProgress": "コンテキストを圧縮中...",
+			"inProgress": "コンテキストを管理中...",
 			"errorHeader": "コンテキストの圧縮に失敗しました"
+		},
+		"blocked": {
+			"title": "コンテキスト復旧を一時停止中",
+			"description": "プロバイダーが現在続行できないため、コンテキスト収集を一時停止しています。",
+			"descriptionWithRetry": "プロバイダーが現在続行できないため、{{retryTime}}までコンテキスト収集を一時停止しています。"
 		},
 		"truncation": {
 			"title": "コンテキスト切り詰め",
@@ -444,13 +489,15 @@
 				"chunks_moved_to_cold": "コンテキストをコールドキャッシュへ移動",
 				"chunks_pulled_from_cold": "コールドキャッシュからコンテキストを取得",
 				"condensing_avoided": "コンテキスト凝縮を回避",
-				"cold_cache_full": "コールドキャッシュが満杯"
+				"cold_cache_full": "コールドキャッシュが満杯",
+				"chunks_evicted_from_cache": "コンテキストをキャッシュから削除"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "古いコンテキストチャンクをホットウィンドウから外し、後で取得できるよう RAM に保持しました。",
 				"chunks_pulled_from_cold": "ask_for_context が追加コンテキストを要求したため、関連するコールドキャッシュチャンクを復元しました。",
 				"condensing_avoided": "ホット/コールドキャッシュが十分な空きを作ったため、C は自動凝縮をスキップしました。",
-				"cold_cache_full": "RAM 予算が満杯のため、C は通常のコンテキスト凝縮に戻りました。"
+				"cold_cache_full": "RAM 予算が満杯のため、C は通常のコンテキスト凝縮に戻りました。",
+				"chunks_evicted_from_cache": "共有キャッシュ予算に空きが必要だったため、コンテキストチャンクを削除しました。"
 			},
 			"details": {
 				"chunks": "チャンク",
@@ -458,7 +505,32 @@
 				"ram": "RAM",
 				"query": "クエリ",
 				"file": "ファイル",
-				"warning": "警告"
+				"warning": "警告",
+				"duplicateChunks": "重複チャンクをマージ",
+				"duplicateTokens": "重複Tokenをマージ",
+				"reason": "理由",
+				"source": "ソース",
+				"outcome": "結果"
+			},
+			"reasons": {
+				"hot_budget_trim": "ホットキャッシュ予算の調整",
+				"request_pressure": "リクエストに空きが必要",
+				"rebuild": "キャッシュ再構築",
+				"combined_budget_eviction": "共有キャッシュ予算による削除",
+				"ask_for_context": "ask_for_context 取得"
+			},
+			"sources": {
+				"active_task": "アクティブタスク",
+				"foreground_task": "フォアグラウンドタスク",
+				"background_agent": "バックグラウンドAgent"
+			},
+			"outcomes": {
+				"moved": "移動済み",
+				"merged_duplicate": "重複をマージ済み",
+				"partially_merged": "重複を一部マージ済み",
+				"rejected": "拒否済み",
+				"evicted": "削除済み",
+				"retrieved": "取得済み"
 			}
 		}
 	},

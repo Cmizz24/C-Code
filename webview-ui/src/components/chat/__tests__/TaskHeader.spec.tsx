@@ -1,7 +1,7 @@
 // npx vitest src/components/chat/__tests__/TaskHeader.spec.tsx
 
 import React from "react"
-import { render, screen, fireEvent } from "@/utils/test-utils"
+import { render, screen, fireEvent, act } from "@/utils/test-utils"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import type { ContextCacheStats, ProviderSettings } from "@roo-code/types"
@@ -11,7 +11,22 @@ import TaskHeader, { TaskHeaderProps } from "../TaskHeader"
 // Mock i18n
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
-		t: (key: string) => key, // Simple mock that returns the key
+		t: (key: string, options?: Record<string, any>) => {
+			switch (key) {
+				case "chat:task.contextCache.diagnostics.evictionsValue":
+					return `${options?.total} total · ${options?.hot} hot / ${options?.cold} cold`
+				case "chat:task.contextCache.diagnostics.contributors":
+					return `${options?.count} ${options?.count === 1 ? "contributor" : "contributors"}`
+				case "chat:task.contextCache.diagnostics.contributorUsage":
+					return `${options?.ram} · ${options?.hot} hot / ${options?.cold} cold`
+				case "chat:task.contextCache.diagnostics.combinedStatus":
+					return `Combined: ${options?.used} / ${options?.budget}`
+				case "chat:task.contextCache.diagnostics.evictionsStatus":
+					return `Evictions: ${options?.value}`
+				default:
+					return key
+			}
+		},
 	}),
 	// Mock initReactI18next to prevent initialization errors in tests
 	initReactI18next: {
@@ -46,6 +61,7 @@ const mockExtensionState: {
 	openAiCodexRateLimits?: any
 	providerPlanLimits?: any
 	providerPlanUsage?: any
+	cachedProviderPlanUsage?: any
 } = {
 	apiConfiguration: {
 		apiProvider: "anthropic",
@@ -67,6 +83,7 @@ const mockExtensionState: {
 	contextCacheWarning: undefined,
 	providerPlanLimits: {},
 	providerPlanUsage: {},
+	cachedProviderPlanUsage: {},
 }
 
 // Mock the ExtensionStateContext
@@ -142,6 +159,7 @@ describe("TaskHeader", () => {
 		mockExtensionState.contextCacheWarning = undefined
 		mockExtensionState.providerPlanLimits = {}
 		mockExtensionState.providerPlanUsage = {}
+		mockExtensionState.cachedProviderPlanUsage = {}
 		mockExtensionState.openAiCodexRateLimits = undefined
 		mockExtensionState.apiConfiguration = {
 			apiProvider: "anthropic",
@@ -174,6 +192,161 @@ describe("TaskHeader", () => {
 		expect(screen.getByTestId("context-cache-status-warning")).toHaveTextContent(
 			"Cold cache full — falling back to condensing",
 		)
+	})
+
+	it("should display combined context cache diagnostics in collapsed and expanded states", () => {
+		mockExtensionState.contextCacheStats = {
+			hotCacheTokens: 12345,
+			hotCacheChunks: 3,
+			coldCacheChunks: 7,
+			ramUsedMb: 128,
+			ramBudgetMb: 2048,
+			swapsThisSession: 5,
+			condensingAvoided: 2,
+			combinedBudget: {
+				ramUsedMb: 512,
+				ramBudgetMb: 2048,
+				hotCacheRamMb: 128,
+				coldCacheRamMb: 384,
+				hotCacheChunks: 4,
+				coldCacheChunks: 9,
+				managerCount: 2,
+				evictions: { hot: 1, cold: 2, total: 3 },
+				contributors: [
+					{
+						id: "context-cache-contributor-1",
+						label: "Foreground task 1 (code)",
+						mode: "code",
+						isBackground: false,
+						isActive: true,
+						hotCacheChunks: 3,
+						coldCacheChunks: 4,
+						hotCacheRamMb: 64,
+						coldCacheRamMb: 192,
+						ramUsedMb: 256,
+						evictions: { hot: 1, cold: 1, total: 2 },
+					},
+				],
+			},
+		}
+
+		renderTaskHeader()
+
+		const collapsedStatus = screen.getByTestId("context-cache-collapsed-status")
+		expect(collapsedStatus).toHaveTextContent(
+			"4 chat:task.contextCache.hotShort / 9 chat:task.contextCache.coldShort",
+		)
+		expect(collapsedStatus).toHaveTextContent("512MB/2GB")
+		expect(collapsedStatus).toHaveTextContent("2 contributors")
+
+		fireEvent.click(screen.getByText("Test task"))
+
+		expect(screen.getByTestId("context-cache-combined-status")).toHaveTextContent(
+			"Combined: 512MB / 2GB · 2 contributors",
+		)
+		expect(screen.getByTestId("context-cache-cold-status")).toHaveTextContent(
+			"chat:task.contextCache.coldCache: 9 / 384MB",
+		)
+		expect(screen.getByTestId("context-cache-cold-status")).not.toHaveTextContent("512MB")
+		expect(screen.getByTestId("context-cache-eviction-status")).toHaveTextContent(
+			"Evictions: 3 total · 1 hot / 2 cold",
+		)
+		expect(screen.getByTestId("context-cache-contributor-status")).toHaveTextContent(
+			"Foreground task 1 (code): 256MB · 3 hot / 4 cold",
+		)
+	})
+
+	it("should display all context cache contributors when four contributors are reported", () => {
+		mockExtensionState.contextCacheStats = {
+			hotCacheTokens: 12345,
+			hotCacheChunks: 6,
+			coldCacheChunks: 10,
+			ramUsedMb: 128,
+			ramBudgetMb: 2048,
+			swapsThisSession: 5,
+			condensingAvoided: 2,
+			combinedBudget: {
+				ramUsedMb: 1024,
+				ramBudgetMb: 2048,
+				hotCacheRamMb: 256,
+				coldCacheRamMb: 768,
+				hotCacheChunks: 6,
+				coldCacheChunks: 10,
+				managerCount: 4,
+				evictions: { hot: 1, cold: 2, total: 3 },
+				contributors: [
+					{
+						id: "foreground-task",
+						label: "Foreground task (code)",
+						mode: "code",
+						isBackground: false,
+						isActive: true,
+						hotCacheChunks: 3,
+						coldCacheChunks: 4,
+						hotCacheRamMb: 64,
+						coldCacheRamMb: 192,
+						ramUsedMb: 256,
+						evictions: { hot: 1, cold: 1, total: 2 },
+					},
+					{
+						id: "background-agent-1",
+						label: "Background agent 1 (debug)",
+						mode: "debug",
+						isBackground: true,
+						isActive: true,
+						hotCacheChunks: 1,
+						coldCacheChunks: 2,
+						hotCacheRamMb: 32,
+						coldCacheRamMb: 96,
+						ramUsedMb: 128,
+						evictions: { hot: 0, cold: 1, total: 1 },
+					},
+					{
+						id: "background-agent-2",
+						label: "Background agent 2 (code)",
+						mode: "code",
+						isBackground: true,
+						isActive: true,
+						hotCacheChunks: 1,
+						coldCacheChunks: 2,
+						hotCacheRamMb: 32,
+						coldCacheRamMb: 96,
+						ramUsedMb: 128,
+						evictions: { hot: 0, cold: 0, total: 0 },
+					},
+					{
+						id: "background-agent-3",
+						label: "Background agent 3 (architect)",
+						mode: "architect",
+						isBackground: true,
+						isActive: true,
+						hotCacheChunks: 1,
+						coldCacheChunks: 2,
+						hotCacheRamMb: 32,
+						coldCacheRamMb: 96,
+						ramUsedMb: 128,
+						evictions: { hot: 0, cold: 0, total: 0 },
+					},
+				],
+			},
+		}
+
+		renderTaskHeader()
+
+		expect(screen.getByTestId("context-cache-collapsed-status")).toHaveTextContent("4 contributors")
+
+		fireEvent.click(screen.getByText("Test task"))
+
+		expect(screen.getByTestId("context-cache-combined-status")).toHaveTextContent(
+			"Combined: 1GB / 2GB · 4 contributors",
+		)
+
+		const contributorStatus = screen.getByTestId("context-cache-contributor-status")
+		expect(contributorStatus.querySelectorAll("span")).toHaveLength(4)
+		expect(contributorStatus).toHaveTextContent("Foreground task (code): 256MB · 3 hot / 4 cold")
+		expect(contributorStatus).toHaveTextContent("Background agent 1 (debug): 128MB · 1 hot / 2 cold")
+		expect(contributorStatus).toHaveTextContent("Background agent 2 (code): 128MB · 1 hot / 2 cold")
+		expect(contributorStatus).toHaveTextContent("Background agent 3 (architect): 128MB · 1 hot / 2 cold")
 	})
 
 	it("should hide context cache status when the context cache is disabled", () => {
@@ -398,7 +571,7 @@ describe("TaskHeader", () => {
 		})
 	})
 
-	describe("generic provider plan usage", () => {
+	describe("provider-reported plan usage", () => {
 		beforeEach(() => {
 			mockModelInfo = { contextWindow: 200000, maxTokens: 8192 }
 			mockMaxOutputTokens = 8192
@@ -409,7 +582,7 @@ describe("TaskHeader", () => {
 			mockMaxOutputTokens = 0
 		})
 
-		it("should display configured provider token plan usage and remaining tokens", () => {
+		it("should ignore deprecated locally tracked provider token plan usage", () => {
 			mockExtensionState.providerPlanLimits = {
 				anthropic: { tokenLimit: 1000, resetPeriod: "monthly" },
 			}
@@ -419,14 +592,12 @@ describe("TaskHeader", () => {
 
 			renderTaskHeader({ tokensIn: 300, tokensOut: 150, totalCost: 0.05 })
 
-			expect(screen.getByTestId("plan-usage-percent")).toHaveTextContent("45% plan used")
-			expect(screen.getByTestId("plan-usage-remaining")).toHaveTextContent("550 tokens left")
-			expect(screen.getByText(/↑/)).toBeInTheDocument()
-			expect(screen.getByText(/↓/)).toBeInTheDocument()
-			expect(screen.queryByText("$0.05")).not.toBeInTheDocument()
+			expect(screen.queryByTestId("plan-usage-percent")).not.toBeInTheDocument()
+			expect(screen.queryByTestId("plan-usage-remaining")).not.toBeInTheDocument()
+			expect(screen.getByText("$0.05")).toBeInTheDocument()
 		})
 
-		it("should use the higher cost percentage when cost is the limiting plan value", () => {
+		it("should ignore deprecated locally tracked provider cost plan usage", () => {
 			mockExtensionState.providerPlanLimits = {
 				anthropic: { tokenLimit: 1000, costLimit: 1, resetPeriod: "monthly" },
 			}
@@ -436,15 +607,51 @@ describe("TaskHeader", () => {
 
 			renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0.05 })
 
-			expect(screen.getByTestId("plan-usage-percent")).toHaveTextContent("80% plan used")
-			expect(screen.getByTestId("plan-usage-remaining")).toHaveTextContent("$0.20 left")
+			expect(screen.queryByTestId("plan-usage-percent")).not.toBeInTheDocument()
+			expect(screen.queryByTestId("plan-usage-remaining")).not.toBeInTheDocument()
+			expect(screen.getByText("$0.05")).toBeInTheDocument()
 		})
 
-		it("should not display generic plan usage for providers without configured plans", () => {
+		it("should not display provider plan usage without provider-reported usage", () => {
 			renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0.05 })
 
 			expect(screen.queryByTestId("plan-usage-percent")).not.toBeInTheDocument()
 			expect(screen.getByText("$0.05")).toBeInTheDocument()
+		})
+
+		it("should display live API-fetched plan usage for providers with automatic usage APIs", () => {
+			mockModelInfo = { contextWindow: 200000, maxTokens: 8192, subscriptionBased: true }
+			mockExtensionState.apiConfiguration = {
+				apiProvider: "minimax",
+				apiModelId: "minimax-m2",
+				minimaxApiKey: "test-minimax-key",
+			} as ProviderSettings
+			mockExtensionState.cachedProviderPlanUsage = {
+				minimax: { usedPercent: 61.4, tokensRemaining: 12345 },
+			}
+
+			renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0 })
+
+			expect(screen.getByTestId("plan-usage-percent")).toHaveTextContent("61% plan used")
+			expect(screen.getByTestId("plan-usage-remaining")).toHaveTextContent("12.3k tokens left")
+		})
+
+		it("should automatically fetch live plan usage for plan-based providers with usage APIs", () => {
+			mockModelInfo = { contextWindow: 200000, maxTokens: 8192, subscriptionBased: true }
+			mockExtensionState.apiConfiguration = {
+				apiProvider: "minimax",
+				apiModelId: "minimax-m2",
+				minimaxApiKey: "test-minimax-key",
+				minimaxBaseUrl: "https://api.minimax.io/v1",
+			} as ProviderSettings
+
+			renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0 })
+
+			expect(mockPostMessage).toHaveBeenCalledWith({
+				type: "fetchMiniMaxPlanUsage",
+				text: "test-minimax-key",
+				bool: false,
+			})
 		})
 
 		it("should prefer OpenAI Codex API rate limit usage over locally tracked plan usage", () => {
@@ -468,6 +675,97 @@ describe("TaskHeader", () => {
 
 			expect(screen.getByTestId("plan-usage-percent")).toHaveTextContent("12% plan used")
 			expect(screen.queryByText("90% plan used")).not.toBeInTheDocument()
+		})
+
+		it("should update the OpenAI Codex reset countdown every minute", () => {
+			vi.useFakeTimers({ now: 1_700_000_000_000 })
+
+			try {
+				mockModelInfo = { contextWindow: 400000, maxTokens: 128000, subscriptionBased: true }
+				mockExtensionState.apiConfiguration = {
+					apiProvider: "openai-codex",
+					apiModelId: "gpt-5.5",
+				} as ProviderSettings
+				mockExtensionState.openAiCodexRateLimits = {
+					primary: { usedPercent: 12.2, resetsAt: Date.now() + 125_000 },
+					fetchedAt: Date.now(),
+				}
+
+				renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0 })
+
+				expect(screen.getByTestId("plan-usage-reset")).toHaveTextContent("resets in 3m")
+
+				act(() => {
+					vi.advanceTimersByTime(60_000)
+				})
+
+				expect(screen.getByTestId("plan-usage-reset")).toHaveTextContent("resets in 2m")
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it("should poll for missing OpenAI Codex rate limits while mounted and clean up on unmount", () => {
+			vi.useFakeTimers({ now: 1_700_000_000_000 })
+
+			try {
+				mockModelInfo = { contextWindow: 400000, maxTokens: 128000, subscriptionBased: true }
+				mockExtensionState.apiConfiguration = {
+					apiProvider: "openai-codex",
+					apiModelId: "gpt-5.5",
+				} as ProviderSettings
+				mockExtensionState.openAiCodexRateLimits = undefined
+
+				const { unmount } = renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0 })
+
+				expect(mockPostMessage).toHaveBeenCalledTimes(1)
+				expect(mockPostMessage).toHaveBeenCalledWith({ type: "requestOpenAiCodexRateLimits" })
+
+				act(() => {
+					vi.advanceTimersByTime(5 * 60_000)
+				})
+
+				expect(mockPostMessage).toHaveBeenCalledTimes(2)
+
+				unmount()
+
+				act(() => {
+					vi.advanceTimersByTime(5 * 60_000)
+				})
+
+				expect(mockPostMessage).toHaveBeenCalledTimes(2)
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it("should avoid an immediate OpenAI Codex refresh when usage is fresh and poll once stale", () => {
+			vi.useFakeTimers({ now: 1_700_000_000_000 })
+
+			try {
+				mockModelInfo = { contextWindow: 400000, maxTokens: 128000, subscriptionBased: true }
+				mockExtensionState.apiConfiguration = {
+					apiProvider: "openai-codex",
+					apiModelId: "gpt-5.5",
+				} as ProviderSettings
+				mockExtensionState.openAiCodexRateLimits = {
+					primary: { usedPercent: 12.2, resetsAt: Date.now() + 3_600_000 },
+					fetchedAt: Date.now(),
+				}
+
+				renderTaskHeader({ tokensIn: 100, tokensOut: 50, totalCost: 0 })
+
+				expect(mockPostMessage).not.toHaveBeenCalledWith({ type: "requestOpenAiCodexRateLimits" })
+
+				act(() => {
+					vi.advanceTimersByTime(5 * 60_000)
+				})
+
+				expect(mockPostMessage).toHaveBeenCalledTimes(1)
+				expect(mockPostMessage).toHaveBeenCalledWith({ type: "requestOpenAiCodexRateLimits" })
+			} finally {
+				vi.useRealTimers()
+			}
 		})
 	})
 })

@@ -16,6 +16,7 @@ import type {
 import { Task } from "../Task"
 import { ClineProvider } from "../../webview/ClineProvider"
 import { ContextProxy } from "../../config/ContextProxy"
+import { getEffectiveApiHistory } from "../../condense"
 
 // ─── Hoisted mocks ───────────────────────────────────────────────────────────
 
@@ -922,6 +923,62 @@ describe("Task persistence", () => {
 			expect(firstStats.hotCacheChunks + firstStats.coldCacheChunks).toBe(savedApiHistory.length)
 			expect(secondStats.hotCacheChunks + secondStats.coldCacheChunks).toBe(savedApiHistory.length)
 			expect(secondStats.coldCacheChunks).toBeGreaterThan(0)
+		})
+
+		it("rehydrates only effective API history into the context cache", async () => {
+			const hiddenCondenseId = "condense-1"
+			const hiddenTruncationId = "truncate-1"
+			mockReadApiMessages.mockResolvedValue([
+				{
+					role: "user",
+					content: "hidden condensed turn ".repeat(20),
+					ts: 2001,
+					condenseParent: hiddenCondenseId,
+				},
+				{
+					role: "assistant",
+					content: [{ type: "text", text: "summary replacement ".repeat(20) }],
+					ts: 2002,
+					isSummary: true,
+					condenseId: hiddenCondenseId,
+				},
+				{
+					role: "user",
+					content: "hidden truncated turn ".repeat(20),
+					ts: 2003,
+					truncationParent: hiddenTruncationId,
+				},
+				{
+					role: "assistant",
+					content: [{ type: "text", text: "truncation marker" }],
+					ts: 2004,
+					isTruncationMarker: true,
+					truncationId: hiddenTruncationId,
+				},
+				{ role: "user", content: "visible latest turn ".repeat(20), ts: 2005 },
+			])
+
+			const task = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+				startTask: false,
+			})
+
+			await task.restoreClineMessagesFromHistory()
+			;(task as any).configureContextWindowManager(
+				{ contextCacheEnabled: true, coldCacheRamBudgetMb: 1 },
+				{ contextWindow: 1 },
+			)
+
+			const stats = task.getContextCacheStats()
+			expect(stats.hotCacheChunks + stats.coldCacheChunks).toBe(2)
+
+			const effectiveHistory = getEffectiveApiHistory(task.apiConversationHistory)
+			expect(effectiveHistory.map((message: any) => message.ts)).toEqual([2002, 2004, 2005])
+
+			const filteredHistory = (task as any).applyContextCacheRequestFilter(effectiveHistory)
+			expect(filteredHistory.map((message: any) => message.ts)).toEqual([2004, 2005])
 		})
 	})
 

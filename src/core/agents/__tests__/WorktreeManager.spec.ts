@@ -2,7 +2,13 @@ import { exec } from "child_process"
 import fs from "fs/promises"
 import path from "path"
 
-import { WorktreeManager, WorktreeManagerGitUnavailableError } from "../WorktreeManager"
+import {
+	getWorktreeSetupRequired,
+	WorktreeManager,
+	WorktreeManagerGitUnavailableError,
+	WorktreeOutOfScopeChangesError,
+	WorktreeSetupRequiredError,
+} from "../WorktreeManager"
 
 vi.mock("child_process", () => ({
 	exec: vi.fn(),
@@ -337,8 +343,19 @@ describe("WorktreeManager", () => {
 			return { stdout: "" }
 		})
 
-		await expect(manager.createWorktree("ui", "plan-test")).rejects.toThrow(
-			"Parallel agents require a Git repository with at least one commit.",
+		const error = await manager.createWorktree("ui", "plan-test").catch((caught) => caught)
+
+		expect(error).toBeInstanceOf(WorktreeSetupRequiredError)
+		expect(error).toHaveProperty(
+			"message",
+			expect.stringContaining("Parallel agents require a Git repository with at least one commit."),
+		)
+		expect(getWorktreeSetupRequired(error)).toEqual(
+			expect.objectContaining({
+				reason: "no_initial_commit",
+				gitRoot: "C:/repo",
+				guidance: expect.stringContaining("No GitHub remote is required"),
+			}),
 		)
 		expect(execMock).not.toHaveBeenCalledWith(
 			expect.stringContaining("git worktree add"),
@@ -357,8 +374,16 @@ describe("WorktreeManager", () => {
 			throw new Error(`Unexpected command: ${command}`)
 		})
 
-		await expect(manager.createWorktree("ui-ux", "plan-test")).rejects.toThrow(
-			"Parallel worktrees require a Git repository",
+		const error = await manager.createWorktree("ui-ux", "plan-test").catch((caught) => caught)
+
+		expect(error).toBeInstanceOf(WorktreeSetupRequiredError)
+		expect(error).toHaveProperty("message", expect.stringContaining("Parallel worktrees require a Git repository"))
+		expect(getWorktreeSetupRequired(error)).toEqual(
+			expect.objectContaining({
+				reason: "not_git_repo",
+				workspacePath: "C:/Users/clayton/Desktop/test",
+				guidance: expect.stringContaining("A GitHub remote is not required"),
+			}),
 		)
 		expect(execMock).toHaveBeenCalledTimes(1)
 		expect(execMock.mock.calls[0][0]).toBe("git rev-parse --show-toplevel")
@@ -377,9 +402,19 @@ describe("WorktreeManager", () => {
 			throw new Error(`Unexpected command: ${command}`)
 		})
 
-		await expect(manager.validateGitRepository()).rejects.toThrow(WorktreeManagerGitUnavailableError)
-		await expect(manager.validateGitRepository()).rejects.toThrow("Git executable unavailable")
-		await expect(manager.validateGitRepository()).rejects.toThrow("Git: Path")
+		const error = await manager.validateGitRepository().catch((caught) => caught)
+
+		expect(error).toBeInstanceOf(WorktreeManagerGitUnavailableError)
+		expect(error).toBeInstanceOf(WorktreeSetupRequiredError)
+		expect(error).toHaveProperty("message", expect.stringContaining("Git executable unavailable"))
+		expect(error).toHaveProperty("message", expect.stringContaining("Git: Path"))
+		expect(getWorktreeSetupRequired(error)).toEqual(
+			expect.objectContaining({
+				reason: "git_unavailable",
+				workspacePath: "C:/repo",
+				guidance: expect.stringContaining("Install Git"),
+			}),
+		)
 		expect(execMock).toHaveBeenCalledWith(
 			"git rev-parse --show-toplevel",
 			expect.objectContaining({ cwd: "C:/repo" }),
@@ -672,11 +707,11 @@ describe("WorktreeManager", () => {
 				return { stdout: "C:/repo\n" }
 			}
 
-			if (command === 'git diff --name-only -z HEAD -- "src/owned.ts" "src/owned-dir"') {
-				return { stdout: "src/owned.ts\0src/owned-dir/nested.ts\0src/unowned.ts\0" }
+			if (command === "git diff --name-only -z HEAD --") {
+				return { stdout: "src/owned.ts\0src/owned-dir/nested.ts\0" }
 			}
 
-			if (command === 'git ls-files --others --exclude-standard -z -- "src/owned.ts" "src/owned-dir"') {
+			if (command === "git ls-files --others --exclude-standard -z") {
 				return { stdout: "src/owned-dir/new.ts\0" }
 			}
 
@@ -690,6 +725,10 @@ describe("WorktreeManager", () => {
 
 			if (command.includes("commit --no-verify")) {
 				return { stdout: "[roo/parallel/plan/agent abc123] changes\n" }
+			}
+
+			if (command === 'git diff --name-only -z --no-renames HEAD..."roo/parallel/plan/agent"') {
+				return { stdout: "src/owned.ts\0src/owned-dir/nested.ts\0src/owned-dir/new.ts\0" }
 			}
 
 			if (command === 'git diff --binary HEAD..."roo/parallel/plan/agent" -- "src/owned.ts" "src/owned-dir"') {
@@ -710,12 +749,12 @@ describe("WorktreeManager", () => {
 		expect(diff).toContain("src/owned.ts")
 		expect(execMock).toHaveBeenNthCalledWith(
 			1,
-			'git diff --name-only -z HEAD -- "src/owned.ts" "src/owned-dir"',
+			"git diff --name-only -z HEAD --",
 			expect.objectContaining({ cwd: "C:/repo/.roo/parallel-worktrees/plan/agent" }),
 			expect.any(Function),
 		)
 		expect(execMock).toHaveBeenNthCalledWith(
-			7,
+			8,
 			'git diff --binary HEAD..."roo/parallel/plan/agent" -- "src/owned.ts" "src/owned-dir"',
 			expect.objectContaining({ cwd: "C:/repo", maxBuffer: 50 * 1024 * 1024 }),
 			expect.any(Function),
@@ -730,11 +769,15 @@ describe("WorktreeManager", () => {
 				return { stdout: "C:/repo\n" }
 			}
 
-			if (command === 'git diff --name-only -z HEAD -- "index.html" "styles.css" "app.js"') {
+			if (command === "git diff --name-only -z HEAD --") {
 				return { stdout: "" }
 			}
 
-			if (command === 'git ls-files --others --exclude-standard -z -- "index.html" "styles.css" "app.js"') {
+			if (command === "git ls-files --others --exclude-standard -z") {
+				return { stdout: "" }
+			}
+
+			if (command === 'git diff --name-only -z --no-renames HEAD..."roo/parallel/plan/agent"') {
 				return { stdout: "" }
 			}
 
@@ -768,10 +811,71 @@ describe("WorktreeManager", () => {
 				normalizedOwnedPaths: ["index.html", "styles.css", "app.js"],
 				trackedChangedPaths: [],
 				untrackedChangedPaths: [],
+				allChangedPaths: [],
+				ownedChangedPaths: [],
+				outOfScopeChangedPaths: [],
 				stagedPaths: [],
 				result: "no-owned-worktree-changes",
 			}),
 		)
+	})
+
+	it("blocks merge review when an agent creates an undeclared support file", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		const diagnostics = vi.fn()
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+
+			if (command === "git diff --name-only -z HEAD --") {
+				return { stdout: "api/get-orders.php\0api/update-order.php\0api/stripe-webhook.php\0" }
+			}
+
+			if (command === "git ls-files --others --exclude-standard -z") {
+				return { stdout: "api/order-workflow-lib.php\0" }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await expect(
+			manager.prepareMergeReview({
+				agentId: "orders-agent",
+				planId: "plan",
+				worktreePath: "C:/repo/.roo/parallel-worktrees/plan/orders-agent",
+				branch: "roo/parallel/plan/orders-agent",
+				ownedPaths: ["api/get-orders.php", "api/update-order.php", "api/stripe-webhook.php"],
+				onDiagnostics: diagnostics,
+			}),
+		).rejects.toThrow(WorktreeOutOfScopeChangesError)
+
+		await expect(
+			manager.prepareMergeReview({
+				agentId: "orders-agent",
+				planId: "plan",
+				worktreePath: "C:/repo/.roo/parallel-worktrees/plan/orders-agent",
+				branch: "roo/parallel/plan/orders-agent",
+				ownedPaths: ["api/get-orders.php", "api/update-order.php", "api/stripe-webhook.php"],
+			}),
+		).rejects.toThrow(/api\/order-workflow-lib\.php/)
+
+		expect(diagnostics).toHaveBeenCalledWith(
+			expect.objectContaining({
+				agentId: "orders-agent",
+				allChangedPaths: [
+					"api/get-orders.php",
+					"api/update-order.php",
+					"api/stripe-webhook.php",
+					"api/order-workflow-lib.php",
+				],
+				ownedChangedPaths: ["api/get-orders.php", "api/update-order.php", "api/stripe-webhook.php"],
+				outOfScopeChangedPaths: ["api/order-workflow-lib.php"],
+				result: "out-of-scope-changes",
+			}),
+		)
+		expect(execMock.mock.calls.some(([command]) => String(command).startsWith("git add"))).toBe(false)
+		expect(execMock.mock.calls.some(([command]) => String(command).includes("commit --no-verify"))).toBe(false)
 	})
 
 	it("records merge-review path diagnostics without exposing file contents", async () => {
@@ -789,11 +893,11 @@ describe("WorktreeManager", () => {
 				return { stdout: "C:/repo\n" }
 			}
 
-			if (command === 'git diff --name-only -z HEAD -- "index.html" "styles.css"') {
+			if (command === "git diff --name-only -z HEAD --") {
 				return { stdout: "index.html\0" }
 			}
 
-			if (command === 'git ls-files --others --exclude-standard -z -- "index.html" "styles.css"') {
+			if (command === "git ls-files --others --exclude-standard -z") {
 				return { stdout: "" }
 			}
 
@@ -807,6 +911,10 @@ describe("WorktreeManager", () => {
 
 			if (command.includes("commit --no-verify")) {
 				return { stdout: "[roo/parallel/plan/agent abc123] changes\n" }
+			}
+
+			if (command === 'git diff --name-only -z --no-renames HEAD..."roo/parallel/plan/agent"') {
+				return { stdout: "index.html\0" }
 			}
 
 			if (command === 'git diff --binary HEAD..."roo/parallel/plan/agent" -- "index.html" "styles.css"') {
@@ -895,6 +1003,9 @@ describe("WorktreeManager", () => {
 			if (command === "git rev-parse --show-toplevel") {
 				return { stdout: "C:/repo\n" }
 			}
+			if (command === 'git diff --name-only -z --no-renames baseline123..."roo/parallel/plan-test/ui-agent"') {
+				return { stdout: "src/index.html\0" }
+			}
 			if (command === 'git diff --binary baseline123..."roo/parallel/plan-test/ui-agent" -- "src/index.html"') {
 				return { stdout: "diff --git a/src/index.html b/src/index.html\n+<main />\n" }
 			}
@@ -951,6 +1062,9 @@ describe("WorktreeManager", () => {
 		mockExecImplementation((command) => {
 			if (command === "git rev-parse --show-toplevel") {
 				return { stdout: "C:/repo\n" }
+			}
+			if (command === 'git diff --name-only -z --no-renames baseline123..."roo/parallel/plan-test/ui-agent"') {
+				return { stdout: "index.html\0" }
 			}
 			if (command === 'git diff --binary baseline123..."roo/parallel/plan-test/ui-agent" -- "index.html"') {
 				return {
@@ -1011,11 +1125,14 @@ describe("WorktreeManager", () => {
 			if (command === "git rev-parse --show-toplevel") {
 				return { stdout: "C:/repo\n" }
 			}
+			if (command === 'git diff --name-only -z --no-renames baseline123..."roo/parallel/plan-test/ui-agent"') {
+				return { stdout: "index.html\0" }
+			}
 			if (
 				command ===
 				'git diff --name-only -z --no-renames baseline123..."roo/parallel/plan-test/ui-agent" -- "index.html"'
 			) {
-				return { stdout: "index.html\0src/not-owned.ts\0" }
+				return { stdout: "index.html\0" }
 			}
 			if (command === 'git cat-file -e "roo/parallel/plan-test/ui-agent:index.html"') {
 				return { stdout: "" }
@@ -1045,6 +1162,41 @@ describe("WorktreeManager", () => {
 		expect(fsMock.writeFile).not.toHaveBeenCalled()
 	})
 
+	it("blocks materialization when the branch changed paths outside declared ownership", async () => {
+		const manager = new WorktreeManager("C:/repo")
+		;(manager as any).workspaceBaselines.set("plan-test", {
+			planId: "plan-test",
+			commit: "baseline123",
+			ref: "refs/roo/parallel-baselines/plan-test",
+		})
+		mockExecImplementation((command) => {
+			if (command === "git rev-parse --show-toplevel") {
+				return { stdout: "C:/repo\n" }
+			}
+			if (
+				command === 'git diff --name-only -z --no-renames baseline123..."roo/parallel/plan-test/orders-agent"'
+			) {
+				return { stdout: "api/get-orders.php\0api/order-workflow-lib.php\0" }
+			}
+
+			throw new Error(`Unexpected command: ${command}`)
+		})
+
+		await expect(
+			manager.mergeBranch("roo/parallel/plan-test/orders-agent", {
+				agentId: "orders-agent",
+				planId: "plan-test",
+				worktreePath: "C:/worktrees/orders-agent",
+				ownedPaths: ["api/get-orders.php"],
+				autoApproved: true,
+			}),
+		).rejects.toThrow(/api\/order-workflow-lib\.php/)
+
+		expect(execMock.mock.calls.some(([command]) => String(command).startsWith("git checkout"))).toBe(false)
+		expect(execMock.mock.calls.some(([command]) => String(command).startsWith("git apply"))).toBe(false)
+		expect(fsMock.writeFile).not.toHaveBeenCalled()
+	})
+
 	it("materializes auto-approved owned deletions from the agent branch", async () => {
 		const manager = new WorktreeManager("C:/repo")
 		;(manager as any).workspaceBaselines.set("plan-test", {
@@ -1055,6 +1207,9 @@ describe("WorktreeManager", () => {
 		mockExecImplementation((command) => {
 			if (command === "git rev-parse --show-toplevel") {
 				return { stdout: "C:/repo\n" }
+			}
+			if (command === 'git diff --name-only -z --no-renames baseline123..."roo/parallel/plan-test/ui-agent"') {
+				return { stdout: "obsolete.html\0" }
 			}
 			if (
 				command ===
@@ -1103,6 +1258,9 @@ describe("WorktreeManager", () => {
 		mockExecImplementation((command) => {
 			if (command === "git rev-parse --show-toplevel") {
 				return { stdout: "C:/repo\n" }
+			}
+			if (command === 'git diff --name-only -z --no-renames baseline123..."roo/parallel/plan-test/ui-agent"') {
+				return { stdout: "src/index.html\0" }
 			}
 			if (command === 'git diff --binary baseline123..."roo/parallel/plan-test/ui-agent" -- "src/index.html"') {
 				return { stdout: "diff --git a/src/index.html b/src/index.html\n+<main />\n" }

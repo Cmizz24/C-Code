@@ -603,6 +603,23 @@ const getUsageSummary = (usage: AgentStatusUpdate["usage"]): string | undefined 
 	return parts.length > 0 ? parts.join(" · ") : undefined
 }
 
+const getContextUsageSummary = (contextUsage: AgentStatusUpdate["contextUsage"]): string | undefined => {
+	if (!contextUsage) {
+		return undefined
+	}
+
+	const percent = Math.max(0, Math.round(contextUsage.percent))
+	return `${percent}% context`
+}
+
+const getContextUsageDetail = (contextUsage: AgentStatusUpdate["contextUsage"]): string | undefined => {
+	if (!contextUsage) {
+		return undefined
+	}
+
+	return `${formatLargeNumber(contextUsage.contextTokens)} / ${formatLargeNumber(contextUsage.availableInputTokens)} tokens (${Math.max(0, Math.round(contextUsage.percent))}%)`
+}
+
 export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 	const { t } = useAppTranslation()
 	const { activeExecutionPlan, customModes } = useExtensionState()
@@ -798,6 +815,7 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 				statusReason,
 				blockedOn: statusUpdate?.blockedOn ?? agent.dependsOn,
 				usage: statusUpdate?.usage,
+				contextUsage: statusUpdate?.contextUsage,
 				activity: getCurrentAgentActivity(agent.id, status, statusReason, agentActivities, displayActivities),
 				activities: displayActivities,
 			}
@@ -1143,6 +1161,8 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 								.join(", ")
 							const agentLabel = getAgentModeLabel(agent.mode, customModes)
 							const usage = getUsageSummary(agent.usage)
+							const contextUsage = getContextUsageSummary(agent.contextUsage)
+							const contextUsageDetail = getContextUsageDetail(agent.contextUsage)
 							const activity = agent.activity?.message
 							const activityElapsed = getActivityElapsedLabel(agent.activity, now)
 							const activityEvents = agent.activities
@@ -1196,6 +1216,11 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 												{usage && (
 													<span data-testid="agent-usage" className="font-mono">
 														{usage}
+													</span>
+												)}
+												{contextUsage && (
+													<span data-testid="agent-context-usage" className="font-mono">
+														{contextUsage}
 													</span>
 												)}
 												{agent.statusReason && (
@@ -1394,6 +1419,16 @@ export const AgentStatusPanel = ({ tool }: AgentStatusPanelProps) => {
 												</dt>
 												<dd data-testid="agent-details-usage" className="min-w-0 font-mono">
 													{usage ?? t("chat:parallelAgents.details.noUsage")}
+												</dd>
+
+												<dt className="font-medium text-vscode-foreground">
+													{t("chat:parallelAgents.details.contextUsage")}
+												</dt>
+												<dd
+													data-testid="agent-details-context-usage"
+													className="min-w-0 font-mono">
+													{contextUsageDetail ??
+														t("chat:parallelAgents.details.noContextUsage")}
 												</dd>
 
 												<dt className="font-medium text-vscode-foreground">

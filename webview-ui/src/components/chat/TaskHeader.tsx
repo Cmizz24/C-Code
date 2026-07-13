@@ -60,16 +60,53 @@ const formatContextCacheRamValue = (valueMb: number | undefined) => {
 	return `${formatted}MB`
 }
 
-const formatContextCacheSummary = (stats: ContextCacheStats, t: ReturnType<typeof useTranslation>["t"]) =>
-	`${formatLargeNumber(stats.hotCacheChunks)} ${t("chat:task.contextCache.hotShort")} / ${formatLargeNumber(stats.coldCacheChunks)} ${t("chat:task.contextCache.coldShort")} · ${formatContextCacheRamValue(stats.ramUsedMb)}/${formatContextCacheRamValue(stats.ramBudgetMb)}`
+const formatContextCacheEvictions = (
+	hot: number | undefined,
+	cold: number | undefined,
+	t: ReturnType<typeof useTranslation>["t"],
+) => {
+	const hotTotal = hot ?? 0
+	const coldTotal = cold ?? 0
+	return t("chat:task.contextCache.diagnostics.evictionsValue", {
+		total: formatLargeNumber(hotTotal + coldTotal),
+		hot: formatLargeNumber(hotTotal),
+		cold: formatLargeNumber(coldTotal),
+	})
+}
+
+const formatContextCacheSummary = (stats: ContextCacheStats, t: ReturnType<typeof useTranslation>["t"]) => {
+	const combined = stats.combinedBudget
+	const hotChunks = combined?.hotCacheChunks ?? stats.hotCacheChunks
+	const coldChunks = combined?.coldCacheChunks ?? stats.coldCacheChunks
+	const ramUsedMb = combined?.ramUsedMb ?? stats.ramUsedMb
+	const ramBudgetMb = combined?.ramBudgetMb ?? stats.ramBudgetMb
+	const contributorSummary =
+		combined && combined.managerCount > 1
+			? ` · ${t("chat:task.contextCache.diagnostics.contributors", { count: combined.managerCount })}`
+			: ""
+
+	return `${formatLargeNumber(hotChunks)} ${t("chat:task.contextCache.hotShort")} / ${formatLargeNumber(coldChunks)} ${t("chat:task.contextCache.coldShort")} · ${formatContextCacheRamValue(ramUsedMb)}/${formatContextCacheRamValue(ramBudgetMb)}${contributorSummary}`
+}
+
+const formatContextCacheContributorUsage = (
+	ramUsedMb: number | undefined,
+	hotChunks: number | undefined,
+	coldChunks: number | undefined,
+	t: ReturnType<typeof useTranslation>["t"],
+) =>
+	t("chat:task.contextCache.diagnostics.contributorUsage", {
+		ram: formatContextCacheRamValue(ramUsedMb),
+		hot: formatLargeNumber(hotChunks ?? 0),
+		cold: formatLargeNumber(coldChunks ?? 0),
+	})
 
 /**
  * Format a reset timestamp into a human-readable "resets in Xh Ym" string.
  * Returns undefined if no reset time is available or if it's in the past.
  */
-function formatResetTime(resetsAt: number | undefined): string | undefined {
+function formatResetTime(resetsAt: number | undefined, now = Date.now()): string | undefined {
 	if (!resetsAt) return undefined
-	const diffMs = resetsAt - Date.now()
+	const diffMs = resetsAt - now
 	if (diffMs <= 0) return undefined
 	const totalMinutes = Math.ceil(diffMs / 60000)
 	const hours = Math.floor(totalMinutes / 60)
@@ -87,6 +124,10 @@ function getPlanUsageColorClass(usedPercent: number): string {
 	if (usedPercent >= 50) return "text-vscode-editorWarning-foreground"
 	return "text-vscode-charts-green"
 }
+
+const OPENAI_CODEX_RATE_LIMIT_STALE_MS = 5 * 60_000
+const OPENAI_CODEX_RATE_LIMIT_POLL_MS = 5 * 60_000
+const PLAN_USAGE_RESET_TICK_MS = 60_000
 
 const formatPlanUsageCost = (value: number) => `$${Math.max(0, value).toFixed(2)}`
 
@@ -121,14 +162,13 @@ const TaskHeader = ({
 		contextCacheStats,
 		contextCacheWarning,
 		openAiCodexRateLimits,
-		providerPlanLimits,
-		providerPlanUsage,
 		cachedProviderPlanUsage,
 	} = useExtensionState()
 	const { id: modelId, info: model } = useSelectedModel(apiConfiguration)
 	const isPlanBased = model?.subscriptionBased === true
 	const providerName = apiConfiguration.apiProvider
 	const [isTaskExpanded, setIsTaskExpanded] = useState(false)
+	const [planUsageResetTick, setPlanUsageResetTick] = useState(() => Date.now())
 
 	// Auto-fetch live plan usage when switching to a plan-based provider with a live API.
 	// Extract individual apiConfiguration values so the useEffect dependency array
@@ -207,6 +247,30 @@ const TaskHeader = ({
 		qwenCodeOauthPath,
 	])
 
+	useEffect(() => {
+		const interval = window.setInterval(() => {
+			setPlanUsageResetTick(Date.now())
+		}, PLAN_USAGE_RESET_TICK_MS)
+
+		return () => window.clearInterval(interval)
+	}, [])
+
+	useEffect(() => {
+		if (!isPlanBased || providerName !== "openai-codex") return
+
+		const requestIfStale = () => {
+			const fetchedAt = openAiCodexRateLimits?.fetchedAt
+			if (typeof fetchedAt !== "number" || Date.now() - fetchedAt >= OPENAI_CODEX_RATE_LIMIT_STALE_MS) {
+				vscode.postMessage({ type: "requestOpenAiCodexRateLimits" })
+			}
+		}
+
+		requestIfStale()
+		const interval = window.setInterval(requestIfStale, OPENAI_CODEX_RATE_LIMIT_POLL_MS)
+
+		return () => window.clearInterval(interval)
+	}, [isPlanBased, openAiCodexRateLimits?.fetchedAt, providerName])
+
 	const textContainerRef = useRef<HTMLDivElement>(null)
 	const textRef = useRef<HTMLDivElement>(null)
 	const contextWindow = model?.contextWindow || 1
@@ -242,41 +306,10 @@ const TaskHeader = ({
 		const { usedPercent, resetsAt } = openAiCodexRateLimits.primary
 		return {
 			percent: Math.round(usedPercent),
-			resetTime: formatResetTime(resetsAt),
+			resetTime: formatResetTime(resetsAt, planUsageResetTick),
 			colorClass: getPlanUsageColorClass(usedPercent),
 		}
-	}, [openAiCodexRateLimits, providerName])
-
-	// Locally tracked provider plan usage for all other configured providers.
-	const trackedPlanUsage = useMemo<PlanUsageDisplay | undefined>(() => {
-		if (!providerName) return undefined
-
-		const limit = providerPlanLimits?.[providerName]
-		const usage = providerPlanUsage?.[providerName]
-		const tokenLimit = typeof limit?.tokenLimit === "number" && limit.tokenLimit > 0 ? limit.tokenLimit : undefined
-		const costLimit = typeof limit?.costLimit === "number" && limit.costLimit > 0 ? limit.costLimit : undefined
-
-		if (!tokenLimit && !costLimit) return undefined
-
-		const tokensUsed =
-			typeof usage?.tokensUsed === "number" && Number.isFinite(usage.tokensUsed) ? usage.tokensUsed : 0
-		const costUsed = typeof usage?.costUsed === "number" && Number.isFinite(usage.costUsed) ? usage.costUsed : 0
-		const tokenPercent = tokenLimit ? (tokensUsed / tokenLimit) * 100 : 0
-		const costPercent = costLimit ? (costUsed / costLimit) * 100 : 0
-		const usedPercent = Math.max(tokenPercent, costPercent)
-		const remainingText =
-			tokenLimit && tokenPercent >= costPercent
-				? `${formatLargeNumber(Math.max(0, tokenLimit - tokensUsed))} tokens left`
-				: costLimit
-					? `${formatPlanUsageCost(costLimit - costUsed)} left`
-					: undefined
-
-		return {
-			percent: Math.round(usedPercent),
-			remainingText,
-			colorClass: getPlanUsageColorClass(usedPercent),
-		}
-	}, [providerName, providerPlanLimits, providerPlanUsage])
+	}, [openAiCodexRateLimits, planUsageResetTick, providerName])
 
 	// Live API-fetched plan usage for providers with usable public APIs.
 	const liveProviderPlanUsage = useMemo<PlanUsageDisplay | undefined>(() => {
@@ -426,19 +459,30 @@ const TaskHeader = ({
 		}
 	}, [providerName, cachedProviderPlanUsage])
 
-	const planUsage = openAiCodexPlanUsage ?? liveProviderPlanUsage ?? trackedPlanUsage
+	const planUsage = openAiCodexPlanUsage ?? liveProviderPlanUsage
 
 	// Determine if this is a subtask (has a parent)
 	const isSubtask = !!parentTaskId
 	const displayCost = aggregatedCost ?? totalCost
-	const shouldShowCost = Number.isFinite(displayCost) && displayCost > 0 && !isPlanBased && !trackedPlanUsage
+	const shouldShowCost = Number.isFinite(displayCost) && displayCost > 0 && !isPlanBased
 	// For plan-based providers, show token usage prominently in the collapsed view
 	const hasTokenUsage =
 		(typeof tokensIn === "number" && tokensIn > 0) || (typeof tokensOut === "number" && tokensOut > 0)
-	const shouldShowTokenUsage = (isPlanBased || !!trackedPlanUsage) && hasTokenUsage
+	const shouldShowTokenUsage = isPlanBased && hasTokenUsage
 	const safeContextCacheStats = contextCacheStats ?? DEFAULT_CONTEXT_CACHE_STATS
 	const shouldShowContextCacheStatus = contextCacheEnabled !== false
 	const contextCacheSummary = formatContextCacheSummary(safeContextCacheStats, t)
+	const combinedContextCache = safeContextCacheStats.combinedBudget
+	const contextCacheColdChunks = combinedContextCache?.coldCacheChunks ?? safeContextCacheStats.coldCacheChunks
+	const contextCacheColdRamDisplay = combinedContextCache
+		? formatContextCacheRamValue(combinedContextCache.coldCacheRamMb)
+		: `${formatContextCacheRamValue(safeContextCacheStats.ramUsedMb)} / ${formatContextCacheRamValue(safeContextCacheStats.ramBudgetMb)}`
+	const contextCacheContributors = safeContextCacheStats.contributors ?? combinedContextCache?.contributors ?? []
+	const contextCacheEvictions = safeContextCacheStats.evictions ?? combinedContextCache?.evictions
+	const displayedContextCacheContributors = contextCacheContributors
+	const shouldShowCombinedContextCacheDiagnostics = Boolean(
+		combinedContextCache || contextCacheContributors.length > 0 || (contextCacheEvictions?.total ?? 0) > 0,
+	)
 	const contextCacheTooltip = (
 		<Table className="text-base ml-1.5">
 			<TableBody>
@@ -456,9 +500,7 @@ const TaskHeader = ({
 						{t("chat:task.contextCache.coldCache")}
 					</TableCell>
 					<TableCell className="text-right text-[0.9em] font-mono">
-						{formatLargeNumber(safeContextCacheStats.coldCacheChunks)} ·{" "}
-						{formatContextCacheRamValue(safeContextCacheStats.ramUsedMb)} /{" "}
-						{formatContextCacheRamValue(safeContextCacheStats.ramBudgetMb)}
+						{formatLargeNumber(contextCacheColdChunks)} · {contextCacheColdRamDisplay}
 					</TableCell>
 				</TableRow>
 				<TableRow>
@@ -475,6 +517,60 @@ const TaskHeader = ({
 						{formatLargeNumber(safeContextCacheStats.condensingAvoided)}
 					</TableCell>
 				</TableRow>
+				{shouldShowCombinedContextCacheDiagnostics && (
+					<>
+						<TableRow>
+							<TableCell className="font-medium whitespace-nowrap">
+								{t("chat:task.contextCache.diagnostics.combinedBudget")}
+							</TableCell>
+							<TableCell className="text-right text-[0.9em] font-mono">
+								{formatContextCacheRamValue(
+									combinedContextCache?.ramUsedMb ?? safeContextCacheStats.ramUsedMb,
+								)}{" "}
+								/{" "}
+								{formatContextCacheRamValue(
+									combinedContextCache?.ramBudgetMb ?? safeContextCacheStats.ramBudgetMb,
+								)}
+							</TableCell>
+						</TableRow>
+						<TableRow>
+							<TableCell className="font-medium whitespace-nowrap">
+								{t("chat:task.contextCache.diagnostics.hotColdRam")}
+							</TableCell>
+							<TableCell className="text-right text-[0.9em] font-mono">
+								{formatContextCacheRamValue(combinedContextCache?.hotCacheRamMb)} /{" "}
+								{formatContextCacheRamValue(
+									combinedContextCache?.coldCacheRamMb ?? safeContextCacheStats.ramUsedMb,
+								)}
+							</TableCell>
+						</TableRow>
+						<TableRow>
+							<TableCell className="font-medium whitespace-nowrap">
+								{t("chat:task.contextCache.diagnostics.evictionsLabel")}
+							</TableCell>
+							<TableCell className="text-right text-[0.9em] font-mono">
+								{formatContextCacheEvictions(
+									contextCacheEvictions?.hot,
+									contextCacheEvictions?.cold,
+									t,
+								)}
+							</TableCell>
+						</TableRow>
+						{displayedContextCacheContributors.map((contributor) => (
+							<TableRow key={contributor.id}>
+								<TableCell className="font-medium whitespace-nowrap">{contributor.label}</TableCell>
+								<TableCell className="text-right text-[0.9em] font-mono">
+									{formatContextCacheContributorUsage(
+										contributor.ramUsedMb,
+										contributor.hotCacheChunks,
+										contributor.coldCacheChunks,
+										t,
+									)}
+								</TableCell>
+							</TableRow>
+						))}
+					</>
+				)}
 				{contextCacheWarning && (
 					<TableRow>
 						<TableCell className="font-medium whitespace-nowrap">
@@ -778,16 +874,10 @@ const TaskHeader = ({
 															{formatLargeNumber(safeContextCacheStats.hotCacheTokens)}{" "}
 															{t("chat:contextManagement.tokens")}
 														</span>
-														<span>
+														<span data-testid="context-cache-cold-status">
 															{t("chat:task.contextCache.coldCache")}:{" "}
-															{formatLargeNumber(safeContextCacheStats.coldCacheChunks)} /{" "}
-															{formatContextCacheRamValue(
-																safeContextCacheStats.ramUsedMb,
-															)}{" "}
-															/{" "}
-															{formatContextCacheRamValue(
-																safeContextCacheStats.ramBudgetMb,
-															)}
+															{formatLargeNumber(contextCacheColdChunks)} /{" "}
+															{contextCacheColdRamDisplay}
 														</span>
 														<span>
 															{t("chat:task.contextCache.swaps")}:{" "}
@@ -797,7 +887,59 @@ const TaskHeader = ({
 															{t("chat:task.contextCache.condensingAvoided")}:{" "}
 															{formatLargeNumber(safeContextCacheStats.condensingAvoided)}
 														</span>
+														{shouldShowCombinedContextCacheDiagnostics && (
+															<>
+																<span data-testid="context-cache-combined-status">
+																	{t(
+																		"chat:task.contextCache.diagnostics.combinedStatus",
+																		{
+																			used: formatContextCacheRamValue(
+																				combinedContextCache?.ramUsedMb ??
+																					safeContextCacheStats.ramUsedMb,
+																			),
+																			budget: formatContextCacheRamValue(
+																				combinedContextCache?.ramBudgetMb ??
+																					safeContextCacheStats.ramBudgetMb,
+																			),
+																		},
+																	)}
+																	{combinedContextCache &&
+																	combinedContextCache.managerCount > 0
+																		? ` · ${t("chat:task.contextCache.diagnostics.contributors", { count: combinedContextCache.managerCount })}`
+																		: ""}
+																</span>
+																<span data-testid="context-cache-eviction-status">
+																	{t(
+																		"chat:task.contextCache.diagnostics.evictionsStatus",
+																		{
+																			value: formatContextCacheEvictions(
+																				contextCacheEvictions?.hot,
+																				contextCacheEvictions?.cold,
+																				t,
+																			),
+																		},
+																	)}
+																</span>
+															</>
+														)}
 													</div>
+													{displayedContextCacheContributors.length > 0 && (
+														<div
+															className="flex flex-wrap gap-x-3 gap-y-1 text-xs"
+															data-testid="context-cache-contributor-status">
+															{displayedContextCacheContributors.map((contributor) => (
+																<span key={contributor.id}>
+																	{contributor.label}:{" "}
+																	{formatContextCacheContributorUsage(
+																		contributor.ramUsedMb,
+																		contributor.hotCacheChunks,
+																		contributor.coldCacheChunks,
+																		t,
+																	)}
+																</span>
+															))}
+														</div>
+													)}
 													{contextCacheWarning && (
 														<div
 															className="text-vscode-inputValidation-warningForeground"

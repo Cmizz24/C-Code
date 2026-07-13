@@ -31,7 +31,7 @@ customModes:
       - read
       - edit
       - command
-      - browser
+      - visual_browser_inspector
     source: project
 
   - slug: pr-fixer
@@ -43,7 +43,7 @@ customModes:
       - read
       - edit
       - command
-      - browser
+      - visual_browser_inspector
       - mcp
     source: project
 

@@ -84,4 +84,46 @@ describe("Task parallel execution pause", () => {
 		expect(task.isInitialized).toBe(true)
 		expect(task.initiateTaskLoop).toHaveBeenCalledWith([])
 	})
+
+	it("adds cancellation context to the last user turn before resuming the parent loop", async () => {
+		const task = Object.create(Task.prototype) as any
+		task.parallelExecutionPaused = true
+		task.idleAsk = undefined
+		task.resumableAsk = undefined
+		task.interactiveAsk = undefined
+		task.abort = false
+		task.abandoned = false
+		task.abortReason = undefined
+		task.didFinishAbortingStream = false
+		task.isStreaming = false
+		task.isWaitingForFirstChunk = false
+		task.skipPrevResponseIdOnce = false
+		task.isInitialized = false
+		task.taskId = "parent-task"
+		const existingToolResult = { type: "tool_result", tool_use_id: "tool-plan", content: "setup guidance" }
+		task.apiConversationHistory = [
+			{
+				role: "user",
+				content: [
+					existingToolResult,
+					{ type: "text", text: "<environment_details>stale details</environment_details>" },
+				],
+			},
+		]
+		task.emit = vi.fn()
+		task.saveApiConversationHistory = vi.fn().mockResolvedValue(true)
+		task.initiateTaskLoop = vi.fn().mockResolvedValue(undefined)
+		const resumeMessage =
+			"[PARALLEL PLAN CANCELED]\nThe preserved setup-required parallel plan was canceled. Do not call new_task."
+
+		await task.resumeAfterParallelExecution(resumeMessage)
+
+		expect(task.parallelExecutionPaused).toBe(false)
+		expect(task.apiConversationHistory[0].content).toEqual([
+			existingToolResult,
+			{ type: "text", text: resumeMessage },
+			{ type: "text", text: "<environment_details>mock details</environment_details>" },
+		])
+		expect(task.initiateTaskLoop).toHaveBeenCalledWith([])
+	})
 })

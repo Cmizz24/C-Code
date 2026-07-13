@@ -18,7 +18,7 @@ import {
 import { Package } from "../../shared/package"
 import type { ApiHandlerOptions } from "../../shared/api"
 
-import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+import { ApiStream, ApiStreamReasoningChunk, ApiStreamUsageChunk } from "../transform/stream"
 import { getModelParams } from "../transform/model-params"
 import { sanitizeResponsesApiInput } from "../transform/responses-api-input"
 
@@ -29,6 +29,7 @@ import { sanitizeOpenAiCallId } from "../../utils/tool-id"
 import { openAiCodexOAuthManager } from "../../integrations/openai-codex/oauth"
 import { t } from "../../i18n"
 import { SINGLE_COMPLETION_SYSTEM_PROMPT } from "../../shared/single-completion"
+import { attachProviderCapacityMetadata, extractProviderCapacityMetadata } from "../../shared/provider-capacity"
 
 export type OpenAiCodexModel = ReturnType<OpenAiCodexHandler["getModel"]>
 
@@ -37,6 +38,65 @@ export type OpenAiCodexModel = ReturnType<OpenAiCodexHandler["getModel"]>
  * Per the implementation guide: requests are routed to chatgpt.com/backend-api/codex
  */
 const CODEX_API_BASE_URL = "https://chatgpt.com/backend-api/codex"
+
+type CodexReasoningTextSource = "raw" | "summary"
+type CodexReasoningTextCandidate = {
+	text: string
+	source: CodexReasoningTextSource
+	summarySectionKey?: string
+	isComplete?: boolean
+}
+type CodexReasoningSummarySectionState = { emittedText: string }
+
+const CODEX_REASONING_SUMMARY_HEADING_PREFIXES = new Set([
+	"analysing",
+	"analyzing",
+	"assessing",
+	"building",
+	"checking",
+	"choosing",
+	"comparing",
+	"confirming",
+	"considering",
+	"creating",
+	"debugging",
+	"defining",
+	"designing",
+	"drafting",
+	"evaluating",
+	"examining",
+	"exploring",
+	"identifying",
+	"implementing",
+	"inspecting",
+	"investigating",
+	"mapping",
+	"organizing",
+	"outlining",
+	"planning",
+	"preparing",
+	"refining",
+	"reviewing",
+	"rewriting",
+	"scoping",
+	"selecting",
+	"summarising",
+	"summarizing",
+	"testing",
+	"tracing",
+	"updating",
+	"validating",
+	"verifying",
+])
+
+const CODEX_REASONING_SUMMARY_HEADING_TITLE_PREFIX_PATTERN = Array.from(CODEX_REASONING_SUMMARY_HEADING_PREFIXES)
+	.map((prefix) => `${prefix.charAt(0).toUpperCase()}${prefix.slice(1)}`)
+	.join("|")
+
+const CODEX_REASONING_ADJACENT_SUMMARY_HEADING_PREFIX = new RegExp(
+	`(?:\\s|[a-z0-9)])(?:${CODEX_REASONING_SUMMARY_HEADING_TITLE_PREFIX_PATTERN})\\b`,
+	"g",
+)
 
 /**
  * OpenAiCodexHandler - Uses OpenAI Responses API with OAuth authentication
@@ -71,6 +131,10 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 	private sawTextOutputInCurrentResponse = false
 	// Tracks whether text arrived through delta events so content_part events can be treated as fallback-only.
 	private sawTextDeltaInCurrentResponse = false
+	// Tracks emitted reasoning so final response summaries do not duplicate streamed reasoning.
+	private streamedReasoningText = ""
+	private emittedReasoningTextKeys = new Set<string>()
+	private reasoningSummarySections = new Map<string, CodexReasoningSummarySectionState>()
 	// Tracks tool call IDs emitted via streaming partial events to prevent done-event duplicates.
 	private streamedToolCallIds = new Set<string>()
 	private lastOpenAiCodexFastStatus: OpenAiCodexFastStatus | undefined
@@ -86,7 +150,11 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		"response.reasoning.delta",
 		"response.reasoning_text.delta",
 		"response.reasoning_summary.delta",
+		"response.reasoning_summary.done",
+		"response.reasoning_summary_part.added",
+		"response.reasoning_summary_part.done",
 		"response.reasoning_summary_text.delta",
+		"response.reasoning_summary_text.done",
 		"response.refusal.delta",
 		"response.output_item.added",
 		"response.output_item.done",
@@ -112,7 +180,573 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		this.pendingToolCallName = undefined
 		this.sawTextOutputInCurrentResponse = false
 		this.sawTextDeltaInCurrentResponse = false
+		this.streamedReasoningText = ""
+		this.emittedReasoningTextKeys.clear()
+		this.reasoningSummarySections.clear()
 		this.streamedToolCallIds.clear()
+	}
+
+	private getReasoningTextKey(text: string): string {
+		return text.replace(/\s+/g, " ").trim()
+	}
+
+	private getPlainReasoningSummaryText(text: string): string {
+		return text
+			.replace(/<!--/g, "")
+			.replace(/-->/g, "")
+			.replace(/^#{1,6}\s+/gm, "")
+			.replace(/\*\*([^*\n]+)\*\*/g, "$1")
+			.replace(/__([^_\n]+)__/g, "$1")
+			.replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
+			.replace(/\s+/g, " ")
+			.trim()
+	}
+
+	private startsWithCodexReasoningSummaryHeadingPrefix(text: string): boolean {
+		const firstWord = text.match(/^[A-Za-z]+/)?.[0]?.toLowerCase()
+		return !!firstWord && CODEX_REASONING_SUMMARY_HEADING_PREFIXES.has(firstWord)
+	}
+
+	private countCodexReasoningSummaryHeadingStarts(text: string): number {
+		const initialHeadingStart = this.startsWithCodexReasoningSummaryHeadingPrefix(text) ? 1 : 0
+		const textAfterFirstWord = text.replace(/^[A-Za-z]+/, "")
+		const adjacentHeadingStarts = textAfterFirstWord.match(CODEX_REASONING_ADJACENT_SUMMARY_HEADING_PREFIX)
+		return initialHeadingStart + (adjacentHeadingStarts?.length ?? 0)
+	}
+
+	private isLikelyCodexReasoningSummaryHeading(text: string): boolean {
+		const plainText = this.getPlainReasoningSummaryText(text)
+		if (!plainText) {
+			return true
+		}
+
+		if (/[.!?;:]/.test(plainText)) {
+			return false
+		}
+
+		if (
+			/\b(I|we|because|therefore|selected|decided|found|need|needs|should|must|will|would|could|can|cannot|is|are|was|were|has|have|had)\b/i.test(
+				plainText,
+			)
+		) {
+			return false
+		}
+
+		if (!this.startsWithCodexReasoningSummaryHeadingPrefix(plainText)) {
+			return false
+		}
+
+		if (plainText.length <= 120) {
+			return true
+		}
+
+		return plainText.length <= 240 && this.countCodexReasoningSummaryHeadingStarts(plainText) > 1
+	}
+
+	private normalizeReasoningHtmlCommentFragments(
+		text: string,
+		preserveLikelySummaryHeadingComments = false,
+	): string | undefined {
+		const normalized = text
+			.replace(/[ \t]*<!--\s*-->[ \t]*/g, " ")
+			.replace(/<!--([\s\S]*?)-->/g, (_match, inner: string) => {
+				const innerText = inner.replace(/<!--|-->/g, "").trim()
+				if (
+					!innerText ||
+					(!preserveLikelySummaryHeadingComments && this.isLikelyCodexReasoningSummaryHeading(innerText))
+				) {
+					return " "
+				}
+
+				return ` ${innerText} `
+			})
+			.replace(/<!--([\s\S]*)$/g, (_match, inner: string) => {
+				const innerText = inner.replace(/<!--|-->/g, "").trim()
+				if (
+					!innerText ||
+					(!preserveLikelySummaryHeadingComments && this.isLikelyCodexReasoningSummaryHeading(innerText))
+				) {
+					return " "
+				}
+
+				return ` ${innerText}`
+			})
+			.replace(/[ \t]*-->[ \t]*/g, " ")
+			.replace(/[ \t]{2,}/g, " ")
+			.trim()
+
+		return normalized.length > 0 ? normalized : undefined
+	}
+
+	private normalizeReasoningText(value: unknown, source: CodexReasoningTextSource = "raw"): string | undefined {
+		if (typeof value !== "string") {
+			return undefined
+		}
+
+		const text = value.trim()
+		if (text.length === 0) {
+			return undefined
+		}
+
+		const normalizedText = this.normalizeReasoningHtmlCommentFragments(text, source === "summary")
+		if (!normalizedText) {
+			return undefined
+		}
+
+		return normalizedText
+	}
+
+	private shouldInsertReasoningChunkSeparator(text: string, source: CodexReasoningTextSource): boolean {
+		if (source !== "summary" || this.streamedReasoningText.length === 0) {
+			return false
+		}
+
+		const previousLastCharacter = this.streamedReasoningText.match(/\S(?=\s*$)/)?.[0]
+		const nextFirstCharacter = text.match(/^\s*(\S)/)?.[1]
+		if (!previousLastCharacter || !nextFirstCharacter) {
+			return false
+		}
+
+		return (
+			/[a-z0-9)]/.test(previousLastCharacter) &&
+			/[A-Z]/.test(nextFirstCharacter) &&
+			this.startsWithCodexReasoningSummaryHeadingPrefix(text)
+		)
+	}
+
+	private recordReasoningText(text: string, source: CodexReasoningTextSource = "raw"): string | undefined {
+		const normalizedText = this.normalizeReasoningText(text, source)
+		if (!normalizedText) {
+			return undefined
+		}
+
+		const key = this.getReasoningTextKey(normalizedText)
+		if (this.emittedReasoningTextKeys.has(key)) {
+			return undefined
+		}
+
+		const streamedKey = this.getReasoningTextKey(this.streamedReasoningText)
+		if (streamedKey && streamedKey === key) {
+			this.emittedReasoningTextKeys.add(key)
+			return undefined
+		}
+
+		this.emittedReasoningTextKeys.add(key)
+		const displayText = this.shouldInsertReasoningChunkSeparator(normalizedText, source)
+			? `\n\n${normalizedText}`
+			: normalizedText
+		this.streamedReasoningText +=
+			displayText === normalizedText && normalizedText === text.trim() ? text : displayText
+		return displayText
+	}
+
+	private normalizeReasoningSummaryEventText(value: unknown): string | undefined {
+		if (typeof value !== "string" || value.length === 0) {
+			return undefined
+		}
+
+		const normalized = value
+			.replace(/[ \t]*<!--\s*-->[ \t]*/g, " ")
+			.replace(/<!--([\s\S]*?)-->/g, (_match, inner: string) => inner.replace(/<!--|-->/g, "").trim())
+			.replace(/<!--([\s\S]*)$/g, (_match, inner: string) => inner.replace(/<!--|-->/g, "").trim())
+			.replace(/[ \t]*-->[ \t]*/g, " ")
+			.replace(/[ \t]+\n/g, "\n")
+			.replace(/\n[ \t]+/g, "\n")
+
+		if (normalized.length === 0 || (normalized.trim().length === 0 && /<!--|-->/.test(value))) {
+			return undefined
+		}
+
+		return normalized
+	}
+
+	private getReasoningSummarySectionKeyFromParts(itemId: unknown, summaryIndex: unknown): string {
+		const normalizedItemId = typeof itemId === "string" && itemId.length > 0 ? itemId : "unknown-item"
+		const normalizedSummaryIndex =
+			typeof summaryIndex === "number" || typeof summaryIndex === "string" ? summaryIndex : "unknown-summary"
+
+		return `${normalizedItemId}:${normalizedSummaryIndex}`
+	}
+
+	private getReasoningSummarySectionKeyFromEvent(event: any): string {
+		const itemId =
+			event?.item_id ?? event?.itemId ?? event?.output_item_id ?? event?.outputItemId ?? event?.item?.id
+		const summaryIndex =
+			event?.summary_index ?? event?.summaryIndex ?? event?.summary?.index ?? event?.part?.index ?? event?.index
+
+		return this.getReasoningSummarySectionKeyFromParts(itemId, summaryIndex)
+	}
+
+	private getReasoningSummarySectionKeyFromOutputItem(item: any, summaryIndex: unknown): string {
+		const itemId = item?.id ?? item?.item_id ?? item?.output_item_id
+		return this.getReasoningSummarySectionKeyFromParts(itemId, summaryIndex)
+	}
+
+	private ensureReasoningSummarySection(sectionKey: string): CodexReasoningSummarySectionState {
+		let section = this.reasoningSummarySections.get(sectionKey)
+		if (!section) {
+			section = { emittedText: "" }
+			this.reasoningSummarySections.set(sectionKey, section)
+		}
+
+		return section
+	}
+
+	private getReasoningSummaryDoneSuffix(streamedText: string, completedText: string): string {
+		if (streamedText.length === 0) {
+			return completedText
+		}
+
+		if (completedText.startsWith(streamedText)) {
+			return completedText.slice(streamedText.length)
+		}
+
+		const streamedKey = this.getReasoningTextKey(streamedText)
+		const completedKey = this.getReasoningTextKey(completedText)
+		if (!completedKey || streamedKey === completedKey || streamedKey.includes(completedKey)) {
+			return ""
+		}
+
+		const maxOverlap = Math.min(streamedText.length, completedText.length)
+		for (let length = maxOverlap; length > 0; length--) {
+			if (streamedText.endsWith(completedText.slice(0, length))) {
+				return completedText.slice(length)
+			}
+		}
+
+		return ""
+	}
+
+	private recordReasoningSummaryText(sectionKey: string, text: string, isComplete: boolean): string | undefined {
+		const normalizedText = this.normalizeReasoningSummaryEventText(text)
+		if (!normalizedText) {
+			return undefined
+		}
+
+		const section = this.ensureReasoningSummarySection(sectionKey)
+		const textToEmit = isComplete
+			? this.getReasoningSummaryDoneSuffix(section.emittedText, normalizedText)
+			: normalizedText
+
+		if (textToEmit.length === 0) {
+			return undefined
+		}
+
+		if (section.emittedText.length === 0 && isComplete) {
+			const streamedKey = this.getReasoningTextKey(this.streamedReasoningText)
+			const completedKey = this.getReasoningTextKey(normalizedText)
+			if (
+				streamedKey &&
+				completedKey &&
+				streamedKey === completedKey &&
+				this.reasoningSummarySections.size === 1
+			) {
+				this.emittedReasoningTextKeys.add(completedKey)
+				return undefined
+			}
+		}
+
+		const sectionSeparator =
+			section.emittedText.length === 0 && this.streamedReasoningText.trim().length > 0 ? "\n\n" : ""
+		const displayText = `${sectionSeparator}${textToEmit}`
+
+		section.emittedText += textToEmit
+		this.streamedReasoningText += displayText
+
+		for (const emittedText of [textToEmit, section.emittedText]) {
+			const emittedKey = this.getReasoningTextKey(emittedText)
+			if (emittedKey) {
+				this.emittedReasoningTextKeys.add(emittedKey)
+			}
+		}
+
+		return displayText
+	}
+
+	private getReasoningSummaryEventText(event: any, isComplete: boolean): string | undefined {
+		const candidates = isComplete
+			? [
+					event?.text,
+					event?.output_text,
+					event?.summary_text,
+					event?.part?.text,
+					event?.part?.content,
+					event?.delta,
+				]
+			: [event?.delta, event?.text, event?.summary_text, event?.part?.text, event?.part?.content]
+
+		for (const candidate of candidates) {
+			if (typeof candidate === "string") {
+				return candidate
+			}
+		}
+
+		return undefined
+	}
+
+	private isReasoningSummaryEventType(type: unknown): boolean {
+		return (
+			type === "response.reasoning_summary.delta" ||
+			type === "response.reasoning_summary.done" ||
+			type === "response.reasoning_summary_text.delta" ||
+			type === "response.reasoning_summary_text.done" ||
+			type === "response.reasoning_summary_part.added" ||
+			type === "response.reasoning_summary_part.done"
+		)
+	}
+
+	private *yieldReasoningSummaryEvent(event: any): Generator<ApiStreamReasoningChunk> {
+		const sectionKey = this.getReasoningSummarySectionKeyFromEvent(event)
+
+		if (event?.type === "response.reasoning_summary_part.added") {
+			this.ensureReasoningSummarySection(sectionKey)
+			const addedText = this.getReasoningSummaryEventText(event, false)
+			if (addedText === undefined) {
+				return
+			}
+
+			const reasoningText = this.recordReasoningSummaryText(sectionKey, addedText, false)
+			if (reasoningText) {
+				yield { type: "reasoning", text: reasoningText }
+			}
+			return
+		}
+
+		const isComplete =
+			event?.type === "response.reasoning_summary.done" ||
+			event?.type === "response.reasoning_summary_text.done" ||
+			event?.type === "response.reasoning_summary_part.done"
+		const text = this.getReasoningSummaryEventText(event, isComplete)
+		if (text === undefined) {
+			return
+		}
+
+		const reasoningText = this.recordReasoningSummaryText(sectionKey, text, isComplete)
+		if (reasoningText) {
+			yield { type: "reasoning", text: reasoningText }
+		}
+	}
+
+	private getReasoningTextSourceForContent(
+		content: any,
+		fallback: CodexReasoningTextSource,
+	): CodexReasoningTextSource {
+		const type = typeof content?.type === "string" ? content.type : undefined
+		return type === "reasoning_summary" || type === "reasoning_summary_text" || type === "summary_text"
+			? "summary"
+			: fallback
+	}
+
+	private collectReasoningTextsFromContent(
+		content: any,
+		source: CodexReasoningTextSource = "raw",
+		summarySectionKey?: string,
+		isComplete = false,
+	): CodexReasoningTextCandidate[] {
+		if (!content) {
+			return []
+		}
+
+		if (typeof content === "string") {
+			return [
+				{
+					text: content,
+					source,
+					...(source === "summary" && summarySectionKey ? { summarySectionKey, isComplete } : {}),
+				},
+			]
+		}
+
+		if (Array.isArray(content)) {
+			return content.flatMap((item) =>
+				this.collectReasoningTextsFromContent(item, source, summarySectionKey, isComplete),
+			)
+		}
+
+		const contentSource = this.getReasoningTextSourceForContent(content, source)
+		const texts: CodexReasoningTextCandidate[] = []
+
+		for (const key of ["text", "delta"] as const) {
+			const value = content[key]
+			if (typeof value === "string") {
+				texts.push({
+					text: value,
+					source: contentSource,
+					...(contentSource === "summary" && summarySectionKey ? { summarySectionKey, isComplete } : {}),
+				})
+			} else if (Array.isArray(value)) {
+				texts.push(
+					...value.flatMap((item) =>
+						this.collectReasoningTextsFromContent(item, contentSource, summarySectionKey, isComplete),
+					),
+				)
+			} else if (value && typeof value === "object") {
+				texts.push(
+					...this.collectReasoningTextsFromContent(value, contentSource, summarySectionKey, isComplete),
+				)
+			}
+		}
+
+		const nestedContent = content.content
+		if (typeof nestedContent === "string") {
+			texts.push({
+				text: nestedContent,
+				source: contentSource,
+				...(contentSource === "summary" && summarySectionKey ? { summarySectionKey, isComplete } : {}),
+			})
+		} else if (Array.isArray(nestedContent)) {
+			texts.push(
+				...nestedContent.flatMap((item) =>
+					this.collectReasoningTextsFromContent(item, contentSource, summarySectionKey, isComplete),
+				),
+			)
+		} else if (nestedContent && typeof nestedContent === "object") {
+			texts.push(
+				...this.collectReasoningTextsFromContent(nestedContent, contentSource, summarySectionKey, isComplete),
+			)
+		}
+
+		const summary = content.summary
+		if (typeof summary === "string") {
+			texts.push({
+				text: summary,
+				source: "summary",
+				...(summarySectionKey ? { summarySectionKey, isComplete: true } : {}),
+			})
+		} else if (Array.isArray(summary)) {
+			texts.push(
+				...summary.flatMap((item) =>
+					this.collectReasoningTextsFromContent(item, "summary", summarySectionKey, true),
+				),
+			)
+		} else if (summary && typeof summary === "object") {
+			texts.push(...this.collectReasoningTextsFromContent(summary, "summary", summarySectionKey, true))
+		}
+
+		return texts
+	}
+
+	private collectReasoningTextsFromOutputItem(item: any): CodexReasoningTextCandidate[] {
+		if (!item || typeof item !== "object") {
+			return []
+		}
+
+		const texts: CodexReasoningTextCandidate[] = []
+		const isReasoningOutputItem =
+			item.type === "reasoning" || item.type === "reasoning_summary" || item.type === "reasoning_text"
+		if (isReasoningOutputItem) {
+			const itemWithoutSummary = { ...item, summary: undefined }
+			const directSummarySectionKey =
+				item.type === "reasoning_summary"
+					? this.getReasoningSummarySectionKeyFromOutputItem(item, 0)
+					: undefined
+
+			texts.push(
+				...this.collectReasoningTextsFromContent(
+					itemWithoutSummary,
+					item.type === "reasoning_summary" ? "summary" : "raw",
+					directSummarySectionKey,
+					item.type === "reasoning_summary",
+				),
+			)
+		}
+
+		if (typeof item.summary === "string") {
+			texts.push(
+				...this.collectReasoningTextsFromContent(
+					item.summary,
+					"summary",
+					this.getReasoningSummarySectionKeyFromOutputItem(item, 0),
+					true,
+				),
+			)
+		} else if (Array.isArray(item.summary)) {
+			for (const [summaryIndex, summaryItem] of item.summary.entries()) {
+				texts.push(
+					...this.collectReasoningTextsFromContent(
+						summaryItem,
+						"summary",
+						this.getReasoningSummarySectionKeyFromOutputItem(item, summaryIndex),
+						true,
+					),
+				)
+			}
+		} else if (item.summary && typeof item.summary === "object") {
+			texts.push(
+				...this.collectReasoningTextsFromContent(
+					item.summary,
+					"summary",
+					this.getReasoningSummarySectionKeyFromOutputItem(item, 0),
+					true,
+				),
+			)
+		}
+
+		if (!isReasoningOutputItem && Array.isArray(item.content)) {
+			for (const [contentIndex, content] of item.content.entries()) {
+				if (
+					content?.type === "reasoning" ||
+					content?.type === "reasoning_text" ||
+					content?.type === "reasoning_summary" ||
+					content?.type === "summary_text"
+				) {
+					const contentSummarySectionKey =
+						content.type === "reasoning_summary" || content.type === "summary_text"
+							? this.getReasoningSummarySectionKeyFromOutputItem(
+									item,
+									content.summary_index ?? content.summaryIndex ?? content.index ?? contentIndex,
+								)
+							: undefined
+
+					texts.push(
+						...this.collectReasoningTextsFromContent(
+							content,
+							content.type === "reasoning_summary" || content.type === "summary_text" ? "summary" : "raw",
+							contentSummarySectionKey,
+							!!contentSummarySectionKey,
+						),
+					)
+				}
+			}
+		}
+
+		return texts
+	}
+
+	private collectReasoningTextsFromEvent(
+		event: any,
+		source: CodexReasoningTextSource,
+	): CodexReasoningTextCandidate[] {
+		const texts: CodexReasoningTextCandidate[] = []
+		const summarySectionKey = source === "summary" ? this.getReasoningSummarySectionKeyFromEvent(event) : undefined
+
+		for (const key of ["delta", "text"] as const) {
+			if (typeof event?.[key] === "string") {
+				texts.push({
+					text: event[key],
+					source,
+					...(summarySectionKey ? { summarySectionKey } : {}),
+				})
+			}
+		}
+
+		if (source === "summary" && event?.summary) {
+			texts.push(...this.collectReasoningTextsFromContent(event.summary, "summary", summarySectionKey))
+		}
+
+		return texts
+	}
+
+	private *yieldReasoningTexts(texts: CodexReasoningTextCandidate[]): Generator<ApiStreamReasoningChunk> {
+		for (const { text, source, summarySectionKey, isComplete } of texts) {
+			const reasoningText =
+				source === "summary" && summarySectionKey
+					? this.recordReasoningSummaryText(summarySectionKey, text, isComplete === true)
+					: this.recordReasoningText(text, source)
+			if (reasoningText) {
+				yield { type: "reasoning", text: reasoningText }
+			}
+		}
 	}
 
 	private normalizeUsage(usage: any, model: OpenAiCodexModel): ApiStreamUsageChunk | undefined {
@@ -460,6 +1094,107 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		return message.replace(/\s+/g, " ").trim().slice(0, 500)
 	}
 
+	private createManualSseFallbackError(message: string): Error {
+		const error = new Error(message)
+		;(error as any).allowOpenAiCodexManualSseFallback = true
+		return error
+	}
+
+	private shouldFallbackToManualSse(error: unknown): boolean {
+		return Boolean((error as any)?.allowOpenAiCodexManualSseFallback)
+	}
+
+	private createCodexApiError(
+		message: string,
+		options: {
+			status?: number
+			code?: string
+			details?: string
+			body?: string
+			responseBody?: string
+			retryAfter?: string | number | null
+		} = {},
+	): Error {
+		const error = new Error(message)
+		;(error as any).isOpenAiCodexApiError = true
+		if (options.status !== undefined) {
+			;(error as any).status = options.status
+		}
+		if (options.code !== undefined) {
+			;(error as any).code = options.code
+		}
+		if (options.details !== undefined) {
+			;(error as any).errorDetails = options.details
+			;(error as any).details = options.details
+		}
+		if (options.body !== undefined) {
+			;(error as any).body = options.body
+		}
+		if (options.responseBody !== undefined) {
+			;(error as any).responseBody = options.responseBody
+		}
+		if (options.retryAfter !== undefined && options.retryAfter !== null) {
+			;(error as any).headers = { "retry-after": options.retryAfter }
+		}
+
+		const metadata = extractProviderCapacityMetadata(error, { provider: this.providerName })
+		return metadata ? attachProviderCapacityMetadata(error, metadata) : error
+	}
+
+	private wrapCodexError(error: Error, message: string): Error {
+		const wrapped = new Error(message)
+		const metadata = extractProviderCapacityMetadata(error, { provider: this.providerName })
+		if (metadata) {
+			attachProviderCapacityMetadata(wrapped, metadata)
+		}
+		return wrapped
+	}
+
+	private getCodexStreamErrorMessage(parsed: any, fallback: string): string {
+		return (
+			parsed?.error?.message ??
+			parsed?.error?.detail ??
+			parsed?.error?.code ??
+			parsed?.message ??
+			parsed?.detail ??
+			fallback
+		)
+	}
+
+	private getCodexStreamErrorStatus(parsed: any): number | undefined {
+		const status = parsed?.error?.status ?? parsed?.error?.statusCode ?? parsed?.status ?? parsed?.statusCode
+		const numericStatus = typeof status === "number" ? status : Number(status)
+		return Number.isInteger(numericStatus) && numericStatus >= 100 && numericStatus <= 599
+			? numericStatus
+			: undefined
+	}
+
+	private getCodexStreamErrorCode(parsed: any): string | undefined {
+		const code = parsed?.error?.code ?? parsed?.error?.type ?? parsed?.code ?? parsed?.type
+		return code === undefined || code === null ? undefined : String(code)
+	}
+
+	private createCodexStreamApiError(parsed: any, wrapper: "apiError" | "responseFailed"): Error {
+		const rawMessage = this.getCodexStreamErrorMessage(
+			parsed,
+			wrapper === "apiError" ? "Unknown error" : "Unknown failure",
+		)
+		const message = t(
+			wrapper === "apiError" ? "common:errors.openAiCodex.apiError" : "common:errors.openAiCodex.responseFailed",
+			{ message: rawMessage },
+		)
+
+		return this.createCodexApiError(message, {
+			status: this.getCodexStreamErrorStatus(parsed),
+			code: this.getCodexStreamErrorCode(parsed),
+			details: rawMessage,
+			body: JSON.stringify(parsed),
+			responseBody: JSON.stringify(parsed),
+			retryAfter:
+				parsed?.error?.retry_after ?? parsed?.error?.retryAfter ?? parsed?.retry_after ?? parsed?.retryAfter,
+		})
+	}
+
 	private async *executeRequest(
 		requestBody: any,
 		model: OpenAiCodexModel,
@@ -500,7 +1235,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 				})) as AsyncIterable<any>
 
 				if (typeof (stream as any)?.[Symbol.asyncIterator] !== "function") {
-					throw new Error(
+					throw this.createManualSseFallbackError(
 						"OpenAI SDK did not return an AsyncIterable for Responses API streaming. Falling back to SSE.",
 					)
 				}
@@ -517,8 +1252,16 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 						yield outChunk
 					}
 				}
-			} catch (_sdkErr) {
-				// Fallback to manual SSE via fetch (Codex backend).
+			} catch (sdkErr) {
+				if (!this.shouldFallbackToManualSse(sdkErr)) {
+					const metadata = extractProviderCapacityMetadata(sdkErr, { provider: this.providerName })
+					if (metadata && sdkErr instanceof Error) {
+						throw attachProviderCapacityMetadata(sdkErr, metadata)
+					}
+					throw sdkErr
+				}
+
+				// Fallback to manual SSE only for SDK stream-shape incompatibility.
 				yield* this.makeCodexRequest(requestBody, model, accessToken, taskId)
 			}
 		} finally {
@@ -646,9 +1389,11 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 
 				let errorMessage = t("common:errors.api.apiRequestFailed", { status: response.status })
 				let errorDetails = ""
+				let errorCode: string | undefined
 
 				try {
 					const errorJson = JSON.parse(errorText)
+					errorCode = errorJson.error?.code ?? errorJson.code ?? errorJson.type
 					if (errorJson.error?.message) {
 						errorDetails = errorJson.error.message
 					} else if (errorJson.message) {
@@ -691,7 +1436,14 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 					errorMessage += ` - ${errorDetails}`
 				}
 
-				const error = new Error(errorMessage)
+				const error = this.createCodexApiError(errorMessage, {
+					status: response.status,
+					code: errorCode,
+					details: errorDetails,
+					body: errorText,
+					responseBody: errorText,
+					retryAfter: response.headers.get("retry-after"),
+				})
 				this.markOpenAiCodexFastStatusRejected(error)
 				throw error
 			}
@@ -704,14 +1456,19 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 
 			yield* this.handleStreamResponse(response.body, model)
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : String(error)
 			this.markOpenAiCodexFastStatusRejected(error)
 
 			if (error instanceof Error) {
-				if (error.message.includes("Codex API")) {
+				if (
+					(error as any).isOpenAiCodexApiError ||
+					extractProviderCapacityMetadata(error, { provider: this.providerName })
+				) {
 					throw error
 				}
-				throw new Error(t("common:errors.openAiCodex.connectionFailed", { message: error.message }))
+				throw this.wrapCodexError(
+					error,
+					t("common:errors.openAiCodex.connectionFailed", { message: error.message }),
+				)
 			}
 			throw new Error(t("common:errors.openAiCodex.unexpectedConnectionError"))
 		}
@@ -809,11 +1566,11 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 										}
 									}
 									if (outputItem.type === "reasoning" && Array.isArray(outputItem.summary)) {
-										for (const summary of outputItem.summary) {
-											if (summary?.type === "summary_text" && typeof summary.text === "string") {
-												hasContent = true
-												yield { type: "reasoning", text: summary.text }
-											}
+										for (const chunk of this.yieldReasoningTexts(
+											this.collectReasoningTextsFromOutputItem(outputItem),
+										)) {
+											hasContent = true
+											yield chunk
 										}
 									}
 								}
@@ -853,17 +1610,21 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 								parsed.type === "response.reasoning.delta" ||
 								parsed.type === "response.reasoning_text.delta"
 							) {
-								if (parsed.delta) {
+								for (const chunk of this.yieldReasoningTexts(
+									this.collectReasoningTextsFromEvent(parsed, "raw"),
+								)) {
 									hasContent = true
-									yield { type: "reasoning", text: parsed.delta }
+									yield chunk
 								}
 							} else if (
 								parsed.type === "response.reasoning_summary.delta" ||
 								parsed.type === "response.reasoning_summary_text.delta"
 							) {
-								if (parsed.delta) {
+								for (const chunk of this.yieldReasoningTexts(
+									this.collectReasoningTextsFromEvent(parsed, "summary"),
+								)) {
 									hasContent = true
-									yield { type: "reasoning", text: parsed.delta }
+									yield chunk
 								}
 							} else if (parsed.type === "response.refusal.delta") {
 								if (parsed.delta) {
@@ -878,8 +1639,12 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 										this.sawTextOutputInCurrentResponse = true
 										yield { type: "text", text: parsed.item.text }
 									} else if (parsed.item.type === "reasoning" && parsed.item.text) {
-										hasContent = true
-										yield { type: "reasoning", text: parsed.item.text }
+										for (const chunk of this.yieldReasoningTexts(
+											this.collectReasoningTextsFromOutputItem(parsed.item),
+										)) {
+											hasContent = true
+											yield chunk
+										}
 									} else if (parsed.item.type === "message" && parsed.item.content) {
 										for (const content of parsed.item.content) {
 											if (content.type === "text" && content.text) {
@@ -892,21 +1657,13 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 								}
 							} else if (parsed.type === "response.error" || parsed.type === "error") {
 								if (parsed.error || parsed.message) {
-									const error = new Error(
-										t("common:errors.openAiCodex.apiError", {
-											message: parsed.error?.message || parsed.message || "Unknown error",
-										}),
-									)
+									const error = this.createCodexStreamApiError(parsed, "apiError")
 									this.markOpenAiCodexFastStatusRejected(error)
 									throw error
 								}
 							} else if (parsed.type === "response.failed") {
 								if (parsed.error || parsed.message) {
-									const error = new Error(
-										t("common:errors.openAiCodex.responseFailed", {
-											message: parsed.error?.message || parsed.message || "Unknown failure",
-										}),
-									)
+									const error = this.createCodexStreamApiError(parsed, "responseFailed")
 									this.markOpenAiCodexFastStatusRejected(error)
 									throw error
 								}
@@ -935,14 +1692,11 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 											}
 										}
 										if (outputItem.type === "reasoning" && Array.isArray(outputItem.summary)) {
-											for (const summary of outputItem.summary) {
-												if (
-													summary?.type === "summary_text" &&
-													typeof summary.text === "string"
-												) {
-													hasContent = true
-													yield { type: "reasoning", text: summary.text }
-												}
+											for (const chunk of this.yieldReasoningTexts(
+												this.collectReasoningTextsFromOutputItem(outputItem),
+											)) {
+												hasContent = true
+												yield chunk
 											}
 										}
 									}
@@ -985,11 +1739,19 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 				}
 			}
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : String(error)
 			this.markOpenAiCodexFastStatusRejected(error)
 
 			if (error instanceof Error) {
-				throw new Error(t("common:errors.openAiCodex.streamProcessingError", { message: error.message }))
+				if (
+					(error as any).isOpenAiCodexApiError ||
+					extractProviderCapacityMetadata(error, { provider: this.providerName })
+				) {
+					throw error
+				}
+				throw this.wrapCodexError(
+					error,
+					t("common:errors.openAiCodex.streamProcessingError", { message: error.message }),
+				)
 			}
 			throw new Error(t("common:errors.openAiCodex.unexpectedStreamError"))
 		} finally {
@@ -999,6 +1761,18 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 
 	private async *processEvent(event: any, model: OpenAiCodexModel): ApiStream {
 		this.captureOpenAiCodexFastStatusFromEvent(event)
+
+		if (event?.type === "response.error" || event?.type === "error") {
+			const error = this.createCodexStreamApiError(event, "apiError")
+			this.markOpenAiCodexFastStatusRejected(error)
+			throw error
+		}
+
+		if (event?.type === "response.failed") {
+			const error = this.createCodexStreamApiError(event, "responseFailed")
+			this.markOpenAiCodexFastStatusRejected(error)
+			throw error
+		}
 
 		if (event?.response?.output && Array.isArray(event.response.output)) {
 			this.lastResponseOutput = event.response.output
@@ -1050,15 +1824,13 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		}
 
 		// Handle reasoning deltas
-		if (
-			event?.type === "response.reasoning.delta" ||
-			event?.type === "response.reasoning_text.delta" ||
-			event?.type === "response.reasoning_summary.delta" ||
-			event?.type === "response.reasoning_summary_text.delta"
-		) {
-			if (event?.delta) {
-				yield { type: "reasoning", text: event.delta }
-			}
+		if (event?.type === "response.reasoning.delta" || event?.type === "response.reasoning_text.delta") {
+			yield* this.yieldReasoningTexts(this.collectReasoningTextsFromEvent(event, "raw"))
+			return
+		}
+
+		if (this.isReasoningSummaryEventType(event?.type)) {
+			yield* this.yieldReasoningSummaryEvent(event)
 			return
 		}
 
@@ -1128,8 +1900,12 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 					} else if (item.type === "output_text" && item.text) {
 						this.sawTextOutputInCurrentResponse = true
 						yield { type: "text", text: item.text }
-					} else if (item.type === "reasoning" && item.text) {
-						yield { type: "reasoning", text: item.text }
+					} else if (
+						item.type === "reasoning" ||
+						item.type === "reasoning_summary" ||
+						item.type === "reasoning_text"
+					) {
+						yield* this.yieldReasoningTexts(this.collectReasoningTextsFromOutputItem(item))
 					} else if (item.type === "message" && Array.isArray(item.content)) {
 						for (const content of item.content) {
 							if ((content?.type === "text" || content?.type === "output_text") && content?.text) {
@@ -1138,6 +1914,8 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 							}
 						}
 					}
+
+					yield* this.yieldReasoningTexts(this.collectReasoningTextsFromOutputItem(item))
 				} else if (
 					event.type === "response.output_item.done" &&
 					(item.type === "function_call" || item.type === "tool_call")
@@ -1194,6 +1972,12 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 
 		// Handle completion events
 		if (event?.type === "response.done" || event?.type === "response.completed") {
+			if (Array.isArray(event?.response?.output)) {
+				for (const outputItem of event.response.output) {
+					yield* this.yieldReasoningTexts(this.collectReasoningTextsFromOutputItem(outputItem))
+				}
+			}
+
 			// Some Codex variants only provide assistant text in the final completed payload.
 			if (!this.sawTextOutputInCurrentResponse && Array.isArray(event?.response?.output)) {
 				for (const outputItem of event.response.output) {

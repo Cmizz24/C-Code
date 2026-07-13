@@ -28,7 +28,18 @@
 			"coldShort": "fred",
 			"swaps": "Intercanvis",
 			"condensingAvoided": "Condensacions evitades",
-			"warning": "Avís"
+			"warning": "Avís",
+			"diagnostics": {
+				"evictionsValue": "{{total}} en total · {{hot}} calents / {{cold}} freds",
+				"contributors_one": "{{count}} contribuïdor",
+				"contributors_other": "{{count}} contribuïdors",
+				"contributorUsage": "{{ram}} · {{hot}} calents / {{cold}} freds",
+				"combinedBudget": "Pressupost combinat",
+				"hotColdRam": "RAM calenta / freda",
+				"evictionsLabel": "Expulsions",
+				"combinedStatus": "Combinat: {{used}} / {{budget}}",
+				"evictionsStatus": "Expulsions: {{value}}"
+			}
 		}
 	},
 	"unpin": "Desfixar",
@@ -344,6 +355,7 @@
 			"waiting": "En espera",
 			"lastTouched": "Últim fitxer tocat",
 			"usage": "Ús",
+			"contextUsage": "Ús del context",
 			"worktree": "Worktree",
 			"activity": "Activitat",
 			"conflicts": "Conflictes",
@@ -352,6 +364,7 @@
 			"waitingOn": "Esperant {{agents}}",
 			"noFileWrites": "Encara no hi ha escriptures de fitxers",
 			"noUsage": "Encara no s'ha informat d'ús",
+			"noContextUsage": "Encara no s'ha informat d'ús del context",
 			"noActivity": "Encara no s'ha informat d'activitat",
 			"noConflicts": "Sense conflictes"
 		},
@@ -375,6 +388,33 @@
 				"binaryFiles_one": "{{count}} fitxer binari",
 				"binaryFiles_other": "{{count}} fitxers binaris"
 			}
+		},
+		"planPreview": {
+			"title": "Revisa el pla d'agents paral·lels",
+			"setupTitle": "Cal configurar Git per als agents paral·lels",
+			"description": "Revisa l'assignació de cada agent abans que C iniciï els worktrees.",
+			"setupDescription": "Corregeix el problema de Git i torna a provar el pla preservat sense reconstruir-lo.",
+			"expand": "Amplia el pla",
+			"collapse": "Redueix el pla",
+			"setupRequired": "Configuració necessària: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "no és un repositori Git",
+				"no-initial-commit": "no hi ha commit inicial",
+				"git-unavailable": "Git no està disponible"
+			},
+			"pathPrivacyNote": "Els camins del workspace i de Git s'oculten aquí per mantenir els diagnòstics segurs.",
+			"sharedContext": "Context compartit",
+			"taskDescription": "Descripció de la tasca",
+			"ownedFiles": "Fitxers assignats",
+			"noOwnedFiles": "No hi ha fitxers assignats",
+			"removeOwnedFile": "Elimina {{path}} dels fitxers assignats",
+			"dependencies": "Dependències",
+			"noDependencies": "Sense dependències",
+			"setupFooter": "El pla aprovat es conserva. Corregeix Git i torna-ho a provar.",
+			"footer": "Revisa els límits de propietat abans d'aprovar el pla.",
+			"cancel": "Cancel·la",
+			"retry": "Torna a provar el pla preservat",
+			"approve": "Aprova el pla"
 		}
 	},
 	"questions": {
@@ -425,8 +465,13 @@
 		"tokens": "tokens",
 		"condensation": {
 			"title": "Context condensat",
-			"inProgress": "Condensant context...",
+			"inProgress": "Gestionant el context...",
 			"errorHeader": "Error en condensar el context"
+		},
+		"blocked": {
+			"title": "Recuperació del context en pausa",
+			"description": "El proveïdor no pot continuar ara mateix, així que la recopilació de context està en pausa.",
+			"descriptionWithRetry": "El proveïdor no pot continuar ara mateix, així que la recopilació de context està en pausa fins a les {{retryTime}}."
 		},
 		"truncation": {
 			"title": "Context truncat",
@@ -443,22 +488,49 @@
 			"titles": {
 				"chunks_moved_to_cold": "Context mogut a la memòria cau freda",
 				"chunks_pulled_from_cold": "Context recuperat de la memòria cau freda",
+				"chunks_evicted_from_cache": "Context expulsat de la memòria cau",
 				"condensing_avoided": "Condensació de context evitada",
 				"cold_cache_full": "Memòria cau freda plena"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "Els fragments de context antics s'han tret de la finestra calenta i s'han mantingut en RAM per recuperar-los més tard.",
 				"chunks_pulled_from_cold": "S'han restaurat fragments rellevants de la memòria cau freda després que ask_for_context demanés més context.",
+				"chunks_evicted_from_cache": "S'han expulsat fragments de context perquè el pressupost compartit de memòria cau necessitava més espai.",
 				"condensing_avoided": "La memòria cau calenta/freda ha alliberat prou espai, així que C ha omès la condensació automàtica.",
 				"cold_cache_full": "El pressupost de RAM és ple, així que C ha tornat a la condensació de context normal."
 			},
 			"details": {
 				"chunks": "Fragments",
 				"tokens": "Tokens",
+				"duplicateChunks": "Fragments duplicats fusionats",
+				"duplicateTokens": "Tokens duplicats fusionats",
+				"reason": "Motiu",
+				"source": "Origen",
+				"outcome": "Resultat",
 				"ram": "RAM",
 				"query": "Consulta",
 				"file": "Fitxer",
 				"warning": "Avís"
+			},
+			"reasons": {
+				"hot_budget_trim": "Retall del pressupost de la memòria cau calenta",
+				"request_pressure": "La sol·licitud necessitava espai",
+				"rebuild": "Reconstrucció de la memòria cau",
+				"combined_budget_eviction": "Expulsió pel pressupost compartit de memòria cau",
+				"ask_for_context": "Recuperació ask_for_context"
+			},
+			"sources": {
+				"active_task": "Tasca activa",
+				"foreground_task": "Tasca en primer pla",
+				"background_agent": "Agent en segon pla"
+			},
+			"outcomes": {
+				"moved": "Mogut",
+				"merged_duplicate": "Duplicat fusionat",
+				"partially_merged": "Duplicats fusionats parcialment",
+				"rejected": "Rebutjat",
+				"evicted": "Expulsat",
+				"retrieved": "Recuperat"
 			}
 		}
 	},

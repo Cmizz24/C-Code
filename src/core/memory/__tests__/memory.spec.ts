@@ -4,7 +4,7 @@ import path from "path"
 
 import type { MemoryEntry, ModelInfo } from "@roo-code/types"
 
-import { buildMemoryPromptForRequest } from "../inject"
+import { buildMemoryPromptForRequest, buildMemoryPromptForRequestWithMetadata } from "../inject"
 import { createMistakeMemoryCandidate } from "../mistakes"
 import { appendMemoryPromptToLastUserMessage, formatMemoryPrompt } from "../prompt"
 import { rankMemories } from "../ranking"
@@ -39,6 +39,8 @@ function memory(overrides: Partial<MemoryEntry>): MemoryEntry {
 		mode: overrides.mode,
 		toolName: overrides.toolName,
 		mistakeSignature: overrides.mistakeSignature,
+		mistakeCause: overrides.mistakeCause,
+		mistakeCategory: overrides.mistakeCategory,
 		confidence: overrides.confidence ?? 0.7,
 		reuseCount: overrides.reuseCount ?? 0,
 		successCount: overrides.successCount ?? 0,
@@ -114,12 +116,39 @@ describe("memory storage", () => {
 		expect(stored.pathTags).toEqual(["src/core/task/Task.ts"])
 	})
 
+	it("defaults general mistake memories to global and path-tagged lessons to workspace", async () => {
+		const { memory: general } = await createMistakeMemoryCandidate({
+			storage,
+			lesson: "Read validation feedback before retrying a failed action.",
+			error: "Validation failed",
+			toolName: "execute_command",
+			workspacePath,
+		})
+
+		expect(general.scope).toBe("global")
+		expect((await storage.readStore("global")).candidates).toHaveLength(1)
+		expect((await storage.readStore("workspace", workspacePath)).candidates).toHaveLength(0)
+
+		const { memory: pathTagged } = await createMistakeMemoryCandidate({
+			storage,
+			lesson: "When editing Task.ts, preserve the memory injection path.",
+			error: "Task test failed",
+			toolName: "apply_patch",
+			filePaths: ["src/core/task/Task.ts"],
+			workspacePath,
+		})
+
+		expect(pathTagged.scope).toBe("workspace")
+		expect((await storage.readStore("workspace", workspacePath)).candidates).toHaveLength(1)
+	})
+
 	it("supports pending mistake-memory approval and archive lifecycle", async () => {
 		const { memory: pending } = await createMistakeMemoryCandidate({
 			storage,
 			lesson: "When a patch fails, re-read the target file before retrying.",
 			error: "Patch context not found",
 			toolName: "apply_patch",
+			scope: "workspace",
 			workspacePath,
 		})
 
@@ -141,6 +170,7 @@ describe("memory storage", () => {
 			lesson: "When validation output changes, re-check the failing assertion before editing again.",
 			error: "Assertion changed",
 			toolName: "execute_command",
+			scope: "workspace",
 			workspacePath,
 			approved: true,
 		})
@@ -158,6 +188,7 @@ describe("memory storage", () => {
 			lesson: "First lesson",
 			error: "first error",
 			toolName: "read_file",
+			scope: "workspace",
 			workspacePath,
 			pendingCandidateLimit: 1,
 		})
@@ -166,6 +197,7 @@ describe("memory storage", () => {
 			lesson: "Second lesson",
 			error: "second error",
 			toolName: "read_file",
+			scope: "workspace",
 			workspacePath,
 			pendingCandidateLimit: 1,
 		})
@@ -183,6 +215,7 @@ describe("memory storage", () => {
 			lesson: "Pending lesson to remove.",
 			error: "pending error",
 			toolName: "read_file",
+			scope: "workspace",
 			workspacePath,
 		})
 		const active = await storage.createMemory({
@@ -311,6 +344,88 @@ describe("memory retrieval and ranking", () => {
 		expect(results[0].breakdown.modeMatch).toBeGreaterThan(0)
 		expect(results[0].breakdown.scopePreference).toBeGreaterThan(0)
 		expect(results[0].breakdown.mistakeSignature).toBeGreaterThan(0)
+	})
+
+	it("gates unrelated global mistake memories before recency, reuse, confidence, or mode can rank them", async () => {
+		const unrelated = await storage.createMemory({
+			scope: "global",
+			kind: "mistake",
+			status: "active",
+			source: "tool_error",
+			lesson: "Playwright browser installation failed because system dependencies were missing.",
+			tags: ["playwright", "tool-error"],
+			mode: "code",
+			confidence: 1,
+			mistakeCause: "validation",
+			mistakeCategory: "validation_infrastructure",
+		})
+		await storage.upsertMemory({
+			...unrelated,
+			reuseCount: 50,
+			successCount: 20,
+			lastUsedAt: Date.now(),
+			updatedAt: Date.now(),
+		})
+		const relevant = await storage.createMemory({
+			scope: "global",
+			kind: "mistake",
+			status: "active",
+			source: "tool_error",
+			lesson: "Stylelint mobile CSS overlay failures require checking the matching Stylelint rule and overlay selector.",
+			tags: ["stylelint", "css", "mobile"],
+			mode: "ask",
+			confidence: 0.2,
+			mistakeCause: "validation",
+			mistakeCategory: "validation_infrastructure",
+		})
+
+		const results = await retrieveMemories({
+			storage,
+			query: "Fix the Stylelint mobile CSS overlay failure",
+			workspacePath,
+			includeWorkspace: false,
+			includeGlobal: true,
+			mode: "code",
+			maxEntries: 5,
+		})
+
+		expect(results.map((result) => result.memory.id)).toEqual([relevant.id])
+	})
+
+	it("keeps relevant global operational mistake memories recallable for matching topics", async () => {
+		const gitMemory = await storage.createMemory({
+			scope: "global",
+			kind: "mistake",
+			status: "active",
+			source: "tool_error",
+			lesson: "Git dubious ownership errors require safe.directory configuration before rerunning git commands.",
+			tags: ["git", "safe-directory"],
+			toolName: "execute_command",
+			mistakeCause: "environment",
+			mistakeCategory: "environment_setup",
+		})
+		await storage.createMemory({
+			scope: "global",
+			kind: "mistake",
+			status: "active",
+			source: "tool_error",
+			lesson: "Exact-match edit failures require refreshing file context before applying another diff.",
+			tags: ["apply-diff", "exact-match"],
+			toolName: "apply_diff",
+			mistakeCause: "tool",
+			mistakeCategory: "tool_constraint",
+		})
+
+		const results = await retrieveMemories({
+			storage,
+			query: "Resolve Git dubious ownership safe.directory before running git status",
+			workspacePath,
+			includeWorkspace: false,
+			includeGlobal: true,
+			maxEntries: 5,
+		})
+
+		expect(results.map((result) => result.memory.id)).toEqual([gitMemory.id])
 	})
 
 	it("filters ignored path-tagged memories before ranking", async () => {
@@ -458,6 +573,7 @@ describe("memory prompt formatting and injection", () => {
 				kind: "lesson",
 				status: "active",
 				source: "manual",
+				title: "Pressure marker memory",
 				lesson: "A".repeat(1_500),
 				workspacePath,
 			})
@@ -474,13 +590,134 @@ describe("memory prompt formatting and injection", () => {
 					memoryGlobalEnabled: false,
 					memoryMaxCharacters: 2_400,
 				},
-				requestMessages: [{ role: "user", content: "Remember the A lesson" }],
+				requestMessages: [{ role: "user", content: "Remember the pressure marker lesson" }],
 			}
 
 			const trimmedPrompt = await buildMemoryPromptForRequest({ ...common, contextTokens: 7_700 })
 			expect(trimmedPrompt).toBeDefined()
 			expect(trimmedPrompt?.length).toBeLessThanOrEqual(800)
 			expect(await buildMemoryPromptForRequest({ ...common, contextTokens: 8_300 })).toBeUndefined()
+		} finally {
+			await fs.rm(tempDir, { recursive: true, force: true })
+		}
+	})
+
+	it("filters operational mistake lessons from unrelated prompts but recalls them for matching operational topics", async () => {
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "roo-memory-operational-filter-"))
+		const workspacePath = path.join(tempDir, "workspace")
+		const storage = new MemoryStorage({ globalStoragePath: tempDir, workspacePath })
+
+		try {
+			await storage.createMemory({
+				scope: "global",
+				kind: "mistake",
+				status: "active",
+				source: "tool_error",
+				lesson: "Git dubious ownership errors require configuring safe.directory before rerunning commands.",
+				tags: ["git", "environment"],
+				toolName: "execute_command",
+				mistakeCause: "environment",
+				mistakeCategory: "environment_setup",
+			})
+			await storage.createMemory({
+				scope: "global",
+				kind: "mistake",
+				status: "active",
+				source: "tool_error",
+				lesson: "Provider context cache failures are infrastructure issues, not model-actionable coding mistakes.",
+				tags: ["provider", "context-cache"],
+				mistakeCause: "provider",
+				mistakeCategory: "provider_infrastructure",
+			})
+
+			const common = {
+				globalStoragePath: tempDir,
+				workspacePath,
+				modelInfo: modelInfo(10_000, 1_000),
+				modelId: "test-model",
+				apiConfiguration: {},
+				settings: {
+					memoryEnabled: true,
+					memoryWorkspaceEnabled: false,
+					memoryGlobalEnabled: true,
+					memoryMaxCharacters: 2_400,
+					memoryMaxEntries: 5,
+				},
+				contextTokens: 100,
+			}
+
+			const unrelated = await buildMemoryPromptForRequestWithMetadata({
+				...common,
+				requestMessages: [{ role: "user", content: "Implement a user profile form" }],
+			})
+			expect(unrelated.prompt).toBeUndefined()
+			expect(unrelated.totalRecallCount).toBe(0)
+
+			const matching = await buildMemoryPromptForRequestWithMetadata({
+				...common,
+				requestMessages: [{ role: "user", content: "Resolve Git dubious ownership safe.directory error" }],
+			})
+			expect(matching.prompt).toContain("Git dubious ownership errors")
+			expect(matching.prompt).toContain("category=environment_setup")
+			expect(matching.prompt).not.toContain("Provider context cache failures")
+			expect(matching.recalledMemories[0]).toEqual(
+				expect.objectContaining({
+					mistakeCause: "environment",
+					mistakeCategory: "environment_setup",
+				}),
+			)
+		} finally {
+			await fs.rm(tempDir, { recursive: true, force: true })
+		}
+	})
+
+	it("returns bounded safe recall metadata without raw memory lessons", async () => {
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "roo-memory-recall-metadata-"))
+		const workspacePath = path.join(tempDir, "workspace")
+		const storage = new MemoryStorage({ globalStoragePath: tempDir, workspacePath })
+
+		try {
+			for (let index = 0; index < 6; index++) {
+				await storage.createMemory({
+					scope: "global",
+					kind: "lesson",
+					status: "active",
+					source: "manual",
+					title: `Safe recall title ${index}`,
+					lesson: `bounded recall marker secret lesson ${index}`,
+					tags: ["recall"],
+				})
+			}
+
+			const result = await buildMemoryPromptForRequestWithMetadata({
+				globalStoragePath: tempDir,
+				workspacePath,
+				modelInfo: modelInfo(10_000, 1_000),
+				modelId: "test-model",
+				apiConfiguration: {},
+				settings: {
+					memoryEnabled: true,
+					memoryWorkspaceEnabled: false,
+					memoryGlobalEnabled: true,
+					memoryMaxCharacters: 2_400,
+					memoryMaxEntries: 10,
+				},
+				requestMessages: [{ role: "user", content: "bounded recall marker" }],
+				contextTokens: 100,
+			})
+
+			expect(result.prompt).toContain("bounded recall marker secret lesson")
+			expect(result.totalRecallCount).toBe(6)
+			expect(result.recalledMemories).toHaveLength(5)
+			expect(result.recalledMemories[0]).toEqual(
+				expect.objectContaining({
+					scope: "global",
+					kind: "lesson",
+					title: expect.stringMatching(/^Safe recall title/),
+					tags: ["recall"],
+				}),
+			)
+			expect(JSON.stringify(result.recalledMemories)).not.toContain("secret lesson")
 		} finally {
 			await fs.rm(tempDir, { recursive: true, force: true })
 		}

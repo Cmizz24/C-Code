@@ -855,6 +855,36 @@
 				"condensingAvoided": "Wie oft Kondensieren vermieden wurde",
 				"hotCacheChunks": "Hot-Cache-Chunks",
 				"ramBudget": "RAM-Budget"
+			},
+			"diagnostics": {
+				"title": "Diagnose für Cache-Druck",
+				"description": "Kompakte Ansicht des RAM-Drucks in diesem Fenster und anderen aktiven C-Fenstern. Task-IDs, Prompts und Dateipfade werden nicht angezeigt.",
+				"status": {
+					"label": "Druckstatus",
+					"automatic": "Automatische Entlastung aktiv",
+					"ready": "Im Budget",
+					"help": "C entfernt zuerst kalte Chunks und zeigt hier nur aggregierte Werte."
+				},
+				"localUsage": "Lokale Nutzung / Budget",
+				"configuredEffective": "Konfiguriertes / effektives Budget",
+				"hotColdRam": "Heißer / kalter RAM",
+				"evictions": {
+					"label": "Verdrängungen",
+					"value": "{{total}} gesamt · {{hot}} heiß / {{cold}} kalt"
+				},
+				"contributors": {
+					"label": "Beitragende",
+					"usage": "{{ram}} · {{hot}} heiß / {{cold}} kalt"
+				},
+				"crossWindow": {
+					"title": "Fensterübergreifender Druck",
+					"description": "Aggregierte Nutzung dieses Fensters und anderer Peers; Workspace-Pfade und Prompts bleiben verborgen.",
+					"liveWindows": "Fenster / Peers",
+					"localPeerUsage": "Lokal / Peer-Nutzung",
+					"globalLocalTarget": "Globales / lokales Ziel",
+					"cleanup": "Bereinigung alter Heartbeats",
+					"cleanupValue": "{{cleaned}} bereinigt / {{failed}} fehlgeschlagen"
+				}
 			}
 		}
 	},
@@ -1167,6 +1197,43 @@
 			"freeRequests": "* Kostenlos bis zu {{count}} Anfragen pro Minute. Danach hängt die Abrechnung von der Prompt-Größe ab.",
 			"pricingDetails": "Weitere Informationen finden Sie unter Preisdetails.",
 			"billingEstimate": "* Die Abrechnung ist eine Schätzung - die genauen Kosten hängen von der Prompt-Größe ab."
+		},
+		"provenance": {
+			"title": "Quelle der Modellmetadaten",
+			"reviewStatus": "Status: {{status}}",
+			"lastReviewed": "Geprüft: {{date}}",
+			"source": "Quelle:",
+			"endpoint": "(Endpoint: {{endpoint}})",
+			"capabilitySummary": "Quellen für Fähigkeiten: {{capabilities}}",
+			"capabilitySummaryWithMore": "Quellen für Fähigkeiten: {{capabilities}} + {{count}} weitere",
+			"sourceTypes": {
+				"official-docs": "offizielle Doku",
+				"official-api": "offizielle API",
+				"provider-announcement": "Ankündigung des Anbieters",
+				"curated": "kuratiert",
+				"unknown": "unbekannt"
+			},
+			"reviewStatuses": {
+				"reviewed": "geprüft",
+				"unreviewed": "ungeprüft",
+				"unknown": "unbekannt"
+			},
+			"capabilities": {
+				"contextWindow": "Kontextfenster",
+				"maxTokens": "maximale Ausgabe",
+				"pricing": "Preise",
+				"reasoning": "Reasoning",
+				"promptCaching": "Prompt-Caching",
+				"images": "Bilder",
+				"imageOutput": "Bildausgabe",
+				"tools": "Tools",
+				"computerUse": "Computernutzung",
+				"webSearch": "Websuche",
+				"jsonSchema": "JSON-Schema",
+				"deprecation": "Deprecation",
+				"description": "Beschreibung",
+				"serviceTiers": "Service-Tiers"
+			}
 		}
 	},
 	"modelPicker": {

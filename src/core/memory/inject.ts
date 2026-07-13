@@ -1,9 +1,9 @@
-import type { MemoryGlobalSettings, ModelInfo } from "@roo-code/types"
+import type { MemoryGlobalSettings, MemoryRecallChatResult, MemoryRetrievalResult, ModelInfo } from "@roo-code/types"
 
 import { getModelMaxOutputTokens } from "../../shared/api"
 import type { ProviderSettings } from "@roo-code/types"
 import type { RooIgnoreController } from "../ignore/RooIgnoreController"
-import { appendMemoryPromptToLastUserMessage, formatMemoryPrompt } from "./prompt"
+import { appendMemoryPromptToLastUserMessage, formatMemoryPrompt, selectMemoryPromptResults } from "./prompt"
 import { extractPathHintsFromText, extractTextFromRequestMessages, retrieveMemories } from "./retrieval"
 import { resolveMemorySettings, isMemoryEnabledForModel } from "./settings"
 import { MemoryStorage } from "./storage"
@@ -22,12 +22,45 @@ export interface BuildMemoryPromptForRequestOptions {
 	contextTokens?: number
 }
 
+export interface BuildMemoryPromptForRequestResult {
+	prompt?: string
+	recalledMemories: MemoryRecallChatResult[]
+	totalRecallCount: number
+}
+
+const MAX_CHAT_RECALL_RESULTS = 5
+
+function toMemoryRecallChatResult(result: MemoryRetrievalResult): MemoryRecallChatResult {
+	const { memory } = result
+	return {
+		id: memory.id,
+		scope: memory.scope,
+		kind: memory.kind,
+		status: memory.status,
+		title: memory.title,
+		tags: memory.tags,
+		pathTags: memory.pathTags,
+		mode: memory.mode,
+		toolName: memory.toolName,
+		mistakeCause: memory.mistakeCause,
+		mistakeCategory: memory.mistakeCategory,
+		confidence: memory.confidence,
+		score: result.score,
+	}
+}
+
 export async function buildMemoryPromptForRequest(
 	options: BuildMemoryPromptForRequestOptions,
 ): Promise<string | undefined> {
+	return (await buildMemoryPromptForRequestWithMetadata(options)).prompt
+}
+
+export async function buildMemoryPromptForRequestWithMetadata(
+	options: BuildMemoryPromptForRequestOptions,
+): Promise<BuildMemoryPromptForRequestResult> {
 	const settings = resolveMemorySettings(options.settings)
 	if (!isMemoryEnabledForModel(settings, options.modelInfo)) {
-		return undefined
+		return { recalledMemories: [], totalRecallCount: 0 }
 	}
 
 	const maxOutputTokens =
@@ -42,7 +75,7 @@ export async function buildMemoryPromptForRequest(
 		const availableInputWindow = Math.max(1, options.modelInfo.contextWindow - maxOutputTokens)
 		const pressure = options.contextTokens / availableInputWindow
 		if (pressure >= 0.92) {
-			return undefined
+			return { recalledMemories: [], totalRecallCount: 0 }
 		}
 		if (pressure >= 0.85) {
 			maxCharacters = Math.min(maxCharacters, 800)
@@ -65,16 +98,21 @@ export async function buildMemoryPromptForRequest(
 		maxEntries: settings.memoryMaxEntries,
 		rooIgnoreController: options.rooIgnoreController,
 	})
-	const prompt = formatMemoryPrompt(results, { maxCharacters })
+	const promptResults = selectMemoryPromptResults(results, { maxCharacters })
+	const prompt = formatMemoryPrompt(promptResults, { maxCharacters })
 
 	if (prompt) {
 		await storage.recordMemoryUse(
-			results.map((result) => result.memory.id),
+			promptResults.map((result) => result.memory.id),
 			options.workspacePath,
 		)
 	}
 
-	return prompt
+	return {
+		prompt,
+		recalledMemories: promptResults.slice(0, MAX_CHAT_RECALL_RESULTS).map(toMemoryRecallChatResult),
+		totalRecallCount: promptResults.length,
+	}
 }
 
 export { appendMemoryPromptToLastUserMessage }

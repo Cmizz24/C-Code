@@ -633,10 +633,13 @@ describe("Context Management", () => {
 			const summarizeSpy = vi.spyOn(condenseModule, "summarizeConversation")
 			const modelInfo = createModelInfo(100000, 30000)
 			const totalTokens = 70001
+			const protectedQuery = "Fix payment cache churn"
 			const messagesWithTimestamp: ApiMessage[] = [
 				...messages.slice(0, -1),
-				{ ...messages[messages.length - 1], content: "", ts: 500 },
+				{ ...messages[messages.length - 1], content: protectedQuery, ts: 500 },
 			]
+			const lastMessageTokens = await estimateTokenCount([{ type: "text", text: protectedQuery }], mockApiHandler)
+			const expectedPrevContextTokens = totalTokens + lastMessageTokens
 			const allowedTokens = modelInfo.contextWindow * (1 - TOKEN_BUFFER_PERCENTAGE) - modelInfo.maxTokens!
 			const contextWindowManager = {
 				handlePressure: vi.fn().mockReturnValue({ handled: true, movedChunks: 2, movedTokens: 1000 }),
@@ -658,16 +661,17 @@ describe("Context Management", () => {
 			})
 
 			expect(contextWindowManager.handlePressure).toHaveBeenCalledWith({
-				totalTokens,
+				totalTokens: expectedPrevContextTokens,
 				allowedTokens,
 				protectedMessageTimestamps: [500],
+				protectedQuery,
 			})
 			expect(summarizeSpy).not.toHaveBeenCalled()
 			expect(result).toEqual({
 				messages: messagesWithTimestamp,
 				summary: "",
 				cost: 0,
-				prevContextTokens: totalTokens,
+				prevContextTokens: expectedPrevContextTokens,
 				contextCacheHandled: true,
 			})
 
@@ -779,6 +783,7 @@ describe("Context Management", () => {
 
 			// Verify it fell back to truncation (non-destructive)
 			expect(result.truncationId).toBeDefined()
+			expect(result.blocked).toBeUndefined()
 			expect(result.messagesRemoved).toBe(2)
 			expect(result.summary).toBe("")
 			expect(result.prevContextTokens).toBe(totalTokens)
@@ -787,6 +792,68 @@ describe("Context Management", () => {
 			// The cost might be different than expected, so we don't check it
 
 			// Clean up
+			summarizeSpy.mockRestore()
+		})
+
+		it("should return blocked context management instead of truncating when summarization fails due to provider capacity", async () => {
+			const retryAt = Date.now() + 120_000
+			const providerCapacity = {
+				kind: "rate_limit" as const,
+				message: "Rate limit exceeded",
+				provider: "test-provider",
+				status: 429,
+				retryAfterMs: 120_000,
+				retryAt,
+				isRetryable: true,
+			}
+			const mockSummarizeResponse: condenseModule.SummarizeResponse = {
+				messages,
+				summary: "",
+				cost: 0.01,
+				error: "Provider rate limit exceeded",
+				providerCapacity,
+			}
+
+			const summarizeSpy = vi
+				.spyOn(condenseModule, "summarizeConversation")
+				.mockResolvedValue(mockSummarizeResponse)
+
+			const modelInfo = createModelInfo(100000, 30000)
+			const totalTokens = 70001 // Above threshold
+			const messagesWithSmallContent = [
+				...messages.slice(0, -1),
+				{ ...messages[messages.length - 1], content: "" },
+			]
+
+			const result = await manageContext({
+				messages: messagesWithSmallContent,
+				totalTokens,
+				contextWindow: modelInfo.contextWindow,
+				maxTokens: modelInfo.maxTokens,
+				apiHandler: mockApiHandler,
+				autoCondenseContext: true,
+				autoCondenseContextPercent: 100,
+				systemPrompt: "System prompt",
+				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
+			})
+
+			expect(summarizeSpy).toHaveBeenCalled()
+			expect(result.truncationId).toBeUndefined()
+			expect(result.messagesRemoved).toBeUndefined()
+			expect(result.newContextTokensAfterTruncation).toBeUndefined()
+			expect(result.prevContextTokens).toBe(totalTokens)
+			expect(result.blocked).toEqual(
+				expect.objectContaining({
+					source: "condense",
+					reason: "Provider rate limit exceeded",
+					retryAfterMs: 120_000,
+					retryAt,
+					providerCapacity,
+				}),
+			)
+
 			summarizeSpy.mockRestore()
 		})
 
@@ -837,6 +904,46 @@ describe("Context Management", () => {
 			expect(result.messages.length).toBe(6) // 5 original + 1 marker
 
 			// Clean up
+			summarizeSpy.mockRestore()
+		})
+
+		it("should not return truncation metadata when fallback truncation removes no messages", async () => {
+			vi.clearAllMocks()
+			const summarizeSpy = vi.spyOn(condenseModule, "summarizeConversation")
+			const modelInfo = createModelInfo(100000, 30000)
+			const shortMessages: ApiMessage[] = [
+				{ role: "user", content: "First message" },
+				{ role: "assistant", content: "Second message" },
+				{ role: "user", content: "" },
+			]
+
+			const result = await manageContext({
+				messages: shortMessages,
+				totalTokens: 70001,
+				contextWindow: modelInfo.contextWindow,
+				maxTokens: modelInfo.maxTokens,
+				apiHandler: mockApiHandler,
+				autoCondenseContext: false,
+				autoCondenseContextPercent: 50,
+				systemPrompt: "System prompt",
+				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
+			})
+
+			expect(summarizeSpy).not.toHaveBeenCalled()
+			expect(result).toEqual({
+				messages: shortMessages,
+				summary: "",
+				cost: 0,
+				prevContextTokens: 70001,
+				error: undefined,
+				errorDetails: undefined,
+			})
+			expect(result.truncationId).toBeUndefined()
+			expect(result.messagesRemoved).toBeUndefined()
+			expect(result.newContextTokensAfterTruncation).toBeUndefined()
+
 			summarizeSpy.mockRestore()
 		})
 

@@ -28,7 +28,18 @@
 			"coldShort": "cold",
 			"swaps": "Wissels",
 			"condensingAvoided": "Condensing vermeden",
-			"warning": "Waarschuwing"
+			"warning": "Waarschuwing",
+			"diagnostics": {
+				"evictionsValue": "{{total}} totaal · {{hot}} heet / {{cold}} koud",
+				"contributors_one": "{{count}} bijdrager",
+				"contributors_other": "{{count}} bijdragers",
+				"contributorUsage": "{{ram}} · {{hot}} heet / {{cold}} koud",
+				"combinedBudget": "Gecombineerd budget",
+				"hotColdRam": "Hete / koude RAM",
+				"evictionsLabel": "Verwijderingen",
+				"combinedStatus": "Gecombineerd: {{used}} / {{budget}}",
+				"evictionsStatus": "Verwijderingen: {{value}}"
+			}
 		}
 	},
 	"unpin": "Losmaken",
@@ -339,6 +350,7 @@
 			"waiting": "Wachten",
 			"lastTouched": "Laatst aangeraakt",
 			"usage": "Gebruik",
+			"contextUsage": "Contextgebruik",
 			"worktree": "Worktree",
 			"activity": "Activiteit",
 			"conflicts": "Conflicten",
@@ -347,6 +359,7 @@
 			"waitingOn": "Wachten op {{agents}}",
 			"noFileWrites": "Nog geen bestandsschrijfacties",
 			"noUsage": "Nog geen gebruik gemeld",
+			"noContextUsage": "Nog geen contextgebruik gemeld",
 			"noActivity": "Nog geen activiteit gemeld",
 			"noConflicts": "Geen conflicten"
 		},
@@ -370,6 +383,33 @@
 				"binaryFiles_one": "{{count}} binair bestand",
 				"binaryFiles_other": "{{count}} binaire bestanden"
 			}
+		},
+		"planPreview": {
+			"title": "Plan voor parallelle agents bekijken",
+			"setupTitle": "Git-setup vereist voor parallelle agents",
+			"description": "Bekijk de toewijzing van elke agent voordat C worktrees start.",
+			"setupDescription": "Los het Git-setupprobleem op en probeer het bewaarde plan opnieuw zonder het opnieuw te bouwen.",
+			"expand": "Plan uitklappen",
+			"collapse": "Plan inklappen",
+			"setupRequired": "Setup vereist: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "geen Git-repository",
+				"no-initial-commit": "geen eerste commit",
+				"git-unavailable": "Git niet beschikbaar"
+			},
+			"pathPrivacyNote": "Workspace- en Git-paden worden hier verborgen om diagnoses veilig te houden.",
+			"sharedContext": "Gedeelde context",
+			"taskDescription": "Taakomschrijving",
+			"ownedFiles": "Toegewezen bestanden",
+			"noOwnedFiles": "Geen toegewezen bestanden",
+			"removeOwnedFile": "Verwijder {{path}} uit toegewezen bestanden",
+			"dependencies": "Afhankelijkheden",
+			"noDependencies": "Geen afhankelijkheden",
+			"setupFooter": "Je goedgekeurde plan blijft bewaard. Los Git op en probeer opnieuw.",
+			"footer": "Bekijk eigendomsgrenzen voordat je het plan goedkeurt.",
+			"cancel": "Annuleren",
+			"retry": "Bewaard plan opnieuw proberen",
+			"approve": "Plan goedkeuren"
 		}
 	},
 	"questions": {
@@ -457,8 +497,13 @@
 		"tokens": "tokens",
 		"condensation": {
 			"title": "Context samengevat",
-			"inProgress": "Context aan het samenvatten...",
+			"inProgress": "Context beheren...",
 			"errorHeader": "Context samenvatten mislukt"
+		},
+		"blocked": {
+			"title": "Contextherstel gepauzeerd",
+			"description": "De provider kan nu niet verdergaan, dus context verzamelen is gepauzeerd.",
+			"descriptionWithRetry": "De provider kan nu niet verdergaan, dus context verzamelen is gepauzeerd tot {{retryTime}}."
 		},
 		"truncation": {
 			"title": "Context ingekort",
@@ -476,13 +521,15 @@
 				"chunks_moved_to_cold": "Context naar coldcache verplaatst",
 				"chunks_pulled_from_cold": "Context uit coldcache opgehaald",
 				"condensing_avoided": "Contextcondensing vermeden",
-				"cold_cache_full": "Coldcache vol"
+				"cold_cache_full": "Coldcache vol",
+				"chunks_evicted_from_cache": "Context uit cache verwijderd"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "Oudere contextchunks zijn uit het hot venster gehaald en in RAM bewaard om later op te halen.",
 				"chunks_pulled_from_cold": "Relevante coldcachechunks zijn hersteld nadat ask_for_context om meer context vroeg.",
 				"condensing_avoided": "De hot/cold cache maakte genoeg ruimte vrij, dus C sloeg automatisch condenseren over.",
-				"cold_cache_full": "Het RAM-budget is vol, dus C viel terug op gewone contextcondensing."
+				"cold_cache_full": "Het RAM-budget is vol, dus C viel terug op gewone contextcondensing.",
+				"chunks_evicted_from_cache": "Contextchunks zijn verwijderd omdat het gedeelde cachebudget meer ruimte nodig had."
 			},
 			"details": {
 				"chunks": "Chunks",
@@ -490,7 +537,32 @@
 				"ram": "RAM",
 				"query": "Query",
 				"file": "Bestand",
-				"warning": "Waarschuwing"
+				"warning": "Waarschuwing",
+				"duplicateChunks": "Dubbele chunks samengevoegd",
+				"duplicateTokens": "Dubbele tokens samengevoegd",
+				"reason": "Reden",
+				"source": "Bron",
+				"outcome": "Resultaat"
+			},
+			"reasons": {
+				"hot_budget_trim": "Hot-cachebudget opgeschoond",
+				"request_pressure": "Aanvraag had ruimte nodig",
+				"rebuild": "Cache opnieuw opgebouwd",
+				"combined_budget_eviction": "Verwijdering door gedeeld cachebudget",
+				"ask_for_context": "ask_for_context ophalen"
+			},
+			"sources": {
+				"active_task": "Actieve taak",
+				"foreground_task": "Voorgrondtaak",
+				"background_agent": "Achtergrondagent"
+			},
+			"outcomes": {
+				"moved": "Verplaatst",
+				"merged_duplicate": "Duplicaat samengevoegd",
+				"partially_merged": "Duplicaten deels samengevoegd",
+				"rejected": "Geweigerd",
+				"evicted": "Verwijderd",
+				"retrieved": "Opgehaald"
 			}
 		}
 	},

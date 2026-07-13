@@ -855,6 +855,36 @@
 				"condensingAvoided": "Veces que se evitó condensar",
 				"hotCacheChunks": "Fragmentos de caché caliente",
 				"ramBudget": "Presupuesto de RAM"
+			},
+			"diagnostics": {
+				"title": "Diagnóstico de presión de caché",
+				"description": "Vista compacta de la presión de RAM en esta ventana y otras ventanas C activas. No se incluyen IDs de tareas, prompts ni rutas de archivos.",
+				"status": {
+					"label": "Estado de presión",
+					"automatic": "Alivio automático activo",
+					"ready": "Dentro del presupuesto",
+					"help": "C poda primero los fragmentos fríos y aquí solo muestra recuentos agregados."
+				},
+				"localUsage": "Uso local / presupuesto",
+				"configuredEffective": "Presupuesto configurado / efectivo",
+				"hotColdRam": "RAM caliente / fría",
+				"evictions": {
+					"label": "Expulsiones",
+					"value": "{{total}} en total · {{hot}} calientes / {{cold}} fríos"
+				},
+				"contributors": {
+					"label": "Contribuidores",
+					"usage": "{{ram}} · {{hot}} calientes / {{cold}} fríos"
+				},
+				"crossWindow": {
+					"title": "Presión entre ventanas",
+					"description": "Uso agregado de esta ventana y sus pares; las rutas del workspace y los prompts permanecen ocultos.",
+					"liveWindows": "Ventanas / pares",
+					"localPeerUsage": "Uso local / pares",
+					"globalLocalTarget": "Objetivo global / local",
+					"cleanup": "Limpieza de heartbeats obsoletos",
+					"cleanupValue": "{{cleaned}} limpiados / {{failed}} fallidos"
+				}
 			}
 		}
 	},
@@ -1167,6 +1197,43 @@
 			"freeRequests": "* Gratis hasta {{count}} solicitudes por minuto. Después de eso, la facturación depende del tamaño del prompt.",
 			"pricingDetails": "Para más información, consulte los detalles de precios.",
 			"billingEstimate": "* La facturación es una estimación - el costo exacto depende del tamaño del prompt."
+		},
+		"provenance": {
+			"title": "Fuente de metadatos del modelo",
+			"reviewStatus": "Estado: {{status}}",
+			"lastReviewed": "Revisado: {{date}}",
+			"source": "Fuente:",
+			"endpoint": "(endpoint: {{endpoint}})",
+			"capabilitySummary": "Capacidades con fuente: {{capabilities}}",
+			"capabilitySummaryWithMore": "Capacidades con fuente: {{capabilities}} + {{count}} más",
+			"sourceTypes": {
+				"official-docs": "docs oficiales",
+				"official-api": "API oficial",
+				"provider-announcement": "anuncio del proveedor",
+				"curated": "curado",
+				"unknown": "desconocido"
+			},
+			"reviewStatuses": {
+				"reviewed": "revisado",
+				"unreviewed": "sin revisar",
+				"unknown": "desconocido"
+			},
+			"capabilities": {
+				"contextWindow": "ventana de contexto",
+				"maxTokens": "salida máxima",
+				"pricing": "precios",
+				"reasoning": "reasoning",
+				"promptCaching": "caché de Prompt",
+				"images": "imágenes",
+				"imageOutput": "salida de imagen",
+				"tools": "tools",
+				"computerUse": "uso de ordenador",
+				"webSearch": "búsqueda web",
+				"jsonSchema": "esquema JSON",
+				"deprecation": "obsolescencia",
+				"description": "descripción",
+				"serviceTiers": "niveles de servicio"
+			}
 		}
 	},
 	"modelPicker": {

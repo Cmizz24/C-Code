@@ -4,7 +4,11 @@ import crypto from "crypto"
 import { ApiHandler, ApiHandlerCreateMessageMetadata } from "../../api"
 import { MAX_CONDENSE_THRESHOLD, MIN_CONDENSE_THRESHOLD, summarizeConversation, SummarizeResponse } from "../condense"
 import { ApiMessage } from "../task-persistence/apiMessages"
-import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "@roo-code/types"
+import {
+	ANTHROPIC_DEFAULT_MAX_TOKENS,
+	type ContextManagementBlocked,
+	type ProviderCapacityMetadata,
+} from "@roo-code/types"
 import { RooIgnoreController } from "../ignore/RooIgnoreController"
 import type { ContextWindowManager } from "../context/ContextWindowManager"
 
@@ -44,7 +48,7 @@ export async function estimateTokenCount(
  */
 export type TruncationResult = {
 	messages: ApiMessage[]
-	truncationId: string
+	truncationId?: string
 	messagesRemoved: number
 }
 
@@ -61,11 +65,9 @@ export type TruncationResult = {
  * @param {ApiMessage[]} messages - The conversation messages.
  * @param {number} fracToRemove - The fraction (between 0 and 1) of messages (excluding the first) to hide.
  * @param {string} taskId - The task ID for the conversation
- * @returns {TruncationResult} Object containing the tagged messages, truncation ID, and count of messages removed.
+ * @returns {TruncationResult} Object containing the tagged messages, truncation ID when truncation occurred, and count of messages removed.
  */
 export function truncateConversation(messages: ApiMessage[], fracToRemove: number, taskId: string): TruncationResult {
-	const truncationId = crypto.randomUUID()
-
 	// Filter to only visible messages (those not already truncated)
 	// We need to track original indices to correctly tag messages in the full array
 	const visibleIndices: number[] = []
@@ -84,10 +86,11 @@ export function truncateConversation(messages: ApiMessage[], fracToRemove: numbe
 		// Nothing to truncate
 		return {
 			messages,
-			truncationId,
 			messagesRemoved: 0,
 		}
 	}
+
+	const truncationId = crypto.randomUUID()
 
 	// Get the indices of visible messages to truncate (skip first visible, take next N)
 	const indicesToTruncate = new Set(visibleIndices.slice(1, messagesToRemove + 1))
@@ -236,6 +239,49 @@ export type ContextManagementResult = SummarizeResponse & {
 	messagesRemoved?: number
 	newContextTokensAfterTruncation?: number
 	contextCacheHandled?: boolean
+	blocked?: ContextManagementBlocked
+}
+
+function createContextManagementBlocked(
+	source: ContextManagementBlocked["source"],
+	reason: string,
+	providerCapacity: ProviderCapacityMetadata,
+): ContextManagementBlocked {
+	return {
+		id: crypto.randomUUID(),
+		createdAt: Date.now(),
+		source,
+		reason,
+		retryAfterMs: providerCapacity.retryAfterMs,
+		retryAt: providerCapacity.retryAt,
+		providerCapacity,
+	}
+}
+
+function getApiMessageTextContent(content: ApiMessage["content"]): string | undefined {
+	const text = (() => {
+		if (typeof content === "string") {
+			return content
+		}
+		if (!Array.isArray(content)) {
+			return ""
+		}
+
+		return content
+			.map((block) => {
+				const textBlock = block as { type?: string; text?: unknown }
+				return textBlock.type === "text" && typeof textBlock.text === "string" ? textBlock.text : ""
+			})
+			.filter(Boolean)
+			.join("\n")
+	})()
+
+	const cleaned = text
+		.replace(/<environment_details>[\s\S]*?<\/environment_details>/gi, " ")
+		.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, " ")
+		.trim()
+
+	return cleaned.length > 0 ? cleaned : undefined
 }
 
 /**
@@ -305,6 +351,7 @@ export async function manageContext({
 	// If no specific threshold is found for the profile, fall back to global setting
 
 	const contextPercent = (100 * prevContextTokens) / contextWindow
+	const protectedQuery = getApiMessageTextContent(lastMessageContent)
 	const cacheCanAttemptPressure =
 		(autoCondenseContext && contextPercent >= effectiveThreshold) || prevContextTokens > allowedTokens
 	if (cacheCanAttemptPressure) {
@@ -312,6 +359,7 @@ export async function manageContext({
 			totalTokens: prevContextTokens,
 			allowedTokens,
 			protectedMessageTimestamps: typeof lastMessage.ts === "number" ? [lastMessage.ts] : undefined,
+			...(protectedQuery ? { protectedQuery } : {}),
 		})
 
 		if (cachePressureResult?.handled) {
@@ -339,6 +387,13 @@ export async function manageContext({
 				error = result.error
 				errorDetails = result.errorDetails
 				cost = result.cost
+				if (result.providerCapacity) {
+					return {
+						...result,
+						prevContextTokens,
+						blocked: createContextManagementBlocked("condense", result.error, result.providerCapacity),
+					}
+				}
 			} else {
 				return { ...result, prevContextTokens }
 			}
@@ -348,6 +403,9 @@ export async function manageContext({
 	// Fall back to sliding window truncation if needed
 	if (prevContextTokens > allowedTokens) {
 		const truncationResult = truncateConversation(messages, 0.5, taskId)
+		if (truncationResult.messagesRemoved <= 0 || !truncationResult.truncationId) {
+			return { messages, summary: "", cost, prevContextTokens, error, errorDetails }
+		}
 
 		// Calculate new context tokens after truncation by counting non-truncated messages
 		// Messages with truncationParent are hidden, so we count only those without it
@@ -372,6 +430,10 @@ export async function manageContext({
 					apiHandler,
 				)
 			}
+		}
+
+		if (newContextTokensAfterTruncation >= prevContextTokens) {
+			return { messages, summary: "", cost, prevContextTokens, error, errorDetails }
 		}
 
 		return {

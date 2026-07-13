@@ -31,6 +31,15 @@ describe("coordinate_agents native tool", () => {
 		expect(description).toContain("Agent <id> owns <file>")
 		expect(description).toContain("For publishing")
 		expect(description).toContain("targeted integration question")
+		expect(description).toContain("Targeted questions with an exact targetAgentId default to waiting")
+		expect(description).toContain("waitForAnswer=true requires one concrete exact active targetAgentId")
+		expect(description).toContain(
+			"Role/display labels such as integration or security are invalid unless they exactly match an agent ID",
+		)
+		expect(description).toContain("timeout leaves the question pending and completion-blocking")
+		expect(description).toContain("Do not replace a missing answer with a local assumption")
+		expect(description).not.toContain("timed out, unanswerable")
+		expect(description).not.toContain("Set false only when continuing immediately is safer")
 		expect(description).toContain("answer to reply to an open question")
 		expect(description).toContain("decision to publish a shared contract")
 		expect(description).toContain("note to publish a concrete integration assumption/discovery")
@@ -63,6 +72,25 @@ describe("coordinate_agents native tool", () => {
 		expect(parameters.properties.relatedFiles.items.maxLength).toBe(200)
 		expect(parameters.properties.limit.minimum).toBe(1)
 		expect(parameters.properties.limit.maximum).toBe(20)
+		expect(parameters.properties.targetAgentId.description).toContain("Optional exact active plan agent ID")
+		expect(parameters.properties.targetAgentId.description).toContain(
+			"Role/display labels such as 'integration' or 'security' are invalid unless they exactly match an agent ID",
+		)
+		expect(parameters.properties.waitForAnswer.type).toBe("boolean")
+		expect(parameters.properties.waitForAnswer.description).toContain(
+			"Targeted questions with an exact targetAgentId default to waiting",
+		)
+		expect(parameters.properties.waitForAnswer.description).toContain(
+			"waitForAnswer=true requires one concrete exact active targetAgentId",
+		)
+		expect(parameters.properties.waitForAnswer.description).toContain("broadcast/no-target questions cannot wait")
+		expect(parameters.properties.waitForAnswer.description).toContain("pending and completion-blocking")
+		expect(parameters.properties.waitForAnswer.description).toContain("Do not proceed with a local assumption")
+		expect(parameters.properties.waitForAnswer.description).not.toContain("unanswerable")
+		expect(parameters.properties.timeoutMs.type).toBe("integer")
+		expect(parameters.properties.timeoutMs.minimum).toBe(1_000)
+		expect(parameters.properties.timeoutMs.maximum).toBe(120_000)
+		expect(parameters.properties.timeoutMs.description).toContain("Defaults to 30000")
 		expect(parameters.additionalProperties).toBe(false)
 	})
 })

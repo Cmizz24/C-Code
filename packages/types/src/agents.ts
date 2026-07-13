@@ -90,6 +90,16 @@ export interface ExecutionPlan {
 	continuation?: ParallelPlanContinuationMetadata
 }
 
+export type WorktreeSetupRequiredReason = "not_git_repo" | "no_initial_commit" | "git_unavailable"
+
+export interface WorktreeSetupRequired {
+	reason: WorktreeSetupRequiredReason
+	message: string
+	guidance: string
+	workspacePath?: string
+	gitRoot?: string
+}
+
 export type AgentContinuationDecision = "reused" | "fresh"
 
 export interface AgentContinuationMetadata {
@@ -380,7 +390,16 @@ export interface AgentStatusUpdate {
 	reason?: string
 	blockedOn?: AgentDependency[]
 	usage?: TokenUsage
+	contextUsage?: AgentContextUsage
 	activities?: AgentActivityEvent[]
+}
+
+export interface AgentContextUsage {
+	contextTokens: number
+	contextWindow: number
+	reservedOutputTokens: number
+	availableInputTokens: number
+	percent: number
 }
 
 export interface WriteIntentConflict {

@@ -1,6 +1,7 @@
 // npx vitest run api/providers/fetchers/__tests__/requesty.spec.ts
 
 import axios from "axios"
+import { modelInfoSchema, requestyDefaultModelInfo } from "@roo-code/types"
 
 import { getRequestyModels, parseRequestyModel } from "../requesty"
 
@@ -29,7 +30,10 @@ describe("Requesty model fetcher", () => {
 							context_window: 200_000,
 							supports_caching: true,
 							supports_vision: true,
+							supports_computer_use: true,
 							supports_reasoning: true,
+							supports_web_search: true,
+							supports_json_schema: true,
 							input_price: "0.000003",
 							output_price: "0.000015",
 							caching_price: "0.00000375",
@@ -55,18 +59,42 @@ describe("Requesty model fetcher", () => {
 			expect(mockAxiosGet).toHaveBeenCalledWith("https://router.requesty.ai/v1/models", {
 				headers: { Authorization: "Bearer requesty-key" },
 			})
-			expect(models["coding/claude-sonnet-4-20250514"]).toEqual({
+			expect(models["coding/claude-sonnet-4-20250514"]).toMatchObject({
 				maxTokens: 8192,
 				contextWindow: 200_000,
 				supportsPromptCache: true,
 				supportsImages: true,
-				supportsReasoningBudget: true,
-				supportsReasoningEffort: false,
+				supportsReasoningBudget: false,
+				supportsReasoningEffort: ["disable", "none", "low", "medium", "high", "max"],
 				inputPrice: 3,
 				outputPrice: 15,
 				description: "Requesty Claude Sonnet 4",
 				cacheWritesPrice: 3.75,
 				cacheReadsPrice: 0.3,
+				provenance: {
+					reviewStatus: "reviewed",
+					sources: [
+						expect.objectContaining({
+							type: "official-api",
+							url: "https://router.requesty.ai/v1/models",
+							endpoint: "/v1/models",
+						}),
+					],
+				},
+				capabilityProvenance: {
+					contextWindow: expect.objectContaining({ sourceFields: ["context_window"] }),
+					pricing: expect.objectContaining({
+						sourceFields: ["input_price", "output_price", "caching_price", "cached_price"],
+					}),
+					reasoning: expect.objectContaining({ sourceFields: ["supports_reasoning"] }),
+					promptCaching: expect.objectContaining({
+						sourceFields: ["supports_caching", "caching_price", "cached_price"],
+					}),
+					images: expect.objectContaining({ sourceFields: ["supports_vision"] }),
+					computerUse: expect.objectContaining({ sourceFields: ["supports_computer_use"] }),
+					webSearch: expect.objectContaining({ sourceFields: ["supports_web_search"] }),
+					jsonSchema: expect.objectContaining({ sourceFields: ["supports_json_schema"] }),
+				},
 			})
 			expect(models["free/model"]).toMatchObject({
 				contextWindow: 8192,
@@ -129,6 +157,47 @@ describe("Requesty model fetcher", () => {
 					max_output_tokens: 8192,
 				}),
 			).toBeUndefined()
+		})
+
+		it("uses supports_reasoning as source-backed effort capability without provider-prefix heuristics", () => {
+			const parsed = parseRequestyModel({
+				id: "custom/reasoning-model",
+				context_window: 128_000,
+				supports_reasoning: true,
+				supports_computer_use: true,
+				supports_web_search: true,
+				supports_json_schema: true,
+			})
+
+			expect(parsed?.info.supportsReasoningBudget).toBe(false)
+			expect(parsed?.info.supportsReasoningEffort).toEqual(["disable", "none", "low", "medium", "high", "max"])
+			expect(parsed?.info.capabilityProvenance?.reasoning).toMatchObject({
+				reviewStatus: "reviewed",
+				sourceFields: ["supports_reasoning"],
+				sources: [expect.objectContaining({ type: "official-api" })],
+			})
+			expect(parsed?.info.capabilityProvenance?.computerUse?.sourceFields).toEqual(["supports_computer_use"])
+			expect(parsed?.info.capabilityProvenance?.webSearch?.sourceFields).toEqual(["supports_web_search"])
+			expect(parsed?.info.capabilityProvenance?.jsonSchema?.sourceFields).toEqual(["supports_json_schema"])
+		})
+
+		it("preserves static fallback provenance metadata", () => {
+			const parsedFallback = modelInfoSchema.parse(requestyDefaultModelInfo)
+
+			expect(parsedFallback.provenance).toMatchObject({
+				reviewStatus: "unreviewed",
+				sources: [
+					expect.objectContaining({
+						type: "curated",
+						url: "https://requesty.ai/router-2",
+					}),
+				],
+			})
+			expect(parsedFallback.provenance?.lastReviewed).toBeUndefined()
+			expect(parsedFallback.capabilityProvenance?.contextWindow?.sources?.[0]).toMatchObject({
+				type: "curated",
+				url: "https://requesty.ai/router-2",
+			})
 		})
 	})
 })

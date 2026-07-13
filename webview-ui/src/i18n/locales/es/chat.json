@@ -28,7 +28,18 @@
 			"coldShort": "fría",
 			"swaps": "Intercambios",
 			"condensingAvoided": "Condensaciones evitadas",
-			"warning": "Advertencia"
+			"warning": "Advertencia",
+			"diagnostics": {
+				"evictionsValue": "{{total}} en total · {{hot}} calientes / {{cold}} fríos",
+				"contributors_one": "{{count}} contribuidor",
+				"contributors_other": "{{count}} contribuidores",
+				"contributorUsage": "{{ram}} · {{hot}} calientes / {{cold}} fríos",
+				"combinedBudget": "Presupuesto combinado",
+				"hotColdRam": "RAM caliente / fría",
+				"evictionsLabel": "Expulsiones",
+				"combinedStatus": "Combinado: {{used}} / {{budget}}",
+				"evictionsStatus": "Expulsiones: {{value}}"
+			}
 		}
 	},
 	"unpin": "Desfijar",
@@ -344,6 +355,7 @@
 			"waiting": "Esperando",
 			"lastTouched": "Último tocado",
 			"usage": "Uso",
+			"contextUsage": "Uso de contexto",
 			"worktree": "Worktree",
 			"activity": "Actividad",
 			"conflicts": "Conflictos",
@@ -352,6 +364,7 @@
 			"waitingOn": "Esperando a {{agents}}",
 			"noFileWrites": "Aún no hay escrituras de archivos",
 			"noUsage": "Aún no se ha informado uso",
+			"noContextUsage": "Aún no se ha informado uso de contexto",
 			"noActivity": "Aún no se ha informado actividad",
 			"noConflicts": "Sin conflictos"
 		},
@@ -375,6 +388,33 @@
 				"binaryFiles_one": "{{count}} archivo binario",
 				"binaryFiles_other": "{{count}} archivos binarios"
 			}
+		},
+		"planPreview": {
+			"title": "Revisa el plan de agentes paralelos",
+			"setupTitle": "Se requiere configurar Git para agentes paralelos",
+			"description": "Revisa la asignación de cada agente antes de que C inicie worktrees.",
+			"setupDescription": "Corrige el problema de Git y vuelve a intentar el plan conservado sin reconstruirlo.",
+			"expand": "Expandir plan",
+			"collapse": "Contraer plan",
+			"setupRequired": "Configuración requerida: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "no es un repositorio Git",
+				"no-initial-commit": "no hay commit inicial",
+				"git-unavailable": "Git no disponible"
+			},
+			"pathPrivacyNote": "Las rutas del workspace y de Git se ocultan aquí para mantener seguros los diagnósticos.",
+			"sharedContext": "Contexto compartido",
+			"taskDescription": "Descripción de la tarea",
+			"ownedFiles": "Archivos asignados",
+			"noOwnedFiles": "Sin archivos asignados",
+			"removeOwnedFile": "Quitar {{path}} de los archivos asignados",
+			"dependencies": "Dependencias",
+			"noDependencies": "Sin dependencias",
+			"setupFooter": "Tu plan aprobado se conserva. Corrige Git y vuelve a intentarlo.",
+			"footer": "Revisa los límites de propiedad antes de aprobar el plan.",
+			"cancel": "Cancelar",
+			"retry": "Reintentar plan conservado",
+			"approve": "Aprobar plan"
 		}
 	},
 	"questions": {
@@ -425,8 +465,13 @@
 		"tokens": "tokens",
 		"condensation": {
 			"title": "Contexto condensado",
-			"inProgress": "Condensando contexto...",
+			"inProgress": "Gestionando contexto...",
 			"errorHeader": "Error al condensar el contexto"
+		},
+		"blocked": {
+			"title": "Recuperación de contexto pausada",
+			"description": "El proveedor no puede continuar ahora mismo, así que la recopilación de contexto está pausada.",
+			"descriptionWithRetry": "El proveedor no puede continuar ahora mismo, así que la recopilación de contexto está pausada hasta las {{retryTime}}."
 		},
 		"truncation": {
 			"title": "Contexto truncado",
@@ -443,22 +488,49 @@
 			"titles": {
 				"chunks_moved_to_cold": "Contexto movido a la caché fría",
 				"chunks_pulled_from_cold": "Contexto recuperado de la caché fría",
+				"chunks_evicted_from_cache": "Contexto expulsado de la caché",
 				"condensing_avoided": "Condensación de contexto evitada",
 				"cold_cache_full": "Caché fría llena"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "Los fragmentos de contexto antiguos se sacaron de la ventana caliente y se mantuvieron en RAM para recuperarlos más tarde.",
 				"chunks_pulled_from_cold": "Se restauraron fragmentos relevantes de la caché fría después de que ask_for_context solicitara más contexto.",
+				"chunks_evicted_from_cache": "Se expulsaron fragmentos de contexto porque el presupuesto compartido de caché necesitaba más espacio.",
 				"condensing_avoided": "La caché caliente/fría liberó espacio suficiente, así que C omitió la condensación automática.",
 				"cold_cache_full": "El presupuesto de RAM está lleno, así que C volvió a la condensación de contexto normal."
 			},
 			"details": {
 				"chunks": "Fragmentos",
 				"tokens": "Tokens",
+				"duplicateChunks": "Fragmentos duplicados fusionados",
+				"duplicateTokens": "Tokens duplicados fusionados",
+				"reason": "Motivo",
+				"source": "Origen",
+				"outcome": "Resultado",
 				"ram": "RAM",
 				"query": "Consulta",
 				"file": "Archivo",
 				"warning": "Advertencia"
+			},
+			"reasons": {
+				"hot_budget_trim": "Recorte del presupuesto de caché caliente",
+				"request_pressure": "La solicitud necesitaba espacio",
+				"rebuild": "Reconstrucción de caché",
+				"combined_budget_eviction": "Expulsión por presupuesto compartido de caché",
+				"ask_for_context": "Recuperación ask_for_context"
+			},
+			"sources": {
+				"active_task": "Tarea activa",
+				"foreground_task": "Tarea en primer plano",
+				"background_agent": "Agente en segundo plano"
+			},
+			"outcomes": {
+				"moved": "Movido",
+				"merged_duplicate": "Duplicado fusionado",
+				"partially_merged": "Duplicados fusionados parcialmente",
+				"rejected": "Rechazado",
+				"evicted": "Expulsado",
+				"retrieved": "Recuperado"
 			}
 		}
 	},

@@ -1,10 +1,17 @@
-import type { ExecutionPlan } from "@roo-code/types"
+import type { ExecutionPlan, WorktreeSetupRequired } from "@roo-code/types"
 
 import { presentAssistantMessage } from "../presentAssistantMessage"
 
 type PlanApprovalResult =
 	| { approved: false }
-	| { approved: true; plan: ExecutionPlan; startResult: { ok: true } | { ok: false; error: string } }
+	| {
+			approved: true
+			plan: ExecutionPlan
+			startResult:
+				| { ok: true }
+				| { ok: false; error: string; setupRequired?: undefined }
+				| { ok: false; error: string; setupRequired: WorktreeSetupRequired }
+	  }
 
 vi.mock("../../tools/validateToolUse", () => ({
 	validateToolUse: vi.fn(),
@@ -257,6 +264,42 @@ describe("presentAssistantMessage - plan_parallel_tasks", () => {
 			}),
 		)
 		expect(task.parallelExecutionPaused).toBe(false)
+	})
+
+	it("returns setup guidance and pauses parent execution when Git setup is required", async () => {
+		const setupRequired: WorktreeSetupRequired = {
+			reason: "not_git_repo",
+			message: "Parallel worktrees require a Git repository before agents can start.",
+			guidance:
+				"Open a workspace folder inside a local Git repository, or initialize Git in this folder and create an initial commit. A GitHub remote is not required.",
+			workspacePath: "C:/repo",
+		}
+		const requestPlanApproval = vi.fn(async (plan: ExecutionPlan): Promise<PlanApprovalResult> => {
+			return { approved: true, plan, startResult: { ok: false, error: setupRequired.message, setupRequired } }
+		})
+		const provider = {
+			getState: vi.fn().mockResolvedValue({ mode: "code", customModes: [], maxConcurrentParallelTasks: 5 }),
+			requestPlanApproval,
+		}
+		const task = createPlanPresentationTask({
+			provider,
+			agents: [createPlanAgent("ui", "src/Dashboard.tsx")],
+		})
+
+		await presentAssistantMessage(task)
+
+		expect(requestPlanApproval).toHaveBeenCalledTimes(1)
+		expect(task.parallelExecutionPaused).toBe(true)
+		expect(task.pushToolResultToUserContent).toHaveBeenCalledTimes(1)
+		const toolResult = task.pushToolResultToUserContent.mock.calls[0][0] as { content: string }
+		expect(toolResult.content).toContain("cannot start parallel worktrees until Git setup is fixed")
+		expect(toolResult.content).toContain("The approved plan has been preserved and should not be recreated")
+		expect(toolResult.content).toContain("Reason: not_git_repo")
+		expect(toolResult.content).toContain("A GitHub remote is not required")
+		expect(toolResult.content).toContain("Retry preserved plan")
+		expect(toolResult.content).toContain("do not call new_task")
+		expect(toolResult.content).not.toContain("The tool execution failed")
+		expect(toolResult.content).not.toContain('"status":"error"')
 	})
 
 	it("completes the active parallel planning todo without adding a visible user edit row", async () => {

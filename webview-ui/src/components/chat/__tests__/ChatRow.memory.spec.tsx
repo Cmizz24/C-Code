@@ -201,6 +201,58 @@ describe("ChatRow - memory tools", () => {
 		).toBeInTheDocument()
 	})
 
+	it("renders memory recall metadata without raw lesson contents", () => {
+		const message: ClineMessage = {
+			type: "say",
+			say: "tool",
+			ts: 222333,
+			text: JSON.stringify({
+				tool: "memoryRecall",
+				scope: "all",
+				content: "Raw recalled lesson should stay hidden.",
+				memoryRecallCount: 6,
+				memoryRecallResults: [
+					{
+						id: "mem_recall",
+						scope: "global",
+						kind: "lesson",
+						status: "active",
+						title: "General retry lesson",
+						tags: ["retry"],
+						pathTags: ["src/core/task/Task.ts"],
+						mode: "code",
+						toolName: "execute_command",
+						score: 0.93,
+					},
+				],
+				message: "Recalled 6 memories for this request; showing 1.",
+			} satisfies ClineSayTool),
+		}
+
+		renderChatRow(message)
+
+		expect(screen.getByText("Recalled 6 memories for this request; showing 1.")).toBeInTheDocument()
+		expect(screen.getByTestId("memory-recall-compact-summary")).toBeInTheDocument()
+		expect(screen.getAllByTestId("memory-recall-result-chip")).toHaveLength(1)
+		expect(screen.getAllByText("General retry lesson")).toHaveLength(1)
+		expect(screen.getAllByText("chat:memory.scopes.global").length).toBeGreaterThan(0)
+		expect(screen.getAllByText("chat:memory.statuses.active").length).toBeGreaterThan(0)
+		expect(screen.getAllByText("retry").length).toBeGreaterThan(0)
+		expect(screen.getAllByText("src/core/task/Task.ts").length).toBeGreaterThan(0)
+		expect(screen.getAllByText("execute_command").length).toBeGreaterThan(0)
+		expect(screen.getByTestId("memory-recall-hidden-count")).toHaveTextContent("+5")
+		expect(screen.queryByTestId("memory-recall-result-details")).not.toBeInTheDocument()
+
+		fireEvent.click(screen.getByTestId("memory-recall-details-toggle"))
+
+		expect(screen.getByTestId("memory-recall-details-toggle")).toHaveAttribute("aria-expanded", "true")
+		const details = screen.getByTestId("memory-recall-result-details")
+		expect(details).toHaveTextContent("chat:memory.fields.title")
+		expect(details).toHaveTextContent("General retry lesson")
+		expect(details).toHaveTextContent("chat:memory.fields.score: 0.9300")
+		expect(screen.queryByText("Raw recalled lesson should stay hidden.")).not.toBeInTheDocument()
+	})
+
 	it("renders pending memory wipe approval cards", () => {
 		const message: ClineMessage = {
 			type: "ask",

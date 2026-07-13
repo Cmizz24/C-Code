@@ -11,7 +11,7 @@ Parameters:
 - tool_name: optional related tool name.
 - file_paths: optional related workspace-relative paths; ignored/protected paths must not be included.
 - tags: optional short tags.
-- scope: workspace or global. Defaults to workspace.
+- scope: workspace or global. Defaults to global for general lessons. Use workspace only when the lesson is specific to the current repository/project/workspace or when related workspace file_paths are included.
 - approve: optional boolean. False creates a pending candidate unless the user-enabled auto-approve setting is on; true requests user approval to activate when auto-approve is off.`
 
 export default {
@@ -52,7 +52,8 @@ export default {
 				scope: {
 					type: "string",
 					enum: ["workspace", "global"],
-					description: "Memory scope; use workspace unless this lesson should apply globally",
+					description:
+						"Memory scope; use global for general lessons and workspace only for repository/project-specific lessons or when related workspace file paths are included",
 				},
 				approve: {
 					type: ["boolean", "null"],

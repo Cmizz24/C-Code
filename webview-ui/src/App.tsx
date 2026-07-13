@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
-import { type ExecutionPlan, type ExtensionMessage } from "@roo-code/types"
+import { type ExecutionPlan, type ExtensionMessage, type WorktreeSetupRequired } from "@roo-code/types"
 
 import TranslationProvider from "@src/i18n/TranslationContext"
 import { vscode } from "./utils/vscode"
@@ -54,6 +54,11 @@ interface EditMessageDialogState {
 	images?: string[]
 }
 
+type PlanPreviewState = {
+	plan: ExecutionPlan
+	setupRequired?: WorktreeSetupRequired
+}
+
 // Memoize dialog components to prevent unnecessary re-renders
 const MemoizedDeleteMessageDialog = React.memo(DeleteMessageDialog)
 const MemoizedEditMessageDialog = React.memo(EditMessageDialog)
@@ -70,7 +75,7 @@ const App = () => {
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 	const [isVisualBrowserInspectorOnly] = useState(() => getIsVisualBrowserInspectorOnly())
 	const [tab, setTab] = useState<Tab>(() => getInitialTab())
-	const [planPreview, setPlanPreview] = useState<ExecutionPlan | undefined>(undefined)
+	const [planPreview, setPlanPreview] = useState<PlanPreviewState | undefined>(undefined)
 
 	const [deleteMessageDialogState, setDeleteMessageDialogState] = useState<DeleteMessageDialogState>({
 		isOpen: false,
@@ -166,8 +171,12 @@ const App = () => {
 				chatViewRef.current?.acceptInput()
 			}
 
-			if (message.type === "showPlanPreview" && message.executionPlan) {
-				setPlanPreview(message.executionPlan)
+			if (message.type === "showPlanPreview") {
+				setPlanPreview(
+					message.executionPlan
+						? { plan: message.executionPlan, setupRequired: message.worktreeSetupRequired }
+						: undefined,
+				)
 			}
 		},
 		[isVisualBrowserInspectorOnly, switchTab],
@@ -233,7 +242,13 @@ const App = () => {
 				showAnnouncement={showAnnouncement}
 				hideAnnouncement={() => setShowAnnouncement(false)}
 			/>
-			{planPreview && <PlanPreviewModal plan={planPreview} onClose={() => setPlanPreview(undefined)} />}
+			{planPreview && (
+				<PlanPreviewModal
+					plan={planPreview.plan}
+					setupRequired={planPreview.setupRequired}
+					onClose={() => setPlanPreview(undefined)}
+				/>
+			)}
 			{deleteMessageDialogState.hasCheckpoint ? (
 				<MemoizedCheckpointRestoreDialog
 					open={deleteMessageDialogState.isOpen}

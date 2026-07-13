@@ -12,6 +12,7 @@ import { z } from "zod"
  * - `condense_context_error`: An error occurred during context condensation
  * - `sliding_window_truncation`: Context was truncated using sliding window strategy
  * - `context_cache_event`: Hot/cold context cache activity occurred
+ * - `context_management_blocked`: Context management is blocked by provider capacity/auth limits
  */
 
 /**
@@ -23,6 +24,7 @@ export const CONTEXT_MANAGEMENT_EVENTS = [
 	"condense_context_error",
 	"sliding_window_truncation",
 	"context_cache_event",
+	"context_management_blocked",
 ] as const
 
 /**
@@ -30,9 +32,116 @@ export const CONTEXT_MANAGEMENT_EVENTS = [
  */
 export type ContextManagementEvent = (typeof CONTEXT_MANAGEMENT_EVENTS)[number]
 
+export const PROVIDER_CAPACITY_ERROR_KINDS = [
+	"rate_limit",
+	"quota_exceeded",
+	"usage_limit",
+	"auth",
+	"capacity",
+	"provider_error",
+	"unknown",
+] as const
+
+export const providerCapacityErrorKindSchema = z.enum(PROVIDER_CAPACITY_ERROR_KINDS)
+
+export type ProviderCapacityErrorKind = (typeof PROVIDER_CAPACITY_ERROR_KINDS)[number]
+
+export const providerCapacityMetadataSchema = z.object({
+	kind: providerCapacityErrorKindSchema,
+	message: z.string(),
+	provider: z.string().optional(),
+	status: z.number().optional(),
+	code: z.string().optional(),
+	retryAfterMs: z.number().optional(),
+	retryAfter: z.string().optional(),
+	retryAt: z.number().optional(),
+	details: z.string().optional(),
+	body: z.string().optional(),
+	responseBody: z.string().optional(),
+	isRetryable: z.boolean().optional(),
+})
+
+export type ProviderCapacityMetadata = z.infer<typeof providerCapacityMetadataSchema>
+
+export const contextManagementBlockedSourceSchema = z.enum([
+	"condense",
+	"context_window_recovery",
+	"api_request",
+	"stream",
+	"tool",
+])
+
+export type ContextManagementBlockedSource = z.infer<typeof contextManagementBlockedSourceSchema>
+
+export const contextManagementBlockedSchema = z.object({
+	id: z.string(),
+	createdAt: z.number(),
+	source: contextManagementBlockedSourceSchema,
+	reason: z.string(),
+	retryAfterMs: z.number().optional(),
+	retryAt: z.number().optional(),
+	providerCapacity: providerCapacityMetadataSchema.optional(),
+})
+
+export type ContextManagementBlocked = z.infer<typeof contextManagementBlockedSchema>
+
 export interface ContextCacheBudgetOption {
 	valueMb: number
 	recommended?: boolean
+}
+
+export interface ContextCacheEvictionTotals {
+	hot: number
+	cold: number
+	total: number
+}
+
+export interface ContextCacheContributorStats {
+	id: string
+	label: string
+	mode?: string
+	isBackground?: boolean
+	isActive?: boolean
+	hotCacheChunks: number
+	coldCacheChunks: number
+	hotCacheRamMb: number
+	coldCacheRamMb: number
+	ramUsedMb: number
+	evictions?: ContextCacheEvictionTotals
+}
+
+export interface ContextCacheCrossWindowStats {
+	schemaVersion: number
+	livePeerCount: number
+	windowCount: number
+	localUsageRamMb: number
+	localBudgetRamMb: number
+	peerUsageRamMb: number
+	peerBudgetRamMb: number
+	globalBudgetRamMb: number
+	effectiveLocalBudgetRamMb: number
+	localActiveTaskCount?: number
+	localBackgroundTaskCount?: number
+	peerActiveTaskCount?: number
+	peerBackgroundTaskCount?: number
+	staleHeartbeatCount?: number
+	staleHeartbeatsCleaned?: number
+	staleHeartbeatCleanupFailures?: number
+	lastUpdatedAt?: number
+}
+
+export interface ContextCacheCombinedBudgetStats {
+	ramUsedMb: number
+	ramBudgetMb: number
+	configuredRamBudgetMb?: number
+	hotCacheRamMb: number
+	coldCacheRamMb: number
+	hotCacheChunks: number
+	coldCacheChunks: number
+	managerCount: number
+	evictions: ContextCacheEvictionTotals
+	contributors: ContextCacheContributorStats[]
+	crossWindow?: ContextCacheCrossWindowStats
 }
 
 export interface ContextCacheStats {
@@ -43,11 +152,16 @@ export interface ContextCacheStats {
 	ramBudgetMb: number
 	swapsThisSession: number
 	condensingAvoided: number
+	combinedBudget?: ContextCacheCombinedBudgetStats
+	evictions?: ContextCacheEvictionTotals
+	contributors?: ContextCacheContributorStats[]
+	crossWindow?: ContextCacheCrossWindowStats
 }
 
 export const CONTEXT_CACHE_EVENT_TYPES = [
 	"chunks_moved_to_cold",
 	"chunks_pulled_from_cold",
+	"chunks_evicted_from_cache",
 	"condensing_avoided",
 	"cold_cache_full",
 ] as const
@@ -56,14 +170,50 @@ export const contextCacheEventTypeSchema = z.enum(CONTEXT_CACHE_EVENT_TYPES)
 
 export type ContextCacheEventType = (typeof CONTEXT_CACHE_EVENT_TYPES)[number]
 
+export const CONTEXT_CACHE_EVENT_REASONS = [
+	"hot_budget_trim",
+	"request_pressure",
+	"rebuild",
+	"combined_budget_eviction",
+	"ask_for_context",
+] as const
+
+export const contextCacheEventReasonSchema = z.enum(CONTEXT_CACHE_EVENT_REASONS)
+
+export type ContextCacheEventReason = (typeof CONTEXT_CACHE_EVENT_REASONS)[number]
+
+export const CONTEXT_CACHE_EVENT_SOURCES = ["active_task", "foreground_task", "background_agent"] as const
+
+export const contextCacheEventSourceSchema = z.enum(CONTEXT_CACHE_EVENT_SOURCES)
+
+export type ContextCacheEventSource = (typeof CONTEXT_CACHE_EVENT_SOURCES)[number]
+
+export const CONTEXT_CACHE_EVENT_OUTCOMES = [
+	"moved",
+	"merged_duplicate",
+	"partially_merged",
+	"rejected",
+	"evicted",
+	"retrieved",
+] as const
+
+export const contextCacheEventOutcomeSchema = z.enum(CONTEXT_CACHE_EVENT_OUTCOMES)
+
+export type ContextCacheEventOutcome = (typeof CONTEXT_CACHE_EVENT_OUTCOMES)[number]
+
 export const contextCacheEventSchema = z.object({
 	id: z.string(),
 	type: contextCacheEventTypeSchema,
 	createdAt: z.number(),
 	chunkCount: z.number().optional(),
 	tokenCount: z.number().optional(),
+	duplicateChunkCount: z.number().optional(),
+	duplicateTokenCount: z.number().optional(),
 	ramUsedMb: z.number().optional(),
 	ramBudgetMb: z.number().optional(),
+	reason: contextCacheEventReasonSchema.optional(),
+	source: contextCacheEventSourceSchema.optional(),
+	outcome: contextCacheEventOutcomeSchema.optional(),
 	query: z.string().optional(),
 	filePath: z.string().optional(),
 	warning: z.string().optional(),
@@ -78,6 +228,9 @@ export interface ContextCacheSearchResult {
 	filePath?: string
 	tokens: number
 	score: number
+	/** Whether the chunk was returned to active context or reported as an over-budget skipped match. */
+	status?: "included" | "skipped_over_budget"
+	skippedReason?: string
 	breakdown?: {
 		queryMatches: number
 		filePathMatch: boolean

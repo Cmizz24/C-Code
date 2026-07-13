@@ -1,8 +1,16 @@
-import { ContextChunk, ContextChunkSearchResult, touchContextChunk } from "./ContextChunk"
+import {
+	ContextChunk,
+	ContextChunkSearchResult,
+	getContextChunkDedupeKey,
+	mergeContextChunks,
+	touchContextChunk,
+} from "./ContextChunk"
 
 export interface ColdCacheAddResult {
 	accepted: boolean
 	evicted: ContextChunk[]
+	chunk?: ContextChunk
+	merged?: boolean
 }
 
 export interface ColdCacheStats {
@@ -25,6 +33,7 @@ function uniqueTerms(value: string): string[] {
 
 export class ColdCache {
 	private readonly chunks = new Map<string, ContextChunk>()
+	private readonly chunkIdsByDedupeKey = new Map<string, string>()
 	private byteCount = 0
 
 	constructor(private budgetBytes: number) {}
@@ -35,19 +44,41 @@ export class ColdCache {
 	}
 
 	add(chunk: ContextChunk): ColdCacheAddResult {
+		const dedupeKey = getContextChunkDedupeKey(chunk)
+		const existing = this.chunks.get(chunk.id)
+		const existingDuplicateId = this.chunkIdsByDedupeKey.get(dedupeKey)
+		const existingDuplicate = existingDuplicateId ? this.chunks.get(existingDuplicateId) : undefined
+
+		if (existingDuplicate) {
+			if (existing && existing.id !== existingDuplicate.id) {
+				this.remove(existing.id)
+			}
+
+			this.byteCount -= existingDuplicate.bytes
+			const merged = mergeContextChunks(existingDuplicate, chunk)
+			this.chunks.set(merged.id, merged)
+			this.chunkIdsByDedupeKey.set(dedupeKey, merged.id)
+			this.byteCount += merged.bytes
+
+			const result = this.enforceBudget(new Set([merged.id]))
+			return { ...result, chunk: this.chunks.get(merged.id) ?? merged, merged: true }
+		}
+
 		if (chunk.bytes > this.budgetBytes) {
 			return { accepted: false, evicted: [] }
 		}
 
-		const existing = this.chunks.get(chunk.id)
 		if (existing) {
-			this.byteCount -= existing.bytes
+			this.remove(existing.id)
 		}
 
-		this.chunks.set(chunk.id, touchContextChunk(chunk))
-		this.byteCount += chunk.bytes
+		const touched = touchContextChunk(chunk)
+		this.chunks.set(touched.id, touched)
+		this.chunkIdsByDedupeKey.set(getContextChunkDedupeKey(touched), touched.id)
+		this.byteCount += touched.bytes
 
-		return this.enforceBudget(new Set([chunk.id]))
+		const result = this.enforceBudget(new Set([touched.id]))
+		return { ...result, chunk: this.chunks.get(touched.id) ?? touched, merged: false }
 	}
 
 	remove(id: string): ContextChunk | undefined {
@@ -57,12 +88,14 @@ export class ColdCache {
 		}
 
 		this.chunks.delete(id)
+		this.chunkIdsByDedupeKey.delete(getContextChunkDedupeKey(existing))
 		this.byteCount -= existing.bytes
 		return existing
 	}
 
 	clear(): void {
 		this.chunks.clear()
+		this.chunkIdsByDedupeKey.clear()
 		this.byteCount = 0
 	}
 

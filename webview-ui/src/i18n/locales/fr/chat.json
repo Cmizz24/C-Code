@@ -28,7 +28,18 @@
 			"coldShort": "froid",
 			"swaps": "Échanges",
 			"condensingAvoided": "Condensations évitées",
-			"warning": "Avertissement"
+			"warning": "Avertissement",
+			"diagnostics": {
+				"evictionsValue": "{{total}} au total · {{hot}} chauds / {{cold}} froids",
+				"contributors_one": "{{count}} contributeur",
+				"contributors_other": "{{count}} contributeurs",
+				"contributorUsage": "{{ram}} · {{hot}} chauds / {{cold}} froids",
+				"combinedBudget": "Budget combiné",
+				"hotColdRam": "RAM chaude / froide",
+				"evictionsLabel": "Évictions",
+				"combinedStatus": "Combiné : {{used}} / {{budget}}",
+				"evictionsStatus": "Évictions : {{value}}"
+			}
 		}
 	},
 	"unpin": "Désépingler",
@@ -344,6 +355,7 @@
 			"waiting": "En attente",
 			"lastTouched": "Dernier fichier touché",
 			"usage": "Utilisation",
+			"contextUsage": "Utilisation du contexte",
 			"worktree": "Worktree",
 			"activity": "Activité",
 			"conflicts": "Conflits",
@@ -352,6 +364,7 @@
 			"waitingOn": "En attente de {{agents}}",
 			"noFileWrites": "Aucune écriture de fichier pour l'instant",
 			"noUsage": "Aucune utilisation signalée pour l'instant",
+			"noContextUsage": "Aucune utilisation du contexte signalée pour l'instant",
 			"noActivity": "Aucune activité signalée pour l'instant",
 			"noConflicts": "Aucun conflit"
 		},
@@ -375,6 +388,33 @@
 				"binaryFiles_one": "{{count}} fichier binaire",
 				"binaryFiles_other": "{{count}} fichiers binaires"
 			}
+		},
+		"planPreview": {
+			"title": "Vérifier le plan d'agents parallèles",
+			"setupTitle": "Configuration Git requise pour les agents parallèles",
+			"description": "Vérifie l'affectation de chaque agent avant que C ne démarre les worktrees.",
+			"setupDescription": "Corrige le problème Git, puis réessaie le plan conservé sans le reconstruire.",
+			"expand": "Développer le plan",
+			"collapse": "Réduire le plan",
+			"setupRequired": "Configuration requise : {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "pas un dépôt Git",
+				"no-initial-commit": "aucun commit initial",
+				"git-unavailable": "Git indisponible"
+			},
+			"pathPrivacyNote": "Les chemins du workspace et de Git sont masqués ici pour garder les diagnostics sûrs.",
+			"sharedContext": "Contexte partagé",
+			"taskDescription": "Description de la tâche",
+			"ownedFiles": "Fichiers attribués",
+			"noOwnedFiles": "Aucun fichier attribué",
+			"removeOwnedFile": "Retirer {{path}} des fichiers attribués",
+			"dependencies": "Dépendances",
+			"noDependencies": "Aucune dépendance",
+			"setupFooter": "Ton plan approuvé est conservé. Corrige Git, puis réessaie.",
+			"footer": "Vérifie les limites de propriété avant d'approuver le plan.",
+			"cancel": "Annuler",
+			"retry": "Réessayer le plan conservé",
+			"approve": "Approuver le plan"
 		}
 	},
 	"questions": {
@@ -425,8 +465,13 @@
 		"tokens": "tokens",
 		"condensation": {
 			"title": "Contexte condensé",
-			"inProgress": "Condensation du contexte...",
+			"inProgress": "Gestion du contexte...",
 			"errorHeader": "Échec de la condensation du contexte"
+		},
+		"blocked": {
+			"title": "Récupération du contexte en pause",
+			"description": "Le fournisseur ne peut pas continuer pour le moment, donc la collecte de contexte est en pause.",
+			"descriptionWithRetry": "Le fournisseur ne peut pas continuer pour le moment, donc la collecte de contexte est en pause jusqu’à {{retryTime}}."
 		},
 		"truncation": {
 			"title": "Contexte tronqué",
@@ -444,13 +489,15 @@
 				"chunks_moved_to_cold": "Contexte déplacé vers le cache froid",
 				"chunks_pulled_from_cold": "Contexte récupéré depuis le cache froid",
 				"condensing_avoided": "Condensation du contexte évitée",
-				"cold_cache_full": "Cache froid plein"
+				"cold_cache_full": "Cache froid plein",
+				"chunks_evicted_from_cache": "Contexte évincé du cache"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "Les anciens fragments de contexte ont été retirés de la fenêtre chaude et conservés en RAM pour une récupération ultérieure.",
 				"chunks_pulled_from_cold": "Les fragments pertinents du cache froid ont été restaurés après une demande ask_for_context.",
 				"condensing_avoided": "Le cache chaud/froid a libéré assez d'espace, donc C a ignoré la condensation automatique.",
-				"cold_cache_full": "Le budget RAM est plein, donc C est revenu à la condensation de contexte classique."
+				"cold_cache_full": "Le budget RAM est plein, donc C est revenu à la condensation de contexte classique.",
+				"chunks_evicted_from_cache": "Des fragments de contexte ont été évincés parce que le budget de cache partagé avait besoin de plus de place."
 			},
 			"details": {
 				"chunks": "Fragments",
@@ -458,7 +505,32 @@
 				"ram": "RAM",
 				"query": "Requête",
 				"file": "Fichier",
-				"warning": "Avertissement"
+				"warning": "Avertissement",
+				"duplicateChunks": "Fragments dupliqués fusionnés",
+				"duplicateTokens": "Tokens dupliqués fusionnés",
+				"reason": "Raison",
+				"source": "Source",
+				"outcome": "Résultat"
+			},
+			"reasons": {
+				"hot_budget_trim": "Réduction du budget du cache chaud",
+				"request_pressure": "La requête avait besoin de place",
+				"rebuild": "Reconstruction du cache",
+				"combined_budget_eviction": "Éviction par le budget de cache partagé",
+				"ask_for_context": "Récupération ask_for_context"
+			},
+			"sources": {
+				"active_task": "Tâche active",
+				"foreground_task": "Tâche au premier plan",
+				"background_agent": "Agent en arrière-plan"
+			},
+			"outcomes": {
+				"moved": "Déplacé",
+				"merged_duplicate": "Doublon fusionné",
+				"partially_merged": "Doublons partiellement fusionnés",
+				"rejected": "Rejeté",
+				"evicted": "Évincé",
+				"retrieved": "Récupéré"
 			}
 		}
 	},

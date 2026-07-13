@@ -1,4 +1,4 @@
-import type { ModelInfo } from "../model.js"
+import type { ModelCapabilityProvenance, ModelInfo, ModelProvenance } from "../model.js"
 
 // https://platform.xiaomimimo.com/docs
 // Xiaomi MiMo exposes an OpenAI-compatible chat completions API.
@@ -11,6 +11,58 @@ const XIAOMI_MIMO_256K_CONTEXT_WINDOW = 256_000
 const XIAOMI_MIMO_128K_MAX_OUTPUT_TOKENS = 128_000
 const XIAOMI_MIMO_64K_MAX_OUTPUT_TOKENS = 64_000
 
+const xiaomiMiMoDocsProvenance = {
+	sources: [
+		{
+			type: "official-docs",
+			url: "https://platform.xiaomimimo.com/docs",
+			label: "Xiaomi MiMo platform documentation",
+		},
+	],
+	reviewStatus: "unreviewed",
+	reviewNote: "Source-backed from the existing in-repo Xiaomi MiMo docs reference; no static review date recorded.",
+} satisfies ModelProvenance
+
+const xiaomiMiMoPricingProvenance = {
+	sources: [
+		{
+			type: "official-docs",
+			url: "https://platform.xiaomimimo.com/static/docs/price/pay-as-you-go.md",
+			label: "Xiaomi MiMo pay-as-you-go pricing documentation",
+		},
+	],
+	reviewStatus: "unreviewed",
+	reviewNote:
+		"Source-backed from the existing in-repo Xiaomi MiMo pricing reference; no static review date recorded.",
+} satisfies ModelCapabilityProvenance
+
+const xiaomiMiMoCapabilityProvenance = {
+	contextWindow: {
+		...xiaomiMiMoDocsProvenance,
+		sourceFields: ["contextWindow"],
+	},
+	maxTokens: {
+		...xiaomiMiMoDocsProvenance,
+		sourceFields: ["maxTokens"],
+	},
+	reasoning: {
+		...xiaomiMiMoDocsProvenance,
+		sourceFields: ["supportsReasoningBinary"],
+	},
+	images: {
+		...xiaomiMiMoDocsProvenance,
+		sourceFields: ["supportsImages"],
+	},
+	pricing: {
+		...xiaomiMiMoPricingProvenance,
+		sourceFields: ["inputPrice", "outputPrice", "cacheReadsPrice"],
+	},
+	promptCaching: {
+		...xiaomiMiMoPricingProvenance,
+		sourceFields: ["supportsPromptCache", "cacheWritesPrice", "cacheReadsPrice"],
+	},
+} satisfies ModelInfo["capabilityProvenance"]
+
 const xiaomiMiMoTextModelInfo = {
 	maxTokens: XIAOMI_MIMO_128K_MAX_OUTPUT_TOKENS,
 	contextWindow: XIAOMI_MIMO_1M_CONTEXT_WINDOW,
@@ -18,6 +70,8 @@ const xiaomiMiMoTextModelInfo = {
 	supportsPromptCache: false,
 	supportsReasoningBinary: true,
 	subscriptionBased: true,
+	provenance: xiaomiMiMoDocsProvenance,
+	capabilityProvenance: xiaomiMiMoCapabilityProvenance,
 } as const satisfies ModelInfo
 
 const xiaomiMiMoPromptCachePricing = {

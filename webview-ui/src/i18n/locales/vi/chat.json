@@ -28,7 +28,18 @@
 			"coldShort": "lạnh",
 			"swaps": "Lượt hoán đổi",
 			"condensingAvoided": "Đã tránh condensing",
-			"warning": "Cảnh báo"
+			"warning": "Cảnh báo",
+			"diagnostics": {
+				"evictionsValue": "Tổng {{total}} · {{hot}} nóng / {{cold}} lạnh",
+				"contributors_one": "{{count}} nguồn đóng góp",
+				"contributors_other": "{{count}} nguồn đóng góp",
+				"contributorUsage": "{{ram}} · {{hot}} nóng / {{cold}} lạnh",
+				"combinedBudget": "Ngân sách kết hợp",
+				"hotColdRam": "RAM nóng / lạnh",
+				"evictionsLabel": "Loại bỏ",
+				"combinedStatus": "Kết hợp: {{used}} / {{budget}}",
+				"evictionsStatus": "Loại bỏ: {{value}}"
+			}
 		}
 	},
 	"unpin": "Bỏ ghim khỏi đầu",
@@ -345,6 +356,7 @@
 			"waiting": "Đang chờ",
 			"lastTouched": "Chạm lần cuối",
 			"usage": "Mức dùng",
+			"contextUsage": "Mức dùng ngữ cảnh",
 			"worktree": "Worktree",
 			"activity": "Hoạt động",
 			"conflicts": "Xung đột",
@@ -353,6 +365,7 @@
 			"waitingOn": "Đang chờ {{agents}}",
 			"noFileWrites": "Chưa có lần ghi tệp nào",
 			"noUsage": "Chưa có mức dùng nào được báo cáo",
+			"noContextUsage": "Chưa có mức dùng ngữ cảnh nào được báo cáo",
 			"noActivity": "Chưa có hoạt động nào được báo cáo",
 			"noConflicts": "Không có xung đột"
 		},
@@ -376,6 +389,33 @@
 				"binaryFiles_one": "{{count}} tệp nhị phân",
 				"binaryFiles_other": "{{count}} tệp nhị phân"
 			}
+		},
+		"planPreview": {
+			"title": "Xem lại kế hoạch agent song song",
+			"setupTitle": "Cần thiết lập Git cho agent song song",
+			"description": "Xem lại phân công của từng agent trước khi C khởi động worktree.",
+			"setupDescription": "Sửa vấn đề thiết lập Git, rồi thử lại kế hoạch đã giữ mà không dựng lại.",
+			"expand": "Mở rộng kế hoạch",
+			"collapse": "Thu gọn kế hoạch",
+			"setupRequired": "Cần thiết lập: {{reason}}",
+			"setupReasons": {
+				"not-git-repo": "không phải Git repository",
+				"no-initial-commit": "chưa có commit đầu tiên",
+				"git-unavailable": "Không dùng được Git"
+			},
+			"pathPrivacyNote": "Đường dẫn workspace và Git được ẩn ở đây để giữ chẩn đoán an toàn.",
+			"sharedContext": "Ngữ cảnh chung",
+			"taskDescription": "Mô tả tác vụ",
+			"ownedFiles": "File được giao",
+			"noOwnedFiles": "Không có file được giao",
+			"removeOwnedFile": "Xóa {{path}} khỏi file được giao",
+			"dependencies": "Phụ thuộc",
+			"noDependencies": "Không có phụ thuộc",
+			"setupFooter": "Kế hoạch đã duyệt của bạn được giữ lại. Sửa Git rồi thử lại.",
+			"footer": "Xem lại ranh giới sở hữu trước khi duyệt kế hoạch.",
+			"cancel": "Hủy",
+			"retry": "Thử lại kế hoạch đã giữ",
+			"approve": "Duyệt kế hoạch"
 		}
 	},
 	"questions": {
@@ -426,8 +466,13 @@
 		"tokens": "token",
 		"condensation": {
 			"title": "Ngữ cảnh đã tóm tắt",
-			"inProgress": "Đang cô đọng ngữ cảnh...",
+			"inProgress": "Đang quản lý ngữ cảnh...",
 			"errorHeader": "Không thể cô đọng ngữ cảnh"
+		},
+		"blocked": {
+			"title": "Đã tạm dừng khôi phục ngữ cảnh",
+			"description": "Nhà cung cấp hiện chưa thể tiếp tục, nên việc thu thập ngữ cảnh đang tạm dừng.",
+			"descriptionWithRetry": "Nhà cung cấp hiện chưa thể tiếp tục, nên việc thu thập ngữ cảnh đang tạm dừng đến {{retryTime}}."
 		},
 		"truncation": {
 			"title": "Ngữ cảnh đã cắt bớt",
@@ -445,13 +490,15 @@
 				"chunks_moved_to_cold": "Ngữ cảnh đã chuyển vào cache lạnh",
 				"chunks_pulled_from_cold": "Ngữ cảnh đã kéo từ cache lạnh",
 				"condensing_avoided": "Đã tránh condensing ngữ cảnh",
-				"cold_cache_full": "Cache lạnh đã đầy"
+				"cold_cache_full": "Cache lạnh đã đầy",
+				"chunks_evicted_from_cache": "Ngữ cảnh đã bị loại khỏi cache"
 			},
 			"descriptions": {
 				"chunks_moved_to_cold": "Các chunk ngữ cảnh cũ đã được đưa khỏi cửa sổ nóng và giữ trong RAM để truy xuất sau.",
 				"chunks_pulled_from_cold": "Các chunk cache lạnh liên quan đã được khôi phục sau khi ask_for_context yêu cầu thêm ngữ cảnh.",
 				"condensing_avoided": "Cache nóng/lạnh đã giải phóng đủ chỗ, nên C bỏ qua condensing tự động.",
-				"cold_cache_full": "Ngân sách RAM đã đầy, nên C quay lại condensing ngữ cảnh thông thường."
+				"cold_cache_full": "Ngân sách RAM đã đầy, nên C quay lại condensing ngữ cảnh thông thường.",
+				"chunks_evicted_from_cache": "Các chunk ngữ cảnh đã bị loại vì ngân sách cache dùng chung cần thêm chỗ trống."
 			},
 			"details": {
 				"chunks": "Chunk",
@@ -459,7 +506,32 @@
 				"ram": "RAM",
 				"query": "Truy vấn",
 				"file": "Tệp",
-				"warning": "Cảnh báo"
+				"warning": "Cảnh báo",
+				"duplicateChunks": "Chunk trùng lặp đã gộp",
+				"duplicateTokens": "Token trùng lặp đã gộp",
+				"reason": "Lý do",
+				"source": "Nguồn",
+				"outcome": "Kết quả"
+			},
+			"reasons": {
+				"hot_budget_trim": "Cắt bớt ngân sách hot-cache",
+				"request_pressure": "Request cần thêm chỗ trống",
+				"rebuild": "Rebuild cache",
+				"combined_budget_eviction": "Loại bỏ do ngân sách cache dùng chung",
+				"ask_for_context": "Truy xuất ask_for_context"
+			},
+			"sources": {
+				"active_task": "Tác vụ đang hoạt động",
+				"foreground_task": "Tác vụ foreground",
+				"background_agent": "Agent nền"
+			},
+			"outcomes": {
+				"moved": "Đã chuyển",
+				"merged_duplicate": "Đã gộp bản trùng",
+				"partially_merged": "Đã gộp một phần bản trùng",
+				"rejected": "Đã từ chối",
+				"evicted": "Đã loại bỏ",
+				"retrieved": "Đã truy xuất"
 			}
 		}
 	},

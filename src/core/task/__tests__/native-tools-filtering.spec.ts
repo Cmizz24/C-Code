@@ -134,7 +134,7 @@ describe("Native Tools Filtering by Mode", () => {
 			expect(isToolAllowedForMode("use_mcp_tool", "test-mode-no-mcp", [modeWithoutMcp])).toBe(false)
 		})
 
-		it("should always include always-available tools regardless of mode", async () => {
+		it("should always include safe inspection and always-available tools regardless of mode", async () => {
 			const restrictiveMode: ModeConfig = {
 				slug: "restrictive",
 				name: "Restrictive",
@@ -143,7 +143,11 @@ describe("Native Tools Filtering by Mode", () => {
 			}
 
 			const { isToolAllowedForMode } = await import("../../tools/validateToolUse")
-			const { ALWAYS_AVAILABLE_TOOLS } = await import("../../../shared/tools")
+			const { ALWAYS_AVAILABLE_TOOLS, SAFE_WORKSPACE_INSPECTION_TOOLS } = await import("../../../shared/tools")
+
+			SAFE_WORKSPACE_INSPECTION_TOOLS.forEach((tool) => {
+				expect(isToolAllowedForMode(tool as any, "restrictive", [restrictiveMode])).toBe(true)
+			})
 
 			// Always-available tools should work even with no groups
 			ALWAYS_AVAILABLE_TOOLS.forEach((tool) => {
@@ -152,8 +156,12 @@ describe("Native Tools Filtering by Mode", () => {
 
 			expect(isToolAllowedForMode("switch_mode", "restrictive", [restrictiveMode])).toBe(true)
 			expect(isToolAllowedForMode("new_task", "restrictive", [restrictiveMode])).toBe(true)
+			expect(isToolAllowedForMode("read_file", "restrictive", [restrictiveMode])).toBe(true)
+			expect(isToolAllowedForMode("search_files", "restrictive", [restrictiveMode])).toBe(true)
+			expect(isToolAllowedForMode("list_files", "restrictive", [restrictiveMode])).toBe(true)
 			expect(isToolAllowedForMode("execute_command", "restrictive", [restrictiveMode])).toBe(false)
 			expect(isToolAllowedForMode("write_to_file", "restrictive", [restrictiveMode])).toBe(false)
+			expect(isToolAllowedForMode("use_mcp_tool", "restrictive", [restrictiveMode])).toBe(false)
 			expect(isToolAllowedForMode("visual_browser_inspector", "restrictive", [restrictiveMode])).toBe(false)
 			expect(isToolAllowedForMode("generate_image", "restrictive", [restrictiveMode])).toBe(false)
 		})
@@ -205,6 +213,9 @@ describe("Native Tools Filtering by Mode", () => {
 			expect(switchModeTool.function.description).toContain("rather than refusing")
 			expect(switchModeTool.function.description).toContain(
 				"Do not request a mode switch when the current mode can complete the work",
+			)
+			expect(switchModeTool.function.description).toContain(
+				"Do not switch modes just to inspect the workspace with read_file, search_files, or list_files",
 			)
 			expect(switchModeTool.function.description).toContain("avoid reflexive switches to Code")
 			expect(switchModeTool.function.description).toContain("CLI Tools")

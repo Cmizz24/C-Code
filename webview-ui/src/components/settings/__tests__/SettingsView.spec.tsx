@@ -974,6 +974,19 @@ describe("SettingsView - API Configuration", () => {
 
 		expect(screen.getByTestId("api-config-management")).toBeInTheDocument()
 	})
+
+	it("does not render deprecated manual plan usage tracking settings", () => {
+		const { getSettingsContent } = renderSettingsView({
+			providerPlanLimits: {
+				anthropic: { tokenLimit: 1000, costLimit: 10, resetPeriod: "monthly" },
+			},
+			providerPlanUsage: {
+				anthropic: { tokensUsed: 450, costUsed: 1.25, periodStart: 1_700_000_000 },
+			},
+		})
+
+		expect(within(getSettingsContent()).queryByText("Plan usage tracking")).not.toBeInTheDocument()
+	})
 })
 
 describe("SettingsView - Image Generation Settings", () => {
@@ -1510,6 +1523,83 @@ describe("SettingsView - Memory Settings", () => {
 			memoryScope: "workspace",
 		})
 		expect(dialog).toHaveAttribute("data-open", "false")
+	})
+
+	it("refreshes live memory records without overwriting unsaved memory setting edits", () => {
+		const initialMemoryState = {
+			summary: {
+				workspace: { active: 1, pending: 0, archived: 0, total: 1 },
+				global: { active: 0, pending: 0, archived: 0, total: 0 },
+			},
+			workspace: [
+				{
+					id: "workspace-memory-live-refresh",
+					scope: "workspace",
+					kind: "lesson",
+					status: "active",
+					source: "manual",
+					title: "Live refresh lesson",
+					lesson: "This memory row should disappear after deletion.",
+					tags: [],
+					pathTags: [],
+					confidence: 0.8,
+					reuseCount: 0,
+					successCount: 0,
+					failureCount: 0,
+					createdAt: 1_700_000_000_000,
+					updatedAt: 1_700_000_060_000,
+				},
+			],
+			global: [],
+		}
+
+		const { activateTab, getSettingsContent } = renderSettingsView({
+			memoryMaxEntries: 8,
+			memoryState: initialMemoryState,
+		})
+
+		activateTab("memory")
+
+		let content = getSettingsContent()
+		expect(within(content).getByTestId("memory-record-workspace-memory-live-refresh")).toBeInTheDocument()
+
+		fireEvent.change(within(content).getByTestId("memory-max-entries-input"), { target: { value: "12" } })
+		expect(within(content).getByTestId("memory-max-entries-input")).toHaveValue(12)
+		expect(screen.getByTestId("save-button")).not.toBeDisabled()
+
+		act(() => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "memoryState",
+						memoryState: {
+							summary: {
+								workspace: { active: 0, pending: 0, archived: 0, total: 0 },
+								global: { active: 0, pending: 0, archived: 0, total: 0 },
+							},
+							workspace: [],
+							global: [],
+						},
+					},
+				}),
+			)
+		})
+
+		content = getSettingsContent()
+		expect(within(content).queryByTestId("memory-record-workspace-memory-live-refresh")).not.toBeInTheDocument()
+		expect(within(content).getByTestId("memory-max-entries-input")).toHaveValue(12)
+		expect(screen.getByTestId("save-button")).not.toBeDisabled()
+
+		fireEvent.click(screen.getByTestId("save-button"))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "updateSettings",
+				updatedSettings: expect.objectContaining({
+					memoryMaxEntries: 12,
+				}),
+			}),
+		)
 	})
 })
 

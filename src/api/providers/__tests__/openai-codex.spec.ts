@@ -77,7 +77,22 @@ describe("OpenAiCodexHandler.getModel", () => {
 		expect(model.info).toBeDefined()
 	})
 
+	it("should use GPT-5.6 Sol as the default ChatGPT subscription Codex model", () => {
+		const handler = new OpenAiCodexHandler({})
+		const model = handler.getModel()
+
+		expect(model.id).toBe("gpt-5.6-sol")
+		expect(model.id).toBe(openAiCodexDefaultModelId)
+		expect(model.info.contextWindow).toBe(400_000)
+		expect(model.info.reasoningEffort).toBe("medium")
+		expect(model.info.supportsFastMode).toBe(true)
+		expect(model.info.supportsReasoningEffort).toContain("max")
+	})
+
 	it.each([
+		["gpt-5.6-sol", 400_000],
+		["gpt-5.6-terra", 400_000],
+		["gpt-5.6-luna", 400_000],
 		["gpt-5.5", 400_000],
 		["gpt-5.4", 200_000],
 	])("should use ChatGPT subscription model context window: %s", (apiModelId, contextWindow) => {
@@ -120,7 +135,7 @@ describe("OpenAiCodexHandler Fast mode request body", () => {
 		return (handler as any).buildRequestBody(handler.getModel(), formattedInput, systemPrompt, undefined, metadata)
 	}
 
-	it.each(["gpt-5.5", "gpt-5.4"])(
+	it.each(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4"])(
 		"should request priority service tier when persistent Fast mode is enabled for supported model %s",
 		(apiModelId) => {
 			const body = buildRequestBody(apiModelId, { openAiCodexFastMode: true })
@@ -197,6 +212,301 @@ describe("OpenAiCodexHandler Responses input formatting", () => {
 			{ type: "function_call", call_id: "call_valid", name: "read_file", arguments: '{"path":"test.txt"}' },
 			{ type: "function_call_output", call_id: "call_valid", output: "valid result" },
 		])
+	})
+})
+
+describe("OpenAiCodexHandler reasoning extraction", () => {
+	const collectProcessEventChunks = async (handler: OpenAiCodexHandler, event: any) => {
+		const chunks: any[] = []
+		for await (const chunk of (handler as any).processEvent(event, handler.getModel())) {
+			chunks.push(chunk)
+		}
+		return chunks
+	}
+
+	const collectProcessEventsChunks = async (handler: OpenAiCodexHandler, events: any[]) => {
+		const chunks: any[] = []
+		for (const event of events) {
+			chunks.push(...(await collectProcessEventChunks(handler, event)))
+		}
+		return chunks
+	}
+
+	it("extracts final reasoning summaries from Responses output items", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const chunks = await collectProcessEventChunks(handler, {
+			type: "response.completed",
+			response: {
+				output: [
+					{
+						type: "reasoning",
+						summary: [{ type: "summary_text", text: "Reviewed the request and selected a focused fix." }],
+					},
+				],
+			},
+		})
+
+		expect(chunks).toEqual([{ type: "reasoning", text: "Reviewed the request and selected a focused fix." }])
+	})
+
+	it("emits title-only summary objects as separated sections", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const chunks = await collectProcessEventChunks(handler, {
+			type: "response.completed",
+			response: {
+				output: [
+					{
+						id: "reasoning-item-1",
+						type: "reasoning",
+						summary: [
+							{ type: "summary_text", text: "Planning CSS consolidation and redesign" },
+							{ type: "summary_text", text: "Reviewing resulting constraints" },
+						],
+					},
+				],
+			},
+		})
+
+		expect(chunks).toEqual([
+			{ type: "reasoning", text: "Planning CSS consolidation and redesign" },
+			{ type: "reasoning", text: "\n\nReviewing resulting constraints" },
+		])
+	})
+
+	it("separates multiple streamed summary sections with a blank line", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const chunks = await collectProcessEventsChunks(handler, [
+			{ type: "response.reasoning_summary_part.added", item_id: "item-1", summary_index: 0 },
+			{
+				type: "response.reasoning_summary_text.delta",
+				item_id: "item-1",
+				summary_index: 0,
+				delta: "Planning CSS consolidation",
+			},
+			{ type: "response.reasoning_summary_part.added", item_id: "item-1", summary_index: 1 },
+			{
+				type: "response.reasoning_summary_text.delta",
+				item_id: "item-1",
+				summary_index: 1,
+				delta: "Applying focused provider updates",
+			},
+		])
+
+		expect(chunks).toEqual([
+			{ type: "reasoning", text: "Planning CSS consolidation" },
+			{ type: "reasoning", text: "\n\nApplying focused provider updates" },
+		])
+		expect(chunks.map((chunk) => chunk.text).join("")).toBe(
+			"Planning CSS consolidation\n\nApplying focused provider updates",
+		)
+	})
+
+	it("streams split deltas for one summary section without adding intra-section separators", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.6-sol" })
+
+		const chunks = await collectProcessEventsChunks(handler, [
+			{
+				type: "response.reasoning_summary_text.delta",
+				item_id: "item-1",
+				summary_index: 0,
+				delta: "Compared ",
+			},
+			{
+				type: "response.reasoning_summary_text.delta",
+				item_id: "item-1",
+				summary_index: 0,
+				delta: "the available fixes.",
+			},
+		])
+
+		expect(chunks).toEqual([
+			{ type: "reasoning", text: "Compared " },
+			{ type: "reasoning", text: "the available fixes." },
+		])
+	})
+
+	it("does not duplicate text when a done event repeats streamed summary deltas", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.6-sol" })
+
+		const firstDelta = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary_text.delta",
+			item_id: "item-1",
+			summary_index: 0,
+			delta: "Reviewed the ",
+		})
+		const secondDelta = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary_text.delta",
+			item_id: "item-1",
+			summary_index: 0,
+			delta: "request.",
+		})
+		const done = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary_text.done",
+			item_id: "item-1",
+			summary_index: 0,
+			text: "Reviewed the request.",
+		})
+
+		expect(firstDelta).toEqual([{ type: "reasoning", text: "Reviewed the " }])
+		expect(secondDelta).toEqual([{ type: "reasoning", text: "request." }])
+		expect(done).toEqual([])
+	})
+
+	it("uses completed summary text from done-only response events", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const chunks = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary_part.done",
+			item_id: "item-1",
+			summary_index: 0,
+			part: { text: "Finished reviewing the Codex summary stream." },
+		})
+
+		expect(chunks).toEqual([{ type: "reasoning", text: "Finished reviewing the Codex summary stream." }])
+	})
+
+	it("treats a new item_id with the same summary_index as a distinct section", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const chunks = await collectProcessEventsChunks(handler, [
+			{
+				type: "response.reasoning_summary_text.done",
+				item_id: "item-1",
+				summary_index: 0,
+				text: "Planning focused changes",
+			},
+			{
+				type: "response.reasoning_summary_text.done",
+				item_id: "item-2",
+				summary_index: 0,
+				text: "Validating focused tests",
+			},
+		])
+
+		expect(chunks).toEqual([
+			{ type: "reasoning", text: "Planning focused changes" },
+			{ type: "reasoning", text: "\n\nValidating focused tests" },
+		])
+	})
+
+	it("resets summary section state between response streams", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const first = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary_text.done",
+			item_id: "item-1",
+			summary_index: 0,
+			text: "Planning focused changes",
+		})
+
+		;(handler as any).resetResponseState()
+
+		const second = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary_text.done",
+			item_id: "item-1",
+			summary_index: 0,
+			text: "Planning focused changes",
+		})
+
+		expect(first).toEqual([{ type: "reasoning", text: "Planning focused changes" }])
+		expect(second).toEqual([{ type: "reasoning", text: "Planning focused changes" }])
+	})
+
+	it("preserves real raw reasoning deltas that look like useful thinking content", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const chunks = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_text.delta",
+			delta: "Rewriting the canvas code is risky, so I need to inspect the current selectors before defining the animation attributes.",
+		})
+
+		expect(chunks).toEqual([
+			{
+				type: "reasoning",
+				text: "Rewriting the canvas code is risky, so I need to inspect the current selectors before defining the animation attributes.",
+			},
+		])
+	})
+
+	it("preserves title-only summary text wrapped in malformed HTML comments", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const closedComment = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary_text.delta",
+			item_id: "item-1",
+			summary_index: 0,
+			delta: "<!--**Planning CSS consolidation and redesign**-->",
+		})
+		const openComment = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary_text.delta",
+			item_id: "item-1",
+			summary_index: 1,
+			delta: "<!--**Outlining editorial design and typography options**",
+		})
+
+		expect(closedComment).toEqual([{ type: "reasoning", text: "**Planning CSS consolidation and redesign**" }])
+		expect(openComment).toEqual([
+			{ type: "reasoning", text: "\n\n**Outlining editorial design and typography options**" },
+		])
+	})
+
+	it("ignores encrypted reasoning summary content", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const streamed = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_summary_text.done",
+			item_id: "item-1",
+			summary_index: 0,
+			encrypted_content: "encrypted-private-reasoning",
+		})
+		const completed = await collectProcessEventChunks(handler, {
+			type: "response.completed",
+			response: {
+				output: [
+					{
+						id: "reasoning-item-1",
+						type: "reasoning",
+						encrypted_content: "private-raw-reasoning",
+						summary: [{ type: "summary_text", encrypted_content: "private-summary-reasoning" }],
+					},
+				],
+			},
+		})
+
+		expect(streamed).toEqual([])
+		expect(completed).toEqual([])
+		expect(JSON.stringify([...streamed, ...completed])).not.toContain("private")
+	})
+
+	it("deduplicates final reasoning summaries already streamed as reasoning deltas", async () => {
+		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.5" })
+
+		const firstDelta = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_text.delta",
+			delta: "Reviewed the request ",
+		})
+		const secondDelta = await collectProcessEventChunks(handler, {
+			type: "response.reasoning_text.delta",
+			delta: "and selected a focused fix.",
+		})
+		const finalSummary = await collectProcessEventChunks(handler, {
+			type: "response.completed",
+			response: {
+				output: [
+					{
+						type: "reasoning",
+						summary: [{ type: "summary_text", text: "Reviewed the request and selected a focused fix." }],
+					},
+				],
+			},
+		})
+
+		expect(firstDelta).toEqual([{ type: "reasoning", text: "Reviewed the request" }])
+		expect(secondDelta).toEqual([{ type: "reasoning", text: "and selected a focused fix." }])
+		expect(finalSummary).toEqual([])
 	})
 })
 

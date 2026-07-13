@@ -379,13 +379,31 @@ describe("OrchestratorEventLoop", () => {
 
 		expect(message).toContain("Non-blocking dependency context:")
 		expect(message).toContain(
-			"- Coordinate with ui (signal contract-ready, non-blocking): Use the declared DOM and class names once signalled.",
+			"These dependsOn entries are informational context links only; they are not enforced runtime waits and do not delay your start or completion.",
+		)
+		expect(message).toContain(
+			'Do not claim you are "waiting for integration/security" or "blocked on dependency completion" unless you have an actual unanswered targeted coordinate_agents request with waitForAnswer=true or the runtime reports your agent as blocked.',
+		)
+		expect(message).toContain(
+			"If you truly need another agent's result, use coordinate_agents with the exact targetAgentId and waitForAnswer=true instead of relying on dependsOn.",
+		)
+		expect(message).toContain(
+			"- Informational context link to ui (signal contract-ready, non-blocking): Use the declared DOM and class names once signalled.",
 		)
 		expect(message).not.toContain("signal signal")
 		expect(message).not.toContain("Wait for ui")
 		expect(options?.systemPromptSuffix).toContain("Non-blocking dependency context:")
 		expect(options?.systemPromptSuffix).toContain(
-			"- Coordinate with ui (signal contract-ready, non-blocking): Use the declared DOM and class names once signalled.",
+			"These dependsOn entries are informational context links only; they are not enforced runtime waits and do not delay your start or completion.",
+		)
+		expect(options?.systemPromptSuffix).toContain(
+			'Do not claim you are "waiting for integration/security" or "blocked on dependency completion" unless you have an actual unanswered targeted coordinate_agents request with waitForAnswer=true or the runtime reports your agent as blocked.',
+		)
+		expect(options?.systemPromptSuffix).toContain(
+			"If you truly need another agent's result, use coordinate_agents with the exact targetAgentId and waitForAnswer=true instead of relying on dependsOn.",
+		)
+		expect(options?.systemPromptSuffix).toContain(
+			"- Informational context link to ui (signal contract-ready, non-blocking): Use the declared DOM and class names once signalled.",
 		)
 		expect(options?.systemPromptSuffix).not.toContain("signal signal")
 		expect(options?.systemPromptSuffix).not.toContain("Wait for ui")

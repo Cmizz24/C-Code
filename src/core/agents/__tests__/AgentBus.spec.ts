@@ -4,6 +4,7 @@ import {
 	AGENT_COORDINATION_COMPLETION_RETRY_LIMIT,
 	AGENT_COORDINATION_EVENT_LIMIT,
 	AGENT_COORDINATION_MESSAGE_MAX_LENGTH,
+	AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
 	AgentBus,
 } from "../AgentBus"
 
@@ -234,6 +235,18 @@ describe("AgentBus", () => {
 		expect(bus.getAgentCompletionCoordinationGate("agent-a").approved).toBe(true)
 	})
 
+	it("blocks completion while the current agent runtime status is blocked", () => {
+		bus.markBlocked("agent-a", "Waiting on an integration signal from agent-b.")
+
+		const gate = bus.getAgentCompletionCoordinationGate("agent-a")
+
+		expect(gate.approved).toBe(false)
+		expect(gate.blockers).toEqual(
+			expect.arrayContaining([expect.objectContaining({ type: "agent-blocked", status: "blocked" })]),
+		)
+		expect(gate.unanswerableQuestions).toEqual([])
+	})
+
 	it("treats legacy persisted plans without sharedContract as having no contract", () => {
 		const legacyPlan = createPlan()
 		delete (legacyPlan as Partial<ExecutionPlan>).sharedContract
@@ -244,7 +257,7 @@ describe("AgentBus", () => {
 		expect(bus.acknowledgeSharedContract("agent-a")).toBeUndefined()
 	})
 
-	it("uses bounded completion retries before converting unavailable outgoing answers to unanswerable", () => {
+	it("keeps bounded completion retries blocking without converting targeted questions to unanswerable", () => {
 		const question = bus.publishCoordination("agent-a", {
 			kind: "question",
 			message: "Which selector should src/a.ts use from src/b.ts?",
@@ -256,7 +269,7 @@ describe("AgentBus", () => {
 			throw new Error("Expected model-published coordination question to be created.")
 		}
 
-		for (let attempt = 1; attempt < AGENT_COORDINATION_COMPLETION_RETRY_LIMIT; attempt++) {
+		for (let attempt = 1; attempt <= AGENT_COORDINATION_COMPLETION_RETRY_LIMIT + 1; attempt++) {
 			const gate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
 			expect(gate.approved).toBe(false)
 			expect(gate.blockers).toEqual(
@@ -267,22 +280,14 @@ describe("AgentBus", () => {
 					}),
 				]),
 			)
+			expect(gate.unanswerableQuestions).toEqual([])
+			expect(bus.getCoordinationEvents("agent-a", { includeSelf: true, limit: 20 })).toEqual(
+				expect.arrayContaining([expect.objectContaining({ id: question.id, answerState: "open" })]),
+			)
 		}
-
-		const allowedGate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
-		expect(allowedGate.approved).toBe(true)
-		expect(allowedGate.unanswerableQuestions).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					id: question.id,
-					answerState: "unanswerable",
-					unanswerableReason: expect.stringContaining("not currently running"),
-				}),
-			]),
-		)
 	})
 
-	it("allows completion when a targeted question becomes unanswerable because the target is terminal", () => {
+	it("blocks completion when a targeted question target fails instead of making it unanswerable", () => {
 		const question = bus.publishCoordination("agent-a", {
 			kind: "question",
 			message: "Which selector should src/a.ts use from src/b.ts?",
@@ -297,16 +302,16 @@ describe("AgentBus", () => {
 		bus.markFailed("agent-b", "Agent failed")
 
 		const gate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
-		expect(gate.approved).toBe(true)
-		expect(gate.unanswerableQuestions).toEqual(
+		expect(gate.approved).toBe(false)
+		expect(gate.blockers).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					id: question.id,
-					answerState: "unanswerable",
-					unanswerableReason: expect.stringContaining("already failed"),
+					type: "outgoing-question",
+					question: expect.objectContaining({ id: question.id, answerState: "open" }),
 				}),
 			]),
 		)
+		expect(gate.unanswerableQuestions).toEqual([])
 	})
 
 	it("denies a write while another agent holds the active write lock", () => {
@@ -633,7 +638,7 @@ describe("AgentBus", () => {
 		expect(bus.hasAgentReadCoordination("agent-a")).toBe(true)
 	})
 
-	it("allows complete agents to answer targeted questions from unfinished agents", () => {
+	it("keeps targeted questions to complete agents pending and blocking until answered", () => {
 		bus.markRunning("agent-b")
 		bus.markComplete("agent-a", "A done")
 
@@ -644,7 +649,26 @@ describe("AgentBus", () => {
 			relatedFiles: ["src/a.ts"],
 		})
 		expect(question).toBeDefined()
-		expect(bus.getAgentCompletionCoordinationGate("agent-b", { recordAttempt: true }).approved).toBe(false)
+		expect(bus.getAgentCompletionCoordinationGate("agent-b", { recordAttempt: true })).toEqual(
+			expect.objectContaining({
+				approved: false,
+				blockers: expect.arrayContaining([
+					expect.objectContaining({
+						type: "outgoing-question",
+						question: expect.objectContaining({ id: question?.id, answerState: "open" }),
+					}),
+				]),
+				unanswerableQuestions: [],
+			}),
+		)
+		expect(bus.getCoordinationEvents("agent-b", { includeSelf: true, limit: 20 })).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: question?.id,
+					answerState: "open",
+				}),
+			]),
+		)
 
 		const answer = bus.publishCoordination("agent-a", {
 			kind: "answer",
@@ -653,21 +677,180 @@ describe("AgentBus", () => {
 			replyToId: question?.id,
 		})
 
-		expect(answer).toEqual(
-			expect.objectContaining({
-				agentId: "agent-a",
+		expect(answer).toBeDefined()
+		bus.getCoordinationEvents("agent-b", { includeSelf: true, limit: 20 })
+		expect(bus.getAgentCompletionCoordinationGate("agent-b").approved).toBe(true)
+	})
+
+	it("waits for targeted coordination answers and resolves promptly when answered", async () => {
+		bus.markRunning("agent-a")
+		bus.markRunning("agent-b")
+		const question = bus.publishCoordination("agent-a", {
+			kind: "question",
+			message: "Which selector should src/a.ts use from src/b.ts?",
+			targetAgentId: "agent-b",
+			relatedFiles: ["src/b.ts"],
+		})
+		expect(question).toBeDefined()
+		if (!question) {
+			throw new Error("Expected coordination question to be created.")
+		}
+
+		const waitPromise = bus.waitForCoordinationAnswer("agent-a", question, {
+			timeoutMs: AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
+		})
+		const answer = bus.publishCoordination("agent-b", {
+			kind: "answer",
+			message: "Use data-testid=save-button.",
+			targetAgentId: "agent-a",
+			replyToId: question.id,
+		})
+
+		await expect(waitPromise).resolves.toEqual({
+			status: "answered",
+			question: expect.objectContaining({ id: question.id, answerState: "answered", answerEventId: answer?.id }),
+			answer: expect.objectContaining({ id: answer?.id, message: "Use data-testid=save-button." }),
+		})
+	})
+
+	it("returns immediately when a coordination question is already answered", async () => {
+		bus.markRunning("agent-a")
+		bus.markRunning("agent-b")
+		const question = bus.publishCoordination("agent-a", {
+			kind: "question",
+			message: "Which selector should src/a.ts use from src/b.ts?",
+			targetAgentId: "agent-b",
+			relatedFiles: ["src/b.ts"],
+		})
+		expect(question).toBeDefined()
+		if (!question) {
+			throw new Error("Expected coordination question to be created.")
+		}
+		const answer = bus.publishCoordination("agent-b", {
+			kind: "answer",
+			message: "Use data-testid=save-button.",
+			targetAgentId: "agent-a",
+			replyToId: question.id,
+		})
+
+		await expect(bus.waitForCoordinationAnswer("agent-a", question)).resolves.toEqual({
+			status: "answered",
+			question: expect.objectContaining({ id: question.id, answerState: "answered", answerEventId: answer?.id }),
+			answer: expect.objectContaining({ id: answer?.id }),
+		})
+	})
+
+	it("times out rather than resolving when a coordination question target becomes terminal", async () => {
+		vi.useFakeTimers()
+		try {
+			bus.markRunning("agent-a")
+			bus.markRunning("agent-b")
+			const question = bus.publishCoordination("agent-a", {
+				kind: "question",
+				message: "Which selector should src/a.ts use from src/b.ts?",
 				targetAgentId: "agent-b",
-				kind: "answer",
-				replyToId: question?.id,
-				message: "Import useDashboardState from src/a.ts.",
-			}),
-		)
-		expect(bus.getCoordinationEvents("agent-b", { includeSelf: true, limit: 20 })).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ id: question?.id, answerState: "answered", answerEventId: answer?.id }),
-				expect.objectContaining({ id: answer?.id, message: "Import useDashboardState from src/a.ts." }),
-			]),
-		)
+				relatedFiles: ["src/b.ts"],
+			})
+			expect(question).toBeDefined()
+			if (!question) {
+				throw new Error("Expected coordination question to be created.")
+			}
+
+			const waitPromise = bus.waitForCoordinationAnswer("agent-a", question, {
+				timeoutMs: AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
+			})
+			bus.markFailed("agent-b", "Agent failed")
+			await vi.advanceTimersByTimeAsync(AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN)
+
+			await expect(waitPromise).resolves.toEqual({
+				status: "timeout",
+				question: expect.objectContaining({ id: question.id, answerState: "open" }),
+				timeoutMs: AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
+			})
+			const gate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
+			expect(gate.approved).toBe(false)
+			expect(gate.blockers).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						type: "outgoing-question",
+						question: expect.objectContaining({ id: question.id, answerState: "open" }),
+					}),
+				]),
+			)
+			expect(gate.unanswerableQuestions).toEqual([])
+		} finally {
+			vi.useRealTimers()
+		}
+	})
+
+	it("times out bounded coordination answer waits", async () => {
+		vi.useFakeTimers()
+		try {
+			bus.markRunning("agent-a")
+			bus.markRunning("agent-b")
+			const question = bus.publishCoordination("agent-a", {
+				kind: "question",
+				message: "Which selector should src/a.ts use from src/b.ts?",
+				targetAgentId: "agent-b",
+				relatedFiles: ["src/b.ts"],
+			})
+			expect(question).toBeDefined()
+			if (!question) {
+				throw new Error("Expected coordination question to be created.")
+			}
+
+			const waitPromise = bus.waitForCoordinationAnswer("agent-a", question, {
+				timeoutMs: AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
+			})
+			await vi.advanceTimersByTimeAsync(AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN)
+
+			await expect(waitPromise).resolves.toEqual({
+				status: "timeout",
+				question: expect.objectContaining({ id: question.id, answerState: "open" }),
+				timeoutMs: AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
+			})
+			const gate = bus.getAgentCompletionCoordinationGate("agent-a", { recordAttempt: true })
+			expect(gate.approved).toBe(false)
+			expect(gate.blockers).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						type: "outgoing-question",
+						question: expect.objectContaining({ id: question.id, answerState: "open" }),
+					}),
+				]),
+			)
+			expect(gate.unanswerableQuestions).toEqual([])
+		} finally {
+			vi.useRealTimers()
+		}
+	})
+
+	it("cancels bounded coordination answer waits", async () => {
+		bus.markRunning("agent-a")
+		bus.markRunning("agent-b")
+		const question = bus.publishCoordination("agent-a", {
+			kind: "question",
+			message: "Which selector should src/a.ts use from src/b.ts?",
+			targetAgentId: "agent-b",
+			relatedFiles: ["src/b.ts"],
+		})
+		expect(question).toBeDefined()
+		if (!question) {
+			throw new Error("Expected coordination question to be created.")
+		}
+
+		const controller = new AbortController()
+		const waitPromise = bus.waitForCoordinationAnswer("agent-a", question, {
+			timeoutMs: AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN,
+			signal: controller.signal,
+		})
+		controller.abort("Task disposed.")
+
+		await expect(waitPromise).resolves.toEqual({
+			status: "cancelled",
+			question: expect.objectContaining({ id: question.id, answerState: "open" }),
+			reason: "Task disposed.",
+		})
 	})
 
 	it("suppresses failed-agent coordination publishes without changing existing chat", () => {

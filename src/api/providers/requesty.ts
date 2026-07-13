@@ -1,7 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
-import { type ModelInfo, type ModelRecord, requestyDefaultModelId, requestyDefaultModelInfo } from "@roo-code/types"
+import {
+	type ModelInfo,
+	type ModelRecord,
+	type ReasoningEffortExtended,
+	requestyDefaultModelId,
+	requestyDefaultModelInfo,
+} from "@roo-code/types"
 
 import type { ApiHandlerOptions } from "../../shared/api"
 import { calculateApiCostOpenAI } from "../../shared/cost"
@@ -29,6 +35,8 @@ interface RequestyUsage extends OpenAI.CompletionUsage {
 	total_cost?: number
 }
 
+type RequestyReasoningEffort = "none" | "low" | "medium" | "high" | "max" | `${number}`
+
 type RequestyChatCompletionParamsStreaming = OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming & {
 	requesty?: {
 		trace_id?: string
@@ -47,6 +55,41 @@ type RequestyChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
 		}
 	}
 	thinking?: AnthropicReasoningParams
+}
+
+const REQUESTY_REASONING_EFFORTS = ["none", "low", "medium", "high", "max"] as const
+
+function toRequestyReasoningEffort({
+	reasoningBudget,
+	reasoningEffort,
+}: {
+	reasoningBudget?: number
+	reasoningEffort?: ReasoningEffortExtended | "disable"
+}): RequestyReasoningEffort | undefined {
+	if (typeof reasoningBudget === "number" && Number.isFinite(reasoningBudget) && reasoningBudget >= 0) {
+		return `${Math.floor(reasoningBudget)}` as RequestyReasoningEffort
+	}
+
+	if (!reasoningEffort || reasoningEffort === "disable") {
+		return undefined
+	}
+
+	if (reasoningEffort === "minimal") {
+		return "none"
+	}
+
+	return REQUESTY_REASONING_EFFORTS.includes(reasoningEffort as (typeof REQUESTY_REASONING_EFFORTS)[number])
+		? (reasoningEffort as RequestyReasoningEffort)
+		: undefined
+}
+
+function setRequestyReasoningEffort(
+	params: RequestyChatCompletionParamsStreaming | RequestyChatCompletionParams,
+	reasoningEffort: RequestyReasoningEffort | undefined,
+): void {
+	if (reasoningEffort) {
+		;(params as { reasoning_effort?: RequestyReasoningEffort }).reasoning_effort = reasoningEffort
+	}
 }
 
 export class RequestyHandler extends BaseProvider implements SingleCompletionHandler {
@@ -130,6 +173,7 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 			maxTokens: max_tokens,
 			temperature,
 			reasoningEffort: reasoning_effort,
+			reasoningBudget,
 			reasoning: thinking,
 		} = await this.fetchModel()
 
@@ -138,24 +182,24 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 			...convertToOpenAiMessages(messages),
 		]
 
-		// Map extended efforts to OpenAI Chat Completions-accepted values (omit unsupported)
-		const allowedEffort = (["low", "medium", "high"] as const).includes(reasoning_effort as any)
-			? (reasoning_effort as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming["reasoning_effort"])
-			: undefined
+		const requestyReasoningEffort = toRequestyReasoningEffort({
+			reasoningBudget,
+			reasoningEffort: reasoning_effort,
+		})
 
 		const completionParams: RequestyChatCompletionParamsStreaming = {
 			messages: openAiMessages,
 			model,
 			max_tokens,
 			temperature,
-			...(allowedEffort && { reasoning_effort: allowedEffort }),
-			...(thinking && { thinking }),
+			...(thinking && !requestyReasoningEffort && { thinking }),
 			stream: true,
 			stream_options: { include_usage: true },
 			requesty: { trace_id: metadata?.taskId, extra: { mode: metadata?.mode } },
 			tools: this.convertToolsForOpenAI(metadata?.tools),
 			tool_choice: metadata?.tool_choice,
 		}
+		setRequestyReasoningEffort(completionParams, requestyReasoningEffort)
 
 		let stream
 		try {

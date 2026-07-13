@@ -2,7 +2,7 @@ import type { MemoryRetrievalResult, MemoryScope, MemoryStatus } from "@roo-code
 
 import type { RooIgnoreController } from "../ignore/RooIgnoreController"
 import { MemoryStorage } from "./storage"
-import { rankMemories } from "./ranking"
+import { isMemoryRelevantForRetrieval, rankMemories } from "./ranking"
 import { hashWorkspaceIdentifier, uniqueNormalizedPaths } from "./workspace"
 
 export interface RetrieveMemoriesOptions {
@@ -59,13 +59,16 @@ export async function retrieveMemories(options: RetrieveMemoriesOptions): Promis
 		return [{ ...memory, pathTags: allowedPathTags }]
 	})
 
-	return rankMemories(filtered, {
+	const rankOptions = {
 		query: options.query,
 		pathHints: options.pathHints,
 		mode: options.mode,
 		workspaceHash,
 		mistakeSignature: options.mistakeSignature,
-	}).slice(0, options.maxEntries)
+	}
+	const relevant = filtered.filter((memory) => isMemoryRelevantForRetrieval(memory, rankOptions))
+
+	return rankMemories(relevant, rankOptions).slice(0, options.maxEntries)
 }
 
 const PATH_HINT_PATTERN =

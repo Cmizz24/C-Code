@@ -855,6 +855,36 @@
 				"condensingAvoided": "Сколько раз удалось избежать сжатия",
 				"hotCacheChunks": "Фрагменты горячего кэша",
 				"ramBudget": "Бюджет RAM"
+			},
+			"diagnostics": {
+				"title": "Диагностика давления кэша",
+				"description": "Компактный вид давления RAM в этом окне и других активных окнах C. ID задач, prompts и пути к файлам не включаются.",
+				"status": {
+					"label": "Статус давления",
+					"automatic": "Автоматическое снижение активно",
+					"ready": "В пределах бюджета",
+					"help": "C сначала удаляет холодные chunks и показывает здесь только агрегированные счётчики."
+				},
+				"localUsage": "Локальное использование / бюджет",
+				"configuredEffective": "Настроенный / эффективный бюджет",
+				"hotColdRam": "Горячая / холодная RAM",
+				"evictions": {
+					"label": "Вытеснения",
+					"value": "{{total}} всего · {{hot}} горячих / {{cold}} холодных"
+				},
+				"contributors": {
+					"label": "Участники",
+					"usage": "{{ram}} · {{hot}} горячих / {{cold}} холодных"
+				},
+				"crossWindow": {
+					"title": "Давление между окнами",
+					"description": "Агрегированное использование этого окна и peers; пути workspace и prompts скрыты.",
+					"liveWindows": "Окна / peers",
+					"localPeerUsage": "Локальное / peer-использование",
+					"globalLocalTarget": "Глобальная / локальная цель",
+					"cleanup": "Очистка устаревших heartbeat",
+					"cleanupValue": "{{cleaned}} очищено / {{failed}} ошибок"
+				}
 			}
 		}
 	},
@@ -1167,6 +1197,43 @@
 			"freeRequests": "* Бесплатно до {{count}} запросов в минуту. Далее тарификация зависит от размера подсказки.",
 			"pricingDetails": "Подробнее о ценах.",
 			"billingEstimate": "* Счёт — приблизительный, точная стоимость зависит от размера подсказки."
+		},
+		"provenance": {
+			"title": "Источник метаданных модели",
+			"reviewStatus": "Статус: {{status}}",
+			"lastReviewed": "Проверено: {{date}}",
+			"source": "Источник:",
+			"endpoint": "(endpoint: {{endpoint}})",
+			"capabilitySummary": "Возможности с источником: {{capabilities}}",
+			"capabilitySummaryWithMore": "Возможности с источником: {{capabilities}} + ещё {{count}}",
+			"sourceTypes": {
+				"official-docs": "официальные docs",
+				"official-api": "официальный API",
+				"provider-announcement": "объявление провайдера",
+				"curated": "курируемый",
+				"unknown": "неизвестно"
+			},
+			"reviewStatuses": {
+				"reviewed": "проверено",
+				"unreviewed": "не проверено",
+				"unknown": "неизвестно"
+			},
+			"capabilities": {
+				"contextWindow": "context window",
+				"maxTokens": "макс. вывод",
+				"pricing": "цены",
+				"reasoning": "reasoning",
+				"promptCaching": "Prompt caching",
+				"images": "изображения",
+				"imageOutput": "вывод изображения",
+				"tools": "tools",
+				"computerUse": "использование компьютера",
+				"webSearch": "web search",
+				"jsonSchema": "JSON schema",
+				"deprecation": "устаревание",
+				"description": "описание",
+				"serviceTiers": "service tiers"
+			}
 		}
 	},
 	"modelPicker": {

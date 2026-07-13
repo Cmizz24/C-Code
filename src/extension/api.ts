@@ -285,10 +285,34 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 	}
 
 	public async pressPrimaryButton() {
+		const currentTask = this.sidebarProvider.getCurrentTask()
+
+		if (!this.sidebarProvider.viewLaunched) {
+			if (!currentTask) {
+				this.log("[API#pressPrimaryButton] no current task in headless mode; click dropped")
+				return
+			}
+
+			currentTask.approveAsk()
+			return
+		}
+
 		await this.sidebarProvider.postMessageToWebview({ type: "invoke", invoke: "primaryButtonClick" })
 	}
 
 	public async pressSecondaryButton() {
+		const currentTask = this.sidebarProvider.getCurrentTask()
+
+		if (!this.sidebarProvider.viewLaunched) {
+			if (!currentTask) {
+				this.log("[API#pressSecondaryButton] no current task in headless mode; click dropped")
+				return
+			}
+
+			currentTask.denyAsk()
+			return
+		}
+
 		await this.sidebarProvider.postMessageToWebview({ type: "invoke", invoke: "secondaryButtonClick" })
 	}
 
@@ -563,5 +587,17 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 
 		await this.sidebarProvider.activateProviderProfile({ name })
 		return this.getActiveProfile()
+	}
+
+	public async getContextCacheDiagnostics() {
+		return this.sidebarProvider.getContextCacheDiagnostics()
+	}
+
+	public getPendingParallelPlanSetup() {
+		return this.sidebarProvider.getPendingParallelPlanSetup()
+	}
+
+	public async retryPendingParallelPlan(): Promise<void> {
+		await this.sidebarProvider.retryExecutionPlan()
 	}
 }

@@ -83,6 +83,77 @@ export const isModelParameter = (value: string): value is ModelParameter =>
 	modelParameters.includes(value as ModelParameter)
 
 /**
+ * Model provenance/freshness metadata
+ */
+
+export const modelProvenanceSourceTypeValues = [
+	"official-docs",
+	"official-api",
+	"provider-announcement",
+	"curated",
+	"unknown",
+] as const
+
+export const modelProvenanceSourceTypeSchema = z.enum(modelProvenanceSourceTypeValues)
+
+export type ModelProvenanceSourceType = z.infer<typeof modelProvenanceSourceTypeSchema>
+
+export const modelProvenanceReviewStatusValues = ["reviewed", "unreviewed", "unknown"] as const
+
+export const modelProvenanceReviewStatusSchema = z.enum(modelProvenanceReviewStatusValues)
+
+export type ModelProvenanceReviewStatus = z.infer<typeof modelProvenanceReviewStatusSchema>
+
+export const modelProvenanceReviewDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+
+export const modelProvenanceSourceSchema = z.object({
+	type: modelProvenanceSourceTypeSchema,
+	url: z.string().url().optional(),
+	endpoint: z.string().min(1).optional(),
+	label: z.string().min(1).optional(),
+})
+
+export type ModelProvenanceSource = z.infer<typeof modelProvenanceSourceSchema>
+
+export const modelProvenanceSchema = z.object({
+	sources: z.array(modelProvenanceSourceSchema).optional(),
+	// Official dynamic APIs often expose provider field names that do not map 1:1
+	// to ModelInfo keys. Track those raw field names here when useful.
+	sourceFields: z.array(z.string().min(1)).optional(),
+	reviewStatus: modelProvenanceReviewStatusSchema.optional(),
+	lastReviewed: modelProvenanceReviewDateSchema.optional(),
+	reviewedBy: z.string().min(1).optional(),
+	reviewNote: z.string().min(1).optional(),
+})
+
+export type ModelProvenance = z.infer<typeof modelProvenanceSchema>
+
+export const modelCapabilityProvenanceKeyValues = [
+	"contextWindow",
+	"maxTokens",
+	"pricing",
+	"reasoning",
+	"promptCaching",
+	"images",
+	"imageOutput",
+	"tools",
+	"computerUse",
+	"webSearch",
+	"jsonSchema",
+	"deprecation",
+	"description",
+	"serviceTiers",
+] as const
+
+export const modelCapabilityProvenanceKeySchema = z.enum(modelCapabilityProvenanceKeyValues)
+
+export type ModelCapabilityProvenanceKey = z.infer<typeof modelCapabilityProvenanceKeySchema>
+
+export const modelCapabilityProvenanceSchema = modelProvenanceSchema
+
+export type ModelCapabilityProvenance = z.infer<typeof modelCapabilityProvenanceSchema>
+
+/**
  * ModelInfo
  */
 
@@ -170,6 +241,10 @@ export const modelInfoSchema = z.object({
 			}),
 		)
 		.optional(),
+	// Provenance/freshness metadata for the model metadata as a whole.
+	provenance: modelProvenanceSchema.optional(),
+	// Provenance/freshness metadata for specific capability groups.
+	capabilityProvenance: z.record(modelCapabilityProvenanceKeySchema, modelCapabilityProvenanceSchema).optional(),
 })
 
 export type ModelInfo = z.infer<typeof modelInfoSchema>

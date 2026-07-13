@@ -855,6 +855,36 @@
 				"condensingAvoided": "Condensing से बचाए गए बार",
 				"hotCacheChunks": "Hot cache chunks",
 				"ramBudget": "RAM budget"
+			},
+			"diagnostics": {
+				"title": "कैश दबाव डायग्नोस्टिक्स",
+				"description": "इस विंडो और अन्य सक्रिय C विंडो में RAM दबाव का संक्षिप्त दृश्य। Task ID, prompts और फ़ाइल पाथ शामिल नहीं हैं।",
+				"status": {
+					"label": "दबाव स्थिति",
+					"automatic": "ऑटोमैटिक राहत सक्रिय",
+					"ready": "बजट के भीतर",
+					"help": "C पहले ठंडे chunks हटाता है और यहाँ केवल कुल गिनतियाँ रखता है।"
+				},
+				"localUsage": "लोकल उपयोग / बजट",
+				"configuredEffective": "कॉन्फ़िगर / प्रभावी बजट",
+				"hotColdRam": "हॉट / कोल्ड RAM",
+				"evictions": {
+					"label": "Evictions",
+					"value": "कुल {{total}} · {{hot}} हॉट / {{cold}} कोल्ड"
+				},
+				"contributors": {
+					"label": "योगदानकर्ता",
+					"usage": "{{ram}} · {{hot}} हॉट / {{cold}} कोल्ड"
+				},
+				"crossWindow": {
+					"title": "विंडो के बीच दबाव",
+					"description": "इस विंडो और peers का कुल उपयोग; workspace पाथ और prompts छिपे रहते हैं।",
+					"liveWindows": "विंडो / peers",
+					"localPeerUsage": "लोकल / peer उपयोग",
+					"globalLocalTarget": "ग्लोबल / लोकल लक्ष्य",
+					"cleanup": "पुराने heartbeat की सफ़ाई",
+					"cleanupValue": "{{cleaned}} साफ़ / {{failed}} विफल"
+				}
 			}
 		}
 	},
@@ -1167,6 +1197,43 @@
 			"freeRequests": "* प्रति मिनट {{count}} अनुरोधों तक मुफ्त। उसके बाद, बिलिंग प्रॉम्प्ट आकार पर निर्भर करती है।",
 			"pricingDetails": "अधिक जानकारी के लिए, मूल्य निर्धारण विवरण देखें।",
 			"billingEstimate": "* बिलिंग एक अनुमान है - सटीक लागत प्रॉम्प्ट आकार पर निर्भर करती है।"
+		},
+		"provenance": {
+			"title": "मॉडल metadata source",
+			"reviewStatus": "स्थिति: {{status}}",
+			"lastReviewed": "Reviewed: {{date}}",
+			"source": "Source:",
+			"endpoint": "(endpoint: {{endpoint}})",
+			"capabilitySummary": "Source वाली capabilities: {{capabilities}}",
+			"capabilitySummaryWithMore": "Source वाली capabilities: {{capabilities}} + {{count}} और",
+			"sourceTypes": {
+				"official-docs": "official docs",
+				"official-api": "official API",
+				"provider-announcement": "provider announcement",
+				"curated": "curated",
+				"unknown": "अज्ञात"
+			},
+			"reviewStatuses": {
+				"reviewed": "reviewed",
+				"unreviewed": "unreviewed",
+				"unknown": "अज्ञात"
+			},
+			"capabilities": {
+				"contextWindow": "context window",
+				"maxTokens": "max output",
+				"pricing": "pricing",
+				"reasoning": "reasoning",
+				"promptCaching": "Prompt caching",
+				"images": "images",
+				"imageOutput": "image output",
+				"tools": "tools",
+				"computerUse": "computer use",
+				"webSearch": "web search",
+				"jsonSchema": "JSON schema",
+				"deprecation": "deprecation",
+				"description": "description",
+				"serviceTiers": "service tiers"
+			}
 		}
 	},
 	"modelPicker": {

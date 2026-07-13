@@ -23,6 +23,9 @@ export const AGENT_COORDINATION_PATH_MAX_LENGTH = 200
 export const AGENT_COORDINATION_READ_LIMIT = 8
 export const AGENT_COORDINATION_READ_LIMIT_MAX = 20
 export const AGENT_COORDINATION_COMPLETION_RETRY_LIMIT = 2
+export const AGENT_COORDINATION_WAIT_TIMEOUT_MS = 30_000
+export const AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN = 1_000
+export const AGENT_COORDINATION_WAIT_TIMEOUT_MS_MAX = 120_000
 
 export type PublishAgentCoordinationInput = {
 	kind?: AgentCoordinationKind
@@ -36,6 +39,33 @@ export type GetAgentCoordinationOptions = {
 	limit?: number
 	includeSelf?: boolean
 }
+
+export type WaitForAgentCoordinationAnswerOptions = {
+	timeoutMs?: number
+	signal?: AbortSignal
+}
+
+export type AgentCoordinationWaitResult =
+	| {
+			status: "answered"
+			question: AgentCoordinationEvent
+			answer: AgentCoordinationEvent
+	  }
+	| {
+			status: "unanswerable"
+			question: AgentCoordinationEvent
+			reason: string
+	  }
+	| {
+			status: "timeout"
+			question: AgentCoordinationEvent
+			timeoutMs: number
+	  }
+	| {
+			status: "cancelled"
+			question: AgentCoordinationEvent
+			reason: string
+	  }
 
 type CoordinationQuestionState = {
 	question: AgentCoordinationEvent
@@ -62,6 +92,10 @@ export type AgentCompletionCoordinationBlocker =
 	| {
 			type: "shared-contract-unacknowledged"
 			sharedContract: string
+	  }
+	| {
+			type: "agent-blocked"
+			status: "blocked"
 	  }
 
 export type AgentCompletionCoordinationGate = {
@@ -230,6 +264,10 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		return this.getAgent(agentId)?.status
 	}
 
+	public getActiveAgentIds(): string[] {
+		return (this.executionPlan?.agents ?? []).map((agent) => agent.id)
+	}
+
 	public isAgentTerminal(agentId: string): boolean {
 		return this.isTerminalStatus(this.getAgentStatus(agentId))
 	}
@@ -384,6 +422,80 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		return this.getOpenQuestionsForAgent(agentId).slice(-limit)
 	}
 
+	public waitForCoordinationAnswer(
+		agentId: string,
+		question: AgentCoordinationEvent,
+		options: WaitForAgentCoordinationAnswerOptions = {},
+	): Promise<AgentCoordinationWaitResult> {
+		const timeoutMs = clampInteger(
+			options.timeoutMs,
+			AGENT_COORDINATION_WAIT_TIMEOUT_MS,
+			AGENT_COORDINATION_WAIT_TIMEOUT_MS_MAX,
+		)
+		const boundedTimeoutMs = Math.max(timeoutMs, AGENT_COORDINATION_WAIT_TIMEOUT_MS_MIN)
+		const immediateResult = this.getCoordinationWaitResolution(agentId, question)
+		if (immediateResult) {
+			return Promise.resolve(immediateResult)
+		}
+
+		if (options.signal?.aborted) {
+			return Promise.resolve({
+				status: "cancelled",
+				question: this.getCurrentCoordinationQuestion(question),
+				reason: this.getAbortSignalReason(options.signal),
+			})
+		}
+
+		return new Promise((resolve) => {
+			let settled = false
+			let timeout: ReturnType<typeof setTimeout> | undefined
+
+			const cleanup = () => {
+				this.off("event", onAgentEvent)
+				options.signal?.removeEventListener("abort", onAbort)
+				if (timeout) {
+					clearTimeout(timeout)
+				}
+			}
+
+			const finish = (result: AgentCoordinationWaitResult) => {
+				if (settled) {
+					return
+				}
+				settled = true
+				cleanup()
+				resolve(result)
+			}
+
+			const checkForResolution = () => {
+				const result = this.getCoordinationWaitResolution(agentId, question)
+				if (result) {
+					finish(result)
+				}
+			}
+
+			const onAgentEvent = () => checkForResolution()
+			const onAbort = () =>
+				finish({
+					status: "cancelled",
+					question: this.getCurrentCoordinationQuestion(question),
+					reason: options.signal ? this.getAbortSignalReason(options.signal) : "Task cancelled.",
+				})
+
+			this.on("event", onAgentEvent)
+			options.signal?.addEventListener("abort", onAbort, { once: true })
+			timeout = setTimeout(() => {
+				finish({
+					status: "timeout",
+					question: this.getCurrentCoordinationQuestion(question),
+					timeoutMs: boundedTimeoutMs,
+				})
+			}, boundedTimeoutMs)
+
+			checkForResolution()
+		})
+	}
+
 	public acknowledgeSharedContract(agentId: string): AgentCoordinationEvent | undefined {
 		const agent = this.getAgent(agentId)
 		const sharedContract = (this.executionPlan?.sharedContract ?? "").trim()
@@ -433,10 +545,20 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			question,
 			answer,
 		}))
+		const blockedStatusBlockers =
+			this.getAgentStatus(agentId) === "blocked"
+				? [{ type: "agent-blocked" as const, status: "blocked" as const }]
+				: []
 		const unanswerableQuestions = this.getUnanswerableQuestionsForAgent(agentId)
 		const sharedContractBlockers = this.getSharedContractCompletionBlockers(agentId)
 
-		const blockers = [...sharedContractBlockers, ...incoming, ...outgoing, ...unreadAnswers]
+		const blockers = [
+			...blockedStatusBlockers,
+			...sharedContractBlockers,
+			...incoming,
+			...outgoing,
+			...unreadAnswers,
+		]
 		return { approved: blockers.length === 0, blockers, unanswerableQuestions }
 	}
 
@@ -703,9 +825,12 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			this.coordinationEventSequenceById.set(event.id, sequence)
 		}
 		this.trackCoordinationQuestionOrAnswer(event)
-		this.emitEvent({ type: "COORDINATION", event })
+		const eventToReturn = event.id
+			? (this.coordinationEvents.find((candidate) => candidate.id === event.id) ?? event)
+			: event
+		this.emitEvent({ type: "COORDINATION", event: eventToReturn })
 
-		return event
+		return eventToReturn
 	}
 
 	private trackCoordinationQuestionOrAnswer(event: AgentCoordinationEvent): void {
@@ -761,6 +886,72 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 		return updatedQuestion
 	}
 
+	private getCoordinationWaitResolution(
+		agentId: string,
+		initialQuestion: AgentCoordinationEvent,
+	): AgentCoordinationWaitResult | undefined {
+		this.refreshUnanswerableQuestions()
+		const question = this.getCurrentCoordinationQuestion(initialQuestion)
+
+		if (!question.id) {
+			return {
+				status: "unanswerable",
+				question: { ...question, answerState: "unanswerable", unanswerableReason: "Question id is missing." },
+				reason: "Question id is missing.",
+			}
+		}
+
+		if (question.agentId && question.agentId !== agentId) {
+			return {
+				status: "unanswerable",
+				question: {
+					...question,
+					answerState: "unanswerable",
+					unanswerableReason: "Only the asking agent can wait for this question.",
+				},
+				reason: "Only the asking agent can wait for this question.",
+			}
+		}
+
+		if (question.answerState === "answered" && question.answerEventId) {
+			const answer = this.coordinationEvents.find((event) => event.id === question.answerEventId)
+			if (answer) {
+				return { status: "answered", question, answer }
+			}
+		}
+
+		if (question.answerState === "unanswerable") {
+			return {
+				status: "unanswerable",
+				question,
+				reason: question.unanswerableReason ?? "Question is unanswerable.",
+			}
+		}
+
+		return undefined
+	}
+
+	private getCurrentCoordinationQuestion(question: AgentCoordinationEvent): AgentCoordinationEvent {
+		if (!question.id) {
+			return question
+		}
+
+		return this.coordinationQuestions.get(question.id)?.question ?? question
+	}
+
+	private getAbortSignalReason(signal: AbortSignal): string {
+		const reason = signal.reason
+		if (reason instanceof Error) {
+			return reason.message
+		}
+
+		if (typeof reason === "string" && reason.trim()) {
+			return reason.trim()
+		}
+
+		return "Task cancelled."
+	}
+
 	private markQuestionAnswered(questionId: string, answer: AgentCoordinationEvent): void {
 		this.updateQuestionState(
 			questionId,
@@ -769,22 +960,6 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 				answerEventId: answer.id,
 				answeredAt: answer.ts,
 				unanswerableReason: undefined,
-			},
-			{ emit: true },
-		)
-	}
-
-	private markQuestionUnanswerable(questionId: string, reason: string): void {
-		const state = this.coordinationQuestions.get(questionId)
-		if (!state || state.question.answerState === "answered" || state.question.answerState === "unanswerable") {
-			return
-		}
-
-		this.updateQuestionState(
-			questionId,
-			{
-				answerState: "unanswerable",
-				unanswerableReason: reason,
 			},
 			{ emit: true },
 		)
@@ -808,6 +983,10 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 
 	private isQuestionOpen(question: AgentCoordinationEvent): boolean {
 		return question.kind === "question" && (question.answerState ?? "open") === "open"
+	}
+
+	private isQuestionUnresolved(question: AgentCoordinationEvent): boolean {
+		return question.kind === "question" && (question.answerState !== "answered" || !question.answerEventId)
 	}
 
 	private findQuestionAnsweredBy(answer: AgentCoordinationEvent): AgentCoordinationEvent | undefined {
@@ -935,53 +1114,9 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 	}
 
 	private refreshUnanswerableQuestions(): void {
-		for (const state of this.getQuestionStates()) {
-			const question = state.question
-			if (!question.id || !this.isQuestionOpen(question)) {
-				continue
-			}
-
-			const reason = this.getUnanswerableQuestionReason(question)
-			if (reason) {
-				this.markQuestionUnanswerable(question.id, reason)
-			}
-		}
-	}
-
-	private getUnanswerableQuestionReason(question: AgentCoordinationEvent): string | undefined {
-		if (question.agentId && this.isAgentTerminal(question.agentId)) {
-			return `Asker ${question.agentId} is already ${this.getAgentStatus(question.agentId) ?? "terminal"}.`
-		}
-
-		if (!question.targetAgentId) {
-			return undefined
-		}
-
-		const target = this.getAgent(question.targetAgentId)
-		if (!target) {
-			return `Target ${question.targetAgentId} is unavailable.`
-		}
-
-		const retryCount = question.agentId ? this.getCompletionGateRetryCount(question.agentId, question.id) : 0
-		if (target.status === "complete") {
-			return retryCount >= AGENT_COORDINATION_COMPLETION_RETRY_LIMIT
-				? `Target ${question.targetAgentId} is already complete and did not answer after bounded completion retries.`
-				: undefined
-		}
-
-		if (this.isTerminalStatus(target.status)) {
-			return `Target ${question.targetAgentId} is already ${target.status}.`
-		}
-
-		if (retryCount >= AGENT_COORDINATION_COMPLETION_RETRY_LIMIT && target.status !== "running") {
-			return `Target ${question.targetAgentId} is not currently running after bounded completion retries.`
-		}
-
-		if (retryCount >= AGENT_COORDINATION_COMPLETION_RETRY_LIMIT && target.status === "running") {
-			return `Target ${question.targetAgentId} did not answer after bounded completion retries.`
-		}
-
-		return undefined
+		// Targeted questions must remain visibly pending/blocking until an answer or explicit cancellation/failure
+		// is represented in coordination state. Bounded waits may time out, but timeouts/retries must not resolve
+		// or downgrade the underlying question to a non-blocking local assumption.
 	}
 
 	private getBlockingIncomingQuestions(agentId: string): AgentCoordinationEvent[] {
@@ -990,10 +1125,9 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			.map((state) => state.question)
 			.filter(
 				(question) =>
-					this.isQuestionOpen(question) &&
+					this.isQuestionUnresolved(question) &&
 					question.agentId !== agentId &&
-					question.targetAgentId === agentId &&
-					(!question.agentId || !this.isAgentTerminal(question.agentId)),
+					question.targetAgentId === agentId,
 			)
 	}
 
@@ -1003,7 +1137,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			.map((state) => state.question)
 			.filter((question) => {
 				if (
-					!this.isQuestionOpen(question) ||
+					!this.isQuestionUnresolved(question) ||
 					question.agentId !== agentId ||
 					!question.targetAgentId ||
 					question.targetAgentId === agentId
@@ -1011,8 +1145,7 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 					return false
 				}
 
-				const targetStatus = this.getAgentStatus(question.targetAgentId)
-				return targetStatus === "complete" || !this.isTerminalStatus(targetStatus)
+				return true
 			})
 	}
 
