@@ -419,8 +419,14 @@ function formatCompletionCoordinationGate(task: Task): string | undefined {
 	const outgoing = gate.blockers.filter((blocker) => blocker.type === "outgoing-question")
 	const unreadAnswers = gate.blockers.filter((blocker) => blocker.type === "unread-answer")
 	const sharedContractBlockers = gate.blockers.filter((blocker) => blocker.type === "shared-contract-unacknowledged")
+	const blockedStatusBlockers = gate.blockers.filter((blocker) => blocker.type === "agent-blocked")
 	const lines = [
 		"Cannot complete: unresolved parallel-agent coordination.",
+		blockedStatusBlockers.length ? "Resolve current blocked agent status before retrying:" : undefined,
+		...blockedStatusBlockers.map(
+			(blocker) =>
+				`- Current agent status is '${blocker.status}'. Clear the runtime blocker or dependency before attempt_completion.`,
+		),
 		sharedContractBlockers.length ? "Acknowledge shared contract before retrying:" : undefined,
 		...sharedContractBlockers.map(
 			(blocker) => `- coordinate_agents action='acknowledge_contract': ${blocker.sharedContract}`,
@@ -437,7 +443,7 @@ function formatCompletionCoordinationGate(task: Task): string | undefined {
 			(blocker) =>
 				`- ${blocker.answer?.id ?? "unknown"} for ${blocker.question.id ?? "unknown"}: ${blocker.answer?.message ?? ""}`,
 		),
-		"Next: coordinate_agents action='read'; answer incoming; acknowledge contracts; wait for targeted replies or escalate; then retry attempt_completion.",
+		"Next: coordinate_agents action='read'; answer incoming; acknowledge contracts; resolve blocked status; wait for targeted replies or escalate; then retry attempt_completion.",
 	]
 
 	return lines.filter(Boolean).join("\n")

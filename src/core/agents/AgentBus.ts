@@ -93,6 +93,10 @@ export type AgentCompletionCoordinationBlocker =
 			type: "shared-contract-unacknowledged"
 			sharedContract: string
 	  }
+	| {
+			type: "agent-blocked"
+			status: "blocked"
+	  }
 
 export type AgentCompletionCoordinationGate = {
 	approved: boolean
@@ -258,6 +262,10 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 
 	public getAgentStatus(agentId: string): AgentStatus | undefined {
 		return this.getAgent(agentId)?.status
+	}
+
+	public getActiveAgentIds(): string[] {
+		return (this.executionPlan?.agents ?? []).map((agent) => agent.id)
 	}
 
 	public isAgentTerminal(agentId: string): boolean {
@@ -537,10 +545,20 @@ export class AgentBus extends EventEmitter<AgentBusEvents> {
 			question,
 			answer,
 		}))
+		const blockedStatusBlockers =
+			this.getAgentStatus(agentId) === "blocked"
+				? [{ type: "agent-blocked" as const, status: "blocked" as const }]
+				: []
 		const unanswerableQuestions = this.getUnanswerableQuestionsForAgent(agentId)
 		const sharedContractBlockers = this.getSharedContractCompletionBlockers(agentId)
 
-		const blockers = [...sharedContractBlockers, ...incoming, ...outgoing, ...unreadAnswers]
+		const blockers = [
+			...blockedStatusBlockers,
+			...sharedContractBlockers,
+			...incoming,
+			...outgoing,
+			...unreadAnswers,
+		]
 		return { approved: blockers.length === 0, blockers, unanswerableQuestions }
 	}
 

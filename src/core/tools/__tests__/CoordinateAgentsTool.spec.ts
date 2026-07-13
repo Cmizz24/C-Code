@@ -9,6 +9,7 @@ describe("CoordinateAgentsTool", () => {
 				canCoordinateWithAgents: vi.fn(() => true),
 				getAgentStatus: vi.fn(() => "running"),
 				isAgentTerminal: vi.fn(() => false),
+				getActiveParallelAgentIds: vi.fn(() => ["agent-a", "agent-b", "agent-c"]),
 				publishAgentCoordination: vi.fn(() => ({
 					id: "coord-1",
 					agentId: "agent-a",
@@ -291,6 +292,41 @@ describe("CoordinateAgentsTool", () => {
 		},
 	)
 
+	it("rejects role labels that do not exactly match active agent IDs before publishing", async () => {
+		const tool = new CoordinateAgentsTool()
+		const { task, callbacks } = createCallbacks()
+
+		await tool.handle(
+			task as any,
+			{
+				type: "tool_use",
+				name: "coordinate_agents",
+				params: {},
+				nativeArgs: {
+					action: "publish",
+					kind: "question",
+					message: "Which API shape should the integration layer expose?",
+					targetAgentId: "integration",
+				},
+			} as ToolUse<"coordinate_agents">,
+			callbacks as any,
+		)
+
+		expect(task.publishAgentCoordination).not.toHaveBeenCalled()
+		expect(task.waitForAgentCoordinationAnswer).not.toHaveBeenCalled()
+		expect(task.recordToolError).toHaveBeenCalledWith(
+			"coordinate_agents",
+			expect.stringContaining("Invalid targetAgentId 'integration'"),
+		)
+		const message = (task.recordToolError as any).mock.calls[0][1] as string
+		expect(message).toContain("Valid exact agent IDs: 'agent-a', 'agent-b', 'agent-c'.")
+		expect(message).toContain(
+			"Role/display labels such as 'integration' or 'security' are invalid unless they exactly match an agent ID.",
+		)
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining(message))
+		expect(task.consecutiveMistakeCount).toBe(1)
+	})
+
 	it("returns a non-fatal result when terminal agents try to publish", async () => {
 		const tool = new CoordinateAgentsTool()
 		const { task, callbacks } = createCallbacks()
@@ -517,6 +553,42 @@ describe("CoordinateAgentsTool", () => {
 		})
 		expect(task.waitForAgentCoordinationAnswer).not.toHaveBeenCalled()
 		expect(task.getAgentCoordinationEvents).toHaveBeenCalledWith({ limit: 8 })
+	})
+
+	it("rejects blocking waits for broadcast/no-target questions before publishing", async () => {
+		const tool = new CoordinateAgentsTool()
+		const { task, callbacks } = createCallbacks()
+
+		await tool.handle(
+			task as any,
+			{
+				type: "tool_use",
+				name: "coordinate_agents",
+				params: {},
+				nativeArgs: {
+					action: "publish",
+					kind: "question",
+					message: "Can anyone confirm the shared selector?",
+					targetAgentId: "all",
+					waitForAnswer: true,
+				},
+			} as ToolUse<"coordinate_agents">,
+			callbacks as any,
+		)
+
+		expect(task.publishAgentCoordination).not.toHaveBeenCalled()
+		expect(task.waitForAgentCoordinationAnswer).not.toHaveBeenCalled()
+		expect(task.recordToolError).toHaveBeenCalledWith(
+			"coordinate_agents",
+			expect.stringContaining(
+				"waitForAnswer=true requires targetAgentId to be one concrete exact active parallel-agent ID.",
+			),
+		)
+		const message = (task.recordToolError as any).mock.calls[0][1] as string
+		expect(message).toContain("Broadcast/no-target values cannot wait for an answer.")
+		expect(message).toContain("Valid exact agent IDs: 'agent-a', 'agent-b', 'agent-c'.")
+		expect(callbacks.pushToolResult).toHaveBeenCalledWith(expect.stringContaining(message))
+		expect(task.consecutiveMistakeCount).toBe(1)
 	})
 
 	it("rejects unsupported publish kinds before posting", async () => {

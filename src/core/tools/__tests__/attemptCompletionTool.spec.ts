@@ -753,6 +753,54 @@ describe("attemptCompletionTool", () => {
 				expect(toolResult.length).toBeLessThan(500)
 			})
 
+			it("blocks parallel agent completion while the runtime status is blocked", async () => {
+				const block: AttemptCompletionToolUse = {
+					type: "tool_use",
+					name: "attempt_completion",
+					params: { result: "Agent finished" },
+					nativeArgs: { result: "Agent finished" },
+					partial: false,
+				}
+				const parallelTask = mockTask as any
+				parallelTask.parentTaskId = "parent-task"
+				parallelTask.agentId = "ui-agent"
+				parallelTask.agentBus = {} as any
+				parallelTask.getAgentCompletionCoordinationGate = vi.fn(() => ({
+					approved: false,
+					blockers: [{ type: "agent-blocked", status: "blocked" }],
+					unanswerableQuestions: [],
+				}))
+
+				const callbacks: AttemptCompletionCallbacks = {
+					askApproval: mockAskApproval,
+					handleError: mockHandleError,
+					pushToolResult: mockPushToolResult,
+					askFinishSubTaskApproval: mockAskFinishSubTaskApproval,
+					toolDescription: mockToolDescription,
+				}
+
+				await attemptCompletionTool.handle(mockTask as Task, block, callbacks)
+
+				expect(parallelTask.getAgentCompletionCoordinationGate).toHaveBeenCalledWith({ recordAttempt: true })
+				expect(mockTask.say).not.toHaveBeenCalledWith("completion_result", expect.anything(), undefined, false)
+				expect(mockTask.emit).not.toHaveBeenCalledWith(
+					RooCodeEventName.TaskCompleted,
+					expect.anything(),
+					expect.anything(),
+					expect.anything(),
+				)
+				expect(mockTask.recordToolError).toHaveBeenCalledWith(
+					"attempt_completion",
+					"Open parallel-agent coordination questions are unresolved.",
+				)
+				const toolResult = mockPushToolResult.mock.calls[0][0] as string
+				expect(toolResult).toContain("Cannot complete: unresolved parallel-agent coordination.")
+				expect(toolResult).toContain("Resolve current blocked agent status before retrying:")
+				expect(toolResult).toContain("Current agent status is 'blocked'")
+				expect(toolResult).toContain("resolve blocked status")
+				expect(toolResult.length).toBeLessThan(450)
+			})
+
 			it("lets parallel agent children complete without visible approval or Boomerang delegation", async () => {
 				const block: AttemptCompletionToolUse = {
 					type: "tool_use",

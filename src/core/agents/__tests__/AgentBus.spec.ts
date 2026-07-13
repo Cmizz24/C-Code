@@ -235,6 +235,18 @@ describe("AgentBus", () => {
 		expect(bus.getAgentCompletionCoordinationGate("agent-a").approved).toBe(true)
 	})
 
+	it("blocks completion while the current agent runtime status is blocked", () => {
+		bus.markBlocked("agent-a", "Waiting on an integration signal from agent-b.")
+
+		const gate = bus.getAgentCompletionCoordinationGate("agent-a")
+
+		expect(gate.approved).toBe(false)
+		expect(gate.blockers).toEqual(
+			expect.arrayContaining([expect.objectContaining({ type: "agent-blocked", status: "blocked" })]),
+		)
+		expect(gate.unanswerableQuestions).toEqual([])
+	})
+
 	it("treats legacy persisted plans without sharedContract as having no contract", () => {
 		const legacyPlan = createPlan()
 		delete (legacyPlan as Partial<ExecutionPlan>).sharedContract

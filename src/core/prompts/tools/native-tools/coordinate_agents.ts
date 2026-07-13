@@ -19,7 +19,7 @@ const coordinateAgentsTool: OpenAI.Chat.ChatCompletionTool = {
 	type: "function",
 	function: {
 		name: "coordinate_agents",
-		description: `${COORDINATE_AGENTS_DESCRIPTION} Targeted questions default to waiting until answered, cancelled, or timed out; a timeout leaves the question pending and completion-blocking until answered or explicitly escalated. Do not replace a missing answer with a local assumption.`,
+		description: `${COORDINATE_AGENTS_DESCRIPTION} Targeted questions with an exact targetAgentId default to waiting until answered, cancelled, or timed out; waitForAnswer=true requires one concrete exact active targetAgentId and cannot be used for broadcast/no-target questions. Role/display labels such as integration or security are invalid unless they exactly match an agent ID. A timeout leaves the question pending and completion-blocking until answered or explicitly escalated. Do not replace a missing answer with a local assumption.`,
 		strict: true,
 		parameters: {
 			type: "object",
@@ -44,7 +44,7 @@ const coordinateAgentsTool: OpenAI.Chat.ChatCompletionTool = {
 				targetAgentId: {
 					type: "string",
 					description:
-						"Optional sibling agent id that should receive a publish message. Omit to broadcast to all sibling agents; empty string and 'all' are also treated as broadcast/no target. Omit on read.",
+						"Optional exact active plan agent ID that should receive a publish message. Omit to broadcast to all sibling agents; empty string, 'all', and 'none' are treated as broadcast/no target. Role/display labels such as 'integration' or 'security' are invalid unless they exactly match an agent ID. Omit on read.",
 				},
 				relatedFiles: {
 					type: "array",
@@ -66,7 +66,7 @@ const coordinateAgentsTool: OpenAI.Chat.ChatCompletionTool = {
 				waitForAnswer: {
 					type: "boolean",
 					description:
-						"Publish-question option only. Targeted questions default to waiting until answered, cancelled, or timed out; broadcast questions only wait when this is true. A timeout or wait opt-out leaves a targeted question pending and completion-blocking until answered or explicitly escalated. Do not proceed with a local assumption for a missing answer. Omit on read and acknowledgement.",
+						"Publish-question option only. Targeted questions with an exact targetAgentId default to waiting until answered, cancelled, or timed out. waitForAnswer=true requires one concrete exact active targetAgentId; broadcast/no-target questions cannot wait for an answer. A timeout or wait opt-out leaves a targeted question pending and completion-blocking until answered or explicitly escalated. Do not proceed with a local assumption for a missing answer. Omit on read and acknowledgement.",
 				},
 				timeoutMs: {
 					type: "integer",

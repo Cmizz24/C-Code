@@ -31,7 +31,11 @@ describe("coordinate_agents native tool", () => {
 		expect(description).toContain("Agent <id> owns <file>")
 		expect(description).toContain("For publishing")
 		expect(description).toContain("targeted integration question")
-		expect(description).toContain("Targeted questions default to waiting until answered")
+		expect(description).toContain("Targeted questions with an exact targetAgentId default to waiting")
+		expect(description).toContain("waitForAnswer=true requires one concrete exact active targetAgentId")
+		expect(description).toContain(
+			"Role/display labels such as integration or security are invalid unless they exactly match an agent ID",
+		)
 		expect(description).toContain("timeout leaves the question pending and completion-blocking")
 		expect(description).toContain("Do not replace a missing answer with a local assumption")
 		expect(description).not.toContain("timed out, unanswerable")
@@ -68,8 +72,18 @@ describe("coordinate_agents native tool", () => {
 		expect(parameters.properties.relatedFiles.items.maxLength).toBe(200)
 		expect(parameters.properties.limit.minimum).toBe(1)
 		expect(parameters.properties.limit.maximum).toBe(20)
+		expect(parameters.properties.targetAgentId.description).toContain("Optional exact active plan agent ID")
+		expect(parameters.properties.targetAgentId.description).toContain(
+			"Role/display labels such as 'integration' or 'security' are invalid unless they exactly match an agent ID",
+		)
 		expect(parameters.properties.waitForAnswer.type).toBe("boolean")
-		expect(parameters.properties.waitForAnswer.description).toContain("Targeted questions default to waiting")
+		expect(parameters.properties.waitForAnswer.description).toContain(
+			"Targeted questions with an exact targetAgentId default to waiting",
+		)
+		expect(parameters.properties.waitForAnswer.description).toContain(
+			"waitForAnswer=true requires one concrete exact active targetAgentId",
+		)
+		expect(parameters.properties.waitForAnswer.description).toContain("broadcast/no-target questions cannot wait")
 		expect(parameters.properties.waitForAnswer.description).toContain("pending and completion-blocking")
 		expect(parameters.properties.waitForAnswer.description).toContain("Do not proceed with a local assumption")
 		expect(parameters.properties.waitForAnswer.description).not.toContain("unanswerable")

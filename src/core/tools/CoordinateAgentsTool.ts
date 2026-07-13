@@ -11,6 +11,18 @@ const BROADCAST_TARGET_SENTINELS = new Set(["all", "none"])
 const NO_REPLY_SENTINELS = new Set(["none"])
 const PUBLISHABLE_COORDINATION_KINDS = new Set(["question", "answer", "decision", "note", "blocker"])
 
+function formatValidTargetAgentIds(activeAgentIds: string[]): string {
+	return activeAgentIds.length > 0 ? activeAgentIds.map((agentId) => `'${agentId}'`).join(", ") : "(none available)"
+}
+
+function formatInvalidTargetAgentIdError(targetAgentId: string, activeAgentIds: string[]): string {
+	return `Invalid targetAgentId '${targetAgentId}'. targetAgentId must exactly match one active parallel-agent ID. Valid exact agent IDs: ${formatValidTargetAgentIds(activeAgentIds)}. Role/display labels such as 'integration' or 'security' are invalid unless they exactly match an agent ID. Omit targetAgentId to broadcast without waiting.`
+}
+
+function formatMissingTargetForWaitError(activeAgentIds: string[]): string {
+	return `waitForAnswer=true requires targetAgentId to be one concrete exact active parallel-agent ID. Broadcast/no-target values cannot wait for an answer. Valid exact agent IDs: ${formatValidTargetAgentIds(activeAgentIds)}.`
+}
+
 function normalizeOptionalCoordinationString(
 	value: string | undefined,
 	sentinels: ReadonlySet<string>,
@@ -158,6 +170,7 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 				params.targetAgentId,
 				BROADCAST_TARGET_SENTINELS,
 			)
+			const activeAgentIds = task.getActiveParallelAgentIds()
 			const isPotentialTargetedAnswer = Boolean(
 				params.kind === "answer" &&
 					(normalizedReplyToId || normalizedTargetAgentId || params.relatedFiles?.length),
@@ -167,6 +180,22 @@ export class CoordinateAgentsTool extends BaseTool<"coordinate_agents"> {
 				task.consecutiveMistakeCount = 0
 				const recent = task.getAgentCoordinationEvents({ limit: params.limit })
 				pushToolResult(formatTerminalPublishSuppression(task.getAgentStatus(), recent))
+				return
+			}
+
+			if (normalizedTargetAgentId && !activeAgentIds.includes(normalizedTargetAgentId)) {
+				task.consecutiveMistakeCount++
+				const message = formatInvalidTargetAgentIdError(normalizedTargetAgentId, activeAgentIds)
+				task.recordToolError("coordinate_agents", message)
+				pushToolResult(formatResponse.toolError(message))
+				return
+			}
+
+			if (params.waitForAnswer === true && !normalizedTargetAgentId) {
+				task.consecutiveMistakeCount++
+				const message = formatMissingTargetForWaitError(activeAgentIds)
+				task.recordToolError("coordinate_agents", message)
+				pushToolResult(formatResponse.toolError(message))
 				return
 			}
 

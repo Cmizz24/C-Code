@@ -4661,6 +4661,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		return this.agentBus.isAgentTerminal(this.agentId)
 	}
 
+	public getActiveParallelAgentIds(): string[] {
+		if (!this.canCoordinateWithAgents() || !this.agentBus) {
+			return []
+		}
+
+		return this.agentBus.getActiveAgentIds()
+	}
+
 	public markAgentTerminal(): void {
 		this.agentTerminal = true
 		this.userMessageContentReady = true

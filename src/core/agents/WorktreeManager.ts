@@ -32,13 +32,19 @@ export type WorktreeMergeReviewDiagnostics = {
 	originalOwnedPaths?: string[]
 	normalizedOwnedPaths?: string[]
 	pathDiagnostics?: WorktreeMergeReviewPathDiagnostic[]
+	allTrackedChangedPaths?: string[]
+	allUntrackedChangedPaths?: string[]
+	allChangedPaths?: string[]
 	trackedChangedPaths?: string[]
 	untrackedChangedPaths?: string[]
+	ownedChangedPaths?: string[]
+	outOfScopeChangedPaths?: string[]
 	stagedPaths?: string[]
 	commitCreated?: boolean
 	result:
 		| "all-worktree-changes-staged"
 		| "owned-changes-staged"
+		| "out-of-scope-changes"
 		| "no-owned-worktree-changes"
 		| "no-staged-changes"
 		| "committed"
@@ -112,6 +118,8 @@ export class WorktreeManagerGitUnavailableError extends WorktreeSetupRequiredErr
 
 export type WorktreeMergeFailureStage = "rebase" | "merge" | "apply"
 
+type WorktreeOutOfScopeChangesOperation = "merge review" | "materialization"
+
 export class WorktreeMergeError extends WorktreeManagerError {
 	constructor(
 		readonly stage: WorktreeMergeFailureStage,
@@ -123,6 +131,28 @@ export class WorktreeMergeError extends WorktreeManagerError {
 	) {
 		super(formatMergeFailureMessage(stage, branch, conflictedFiles, abortError, originalError))
 		this.name = "WorktreeMergeError"
+	}
+}
+
+export class WorktreeOutOfScopeChangesError extends WorktreeManagerError {
+	constructor(
+		readonly operation: WorktreeOutOfScopeChangesOperation,
+		readonly branch: string,
+		readonly cwd: string,
+		readonly outOfScopeChangedPaths: string[],
+		readonly ownedPaths: string[],
+		readonly agentId?: string,
+	) {
+		super(
+			formatOutOfScopeChangesMessage({
+				operation,
+				branch,
+				outOfScopeChangedPaths,
+				ownedPaths,
+				agentId,
+			}),
+		)
+		this.name = "WorktreeOutOfScopeChangesError"
 	}
 }
 
@@ -289,6 +319,28 @@ function formatMergeFailureMessage(
 	const gitMessage = originalError ? `\n\nGit output:\n${originalError}` : ""
 
 	return `Failed to ${action} parallel agent branch ${branch} ${target}.${conflictMessage}\n${cleanupMessage}${gitMessage}`
+}
+
+function formatOutOfScopeChangesMessage(params: {
+	operation: WorktreeOutOfScopeChangesOperation
+	branch: string
+	outOfScopeChangedPaths: string[]
+	ownedPaths: string[]
+	agentId?: string
+}): string {
+	const ownerLabel = params.agentId ? `agent ${params.agentId}` : `branch ${params.branch}`
+	const changedPaths = params.outOfScopeChangedPaths.length > 0 ? params.outOfScopeChangedPaths : ["(none)"]
+	const ownedPaths = params.ownedPaths.length > 0 ? params.ownedPaths : ["(none)"]
+
+	return [
+		`Parallel ${ownerLabel} changed files outside its declared writable ownership during ${params.operation}.`,
+		"Merge review/materialization is blocked so required support files are not silently omitted.",
+		"Update the parallel plan so each generated support/helper/library file is declared in exactly one agent's writable ownership scope, or handle these paths manually.",
+		"Out-of-scope changed paths:",
+		...changedPaths.map((filePath) => `- ${filePath}`),
+		"Declared writable ownership:",
+		...ownedPaths.map((filePath) => `- ${filePath}`),
+	].join("\n")
 }
 
 export class WorktreeManager {
@@ -639,34 +691,69 @@ export class WorktreeManager {
 	}): Promise<string> {
 		const ownedPaths = params.ownedPaths?.map(normalizeGitPath).filter(Boolean)
 
-		if (params.ownedPaths && ownedPaths?.length === 0) {
-			return ""
+		await this.commitPendingWorktreeChanges({ ...params, originalOwnedPaths: params.ownedPaths, ownedPaths })
+
+		if (params.ownedPaths) {
+			const scopedOwnedPaths = ownedPaths ?? []
+			const baselineCommit = this.workspaceBaselines.get(params.planId)?.commit ?? "HEAD"
+			const gitRoot = await this.resolveGitRoot()
+			await this.assertBranchChangesWithinOwnedPaths({
+				operation: "merge review",
+				agentId: params.agentId,
+				branch: params.branch,
+				gitRoot,
+				baselineCommit,
+				ownedPaths: scopedOwnedPaths,
+			})
+
+			if (scopedOwnedPaths.length === 0) {
+				return ""
+			}
 		}
 
-		await this.commitPendingWorktreeChanges({ ...params, originalOwnedPaths: params.ownedPaths, ownedPaths })
 		return this.getBranchDiff(params.branch, ownedPaths, this.workspaceBaselines.get(params.planId)?.commit)
 	}
 
 	public async mergeBranch(
 		branch: string,
-		params: { planId?: string; worktreePath?: string; ownedPaths?: string[]; autoApproved?: boolean } = {},
+		params: {
+			planId?: string
+			worktreePath?: string
+			ownedPaths?: string[]
+			autoApproved?: boolean
+			agentId?: string
+		} = {},
 	): Promise<void> {
 		const gitRoot = await this.resolveGitRoot()
 		const baseline = params.planId ? this.workspaceBaselines.get(params.planId) : undefined
 		const ownedPaths = params.ownedPaths?.map(normalizeGitPath).filter(Boolean)
 
-		if (baseline && ownedPaths?.length) {
+		if (baseline && params.ownedPaths) {
+			const scopedOwnedPaths = ownedPaths ?? []
+			await this.assertBranchChangesWithinOwnedPaths({
+				operation: "materialization",
+				agentId: params.agentId,
+				branch,
+				gitRoot,
+				baselineCommit: baseline.commit,
+				ownedPaths: scopedOwnedPaths,
+			})
+
+			if (scopedOwnedPaths.length === 0) {
+				return
+			}
+
 			if (params.autoApproved) {
 				await this.materializeOwnedBranchChanges(branch, {
 					gitRoot,
 					baselineCommit: baseline.commit,
-					ownedPaths,
+					ownedPaths: scopedOwnedPaths,
 				})
 			} else {
 				await this.applyOwnedBranchDiff(branch, {
 					gitRoot,
 					baselineCommit: baseline.commit,
-					ownedPaths,
+					ownedPaths: scopedOwnedPaths,
 				})
 			}
 
@@ -770,6 +857,38 @@ export class WorktreeManager {
 		}
 
 		return Array.from(uniqueChangedPaths)
+	}
+
+	private async assertBranchChangesWithinOwnedPaths(params: {
+		operation: WorktreeOutOfScopeChangesOperation
+		agentId?: string
+		branch: string
+		gitRoot: string
+		baselineCommit: string
+		ownedPaths: string[]
+	}): Promise<void> {
+		const changedPaths = await this.getBranchChangedPaths(params.gitRoot, params.branch, params.baselineCommit)
+		const outOfScopeChangedPaths = this.getOutOfScopeChangedPaths(changedPaths, params.ownedPaths)
+
+		if (outOfScopeChangedPaths.length === 0) {
+			return
+		}
+
+		throw new WorktreeOutOfScopeChangesError(
+			params.operation,
+			params.branch,
+			params.gitRoot,
+			outOfScopeChangedPaths,
+			params.ownedPaths,
+			params.agentId,
+		)
+	}
+
+	private async getBranchChangedPaths(gitRoot: string, branch: string, baselineCommit: string): Promise<string[]> {
+		return this.getNullSeparatedGitOutput(
+			`git diff --name-only -z --no-renames ${baselineCommit}...${shellQuote(branch)}`,
+			gitRoot,
+		)
 	}
 
 	private isPathWithinOwnedPaths(filePath: string, ownedPaths: string[]): boolean {
@@ -1148,8 +1267,13 @@ export class WorktreeManager {
 		onDiagnostics?: WorktreeMergeReviewDiagnosticsCallback
 	}): Promise<void> {
 		let pathDiagnostics: WorktreeMergeReviewPathDiagnostic[] | undefined
+		let allTrackedChangedPaths: string[] | undefined
+		let allUntrackedChangedPaths: string[] | undefined
+		let allChangedPaths: string[] | undefined
 		let trackedChangedPaths: string[] | undefined
 		let untrackedChangedPaths: string[] | undefined
+		let ownedChangedPaths: string[] | undefined
+		let outOfScopeChangedPaths: string[] | undefined
 		let stagedPaths: string[] | undefined
 		let commitCreated = false
 
@@ -1162,15 +1286,20 @@ export class WorktreeManager {
 				originalOwnedPaths: params.originalOwnedPaths,
 				normalizedOwnedPaths: params.ownedPaths,
 				pathDiagnostics,
+				allTrackedChangedPaths,
+				allUntrackedChangedPaths,
+				allChangedPaths,
 				trackedChangedPaths,
 				untrackedChangedPaths,
+				ownedChangedPaths,
+				outOfScopeChangedPaths,
 				stagedPaths,
 				commitCreated,
 				result,
 			})
 		}
 
-		if (params.ownedPaths?.length) {
+		if (params.ownedPaths) {
 			pathDiagnostics = params.onDiagnostics
 				? await this.getMergeReviewPathDiagnostics(
 						params.worktreePath,
@@ -1179,10 +1308,29 @@ export class WorktreeManager {
 					)
 				: undefined
 
-			const changedPathSet = await this.getOwnedWorktreeChangedPaths(params.worktreePath, params.ownedPaths)
+			const allChangedPathSet = await this.getWorktreeChangedPaths(params.worktreePath)
+			allTrackedChangedPaths = allChangedPathSet.trackedChangedPaths
+			allUntrackedChangedPaths = allChangedPathSet.untrackedChangedPaths
+			allChangedPaths = allChangedPathSet.changedPaths
+
+			const changedPathSet = this.getOwnedChangedPathSet(allChangedPathSet, params.ownedPaths)
 			trackedChangedPaths = changedPathSet.trackedChangedPaths
 			untrackedChangedPaths = changedPathSet.untrackedChangedPaths
+			ownedChangedPaths = changedPathSet.changedPaths
 			stagedPaths = changedPathSet.changedPaths
+			outOfScopeChangedPaths = this.getOutOfScopeChangedPaths(allChangedPathSet.changedPaths, params.ownedPaths)
+
+			if (outOfScopeChangedPaths.length > 0) {
+				emitDiagnostics("out-of-scope-changes")
+				throw new WorktreeOutOfScopeChangesError(
+					"merge review",
+					params.branch,
+					params.worktreePath,
+					outOfScopeChangedPaths,
+					params.ownedPaths,
+					params.agentId,
+				)
+			}
 
 			if (stagedPaths.length === 0) {
 				emitDiagnostics("no-owned-worktree-changes")
@@ -1210,43 +1358,65 @@ export class WorktreeManager {
 		emitDiagnostics("committed")
 	}
 
-	private async getOwnedWorktreeChangedPaths(
-		worktreePath: string,
+	private async getWorktreeChangedPaths(worktreePath: string): Promise<WorktreeChangedPathSet> {
+		const trackedChangedPaths = await this.getNullSeparatedGitOutput(
+			"git diff --name-only -z HEAD --",
+			worktreePath,
+		)
+		const untrackedChangedPaths = await this.getNullSeparatedGitOutput(
+			"git ls-files --others --exclude-standard -z",
+			worktreePath,
+		)
+
+		return this.createChangedPathSet(trackedChangedPaths, untrackedChangedPaths)
+	}
+
+	private getOwnedChangedPathSet(
+		changedPathSet: WorktreeChangedPathSet,
 		ownedPaths: string[],
-	): Promise<WorktreeChangedPathSet> {
-		const trackedChangedPaths = new Set<string>()
-		const untrackedChangedPaths = new Set<string>()
+	): WorktreeChangedPathSet {
+		return this.createChangedPathSet(
+			changedPathSet.trackedChangedPaths.filter((filePath) => this.isPathWithinOwnedPaths(filePath, ownedPaths)),
+			changedPathSet.untrackedChangedPaths.filter((filePath) =>
+				this.isPathWithinOwnedPaths(filePath, ownedPaths),
+			),
+		)
+	}
 
-		for (const chunk of this.chunkPathspecs(ownedPaths)) {
-			const pathspec = this.formatPathspec(chunk)
-			const trackedPaths = await this.getNullSeparatedGitOutput(
-				`git diff --name-only -z HEAD -- ${pathspec}`,
-				worktreePath,
-			)
-			const untrackedPaths = await this.getNullSeparatedGitOutput(
-				`git ls-files --others --exclude-standard -z -- ${pathspec}`,
-				worktreePath,
-			)
+	private createChangedPathSet(
+		trackedChangedPaths: string[],
+		untrackedChangedPaths: string[],
+	): WorktreeChangedPathSet {
+		const normalizedTrackedChangedPaths = this.uniqueNormalizedPaths(trackedChangedPaths)
+		const normalizedUntrackedChangedPaths = this.uniqueNormalizedPaths(untrackedChangedPaths)
 
-			for (const filePath of trackedPaths) {
-				if (this.isPathWithinOwnedPaths(filePath, ownedPaths)) {
-					trackedChangedPaths.add(filePath)
-				}
-			}
-
-			for (const filePath of untrackedPaths) {
-				if (this.isPathWithinOwnedPaths(filePath, ownedPaths)) {
-					untrackedChangedPaths.add(filePath)
-				}
-			}
-		}
-
-		const changedPaths = Array.from(new Set([...trackedChangedPaths, ...untrackedChangedPaths]))
 		return {
-			trackedChangedPaths: Array.from(trackedChangedPaths),
-			untrackedChangedPaths: Array.from(untrackedChangedPaths),
-			changedPaths,
+			trackedChangedPaths: normalizedTrackedChangedPaths,
+			untrackedChangedPaths: normalizedUntrackedChangedPaths,
+			changedPaths: this.uniqueNormalizedPaths([
+				...normalizedTrackedChangedPaths,
+				...normalizedUntrackedChangedPaths,
+			]),
 		}
+	}
+
+	private getOutOfScopeChangedPaths(changedPaths: string[], ownedPaths: string[]): string[] {
+		return this.uniqueNormalizedPaths(changedPaths).filter(
+			(filePath) => !this.isPathWithinOwnedPaths(filePath, ownedPaths),
+		)
+	}
+
+	private uniqueNormalizedPaths(filePaths: string[]): string[] {
+		const uniquePaths = new Set<string>()
+
+		for (const filePath of filePaths) {
+			const normalizedPath = normalizeGitPath(filePath)
+			if (normalizedPath) {
+				uniquePaths.add(normalizedPath)
+			}
+		}
+
+		return Array.from(uniquePaths)
 	}
 
 	private async getMergeReviewPathDiagnostics(

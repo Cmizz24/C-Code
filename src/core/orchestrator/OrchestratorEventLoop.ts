@@ -398,15 +398,24 @@ export class OrchestratorEventLoop {
 	}
 
 	private buildDependencyContext(agent: AgentPlan): string {
-		return agent.dependsOn
-			.map((dependency) => {
-				const coordinationPoint =
-					dependency.waitFor === "signal"
-						? `signal${dependency.signal ? ` ${dependency.signal}` : ""}`
-						: "completion context"
-				return `- Coordinate with ${dependency.agentId} (${coordinationPoint}, non-blocking)${dependency.context ? `: ${dependency.context}` : ""}`
-			})
-			.join("\n")
+		if (agent.dependsOn.length === 0) {
+			return ""
+		}
+
+		const dependencyLines = agent.dependsOn.map((dependency) => {
+			const coordinationPoint =
+				dependency.waitFor === "signal"
+					? `signal${dependency.signal ? ` ${dependency.signal}` : ""}`
+					: "completion context"
+			return `- Informational context link to ${dependency.agentId} (${coordinationPoint}, non-blocking)${dependency.context ? `: ${dependency.context}` : ""}`
+		})
+
+		return [
+			"These dependsOn entries are informational context links only; they are not enforced runtime waits and do not delay your start or completion.",
+			' Do not claim you are "waiting for integration/security" or "blocked on dependency completion" unless you have an actual unanswered targeted coordinate_agents request with waitForAnswer=true or the runtime reports your agent as blocked.'.trim(),
+			"If you truly need another agent's result, use coordinate_agents with the exact targetAgentId and waitForAnswer=true instead of relying on dependsOn.",
+			...dependencyLines,
+		].join("\n")
 	}
 
 	private buildContinuationContext(agent: AgentPlan): string {

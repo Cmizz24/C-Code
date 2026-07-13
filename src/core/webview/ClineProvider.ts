@@ -8043,6 +8043,7 @@ export class ClineProvider
 
 				this.recordParallelAgentActivity(agentId, `Applying branch ${branch} to the workspace.`, "file")
 				await this.ensureWorktreeManager().mergeBranch(branch, {
+					agentId,
 					planId: plan.planId,
 					worktreePath,
 					ownedPaths,
